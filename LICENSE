@@ -1,31 +1,6 @@
-BUSL-1.1 License for SushiAI
-
-Copyright (c) 2025 Mustafa Garip
-
-1. Definitions
-   “Licensed Work” means the SushiAI codebase and associated files in this repository.
-   “Use” means to copy, modify, compile, build, deploy, or otherwise execute the Licensed Work.
-   “Change Date” means June 1, 2027.
-
-2. Grant of Rights
-   You are granted the following rights with respect to the Licensed Work:
-   - You may view, clone, fork, and inspect the source code for any purpose.
-   - You may submit issues, pull requests, or feedback to the repository.
-
-3. Restrictions
-   Except as expressly provided herein, you may not Use the Licensed Work, nor permit the Licensed Work to be Used:
-   - in production environments;
-   - for any commercial purpose;
-   - in any product, service, or derivative work that is distributed to third parties;
-   - in any training, inference, or deployment context beyond academic or personal study.
-
-4. Change Date and License Conversion
-   On or after the Change Date (June 1, 2027), this License and all restrictions set forth herein will automatically terminate, and the Licensed Work will be relicensed under the MIT License.
-
-5. MIT License Terms (Effective June 1, 2027)
-   Upon the Change Date, the following MIT License shall apply to the Licensed Work:
-
 MIT License
+
+Copyright (c) 2025-present  Mustafa Garip & Sushi Systems
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the “Software”), to deal
@@ -44,7 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-6. Notices
-- All rights not expressly granted are reserved by the Copyright Holder.
-- For commercial licensing or special permissions prior to the Change Date, contact: mustafagarip@sushisystems.io
