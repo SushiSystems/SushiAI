@@ -1,4 +1,34 @@
-﻿#pragma once
+﻿/**************************************************************************/
+/*  tensor.h                                                              */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2025-present  Mustafa Garip & Sushi Systems              */
+/*                                                                   	  */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
+#pragma once
 #include <vector>
 #include <memory>
 #include <cassert>
@@ -9,7 +39,8 @@
 
 namespace SushiAI
 {
-    /// @class Tensor
+    #pragma region Tensor Class
+
     /// Represents a multi-dimensional array with autograd support.
     class Tensor : public std::enable_shared_from_this<Tensor>
     {
@@ -36,10 +67,14 @@ namespace SushiAI
             std::function<void()> gradientFunction;
             std::vector<std::shared_ptr<Tensor>> parents;
 
-            #pragma region The Constructor and Factory Methods
+            #pragma region Tensor Constructor
 
             /// Default Tensor constructor.
             Tensor(const std::vector<int>& shape, float fill = 0.0f, bool requiresGrad = false);
+
+            #pragma endregion
+
+            #pragma region Tensor Functions
 
             /// Tensor construction with zeros.
             static std::shared_ptr<Tensor> Zeros(const std::vector<int>& shape, bool requiresGrad = false);
@@ -63,13 +98,18 @@ namespace SushiAI
             /// Returns the list of tensors in topological order.
             std::vector<Tensor*> topologicalSort() const;
 
+            /// Clears the list of parent tensors.
+            void clearParents() { parents.clear(); }
+
+            #pragma region Backpropagation Mechanism, REFACTORING NEEDED
+
             /// Performs backpropagation starting from a scalar output tensor.
             void backward(bool retainGraph = false, bool clearExisting = true);
+
             /// Performs backpropagation using a custom gradient seed vector.
             void backward(const std::vector<float>& seed, bool retainGraph = false, bool clearExisting = true);
 
-            /// Clears the list of parent tensors.
-            void clearParents() { parents.clear(); }
+            #pragma endregion
 
             #pragma endregion
 
@@ -102,4 +142,6 @@ namespace SushiAI
 
             #pragma endregion
     };
+
+    #pragma endregion
 }

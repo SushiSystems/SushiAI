@@ -1,4 +1,34 @@
-﻿#include <memory>
+﻿/**************************************************************************/
+/*  tensor.cpp                                                            */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2025-present  Mustafa Garip & Sushi Systems              */
+/*                                                                   	  */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
+#include <memory>
 #include <random>
 #include <numeric>
 #include <algorithm>
@@ -8,7 +38,7 @@
 
 namespace SushiAI
 {
-    #pragma region The Constructor and Factory Methods
+    #pragma region Tensor Constructor
 
     Tensor::Tensor(const std::vector<int>& shape, float fill, bool requiresGrad) : shape(shape), requiresGradient(requiresGrad), totalSize(1)
     {
@@ -20,6 +50,10 @@ namespace SushiAI
 
         calculateStrides();
     }
+
+    #pragma endregion
+
+    #pragma region Tensor Functions
 
     std::shared_ptr<Tensor> Tensor::Zeros(const std::vector<int>& shape, bool requiresGrad)
     {
@@ -93,7 +127,9 @@ namespace SushiAI
         for (size_t i = 0; i < shape.size(); ++i)
         {
             std::cout << shape[i];
-            if (i < shape.size() - 1) std::cout << ", ";
+
+            if (i < shape.size() - 1) 
+                std::cout << ", ";
         }
         std::cout << "]\n";
 
@@ -103,7 +139,8 @@ namespace SushiAI
             for (size_t i = 0; i < data.size(); ++i)
             {
                 std::cout << data[i];
-                if (i < data.size() - 1) std::cout << ", ";
+                if (i < data.size() - 1) 
+                    std::cout << ", ";
             }
         }
         else if (shape.size() == 2) 
@@ -188,46 +225,40 @@ namespace SushiAI
         return topo;
     }
 
-    #pragma region Backpropagation, REFACTORING NEEDED
+    #pragma region Backpropagation Mechanism, REFACTORING NEEDED
 
     void Tensor::backward(bool retainGraph, bool clearExisting)
     {
-        // 1 elemanlı scalar çıktıda seed[0]=1.0, gerisi 0
         std::vector<float> seed(totalSize, 0.0f);
         seed[0] = 1.0f;
 
         backward(seed, retainGraph, clearExisting);
     }
 
-    // Gerçek propagation logic’i buraya:
     void Tensor::backward(const std::vector<float>& seed, bool retainGraph, bool clearExisting)
     {
         auto topo = topologicalSort();
 
-        // 2.1) Önceki gradient kalıntılarını sil
         if (clearExisting)
             for (auto* n : topo)
-                n->gradient.assign(n->totalSize, 0.0f);
+                n -> gradient.assign(n -> totalSize, 0.0f);
 
-        // 2.2) Root tensöre seed’i koy
-        assert((int)seed.size() == this->totalSize);
+        assert((int)seed.size() == this -> totalSize);
 
-        this->gradient = seed;
+        this -> gradient = seed;
 
-        // 2.3) Ters topo’da propagate
         for (auto it = topo.rbegin(); it != topo.rend(); ++it)
         {
-            if ((*it)->gradientFunction)
-                (*it)->gradientFunction();
+            if ((*it) -> gradientFunction)
+                (*it) -> gradientFunction();
         }
 
-        // 2.4) Graph cleanup (yeniden kullanılmayacaksa)
         if (!retainGraph)
         {
             for (auto* n : topo)
             {
-                n->gradientFunction = nullptr;
-                n->parents.clear();
+                n -> gradientFunction = nullptr;
+                n -> parents.clear();
             }
         }
     }

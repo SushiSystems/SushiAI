@@ -1,4 +1,34 @@
-﻿#pragma once
+﻿/**************************************************************************/
+/*  initializer.h                                                         */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2025-present  Mustafa Garip & Sushi Systems              */
+/*                                                                   	  */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
+#pragma once
 #include <cmath>
 #include <random>
 #include <algorithm>
@@ -11,6 +41,9 @@
 
 namespace SushiAI 
 {
+    #pragma region Initializer Class
+
+    /// Abstract base class for all weight initializers.
     class Initializer 
     {
         public:
@@ -19,7 +52,11 @@ namespace SushiAI
             virtual void initialize(const std::shared_ptr<Tensor>& t) const = 0;
     };
 
-    // 1) Uniform (a,b)
+    #pragma endregion
+
+    #pragma region Initializers
+
+    /// Initializes tensor values with a uniform distribution in range [a, b].
     class UniformInitializer : public Initializer
     {
         float lower, upper;
@@ -40,7 +77,7 @@ namespace SushiAI
             }
         };
 
-    // 2) Normal (μ,σ)
+    /// Initializes tensor values with a normal (Gaussian) distribution.
     class NormalInitializer : public Initializer
     {
         float mean, stddev;
@@ -61,7 +98,7 @@ namespace SushiAI
             }
     };
 
-    // Yardımcı: fan-in ve fan-out hesaplama
+    /// Computes fan-in and fan-out for a tensor based on its shape.
     inline void computeFans(const std::shared_ptr<Tensor>& t, int& fan_in, int& fan_out)
     {
         auto shape = t -> getShape();
@@ -81,7 +118,7 @@ namespace SushiAI
             fan_in = fan_out = 1;
     }
 
-    // 3) Xavier / Glorot Uniform
+    /// Xavier (Glorot) uniform initialization. Recommended for Tanh/Sigmoid activations.
     class XavierUniform : public Initializer
     {
         public:
@@ -96,7 +133,7 @@ namespace SushiAI
             }
     };
 
-    // 4) Xavier / Glorot Normal
+    /// Xavier (Glorot) normal initialization. Also suitable for Tanh/Sigmoid activations.
     class XavierNormal : public Initializer
     {
         public:
@@ -111,7 +148,7 @@ namespace SushiAI
             }
     };
 
-    // 5) He / Kaiming Uniform
+    /// He (Kaiming) uniform initialization. Recommended for ReLU or variants.
     class HeUniform : public Initializer
     {
         public:
@@ -126,7 +163,7 @@ namespace SushiAI
             }
     };
 
-    // 6) He / Kaiming Normal
+    /// He (Kaiming) normal initialization. Also suitable for ReLU or variants.
     class HeNormal : public Initializer
     {
         public:
@@ -141,7 +178,7 @@ namespace SushiAI
             }
     };
 
-    // 7) LeCun Uniform
+    /// LeCun uniform initialization. Recommended for self-normalizing networks (e.g., with SELU).
     class LeCunUniform : public Initializer
     {
         public:
@@ -156,13 +193,13 @@ namespace SushiAI
             }
     };
 
-    // 8) Orthogonal Initialization (2D matrisler için)
+    /// Generates a random matrix with orthonormal columns using QR decomposition.
     class OrthogonalInitializer : public Initializer
     {
         public:
             void initialize(const std::shared_ptr<Tensor>& t) const override
             {
-                auto shape = t->getShape();
+                auto shape = t -> getShape();
 
                 if (shape.size() != 2)
                     throw std::runtime_error("Orthogonal only supports 2D tensors");
@@ -176,16 +213,17 @@ namespace SushiAI
                 for (auto& x : mat)
                     x = dist(gen);
 
-                // Eigen kullanarak QR ayrıştırması (alternatif: Gram-Schmidt)
                 #ifdef USE_EIGEN
-                    Eigen::Map<Eigen::MatrixXf> M(mat.data(), rows, cols);
-                    Eigen::HouseholderQR<Eigen::MatrixXf> qr(M);
-                    Eigen::MatrixXf Q = qr.householderQ();
+                Eigen::Map<Eigen::MatrixXf> M(mat.data(), rows, cols);
+                Eigen::HouseholderQR<Eigen::MatrixXf> qr(M);
+                Eigen::MatrixXf Q = qr.householderQ();
 
-                    std::copy(Q.data(), Q.data() + rows * cols, t.data());
+                std::copy(Q.data(), Q.data() + rows * cols, t.data());
                 #else
-                    throw std::runtime_error("Orthogonal requires Eigen support");
+                throw std::runtime_error("Orthogonal requires Eigen support");
                 #endif
-        }
+            }
     };
+
+    #pragma endregion
 }
