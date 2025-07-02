@@ -8,7 +8,8 @@
 
 SushiAI is a C++ based project built around the idea of using deep learning to replicate physical systems, with the goal of making simulationsa and games run with minimal delay. It’s designed to integrate with Python for training and data preparation, and with Unity (C#) for real-time training & inferencing.
 
-**Vision:** "To deliver real-time performance in simulations without cutting corners on the laws of physics, powered by deep learning."s
+**Vision:** "To deliver real-time performance in simulations without cutting corners on the laws of physics, powered by deep learning."
+
 **Mission:** "To run Sushi Systems Virtual World project, Project: RL, on bit-level hardware with the highest possible performance."
 
 ## License and Contact
