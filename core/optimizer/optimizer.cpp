@@ -30,6 +30,7 @@
 
 #include <cmath>
 #include <algorithm>
+
 #include "optimizer.h"
 
 namespace SushiAI 

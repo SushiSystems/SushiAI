@@ -30,6 +30,7 @@
 
 #include <cmath>
 #include <cassert>
+
 #include "loss.h"
 #include "ops.h"
 

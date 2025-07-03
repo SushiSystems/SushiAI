@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  optimizer.h                                                           */
+/*  cpu_backend.h                                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -29,65 +29,37 @@
 /**************************************************************************/
 
 #pragma once
-#include <vector>
-#include <memory>
-#include <unordered_map>
+
+#include <cstddef>
 
 #include "tensor.h"
+#include "backend.h"
 
-namespace SushiAI 
+namespace SushiAI::SushiBLAS
 {
-    #pragma region Optimizer Class
-
-    /// Abstract base class for all optimizers.
-    class Optimizer 
+    class CPUBackend final : public Backend 
     {
         public:
-            virtual ~Optimizer() = default;
-            virtual void zeroGradient(const std::vector<std::shared_ptr<Tensor>>& parameters) = 0;
-            virtual void step(const std::vector<std::shared_ptr<Tensor>>& parameters) = 0;
-    };
+            explicit CPUBackend(std::size_t block = 64);
 
-    #pragma endregion
+            #pragma region Operations
 
-    #pragma region Optimizers
+            void gemm(const Tensor& A, const Tensor& B, Tensor& C, float alpha = 1.0f, float beta = 0.0f) override;
 
-    /// Stochastic Gradient Descent. Supports momentum and optional weight decay (L2 regularization).
-    class SGD : public Optimizer 
-    {
-        public:
-            SGD(float learningRate, float momentum = 0.0f, float weightDecay = 0.0f);
-            void zeroGradient(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
-            void step(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
+            void gemv(const Tensor& A, const Tensor& x, Tensor& y, float alpha = 1.0f, float beta = 0.0f) override;
 
-            float getLearningRate() const { return learningRate; }
-            float getMomentum() const { return momentum; }
+            void axpy(float alpha, const Tensor& x, Tensor& y) override;
+            float dot(const Tensor& x, const Tensor& y) override;
+
+            #pragma endregion
+
+            #pragma region Element-Wise Activation Functions  
+        
+            void relu(Tensor& x) override;
+
+            #pragma endregion
 
         private:
-            float learningRate;
-            float momentum;
-            float weightDecay;
-            std::unordered_map<Tensor*, std::vector<float>> velocity;
+            std::size_t blockSize;
     };
-
-    /// Adaptive Moment Estimation. Combines momentum and RMSprop-like adaptive learning rates.
-    class Adam : public Optimizer 
-    {
-        public:
-            Adam(float learningRate, float b1 = 0.9f, float b2 = 0.999f, float eps = 1e-8f);
-            void zeroGradient(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
-            void step(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
-
-            float getLearningRate() const { return learningRate; }
-        private:
-            float learningRate;
-            float beta1;
-            float beta2;
-            float eps;
-            int timeStep;
-            std::unordered_map<Tensor*, std::vector<float>> meanMoment;
-            std::unordered_map<Tensor*, std::vector<float>> varianceMoment;
-    };
-
-    #pragma endregion
 }

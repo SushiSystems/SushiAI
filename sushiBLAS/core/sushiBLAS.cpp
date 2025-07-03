@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  optimizer.h                                                           */
+/*  sushiBLAS.cpp                                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -28,66 +28,27 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
-#include <vector>
-#include <memory>
-#include <unordered_map>
+#include "backend.h"
+#include "cpu_backend.h"
 
-#include "tensor.h"
-
-namespace SushiAI 
+namespace SushiAI::SushiBLAS
 {
-    #pragma region Optimizer Class
-
-    /// Abstract base class for all optimizers.
-    class Optimizer 
+    namespace 
     {
-        public:
-            virtual ~Optimizer() = default;
-            virtual void zeroGradient(const std::vector<std::shared_ptr<Tensor>>& parameters) = 0;
-            virtual void step(const std::vector<std::shared_ptr<Tensor>>& parameters) = 0;
-    };
+        std::unique_ptr<Backend> activeBackend;
+    }
 
-    #pragma endregion
-
-    #pragma region Optimizers
-
-    /// Stochastic Gradient Descent. Supports momentum and optional weight decay (L2 regularization).
-    class SGD : public Optimizer 
+    Backend& getBackend() 
     {
-        public:
-            SGD(float learningRate, float momentum = 0.0f, float weightDecay = 0.0f);
-            void zeroGradient(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
-            void step(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
+        if (!activeBackend)
+            activeBackend = std::make_unique<CPUBackend>();  // varsayýlan CPU
 
-            float getLearningRate() const { return learningRate; }
-            float getMomentum() const { return momentum; }
+        return *activeBackend;
+    }
 
-        private:
-            float learningRate;
-            float momentum;
-            float weightDecay;
-            std::unordered_map<Tensor*, std::vector<float>> velocity;
-    };
-
-    /// Adaptive Moment Estimation. Combines momentum and RMSprop-like adaptive learning rates.
-    class Adam : public Optimizer 
+    void setBackend(std::unique_ptr<Backend> b) 
     {
-        public:
-            Adam(float learningRate, float b1 = 0.9f, float b2 = 0.999f, float eps = 1e-8f);
-            void zeroGradient(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
-            void step(const std::vector<std::shared_ptr<Tensor>>& parameters) override;
+        activeBackend = std::move(b);
+    }
 
-            float getLearningRate() const { return learningRate; }
-        private:
-            float learningRate;
-            float beta1;
-            float beta2;
-            float eps;
-            int timeStep;
-            std::unordered_map<Tensor*, std::vector<float>> meanMoment;
-            std::unordered_map<Tensor*, std::vector<float>> varianceMoment;
-    };
-
-    #pragma endregion
 }

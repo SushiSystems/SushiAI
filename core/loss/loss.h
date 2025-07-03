@@ -29,7 +29,9 @@
 /**************************************************************************/
 
 #pragma once
+
 #include <memory>
+
 #include "tensor.h"
 
 namespace SushiAI 

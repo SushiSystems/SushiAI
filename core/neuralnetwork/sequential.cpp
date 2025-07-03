@@ -30,6 +30,7 @@
 
 #include <fstream>
 #include <filesystem>
+
 #include "sequential.h"
 
 #ifndef PROJECT_ROOT_DIR
@@ -51,7 +52,7 @@ namespace SushiAI
         auto out = input;
 
         for (auto& layer : layers)
-            out = layer->forward(out, training);
+            out = layer -> forward(out, training);
 
         return out;
     }

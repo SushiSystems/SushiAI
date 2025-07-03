@@ -35,6 +35,7 @@
 #include <iomanip> 
 #include <numeric>
 #include <iostream>
+
 #include "layer.h"
 
 namespace SushiAI 

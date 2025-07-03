@@ -35,6 +35,7 @@
 #include <numeric>
 #include <algorithm>
 #include <stdexcept>
+
 #include "tensor.h"
 #include "ops.h"
 

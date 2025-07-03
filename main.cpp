@@ -37,10 +37,13 @@
 #include <numeric>
 #include <utility>
 
-#include <SushiAI/tensor>
-#include <SushiAI/neuralnetwork>
-#include <SushiAI/loss>
-#include <SushiAI/optimizer>
+#include "tensor.h"
+#include "ops.h"
+#include "loss.h"
+#include "layer.h"
+#include "optimizer.h"
+#include "sequential.h"
+#include "initializer.h"
 
 using namespace SushiAI;
 
@@ -117,9 +120,10 @@ int main()
     model -> add(std::make_shared<Linear>(128, 64, std::make_shared<XavierUniform>(), std::make_shared<XavierUniform>()));
     model -> add(std::make_shared<LeakyReLU>(.01f));
     model -> add(std::make_shared<Linear>(64, 1, std::make_shared<XavierUniform>(), std::make_shared<XavierUniform>()));
+
     #pragma endregion
 
-    #pragma region Training The Model
+    #pragma region Training
     
     #pragma region -Disabled- Dataset (TSAGI-12 Surrogate)
 

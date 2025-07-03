@@ -33,10 +33,6 @@
 #include <random>
 #include <algorithm>
 
-#ifdef USE_EIGEN
-#include <Eigen/Dense>
-#endif
-
 #include "tensor.h"
 
 namespace SushiAI 
@@ -190,38 +186,6 @@ namespace SushiAI
                 float bound = std::sqrt(3.0f / fan_in);
                 UniformInitializer u(-bound, bound);
                 u.initialize(t);
-            }
-    };
-
-    /// Generates a random matrix with orthonormal columns using QR decomposition.
-    class OrthogonalInitializer : public Initializer
-    {
-        public:
-            void initialize(const std::shared_ptr<Tensor>& t) const override
-            {
-                auto shape = t -> getShape();
-
-                if (shape.size() != 2)
-                    throw std::runtime_error("Orthogonal only supports 2D tensors");
-
-                int rows = shape[0], cols = shape[1];
-
-                std::vector<float> mat(rows * cols);
-                std::mt19937 gen(std::random_device{}());
-                std::normal_distribution<float> dist(0.0f, 1.0f);
-
-                for (auto& x : mat)
-                    x = dist(gen);
-
-                #ifdef USE_EIGEN
-                Eigen::Map<Eigen::MatrixXf> M(mat.data(), rows, cols);
-                Eigen::HouseholderQR<Eigen::MatrixXf> qr(M);
-                Eigen::MatrixXf Q = qr.householderQ();
-
-                std::copy(Q.data(), Q.data() + rows * cols, t.data());
-                #else
-                throw std::runtime_error("Orthogonal requires Eigen support");
-                #endif
             }
     };
 
