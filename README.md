@@ -2,6 +2,8 @@
 
 **Physics-Informed Deep Learning Framework for Simulations.**
 
+---
+
 ## About Project
 
 **SushiAI** is a lightweight, high-performance, modular deep learning framework written in modern C++. Built with simulation in mind, SushiAI excels at accelerating physics-based computations using neural networks. It supports Physics-Informed Neural Networks (PINNs), modular tensor operations, and is designed to run efficiently even on low-end machines.
@@ -39,7 +41,6 @@ make -j4
 ```
 
 > **Requirements:**
->
 > - CMake ≥ 3.14
 > - C++14-compliant compiler (GCC or Clang)
 
@@ -120,13 +121,11 @@ SushiAI/
 
 ---
 
-## 🧪 Examples
+## Examples
 
 - Pure MLP training
 - Solving PDEs like Navier-Stokes, Poison or heat transfer simulations with PINNs
 - Unity3D integration (planned)
-
-> See the `examples/` folder for detailed usage.
 
 ---
 
@@ -173,6 +172,6 @@ SushiAI is licensed under the MIT License. See the [LICENSE](LICENSE) file for d
 * **GitHub:** [https://github.com/sushimg/SushiAI](https://github.com/sushimg/SushiAI)
 * **LinkedIn:** [https://www.linkedin.com/in/mustafgarip](https://www.linkedin.com/in/mustafgarip)
 
-*This project is all about using AI to handle complex physical computations in real-time, without compromising the integrity of real-world physics.
-If you’ve got any questions or just want to share your thoughts, feel free to reach out through the links in the License and Contact section. I’ll get back to you as soon as I can. Thanks for stopping by and take care!*
+>*This project is all about using AI to handle complex physical computations in real-time, without compromising the integrity of real-world physics.*
+>*If you’ve got any questions or just want to share your thoughts, feel free to reach out through the links in the License and Contact section. I’ll get back to you as soon as I can. Thanks for stopping by and take care!*
 
