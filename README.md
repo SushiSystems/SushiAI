@@ -160,6 +160,6 @@ SushiAI is licensed under the MIT License. See the [LICENSE](LICENSE) file for d
 * **GitHub:** [https://github.com/sushimg/SushiAI](https://github.com/sushimg/SushiAI)
 * **LinkedIn:** [https://www.linkedin.com/in/mustafgarip](https://www.linkedin.com/in/mustafgarip)
 
->*This project is all about using AI to handle complex physical computations in real-time, without compromising the integrity of real-world physics.*
+>*This project is about running fast CPU-based inference and using artificial intelligence to simulate natural sciences directly on the computer.*
 >*If you’ve got any questions or just want to share your thoughts, feel free to reach out through the links in the License and Contact section. I’ll get back to you as soon as I can. Thanks for stopping by and take care!*
 
