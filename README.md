@@ -22,8 +22,8 @@ At the moment it supports simple MLP models. Work on reinforcement learning is a
 - Modular activation functions (ReLU, Tanh, Sigmoid, Softmax, and more...)
 - CPU support (x86), CUDA in development
 - Saving & Loading a trained model in SushiAI
-- Physics-Informed Neural Networks (PINNs) (WIP)
-- Graph-based Neural Networks (GNNs) (WIP)
+- Physics-Informed Neural Networks (PINNs) (planned)
+- Graph-based Neural Networks (GNNs) (planned)
 - Python and Unity3D frontends (planned)
 
 ---
@@ -92,16 +92,6 @@ int main()
 }
 ```
 
----
-
-## Documentation
-
-- [API Reference (WIP)](docs/)
-- [Examples](examples/)
-- [Design Notes](docs/design.md)
-
----
-
 ## Project Structure
 
 ```bash
@@ -123,9 +113,7 @@ SushiAI/
 
 ## Examples
 
-- Pure MLP training
-- Solving PDEs like Navier-Stokes, Poison or heat transfer simulations with PINNs
-- Unity3D integration (planned)
+- MLP training
 
 ---
 
