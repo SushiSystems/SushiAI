@@ -1,16 +1,16 @@
 # SushiAI
 
-**Physics-Informed Deep Learning Framework for Simulations.**
+**Lightweight Deep Learning Framework for Simulations.**
 
 ---
 
 ## About Project
 
-**SushiAI** is a lightweight, high-performance, modular deep learning framework written in modern C++. Built with simulation in mind, SushiAI excels at accelerating physics-based computations using neural networks. It supports Physics-Informed Neural Networks (PINNs), modular tensor operations, and is designed to run efficiently even on low-end machines.
+**SushiAI** is a lightweight and modular deep learning framework created as the main AI platform for Sushi Systems projects. It is written in C++ and designed to run efficiently on both mobile devices and desktop computers.
 
-**Vision:** "To deliver real-time performance in simulations without cutting corners on the laws of physics, powered by deep learning."
+The focus of SushiAI is on reinforcement learning and on using artificial intelligence to simulate natural sciences on a computer. In practice, it is meant to provide fast training and inference for AI agents in real-time games, while in the long run it will also serve as a foundation for scientific simulations.
 
-**Mission:** "To run Sushi Systems Virtual World project, Project: RL, on bit-level hardware with the highest possible performance."
+At the moment it supports simple MLP models. Work on reinforcement learning is actively in progress, while support for PINN and GNN is still at an early draft stage and planned as part of longer-term research.
 
 ---
 
