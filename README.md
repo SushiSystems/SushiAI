@@ -6,7 +6,7 @@
 
 ## About Project
 
-**SushiAI** is an artificial intelligence framework developed at [Sushi Systems](https://www.sushisystems.com). Its primary purpose is to serve as the AI backend for **Sushiverse**, a virtual world project, by training the agents that operate within it.
+**SushiAI** is an artificial intelligence framework developed at [Sushi Systems](https://www.sushisystems.io). Its primary purpose is to serve as the AI backend for **Sushiverse**, a virtual world project, by training the agents that operate within it.
 
 The framework was built from the ground up to address the need for a lightweight, CPU-friendly AI library suitable for game development and real-time simulations. This approach was also taken to deepen the core understanding of neural networks and agent-based systems.
 
