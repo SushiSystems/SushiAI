@@ -159,5 +159,4 @@ SushiAI is licensed under the MIT License. See the [LICENSE](LICENSE) file for d
 * **GitHub:** [https://github.com/sushimg/SushiAI](https://github.com/sushimg)
 * **LinkedIn:** [https://www.linkedin.com/in/mustafgarip](https://www.linkedin.com/in/mustafgarip)
 
->*This project is built to form the AI infrastructure of Sushi Systems and to support ongoing research and development efforts.*  
->*If you’ve got any questions or just want to share your thoughts, feel free to reach out through the links in the License and Contact section. I’ll get back to you as soon as I can. Thanks for stopping by and take care! ∼ Mustafa Garip*
+>*This project is built to form the AI infrastructure of Sushi Systems and to support ongoing research and development efforts. If you’ve got any questions or just want to share your thoughts, feel free to reach out through the links in the License and Contact section. I’ll get back to you as soon as I can. Thanks for stopping by and take care! ∼ Mustafa Garip*
