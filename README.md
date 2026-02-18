@@ -2,9 +2,6 @@
 
 **Lightweight Deep Learning Framework**  **(Work In Progress)**
 
-
-**Please check dev branch out.**
-
 ---
 
 ## License and Contact
