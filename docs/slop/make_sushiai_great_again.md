@@ -304,7 +304,13 @@ Identical anatomy with `sa` + `sushiai` entry points, `SA_*` env prefix, and
 `[module] depends_on = ["sushiruntime", "sushiblas"]`. Lands together with AI-0's repo skeleton —
 the new tree is born CLI-first, there is never a commit of the new SushiAI that must be built by
 raw cmake. Extra command beyond the standard set: `sa demo mlp` (runs the AI-7 showcase; thin
-wrapper over `sa run`).
+wrapper over `sa run`, correctly reports "not implemented yet" today rather than faking output).
+
+**Status (2026-08-02): done and pytest-verified (11/11), including the
+`_resolved_c_compiler()` fix for the bundled toolchain's `clang++`-personality
+C-probe bug.** `sa --help` / `sa config` / `sa demo mlp` all verified against
+the real dev environment. Not yet re-verified after that fix via a real `sa
+build` — see AI-0's status note below.
 
 ## 8. ST-3 — Install, doctor, CI
 
@@ -437,6 +443,30 @@ copied from SB-6 from day one. Upstreams resolved via the same D3 layered patter
 SushiRuntime and SushiBLAS. Old prototype code is deleted on the new branch (git history preserves
 it; no `legacy/` folder). The old `docs/Roadmap.md` (CUDA/Unity era) is superseded by this plan;
 its PINN/GNN ambitions survive as v1.x/v2 candidates.
+
+**Status (2026-08-02): skeleton, tests, packaging shape, CLI, `.gitignore`,
+and the full sushiruntime-style `docs/` set are all in place and committed.
+Build/test/package verification (the plan's own §"Verification" list) is
+NOT fully done — this is the one open item before AI-0 can be called
+closed:**
+- Manually verified once, in Debug-ish settings, before this note: library +
+  tests + example build, link, and run against both live siblings on real
+  hardware; `sushiai_tests` 3/3 pass; a real out-of-tree
+  `find_package(SushiAI)` consumer (`tests/package/`) configured, built, and
+  ran.
+- A later `sa build` (Release, through the CLI, after the C-compiler fix
+  above) got to `[153/219]` and failed with three unresolved compile errors
+  in **SushiBLAS's own** pre-existing test files
+  (`test_constant.cpp`/`test_leaky_relu.cpp`/`test_gelu.cpp`, all under
+  `-O3 -DNDEBUG`) — root cause not diagnosed; the background task's captured
+  output only kept the last ~60 lines, which had the `FAILED:` markers and
+  full compiler invocations but not the actual `error:` diagnostics, and no
+  build has been re-run since (owner paused all builds this session over a
+  hardware-thermal concern). **Next session: re-run `sa build --type
+  release` (or `sb build --type release` directly against sushiblas) with
+  full output captured, read the actual `error:` text, and fix or file it.**
+  This is very likely a SushiBLAS-side issue (Release+NDEBUG-only), not a
+  SushiAI one — see the matching note in SushiBLAS's own `docs/CHANGELOG.md`.
 
 ## 17. AI-1 — Graph-native autograd core
 
