@@ -6,7 +6,7 @@
 
 ## License and Contact
 
-* **License:** MIT
+* **License:** Apache-2.0
 * **Project Manager:** Mustafa Garip
 * **E-Mail:** [mustafagarip@sushisystems.io](mailto:mustafagarip@sushisystems.io)
 * **GitHub:** [https://github.com/sushisystems/SushiAI](https://github.com/sushisystems/SushiAI)
