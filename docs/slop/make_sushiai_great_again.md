@@ -177,6 +177,12 @@ from the runtime's `BB-*`/`WP-*` series.
 - **D6 — sushistack merges to `main` directly.** `feature/toolchain-refresh` is merged straight
   into `main` (executed as part of landing this plan), which also unblocks the ST-1 `sb` CLI
   work — `ss update`'s ff-only pull of the workspace is coherent again.
+- **D7 — sushiblas and sushiai relicense from MIT to Apache-2.0** (2026-08-01). Root `LICENSE` and
+  every per-file header signature updated in both repos (sushiblas: 150 source files, short
+  ASF-standard header matching sushiruntime/sushiengine's existing convention; sushiai: root
+  `LICENSE` + README only, since its current tree is the retired prototype AI-0 deletes wholesale).
+  Makes D5's portBLAS attribution story simpler (same license family, no cross-license friction)
+  and brings sushiblas/sushiai in line with sushiruntime/sushiengine, which were already Apache-2.0.
 
 ---
 
