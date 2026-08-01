@@ -1,0 +1,32 @@
+[Bb]uild/
+bin/
+out/
+
+# IDEs
+.vscode/
+.vs/
+*.swp
+*.swo
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Docs
+Doxyfile
+html/
+latex/
+
+# CLI: machine-specific overrides, Python caches, and editable installs.
+cli/config.local.toml
+__pycache__/
+*.pyc
+cli/*.egg-info/
+cli/.pytest_cache/
+.sushi_env.json

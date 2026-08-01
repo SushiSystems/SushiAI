@@ -1,0 +1,28 @@
+@PACKAGE_INIT@
+
+# SushiAIConfig.cmake — what find_package(SushiAI) gives a consumer.
+#
+# The contract is deliberately narrow. A consumer gets the include
+# directories and the library. It does NOT get this project's warning flags,
+# its sanitizer selection, or the ISA of the machine that happened to build
+# it; those live on PRIVATE targets and never enter the export set (see
+# cmake/SushiAIBuildPolicy.cmake). The floating-point determinism contract
+# still travels — but it comes from SushiRuntime, not from here, since
+# SushiRuntime::SushiRuntime is a PUBLIC dependency of SushiAI::sushiai.
+
+include(CMakeFindDependencyMacro)
+
+# SushiAI depends on both siblings directly (not just transitively through
+# SushiBLAS): its own future autograd core emits nodes straight into
+# SushiRuntime::TaskGraph, so both targets must be resolvable here, the same
+# way SushiBLAS's own config resolves its one upstream.
+if(NOT TARGET SushiRuntime::SushiRuntime)
+    find_dependency(SushiRuntime)
+endif()
+if(NOT TARGET SushiBLAS::sushiblas)
+    find_dependency(SushiBLAS)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/SushiAITargets.cmake")
+
+check_required_components(SushiAI)
