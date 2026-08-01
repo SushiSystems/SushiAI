@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sushiai-cli"
+version = "0.1.0"
+description = "SushiAI developer CLI (build / test / run)"
+authors = [{ name = "Mustafa Garip", email = "mustafagarip@sushisystems.io" }]
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+# sushicli (shared CLI presentation layer, see D:/Projects/sushicli) is
+# intentionally NOT listed above: it isn't published to any index, so a bare
+# "sushicli>=0.1.0" dependency can't be resolved by pip/pipx from a clean
+# environment. `pip install -e cli` expects it already installed once in the
+# same environment (`pip install -e ../sushicli`).
+
+[project.scripts]
+sa = "sushiai.cli:app"
+sushiai = "sushiai.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sushiai*"]
+
+[tool.setuptools.package-data]
+sushiai = ["py.typed"]

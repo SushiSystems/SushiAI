@@ -1,0 +1,47 @@
+# SushiAI CLI configuration.
+#
+# Layering (lowest -> highest precedence):
+#   built-in defaults  ->  this file  ->  config.local.toml  ->  SA_* env vars  ->  CLI flags
+#
+# This file is committed and holds shared / portable defaults. Machine-specific
+# absolute paths (compiler locations, vcpkg, sibling checkouts) belong in a
+# gitignored `config.local.toml` next to this file, using the SAME section
+# layout. The active platform's `[tool.<platform>]` section is merged over the
+# common `[tool]` section automatically.
+#
+# Unlike SushiBLAS's own CLI (still modeling a real Intel oneAPI DPC++ install
+# as of this writing), SushiAI selects no SYCL toolchain of its own - like
+# SushiEngine, it consumes the shared SushiStack bundled clang++ and vcpkg tree
+# (see cli/sushiai/config.py's module docstring).
+
+[tool]
+# Default executable for `sa run` with no target.
+target_bin = "sushiai_example"
+
+[tool.linux]
+generator = "Ninja"
+use_vcpkg = true
+vcpkg_triplet = "x64-linux"
+
+[tool.windows]
+generator = "Ninja"
+use_vcpkg = true
+vcpkg_triplet = "x64-windows"
+target_bin = "sushiai_example.exe"
+# The following are machine-specific; override in config.local.toml.
+# vs_vcvars       = "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat"
+# ninja_exe       = "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+# cmake_exe       = "C:/Users/<you>/scoop/shims/cmake.exe"
+# ctest_exe       = "C:/Users/<you>/scoop/shims/ctest.exe"
+# vcpkg_root      = "C:/vcpkg"
+# pkgconf_exe     = "C:/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe"
+# sushiruntime_dir = "../sushiruntime"
+# sushiblas_dir    = "../sushiblas"
+
+[cli]
+# CLI appearance, resolved by the shared `sushicli` package (same schema for
+# sr/se/ss/sb). Override in config.local.toml or with SUSHI_CLI_THEME /
+# SUSHI_CLI_ICONS / SUSHI_CLI_COLOR — no rebuild needed.
+theme = "default"
+icons = "text"
+color = "auto"
