@@ -72,8 +72,8 @@
  */
 
 #include <cstddef>
-#include <span>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -127,7 +127,7 @@ namespace SushiAI
                  * @param values Exactly @c count() values, in index order.
                  * @throws Error If @p values is not exactly @c count() long.
                  */
-                void write(std::span<const float> values);
+                void write(SushiRuntime::span<const float> values);
 
                 /** @brief How many scalars the buffer holds. */
                 std::size_t count() const noexcept { return count_; }

@@ -176,10 +176,25 @@ namespace SushiAI
          *
          * @tparam Ls The layer types, in application order.
          */
-        template<Module... Ls>
+        template<typename... Ls>
         class Sequential
         {
             public:
+                // The pack is checked here rather than spelled `template<Module... Ls>`,
+                // which is a C++20 constraint and this library is C++17. The contract is
+                // the same and it is still stated at the top of the class, so a malformed
+                // layer is reported against Sequential's own instantiation - naming the
+                // pack - rather than 200 lines down inside std::apply. What is lost is
+                // that Sequential<Bad> is now a *valid* specialization that fails when
+                // instantiated, instead of one that never matched: it cannot be SFINAE'd
+                // away by an overload set. Nothing in this library overloads on it.
+                static_assert((Module<Ls> && ...),
+                              "Every type in a Sequential must satisfy the Module contract: "
+                              "a static fields() listing its parameters, and a "
+                              "forward(const Graph::GraphBuilder&, Graph::ValueId) returning "
+                              "exactly Graph::ValueId. Check the layer named in the "
+                              "instantiation below, not this line.");
+
                 /**
                  * @brief Constructs from the layers themselves.
                  * @param layers The layers, in application order; moved in.
@@ -233,7 +248,7 @@ namespace SushiAI
         template<typename... Ls>
         Sequential(Ls...) -> Sequential<Ls...>;
 
-        // The concept is checked here, where a mistake names the layer, rather
+        // The contract is checked here, where a mistake names the layer, rather
         // than at the first use, where it would name a template instantiation.
         static_assert(Module<Linear>, "Linear must satisfy the Module contract");
         static_assert(Module<ReLU>, "ReLU must satisfy the Module contract");

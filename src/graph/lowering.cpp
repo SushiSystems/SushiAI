@@ -22,11 +22,11 @@
 /**************************************************************************/
 
 #include <array>
-#include <span>
 #include <type_traits>
 #include <SushiBLAS/engine/blas/dispatch.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/graph/lowering.hpp>
 

@@ -66,7 +66,36 @@ target_link_libraries(sushiai_package_consumer PRIVATE
     SushiAI::sushiai
 )
 
+# C++17, and NOT C++20 - which is where this file deliberately stops mirroring
+# sushiblas's tests/package/, so the difference is written down here rather than
+# discovered.
+#
+# SushiBLAS keeps its own package consumer at C++20 as a live assertion that a
+# C++20 consumer still compiles and links against a C++17 library. That holds
+# for SushiBLAS because every one of its `SushiRuntime::span`-taking entry
+# points is defined inline in a header: the std::span/shim branch is re-decided
+# in the consumer's own translation unit and never has to agree with a symbol
+# somebody else compiled.
+#
+# SushiAI is not in that position. `Autograd::differentiate`,
+# `allocate_tensor`, `StepScalars::write` and the gradcheck entry points are
+# out-of-line exports whose parameter type IS the span, so the branch reaches
+# the mangled name. Measured, not assumed:
+#
+#   library (C++17)  ?differentiate@Autograd@SushiAI@@...V?$span@$$CBI@SushiRuntime@@@Z
+#   consumer (C++20) ?differentiate@Autograd@SushiAI@@...V?$span@$$CBI$0?0@4@@Z
+#
+# Two different symbols - an unresolved external, not a warning. And it is not
+# a corner: the header template `Train::build_classifier` calls
+# `Autograd::differentiate`, so a C++20 consumer that trains anything at all
+# hits it.
+#
+# Leaving this at 20 would therefore assert something untrue and pass only
+# because main.cpp happens to call nothing that takes a span - a green light
+# for a guarantee the library no longer offers. The honest assertion is the one
+# below: a consumer at the standard the whole stack agrees on. See
+# docs/INTEGRATION.md §3.
 set_target_properties(sushiai_package_consumer PROPERTIES
-    CXX_STANDARD 20
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )

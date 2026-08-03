@@ -71,8 +71,8 @@
  */
 
 #include <cstddef>
-#include <span>
 #include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -211,7 +211,7 @@ namespace SushiAI
          */
         std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
                                                   Graph::ValueId loss,
-                                                  std::span<const Graph::ValueId> wrt);
+                                                  SushiRuntime::span<const Graph::ValueId> wrt);
 
     } // namespace Autograd
 } // namespace SushiAI

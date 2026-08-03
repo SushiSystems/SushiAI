@@ -30,8 +30,13 @@ TEST(Unit_Ops, EveryNameCarriesTheLibraryPrefix)
 {
     // The prefix is what keeps a SushiAI identity from colliding with
     // SushiBLAS's own (blas.lvl3.gemm and friends) in the profiler's report.
+    //
+    // rfind(prefix, 0) rather than starts_with(), which is C++20: it searches
+    // backwards from position 0, so it can only match at position 0, which is
+    // the same question asked with the vocabulary C++17 has.
+    constexpr std::string_view PREFIX = "sushiai.";
     for (const Ops::OpName& entry : Ops::ALL)
-        EXPECT_TRUE(entry.name.starts_with("sushiai.")) << entry.name;
+        EXPECT_EQ(entry.name.rfind(PREFIX, 0), 0u) << entry.name;
 }
 
 TEST(Unit_Ops, NameOfRoundTripsEveryIdentity)

@@ -24,6 +24,7 @@
 #include <exception>
 #include <limits>
 #include <string>
+#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/core/allocation.hpp>
 
 namespace SushiAI
@@ -44,7 +45,7 @@ namespace SushiAI
          * @return The product of the extents.
          * @throws Error If an extent is not positive or the product overflows.
          */
-        int64_t checked_element_count(std::span<const int64_t> dims)
+        int64_t checked_element_count(SushiRuntime::span<const int64_t> dims)
         {
             int64_t elements = 1;
 
@@ -67,7 +68,7 @@ namespace SushiAI
          * @param dims The extents.
          * @return The bracketed rendering.
          */
-        std::string describe(std::span<const int64_t> dims)
+        std::string describe(SushiRuntime::span<const int64_t> dims)
         {
             std::string text = "[";
             for (std::size_t i = 0; i < dims.size(); ++i)
@@ -97,7 +98,7 @@ namespace SushiAI
          */
         SushiRuntime::sushi_ptr<SushiBLAS::Storage> make_storage(SushiBLAS::Engine& engine,
                                                                  std::size_t bytes,
-                                                                 std::span<const int64_t> dims,
+                                                                 SushiRuntime::span<const int64_t> dims,
                                                                  DType dtype)
         {
             try
@@ -109,7 +110,7 @@ namespace SushiAI
             }
             catch (const std::exception& failure)
             {
-                throw Error(std::format(
+                throw Error(SushiBLAS::Core::format(
                     "Could not allocate the {} tensor {} ({} bytes): {}",
                     dtype_name(dtype), describe(dims), bytes, failure.what()));
             }
@@ -117,7 +118,7 @@ namespace SushiAI
     }
 
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine,
-                                      std::span<const int64_t> dims,
+                                      SushiRuntime::span<const int64_t> dims,
                                       DType dtype)
     {
         // No "did that come out as zero" check: checked_element_count already
@@ -139,8 +140,8 @@ namespace SushiAI
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine, const Shape& shape, DType dtype)
     {
         return allocate_tensor(engine,
-                               std::span<const int64_t>(shape.data(),
-                                                        static_cast<std::size_t>(shape.rank())),
+                               SushiRuntime::span<const int64_t>(shape.data(),
+                                                                 static_cast<std::size_t>(shape.rank())),
                                dtype);
     }
 
@@ -151,8 +152,8 @@ namespace SushiAI
         // The layout comes from the source rather than the engine: a tensor
         // that was built column-major must be matched, or gemm would derive a
         // different leading dimension for the copy than for the original.
-        const std::span<const int64_t> dims(like.shape.data(),
-                                            static_cast<std::size_t>(like.rank));
+        const SushiRuntime::span<const int64_t> dims(like.shape.data(),
+                                                     static_cast<std::size_t>(like.rank));
         const int64_t elements = checked_element_count(dims);
 
         auto storage = make_storage(engine,
@@ -182,8 +183,8 @@ namespace SushiAI
         }
         catch (const std::exception& failure)
         {
-            throw Error(std::format("Could not allocate a {} byte arena: {}",
-                                    bytes, failure.what()));
+            throw Error(SushiBLAS::Core::format("Could not allocate a {} byte arena: {}",
+                                                bytes, failure.what()));
         }
     }
 
@@ -212,8 +213,8 @@ namespace SushiAI
                     dtype_name(dtype), shape.to_string(), byte_offset, bytes, arena->size_bytes);
 
         return SushiBLAS::Tensor(arena,
-                                 std::span<const int64_t>(shape.data(),
-                                                          static_cast<std::size_t>(shape.rank())),
+                                 SushiRuntime::span<const int64_t>(shape.data(),
+                                                                   static_cast<std::size_t>(shape.rank())),
                                  dtype,
                                  static_cast<int64_t>(byte_offset / element),
                                  engine.get_layout());

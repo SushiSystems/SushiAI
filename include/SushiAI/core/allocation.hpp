@@ -68,8 +68,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
 
@@ -92,7 +92,7 @@ namespace SushiAI
      *         a model's tensors asked for them.
      */
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine,
-                                      std::span<const int64_t> dims,
+                                      SushiRuntime::span<const int64_t> dims,
                                       DType dtype = DType::FLOAT32);
 
     /**

@@ -378,7 +378,7 @@ TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
 
     const std::vector<FusedForm> without{FusedForm::GEMM_BIAS_RELU};
     FusionOptions narrowed;
-    narrowed.disabled = std::span<const FusedForm>(without.data(), without.size());
+    narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
 
     const TrainedRun whole = train(whole_model, FusionOptions{});
     const TrainedRun some = train(narrowed_model, narrowed);

@@ -140,11 +140,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <span>
 #include <utility>
 #include <vector>
 #include <unordered_map>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/arena.hpp>
@@ -496,9 +496,9 @@ namespace SushiAI
                  * them all both compile and both train, so the difference has to
                  * be readable somewhere.
                  */
-                std::span<const FusionSelection> selections() const noexcept
+                SushiRuntime::span<const FusionSelection> selections() const noexcept
                 {
-                    return std::span<const FusionSelection>(selections_.data(), selections_.size());
+                    return SushiRuntime::span<const FusionSelection>(selections_.data(), selections_.size());
                 }
 
             private:

@@ -157,7 +157,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
 
     const std::vector<ValueId> observed{layer.biased};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -200,7 +200,7 @@ TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
 
     const std::vector<ValueId> observed{activated};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -222,7 +222,7 @@ TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
 
     const std::vector<ValueId> observed{scaled};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -254,7 +254,7 @@ TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
 
     const std::vector<ValueId> observed{scaled};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -278,7 +278,7 @@ TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
 
     const std::vector<ValueId> observed{layer.biased, also};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -300,7 +300,7 @@ TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
     // buffer to read.
     const std::vector<ValueId> observed{layer.biased, activated};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -355,7 +355,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputIsReportedAndLeftAlone)
 
     const std::vector<ValueId> observed{activated, gradient};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -386,7 +386,7 @@ TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
 
     const std::vector<ValueId> observed{gradient};
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -431,8 +431,8 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
     const std::vector<FusedForm> off{FusedForm::GEMM_BIAS_RELU};
 
     FusionOptions options;
-    options.observed = std::span<const ValueId>(observed.data(), observed.size());
-    options.disabled = std::span<const FusedForm>(off.data(), off.size());
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.disabled = SushiRuntime::span<const FusedForm>(off.data(), off.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 

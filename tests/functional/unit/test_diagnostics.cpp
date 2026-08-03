@@ -18,10 +18,10 @@
 // See tests/common/test_throws.hpp for SA_EXPECT_ERROR.
 
 #include <cstdint>
-#include <span>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
@@ -42,7 +42,7 @@ namespace
     {
         const std::vector<ValueId> targets = {wrt};
         (void)Autograd::differentiate(graph, loss,
-                                      std::span<const ValueId>(targets.data(), targets.size()));
+                                      SushiRuntime::span<const ValueId>(targets.data(), targets.size()));
     }
 }
 

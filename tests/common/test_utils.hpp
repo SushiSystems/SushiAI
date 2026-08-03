@@ -37,10 +37,10 @@
 #include <cmath>
 #include <cstddef>
 #include <memory>
-#include <span>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.h>
 #include "test_environment.hpp"
 
@@ -76,7 +76,7 @@ namespace SushiAI
         };
 
         /** @brief Writes host doubles into a FLOAT32 or FLOAT64 tensor's shared USM. */
-        inline void write_tensor(SushiBLAS::Tensor& tensor, std::span<const double> values)
+        inline void write_tensor(SushiBLAS::Tensor& tensor, SushiRuntime::span<const double> values)
         {
             EXPECT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
 
@@ -171,7 +171,7 @@ namespace SushiAI
                 }
 
                 /** @brief Fills @p values with next(@p scale). */
-                void fill(std::span<double> values, double scale = 1.0) noexcept
+                void fill(SushiRuntime::span<double> values, double scale = 1.0) noexcept
                 {
                     for (double& v : values) v = next(scale);
                 }

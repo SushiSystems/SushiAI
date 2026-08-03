@@ -22,9 +22,9 @@
 /**************************************************************************/
 
 #include <chrono>
-#include <format>
-#include <span>
 #include <vector>
+#include <SushiBLAS/core/format.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/train/trainer.hpp>
 
 namespace SushiAI
@@ -50,7 +50,7 @@ namespace SushiAI
                 pinned.insert(pinned.end(), options.pinned.begin(), options.pinned.end());
 
                 Graph::PlanOptions planning = options;
-                planning.pinned = std::span<const Graph::ValueId>(pinned.data(), pinned.size());
+                planning.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(), pinned.size());
 
                 pool.adopt(Graph::MemoryPlan::build(built.graph, planning));
             }
@@ -99,7 +99,7 @@ namespace SushiAI
 
         std::string RunReport::to_string() const
         {
-            std::string text = std::format(
+            std::string text = SushiBLAS::Core::format(
                 "compiles       : {}\n"
                 "steps          : {}\n"
                 "ops per step   : {}\n",
@@ -109,10 +109,10 @@ namespace SushiAI
             // reads exactly as it did before rather than carrying a line of
             // zero.
             if (ordering_nodes_per_step != 0)
-                text += std::format("ordering nodes : {} (host-side, no kernel)\n",
-                                    ordering_nodes_per_step);
+                text += SushiBLAS::Core::format("ordering nodes : {} (host-side, no kernel)\n",
+                                                ordering_nodes_per_step);
 
-            text += std::format(
+            text += SushiBLAS::Core::format(
                 "loss           : {:.6f} -> {:.6f}\n"
                 "final accuracy : {:.2f}%\n"
                 "wall clock     : {:.1f} ms ({:.2f} ms/step)\n",
@@ -128,9 +128,9 @@ namespace SushiAI
 
             text += "per-node timing:\n";
             for (const SushiRuntime::Core::NodeTiming& timing : node_timings)
-                text += std::format("  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
-                                    timing.plan_index, timing.name, timing.invocations,
-                                    timing.device_ms, timing.host_ms);
+                text += SushiBLAS::Core::format("  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
+                                                timing.plan_index, timing.name, timing.invocations,
+                                                timing.device_ms, timing.host_ms);
 
             return text;
         }

@@ -43,11 +43,11 @@
  * included by a device-free unit test.
  */
 
-#include <span>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiAI
@@ -75,8 +75,15 @@ namespace SushiAI
             OpID id;
         };
 
-        /** @brief Builds an OpName, hashing the name at compile time. */
-        consteval OpName op(std::string_view n)
+        /**
+         * @brief Builds an OpName, hashing the name at compile time.
+         *
+         * @c constexpr rather than @c consteval because @c consteval is C++20 and
+         * this library is C++17. Nothing is lost: every caller below initialises an
+         * @c inline @c constexpr variable, which forces constant evaluation anyway,
+         * so no name is hashed at run time.
+         */
+        constexpr OpName op(std::string_view n)
         {
             return OpName{n, OpID(OpID::hash_str(n.data(), n.size()))};
         }
@@ -229,10 +236,18 @@ namespace SushiAI
          * Quadratic, but it runs at compile time over a table of a few dozen
          * entries, so the simple form is the right one.
          *
+         * @c constexpr rather than @c consteval (C++20), and taking
+         * @c SushiRuntime::span rather than @c std::span (also C++20) - the shim
+         * behind that name marks its constructors, @c size() and @c operator[]
+         * @c constexpr, so the whole walk is still a constant expression. The proof
+         * has not degraded to a run-time check: its only caller is the static_assert
+         * below, and a static_assert forces constant evaluation, so a collision is
+         * still a compile error rather than something nobody runs.
+         *
          * @param table The identities to check.
          * @return True when no two entries share an OpID.
          */
-        consteval bool all_ids_unique(std::span<const OpName> table)
+        constexpr bool all_ids_unique(SushiRuntime::span<const OpName> table)
         {
             for (std::size_t i = 0; i < table.size(); ++i)
                 for (std::size_t j = i + 1; j < table.size(); ++j)
@@ -241,7 +256,7 @@ namespace SushiAI
             return true;
         }
 
-        static_assert(all_ids_unique(std::span<const OpName>(ALL.data(), ALL.size())),
+        static_assert(all_ids_unique(SushiRuntime::span<const OpName>(ALL.data(), ALL.size())),
                       "Two SushiAI operation names hash to the same 32-bit OpID. "
                       "Rename one of them - a collision would silently merge their "
                       "profiling rows and confuse any downstream dispatch on id.");

@@ -298,6 +298,74 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     reached, because the fan-out chains are emitted into the *backward* graph,
     which `differentiate()` does not revisit) and `MUL`'s right operand.
 
+### Changed
+- **The library is built at C++17 instead of C++20**, matching SushiBLAS and
+  SushiRuntime, so that one standard now holds across the whole stack. SushiAI
+  was the last repository above the line. This is not tidiness:
+  `SushiRuntime::span` (`SushiRuntime/core/span.hpp`) selects between
+  `std::span` and SushiRuntime's own shim on `__cplusplus`, and that selection
+  reaches the compiled ABI, so SushiAI at C++20 over siblings at C++17 had the
+  two halves of one build reading that branch differently.
+  **No API changed** — the same functions take the same arguments, spelled the
+  same way, and every header still compiles under C++20. What did change is the
+  linkage of the entry points that take a span and are *not* inline
+  (`Autograd::differentiate`, `Core::allocate_tensor`,
+  `Optim::StepScalars::write`, the gradcheck entry points): they export the
+  shim's mangling now, so a consumer must be at C++17 too. That is the one
+  place SushiAI cannot mirror SushiBLAS, whose span-taking API is entirely
+  header-inline and whose `tests/package/` therefore stays at C++20;
+  SushiAI's moves to 17, with the two mangled symbols recorded in the file so
+  the difference is documented where someone would change it back. See
+  `INTEGRATION.md` §3.
+  The C++20 facilities the codebase used were replaced rather than removed:
+  - `std::span` -> `SushiRuntime::span` at 105 sites across 31 files. It *is*
+    `std::span` wherever `std::span` exists, so no signature changed shape.
+  - `std::format` -> `SushiBLAS::Core::format`, **shared with SushiBLAS rather
+    than copied a third time**. SushiBLAS already carried the stand-in as an
+    installed public header and SushiAI links SushiBLAS unconditionally, so the
+    alternative was a third copy of one file to delete in a third place when
+    the stack returns to C++20. Its entry point was promoted out of
+    `SushiBLAS::Core::Detail` to a documented `SushiBLAS::Core::format` for
+    this — an addition to SushiBLAS's API, not a break; `Detail::format` is
+    untouched and the public entry forwards to it. The shared header was
+    extended to cover the specs SushiAI writes and SushiBLAS did not:
+    fill/alignment (`{:<18}`, `{:>8.3f}`, `{:^9}`) and the integer
+    presentation types (`{:08x}`, `X`, `o`, `d`). Forking it would have been
+    the dishonest fix. No message text changed.
+    What is genuinely lost is `std::format`'s `consteval` check on a literal
+    format string: a placeholder count that disagrees with the argument count
+    is now a best-effort message rather than a compile error — the same loss
+    SushiBLAS and SushiRuntime already took.
+  - `concept Module` / `concept ModuleContainer` -> `constexpr bool` variable
+    templates over `std::void_t` detectors, so every use site
+    (`Module<Linear>`, `if constexpr (ModuleContainer<M>)`, the eight
+    `static_assert`s in `layers.hpp`) is spelled exactly as before and keeps
+    its message. `Module` still demands that `forward()` return **exactly**
+    `Graph::ValueId` (`std::is_same`, not convertible-to).
+    `ModuleContainer`'s probe could not be transliterated: its lambda lived in
+    an unevaluated context, which is C++20-only, so it became a named
+    `Detail::ChildProbe` function object — still generic in the child type,
+    because a probe that was less permissive would quietly answer "not a
+    container" and `for_each_parameter` would stop recursing with no error.
+    `Unit_Module.NestedContainersCompoundTheirIndices` is the test that pins
+    it.
+  - `template<Module... Ls> class Sequential` -> `template<typename... Ls>`
+    plus a `static_assert` fold at the top of the class, which still states the
+    contract in a sentence and still fails against `Sequential`'s own
+    instantiation — clang's fold diagnostic still names the offending layer
+    (`requirement 'Module<NotALayer>'`). What is lost is that
+    `Sequential<NotAModule>` is now a valid specialization that fails when
+    instantiated rather than one that never matched — it can no longer be
+    SFINAE'd away. Nothing overloads on it.
+  - `consteval` -> `constexpr` at all three sites (`Ops::op`,
+    `Ops::all_ids_unique`, `every_fused_activation_survives`). Each is called
+    only from a `static_assert` or a `constexpr` variable initialiser, both of
+    which force constant evaluation, so nothing moved to run time: the OpID
+    collision proof was re-checked by introducing a colliding name and
+    confirming the `static_assert` still fires, through the C++17 span shim.
+  - `std::string_view::starts_with` -> `rfind(prefix, 0) == 0` in
+    `Unit_Ops.EveryNameCarriesTheLibraryPrefix`.
+
 ### Known limitations
 - The optimizer update and the per-step batch feed are not part of the
   compiled plan: AdamW's bias corrections are per-step scalars and SushiBLAS

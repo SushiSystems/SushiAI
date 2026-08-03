@@ -69,8 +69,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <span>
 #include <string>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -147,7 +147,7 @@ namespace SushiAI
          * @param inputs The point, in FLOAT64.
          * @return The scalar value at that point.
          */
-        using ScalarFunction = std::function<double(std::span<const double> inputs)>;
+        using ScalarFunction = std::function<double(SushiRuntime::span<const double> inputs)>;
 
         /**
          * @brief Fills @p gradient with the analytic gradient at @p inputs.
@@ -155,8 +155,8 @@ namespace SushiAI
          * @param inputs The point, in FLOAT64.
          * @param gradient The output, exactly as long as @p inputs.
          */
-        using GradientFunction = std::function<void(std::span<const double> inputs,
-                                                    std::span<double> gradient)>;
+        using GradientFunction = std::function<void(SushiRuntime::span<const double> inputs,
+                                                    SushiRuntime::span<double> gradient)>;
 
         /**
          * @brief Moves coordinates off a kink at zero, in place.
@@ -164,7 +164,7 @@ namespace SushiAI
          * @param inputs The point to adjust.
          * @param options Supplies the step size and the margin.
          */
-        void push_off_kinks(std::span<double> inputs, const GradCheckOptions& options = {});
+        void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options = {});
 
         /**
          * @brief Compares every coordinate of the gradient against a central difference.
@@ -182,7 +182,7 @@ namespace SushiAI
          */
         GradCheckResult check_full_jacobian(const ScalarFunction& value,
                                             const GradientFunction& gradient,
-                                            std::span<double> inputs,
+                                            SushiRuntime::span<double> inputs,
                                             const GradCheckOptions& options = {});
 
         /**
@@ -202,7 +202,7 @@ namespace SushiAI
          */
         GradCheckResult check_directional(const ScalarFunction& value,
                                           const GradientFunction& gradient,
-                                          std::span<double> inputs,
+                                          SushiRuntime::span<double> inputs,
                                           std::size_t directions = 8,
                                           const GradCheckOptions& options = {});
 

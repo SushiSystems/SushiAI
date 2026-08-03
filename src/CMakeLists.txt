@@ -62,8 +62,11 @@ target_link_libraries(sushiai PUBLIC
 )
 
 # --- Properties ---
+# Restated on the target rather than left to CMAKE_CXX_STANDARD alone, so an
+# add_subdirectory consumer at a different standard still compiles this library
+# at the one its ABI was decided under - see the root CMakeLists.txt comment.
 set_target_properties(sushiai PROPERTIES
-    CXX_STANDARD 20
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
 

@@ -29,11 +29,11 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include "../../common/test_throws.hpp"
 #include "../../common/test_utils.hpp"
 
@@ -339,7 +339,7 @@ TEST_F(Integration_Resilience, TheSyntheticDatasetNamesEveryExtentWhenOneIsNotPo
 TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
 {
     const int64_t empty_dims[2] = {4, 0};
-    SA_EXPECT_ERROR((void)allocate_tensor(*engine, std::span<const int64_t>(empty_dims, 2)),
+    SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(empty_dims, 2)),
                     "Tensor extents must be positive", "got 0");
 
     // Signed overflow in the extent product is undefined behaviour, which a
@@ -347,7 +347,7 @@ TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
     // before the multiply, so the diagnostic is about the shape rather than
     // about the wreckage.
     const int64_t overflowing[3] = {3'000'000'000LL, 3'000'000'000LL, 3'000'000'000LL};
-    SA_EXPECT_ERROR((void)allocate_tensor(*engine, std::span<const int64_t>(overflowing, 3)),
+    SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(overflowing, 3)),
                     "more than", "elements", "3000000000");
 }
 
@@ -358,7 +358,7 @@ TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanT
     // from four frames down, and not a null pointer for a kernel to chase.
     const int64_t enormous[2] = {1LL << 25, 1LL << 25};
 
-    SA_EXPECT_ERROR((void)allocate_tensor(*engine, std::span<const int64_t>(enormous, 2)),
+    SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(enormous, 2)),
                     "Could not allocate the float32 tensor", "[33554432, 33554432]");
 }
 
