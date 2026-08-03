@@ -1,8 +1,8 @@
 # SushiAI
 
 SushiAI is the AI/ML head of the SushiStack: a C++17 library with a
-graph-native autograd core, a memory planner and a fusion pass — with mixed
-precision still ahead of it — built on
+graph-native autograd core, a memory planner, a fusion pass and
+mixed-precision dtype plumbing, built on
 [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s tensor and BLAS
 layer, which itself runs on
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph.
@@ -11,7 +11,9 @@ layer, which itself runs on
 two-layer model into SushiAI's own IR, differentiates that IR, lowers it to
 SushiBLAS once, compiles it once, and replays it per batch until the loss
 falls from `ln(C)` to convergence. Memory planning and kernel fusion have
-landed since; mixed precision is still ahead — see
+landed since, and so has the **dtype half of mixed precision** — fp16
+products with fp32 master weights, `--precision mixed`. Loss scaling and
+overflow backoff are still ahead of it — see
 [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
 for the roadmap and [ARCHITECTURE.md §7](ARCHITECTURE.md#7-whats-not-here-yet)
 for an honest list of what this tree does not do yet, including the limits the
@@ -37,6 +39,12 @@ feature that plan hasn't reached.
 - **A memory planner and per-lifetime arenas** (`graph/memory_plan.hpp`,
   `graph/arena.hpp`) — IR values packed into arenas by lifetime instead of one
   `Storage` each, pinned by `Regression_StaticMemory`.
+- **Mixed-precision dtype plumbing** (`graph/precision.hpp`,
+  `graph/cast_insertion.hpp`) — a per-operation precision policy and an
+  IR-to-IR pass that inserts explicit `CAST` nodes at every dtype boundary, so
+  the fp16 a GEMM reads is a *derived* value and the fp32 master weight it came
+  from is untouched. `--precision mixed`. **Loss scaling is not here yet**, so
+  this is the dtype half of AI-4 and not all of it.
 - **Layers and losses** (`nn/`) — `Linear`, `ReLU`/`GELU`/`Tanh`/`Sigmoid`,
   `Sequential` with CTAD, `CrossEntropyLoss`, Kaiming/Xavier initialisation.
   No base class and no `register_module`: a layer publishes its parameters
@@ -202,11 +210,12 @@ Model    : 32 -> 128 -> 6  (4998 learnable scalars)
 Optimizer: adamw (lr 0.003)
 Batches  : 16 x 32 from 'synthetic-classification'
 Graph    : 17 IR nodes over 22 values
+Precision: fp32; every operation computes in the graph's own type
 Fusion   : 22 node(s) -> 17
            fused    gemm+bias+relu -> value 6
            fused    gemm+bias -> value 10
            fused    exp-sub-scale -> value 15
-Buffers  : 26 tensors, 96.6 KiB (one allocation each: 96.6 KiB)
+Buffers  : 24 tensors, 96.7 KiB (one allocation each: 96.7 KiB)
 Arenas   : 1 (activation), 5 buffers in 49.5 KiB instead of 49.5 KiB - 0% saved
 Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
 
@@ -230,7 +239,7 @@ steps          : 128
 ops per step   : 25
 loss           : 1.791759 -> 0.000380
 final accuracy : 100.00%
-wall clock     : 1955.5 ms (15.28 ms/step)
+wall clock     : 2122.9 ms (16.58 ms/step)
 per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::profiling to collect it)
 ----------------------------------------------------------------
   compiles: 1  <- one lowering, one compile, 128 replays.
@@ -298,6 +307,67 @@ The whole pool is 96.6 KiB against 130.9 KiB before either pass existed.
 *unfused* graph, and the fused graph is never larger than the packed unfused
 one.
 
+### Mixed precision: what `--precision mixed` does, and what it is worth here
+
+`--precision mixed` runs the matrix products — and the bias and activation a
+fused GEMM folds into them — in **fp16**, keeping fp32 master weights, fp32
+gradients, fp32 reductions and an fp32 optimizer update. It is structure in
+the IR, not a runtime switch: a per-operation policy
+(`graph/precision.hpp`) says what each node computes in, and a pass
+(`graph/cast_insertion.hpp`) inserts explicit `CAST` nodes at every boundary
+so that every node's operands agree with its computed type by construction.
+The fp16 copy of a weight is a *derived* value with an activation lifetime;
+the master weight keeps its id, its `FLOAT32` dtype and its
+`Lifetime::PARAMETER`.
+
+Same command, same seed, `--epochs 8 --batches 16` on this machine:
+
+| | `--precision fp32` | `--precision mixed` |
+|---|---|---|
+| casts inserted | 0 | 10 (6 narrowing, 4 widening) |
+| ops per step | 25 | 35 |
+| loss, epoch 1 | 1.791759 → 0.037844 | 1.791759 → 0.037880 |
+| loss, epoch 8 | 0.000331 → 0.000380 | 0.000332 → 0.000380 |
+| final accuracy | 100.00% | 100.00% |
+| wall clock | 2105.9 ms (16.45 ms/step) | 9364.9 ms (73.16 ms/step) |
+
+(The wall clock differs by about 1% from the block quoted above; that is a
+different run of the same command, not a different configuration.)
+
+Read that table honestly, because two of its rows say uncomfortable things.
+
+**It is 4.5x slower, and that is expected rather than a defect.** There is no
+fp16 matrix unit on this device; `sycl::half` arithmetic is emulated, so every
+narrowed kernel does strictly more work than its fp32 twin and then pays for
+ten conversions on top. **No benchmark taken here would say anything about
+mixed precision on hardware that has a low-precision matrix unit**, which is
+the hardware this exists for. Speed is not asserted anywhere in the test
+suite for the same reason.
+
+**The loss tracks fp32 closely and does not stall.** Both runs finish at
+0.000380 with 100% accuracy. At the largest loss where the printed digits are
+actually meaningful — epoch 1's last step, `0.037844` against `0.037880` —
+the relative deviation is 9.5e-4. The demo prints six decimals, so by epoch 8
+the losses are down at `0.000331` against `0.000332` and the apparent 3e-3
+there is dominated by the printing rather than by the arithmetic; the
+per-step comparison that is not (`Regression_MixedPrecision`) reads the
+doubles directly. That is a *measurement of this workload*, not a general
+claim: fp16 training without loss scaling is
+expected to lose small gradients to underflow, and on this small MLP it
+demonstrably does not. Repeating it with `--hidden 512 --batch-size 64` (a
+512-long fp16 reduction inside each product) gives the same answer — both
+arms reach 0.000003 after 48 steps. So the loss-scaling work that follows is
+justified by theory and by larger models, and **not** by anything this
+workload does.
+
+`gradcheck` and mixed precision are incompatible, and deliberately so:
+`autograd/gradcheck.hpp` requires FLOAT64 because a central difference in
+fp16 has a noise floor about a thousand times *larger* than the discrepancy a
+wrong backward rule produces. A gradient rule is a statement about the
+mathematics, so checking it once in fp64 checks it for every precision; what
+mixed precision can get wrong is the plumbing, and that is checked by walking
+the graph (`Graph::find_dtype_mismatches`) rather than by a finite difference.
+
 ## Running the tests
 
 ```bash
@@ -332,7 +402,10 @@ sa::NN::Sequential model{
     sa::NN::Linear{32, 128}, sa::NN::ReLU{}, sa::NN::Linear{128, 6},
 };
 
-// Trace, add cross-entropy, differentiate: all IR-to-IR, no device work yet.
+// Trace, add cross-entropy, differentiate, insert casts, fuse: all IR-to-IR,
+// no device work yet. The two trailing arguments default to "fuse everything"
+// and "one element type everywhere"; pass a sa::Graph::MixedPrecisionPolicy as
+// the last one for fp16 products with fp32 master weights.
 sa::Train::TrainingGraph built = sa::Train::build_classifier(model, 32, 32, 6);
 
 sa::Graph::TensorPool pool(engine);
@@ -376,7 +449,8 @@ include/SushiAI/
   SushiAI.h              Master header — includes every public header
   version.hpp            SUSHIAI_VERSION_* macros
   core/                  Vocabulary: common, ops, shape, allocation
-  graph/                 The IR, its builder, the lowering, CompiledStep
+  graph/                 The IR, its builder, the passes (planner, precision,
+                         casts, fusion), the lowering, CompiledStep
   autograd/              Differentiation and gradient checking
   nn/                    Parameters, the Module contract, layers, losses, init
   optim/                 SGD and AdamW

@@ -23,8 +23,9 @@ unchanged.
 
 One consequence worth planning around: `include/SushiAI/SushiAI.h` pulls in
 both lanes. The **host lane** — `core/common.hpp`, `core/ops.hpp`,
-`core/shape.hpp`, `graph/ir.hpp`, `graph/builder.hpp`, `autograd/`,
-`nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS *engine*
+`core/shape.hpp`, `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
+`graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
+`autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS *engine*
 and no SYCL (only sibling *vocabulary* headers: the dtype/layout enums, the
 message formatter, `SushiRuntime::span` and `OpID`), so a translation unit
 that only builds or inspects a graph can include those headers directly and
