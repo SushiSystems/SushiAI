@@ -1,6 +1,6 @@
 # SushiAI
 
-SushiAI is the AI/ML head of the SushiStack: a C++20 library with a
+SushiAI is the AI/ML head of the SushiStack: a C++17 library with a
 graph-native autograd core — and, still ahead of it, memory planning, kernel
 fusion and mixed precision — built on
 [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s tensor and BLAS
@@ -70,7 +70,14 @@ document promises a feature that plan hasn't reached.
   [D3 layered CMake resolution](ARCHITECTURE.md#2-the-sibling-dependency-chain-d3):
   an in-tree superproject target, an installed `find_package`, or (the
   common case) a sibling `../sushiruntime` / `../sushiblas` checkout.
-- **C++20.**
+- **C++17** — the same standard SushiBLAS and SushiRuntime are built to, and
+  the same standard a consumer must compile at. Not "or later": the stack has
+  to agree on one, because `SushiRuntime::span` picks between `std::span` and
+  SushiRuntime's own shim on `__cplusplus` and that choice reaches the compiled
+  ABI. See
+  [ARCHITECTURE.md §1](ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
+  for why, and [INTEGRATION.md §3](INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply)
+  for what it means if you are the consumer.
 
 C++ library dependencies and the SYCL toolchain are provisioned by
 [SushiStack](https://sushisystems.io) (the `ss` CLI), which owns dependency
@@ -365,7 +372,7 @@ include/SushiAI/
   core/                  Vocabulary: common, ops, shape, allocation
   graph/                 The IR, its builder, the lowering, CompiledStep
   autograd/              Differentiation and gradient checking
-  nn/                    Parameters, the Module concept, layers, losses, init
+  nn/                    Parameters, the Module contract, layers, losses, init
   optim/                 SGD and AdamW
   data/                  The Dataset seam, synthetic data, the MNIST loader
   train/                 The training loop and its run report

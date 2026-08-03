@@ -62,6 +62,49 @@ consumer, a three-tier test suite with CTest labels (`unit` / `integration` /
 `examples/demo_mlp.cpp`, a flag-driven training program, deliberately a
 separate binary from the `examples/example.cpp` teaching file.
 
+### The whole stack is C++17, and that is not a style choice
+
+SushiAI is built at **C++17** — the standard SushiRuntime and SushiBLAS are
+built to. The three repositories have to agree on one standard, and the reason
+is an ABI, not a preference.
+
+`SushiRuntime::span` (`SushiRuntime/core/span.hpp`) *is* `std::span` when
+`__cplusplus >= 202002L` and SushiRuntime's own C++17 shim otherwise. That
+branch is taken per translation unit and it reaches the mangled name of every
+function that takes one. SushiAI compiled at C++20 over siblings compiled at
+C++17 put the two halves of one build on opposite sides of it — the same
+mismatch that moved SushiBLAS down first
+([its ARCHITECTURE §1](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/ARCHITECTURE.md#1-what-sushiblas-is)).
+SushiAI was the last repository still above the line, so the stack now agrees.
+
+The library's own API did not change: the same functions take the same
+arguments spelled the same way, and a *header-only* use compiles under either
+standard. What did change is the linkage of the out-of-line entry points whose
+parameter type is a span — `Autograd::differentiate`,
+`Core::allocate_tensor`, `Optim::StepScalars::write`, the `Autograd`
+gradcheck entry points. Those now export the shim's mangling, so a consumer
+must be at C++17 too; `tests/package/` says so in a comment, with the two
+symbols side by side. See [INTEGRATION.md §3](INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply).
+
+The pieces C++20 had been supplying are C++17 spellings now:
+
+| was | is | where |
+|---|---|---|
+| `std::span` | `SushiRuntime::span` | 105 sites across 31 files — the same type wherever `std::span` exists |
+| `std::format` | `SushiBLAS::Core::format` | `SA_THROW_IF` and every report/diagnostic string |
+| `concept Module` / `ModuleContainer` | `constexpr bool` variable templates over `std::void_t` detectors | `nn/module.hpp` |
+| `template<Module... Ls>` | `template<typename... Ls>` + a `static_assert` fold | `nn/layers.hpp`'s `Sequential` |
+| `consteval` | `constexpr` (called only from `static_assert`, so still proven at compile time) | `core/ops.hpp`, `src/graph/fusion.cpp` |
+
+`SushiBLAS::Core::format` is **shared, not copied**: SushiBLAS carries the
+stand-in as an installed public header and SushiAI links SushiBLAS
+unconditionally, so a third copy of the same code would only have meant a
+third place to delete when the stack returns to C++20. One guarantee is
+genuinely lost with it — `std::format`'s `consteval` check on a literal format
+string — so a placeholder/argument mismatch is now a slightly worse message
+rather than a compile error. Diagnostics never fail the program; that is the
+trade.
+
 ---
 
 ## 2. The sibling dependency chain (D3)
@@ -124,8 +167,14 @@ header. Two lanes live under it:
 
 - The **host lane** — `core/` (except `core/allocation.hpp`),
   `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`, `autograd/`,
-  `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — pulls in no SushiBLAS and
-  no SYCL. The `Unit_*` tests include these directly and run without a device.
+  `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS
+  *engine* and no SYCL. The `Unit_*` tests include these directly and run
+  without a device. What it does reach of its siblings is vocabulary only, and
+  every one of those headers is `<cstddef>`-and-friends deep:
+  `<SushiBLAS/core/common.hpp>` for the dtype/layout enums,
+  `<SushiBLAS/core/format.hpp>` for the message formatter, and
+  `<SushiRuntime/core/span.hpp>` and `<SushiRuntime/graph/task_types.hpp>` for
+  the span and the `OpID`.
 - The **device lane** — `core/allocation.hpp`, `graph/arena.hpp`,
   `graph/lowering.hpp`, `graph/compiled_step.hpp`, `nn/init.hpp`, `optim/`,
   `data/`, `train/` — reaches SushiBLAS.
@@ -426,6 +475,15 @@ SushiBLAS's `ARCHITECTURE.md §10`): linking a PRIVATE policy target, even
 `tests/package/` is a real out-of-tree consumer — `find_package(SushiAI)`
 against an install prefix, no access to this source tree — that runs a real
 op through both transitively-resolved siblings.
+
+It is built at **C++17**, which is the one place this repository deliberately
+stops mirroring sushiblas's `tests/package/`. SushiBLAS keeps its consumer at
+C++20 as a live assertion that a C++20 consumer still links against a C++17
+library, and that assertion holds there because all of its span-taking entry
+points are header-inline. SushiAI's are not (§1), so the same assertion here
+would be false — and would pass only because `main.cpp` happens to call
+nothing that takes a span. The file records the two mangled symbols that
+prove it.
 
 `SA_BUILD_TESTS` (default `ON`) guards `enable_testing()` and
 `add_subdirectory(tests)` together, matching SushiRuntime's `SR_BUILD_TESTS`

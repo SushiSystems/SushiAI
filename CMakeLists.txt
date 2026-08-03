@@ -48,7 +48,12 @@ endif()
 option(SA_BUILD_TESTS "Build the SushiAI test suite" ON)
 
 # --- Configuration ---
-set(CMAKE_CXX_STANDARD 20)
+# C++17, matching SushiBLAS and SushiRuntime. The whole stack has to agree on
+# one standard because `SushiRuntime::span` selects between std::span and
+# SushiRuntime's own shim on __cplusplus, and that choice reaches the compiled
+# ABI: SushiAI at C++20 over siblings at C++17 put the two halves of one build
+# on opposite sides of that branch. See docs/ARCHITECTURE.md §1.
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

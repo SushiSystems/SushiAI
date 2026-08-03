@@ -23,9 +23,9 @@
 
 #include <algorithm>
 #include <cstring>
-#include <format>
 #include <fstream>
-#include <span>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/data/dataset.hpp>
 
@@ -132,7 +132,7 @@ namespace SushiAI
             // is what makes the problem a single consistent classification task
             // rather than a fresh one per batch.
             const int64_t mean_dims[2] = {classes, features};
-            SushiBLAS::Tensor means = allocate_tensor(engine, std::span<const int64_t>(mean_dims, 2));
+            SushiBLAS::Tensor means = allocate_tensor(engine, SushiRuntime::span<const int64_t>(mean_dims, 2));
             engine.random().normal(means, 0.0, 1.0);
             engine.execute();
             engine.get_context().wait_all();
@@ -140,7 +140,7 @@ namespace SushiAI
             const int64_t sample_dims[2] = {rows, features};
             const int64_t target_dims[2] = {rows, classes};
 
-            SushiBLAS::Tensor noise = allocate_tensor(engine, std::span<const int64_t>(sample_dims, 2));
+            SushiBLAS::Tensor noise = allocate_tensor(engine, SushiRuntime::span<const int64_t>(sample_dims, 2));
 
             batches_.reserve(static_cast<std::size_t>(options_.batches));
 
@@ -148,8 +148,8 @@ namespace SushiAI
             for (int64_t b = 0; b < options_.batches; ++b)
             {
                 Batch batch;
-                batch.inputs = allocate_tensor(engine, std::span<const int64_t>(sample_dims, 2));
-                batch.targets = allocate_tensor(engine, std::span<const int64_t>(target_dims, 2));
+                batch.inputs = allocate_tensor(engine, SushiRuntime::span<const int64_t>(sample_dims, 2));
+                batch.targets = allocate_tensor(engine, SushiRuntime::span<const int64_t>(target_dims, 2));
                 batch.labels.resize(static_cast<std::size_t>(rows));
 
                 for (int64_t r = 0; r < rows; ++r)
@@ -191,8 +191,8 @@ namespace SushiAI
 
         std::string mnist_expected_paths(const MnistOptions& options)
         {
-            return std::format("images: {}, labels: {}",
-                               image_path(options).string(), label_path(options).string());
+            return SushiBLAS::Core::format("images: {}, labels: {}",
+                                           image_path(options).string(), label_path(options).string());
         }
 
         std::unique_ptr<Dataset> try_load_mnist(SushiBLAS::Engine& engine,
@@ -260,8 +260,8 @@ namespace SushiAI
                             b, batch_total);
 
                 Batch batch;
-                batch.inputs = allocate_tensor(engine, std::span<const int64_t>(sample_dims, 2));
-                batch.targets = allocate_tensor(engine, std::span<const int64_t>(target_dims, 2));
+                batch.inputs = allocate_tensor(engine, SushiRuntime::span<const int64_t>(sample_dims, 2));
+                batch.targets = allocate_tensor(engine, SushiRuntime::span<const int64_t>(target_dims, 2));
                 batch.labels.resize(static_cast<std::size_t>(rows));
 
                 float* pixel_data = batch.inputs.data_as<float>();

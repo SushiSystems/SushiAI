@@ -45,7 +45,7 @@ namespace SushiAI
             for (std::size_t i = 0; i < count_; ++i) data_[i] = 0.0f;
         }
 
-        void StepScalars::write(std::span<const float> values)
+        void StepScalars::write(SushiRuntime::span<const float> values)
         {
             SA_THROW_IF(values.size() != count_,
                         "This step-scalar buffer holds {} slots but {} values were written",

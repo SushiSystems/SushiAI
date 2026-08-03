@@ -24,10 +24,12 @@ unchanged.
 One consequence worth planning around: `include/SushiAI/SushiAI.h` pulls in
 both lanes. The **host lane** — `core/common.hpp`, `core/ops.hpp`,
 `core/shape.hpp`, `graph/ir.hpp`, `graph/builder.hpp`, `autograd/`,
-`nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS and no
-SYCL, so a translation unit that only builds or inspects a graph can include
-those headers directly and stay off the device compiler. Everything else,
-`core/allocation.hpp` included, is the device lane. See
+`nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS *engine*
+and no SYCL (only sibling *vocabulary* headers: the dtype/layout enums, the
+message formatter, `SushiRuntime::span` and `OpID`), so a translation unit
+that only builds or inspects a graph can include those headers directly and
+stay off the device compiler. Everything else, `core/allocation.hpp`
+included, is the device lane. See
 [ARCHITECTURE.md §3](ARCHITECTURE.md#3-the-library-target).
 
 ---
@@ -94,10 +96,47 @@ and SushiBLAS's `ARCHITECTURE.md §10` for why that split matters for a
 You must supply:
 
 - **The same SYCL compiler** every library in the chain was built with.
-- **C++20 or later.**
+- **C++17 — the same standard, not "or later".** See below.
 - **`CMAKE_PREFIX_PATH` naming all three install prefixes** (SushiAI,
   SushiBLAS, SushiRuntime) unless all three share one prefix.
 - **SushiRuntime's shared library on the loader path** at run time.
+
+### Why the standard has to match, and does not just have to be "at least"
+
+SushiAI is built at **C++17**, matching SushiBLAS and SushiRuntime — see
+[ARCHITECTURE.md §1](ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
+for why the three have to agree at all.
+
+The consequence for you is narrow but real. `SushiRuntime::span` is
+`std::span` at C++20 and SushiRuntime's own shim at C++17, chosen on
+`__cplusplus`, and SushiAI has out-of-line entry points whose parameter type
+is that span — `Autograd::differentiate`, `Core::allocate_tensor`,
+`Optim::StepScalars::write`, the gradcheck entry points. Compiled at C++20,
+your call to one of them mangles differently from the symbol the library
+exports:
+
+```
+library  (C++17)  ...V?$span@$$CBI@SushiRuntime@@@Z
+consumer (C++20)  ...V?$span@$$CBI$0?0@4@@Z        <- std::span
+```
+
+That is an unresolved external at link time, not a warning. It is easy to hit
+without touching a span yourself, because the header template
+`Train::build_classifier` calls `Autograd::differentiate` for you.
+
+Everything else is standard-agnostic: the headers *compile* under C++20
+unchanged, and a translation unit that only builds or inspects a graph, or
+only reads `SushiAI::version_string()`, links fine either way. If the rest of
+your program must be C++20, the usual containment applies — put the code that
+calls SushiAI in its own C++17 target behind an interface of your own types
+and link that in. That is a workaround, not a supported configuration: it is
+your responsibility that nothing standard-library-versioned crosses the
+boundary. `tests/package/` in this repository is a working C++17 consumer;
+its `CMakeLists.txt` carries the same explanation at the point where you
+would otherwise change the standard.
+
+This restriction lifts, without an API change, when the whole stack moves back
+to C++20 together.
 
 ---
 
@@ -124,6 +163,11 @@ prefixes — `SushiAIConfig.cmake` calls `find_dependency(SushiRuntime)` and
 
 **A parse error or link error mentioning `sycl`.** Your translation unit (or
 the whole target) is being compiled by a non-SYCL compiler — see §1.
+
+**An unresolved external naming `span` — `differentiate`, `allocate_tensor`,
+`StepScalars::write`, a gradcheck entry point, or anything reached through
+`Train::build_classifier`.** Your translation unit is being compiled at C++20
+against a C++17 library. Compile it at C++17 — see §3.
 
 **Link errors on a BLAS symbol you expected `SushiAI` to provide.** SushiAI
 defines no ops of its own — check you're calling `SushiBLAS::sushiblas`'s API

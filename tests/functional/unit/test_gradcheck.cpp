@@ -11,9 +11,9 @@
 // prove the check can actually fail.
 
 #include <cmath>
-#include <span>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 
 using namespace SushiAI::Autograd;
@@ -21,34 +21,34 @@ using namespace SushiAI::Autograd;
 namespace
 {
     /** @brief f(x) = sum(x_i^3) - sum(x_i^2) / 2, a smooth non-quadratic. */
-    double cubic(std::span<const double> x)
+    double cubic(SushiRuntime::span<const double> x)
     {
         double total = 0.0;
         for (double v : x) total += v * v * v - 0.5 * v * v;
         return total;
     }
 
-    void cubic_gradient(std::span<const double> x, std::span<double> g)
+    void cubic_gradient(SushiRuntime::span<const double> x, SushiRuntime::span<double> g)
     {
         for (std::size_t i = 0; i < x.size(); ++i) g[i] = 3.0 * x[i] * x[i] - x[i];
     }
 
     /** @brief The same gradient with one coordinate 0.1% out. */
-    void slightly_wrong_gradient(std::span<const double> x, std::span<double> g)
+    void slightly_wrong_gradient(SushiRuntime::span<const double> x, SushiRuntime::span<double> g)
     {
         cubic_gradient(x, g);
         g[2] *= 1.001;
     }
 
     /** @brief f(x) = sum(relu(x_i)^2), differentiable away from zero. */
-    double rectified(std::span<const double> x)
+    double rectified(SushiRuntime::span<const double> x)
     {
         double total = 0.0;
         for (double v : x) if (v > 0.0) total += v * v;
         return total;
     }
 
-    void rectified_gradient(std::span<const double> x, std::span<double> g)
+    void rectified_gradient(SushiRuntime::span<const double> x, SushiRuntime::span<double> g)
     {
         for (std::size_t i = 0; i < x.size(); ++i) g[i] = x[i] > 0.0 ? 2.0 * x[i] : 0.0;
     }

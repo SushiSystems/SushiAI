@@ -37,7 +37,7 @@ namespace SushiAI
             operations_ = lowering.emitted_operations();
             ordering_nodes_ = lowering.ordering_nodes();
 
-            const std::span<const FusionSelection> chosen = lowering.selections();
+            const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
             selections_.assign(chosen.begin(), chosen.end());
 
             // After the lowering and before the compile, so the trailing work

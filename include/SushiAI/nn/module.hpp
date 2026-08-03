@@ -42,7 +42,7 @@
  * Here a layer is an aggregate struct that publishes its parameters through a
  * @c static @c constexpr @c fields() list. Forgetting an entry is not a
  * runtime accident; it is a visible omission in a two-line function that sits
- * directly beneath the members it lists. The @c Module concept checks the
+ * directly beneath the members it lists. The @c Module trait checks the
  * contract where the layer is declared, not where it is first used, so a
  * mistake names the layer rather than some template instantiation four frames
  * deep.
@@ -58,12 +58,12 @@
  * Host lane: no SushiBLAS, no SYCL.
  */
 
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
@@ -194,38 +194,68 @@ namespace SushiAI
             return ParameterField<M>{name, member};
         }
 
-        /**
-         * @concept Module
-         * @brief The contract a layer satisfies: it lists its parameters and it traces.
-         *
-         * Checked where a layer is declared (see the static_asserts in
-         * layers.hpp), so a missing fields() or a forward() with the wrong
-         * signature is reported against the layer rather than against whatever
-         * template first tried to use it.
-         */
-        template<typename T>
-        concept Module = requires(T& module, const Graph::GraphBuilder& builder, Graph::ValueId value)
-        {
-            { T::fields() };
-            { module.forward(builder, value) } -> std::same_as<Graph::ValueId>;
-        };
-
-        /**
-         * @concept ModuleContainer
-         * @brief A module built out of other modules, such as Sequential.
-         *
-         * Recognised by offering a child visit rather than by inheriting
-         * anything, so a user's own container joins the parameter walk without
-         * touching this file.
-         */
-        template<typename T>
-        concept ModuleContainer = requires(T& module)
-        {
-            module.visit_children([](std::size_t, auto&) {});
-        };
-
         namespace Detail
         {
+            /**
+             * @struct ChildProbe
+             * @brief A stand-in child visitor, used only to ask whether a type takes one.
+             *
+             * @ref IsModuleContainer needs to name the argument @c visit_children
+             * would be called with, and a lambda cannot be named: writing one inside
+             * a @c decltype - which is what the C++20 concept this replaces did - is
+             * only legal from C++20 on. So the visitor gets a name.
+             *
+             * It is generic in its second parameter and fixed in its first for the
+             * same reason the lambda was: a container hands each child's index and
+             * the child itself, and the children have different types. A probe that
+             * only accepted one child type would still compile here and would quietly
+             * answer "not a container" for every real container, which
+             * @c for_each_parameter's @c if @c constexpr would then read as "this is a
+             * leaf" - walking none of the nested parameters and reporting no error.
+             */
+            struct ChildProbe
+            {
+                /**
+                 * @brief Accepts any (index, child) pair, and does nothing with it.
+                 * @tparam T The child layer's type, deduced.
+                 */
+                template<typename T>
+                void operator()(std::size_t, T&) const noexcept {}
+            };
+
+            /**
+             * @struct IsModule
+             * @brief Detects @ref SushiAI::NN::Module; see it for the contract.
+             * @tparam T The candidate layer type.
+             */
+            template<typename T, typename = void>
+            struct IsModule : std::false_type {};
+
+            /** @brief The satisfied case: T has fields() and a conforming forward(). */
+            template<typename T>
+            struct IsModule<T, std::void_t<
+                decltype(T::fields()),
+                std::enable_if_t<std::is_same<
+                    decltype(std::declval<T&>().forward(
+                        std::declval<const Graph::GraphBuilder&>(),
+                        std::declval<Graph::ValueId>())),
+                    Graph::ValueId>::value>>>
+                : std::true_type {};
+
+            /**
+             * @struct IsModuleContainer
+             * @brief Detects @ref SushiAI::NN::ModuleContainer; see it for the contract.
+             * @tparam T The candidate container type.
+             */
+            template<typename T, typename = void>
+            struct IsModuleContainer : std::false_type {};
+
+            /** @brief The satisfied case: T accepts a child visitor. */
+            template<typename T>
+            struct IsModuleContainer<T, std::void_t<
+                decltype(std::declval<T&>().visit_children(ChildProbe{}))>>
+                : std::true_type {};
+
             /** @brief Joins a parameter-path prefix to a leaf name, PyTorch style. */
             inline std::string join(std::string_view prefix, std::string_view leaf)
             {
@@ -248,6 +278,45 @@ namespace SushiAI
                 visitor(join(prefix, descriptor.name), parameter);
             }
         }
+
+        /**
+         * @var Module
+         * @brief The contract a layer satisfies: it lists its parameters and it traces.
+         *
+         * A layer must offer a static @c fields() and a
+         * @c forward(const @c GraphBuilder&, @c ValueId) whose return type is
+         * **exactly** @c Graph::ValueId - @c std::is_same, not convertible-to, so a
+         * @c forward() returning something that merely converts fails the contract it
+         * should fail rather than passing it by accident.
+         *
+         * Checked where a layer is declared (see the static_asserts in layers.hpp),
+         * so a missing fields() or a forward() with the wrong signature is reported
+         * against the layer rather than against whatever template first tried to use
+         * it.
+         *
+         * A variable template rather than a C++20 concept, because the library is
+         * built at C++17 (see docs/ARCHITECTURE.md §1). Every use site is spelled the
+         * same either way - @c Module<Linear> - so this is the same contract asked the
+         * same way; what it cannot do is constrain a template parameter directly,
+         * which is why Sequential carries a static_assert instead.
+         *
+         * @tparam T The candidate layer type.
+         */
+        template<typename T>
+        inline constexpr bool Module = Detail::IsModule<T>::value;
+
+        /**
+         * @var ModuleContainer
+         * @brief A module built out of other modules, such as Sequential.
+         *
+         * Recognised by offering a child visit rather than by inheriting
+         * anything, so a user's own container joins the parameter walk without
+         * touching this file.
+         *
+         * @tparam T The candidate container type.
+         */
+        template<typename T>
+        inline constexpr bool ModuleContainer = Detail::IsModuleContainer<T>::value;
 
         /**
          * @brief Visits every declared parameter of @p module, deepest name first.

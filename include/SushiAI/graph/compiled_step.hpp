@@ -66,9 +66,9 @@
  */
 
 #include <cstddef>
-#include <span>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
@@ -167,10 +167,10 @@ namespace SushiAI
                 std::size_t ordering_node_count() const noexcept { return ordering_nodes_; }
 
                 /** @brief What the selector chose for each fused node; see Lowering. */
-                std::span<const FusionSelection> selections() const noexcept
+                SushiRuntime::span<const FusionSelection> selections() const noexcept
                 {
-                    return std::span<const FusionSelection>(selections_.data(),
-                                                            selections_.size());
+                    return SushiRuntime::span<const FusionSelection>(selections_.data(),
+                                                                     selections_.size());
                 }
 
                 /**

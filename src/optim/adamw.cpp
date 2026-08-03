@@ -24,11 +24,11 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <span>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/optim/adamw.hpp>
 
@@ -139,7 +139,7 @@ namespace SushiAI
             values[STEP_SIZE] =
                 static_cast<float>(-options_.learning_rate / bias_correction1);
 
-            scalars_.write(std::span<const float>(values.data(), values.size()));
+            scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
         std::size_t AdamW::record_update()

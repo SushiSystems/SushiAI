@@ -101,10 +101,10 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -313,7 +313,7 @@ namespace SushiAI
              *
              * Read only during @c fuse(); it need not outlive the call.
              */
-            std::span<const ValueId> observed{};
+            SushiRuntime::span<const ValueId> observed{};
 
             /**
              * @brief Catalog entries to leave unmatched.
@@ -324,7 +324,7 @@ namespace SushiAI
              *
              * Read only during @c fuse().
              */
-            std::span<const FusedForm> disabled{};
+            SushiRuntime::span<const FusedForm> disabled{};
         };
 
         /**
@@ -392,10 +392,10 @@ namespace SushiAI
         {
             public:
                 /** @brief Every chain that became one node. */
-                std::span<const FusedSubtree> fused() const noexcept { return fused_; }
+                SushiRuntime::span<const FusedSubtree> fused() const noexcept { return fused_; }
 
                 /** @brief Every chain that matched and was refused. */
-                std::span<const DeclinedFusion> declined() const noexcept { return declined_; }
+                SushiRuntime::span<const DeclinedFusion> declined() const noexcept { return declined_; }
 
                 /** @brief How many nodes the graph had before the pass. */
                 std::size_t nodes_before() const noexcept { return before_; }

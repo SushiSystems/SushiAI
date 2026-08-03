@@ -446,7 +446,7 @@ TEST(Unit_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
     const ValueId pinned[] = {a};
 
     PlanOptions options;
-    options.pinned = std::span<const ValueId>(pinned, 1);
+    options.pinned = SushiRuntime::span<const ValueId>(pinned, 1);
 
     const MemoryPlan plan = MemoryPlan::build(graph, options);
 
@@ -463,7 +463,7 @@ TEST(Unit_MemoryPlan, PinningAValueThatDoesNotExistThrows)
     const ValueId pinned[] = {99};
 
     PlanOptions options;
-    options.pinned = std::span<const ValueId>(pinned, 1);
+    options.pinned = SushiRuntime::span<const ValueId>(pinned, 1);
 
     EXPECT_THROW((void)MemoryPlan::build(graph, options), Error);
 }

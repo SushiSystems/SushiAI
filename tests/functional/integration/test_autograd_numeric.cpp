@@ -17,10 +17,10 @@
 
 #include <cmath>
 #include <memory>
-#include <span>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -66,7 +66,7 @@ namespace
 
                 const std::vector<ValueId> wrt = {variable_};
                 const std::vector<ValueId> grads = Autograd::differentiate(
-                    graph_, loss_, std::span<const ValueId>(wrt.data(), wrt.size()));
+                    graph_, loss_, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
                 gradient_ = grads.at(0);
                 EXPECT_NE(gradient_, Graph::NO_VALUE);
@@ -107,7 +107,7 @@ namespace
             ValueId targets() const noexcept { return targets_; }
 
             /** @brief The loss at @p point. */
-            double value(std::span<const double> point)
+            double value(SushiRuntime::span<const double> point)
             {
                 SaTest::write_tensor(pool_.tensor(variable_), point);
                 step_->run();
@@ -115,7 +115,7 @@ namespace
             }
 
             /** @brief The analytic gradient at @p point. */
-            void grad(std::span<const double> point, std::span<double> out)
+            void grad(SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
             {
                 SaTest::write_tensor(pool_.tensor(variable_), point);
                 step_->run();
@@ -128,13 +128,13 @@ namespace
             /** @brief A ScalarFunction bound to this probe. */
             Autograd::ScalarFunction value_fn()
             {
-                return [this](std::span<const double> point) { return value(point); };
+                return [this](SushiRuntime::span<const double> point) { return value(point); };
             }
 
             /** @brief A GradientFunction bound to this probe. */
             Autograd::GradientFunction grad_fn()
             {
-                return [this](std::span<const double> point, std::span<double> out)
+                return [this](SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
                 {
                     grad(point, out);
                 };

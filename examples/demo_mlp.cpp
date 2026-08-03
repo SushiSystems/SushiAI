@@ -50,17 +50,17 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <format>
 #include <iostream>
 #include <memory>
 #include <optional>
-#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/core/format.hpp>
+#include <SushiRuntime/core/span.hpp>
 
 namespace
 {
@@ -391,7 +391,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         {
             return DataChoice{
                 std::move(loaded),
-                std::format("MNIST (real IDX files) from {}", mnist.directory.string()),
+                SushiBLAS::Core::format("MNIST (real IDX files) from {}", mnist.directory.string()),
                 true,
             };
         }
@@ -405,9 +405,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
         return DataChoice{
             std::make_unique<sa::Data::SyntheticClassification>(engine, synthetic),
-            std::format("SYNTHETIC FALLBACK - no MNIST here.\n"
-                        "           Looked for {}.",
-                        sa::Data::mnist_expected_paths(mnist)),
+            SushiBLAS::Core::format("SYNTHETIC FALLBACK - no MNIST here.\n"
+                                    "           Looked for {}.",
+                                    sa::Data::mnist_expected_paths(mnist)),
             false,
         };
     }
@@ -424,8 +424,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      */
     std::string human_bytes(std::size_t bytes)
     {
-        if (bytes < 1024) return std::format("{} B", bytes);
-        return std::format("{:.1f} KiB", static_cast<double>(bytes) / 1024.0);
+        if (bytes < 1024) return SushiBLAS::Core::format("{} B", bytes);
+        return SushiBLAS::Core::format("{:.1f} KiB", static_cast<double>(bytes) / 1024.0);
     }
 
     /**
@@ -448,19 +448,19 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         if (report.fused().empty() && report.declined().empty())
             return "Fusion   : nothing in this graph matches the catalog\n";
 
-        std::string text = std::format("Fusion   : {} node(s) -> {}\n",
-                                       report.nodes_before(), report.nodes_after());
+        std::string text = SushiBLAS::Core::format("Fusion   : {} node(s) -> {}\n",
+                                                   report.nodes_before(), report.nodes_after());
 
         for (const sa::Graph::FusedSubtree& subtree : report.fused())
-            text += std::format("           fused    {} -> value {}\n",
-                                sa::Graph::fused_form_name(subtree.form), subtree.result);
+            text += SushiBLAS::Core::format("           fused    {} -> value {}\n",
+                                            sa::Graph::fused_form_name(subtree.form), subtree.result);
 
         for (const sa::Graph::DeclinedFusion& decline : report.declined())
-            text += std::format("           declined {}: {}\n",
-                                decline.form != sa::Graph::FusedForm::NONE
-                                    ? sa::Graph::fused_form_name(decline.form)
-                                    : sa::Ops::name_of(decline.op),
-                                sa::Graph::fusion_decline_reason(decline.reason));
+            text += SushiBLAS::Core::format("           declined {}: {}\n",
+                                            decline.form != sa::Graph::FusedForm::NONE
+                                                ? sa::Graph::fused_form_name(decline.form)
+                                                : sa::Ops::name_of(decline.op),
+                                            sa::Graph::fusion_decline_reason(decline.reason));
 
         return text;
     }
@@ -484,7 +484,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             return "Arenas   : none; no memory plan was adopted\n";
 
         const sa::Graph::MemoryPlan& plan = pool.arenas().plan();
-        const std::span<const sa::Graph::Arena> arenas = plan.arenas();
+        const SushiRuntime::span<const sa::Graph::Arena> arenas = plan.arenas();
 
         if (arenas.empty())
             return "Arenas   : none; this graph has no packable values\n";
@@ -504,13 +504,13 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             ? 0.0
             : 100.0 * (1.0 - static_cast<double>(packed) / static_cast<double>(loose));
 
-        std::string text = std::format(
+        std::string text = SushiBLAS::Core::format(
             "Arenas   : {} ({}), {} buffers in {} instead of {} - {:.0f}% saved\n",
             arenas.size(), classes, buffers, human_bytes(packed), human_bytes(loose), saved);
 
         if (!plan.reuse_enabled())
-            text += std::format("           live ranges were not overlapped: {}\n",
-                                plan.reuse_note());
+            text += SushiBLAS::Core::format("           live ranges were not overlapped: {}\n",
+                                            plan.reuse_note());
 
         return text;
     }
@@ -550,8 +550,8 @@ int main(int argc, char** argv)
         // device work has happened yet, and nothing has been compiled.
         sa::Graph::FusionOptions fusion;
         fusion.enabled = settings.fusion;
-        fusion.disabled = std::span<const sa::Graph::FusedForm>(settings.without.data(),
-                                                                settings.without.size());
+        fusion.disabled = SushiRuntime::span<const sa::Graph::FusedForm>(settings.without.data(),
+                                                                         settings.without.size());
 
         sa::Train::TrainingGraph built = sa::Train::build_classifier(
             model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion);
@@ -589,26 +589,26 @@ int main(int argc, char** argv)
             << "SushiAI  : " << SushiAI::version_string()
             << " on SushiBLAS " << SUSHIBLAS_VERSION_STRING << "\n"
             << "Data     : " << data.provenance << "\n"
-            << std::format("Model    : {} -> {} -> {}  ({} learnable scalars)\n",
-                           features, settings.hidden, classes,
-                           sa::NN::parameter_elements(model))
-            << std::format("Optimizer: {} (lr {:g}{})\n",
-                           settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw",
-                           learning_rate,
-                           settings.optimizer == OptimizerKind::SGD
-                               ? std::format(", momentum {:g}", SGD_MOMENTUM)
-                               : std::string{})
-            << std::format("Batches  : {} x {} from '{}'\n",
-                           dataset.batch_count(), settings.batch_size, dataset.name())
-            << std::format("Graph    : {} IR nodes over {} values\n",
-                           built.graph.node_count(), built.graph.value_count())
+            << SushiBLAS::Core::format("Model    : {} -> {} -> {}  ({} learnable scalars)\n",
+                                       features, settings.hidden, classes,
+                                       sa::NN::parameter_elements(model))
+            << SushiBLAS::Core::format("Optimizer: {} (lr {:g}{})\n",
+                                       settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw",
+                                       learning_rate,
+                                       settings.optimizer == OptimizerKind::SGD
+                                           ? SushiBLAS::Core::format(", momentum {:g}", SGD_MOMENTUM)
+                                           : std::string{})
+            << SushiBLAS::Core::format("Batches  : {} x {} from '{}'\n",
+                                       dataset.batch_count(), settings.batch_size, dataset.name())
+            << SushiBLAS::Core::format("Graph    : {} IR nodes over {} values\n",
+                                       built.graph.node_count(), built.graph.value_count())
             << describe_fusion(built.fusion)
-            << std::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
-                           pool.tensor_count(), human_bytes(pool.allocated_bytes()),
-                           human_bytes(pool.unpacked_bytes()))
+            << SushiBLAS::Core::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
+                                       pool.tensor_count(), human_bytes(pool.allocated_bytes()),
+                                       human_bytes(pool.unpacked_bytes()))
             << describe_arenas(pool)
-            << std::format("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
-                           settings.epochs, dataset.batch_count(), total_steps, settings.seed);
+            << SushiBLAS::Core::format("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
+                                       settings.epochs, dataset.batch_count(), total_steps, settings.seed);
 
         // --- Train ------------------------------------------------------------
         // The trajectory is collected rather than printed as it happens.
@@ -631,7 +631,7 @@ int main(int argc, char** argv)
             run.steps += epoch_report.steps;
             run.duration_ms += epoch_report.duration_ms;
 
-            trajectory += std::format(
+            trajectory += SushiBLAS::Core::format(
                 "  epoch {:>3}/{:<3} loss {:.6f} -> {:.6f}   accuracy {:6.2f}%\n",
                 epoch, settings.epochs, epoch_report.first_loss,
                 epoch_report.last_loss, epoch_report.last_accuracy * 100.0);
@@ -646,13 +646,13 @@ int main(int argc, char** argv)
             << " SushiAI MLP demo - result\n"
             << " " << (data.is_mnist ? "MNIST" : "synthetic fallback")
             << ", " << (settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw")
-            << std::format(", {} -> {} -> {}\n", features, settings.hidden, classes)
+            << SushiBLAS::Core::format(", {} -> {} -> {}\n", features, settings.hidden, classes)
             << "================================================================\n"
             << trajectory
             << "\n" << run.to_string()
             << "----------------------------------------------------------------\n"
-            << std::format("  compiles: {}  <- one lowering, one compile, {} replays.\n",
-                           run.compile_count, run.steps)
+            << SushiBLAS::Core::format("  compiles: {}  <- one lowering, one compile, {} replays.\n",
+                                       run.compile_count, run.steps)
             << "================================================================\n"
             << std::flush;
 

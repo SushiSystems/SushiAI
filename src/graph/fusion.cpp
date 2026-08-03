@@ -23,8 +23,8 @@
 
 #include <algorithm>
 #include <array>
-#include <format>
 #include <utility>
+#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/graph/fusion.hpp>
 
 namespace SushiAI
@@ -66,7 +66,7 @@ namespace SushiAI
                 std::array<std::uint8_t, MAX_CHAIN> link;
 
                 /** @brief Gathers the fused node's operands from the matched chain. */
-                FusedOperands (*compose)(std::span<const Node* const> chain);
+                FusedOperands (*compose)(SushiRuntime::span<const Node* const> chain);
             };
 
             /**
@@ -80,7 +80,7 @@ namespace SushiAI
              * @param chain The matched nodes, in producer order.
              * @return The fused node's operands and attributes.
              */
-            FusedOperands compose_gemm_epilogue(std::span<const Node* const> chain)
+            FusedOperands compose_gemm_epilogue(SushiRuntime::span<const Node* const> chain)
             {
                 const Node& matmul = *chain[0];
                 const Node& bias_add = *chain[1];
@@ -96,7 +96,7 @@ namespace SushiAI
              * @param chain The matched nodes, in producer order.
              * @return The fused node's operands and attributes.
              */
-            FusedOperands compose_exp_sub_scale(std::span<const Node* const> chain)
+            FusedOperands compose_exp_sub_scale(SushiRuntime::span<const Node* const> chain)
             {
                 const Node& exp = *chain[0];
                 const Node& sub = *chain[1];
@@ -154,8 +154,12 @@ namespace SushiAI
              * differentiation pass and by this assertion, so the two cannot
              * drift apart. Adding a @c GEMM_BIAS_GELU row fails the build here
              * rather than training a model towards the wrong place in silence.
+             *
+             * @c constexpr rather than @c consteval, which is C++20; the
+             * static_assert below is the only caller and forces constant
+             * evaluation, so the proof still happens at compile time.
              */
-            consteval bool every_fused_activation_survives()
+            constexpr bool every_fused_activation_survives()
             {
                 for (const CatalogEntry& entry : CATALOG)
                 {
@@ -493,22 +497,22 @@ namespace SushiAI
         {
             if (!enabled_) return "fusion: disabled; the graph was lowered as it was built\n";
 
-            std::string text = std::format("fusion: {} node(s) -> {}, {} subtree(s) fused\n",
-                                           before_, after_, fused_.size());
+            std::string text = SushiBLAS::Core::format("fusion: {} node(s) -> {}, {} subtree(s) fused\n",
+                                                       before_, after_, fused_.size());
 
             for (const FusedSubtree& subtree : fused_)
             {
-                text += std::format("  fused {:<18} nodes [", fused_form_name(subtree.form));
+                text += SushiBLAS::Core::format("  fused {:<18} nodes [", fused_form_name(subtree.form));
                 for (std::size_t i = 0; i < subtree.chain.size(); ++i)
-                    text += std::format("{}{}", i ? ", " : "", subtree.chain[i]);
-                text += std::format("] -> value {}", subtree.result);
+                    text += SushiBLAS::Core::format("{}{}", i ? ", " : "", subtree.chain[i]);
+                text += SushiBLAS::Core::format("] -> value {}", subtree.result);
 
                 if (!subtree.eliminated.empty())
                 {
                     text += ", dropping value";
                     text += subtree.eliminated.size() > 1 ? "s " : " ";
                     for (std::size_t i = 0; i < subtree.eliminated.size(); ++i)
-                        text += std::format("{}{}", i ? ", " : "", subtree.eliminated[i]);
+                        text += SushiBLAS::Core::format("{}{}", i ? ", " : "", subtree.eliminated[i]);
                 }
                 text += "\n";
             }
@@ -522,10 +526,10 @@ namespace SushiAI
                     ? fused_form_name(decline.form)
                     : Ops::name_of(decline.op);
 
-                text += std::format("  declined {:<15} at node {}", label, decline.root);
+                text += SushiBLAS::Core::format("  declined {:<15} at node {}", label, decline.root);
                 if (decline.blocked_by != NO_VALUE)
-                    text += std::format(" (value {})", decline.blocked_by);
-                text += std::format(": {}\n", fusion_decline_reason(decline.reason));
+                    text += SushiBLAS::Core::format(" (value {})", decline.blocked_by);
+                text += SushiBLAS::Core::format(": {}\n", fusion_decline_reason(decline.reason));
             }
 
             return text;
@@ -604,7 +608,7 @@ namespace SushiAI
                     chain[step] = &graph.node(candidate->chain[step]);
 
                 const FusedOperands operands = entry.compose(
-                    std::span<const Node* const>(chain.data(), entry.length));
+                    SushiRuntime::span<const Node* const>(chain.data(), entry.length));
 
                 FusedSubtree subtree;
                 subtree.form = entry.form;

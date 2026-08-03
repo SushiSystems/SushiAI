@@ -127,7 +127,14 @@ Every file starts with this signature (replace `[filename]`):
 
 ### C++ standard, naming, braces
 
-- **C++20.** 4-space indentation.
+- **C++17**, matching SushiBLAS and SushiRuntime. The whole stack has to agree
+  on one standard because `SushiRuntime::span` picks between `std::span` and
+  SushiRuntime's own shim on `__cplusplus`, and that choice reaches the
+  compiled ABI — see
+  [ARCHITECTURE.md §1](ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
+  for the full reasoning and the table of C++17 spellings this implies
+  (`SushiRuntime::span`, `SushiBLAS::Core::format`, `constexpr bool` traits in
+  place of concepts, `constexpr` in place of `consteval`). 4-space indentation.
 - **Classes/structs/namespaces**: `PascalCase` (`Engine`, `SushiAI`).
 - **Functions and variables**: `snake_case`.
 - **Private members**: trailing underscore.

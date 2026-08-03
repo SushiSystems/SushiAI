@@ -11,10 +11,10 @@
 // device work.
 
 #include <algorithm>
-#include <span>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -155,7 +155,7 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     ASSERT_EQ(wrt.size(), 4u);
 
     const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, std::span<const ValueId>(wrt.data(), wrt.size()));
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     // The cross-entropy pair is differentiated as one fused rule: exp of the
     // log-probabilities, minus the one-hot targets, scaled by 1/N. Then the
@@ -202,7 +202,7 @@ TEST(Unit_Backward, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     const ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
     const std::vector<ValueId> wrt = {layer.weight.id()};
-    (void)Autograd::differentiate(graph, loss, std::span<const ValueId>(wrt.data(), wrt.size()));
+    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     // Only one MATMUL in the backward pass: the weight gradient. The input
     // gradient would have been a second one, and it is skipped rather than
@@ -227,7 +227,7 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
 
     const std::vector<ValueId> wrt = {x};
     const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, std::span<const ValueId>(wrt.data(), wrt.size()));
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 1u);
     ASSERT_NE(grads[0], NO_VALUE);
@@ -249,7 +249,7 @@ TEST(Unit_Backward, ThreeContributorsChainTwoAccumulates)
     const ValueId loss = builder.nll_loss(builder.add(builder.add(a, b), c), targets);
 
     const std::vector<ValueId> wrt = {x};
-    (void)Autograd::differentiate(graph, loss, std::span<const ValueId>(wrt.data(), wrt.size()));
+    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     EXPECT_EQ(count_op(graph, Ops::ACCUMULATE.id), 2u);
 }
@@ -268,7 +268,7 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
     const std::size_t before = graph.node_count();
 
     const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, std::span<const ValueId>(wrt.data(), wrt.size()));
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 2u);
     EXPECT_EQ(grads[0], NO_VALUE) << "a disconnected parameter has no gradient value at all";
@@ -298,7 +298,7 @@ TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
     const std::size_t before = graph.node_count();
 
     const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, std::span<const ValueId>(wrt.data(), wrt.size()));
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     EXPECT_EQ(grads.at(0), NO_VALUE);
     EXPECT_EQ(graph.node_count(), before);
@@ -322,7 +322,7 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
     const std::vector<ValueId> wrt = {x};
 
     EXPECT_THROW((void)Autograd::differentiate(
-                     graph, loss, std::span<const ValueId>(wrt.data(), wrt.size())),
+                     graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
                  Error);
 }
 
@@ -336,7 +336,7 @@ TEST(Unit_Backward, ANonScalarRootIsRejected)
     const std::vector<ValueId> wrt = {x};
 
     EXPECT_THROW((void)Autograd::differentiate(
-                     graph, y, std::span<const ValueId>(wrt.data(), wrt.size())),
+                     graph, y, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
                  Error);
 }
 
@@ -355,6 +355,6 @@ TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairSaysSoClearly)
 
     const std::vector<ValueId> wrt = {x};
     EXPECT_THROW((void)Autograd::differentiate(
-                     graph, loss, std::span<const ValueId>(wrt.data(), wrt.size())),
+                     graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
                  Error);
 }

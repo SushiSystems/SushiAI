@@ -543,7 +543,7 @@ namespace SushiAI
 
         std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
                                                   Graph::ValueId loss,
-                                                  std::span<const Graph::ValueId> wrt)
+                                                  SushiRuntime::span<const Graph::ValueId> wrt)
         {
             Differentiator differentiator(graph, loss);
             differentiator.run();

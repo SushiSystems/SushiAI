@@ -88,10 +88,10 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 #include <vector>
 #include <SushiRuntime/core/common.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -199,7 +199,7 @@ namespace SushiAI
              *
              * Read only during @c MemoryPlan::build; it need not outlive the call.
              */
-            std::span<const ValueId> pinned{};
+            SushiRuntime::span<const ValueId> pinned{};
         };
 
         /**
@@ -270,7 +270,7 @@ namespace SushiAI
                 }
 
                 /** @brief Every arena the plan asks for, in id order. */
-                std::span<const Arena> arenas() const noexcept { return arenas_; }
+                SushiRuntime::span<const Arena> arenas() const noexcept { return arenas_; }
 
                 /** @brief Total bytes across every arena. */
                 std::size_t arena_bytes() const noexcept;

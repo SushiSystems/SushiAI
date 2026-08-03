@@ -37,9 +37,9 @@
 #include <string>
 #include <cstddef>
 #include <cstdint>
-#include <format>
 #include <stdexcept>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/format.hpp>
 
 namespace SushiAI
 {
@@ -144,12 +144,22 @@ namespace SushiAI
  * under NDEBUG on purpose, because the conditions it guards are shape and
  * dtype mismatches supplied by a caller, and a silent wrong answer is worse
  * than a thrown one. Mirrors SushiBLAS's SB_THROW_IF so the two libraries
- * fail the same way.
+ * fail the same way - including the formatter, which is literally SushiBLAS's:
+ * `SushiBLAS::Core::format` is the whole stack's C++17 stand-in for
+ * `std::format`, shared rather than copied a third time. See
+ * <SushiBLAS/core/format.hpp> for the grammar it accepts.
+ *
+ * @warning One guarantee is lost against `std::format`: its `consteval` check
+ *          on a literal format string is gone, so a placeholder count that
+ *          disagrees with the argument count is no longer a compile error. It
+ *          degrades to a best-effort message - a surplus placeholder is
+ *          dropped, a surplus argument is unused - because formatting a
+ *          diagnostic is never allowed to be the reason a program fails.
  */
 #define SA_THROW_IF(condition, ...)                                            \
     do {                                                                       \
         if (condition) {                                                       \
-            throw ::SushiAI::Error(std::format(__VA_ARGS__));                  \
+            throw ::SushiAI::Error(::SushiBLAS::Core::format(__VA_ARGS__));    \
         }                                                                      \
     } while (0)
 

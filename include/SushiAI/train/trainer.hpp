@@ -68,11 +68,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiRuntime/core/run_report.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/data/dataset.hpp>
@@ -208,7 +208,7 @@ namespace SushiAI
 
             const std::vector<Graph::ValueId> gradients =
                 Autograd::differentiate(built.graph, built.spec.loss,
-                                        std::span<const Graph::ValueId>(wrt.data(), wrt.size()));
+                                        SushiRuntime::span<const Graph::ValueId>(wrt.data(), wrt.size()));
 
             for (std::size_t i = 0; i < built.parameters.size(); ++i)
                 built.parameters[i].gradient = gradients[i];
@@ -217,7 +217,7 @@ namespace SushiAI
                 built.spec.inputs, built.spec.targets, built.spec.logits, built.spec.loss,
             };
             observed.insert(observed.end(), fusion.observed.begin(), fusion.observed.end());
-            fusion.observed = std::span<const Graph::ValueId>(observed.data(), observed.size());
+            fusion.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
 
             built.fusion = Graph::fuse(built.graph, fusion);
 

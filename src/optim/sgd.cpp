@@ -23,11 +23,11 @@
 
 #include <array>
 #include <cstddef>
-#include <span>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/optim/sgd.hpp>
 
@@ -120,7 +120,7 @@ namespace SushiAI
             values[FIRST_STEP] = step_count() == 0 ? 1.0f : 0.0f;
             values[NESTEROV] = options_.nesterov ? 1.0f : 0.0f;
 
-            scalars_.write(std::span<const float>(values.data(), values.size()));
+            scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
         std::size_t SGD::record_update()

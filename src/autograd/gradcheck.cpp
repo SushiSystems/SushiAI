@@ -22,10 +22,10 @@
 /**************************************************************************/
 
 #include <cmath>
-#include <format>
 #include <random>
 #include <vector>
 #include <algorithm>
+#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 
 namespace SushiAI
@@ -41,7 +41,7 @@ namespace SushiAI
             }
 
             /** @brief The largest absolute coordinate, used to size a directional step. */
-            double magnitude_of(std::span<const double> inputs) noexcept
+            double magnitude_of(SushiRuntime::span<const double> inputs) noexcept
             {
                 double peak = 0.0;
                 for (double v : inputs) peak = std::max(peak, std::abs(v));
@@ -65,14 +65,14 @@ namespace SushiAI
 
         std::string GradCheckResult::to_string() const
         {
-            return std::format(
+            return SushiBLAS::Core::format(
                 "gradcheck {}: max relative error {:.3e} over {} probe(s); worst at index {} "
                 "(analytic {:.9e}, numeric {:.9e})",
                 passed ? "passed" : "FAILED", max_relative_error, probes,
                 worst_index, worst_analytic, worst_numeric);
         }
 
-        void push_off_kinks(std::span<double> inputs, const GradCheckOptions& options)
+        void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options)
         {
             for (double& v : inputs)
             {
@@ -84,14 +84,14 @@ namespace SushiAI
 
         GradCheckResult check_full_jacobian(const ScalarFunction& value,
                                             const GradientFunction& gradient,
-                                            std::span<double> inputs,
+                                            SushiRuntime::span<double> inputs,
                                             const GradCheckOptions& options)
         {
             SA_THROW_IF(inputs.empty(), "check_full_jacobian needs at least one input");
 
             std::vector<double> analytic(inputs.size(), 0.0);
-            gradient(std::span<const double>(inputs.data(), inputs.size()),
-                     std::span<double>(analytic.data(), analytic.size()));
+            gradient(SushiRuntime::span<const double>(inputs.data(), inputs.size()),
+                     SushiRuntime::span<double>(analytic.data(), analytic.size()));
 
             GradCheckResult result;
             result.passed = true;
@@ -103,10 +103,10 @@ namespace SushiAI
                 const double h = step_for(original, options);
 
                 inputs[i] = original + h;
-                const double up = value(std::span<const double>(inputs.data(), inputs.size()));
+                const double up = value(SushiRuntime::span<const double>(inputs.data(), inputs.size()));
 
                 inputs[i] = original - h;
-                const double down = value(std::span<const double>(inputs.data(), inputs.size()));
+                const double down = value(SushiRuntime::span<const double>(inputs.data(), inputs.size()));
 
                 inputs[i] = original;
 
@@ -129,7 +129,7 @@ namespace SushiAI
 
         GradCheckResult check_directional(const ScalarFunction& value,
                                           const GradientFunction& gradient,
-                                          std::span<double> inputs,
+                                          SushiRuntime::span<double> inputs,
                                           std::size_t directions,
                                           const GradCheckOptions& options)
         {
@@ -137,8 +137,8 @@ namespace SushiAI
             SA_THROW_IF(directions == 0, "check_directional needs at least one direction");
 
             std::vector<double> analytic(inputs.size(), 0.0);
-            gradient(std::span<const double>(inputs.data(), inputs.size()),
-                     std::span<double>(analytic.data(), analytic.size()));
+            gradient(SushiRuntime::span<const double>(inputs.data(), inputs.size()),
+                     SushiRuntime::span<double>(analytic.data(), analytic.size()));
 
             const std::vector<double> base(inputs.begin(), inputs.end());
             const double h = step_for(std::max(magnitude_of(base), 1.0), options);
@@ -173,10 +173,10 @@ namespace SushiAI
                     projected += analytic[i] * direction[i];
 
                 for (std::size_t i = 0; i < inputs.size(); ++i) inputs[i] = base[i] + h * direction[i];
-                const double up = value(std::span<const double>(inputs.data(), inputs.size()));
+                const double up = value(SushiRuntime::span<const double>(inputs.data(), inputs.size()));
 
                 for (std::size_t i = 0; i < inputs.size(); ++i) inputs[i] = base[i] - h * direction[i];
-                const double down = value(std::span<const double>(inputs.data(), inputs.size()));
+                const double down = value(SushiRuntime::span<const double>(inputs.data(), inputs.size()));
 
                 std::copy(base.begin(), base.end(), inputs.begin());
 
