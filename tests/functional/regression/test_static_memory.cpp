@@ -13,7 +13,10 @@
 //     allocator, so the allocator's reference count is the live-allocation
 //     count plus a constant, and one extra buffer moves it by exactly one.
 //  2. Packing shrinks the footprint. A pass that quietly stopped packing would
-//     leave every other test in this suite green.
+//     leave every other test in this suite green. Measured on the *unfused*
+//     graph, because fusion reaches the same bytes by a different route -
+//     deleting the intermediates rather than overlapping them - and a planner
+//     test that let fusion do its work first would be measuring the catalog.
 //  3. Packing changes no number. If it does, something is aliasing that should
 //     not be, and the right response is to find it rather than to re-record a
 //     reference.
@@ -84,12 +87,18 @@ namespace
      *
      * @param engine The engine to train on.
      * @param packed Whether to let bind_parameters build a real plan.
+     * @param fusion What the fusion pass is allowed to do. It is a real
+     *        confound here and not a detail: a fused subtree's intermediates
+     *        stop being values at all, so fusion removes exactly the buffers
+     *        packing used to overlap. Every claim below therefore has to say
+     *        which graph it is about.
      * @return The trained parameters, the loss trajectory and the footprint.
      */
-    Outcome train(SushiBLAS::Engine& engine, bool packed)
+    Outcome train(SushiBLAS::Engine& engine, bool packed, Graph::FusionOptions fusion = {})
     {
         Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+        Train::TrainingGraph built = Train::build_classifier(
+            model, BATCH, FEATURES, CLASSES, DType::FLOAT32, fusion);
 
         TensorPool pool(engine);
         if (!packed) pool.adopt(MemoryPlan{});
@@ -181,13 +190,27 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 // 2. The saving is real
 // =========================================================================
 
+/** @brief The unfused graph - the one the planner's saving is a claim about. */
+Graph::FusionOptions unfused()
+{
+    Graph::FusionOptions options;
+    options.enabled = false;
+    return options;
+}
+
 TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 {
+    // Deliberately measured on the **unfused** graph. Fusion is not a confound
+    // to be worked around here, it is a different mechanism reaching the same
+    // bytes: a fused subtree's intermediates stop being values, so they need no
+    // slot rather than a shared one. Planning what fusion already deleted would
+    // make this test a statement about the fusion catalog rather than about the
+    // planner, and it would go quiet the day a new catalog entry landed.
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::context());
-    const Outcome unplanned = train(unplanned_engine, false);
+    const Outcome unplanned = train(unplanned_engine, false, unfused());
 
     SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::context());
-    const Outcome planned = train(planned_engine, true);
+    const Outcome planned = train(planned_engine, true, unfused());
 
     EXPECT_EQ(unplanned.arena_count, 0u);
     EXPECT_GT(planned.arena_count, 0u);
@@ -200,6 +223,47 @@ TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
     EXPECT_LT(planned.allocated_bytes, unplanned.allocated_bytes)
         << "planned " << planned.allocated_bytes << " bytes against an unplanned "
         << unplanned.allocated_bytes;
+}
+
+TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
+{
+    // The interaction, stated rather than left to be rediscovered, because on
+    // the fused graph the planner's own report reads like a broken planner:
+    // every remaining activation's live range intersects every other's, so it
+    // overlaps *nothing* and prints "0% saved". It is not broken. The buffers
+    // it used to overlap have stopped existing - a fused subtree's
+    // intermediates are not values any more - which is the better outcome of
+    // the two and is why the arena has nothing left to do.
+    //
+    // `unpacked_bytes` is the direct measure of that: it is what the same
+    // tensors would cost one allocation each, so a drop there is buffers
+    // disappearing rather than being shared.
+    SushiBLAS::Engine fused_engine(SaTest::TestEnvironment::context());
+    const Outcome fused = train(fused_engine, true);
+
+    SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::context());
+    const Outcome planned = train(planned_engine, true, unfused());
+
+    SushiBLAS::Engine loose_engine(SaTest::TestEnvironment::context());
+    const Outcome loose = train(loose_engine, false, unfused());
+
+    EXPECT_LT(fused.unpacked_bytes, planned.unpacked_bytes)
+        << "fusion did not remove any intermediate at all";
+
+    // Fusion on its own beats doing nothing, which is the claim worth pinning.
+    EXPECT_LT(fused.allocated_bytes, loose.allocated_bytes)
+        << "fused " << fused.allocated_bytes << " against an unplanned, unfused "
+        << loose.allocated_bytes;
+
+    // Against the packed-but-unfused graph it is never worse - and on this
+    // model it is exactly equal, because what fusion deletes here happens to be
+    // precisely what the planner was overlapping. Written as <= rather than
+    // == on purpose: the equality is a property of this model's shape, not of
+    // the two passes, and pinning it would fail on the next catalog entry for
+    // no reason anyone should have to investigate.
+    EXPECT_LE(fused.allocated_bytes, planned.allocated_bytes)
+        << "fused " << fused.allocated_bytes << " against an unfused-but-packed "
+        << planned.allocated_bytes;
 }
 
 // =========================================================================

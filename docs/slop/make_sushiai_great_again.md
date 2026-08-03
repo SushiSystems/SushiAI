@@ -513,6 +513,39 @@ fusion composes chains of elementwise/activation functors (matmul-epilogue → b
 one functor before a single kernel is emitted, instead of one node + one launch + one intermediate
 per op.
 
+**Status (2026-08-03): landed, in the shape §25 forced rather than the one sketched above.** It is
+**not** "compose functors into one before a kernel is emitted" — that is a code generator, and
+`sycl_ext_codeplay_kernel_fusion` is removed from intel-llvm, so a composition exists only if some
+template was instantiated with it at *this library's* compile time. What landed is therefore a
+**catalog** of five pre-instantiated forms (`core/ops.hpp`), a **static tree pass** matching
+subtrees against it (`graph/fusion.hpp`, host lane, pure IR→IR, device-free unit tests), and a
+**dynamic selector** choosing between matched entries at bind time from `Device::Profile` and the
+engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves live in
+`graph/lowering.cpp`, because a functor inlined into a SushiBLAS kernel is device code.
+
+- `matmul → bias_add [→ relu | sigmoid | tanh]` through `Dispatch::execute_gemm`'s epilogue, and
+  `exp → sub → scale` — the cross-entropy gradient's whole elementwise tail — through
+  `Dispatch::execute_zip_inplace`. 35 recorded calls per step become 25 on the demo's model.
+- **§25's activation warning is narrower than it reads.** Sigmoid and tanh *are* exactly
+  recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's `sigmoid_backward` /
+  `tanh_backward` already take the output, so they fuse. Only GELU is genuinely blocked. ReLU was
+  moved to differentiate at its output too, which is bit-identical rather than approximate, and is
+  what makes the pass need no activation-specific knowledge: the pre-activation then has one
+  consumer, so an ordinary use count folds ReLU and refuses GELU.
+- **The `GELU_AUX_BIAS` shape is not implementable on this seam and is declined, not faked.**
+  `execute_gemm` declares A, B and C to the dependency tracker and explicitly hands the epilogue's
+  own accesses back to the caller, so an aux buffer the functor wrote would get no edge and its
+  reader would race the write. Retiring that needs an `execute_gemm` overload carrying the
+  epilogue's read/write set — SushiBLAS-side work.
+- **The same gap costs one node per fused GEMM today.** The epilogue's *bias* read is undeclared
+  and the bias is a parameter the optimizer rewrites in the same plan, so
+  `Lowering::declare_epilogue_operand()` emits a `TaskGraph::add_native` node that runs nothing and
+  exists only for its two access declarations. Counted separately from the kernels in
+  `RunReport::ordering_nodes_per_step`.
+- **The largest remaining term is `LOG_SOFTMAX`'s nine calls**, and it is not a fusion-pass
+  problem: it needs the row-wise reduction SushiBLAS does not expose. `NLL_LOSS`'s three are
+  blocked the same way — the reduction seam takes no transform functor.
+
 ## 20. AI-4 — Mixed precision (plumbing now, payoff on future hardware)
 
 fp16/bf16 compute with fp32 gradient accumulation and master weights, built into the dtype
@@ -557,9 +590,11 @@ an output contract, an example is a teaching file people edit. Pinned by the
 `Integration_Demo.MlpRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
 
 Still open against the hard-gate list above:
-- **AI-3 is not in it** — no fused epilogues, because fusion does not exist yet. AI-2 landed
-  (2026-08-03): `graph/memory_plan.hpp` + `graph/arena.hpp`, per-lifetime arenas, liveness on the
-  reachability partial order, and the demo reports the footprint. See §18's status note.
+- **AI-2 and AI-3 are both in it now** (2026-08-03). AI-2: `graph/memory_plan.hpp` +
+  `graph/arena.hpp`, per-lifetime arenas, liveness on the reachability partial order, and the demo
+  reports the footprint (§18). AI-3: fused GEMM epilogues and a fused cross-entropy gradient tail,
+  35 recorded calls per step down to 25, and the demo prints the fusion report including its
+  refusals (§19).
 - **No pinned reference loss curve.** The demo reports the trajectory; nothing compares it to a
   stored one, so a convergence regression that still converges would pass.
 - **No per-node timing table.** The runtime only records timings under a

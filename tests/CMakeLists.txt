@@ -36,6 +36,7 @@ add_executable(sushiai_tests
     functional/unit/test_ops.cpp
     functional/unit/test_ir.cpp
     functional/unit/test_memory_plan.cpp
+    functional/unit/test_fusion.cpp
     functional/unit/test_module.cpp
     functional/unit/test_backward.cpp
     functional/unit/test_gradcheck.cpp
@@ -51,6 +52,7 @@ add_executable(sushiai_tests
     functional/regression/test_compile_once.cpp
     functional/regression/test_determinism.cpp
     functional/regression/test_fused_optimizer.cpp
+    functional/regression/test_fusion_numerics.cpp
     functional/regression/test_learning_curve.cpp
     functional/regression/test_static_memory.cpp
 )

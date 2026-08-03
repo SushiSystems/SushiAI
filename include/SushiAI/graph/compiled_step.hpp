@@ -66,9 +66,12 @@
  */
 
 #include <cstddef>
+#include <span>
+#include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
@@ -104,10 +107,15 @@ namespace SushiAI
                  *        "Work that has no IR node". Must outlive this step,
                  *        and must record only replay-invariant work; nothing
                  *        here can check that, so the caller owes the promise.
+                 * @param selector Which spelling to use for each fused node the
+                 *        graph carries, or null for the engine's own device.
+                 *        Must outlive the constructor call; see
+                 *        graph/fusion_selector.hpp.
                  * @throws Error If lowering fails - see Lowering::record.
                  */
                 CompiledStep(SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
-                             IStepRecorder* trailing = nullptr);
+                             IStepRecorder* trailing = nullptr,
+                             const IFusionSelector* selector = nullptr);
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;
@@ -148,6 +156,24 @@ namespace SushiAI
                 std::size_t operation_count() const noexcept { return operations_; }
 
                 /**
+                 * @brief How many host-side ordering nodes the step also holds.
+                 *
+                 * Zero unless a fused GEMM epilogue is in the plan. Counted
+                 * apart from @c operation_count() rather than added to it,
+                 * because they are not kernels and lumping them in would let a
+                 * fusion change look like no change at all - see
+                 * @c Lowering::declare_epilogue_operand.
+                 */
+                std::size_t ordering_node_count() const noexcept { return ordering_nodes_; }
+
+                /** @brief What the selector chose for each fused node; see Lowering. */
+                std::span<const FusionSelection> selections() const noexcept
+                {
+                    return std::span<const FusionSelection>(selections_.data(),
+                                                            selections_.size());
+                }
+
+                /**
                  * @brief The compiled plan, for profiling.
                  *
                  * Exposed only so a caller can hand it to
@@ -160,9 +186,11 @@ namespace SushiAI
                 SushiBLAS::Engine* engine_;
                 IStepRecorder* trailing_;
                 SushiRuntime::Execution::CompiledGraph plan_;
+                std::vector<FusionSelection> selections_;
                 std::size_t compile_count_ = 0;
                 std::size_t run_count_ = 0;
                 std::size_t operations_ = 0;
+                std::size_t ordering_nodes_ = 0;
                 bool empty_ = false;
         };
 

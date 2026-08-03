@@ -46,6 +46,7 @@
 #include <span>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -119,12 +120,13 @@ namespace SushiAI
 
         // --- Activation gradients -------------------------------------------
         // Each takes [dy, primal] and yields [dx]. Which tensor "primal" is
-        // differs by activation and is not a detail a caller may guess:
-        // relu and gelu need the forward INPUT, sigmoid and tanh need the
-        // forward OUTPUT. That is SushiBLAS's convention, mirrored here so the
-        // lowering is a straight one-to-one map with nothing to reinterpret.
+        // differs by activation and is not a detail a caller may guess; the
+        // ACTIVATIONS table below is the one place that says which, and
+        // @ref Activation explains why that one fact decides both how the
+        // backward pass is emitted and which activations may be folded into
+        // the kernel that produced their input.
 
-        /** @brief Gradient of RELU; second operand is the forward input. */
+        /** @brief Gradient of RELU; second operand is the forward output. */
         inline constexpr OpName RELU_BACKWARD = op("sushiai.relu_backward");
         /** @brief Gradient of GELU; second operand is the forward input. */
         inline constexpr OpName GELU_BACKWARD = op("sushiai.gelu_backward");
@@ -156,6 +158,52 @@ namespace SushiAI
         /** @brief One parameter's whole SGD update, fused into one kernel. */
         inline constexpr OpName SGD_UPDATE = op("sushiai.optim.sgd");
 
+        // --- Fused forms ------------------------------------------------------
+        // These *are* IR operations: the fusion pass rewrites a matched subtree
+        // into one node carrying one of these identities, and the lowering has a
+        // recorder for each.
+        //
+        // Each name is a distinct kernel instantiation rather than a flag on a
+        // generic one, and that is forced rather than chosen.
+        // @c sycl_ext_codeplay_kernel_fusion has been removed from intel-llvm, so
+        // there is no runtime IR-level fusion anywhere in this stack: a functor
+        // composition is a C++ template instantiation, and which compositions
+        // exist is decided when *this library* is compiled. The set below is
+        // therefore a **catalog**, and a pass running at graph-build time can only
+        // choose among its entries - it cannot synthesise a new one. See
+        // graph/fusion.hpp for the matcher and graph/fusion_selector.hpp for the
+        // bind-time choice between entries.
+
+        /** @brief GEMM with a bias broadcast folded into its store. */
+        inline constexpr OpName GEMM_BIAS = op("sushiai.fused.gemm_bias");
+        /** @brief GEMM with a bias broadcast and a ReLU folded into its store. */
+        inline constexpr OpName GEMM_BIAS_RELU = op("sushiai.fused.gemm_bias_relu");
+        /** @brief GEMM with a bias broadcast and a sigmoid folded into its store. */
+        inline constexpr OpName GEMM_BIAS_SIGMOID = op("sushiai.fused.gemm_bias_sigmoid");
+        /** @brief GEMM with a bias broadcast and a tanh folded into its store. */
+        inline constexpr OpName GEMM_BIAS_TANH = op("sushiai.fused.gemm_bias_tanh");
+
+        /**
+         * @brief One pass computing @c out = (exp(a) - b) * alpha.
+         *
+         * The cross-entropy gradient's whole elementwise tail: five recorded
+         * operations - a copy, an exp, a subtraction, a copy and a scal - become
+         * one, with both temporaries living in registers.
+         */
+        inline constexpr OpName EXP_SUB_SCALE = op("sushiai.fused.exp_sub_scale");
+
+        /**
+         * @brief The ordering node a fused epilogue's undeclared reads need.
+         *
+         * @c Dispatch::execute_gemm declares A, B and C to the runtime's
+         * dependency tracker and nothing the epilogue itself touches - the
+         * functor is an opaque callable to that layer. A bias vector the
+         * epilogue dereferences is therefore invisible, and SushiBLAS says in
+         * its own documentation that the caller owns ordering it. This is that
+         * ordering, made explicit; see @c Lowering::declare_epilogue_operand.
+         */
+        inline constexpr OpName EPILOGUE_OPERANDS = op("sushiai.fused.epilogue_operands");
+
         /**
          * @brief Every identity declared above, in one enumerable table.
          *
@@ -171,6 +219,8 @@ namespace SushiAI
             LOG_SOFTMAX, NLL_LOSS,
             SUM_ROWS,
             ADAMW_UPDATE, SGD_UPDATE,
+            GEMM_BIAS, GEMM_BIAS_RELU, GEMM_BIAS_SIGMOID, GEMM_BIAS_TANH,
+            EXP_SUB_SCALE, EPILOGUE_OPERANDS,
         };
 
         /**
@@ -206,6 +256,103 @@ namespace SushiAI
             for (const OpName& entry : ALL)
                 if (entry.id == id) return entry.name;
             return "sushiai.unknown";
+        }
+
+        // =====================================================================
+        // Activations: the one fact that decides both differentiation and fusion
+        // =====================================================================
+
+        /**
+         * @enum GradientSource
+         * @brief Which tensor an activation's gradient rule differentiates at.
+         */
+        enum class GradientSource : std::uint8_t
+        {
+            /** @brief The forward input; the pre-activation must survive the step. */
+            INPUT,
+            /** @brief The forward output; the pre-activation is dead on arrival. */
+            OUTPUT,
+        };
+
+        /**
+         * @struct Activation
+         * @brief One activation, its gradient, and where that gradient reads.
+         *
+         * @c gradient_source is the load-bearing field, and it decides two
+         * things that look unrelated and are the same question:
+         *
+         * 1. **What @c autograd/backward.cpp emits.** The gradient operation
+         *    takes @c [dy, primal]; getting @c primal wrong is silent, because
+         *    both candidates have the same shape, so the graph builds and the
+         *    model simply learns the wrong thing. SushiBLAS fixes the
+         *    convention per activation and this table mirrors it.
+         *
+         * 2. **Whether the activation may be folded into the kernel that
+         *    produced its input.** A fused form never writes the
+         *    pre-activation. If the gradient reads the *output*, nothing was
+         *    destroyed and the fusion is exact. If it reads the *input*, the
+         *    fused form would train towards the wrong place - nothing throws,
+         *    nothing goes NaN, the loss still falls. That is the trap
+         *    cuBLASLt's @c GELU_AUX_BIAS exists to solve, and it is why
+         *    @c graph/fusion.hpp static_asserts that every fused-activation
+         *    catalog entry names an activation whose source is @c OUTPUT.
+         *
+         * @c RELU reads the output rather than the input, which is a
+         * substitution and not an approximation: SushiBLAS's @c relu_backward
+         * is @c dy*(primal>0?1:0), and @c relu(x)>0 exactly when @c x>0, so the
+         * two spellings are **bit-identical**. Making that the unconditional
+         * rule - not a special case the fusion pass applies - is what leaves the
+         * pre-activation with a single consumer in the plain graph too, so the
+         * fusion pass needs no activation-specific knowledge to license the
+         * fold: an ordinary use count already says yes for ReLU and no for GELU.
+         */
+        struct Activation
+        {
+            /** @brief The forward operation's identity. */
+            OpID forward;
+
+            /** @brief The gradient operation's identity. */
+            OpID backward;
+
+            /** @brief Which tensor the gradient differentiates at. */
+            GradientSource gradient_source;
+        };
+
+        /** @brief Every activation this library differentiates, in one table. */
+        inline constexpr std::array<Activation, 4> ACTIVATIONS = {{
+            {RELU.id,    RELU_BACKWARD.id,    GradientSource::OUTPUT},
+            {GELU.id,    GELU_BACKWARD.id,    GradientSource::INPUT},
+            {SIGMOID.id, SIGMOID_BACKWARD.id, GradientSource::OUTPUT},
+            {TANH.id,    TANH_BACKWARD.id,    GradientSource::OUTPUT},
+        }};
+
+        /**
+         * @brief The activation entry for a forward operation.
+         * @param forward The forward operation's identity.
+         * @return A pointer into @ref ACTIVATIONS, or null when @p forward is
+         *         not an activation.
+         */
+        constexpr const Activation* activation_of(OpID forward) noexcept
+        {
+            for (const Activation& entry : ACTIVATIONS)
+                if (entry.forward == forward) return &entry;
+            return nullptr;
+        }
+
+        /**
+         * @brief Whether folding @p forward into its producer keeps backward exact.
+         *
+         * True exactly when the gradient differentiates at the output, because
+         * then the pre-activation a fused form never writes was not needed. See
+         * @ref Activation for why this is the whole of the question.
+         *
+         * @param forward The forward activation's identity.
+         * @return True when the activation is safe to fuse in a training pass.
+         */
+        constexpr bool activation_survives_fusion(OpID forward) noexcept
+        {
+            const Activation* entry = activation_of(forward);
+            return entry != nullptr && entry->gradient_source == GradientSource::OUTPUT;
         }
 
     } // namespace Ops

@@ -68,6 +68,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
@@ -77,6 +78,8 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/nn/loss.hpp>
@@ -136,6 +139,9 @@ namespace SushiAI
 
             /** @brief Every parameter, paired with its gradient. */
             std::vector<ParameterBinding> parameters;
+
+            /** @brief What the fusion pass did to @c graph, and what it refused. */
+            Graph::FusionReport fusion;
         };
 
         /**
@@ -146,17 +152,34 @@ namespace SushiAI
          * the generic walk yields - so a parameter cannot be left out of the
          * backward pass by forgetting to mention it.
          *
+         * Fusion runs last, on the joint forward-and-backward graph, because a
+         * forward node is only fusable if the backward pass no longer needs
+         * what the fused form would stop writing - a question that cannot be
+         * asked before the backward pass exists. The four values @c StepSpec
+         * names are handed to the pass as observed, so an activation the
+         * training loop reads by id is never fused away underneath it;
+         * parameters and gradients are protected by their lifetime class and
+         * need no listing. Value ids survive the pass, so everything already
+         * recorded above - including the ids inside the model's own
+         * @c NN::Parameter members - keeps meaning what it meant.
+         *
          * @param module The model to trace; its parameters are declared here.
          * @param batch Samples per step.
          * @param features Input features per sample.
          * @param classes How many classes.
          * @param dtype The element type for the whole graph.
-         * @return The graph, the value ids, and the parameter/gradient pairs.
+         * @param fusion What the fusion pass is allowed to do; @c enabled=false
+         *        gives the unfused graph, which is the reference a byte-for-byte
+         *        comparison needs. @c FusionOptions::observed is filled in here
+         *        and any value the caller listed is added to it.
+         * @return The graph, the value ids, the parameter/gradient pairs and
+         *         the fusion report.
          * @throws Error If the model's output is not [batch, classes].
          */
         template<typename M>
         TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
-                                       int64_t classes, DType dtype = DType::FLOAT32)
+                                       int64_t classes, DType dtype = DType::FLOAT32,
+                                       Graph::FusionOptions fusion = {})
         {
             TrainingGraph built;
             const Graph::GraphBuilder builder(built.graph);
@@ -189,6 +212,14 @@ namespace SushiAI
 
             for (std::size_t i = 0; i < built.parameters.size(); ++i)
                 built.parameters[i].gradient = gradients[i];
+
+            std::vector<Graph::ValueId> observed{
+                built.spec.inputs, built.spec.targets, built.spec.logits, built.spec.loss,
+            };
+            observed.insert(observed.end(), fusion.observed.begin(), fusion.observed.end());
+            fusion.observed = std::span<const Graph::ValueId>(observed.data(), observed.size());
+
+            built.fusion = Graph::fuse(built.graph, fusion);
 
             return built;
         }
@@ -259,6 +290,19 @@ namespace SushiAI
 
             /** @brief Whether to fold the optimizer's update into the compiled step. */
             OptimizerPlacement optimizer_placement = OptimizerPlacement::IN_PLAN;
+
+            /**
+             * @brief Which spelling to use for each fused node, or null for this
+             *        engine's own device.
+             *
+             * Read once, in the constructor, and must outlive that call. It is
+             * here rather than as another constructor parameter because it is a
+             * policy knob and not a collaborator: a caller who does not care
+             * about fusion never has to name it, and a test that wants to drive
+             * the lowering with a device profile this machine does not have
+             * sets one field. See graph/fusion_selector.hpp.
+             */
+            const Graph::IFusionSelector* fusion_selector = nullptr;
         };
 
         /**
@@ -288,6 +332,16 @@ namespace SushiAI
 
             /** @brief How many SushiBLAS calls the compiled step is made of. */
             std::size_t operations_per_step = 0;
+
+            /**
+             * @brief How many host-side ordering nodes the step also holds.
+             *
+             * Non-zero only when a fused GEMM epilogue is in the plan. Kept out
+             * of @c operations_per_step because they submit no device work, and
+             * reported at all because they are still nodes the scheduler walks
+             * - see Graph::Lowering::declare_epilogue_operand.
+             */
+            std::size_t ordering_nodes_per_step = 0;
 
             /** @brief The first step's loss. */
             double first_loss = 0.0;

@@ -109,11 +109,38 @@
  * a [C, 1] ones matrix costs one extra tiny kernel and keeps the whole step
  * replayable, which is the property AI-1 exists to prove. A future fused
  * SushiBLAS @c log_softmax_rows would replace the whole seven-op recipe.
+ *
+ * @section fused Where the fused forms turn back into kernels
+ *
+ * @c graph/fusion.hpp rewrites matched subtrees into single nodes; this file
+ * holds the functors those nodes name, because a functor inlined into a
+ * SushiBLAS kernel is device code and device code lives on this side of the
+ * host/device line. Each fused node asks @c IFusionSelector which spelling to
+ * use and then records it - one call, or the unfused sequence, or something in
+ * between. Every spelling of a given node produces the same bytes; see
+ * graph/fusion.hpp on @c -ffp-contract=off.
+ *
+ * @warning **A fused GEMM's epilogue reads memory the runtime cannot see.**
+ *          @c Dispatch::execute_gemm declares A, B and C to the dependency
+ *          tracker and nothing else, because the epilogue is an opaque callable
+ *          to that layer - SushiBLAS says so in its own documentation and hands
+ *          the obligation to the caller. Here the epilogue dereferences a bias,
+ *          and that bias is a parameter the optimizer rewrites inside the same
+ *          compiled plan, so an undeclared read is a write-after-read hazard
+ *          the runtime would not order: the update could land before the
+ *          forward pass had read the old value. It would still train.
+ *          @c declare_epilogue_operand() is the fix - a host-side node that
+ *          submits no work and exists only to carry the two edges the epilogue
+ *          cannot declare for itself. It is not free (it is a node in the plan)
+ *          and it is not a kernel launch, which is the trade this makes
+ *          knowingly. What would retire it is an @c execute_gemm overload
+ *          taking the epilogue's own read set.
  */
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <utility>
 #include <vector>
 #include <unordered_map>
@@ -121,6 +148,8 @@
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/arena.hpp>
+#include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 
@@ -391,11 +420,18 @@ namespace SushiAI
             public:
                 /**
                  * @brief Binds a lowering to an engine and a pool.
+                 *
                  * @param engine Where the work is recorded; must outlive this object.
                  * @param pool Where the memory comes from; must outlive this object.
+                 * @param selector Which spelling to use for each fused node, or
+                 *        null for @c DeviceFusionSelector over @p engine's own
+                 *        device. Must outlive this object when given. Injectable
+                 *        because a policy that can only be exercised on hardware
+                 *        nobody owns is a policy nobody has run.
                  */
-                Lowering(SushiBLAS::Engine& engine, TensorPool& pool) noexcept
-                    : engine_(&engine), pool_(&pool) {}
+                Lowering(SushiBLAS::Engine& engine, TensorPool& pool,
+                         const IFusionSelector* selector = nullptr) noexcept
+                    : engine_(&engine), pool_(&pool), selector_(selector) {}
 
                 /**
                  * @brief The values this lowering cannot address inside an arena.
@@ -436,6 +472,35 @@ namespace SushiAI
                 /** @brief How many SushiBLAS calls the last record() emitted. */
                 std::size_t emitted_operations() const noexcept { return emitted_; }
 
+                /**
+                 * @brief How many plan nodes the last record() added in total.
+                 *
+                 * Larger than @c emitted_operations() by the number of
+                 * host-side ordering nodes a fused epilogue needed - see the
+                 * header's warning. Reported separately rather than folded in,
+                 * because "how many kernels run" and "how many nodes the
+                 * scheduler walks" are different questions and a fusion change
+                 * moves them in opposite directions.
+                 */
+                std::size_t emitted_nodes() const noexcept { return emitted_ + ordering_nodes_; }
+
+                /** @brief How many host-side ordering nodes the last record() added. */
+                std::size_t ordering_nodes() const noexcept { return ordering_nodes_; }
+
+                /**
+                 * @brief What the selector chose for each fused node, in order.
+                 *
+                 * The other half of @c FusionReport: that one says what could be
+                 * fused, this one says what was, on this device. A run in which
+                 * every match was taken and a run in which the selector refused
+                 * them all both compile and both train, so the difference has to
+                 * be readable somewhere.
+                 */
+                std::span<const FusionSelection> selections() const noexcept
+                {
+                    return std::span<const FusionSelection>(selections_.data(), selections_.size());
+                }
+
             private:
                 void record_node(const Graph& graph, NodeId id);
 
@@ -451,12 +516,40 @@ namespace SushiAI
                 void record_accumulate(const Node& node);
                 void record_zero(const Graph& graph, const Node& node);
 
+                void record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
+                                       FusedForm matched);
+                void record_fused_exp_sub_scale(const Graph& graph, NodeId id, const Node& node,
+                                                FusedForm matched);
+
+                /**
+                 * @brief Emits the dependency edges a fused epilogue cannot declare.
+                 *
+                 * A host-side node that runs nothing. It reads @p operand and
+                 * writes @p result, which is exactly the pair of edges the
+                 * epilogue's own read would have produced had
+                 * @c Dispatch::execute_gemm been able to see it: whatever wrote
+                 * @p operand is ordered before, whatever rewrites it is ordered
+                 * after, and the GEMM that follows is pulled in behind through
+                 * the write-after-write on @p result.
+                 *
+                 * @param operand The memory the epilogue dereferences.
+                 * @param result The fused GEMM's output, recorded immediately after.
+                 */
+                void declare_epilogue_operand(const SushiBLAS::Tensor& operand,
+                                              const SushiBLAS::Tensor& result);
+
+                /** @brief Asks the selector, recording the answer for selections(). */
+                FusionChoice select(const FusionQuery& query);
+
                 SushiBLAS::Tensor& output(const Graph& graph, const Node& node, std::size_t index);
                 const SushiBLAS::Tensor& input(const Node& node, std::size_t index) const;
 
                 SushiBLAS::Engine* engine_;
                 TensorPool* pool_;
+                const IFusionSelector* selector_ = nullptr;
+                std::vector<FusionSelection> selections_;
                 std::size_t emitted_ = 0;
+                std::size_t ordering_nodes_ = 0;
         };
 
     } // namespace Graph

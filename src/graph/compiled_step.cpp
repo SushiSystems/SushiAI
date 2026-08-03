@@ -28,12 +28,17 @@ namespace SushiAI
     namespace Graph
     {
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, const Graph& graph,
-                                   TensorPool& pool, IStepRecorder* trailing)
+                                   TensorPool& pool, IStepRecorder* trailing,
+                                   const IFusionSelector* selector)
             : engine_(&engine), trailing_(trailing)
         {
-            Lowering lowering(engine, pool);
+            Lowering lowering(engine, pool, selector);
             lowering.record(graph);
             operations_ = lowering.emitted_operations();
+            ordering_nodes_ = lowering.ordering_nodes();
+
+            const std::span<const FusionSelection> chosen = lowering.selections();
+            selections_.assign(chosen.begin(), chosen.end());
 
             // After the lowering and before the compile, so the trailing work
             // joins this plan rather than a second one. Its ordering against

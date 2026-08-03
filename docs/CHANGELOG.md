@@ -14,6 +14,67 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 ## [Unreleased]
 
 ### Added
+- **AI-3: automatic operator fusion — a static tree pass and a dynamic
+  selector.** A step's forward and backward graph goes from 31 recorded
+  SushiBLAS calls to 21 on `sa demo mlp`'s model (35 to 25 counting the
+  optimizer), plus two host-side ordering nodes that launch no kernel.
+  - **Fusion is a selector over a pre-compiled catalog, not a code generator.**
+    `sycl_ext_codeplay_kernel_fusion` is gone from intel-llvm, so a functor
+    composition is a C++ template instantiation and the set of compositions is
+    fixed when this library is compiled. `graph/fusion.hpp` matches subtrees
+    against that catalog; it cannot synthesise an entry and does not pretend to.
+  - **`graph/fusion.hpp` is the static pass** — host lane, pure IR to IR, no
+    engine and no SYCL, unit-tested over synthetic graphs with no device. It
+    runs after differentiation, on the joint forward-and-backward DAG, and
+    matches longest-chain-first so a ReLU layer folds whole and a GELU layer
+    still gets its bias folded.
+  - **`graph/fusion_selector.hpp` is the dynamic half** — the bind-time choice
+    between matched entries, from `SushiBLAS::Device::Profile` and the engine's
+    `ExecutionMode`. Device facts live only here, so the IR is identical on
+    every machine and only one node's spelling changes.
+  - **Five catalog entries:** `gemm_bias`, `gemm_bias_relu`,
+    `gemm_bias_sigmoid`, `gemm_bias_tanh` through
+    `Dispatch::execute_gemm`'s epilogue, and `exp_sub_scale` — the whole
+    elementwise tail of the cross-entropy gradient — through
+    `Dispatch::execute_zip_inplace`.
+  - **The per-activation decision is a property of the op, not a case in the
+    pass.** `Ops::ACTIVATIONS` states where each activation's gradient reads;
+    the differentiation pass and a `static_assert` over the catalog both read
+    it, so a fused form for an activation differentiated at its *input* fails
+    the build rather than training a model towards the wrong place in silence.
+    ReLU now differentiates at its output, which is bit-identical
+    (`relu(x) > 0` exactly when `x > 0`) and is what leaves its pre-activation
+    with a single consumer so an ordinary use count licenses the fold. GELU is
+    declined and the report says why.
+  - **Byte for byte, not within a tolerance.** Every fused form is compared
+    against the unfused graph over a full training run in
+    `Regression_Fusion`, and `FusionOptions::enabled = false` keeps that
+    reference reachable — the same shape `Optim::UpdateKernel::SEPARATE` has.
+  - **A fused epilogue's undeclared reads are declared explicitly.**
+    `Dispatch::execute_gemm` describes A, B and C to the dependency tracker and
+    nothing the epilogue touches, and the bias it dereferences is a parameter
+    the optimizer rewrites inside the same plan. `declare_epilogue_operand()`
+    emits a `TaskGraph::add_native` node that runs nothing and carries the two
+    edges; `RunReport::ordering_nodes_per_step` counts them apart from the
+    kernels so the trade stays visible.
+  - **The pass explains itself.** `FusionReport` names every subtree it
+    collapsed and every one it refused, with the value that blocked it and the
+    reason — `sa demo mlp` prints it, because every way this pass can be wrong
+    produces a run that still converges.
+  - **An auxiliary-buffer GELU epilogue is declined, not approximated.** The
+    seam declares no epilogue-side regions, so an aux buffer the functor wrote
+    would get no dependency edge and its reader would race the write. That is a
+    SushiBLAS-side change, and it is named rather than worked around.
+  - **The wall clock has two terms and only one is an improvement.** A step's
+    steady-state cost falls from 0.57 to 0.40 ms on `sa demo mlp`'s model, but
+    the first step rises from 0.97 to 1.88 s because each fused form is a
+    distinct SYCL kernel this backend compiles at first launch. Break-even is
+    about 5 000 steps, so the demo's default 128-step run is ~1.9x slower in
+    wall clock while issuing 29% fewer kernels. Both halves are in
+    `docs/README.md`; AOT targeting is what moves the one-time term to build
+    time.
+  - **`sa demo mlp --fusion off` and `--no-fuse NAME`** make that A/B
+    reproducible from one binary, which is the only way the claim is checkable.
 - **One kernel launch per parameter, and the optimizer inside the compiled
   step.** AdamW's update used to be about eleven SushiBLAS calls per parameter
   per step — ~88 launches for an eight-tensor model, against the ~31 the whole

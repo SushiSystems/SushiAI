@@ -21,7 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+#include <array>
 #include <span>
+#include <type_traits>
+#include <SushiBLAS/engine/blas/dispatch.hpp>
+#include <SushiBLAS/engine/math/safe_math.hpp>
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/graph/lowering.hpp>
 
@@ -219,6 +224,88 @@ namespace SushiAI
             {
                 return graph.value(id).dtype;
             }
+
+            // =============================================================
+            // The GEMM epilogues
+            // =============================================================
+            //
+            // One functor per catalog entry, because that is what a catalog
+            // entry *is* on this stack: `sycl_ext_codeplay_kernel_fusion` is
+            // gone from intel-llvm, so a composition exists only if some
+            // template was instantiated with it, and these four instantiations
+            // are the set. See graph/fusion.hpp.
+            //
+            // WHY THE BIAS IS A `const void*`
+            //
+            // `Dispatch::execute_gemm` instantiates the epilogue for every real
+            // element type in its Domain - half, float and double - and picks
+            // the arm matching the tensor's runtime dtype. A functor holding a
+            // `const float*` therefore compiles into the double arm too and
+            // would read the bias at the wrong stride if a double graph ever
+            // reached it. Carrying the untyped pointer and casting inside the
+            // call operator makes the arm that runs the one that is right, and
+            // costs nothing: the cast disappears at compile time.
+            //
+            // WHY THESE ARE BIT-IDENTICAL TO THE OPERATIONS THEY REPLACE
+            //
+            // `BIAS_ADD` lowers to `copy(x, y)` then `ger(ones, bias, y, 1.0f)`,
+            // whose kernel is `y += alpha * ones[row] * bias[col]`. With alpha
+            // and ones[row] both exactly 1, that is `y + bias[col]` with no
+            // rounding of its own, which is what `operator()` below computes -
+            // and `-ffp-contract=off` means neither spelling can contract the
+            // multiply-add. The activations are SushiBLAS's own expressions,
+            // copied rather than paraphrased, for the same reason.
+
+            /** @brief Adds a per-column bias to the GEMM's result. */
+            struct BiasEpilogue
+            {
+                const void* bias;
+
+                template<typename T>
+                T operator()(T value, std::int64_t, std::int64_t col) const
+                {
+                    return value + static_cast<const T*>(bias)[col];
+                }
+            };
+
+            /** @brief Adds a per-column bias, then SushiBLAS's ReLU. */
+            struct BiasReluEpilogue
+            {
+                const void* bias;
+
+                template<typename T>
+                T operator()(T value, std::int64_t, std::int64_t col) const
+                {
+                    const T y = value + static_cast<const T*>(bias)[col];
+                    return SushiBLAS::Dispatch::greater_than_zero(y) ? y : T(0);
+                }
+            };
+
+            /** @brief Adds a per-column bias, then SushiBLAS's logistic sigmoid. */
+            struct BiasSigmoidEpilogue
+            {
+                const void* bias;
+
+                template<typename T>
+                T operator()(T value, std::int64_t, std::int64_t col) const
+                {
+                    const T y = value + static_cast<const T*>(bias)[col];
+                    return T(1) / (T(1) + SushiBLAS::Dispatch::safe_exp(-y));
+                }
+            };
+
+            /** @brief Adds a per-column bias, then SushiBLAS's tanh. */
+            struct BiasTanhEpilogue
+            {
+                const void* bias;
+
+                template<typename T>
+                T operator()(T value, std::int64_t, std::int64_t col) const
+                {
+                    return SushiBLAS::Dispatch::safe_tanh(
+                        value + static_cast<const T*>(bias)[col]);
+                }
+            };
         }
 
         const SushiBLAS::Tensor& Lowering::input(const Node& node, std::size_t index) const
@@ -264,8 +351,60 @@ namespace SushiAI
         void Lowering::record(const Graph& graph)
         {
             emitted_ = 0;
+            ordering_nodes_ = 0;
+            selections_.clear();
+
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
                 record_node(graph, id);
+        }
+
+        FusionChoice Lowering::select(const FusionQuery& query)
+        {
+            // Built here rather than held as a member so a Lowering costs
+            // nothing on a graph with no fused nodes, and so the profile is
+            // read from the engine this record() is actually recording on.
+            const FusionChoice choice =
+                selector_ != nullptr
+                    ? selector_->choose(query)
+                    : DeviceFusionSelector::for_engine(*engine_).choose(query);
+
+            SA_THROW_IF(choice.form != FusedForm::NONE && choice.form != query.matched
+                        && !(is_gemm_epilogue(choice.form) && is_gemm_epilogue(query.matched)),
+                        "A fusion selector narrowed {} to {}, which is not a spelling of the "
+                        "same node. A selector may take the whole match, a shorter entry of the "
+                        "same family, or nothing at all.",
+                        fused_form_name(query.matched), fused_form_name(choice.form));
+
+            selections_.push_back(FusionSelection{query.matched, choice.form, choice.reason, 0});
+            return choice;
+        }
+
+        void Lowering::declare_epilogue_operand(const SushiBLAS::Tensor& operand,
+                                                const SushiBLAS::Tensor& result)
+        {
+            // A host node that runs nothing, whose entire purpose is its two
+            // access declarations. See lowering.hpp's warning for why the fused
+            // GEMM cannot make them itself; in short, SushiBLAS declares A, B
+            // and C and explicitly hands the epilogue's own reads back to the
+            // caller, and the bias here is a parameter the optimizer rewrites
+            // inside this very plan.
+            //
+            // Recorded immediately before the GEMM, so the write-after-write on
+            // `result` pulls the GEMM in behind it and the read of `operand`
+            // pushes the optimizer's update out in front. Neither edge is
+            // implied by anything else - the transitive path through the
+            // gradient happens to exist for a plain feed-forward model today,
+            // and relying on it would be exactly the kind of accident that
+            // survives every test and breaks the first time somebody adds a
+            // second writer.
+            SushiRuntime::Graph::TaskMetadata meta;
+            meta.name = Ops::EPILOGUE_OPERANDS.name.data();
+            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.op_id = Ops::EPILOGUE_OPERANDS.id;
+
+            engine_->get_graph().add_native({operand.region()}, {result.region()},
+                                            []{}, {}, meta);
+            ++ordering_nodes_;
         }
 
         void Lowering::record_node(const Graph& graph, NodeId id)
@@ -305,6 +444,14 @@ namespace SushiAI
             if (node.op == Ops::SUM_ROWS.id)               { record_sum_rows(graph, node); return; }
             if (node.op == Ops::ACCUMULATE.id)             { record_accumulate(node); return; }
             if (node.op == Ops::ZERO.id)                   { record_zero(graph, node); return; }
+
+            const FusedForm form = fused_form_of(node.op);
+            if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
+            if (form == FusedForm::EXP_SUB_SCALE)
+            {
+                record_fused_exp_sub_scale(graph, id, node, form);
+                return;
+            }
 
             SA_THROW_IF(true,
                         "No lowering for operation {} (node {}). Add it to Lowering::record_node "
@@ -348,6 +495,175 @@ namespace SushiAI
             engine_->blas().copy(x, y);
             engine_->blas().ger(rows, bias, y, 1.0f);
             emitted_ += 2;
+        }
+
+        void Lowering::record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
+                                         FusedForm matched)
+        {
+            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != 1,
+                        "{} (node {}) takes three operands - A, B and the bias - and one result",
+                        Ops::name_of(node.op), id);
+
+            const Shape& out_shape = shape_of(graph, node.outputs[0]);
+            SA_THROW_IF(out_shape.rank() != 2,
+                        "{} (node {}) needs a rank-2 result; got {}",
+                        Ops::name_of(node.op), id, out_shape.to_string());
+
+            const SushiBLAS::Tensor& a = input(node, 0);
+            const SushiBLAS::Tensor& b = input(node, 1);
+            const SushiBLAS::Tensor& bias = input(node, 2);
+            SushiBLAS::Tensor& c = output(graph, node, 0);
+
+            const bool transpose_a = node.attributes.flag(0);
+            const bool transpose_b = node.attributes.flag(1);
+            const DType dtype = dtype_of(graph, node.outputs[0]);
+
+            FusionQuery query;
+            query.matched = matched;
+            query.dtype = dtype;
+            query.rows = out_shape[0];
+            query.columns = out_shape[1];
+            query.operand_is_contiguous = bias.is_contiguous();
+
+            const FusionChoice choice = select(query);
+            const std::size_t before = emitted_;
+
+            if (choice.form == FusedForm::NONE)
+            {
+                // The unfused spelling, and still cheaper than the IR it came
+                // from: the fused node names A, B and the bias directly, so the
+                // rank-1 update and the activation both run in place on C and
+                // neither needs the copy the out-of-place IR made them pay.
+                // Same operations in the same order, so the same bytes.
+                engine_->blas().gemm(a, b, c, transpose_a, transpose_b, 1.0, 0.0);
+
+                SushiBLAS::Tensor& rows = pool_->ones(Shape{out_shape[0]}, dtype);
+                engine_->blas().ger(rows, bias, c, 1.0f);
+                emitted_ += 2;
+            }
+            else
+            {
+                declare_epilogue_operand(bias, c);
+
+                const void* const values = bias.data();
+
+                // One arm per catalog entry. This switch is the point at which
+                // "which compositions exist" stops being a runtime question:
+                // each arm instantiates a different template, and a composition
+                // with no arm here does not exist in the binary at all.
+                switch (choice.form)
+                {
+                    case FusedForm::GEMM_BIAS_RELU:
+                        SushiBLAS::Dispatch::execute_gemm(
+                            *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
+                            Ops::GEMM_BIAS_RELU.name.data(), Ops::GEMM_BIAS_RELU.id,
+                            BiasReluEpilogue{values});
+                        break;
+
+                    case FusedForm::GEMM_BIAS_SIGMOID:
+                        SushiBLAS::Dispatch::execute_gemm(
+                            *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
+                            Ops::GEMM_BIAS_SIGMOID.name.data(), Ops::GEMM_BIAS_SIGMOID.id,
+                            BiasSigmoidEpilogue{values});
+                        break;
+
+                    case FusedForm::GEMM_BIAS_TANH:
+                        SushiBLAS::Dispatch::execute_gemm(
+                            *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
+                            Ops::GEMM_BIAS_TANH.name.data(), Ops::GEMM_BIAS_TANH.id,
+                            BiasTanhEpilogue{values});
+                        break;
+
+                    default:
+                        SushiBLAS::Dispatch::execute_gemm(
+                            *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
+                            Ops::GEMM_BIAS.name.data(), Ops::GEMM_BIAS.id,
+                            BiasEpilogue{values});
+                        break;
+                }
+                ++emitted_;
+            }
+
+            // Whatever activation the chosen spelling did not fold in still has
+            // to run, in place on the result. Correct for every activation in
+            // Ops::ACTIVATIONS, fused or not, because the fused node's output
+            // *is* the activation's output value - the pass only ever absorbs
+            // an activation whose gradient reads that same tensor.
+            const OpID activation = fused_form_activation(matched);
+            if (activation != Ops::LEAF.id && fused_form_activation(choice.form) != activation)
+            {
+                if (activation == Ops::RELU.id)         engine_->nonlinear().relu(c);
+                else if (activation == Ops::SIGMOID.id) engine_->nonlinear().sigmoid(c);
+                else                                    engine_->nonlinear().tanh(c);
+                ++emitted_;
+            }
+
+            selections_.back().tasks = emitted_ - before;
+        }
+
+        void Lowering::record_fused_exp_sub_scale(const Graph& graph, NodeId id, const Node& node,
+                                                  FusedForm matched)
+        {
+            SA_THROW_IF(node.inputs.size() != 2 || node.outputs.size() != 1,
+                        "{} (node {}) takes two operands and one result",
+                        Ops::name_of(node.op), id);
+
+            const Shape& out_shape = shape_of(graph, node.outputs[0]);
+
+            // Non-const, and from the pool rather than through input(), because
+            // the zip seam takes every operand as a writable slot; see below.
+            SushiBLAS::Tensor& a = pool_->tensor(node.inputs[0]);
+            SushiBLAS::Tensor& b = pool_->tensor(node.inputs[1]);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            // Through float on both paths: the unfused spelling ends in
+            // blas().scal, whose alpha is a float, so a double graph would
+            // otherwise pick up a differently rounded constant on the two
+            // paths and break the byte-for-byte comparison for a reason that
+            // has nothing to do with fusion.
+            const float alpha = static_cast<float>(node.attributes.get(0));
+
+            FusionQuery query;
+            query.matched = matched;
+            query.dtype = dtype_of(graph, node.outputs[0]);
+            query.rows = out_shape.rank() > 0 ? out_shape[0] : 0;
+            query.columns = out_shape.rank() > 1 ? out_shape[1] : 1;
+
+            const FusionChoice choice = select(query);
+            const std::size_t before = emitted_;
+
+            if (choice.form == FusedForm::NONE)
+            {
+                // Out is its own scratch: it has the operands' shape, so the
+                // whole recipe runs through it and no temporary is allocated.
+                engine_->blas().copy(a, out);
+                engine_->elementwise().exp(out);
+                engine_->elementwise().sub(out, b, out);
+                engine_->blas().scal(alpha, out);
+                emitted_ += 4;
+            }
+            else
+            {
+                // Every slot of a zip is declared to the tracker as both read
+                // and written, and every slot is staged and written back - so
+                // `a` and `b` are rewritten with the bytes they already held.
+                // That is a real write and it is why they are named here rather
+                // than passed as const: it is what makes the ordering against
+                // whoever else reads them explicit instead of accidental.
+                std::array<SushiBLAS::Tensor*, 3> operands{&out, &a, &b};
+
+                SushiBLAS::Dispatch::execute_zip_inplace(*engine_, operands,
+                    Ops::EXP_SUB_SCALE.name.data(), Ops::EXP_SUB_SCALE.id,
+                    [alpha](auto& result, auto& logit, auto& target)
+                    {
+                        using T = std::decay_t<decltype(result)>;
+                        result = (SushiBLAS::Dispatch::safe_exp(logit) - target)
+                               * static_cast<T>(alpha);
+                    });
+                ++emitted_;
+            }
+
+            selections_.back().tasks = emitted_ - before;
         }
 
         void Lowering::record_binary(const Graph& graph, const Node& node)

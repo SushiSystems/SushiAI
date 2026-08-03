@@ -140,8 +140,16 @@ sa run sushiai_tests -- --gtest_filter='Unit_Version.*'
 ```bash
 sa demo mlp                              # the defaults
 sa demo mlp --epochs 4 --optimizer sgd   # anything you like
+sa demo mlp --fusion off                 # the unfused graph, for an A/B
+sa demo mlp --no-fuse gemm+bias+relu     # one catalog entry off; repeatable
 sa demo mlp --help                       # the full flag list
 ```
+
+`--fusion` and `--no-fuse` are how the operator fusion pass is measured rather
+than assumed: both spellings produce the same numbers and differ only in how
+many kernels they launch, so the comparison has to come from one binary against
+one SushiBLAS build. `--no-fuse` takes a form's name exactly as the demo's
+`Fusion` line prints it.
 
 `sa demo mlp` runs `sushiai_demo_mlp` (`examples/demo_mlp.cpp`) from the repo
 root, so a relative data path such as the demo's `data/mnist` default means

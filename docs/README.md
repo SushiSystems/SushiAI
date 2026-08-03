@@ -187,9 +187,13 @@ Data     : SYNTHETIC FALLBACK - no MNIST here.
 Model    : 32 -> 128 -> 6  (4998 learnable scalars)
 Optimizer: adamw (lr 0.003)
 Batches  : 16 x 32 from 'synthetic-classification'
-Graph    : 22 IR nodes over 22 values
-Buffers  : 31 tensors, 112.6 KiB (one allocation each: 130.9 KiB)
-Arenas   : 1 (activation), 10 buffers in 65.5 KiB instead of 83.8 KiB - 22% saved
+Graph    : 17 IR nodes over 22 values
+Fusion   : 22 node(s) -> 17
+           fused    gemm+bias+relu -> value 6
+           fused    gemm+bias -> value 10
+           fused    exp-sub-scale -> value 15
+Buffers  : 26 tensors, 96.6 KiB (one allocation each: 96.6 KiB)
+Arenas   : 1 (activation), 5 buffers in 49.5 KiB instead of 49.5 KiB - 0% saved
 Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
 
 ...
@@ -209,10 +213,11 @@ Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
 
 compiles       : 1
 steps          : 128
-ops per step   : 35
+ops per step   : 25
+ordering nodes : 2 (host-side, no kernel)
 loss           : 1.791759 -> 0.000380
 final accuracy : 100.00%
-wall clock     : 930.2 ms (7.27 ms/step)
+wall clock     : 1955.5 ms (15.28 ms/step)
 per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::profiling to collect it)
 ----------------------------------------------------------------
   compiles: 1  <- one lowering, one compile, 128 replays.
@@ -225,25 +230,60 @@ whole design rests on: 128 training steps, one lowering, one compile. The
 CTest entry `Integration_Demo.MlpRunsAndReportsOneCompile` and
 `cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
 
-**`ops per step: 35`** is 31 graph nodes plus one fused update per parameter —
+**`ops per step: 25`** is 21 graph nodes plus one fused update per parameter —
 the optimizer is *inside* that single compiled plan
-([ARCHITECTURE.md §5.1](ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step)).
-The same run spelled the old way — twelve separate calls per parameter,
-flushed in a graph of their own after every replay — issues 81 device tasks
-per step where this issues 37, and compiles 278 task graphs over the run where
-this compiles 150. Measured on this machine (CPU/OpenCL, 12 cores, ten runs
-each, quiet), that is a median 8.80 → 7.74 ms/step. The wall clock is far
-noisier than the task count and the model is small enough that most of a step
-is neither the optimizer nor arithmetic, so the launch counts are the number
-to watch.
+([ARCHITECTURE.md §5.1](ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step)),
+and the graph itself has been through the fusion pass
+([§5.2](ARCHITECTURE.md#52-fusion-is-a-selector-over-a-catalog-not-a-code-generator)).
+Spelled the old way — twelve separate optimizer calls per parameter flushed in
+a graph of their own, and no fusion — the same run issues 81 device tasks per
+step where this issues 25.
 
-The **`Arenas`** line is the memory planner reporting itself. Ten of the
-graph's twelve activations become views into one arena sized once before
-lowering, so the run holds 112.6 KiB where one allocation per tensor would have
-held 130.9 KiB — and the loss trajectory above is byte-for-byte the one it
-produced before the packing existed, which is the only acceptable answer. The
-other two stay out of the arena for a reason named in
-`Lowering::values_needing_own_allocation()`.
+The **`Fusion`** line is the pass reporting itself, refusals included. Run
+`--fusion off` to get the unfused graph back, or `--no-fuse gemm+bias+relu` to
+switch one catalog entry off; every spelling produces the same numbers, which
+is what `Regression_Fusion` pins byte for byte.
+
+### What fusion is actually worth here, including the part that costs
+
+Measured on this machine (CPU/OpenCL, 12 cores, idle, `--fusion off` and
+`--fusion on` interleaved from one binary against one SushiBLAS build):
+
+| | unfused | fused |
+|---|---|---|
+| kernels per step | 35 | 25 (+2 host-side ordering nodes) |
+| steady-state cost | 0.57 ms/step | **0.40 ms/step** |
+| first step | 0.97 s | **1.88 s** |
+
+The steady-state figure is the slope of total wall clock against step count,
+taken between 1 024 and 4 096 steps so the fixed startup term cancels; the
+median of three replicates each, whose spread is about ±0.06 ms/step. **A
+step is about 30% cheaper, which is roughly the 29% of its kernels that
+stopped being launched** — these tensors are small enough that a step is mostly
+launch overhead, which is exactly the regime where removing launches pays one
+for one.
+
+**And it costs about 0.9 s once, on the first step.** Every fused form is a
+distinct C++ template instantiation and therefore a distinct SYCL kernel, which
+this OpenCL backend compiles at first launch. A single-step run costs 0.97 s
+unfused and 1.88 s fused, which is the whole of the difference; it does not
+scale with the model, the batch or the step count. So **break-even on this
+machine is around 5 000 steps**, and the 128-step run printed above is far
+below it — fusion makes the default demo about 1.9x *slower* in wall clock
+while issuing 29% fewer kernels. That is not a contradiction and it is not
+hidden: it is one-time device-code compilation, it is what AOT targeting
+(`sa build -D SB_SYCL_TARGETS=spir64`) exists to move to build time, and it is
+irrelevant to any training run long enough to be worth doing. The launch count
+is the number this change controls; the wall clock is reported both ways
+because reporting only the favourable half would be dishonest.
+
+The **`Arenas`** line now says `0% saved`, and that is fusion's doing rather
+than the planner failing: a fused subtree's intermediates stop being values at
+all, so the buffers the planner used to overlap no longer exist to overlap.
+The whole pool is 96.6 KiB against 130.9 KiB before either pass existed.
+`Regression_StaticMemory` pins both halves — packing still shrinks the
+*unfused* graph, and the fused graph is never larger than the packed unfused
+one.
 
 ## Running the tests
 

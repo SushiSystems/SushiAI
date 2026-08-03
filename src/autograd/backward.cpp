@@ -198,45 +198,41 @@ namespace SushiAI
             }
 
             /**
-             * @brief Shared body for the four activations.
+             * @brief The rule for every activation, read out of Ops::ACTIVATIONS.
+             *
+             * One function rather than four, because the only thing that
+             * differs between them is which gradient operation to emit and
+             * which tensor to differentiate at - and both of those are already
+             * stated in @c Ops::ACTIVATIONS, which is also what decides whether
+             * a fused form may fold the activation away. Restating either here
+             * would be a second place for the two to disagree, and a
+             * disagreement is silent: the two candidate primals have the same
+             * shape, so the graph builds and the model learns the wrong thing.
              *
              * @param tape The rule's context.
-             * @param backward_op Which gradient operation to emit.
-             * @param from_output True when the gradient reads the forward
-             *        output (sigmoid, tanh) rather than the forward input
-             *        (relu, gelu). Getting this backwards is silent: both
-             *        tensors have the same shape, so the graph builds and the
-             *        model simply learns the wrong thing.
              */
-            void activation_backward(const GradientTape& tape, OpID backward_op, bool from_output)
+            void activation_backward(const GradientTape& tape)
             {
                 const Graph::ValueId dy = tape.output_grad(0);
                 if (dy == Graph::NO_VALUE) return;
                 if (!tape.input_requires_grad(0)) return;
 
                 const Graph::Node& node = tape.node();
-                const Graph::ValueId primal = from_output ? node.outputs.at(0) : node.inputs.at(0);
-                tape.contribute_input(0, tape.builder().activation_backward(backward_op, dy, primal));
-            }
+                const Ops::Activation* activation = Ops::activation_of(node.op);
 
-            void relu_backward(const GradientTape& tape)
-            {
-                activation_backward(tape, Ops::RELU_BACKWARD.id, false);
-            }
+                SA_THROW_IF(activation == nullptr,
+                            "{} is registered as an activation's backward rule but is not in "
+                            "Ops::ACTIVATIONS. Add it there rather than here; that table is what "
+                            "the fusion catalog also reads.",
+                            Ops::name_of(node.op));
 
-            void gelu_backward(const GradientTape& tape)
-            {
-                activation_backward(tape, Ops::GELU_BACKWARD.id, false);
-            }
+                const Graph::ValueId primal =
+                    activation->gradient_source == Ops::GradientSource::OUTPUT
+                        ? node.outputs.at(0)
+                        : node.inputs.at(0);
 
-            void sigmoid_backward(const GradientTape& tape)
-            {
-                activation_backward(tape, Ops::SIGMOID_BACKWARD.id, true);
-            }
-
-            void tanh_backward(const GradientTape& tape)
-            {
-                activation_backward(tape, Ops::TANH_BACKWARD.id, true);
+                tape.contribute_input(
+                    0, tape.builder().activation_backward(activation->backward, dy, primal));
             }
 
             void sum_rows_backward(const GradientTape& tape)
@@ -349,10 +345,10 @@ namespace SushiAI
                 {Ops::MUL.id,              &mul_backward},
                 {Ops::SCALE.id,            &scale_backward},
                 {Ops::EXP.id,              &exp_backward},
-                {Ops::RELU.id,             &relu_backward},
-                {Ops::GELU.id,             &gelu_backward},
-                {Ops::SIGMOID.id,          &sigmoid_backward},
-                {Ops::TANH.id,             &tanh_backward},
+                {Ops::RELU.id,             &activation_backward},
+                {Ops::GELU.id,             &activation_backward},
+                {Ops::SIGMOID.id,          &activation_backward},
+                {Ops::TANH.id,             &activation_backward},
                 {Ops::SUM_ROWS.id,         &sum_rows_backward},
                 {Ops::ACCUMULATE.id,       &accumulate_backward},
                 {Ops::NLL_LOSS.id,         &nll_loss_backward},
