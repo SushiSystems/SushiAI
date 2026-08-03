@@ -6,29 +6,47 @@ precision on top of [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s
 tensor and BLAS layer, which itself runs on
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph.
 
-**This is currently the AI-0 scope-reset skeleton, not a working ML
-library.** The repository was reset from a retired 2025-06 CUDA/cuBLAS
-prototype (never stack-integrated, not a migration source) to a clean,
-"born CLI-first" skeleton: one real compiled library symbol, a genuine
-two-sibling dependency chain (SushiRuntime + SushiBLAS) that builds, links,
-and runs, and full SB-6-shaped packaging from day one. The graph-native
-autograd core, and everything downstream of it, is **AI-1 onward** — not yet
-built. See [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
-for the actual roadmap; nothing in this document promises features that plan
-hasn't reached yet.
+**AI-1 has landed: an MLP trains end to end.** `sa run sushiai_example`
+traces a two-layer model into SushiAI's own IR, differentiates that IR,
+lowers it to SushiBLAS once, compiles it once, and replays it per batch until
+the loss falls from `ln(C)` to convergence. Memory planning, kernel fusion
+and mixed precision are still ahead — see
+[`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
+for the roadmap and [ARCHITECTURE.md §7](ARCHITECTURE.md#7-whats-not-here-yet)
+for an honest list of what this tree does not do yet. Nothing in this
+document promises a feature that plan hasn't reached.
 
-## What exists today (AI-0)
+## What exists today
 
-- `SushiAI::sushiai` — a `STATIC` library with one real symbol,
-  `SushiAI::version_string()`, linking `SushiRuntime::SushiRuntime` and
-  `SushiBLAS::sushiblas` `PUBLIC`.
+- **A graph IR** (`graph/ir.hpp`, `graph/builder.hpp`) — single-assignment,
+  host-only, with every operation's shape inference stated exactly once.
+- **Reverse-mode autograd as an IR-to-IR transform** (`autograd/backward.hpp`)
+  — a `constexpr` rule table, tiered fan-out accumulation with no atomics,
+  and a fused log-softmax + cross-entropy gradient. It touches no device.
+- **Finite-difference gradient checking in FLOAT64** (`autograd/gradcheck.hpp`),
+  full-Jacobian and randomised-directional, which is what the integration
+  tier verifies every backward rule with.
+- **A lowering to SushiBLAS** (`graph/lowering.hpp`) — the only file in the
+  library that calls `SushiBLAS::Engine` — and `CompiledStep`, which makes
+  the compile-once/replay contract a type rather than a comment.
+- **Layers and losses** (`nn/`) — `Linear`, `ReLU`/`GELU`/`Tanh`/`Sigmoid`,
+  `Sequential` with CTAD, `CrossEntropyLoss`, Kaiming/Xavier initialisation.
+  No base class and no `register_module`: a layer publishes its parameters
+  through a `static constexpr fields()` list, and one generic walk produces
+  the whole PyTorch-shaped named-parameter tree.
+- **Optimizers** (`optim/`) — SGD with PyTorch's momentum formulation, and
+  AdamW with decoupled decay applied first and `eps` added after the bias
+  correction.
+- **Data and a training loop** (`data/`, `train/`) — a `Dataset` seam, a
+  hermetic seeded synthetic classification problem generated on device, an
+  MNIST IDX loader that activates only when the files are present, and a
+  trainer that reports its compile count.
+- `SushiAI::sushiai` — a `STATIC` library linking `SushiRuntime::SushiRuntime`
+  and `SushiBLAS::sushiblas` `PUBLIC`.
 - A genuine [D3-resolved](ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
   two-sibling dependency chain — the same layered CMake resolution
   (TARGET-guard → `find_package` → sibling `add_subdirectory`) used
   stack-wide, run twice (SushiRuntime, then SushiBLAS).
-- A real example (`examples/example.cpp`) that runs an actual op
-  (`engine.blas().axpy(...)`) through both siblings.
-- Tests that prove the chain compiles, links, and runs — not placeholders.
 - `find_package(SushiAI)`-ready packaging (SB-6's shape), verified with a
   real out-of-tree consumer in `tests/package/`.
 - The `sa` / `sushiai` CLI (Typer + rich), modeled on
@@ -157,11 +175,10 @@ std::cout << "SushiAI " << SushiAI::version_string()
 ```
 
 SushiAI does not touch SYCL directly and defines no ops of its own yet — all
-compute is drawn from `SushiBLAS::sushiblas`, linked `PUBLIC` so a future
-autograd core built inside `sushiai` inherits it automatically. See
-[ARCHITECTURE.md](ARCHITECTURE.md) for the full (currently short) picture and
-[the master plan](slop/make_sushiai_great_again.md) for what AI-1 onward
-actually builds here.
+compute is drawn from `SushiBLAS::sushiblas`, linked `PUBLIC` so the autograd
+core inside `sushiai` inherits it automatically. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the full picture and
+[the master plan](slop/make_sushiai_great_again.md) for what comes next.
 
 ## Project layout
 
@@ -179,15 +196,22 @@ cmake/
   SushiAISanitizers.cmake
   SushiAIConfig.cmake.in         find_package(SushiAI) package config
 include/SushiAI/
-  SushiAI.h              Master header (today: just version.hpp)
+  SushiAI.h              Master header — includes every public header
   version.hpp            SUSHIAI_VERSION_* macros
-src/
-  version.cpp            The library's one real compiled symbol
+  core/                  Vocabulary: common, ops, shape, allocation
+  graph/                 The IR, its builder, the lowering, CompiledStep
+  autograd/              Differentiation and gradient checking
+  nn/                    Parameters, the Module concept, layers, losses, init
+  optim/                 SGD and AdamW
+  data/                  The Dataset seam, synthetic data, the MNIST loader
+  train/                 The training loop and its run report
+src/                     One .cpp per header that needs one, same tree shape
 examples/
-  example.cpp            Runs a real op through both siblings
+  example.cpp            A whole training run, end to end
 tests/
-  functional/unit/            test_version.cpp
-  functional/integration/     test_engine_smoke.cpp — a real Engine + op, end to end
+  common/                     Process-global RuntimeContext + per-test Engine
+  functional/unit/            Device-free: shapes, IR, autograd, the walk
+  functional/integration/     Real Engine: forward values, gradcheck, training
   package/                    Out-of-tree find_package(SushiAI) consumer
 cli/                     Python `sa` / `sushiai` CLI package (Typer + rich)
 docs/

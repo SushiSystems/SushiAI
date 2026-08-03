@@ -27,10 +27,52 @@
  * @file SushiAI.h
  * @brief Master header for the SushiAI library.
  *
- * SushiAI is a scope-reset skeleton (AI-0): the graph-native autograd core,
- * memory planning, fusion, and mixed precision (AI-1 onward) have not landed
- * yet. This header currently only exposes the library's version; it grows as
- * each of those lands.
+ * Includes every public header, so a consumer writes one include and gets the
+ * whole library. The ordering below is the dependency order of the layers:
+ * vocabulary, the graph IR that autograd and the later passes transform, the
+ * lowering that turns that IR into SushiBLAS work, then the layers, losses,
+ * optimizers, data and training loop built on top.
+ *
+ * Two lanes live under this roof, and the split is worth knowing about:
+ *
+ * - The @b host lane - @c core/common.hpp, @c core/ops.hpp,
+ *   @c core/shape.hpp, @c graph/ir.hpp, @c graph/builder.hpp, @c autograd/,
+ *   @c nn/module.hpp, @c nn/layers.hpp, @c nn/loss.hpp - pulls in no
+ *   SushiBLAS and no SYCL. Shape inference, graph topology, the
+ *   differentiation transform and the parameter walk are all testable without
+ *   a device, and this repository's unit tests include those headers directly
+ *   for exactly that reason.
+ * - The @b device lane - everything else, including @c core/allocation.hpp -
+ *   reaches SushiBLAS and therefore SYCL.
+ *
+ * Including this master header gets both. Include a host-lane header directly
+ * when you want to stay off the device compiler.
  */
 
 #include "version.hpp"
+
+#include "core/common.hpp"
+#include "core/ops.hpp"
+#include "core/shape.hpp"
+#include "core/allocation.hpp"
+
+#include "graph/ir.hpp"
+#include "graph/builder.hpp"
+#include "graph/lowering.hpp"
+#include "graph/compiled_step.hpp"
+
+#include "autograd/backward.hpp"
+#include "autograd/gradcheck.hpp"
+
+#include "nn/module.hpp"
+#include "nn/layers.hpp"
+#include "nn/loss.hpp"
+#include "nn/init.hpp"
+
+#include "optim/optimizer.hpp"
+#include "optim/sgd.hpp"
+#include "optim/adamw.hpp"
+
+#include "data/dataset.hpp"
+
+#include "train/trainer.hpp"
