@@ -11,8 +11,10 @@ set(SUSHIAI_SOURCES
     core/allocation.cpp
 
     graph/builder.cpp
+    graph/fusion.cpp
     graph/memory_plan.cpp
     graph/arena.cpp
+    graph/fusion_selector.cpp
     graph/lowering.cpp
     graph/compiled_step.cpp
 

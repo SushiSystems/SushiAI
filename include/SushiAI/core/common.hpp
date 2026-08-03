@@ -77,6 +77,8 @@ namespace SushiAI
             case DType::FLOAT64:   return 8;
             case DType::COMPLEX32: return 8;
             case DType::COMPLEX64: return 16;
+            case DType::INT32:     return 4;
+            case DType::INT64:     return 8;
         }
         return 4;
     }
@@ -95,6 +97,8 @@ namespace SushiAI
             case DType::FLOAT64:   return "float64";
             case DType::COMPLEX32: return "complex32";
             case DType::COMPLEX64: return "complex64";
+            case DType::INT32:     return "int32";
+            case DType::INT64:     return "int64";
         }
         return "unknown";
     }

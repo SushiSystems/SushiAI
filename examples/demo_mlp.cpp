@@ -98,6 +98,28 @@ namespace
         std::uint64_t seed = 0x0D15EA5E'0BADF00Dull; /**< Seeds both the data and the weights. */
         OptimizerKind optimizer = OptimizerKind::ADAMW;
         std::filesystem::path mnist_directory = "data/mnist";
+
+        /**
+         * @brief Whether the fusion pass runs; on by default, as the library is.
+         *
+         * A flag rather than a rebuild because the two paths are supposed to
+         * produce the *same numbers* and differ only in launch count, and the
+         * only honest way to show that is to run both from one binary against
+         * one SushiBLAS. It is also the measurement anyone reproducing the
+         * figures in docs/README.md has to be able to take.
+         */
+        bool fusion = true;
+
+        /**
+         * @brief Catalog entries to leave unmatched, by name.
+         *
+         * The per-form half of `--fusion`. Fusion's whole payoff is a launch
+         * count, and a launch count is only worth something if the wall clock
+         * agrees - so the ability to switch one form off and re-measure is not
+         * a debugging aid, it is how anyone finds out which entry is actually
+         * paying on their model and their device.
+         */
+        std::vector<sa::Graph::FusedForm> without;
     };
 
     constexpr std::string_view USAGE = R"(sa demo mlp - train an MLP classifier end to end.
@@ -112,6 +134,10 @@ Usage: sushiai_demo_mlp [options]
   --classes N       classes, synthetic only            (default 6)
   --lr F            learning rate      (default 3e-3 adamw / 0.2 sgd)
   --optimizer NAME  adamw | sgd                        (default adamw)
+  --fusion on|off   run the operator fusion pass           (default on)
+  --no-fuse NAME    leave one catalog entry unmatched; repeatable. NAME is a
+                    form as the report names it: gemm+bias, gemm+bias+relu,
+                    gemm+bias+sigmoid, gemm+bias+tanh, exp-sub-scale
   --seed N          seeds the data and the weights  (default: printed below)
   --mnist-dir PATH  where to look for the IDX files    (default data/mnist)
   -h, --help        print this and exit
@@ -260,6 +286,22 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             else if (flag == "--lr")          settings.learning_rate = parse_real(flag, value());
             else if (flag == "--seed")        settings.seed = parse_seed(flag, value());
             else if (flag == "--mnist-dir")   settings.mnist_directory = value();
+            else if (flag == "--no-fuse")
+            {
+                const std::string name = value();
+                const sa::Graph::FusedForm form = sa::Graph::fused_form_from_name(name);
+                SA_THROW_IF(form == sa::Graph::FusedForm::NONE,
+                            "--no-fuse does not know the form '{}'. Run with --help for the "
+                            "names; they are the ones the fusion report prints.", name);
+                settings.without.push_back(form);
+            }
+            else if (flag == "--fusion")
+            {
+                const std::string state = value();
+                if (state == "on") settings.fusion = true;
+                else if (state == "off") settings.fusion = false;
+                else SA_THROW_IF(true, "--fusion takes 'on' or 'off', got '{}'", state);
+            }
             else if (flag == "--optimizer")
             {
                 const std::string name = value();
@@ -387,6 +429,43 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
+     * @brief The fusion pass's lines of the configuration report.
+     *
+     * Shown rather than asserted, and shown *including the refusals*, because
+     * every way this pass can be wrong produces a run that still converges. A
+     * reader who can see "gemm+bias+relu x1, gemm+bias x1" next to "declined
+     * sushiai.gelu: its gradient differentiates at its input" can tell at a
+     * glance whether the model in front of them got what it should have.
+     *
+     * @param report What the pass did.
+     * @return One line plus one per decision; always newline-terminated.
+     */
+    std::string describe_fusion(const sa::Graph::FusionReport& report)
+    {
+        if (!report.enabled())
+            return "Fusion   : off; the graph is lowered exactly as it was built\n";
+
+        if (report.fused().empty() && report.declined().empty())
+            return "Fusion   : nothing in this graph matches the catalog\n";
+
+        std::string text = std::format("Fusion   : {} node(s) -> {}\n",
+                                       report.nodes_before(), report.nodes_after());
+
+        for (const sa::Graph::FusedSubtree& subtree : report.fused())
+            text += std::format("           fused    {} -> value {}\n",
+                                sa::Graph::fused_form_name(subtree.form), subtree.result);
+
+        for (const sa::Graph::DeclinedFusion& decline : report.declined())
+            text += std::format("           declined {}: {}\n",
+                                decline.form != sa::Graph::FusedForm::NONE
+                                    ? sa::Graph::fused_form_name(decline.form)
+                                    : sa::Ops::name_of(decline.op),
+                                sa::Graph::fusion_decline_reason(decline.reason));
+
+        return text;
+    }
+
+    /**
      * @brief The memory planner's line of the configuration report.
      *
      * The saving is shown rather than asserted: the "Buffers" line above prints
@@ -467,10 +546,15 @@ int main(int argc, char** argv)
             sa::NN::Linear{settings.hidden, classes},
         };
 
-        // Trace, add cross-entropy, differentiate. All IR-to-IR: no device
-        // work has happened yet, and nothing has been compiled.
+        // Trace, add cross-entropy, differentiate, fuse. All IR-to-IR: no
+        // device work has happened yet, and nothing has been compiled.
+        sa::Graph::FusionOptions fusion;
+        fusion.enabled = settings.fusion;
+        fusion.disabled = std::span<const sa::Graph::FusedForm>(settings.without.data(),
+                                                                settings.without.size());
+
         sa::Train::TrainingGraph built = sa::Train::build_classifier(
-            model, settings.batch_size, features, classes);
+            model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion);
 
         // --- Memory and initialisation --------------------------------------
         sa::Graph::TensorPool pool(engine);
@@ -518,6 +602,7 @@ int main(int argc, char** argv)
                            dataset.batch_count(), settings.batch_size, dataset.name())
             << std::format("Graph    : {} IR nodes over {} values\n",
                            built.graph.node_count(), built.graph.value_count())
+            << describe_fusion(built.fusion)
             << std::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
                            pool.tensor_count(), human_bytes(pool.allocated_bytes()),
                            human_bytes(pool.unpacked_bytes()))
@@ -542,6 +627,7 @@ int main(int argc, char** argv)
             run.last_loss = epoch_report.last_loss;
             run.last_accuracy = epoch_report.last_accuracy;
             run.operations_per_step = epoch_report.operations_per_step;
+            run.ordering_nodes_per_step = epoch_report.ordering_nodes_per_step;
             run.steps += epoch_report.steps;
             run.duration_ms += epoch_report.duration_ms;
 

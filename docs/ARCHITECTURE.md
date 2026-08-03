@@ -40,6 +40,7 @@ The pipeline for one training step is:
 ```
 trace a model  ->  forward IR
 differentiate  ->  forward + backward IR      (IR -> IR, no device work)
+fuse           ->  fewer, bigger nodes        (IR -> IR, no device work)
 lower          ->  a SushiRuntime TaskGraph   (the only SushiBLAS calls)
 compile        ->  ONCE, per model
 replay         ->  per batch, for ever
@@ -272,6 +273,133 @@ worth when the optimizer *is* the step.
 
 ---
 
+## 5.2 Fusion is a selector over a catalog, not a code generator
+
+`sycl_ext_codeplay_kernel_fusion` has been **removed** from intel-llvm, so
+nothing in this stack fuses two kernels at run time. A fused kernel is a C++
+template instantiation of a functor composition, which means *which
+compositions exist* is decided when SushiAI is compiled and a pass running at
+graph-build time can only choose among them. Everything about the shape of this
+work follows from that one fact:
+
+- **`core/ops.hpp` holds the catalog's identities** — `gemm_bias`,
+  `gemm_bias_relu`, `gemm_bias_sigmoid`, `gemm_bias_tanh`, `exp_sub_scale` —
+  each a distinct kernel in the binary rather than a flag on a generic one.
+- **`graph/fusion.hpp` is the static pass**: host lane, pure IR to IR, no
+  engine and no SYCL, unit-tested over synthetic graphs with no device. It
+  matches subtrees longest-first and rewrites each accepted match into one
+  node. It runs *after* differentiation, on the joint forward-and-backward
+  graph, because a forward node's fusability depends on what the backward pass
+  still reads.
+- **`graph/fusion_selector.hpp` is the dynamic half**: given the device's
+  `SushiBLAS::Device::Profile` and the engine's `ExecutionMode`, it chooses
+  which matched entry to actually spell. Device facts live only here; the IR is
+  the same on every machine and only one node's spelling changes.
+- **`graph/lowering.cpp` holds the functors**, because a functor inlined into a
+  SushiBLAS kernel is device code.
+
+Adding a form is four mechanical edits: an identity, a `FusedForm`, a `CATALOG`
+row, and a recorder. Nothing self-registers, for the same reason
+`autograd/backward.cpp`'s rule table does not.
+
+### What is allowed to be fused away, and what is not
+
+Three refusals, each of which produces a graph that still trains if you get it
+wrong, and each therefore a checked rule:
+
+1. **A value with a second consumer.** A fused kernel never writes the chain's
+   interior values, so fusing one that something else reads means recomputing
+   it or losing it. The pass counts uses; it does not assume a chain.
+2. **A value the caller reads by id.** The loss and the logits are ordinary
+   activations to the pass and are read by the training loop after every
+   replay. `FusionOptions::observed` is how `build_classifier` says so;
+   parameters, gradients, optimizer state and inputs are protected by their
+   lifetime class without being listed.
+3. **A value the backward pass differentiates at.** This is rule 1 again,
+   deliberately: by the time the pass runs the backward nodes are in the graph,
+   so a pre-activation the gradient reads is simply a second consumer.
+
+That third point is where the per-activation decision lives, and it is a
+property of the op rather than a case inside the pass. `Ops::ACTIVATIONS` states
+where each activation's gradient reads, once, and both the differentiation pass
+and the catalog's `static_assert` consult it:
+
+| activation | gradient reads | foldable |
+|---|---|---|
+| ReLU | its output | yes |
+| sigmoid | its output | yes |
+| tanh | its output | yes |
+| GELU | its **input** | no |
+
+ReLU moved from reading its input to reading its output as part of this work,
+and that is a substitution rather than an approximation: SushiBLAS's
+`relu_backward` is `dy * (primal > 0 ? 1 : 0)` and `relu(x) > 0` exactly when
+`x > 0`, so the two spellings are **bit-identical**. Making it unconditional -
+not a rewrite the fusion pass applies - is what leaves the pre-activation with
+a single consumer in the plain graph too, so an ordinary use count says yes for
+ReLU and no for GELU with no activation-specific code in the matcher at all.
+The three entries in `docs/slop`'s §25 note about GELU/SiLU/sigmoid/tanh being
+non-recoverable is narrower than it looked: sigmoid and tanh **are** exactly
+recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's rules already
+take the output, so only GELU is genuinely blocked here.
+
+An auxiliary-buffer GELU epilogue - cuBLASLt's `GELU_AUX_BIAS` shape - is
+**not implementable through today's seam** and is declined rather than
+approximated. `Dispatch::execute_gemm` declares A, B and C to the dependency
+tracker and nothing the epilogue touches, so an aux buffer the functor wrote
+would get no edge at all and its reader would race the write. That is a
+SushiBLAS-side change (an epilogue read/write set on the seam), not something
+this side can work around.
+
+### The cost the epilogue carries
+
+The same gap bites the bias. A fused GEMM's epilogue dereferences a bias vector
+the tracker cannot see, and that bias is a parameter the optimizer rewrites
+*inside the same compiled plan* - so an undeclared read is a write-after-read
+hazard nothing orders. A transitive path through the gradient happens to exist
+for a plain feed-forward model, and relying on it is exactly the accident that
+survives every test and breaks on the first second writer. So
+`Lowering::declare_epilogue_operand()` emits a `TaskGraph::add_native` node that
+runs nothing and exists only for its two access declarations: it reads the bias
+and writes the result, which pushes the optimizer's update out behind it and
+pulls the GEMM in front of it. One node per fused GEMM, no kernel launch.
+`RunReport::ordering_nodes_per_step` counts them separately from
+`operations_per_step` so a fusion change cannot hide behind them.
+
+### What it is worth, measured — and what it costs
+
+On `sa demo mlp`'s model a step goes from **35 recorded SushiBLAS calls to 25**
+plus 2 host-side ordering nodes, all of it out of the forward and backward
+graph: the first layer's `gemm+bias+relu` replaces five calls with one, the
+second layer's `gemm+bias` replaces three with one, and the cross-entropy
+gradient's `exp/sub/scale` tail replaces five with one. Every fused form is
+compared byte for byte against the unfused spelling in
+`tests/functional/regression/test_fusion_numerics.cpp`, and
+`FusionOptions::enabled = false` keeps that reference reachable, exactly as
+`Optim::UpdateKernel::SEPARATE` does for the optimizer. The demo's loss
+trajectory is identical to the last printed digit with the pass on and off.
+
+The wall clock has **two terms, and only one of them is an improvement**:
+
+- **Steady state: 0.57 → 0.40 ms/step**, the slope of total time against step
+  count taken between 1 024 and 4 096 steps (median of three replicates,
+  spread about ±0.06). A 30% saving against a 29% reduction in kernels, which
+  is what one expects when the tensors are small enough that a step is mostly
+  launch overhead.
+- **First step: 0.97 → 1.88 s.** Each fused form is a distinct template
+  instantiation and therefore a distinct SYCL kernel, which this OpenCL backend
+  compiles at first launch. The cost is one-time, per process, and independent
+  of model size, batch and step count.
+
+Break-even is therefore around **5 000 steps** on this machine, and the demo's
+default 128-step run sits far below it — with fusion on it is about 1.9x slower
+in wall clock while issuing 29% fewer kernels. AOT device targeting
+(`SB_SYCL_TARGETS`) is what moves that term to build time. This is recorded
+here rather than quietly omitted because a fusion pass is exactly the kind of
+change whose headline number invites reporting only the favourable half.
+
+---
+
 ## 6. Packaging
 
 SushiAI is `find_package`-able from its very first commit, mirroring
@@ -335,10 +463,13 @@ does is the expensive kind of documentation debt:
   between the planner and the lowering; today those shapes are written inline
   in `record_log_softmax()` and `record_nll_loss()`. On the demo they are
   about 2 KiB of 130 KiB.
-- **No fusion pass.** The IR is shaped for one (a DAG that survives
-  differentiation), but nothing partitions it. The optimizers' fused update
-  (§5.1) is hand-written against SushiBLAS's elementwise seam, not the output
-  of a pass — it is what a pass would have to produce, for one known graph.
+- **The fusion catalog is five entries, and the biggest node in the graph is
+  not one of them.** `LOG_SOFTMAX` still lowers to nine calls, which is now the
+  single largest term in a step, and collapsing it needs a row-wise reduction
+  SushiBLAS does not expose rather than a catalog row. `NLL_LOSS`'s three calls
+  are blocked the same way: the reduction seam takes no transform functor, so
+  its elementwise `mul` cannot ride into the sum. Neither is a fusion-pass
+  problem; both are one SushiBLAS operation away.
 - **Feeding a batch still costs a flush of its own.** The optimizer no longer
   does (§5.1), but the two `blas().copy()` calls that move a batch into the
   plan's fixed input buffers do: they read a *different source tensor* every

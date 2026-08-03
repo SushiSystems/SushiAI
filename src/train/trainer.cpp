@@ -102,11 +102,20 @@ namespace SushiAI
             std::string text = std::format(
                 "compiles       : {}\n"
                 "steps          : {}\n"
-                "ops per step   : {}\n"
+                "ops per step   : {}\n",
+                compile_count, steps, operations_per_step);
+
+            // Printed only when there are any, so a run with no fused epilogue
+            // reads exactly as it did before rather than carrying a line of
+            // zero.
+            if (ordering_nodes_per_step != 0)
+                text += std::format("ordering nodes : {} (host-side, no kernel)\n",
+                                    ordering_nodes_per_step);
+
+            text += std::format(
                 "loss           : {:.6f} -> {:.6f}\n"
                 "final accuracy : {:.2f}%\n"
                 "wall clock     : {:.1f} ms ({:.2f} ms/step)\n",
-                compile_count, steps, operations_per_step,
                 first_loss, last_loss, last_accuracy * 100.0,
                 duration_ms, steps ? duration_ms / static_cast<double>(steps) : 0.0);
 
@@ -171,7 +180,8 @@ namespace SushiAI
               spec_(spec),
               optimizer_(&optimizer),
               options_(options),
-              step_(engine, graph, pool, placement_recorder(optimizer, options))
+              step_(engine, graph, pool, placement_recorder(optimizer, options),
+                    options.fusion_selector)
         {
             SA_THROW_IF(spec_.inputs == Graph::NO_VALUE || spec_.targets == Graph::NO_VALUE
                         || spec_.logits == Graph::NO_VALUE || spec_.loss == Graph::NO_VALUE,
@@ -282,6 +292,7 @@ namespace SushiAI
 
             RunReport report;
             report.operations_per_step = step_.operation_count();
+            report.ordering_nodes_per_step = step_.ordering_node_count();
 
             const auto started = std::chrono::steady_clock::now();
 
