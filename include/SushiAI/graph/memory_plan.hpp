@@ -76,7 +76,7 @@
  * than silently substituting the linear approximation. The resulting plan is
  * still a valid plan; it just saves nothing.
  *
- * @section offsets Offsets are elements downstream, bytes here
+ * @section plan_offsets Offsets are elements downstream, bytes here
  *
  * @c SushiBLAS::Tensor::storage_offset counts **elements**, which is what
  * makes a single-dtype view safe by construction. A planner mixing dtypes in

@@ -121,7 +121,7 @@
  * @c Optim::UpdateKernel::SEPARATE does for the optimizer;
  * @c tests/functional/regression/test_fusion.cpp is that comparison.
  *
- * @section ids Value ids survive the rewrite
+ * @section fused_ids Value ids survive the rewrite
  *
  * The IR is single-assignment and @c Graph::add_node claims its outputs, so a
  * node cannot be un-produced in place: the pass builds a new node list. It

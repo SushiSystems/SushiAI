@@ -53,7 +53,7 @@
  *   is why the two need different weight-decay values for comparable
  *   regularisation.
  *
- * @section fusion One kernel, and where g_t went
+ * @section sgd_fusion One kernel, and where g_t went
  *
  * The default @c UpdateKernel::FUSED runs the whole recipe above as one
  * @c execute_zip_inplace per parameter over (theta, g) or (theta, g, b). The

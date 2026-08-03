@@ -48,7 +48,7 @@
  * while the loss still falls is the failure this whole arrangement exists to
  * prevent. Master weights are the reason mixed precision converges at all.
  *
- * @section rules The rules, and why each one is what it is
+ * @section precision_rules The rules, and why each one is what it is
  *
  * @c MixedPrecisionPolicy narrows exactly two families and leaves everything
  * else in the graph's declared precision.
