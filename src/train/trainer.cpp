@@ -23,6 +23,8 @@
 
 #include <chrono>
 #include <format>
+#include <span>
+#include <vector>
 #include <SushiAI/train/trainer.hpp>
 
 namespace SushiAI
@@ -30,8 +32,29 @@ namespace SushiAI
     namespace Train
     {
         std::vector<Optim::ParameterSlot> bind_parameters(const TrainingGraph& built,
-                                                          Graph::TensorPool& pool)
+                                                          Graph::TensorPool& pool,
+                                                          Graph::PlanOptions options)
         {
+            // Before anything is materialised: adopt() only reaches values that
+            // do not have a buffer yet, so planning after the fact would plan
+            // nothing and report a saving that never happened.
+            if (!pool.has_plan())
+            {
+                // The planner reasons about the IR; only the lowering knows
+                // which values an operation cannot address through an arena, so
+                // it gets a veto rather than the planner getting a special case.
+                // Added to the caller's list rather than replacing it: this veto
+                // is a correctness constraint, not a preference.
+                std::vector<Graph::ValueId> pinned =
+                    Graph::Lowering::values_needing_own_allocation(built.graph);
+                pinned.insert(pinned.end(), options.pinned.begin(), options.pinned.end());
+
+                Graph::PlanOptions planning = options;
+                planning.pinned = std::span<const Graph::ValueId>(pinned.data(), pinned.size());
+
+                pool.adopt(Graph::MemoryPlan::build(built.graph, planning));
+            }
+
             pool.materialise_leaves(built.graph);
 
             std::vector<Optim::ParameterSlot> slots;

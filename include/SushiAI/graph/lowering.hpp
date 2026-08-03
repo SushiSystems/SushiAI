@@ -33,18 +33,35 @@
  * lives in exactly one place and can be re-read against the BLAS surface in
  * one sitting.
  *
- * @section pool One Storage per value, deliberately
+ * @section pool One Storage per value, except where the planner says otherwise
  *
- * @c TensorPool gives every @c ValueId its own @c SushiBLAS::Storage instead
- * of sub-allocating one arena. That is not a missing optimisation, it is a
- * correctness requirement today: almost every SushiBLAS kernel captures
- * @c tensor.storage->data_ptr and ignores @c tensor.storage_offset (only the
- * reductions, @c logic().all/any, @c random().constant and @c io() honour it).
- * An offset view handed to gemm, axpy or an elementwise op therefore reads
- * from element zero of the whole arena and produces a silently wrong answer,
- * not an error. Distinct base pointers also keep SushiRuntime's dependency
- * tracker sharded, which is what stops hazard resolution going quadratic. A
- * real arena pass belongs behind a SushiBLAS fix, not here.
+ * @c TensorPool used to give every @c ValueId its own @c SushiBLAS::Storage,
+ * and the reason was a correctness requirement rather than a missed
+ * optimisation: almost every SushiBLAS kernel captured
+ * @c tensor.storage->data_ptr and ignored @c tensor.storage_offset (only the
+ * reductions, @c logic().all/any, @c random().constant and @c io() honoured
+ * it), so an offset view handed to gemm, axpy or an elementwise op read from
+ * element zero of the whole arena and produced a silently wrong answer.
+ *
+ * **That reason no longer holds.** Every SushiBLAS op family honours
+ * @c storage_offset, and @c Tensor::region() reports a view's own byte
+ * interval rather than the allocation base, so two disjoint tensors packed
+ * into one arena are correctly seen as not conflicting instead of falsely
+ * serialising. The pool therefore asks a @c MemoryPlan where each value goes:
+ * a packed value becomes a view into an arena allocated once at bind time, and
+ * everything else - leaves, the persistent lifetime classes, the shared
+ * constants and the per-node scratch below - still gets its own Storage.
+ * *Which* values are packed, and why the arenas are split by lifetime rather
+ * than merged into one, is memory_plan.hpp's business and is argued there.
+ *
+ * @section rewritten What the planner assumes about this file
+ *
+ * **Every node writes all of its outputs on every replay.** The planner hands
+ * a dead value's bytes to a later one, so a buffer that is filled once and
+ * then only ever read cannot live in an arena: it would survive exactly one
+ * step and then be quietly overwritten. That is why @c ZERO records its fill
+ * into the step instead of into the one-time constant queue below, and why
+ * that queue is only ever used for buffers the planner does not place.
  *
  * @section constants Constant operands are filled once, not every step
  *
@@ -96,13 +113,16 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 #include <unordered_map>
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/graph/arena.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
 
 namespace SushiAI
 {
@@ -112,10 +132,11 @@ namespace SushiAI
          * @class TensorPool
          * @brief Owns the real memory behind a graph's values, across steps.
          *
-         * One @c SushiBLAS::Tensor per @c ValueId, each with its own Storage
-         * (see the file comment). The pool outlives any single step, so a
-         * compiled step that replays finds the same buffers every time and a
-         * steady-state training loop allocates nothing.
+         * One @c SushiBLAS::Tensor per @c ValueId, drawn either from its own
+         * Storage or from a planned arena (see the file comment). The pool
+         * outlives any single step, so a compiled step that replays finds the
+         * same buffers every time and a steady-state training loop allocates
+         * nothing.
          */
         class TensorPool
         {
@@ -125,6 +146,31 @@ namespace SushiAI
                  * @param engine The engine whose context owns the allocator; must outlive the pool.
                  */
                 explicit TensorPool(SushiBLAS::Engine& engine) noexcept : engine_(&engine) {}
+
+                /**
+                 * @brief Allocates @p plan's arenas and packs future values into them.
+                 *
+                 * This is "bind time": every arena the plan asks for is
+                 * allocated here, once, and nothing allocates one again for the
+                 * pool's whole life. Call it before any planned value has been
+                 * materialised - a value that already has its own Storage keeps
+                 * it, so adopting late silently plans nothing.
+                 *
+                 * @param plan Where each value's bytes go; moved in.
+                 * @throws Error If a plan has already been adopted, or an arena
+                 *         allocation fails.
+                 */
+                void adopt(MemoryPlan plan);
+
+                /** @brief Whether a plan has been adopted. */
+                bool has_plan() const noexcept { return arenas_.has_value(); }
+
+                /**
+                 * @brief The adopted plan and its arenas.
+                 * @return The arena set.
+                 * @throws Error If no plan has been adopted.
+                 */
+                const ArenaSet& arenas() const;
 
                 /**
                  * @brief Allocates a standalone tensor of @p shape and @p dtype.
@@ -192,9 +238,16 @@ namespace SushiAI
                  * How @c ACCUMULATE avoids a buffer: its output is its first
                  * input's storage, updated in place.
                  *
+                 * Idempotent when @p target already names those exact bytes,
+                 * because the planner reaches the same conclusion independently
+                 * - it has to, or it would think the accumulator died at the
+                 * @c ACCUMULATE node and hand its bytes away while the result
+                 * is still being read.
+                 *
                  * @param target The value to bind.
                  * @param source The already-bound value to share with.
-                 * @throws Error If @p source is unbound or @p target is bound.
+                 * @throws Error If @p source is unbound, or @p target is already
+                 *         bound to a different buffer.
                  */
                 void alias(ValueId target, ValueId source);
 
@@ -245,13 +298,34 @@ namespace SushiAI
                 /** @brief How many tensors the pool has handed out. */
                 std::size_t tensor_count() const noexcept;
 
-                /** @brief Total bytes allocated by the pool, excluding bound externals. */
-                std::size_t allocated_bytes() const noexcept { return allocated_bytes_; }
+                /**
+                 * @brief Bytes actually allocated, excluding bound externals.
+                 *
+                 * Every arena in full, plus the elements of every tensor that
+                 * kept its own Storage. This is the number that shrinks when
+                 * planning works; compare it against @c unpacked_bytes().
+                 */
+                std::size_t allocated_bytes() const noexcept
+                {
+                    return arena_bytes_ + standalone_bytes_;
+                }
+
+                /**
+                 * @brief What the same tensors would cost one allocation each.
+                 *
+                 * The counterfactual the saving is measured against: the sum of
+                 * every tensor's own elements, packed or not. Equal to
+                 * @c allocated_bytes() when no plan has been adopted.
+                 */
+                std::size_t unpacked_bytes() const noexcept { return unpacked_bytes_; }
 
                 /** @brief The engine this pool draws memory from. */
                 SushiBLAS::Engine& engine() const noexcept { return *engine_; }
 
             private:
+                /** @brief Books a tensor that got its own Storage, for both counters. */
+                void note_standalone(const Shape& shape, DType dtype) noexcept;
+
                 struct ShapeKey
                 {
                     std::uint64_t shape_hash;
@@ -293,11 +367,14 @@ namespace SushiAI
                 };
 
                 SushiBLAS::Engine* engine_;
+                std::optional<ArenaSet> arenas_;
                 std::unordered_map<ValueId, SushiBLAS::Tensor> tensors_;
                 std::unordered_map<ShapeKey, SushiBLAS::Tensor, ShapeKeyHash> ones_;
                 std::unordered_map<ScratchKey, SushiBLAS::Tensor, ScratchKeyHash> scratch_;
                 std::vector<std::pair<SushiBLAS::Tensor*, double>> pending_constants_;
-                std::size_t allocated_bytes_ = 0;
+                std::size_t arena_bytes_ = 0;
+                std::size_t standalone_bytes_ = 0;
+                std::size_t unpacked_bytes_ = 0;
         };
 
         /**
@@ -319,6 +396,28 @@ namespace SushiAI
                  */
                 Lowering(SushiBLAS::Engine& engine, TensorPool& pool) noexcept
                     : engine_(&engine), pool_(&pool) {}
+
+                /**
+                 * @brief The values this lowering cannot address inside an arena.
+                 *
+                 * Feed the result to @c PlanOptions::pinned. Every entry is a
+                 * workaround for a defect elsewhere rather than a property of
+                 * the IR, so each one is named in the implementation with the
+                 * fix that retires it - the list is meant to shrink to empty.
+                 *
+                 * As of today it holds the operands of SushiBLAS's whole-tensor
+                 * reductions. @c Dispatch::execute_reduction describes them to
+                 * the dependency tracker as bare @c data() pointers instead of
+                 * @c Tensor::region(): identical for a tensor at offset zero, a
+                 * different resource entirely for a view inside an arena. The
+                 * tracker then files the access under a resource nothing else
+                 * touches and emits no edge at all, so the reduction races its
+                 * own producer - a wrong number, never an error.
+                 *
+                 * @param graph The graph about to be lowered.
+                 * @return The value ids that must keep their own allocation.
+                 */
+                static std::vector<ValueId> values_needing_own_allocation(const Graph& graph);
 
                 /**
                  * @brief Records every node of @p graph into the engine's task graph.

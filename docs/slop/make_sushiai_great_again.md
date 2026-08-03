@@ -488,6 +488,24 @@ read by a later op becomes reusable. One static USM arena (via SushiBLAS's refco
 sized by the plan; tensor storages bind to arena offsets. Gate: zero allocator calls in the
 steady-state training loop (assert via allocator instrumentation, not by eyeballing).
 
+**Status (2026-08-03): landed, with §25's corrections applied rather than the sketch above.**
+`graph/memory_plan.hpp` is a pure host-side function of the IR; `graph/arena.hpp` owns the memory.
+Not "one static arena" and not an interval pass — **one arena per non-persistent lifetime class**
+(the persistent four are never reused, so packing them would only merge dependency-tracker shards),
+and liveness on the **reachability partial order**, which is the difference between reuse that adds
+no ordering and reuse that silently serialises two parallel branches. The closure is O(V²/64)
+memory, so above `PlanOptions::reuse_node_limit` nodes the planner declines to overlap anything and
+says so instead of falling back to the linear approximation. Gate met:
+`Regression_StaticMemory.ATrainingLoopAllocatesNothingAfterTheFirstStep` counts live allocations
+through the allocator's reference count. `sa demo mlp` reports 112.6 KiB against 130.9 KiB.
+
+Two things the sketch assumed and the implementation does not do: the lowering's own temporaries
+(`TensorPool::scratch()`, the shared `ones()`) are not IR values and are still one `Storage` each
+(~2 KiB of 130 KiB on the demo); and two values stay out of the arena because
+`SushiBLAS::Dispatch::execute_reduction` still builds its `ResourceRegion`s from raw `data()`
+pointers rather than `Tensor::region()`, which for a view at a non-zero offset produces **no
+dependency edge at all** — see `Lowering::values_needing_own_allocation()`.
+
 ## 19. AI-3 — Operator fusion
 
 SushiBLAS's `execute_binary`/`execute_unary_inplace` pattern takes an arbitrary `op_func` functor —
@@ -539,7 +557,9 @@ an output contract, an example is a teaching file people edit. Pinned by the
 `Integration_Demo.MlpRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
 
 Still open against the hard-gate list above:
-- **AI-2/AI-3 are not in it** — no static arena, no fused epilogues, because neither exists yet.
+- **AI-3 is not in it** — no fused epilogues, because fusion does not exist yet. AI-2 landed
+  (2026-08-03): `graph/memory_plan.hpp` + `graph/arena.hpp`, per-lifetime arenas, liveness on the
+  reachability partial order, and the demo reports the footprint. See §18's status note.
 - **No pinned reference loss curve.** The demo reports the trajectory; nothing compares it to a
   stored one, so a convergence regression that still converges would pass.
 - **No per-node timing table.** The runtime only records timings under a
@@ -623,6 +643,17 @@ paranoia.)
 `random().constant` and `io()` honour it; the other ~28 files capture `t.storage->data_ptr`
 directly. Feeding a sliced view to gemm/axpy/elementwise silently operates from element 0. This is
 a live latent bug today and a blocking one for any arena design — fix it in SushiBLAS before AI-2.
+
+> **Fixed in SushiBLAS (2026-08-03), with one remainder.** Every op family honours the offset now,
+> `Storage::data_ptr` is private, and `Tensor::region()` reports a precise byte interval. The
+> remainder is the mirror image of the original bug and was found by AI-2's first packed run:
+> `Dispatch::execute_reduction` computes the right *pointers* but builds its `ResourceRegion`s from
+> those pointers rather than from `Tensor::region()`. For a tensor at offset zero the two coincide;
+> for an arena view they name a resource nothing else touches, so the tracker emits **no edge** and
+> the reduction races its own producer. Observed as `reductions().max` reading un-written logits and
+> `blas().scal` beating `reductions().sum` to the loss. Worked around in SushiAI by keeping those
+> operands out of the arena (`Lowering::values_needing_own_allocation()`); the real fix is one line
+> per region in that dispatch header.
 
 **The GTX 1060 is currently not executing anything.** NVIDIA's OpenCL driver implements no
 SPIR-V ingestion (`clCreateProgramWithIL` is absent), so the SYCL OpenCL backend cannot reach the

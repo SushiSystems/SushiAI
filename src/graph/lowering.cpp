@@ -38,6 +38,23 @@ namespace SushiAI
             return allocate_tensor(*engine_, shape, dtype);
         }
 
+        void TensorPool::adopt(MemoryPlan plan)
+        {
+            SA_THROW_IF(arenas_.has_value(),
+                        "This pool has already adopted a memory plan; its arenas are allocated "
+                        "once and a second plan would leave the first one's views dangling");
+
+            arenas_.emplace(*engine_, std::move(plan));
+            arena_bytes_ = arenas_->bytes();
+        }
+
+        const ArenaSet& TensorPool::arenas() const
+        {
+            SA_THROW_IF(!arenas_.has_value(),
+                        "This pool has no memory plan; call adopt() before asking for its arenas");
+            return *arenas_;
+        }
+
         void TensorPool::bind(ValueId id, SushiBLAS::Tensor tensor)
         {
             SA_THROW_IF(is_bound(id),
@@ -61,14 +78,45 @@ namespace SushiAI
             return it->second;
         }
 
+        void TensorPool::note_standalone(const Shape& shape, DType dtype) noexcept
+        {
+            const std::size_t bytes = static_cast<std::size_t>(shape.num_elements())
+                                    * dtype_size(dtype);
+            unpacked_bytes_ += bytes;
+            standalone_bytes_ += bytes;
+        }
+
         SushiBLAS::Tensor& TensorPool::materialise(ValueId id, const Value& value)
         {
             const auto it = tensors_.find(id);
             if (it != tensors_.end()) return it->second;
 
-            allocated_bytes_ += static_cast<std::size_t>(value.shape.num_elements())
-                              * dtype_size(value.dtype);
+            if (arenas_.has_value())
+            {
+                // An alias chain is one buffer under several names, and the plan
+                // says which value owns it. Materialising through the owner is
+                // what keeps the planner's liveness reasoning and the lowering's
+                // aliasing from drifting apart - the second name costs nothing,
+                // packed or not, so it is not counted either way.
+                const ValueId owner = arenas_->plan().buffer_of(id);
+                if (owner != id)
+                {
+                    SushiBLAS::Tensor& shared = materialise(owner, value);
+                    return tensors_.emplace(id, shared).first->second;
+                }
 
+                if (arenas_->holds(id))
+                {
+                    // Counted against the counterfactual only: the bytes are
+                    // already inside an arena that adopt() paid for.
+                    unpacked_bytes_ += static_cast<std::size_t>(value.shape.num_elements())
+                                     * dtype_size(value.dtype);
+                    return tensors_.emplace(id, arenas_->view(id, value.shape, value.dtype))
+                                   .first->second;
+                }
+            }
+
+            note_standalone(value.shape, value.dtype);
             return tensors_.emplace(id, create(value.shape, value.dtype)).first->second;
         }
 
@@ -87,8 +135,20 @@ namespace SushiAI
             const auto it = tensors_.find(source);
             SA_THROW_IF(it == tensors_.end(),
                         "Cannot alias value {} onto unbound value {}", target, source);
-            SA_THROW_IF(is_bound(target),
-                        "Value {} is already bound; it cannot also alias value {}", target, source);
+
+            const auto existing = tensors_.find(target);
+            if (existing != tensors_.end())
+            {
+                // Already aliased - by an adopted memory plan, which resolves
+                // the same chain to the same buffer, or by a second lowering of
+                // the same graph. Only a *different* buffer is a mistake.
+                SA_THROW_IF(existing->second.storage != it->second.storage
+                            || existing->second.storage_offset != it->second.storage_offset,
+                            "Value {} is already bound to a different buffer; it cannot also "
+                            "alias value {}", target, source);
+                return;
+            }
+
             tensors_.emplace(target, it->second);
         }
 
@@ -99,7 +159,7 @@ namespace SushiAI
             const auto it = ones_.find(key);
             if (it != ones_.end()) return it->second;
 
-            allocated_bytes_ += static_cast<std::size_t>(shape.num_elements()) * dtype_size(dtype);
+            note_standalone(shape, dtype);
 
             SushiBLAS::Tensor& slot = ones_.emplace(key, create(shape, dtype)).first->second;
             request_constant(slot, 1.0);
@@ -114,7 +174,7 @@ namespace SushiAI
             const auto it = scratch_.find(key);
             if (it != scratch_.end()) return it->second;
 
-            allocated_bytes_ += static_cast<std::size_t>(shape.num_elements()) * dtype_size(dtype);
+            note_standalone(shape, dtype);
 
             return scratch_.emplace(key, create(shape, dtype)).first->second;
         }
@@ -177,6 +237,28 @@ namespace SushiAI
 
             const ValueId id = node.outputs[index];
             return pool_->materialise(id, graph.value(id));
+        }
+
+        std::vector<ValueId> Lowering::values_needing_own_allocation(const Graph& graph)
+        {
+            std::vector<ValueId> pinned;
+
+            for (const Node& node : graph.nodes())
+            {
+                // Both entries below are operands of SushiBLAS's whole-tensor
+                // reductions - see the header for why an arena view breaks
+                // them. Delete this whole function the day
+                // Dispatch::execute_reduction builds its ResourceRegions from
+                // Tensor::region() like every other op family already does;
+                // nothing else here depends on it.
+                if (node.op == Ops::LOG_SOFTMAX.id && !node.inputs.empty())
+                    pinned.push_back(node.inputs[0]);   // reductions().max reads it
+
+                if (node.op == Ops::NLL_LOSS.id && !node.outputs.empty())
+                    pinned.push_back(node.outputs[0]);  // reductions().sum writes it
+            }
+
+            return pinned;
         }
 
         void Lowering::record(const Graph& graph)
@@ -434,10 +516,16 @@ namespace SushiAI
 
         void Lowering::record_zero(const Graph& graph, const Node& node)
         {
-            // Nothing writes a ZERO buffer after the first fill, so it is a
-            // one-time constant rather than a per-replay kernel.
+            // Recorded into the step, not queued as a one-time constant, even
+            // though nothing else ever writes this buffer. The memory planner
+            // hands a dead value's bytes to a later one, so a buffer filled
+            // once outside the step would hold zeros for exactly one replay and
+            // then whatever overwrote it - and nothing downstream could tell,
+            // because a gradient that is subtly wrong still trains. One tiny
+            // fill per step is the price of the buffer being packable at all.
             SushiBLAS::Tensor& zeros = output(graph, node, 0);
-            pool_->request_constant(zeros, 0.0);
+            engine_->random().constant(zeros, 0.0);
+            ++emitted_;
         }
 
     } // namespace Graph

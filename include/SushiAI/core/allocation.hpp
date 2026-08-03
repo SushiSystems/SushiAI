@@ -28,29 +28,40 @@
  * @brief How SushiAI obtains a tensor, stated once.
  *
  * Every tensor in this library - a graph value, a helper constant, an
- * optimizer's momentum buffer, a dataset batch - is allocated through the
- * functions below, and every one of them gets its own @c SushiBLAS::Storage.
+ * optimizer's momentum buffer, a dataset batch - comes from this file, by one
+ * of two routes: its own @c SushiBLAS::Storage (@c allocate_tensor,
+ * @c allocate_like), or a view into an arena the memory planner sized
+ * (@c allocate_arena, @c view_tensor).
  *
- * @section why Why one Storage per tensor, and not one arena
+ * @section why Why the second route exists now and did not before
  *
- * This looks like a missed optimisation and is not. Almost every SushiBLAS
- * kernel captures @c tensor.storage->data_ptr and ignores
- * @c tensor.storage_offset - only the reductions, @c logic().all/any,
- * @c random().constant and @c io() honour it. A tensor carved out of a shared
- * arena at a non-zero offset and handed to gemm, axpy or an elementwise op is
- * therefore read from element zero of the arena. The result is a plausible
- * wrong answer, not an error, and it would surface as a model that trains
- * slightly badly.
+ * This header used to say "one Storage per tensor, always", and the reason it
+ * gave was real: almost every SushiBLAS kernel captured
+ * @c tensor.storage->data_ptr and ignored @c tensor.storage_offset, so a
+ * tensor carved out of a shared arena at a non-zero offset was read from
+ * element zero of the arena - a plausible wrong answer rather than an error.
  *
- * Distinct base pointers also matter to SushiRuntime: its dependency tracker
- * shards its access history on an allocation's base pointer, so a single
- * arena collapses every shard into one chain and turns hazard resolution
- * quadratic. See ir.hpp's @c Lifetime comment.
+ * **That reason is gone.** Every SushiBLAS op family honours
+ * @c storage_offset, @c Storage::data_ptr is private so the offset-dropping
+ * expression can no longer be written, and @c Tensor::region() reports the
+ * view's own byte interval instead of the bare allocation base - which is what
+ * lets two disjoint tensors in one arena be seen as not conflicting by
+ * SushiRuntime's dependency tracker instead of falsely serialising.
  *
- * A real arena pass - which is what @c Lifetime exists for - belongs behind a
- * SushiBLAS fix, not in front of one. Until then this is the rule, and the
- * whole library goes through this file so there is exactly one place to
- * change when that fix lands.
+ * What has *not* changed is the second half of the old rationale. Distinct
+ * base pointers still matter to that tracker, which shards its access history
+ * on them, so the planner uses one arena per lifetime class rather than one
+ * arena for everything, and leaves the persistent classes unpacked entirely.
+ * That decision and its reasons live in graph/memory_plan.hpp.
+ *
+ * @section offsets Offsets are counted in elements
+ *
+ * @c Tensor::storage_offset is an element count, not a byte count, which is
+ * what makes a single-dtype view naturally aligned by construction. A caller
+ * mixing dtypes in one arena has to round each start up to its own element
+ * width itself; @c view_tensor takes a byte offset and refuses one that is not
+ * a whole number of elements, so that mistake is a thrown error rather than a
+ * silently shifted tensor.
  *
  * Device lane: this @c core/ header reaches SushiBLAS, unlike its neighbours.
  */
@@ -109,5 +120,46 @@ namespace SushiAI
      * @throws Error If @p like holds no elements, or the allocation fails.
      */
     SushiBLAS::Tensor allocate_like(SushiBLAS::Engine& engine, const SushiBLAS::Tensor& like);
+
+    /**
+     * @brief Allocates one arena: a bare run of bytes for the planner to carve up.
+     *
+     * Shared USM, like every other allocation here, and aligned by the
+     * allocator to @c SushiRuntime::Core::DEFAULT_ALIGNMENT - which is what
+     * lets @c view_tensor hand out views that are as well aligned as a
+     * standalone tensor would have been.
+     *
+     * @param engine The engine whose context owns the allocator.
+     * @param bytes How many bytes the arena holds; must be positive.
+     * @return The storage; nothing references it yet.
+     * @throws Error If @p bytes is zero or the underlying allocation fails.
+     */
+    SushiRuntime::sushi_ptr<SushiBLAS::Storage> allocate_arena(SushiBLAS::Engine& engine,
+                                                               std::size_t bytes);
+
+    /**
+     * @brief A tensor of @p shape living at @p byte_offset inside @p arena.
+     *
+     * The one place a non-zero @c storage_offset is constructed. It takes a
+     * byte offset because that is what a planner packing mixed dtypes computes,
+     * and converts it to the element count @c Tensor stores - refusing an
+     * offset that is not a whole number of elements, because such an offset
+     * cannot be represented and would otherwise be truncated into a tensor
+     * that quietly starts in the wrong place.
+     *
+     * @param engine The engine whose default layout the view takes.
+     * @param arena The storage to carve from; must outlive every view of it.
+     * @param byte_offset Where the view's first element starts, in bytes.
+     * @param shape The view's extents.
+     * @param dtype The view's element type.
+     * @return The view; it shares @p arena's Storage.
+     * @throws Error If @p arena is null, @p byte_offset is not a multiple of
+     *         the element width, or the view would run past the arena.
+     */
+    SushiBLAS::Tensor view_tensor(SushiBLAS::Engine& engine,
+                                  const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena,
+                                  std::size_t byte_offset,
+                                  const Shape& shape,
+                                  DType dtype);
 
 } // namespace SushiAI

@@ -54,6 +54,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -369,6 +370,72 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         };
     }
 
+    /**
+     * @brief A byte count a reader can take in at a glance.
+     *
+     * Integer KiB alone reads as "0 KiB instead of 0 KiB" on the two-step run
+     * the CTest smoke test uses, which makes the planner look broken when it is
+     * merely working on a tiny model.
+     *
+     * @param bytes The count to render.
+     * @return "N B" below a kibibyte, "N.N KiB" above it.
+     */
+    std::string human_bytes(std::size_t bytes)
+    {
+        if (bytes < 1024) return std::format("{} B", bytes);
+        return std::format("{:.1f} KiB", static_cast<double>(bytes) / 1024.0);
+    }
+
+    /**
+     * @brief The memory planner's line of the configuration report.
+     *
+     * The saving is shown rather than asserted: the "Buffers" line above prints
+     * what was actually allocated next to what one allocation per tensor would
+     * have cost, and this says which arenas account for the difference. A run
+     * in which the planner declined to overlap live ranges - a graph too large
+     * for the reachability closure, say - prints that reason instead of a
+     * silent 0%.
+     *
+     * @param pool The pool whose plan to describe.
+     * @return One line, or two when reuse was declined; always newline-terminated.
+     */
+    std::string describe_arenas(const sa::Graph::TensorPool& pool)
+    {
+        if (!pool.has_plan())
+            return "Arenas   : none; no memory plan was adopted\n";
+
+        const sa::Graph::MemoryPlan& plan = pool.arenas().plan();
+        const std::span<const sa::Graph::Arena> arenas = plan.arenas();
+
+        if (arenas.empty())
+            return "Arenas   : none; this graph has no packable values\n";
+
+        std::string classes;
+        std::size_t buffers = 0;
+        for (const sa::Graph::Arena& arena : arenas)
+        {
+            if (!classes.empty()) classes += " + ";
+            classes += sa::Graph::lifetime_name(arena.lifetime);
+            buffers += arena.buffers;
+        }
+
+        const std::size_t packed = plan.arena_bytes();
+        const std::size_t loose = plan.unpacked_bytes();
+        const double saved = loose == 0
+            ? 0.0
+            : 100.0 * (1.0 - static_cast<double>(packed) / static_cast<double>(loose));
+
+        std::string text = std::format(
+            "Arenas   : {} ({}), {} buffers in {} instead of {} - {:.0f}% saved\n",
+            arenas.size(), classes, buffers, human_bytes(packed), human_bytes(loose), saved);
+
+        if (!plan.reuse_enabled())
+            text += std::format("           live ranges were not overlapped: {}\n",
+                                plan.reuse_note());
+
+        return text;
+    }
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -451,8 +518,10 @@ int main(int argc, char** argv)
                            dataset.batch_count(), settings.batch_size, dataset.name())
             << std::format("Graph    : {} IR nodes over {} values\n",
                            built.graph.node_count(), built.graph.value_count())
-            << std::format("Buffers  : {} tensors, {} KiB\n",
-                           pool.tensor_count(), pool.allocated_bytes() / 1024)
+            << std::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
+                           pool.tensor_count(), human_bytes(pool.allocated_bytes()),
+                           human_bytes(pool.unpacked_bytes()))
+            << describe_arenas(pool)
             << std::format("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
                            settings.epochs, dataset.batch_count(), total_steps, settings.seed);
 
