@@ -54,7 +54,7 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   `add_subdirectory(tests)` together — the same shape as SushiRuntime's
   `SR_BUILD_TESTS`, but defaulted `ON` because `sa test` expects a test binary
   to exist. A superproject that `add_subdirectory`s SushiAI can now turn the
-  suite off instead of compiling, discovering and registering 100 tests it
+  suite off instead of compiling, discovering and registering 153 tests it
   never asked for.
 - **A `regression` test tier** (`tests/functional/regression/`, CTest label
   `regression`, `sa test --suite regression`), completing the
@@ -123,6 +123,44 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   an allocation-free steady state, and an initial loss equal to `ln(C)` to
   1e-5). `tests/common/` now holds a process-global `RuntimeContext` in a
   GTest environment and a per-test `Engine` fixture, mirroring SushiBLAS.
+- **A resilience and durability pass over the suite** — 53 further cases
+  (153 SushiAI cases in total), all of them written to fail if the thing they
+  name breaks rather than to raise the count:
+  - `tests/common/test_throws.hpp` and `SA_EXPECT_ERROR`, which assert the
+    *content* of a diagnostic as well as the throw. `EXPECT_THROW` alone
+    survives a refactor that collapses five specific messages into one
+    generic one, which is the failure this guards.
+  - `Unit_Diagnostics` (20 cases): every host-lane precondition — rank past
+    `MAX_RANK`, a non-positive extent, a contraction mismatch, a rank-1
+    operand where rank 2 belongs, a dtype an op cannot serve, a second
+    producer for one value, a loss no rule can seed — asserted to name the
+    offending value.
+  - `Integration_Resilience` (21 cases): the device-lane preconditions in the
+    same style, plus degenerate extents (one sample, one feature, one class),
+    the GEMM register-block edge and one past it against a host reference,
+    the numerical extremes the max shift and AdamW's `eps` placement exist
+    for, and a construct/destroy loop asserted against the allocator's own
+    reference count so a leaked `Storage` is a number rather than a hunch.
+  - `Regression_Determinism` (5 cases): two identical runs, bit for bit —
+    parameters, losses, initialisation, the synthetic dataset and a bare
+    replay of one compiled step. This is the `sushiruntime_deterministic_fp`
+    claim the ordered `ACCUMULATE` chain exists to keep, and nothing proved
+    it end to end before. It holds.
+  - `Regression_LearningCurve` (2 cases): the loss trajectory of a fixed
+    seed and configuration, pinned to a recorded reference. The test that
+    catches "everything passes and the model stops training".
+  - `Regression_CompileOnce` gained the inverse of its own guarantee — that a
+    replay actually dispatches, caught at run #1 by poisoning the output
+    buffer rather than at replay #2 by watching the loss go flat — and a
+    stress case holding `compile_count() == 1` across changed batch contents,
+    a stopped and resumed trainer, interleaved optimizer steps and a
+    learning-rate schedule.
+  - `Unit_Backward` gained a coverage ledger that fails when an operation
+    gains a backward rule with no finite-difference test named against it,
+    and `Integration_Autograd` gained the two cases the walk of that table
+    found missing: `ACCUMULATE` in a forward graph (its rule had never been
+    reached, because the fan-out chains are emitted into the *backward* graph,
+    which `differentiate()` does not revisit) and `MUL`'s right operand.
 
 ### Known limitations
 - The optimizer update and the per-step batch feed are not part of the
@@ -134,6 +172,20 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 - `LOG_SOFTMAX` is differentiable only as part of the fused
   `LOG_SOFTMAX` + `NLL_LOSS` pair; the standalone rule needs a row-wise
   reduction SushiBLAS does not expose, and throws saying so.
+- **`LOG_SOFTMAX` shifts by the batch's global maximum, and that has a
+  numerical edge.** Shift invariance is exact in real arithmetic but not in
+  floating point: a row whose own maximum sits far below the batch maximum has
+  every exponential rounded to zero, so its row sum underflows and its
+  log-probabilities come back `+inf`, which makes the loss and every gradient
+  under it non-finite. Measured in binary32: exact to a gap of about 90, about
+  7% low at 100, `+inf` from about 104 on. Rows a training run actually
+  produces sit within a few tens of each other, so this is reachable only from
+  a model that has already diverged — but it turns divergence into silent NaN
+  rather than a large loss. Removing the edge needs a real row-wise maximum,
+  which needs either an axis reduction SushiBLAS does not expose or the fused
+  `log_softmax_rows` that would replace the whole seven-op recipe. Documented
+  in `lowering.hpp`; the supported side of the boundary is pinned by
+  `Integration_Resilience.LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange`.
 - `Lifetime` is recorded on every value but no memory planner reads it yet.
 
 - **AI-0: a clean scope-reset skeleton**, replacing the retired 2025-06
@@ -174,6 +226,32 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   `SECURITY.md`, this changelog, and `CLAUDE.md`.
 
 ### Fixed
+- **`differentiate()` returned empty gradients and no error for a loss no rule
+  can seed.** The root's own gradient is the implicit scalar one, so
+  `resolve()` hands back `NO_VALUE` for it and every rule except
+  `nll_loss_backward` reads that as "nothing flows here" and returns. A
+  1-element value produced by anything else — a `[1, 1]` `MATMUL`, say —
+  therefore passed the scalar check and differentiated to a complete set of
+  `NO_VALUE` gradients with nothing reported, contradicting the contract
+  `backward.hpp` already documented ("anything else is rejected rather than
+  silently differentiated"). The caller's first symptom was
+  `bind_parameters()` blaming the *model* for a loss-side mistake. Now
+  rejected where the cause is still known, naming the producing operation.
+- **A gradient buffer was readable before anything had written it.** There is
+  no `zero_grad()` in this library by design, which leaves one window —
+  between `bind_parameters()` and the first replay — in which an optimizer
+  stepping would read a fresh allocation and feed whatever the pool last had
+  in that block straight into the weights. Nothing downstream catches that.
+  `bind_parameters()` now zeroes and flushes each gradient as it materialises
+  it, so a step taken before the first backward is a defined no-op.
+- **`allocate_tensor()` multiplied extents with unchecked signed arithmetic.**
+  Overflow there is undefined behaviour, which a compiler may assume away
+  along with the `elements <= 0` check written to catch it. The product is now
+  overflow-checked before the multiply, the byte count is checked against
+  `size_t`, and a failed allocation is reported as a `SushiAI::Error` naming
+  the shape, the element type and the byte count — SushiBLAS's own refusal
+  knows only the bytes, which does not identify which of a model's tensors
+  asked for them.
 - The bundled `clang++`-personality toolchain binary hardcodes C++ mode
   regardless of file extension, which broke CMake's C-language probe (the
   project declares `LANGUAGES CXX C`, inherited transitively through

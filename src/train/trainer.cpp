@@ -47,12 +47,29 @@ namespace SushiAI
 
                 const Graph::Value& gradient_value = built.graph.value(binding.gradient);
 
+                SushiBLAS::Tensor& gradient = pool.materialise(binding.gradient, gradient_value);
+
+                // There is no zero_grad() in this library, because every
+                // gradient in a step is written rather than accumulated into -
+                // see optimizer.hpp. That leaves exactly one window in which a
+                // gradient has never been written at all: between here and the
+                // first replay. An optimizer stepping inside it would read a
+                // fresh allocation, which is whatever the pool last had in that
+                // block, and feed it straight into the weights. Nothing
+                // downstream can catch that; the parameters simply become
+                // garbage and the loss never recovers. So the buffer is defined
+                // from the moment anything can see it, and a step taken before
+                // the first backward is a no-op instead of undefined behaviour.
+                pool.request_constant(gradient, 0.0);
+
                 slots.push_back(Optim::ParameterSlot{
-                    binding.name,
-                    pool.tensor(binding.value),
-                    pool.materialise(binding.gradient, gradient_value),
+                    binding.name, pool.tensor(binding.value), gradient,
                 });
             }
+
+            // Immediately, not at the next CompiledStep: the caller may build
+            // an optimizer over these slots before it builds a trainer.
+            pool.flush_constants();
 
             return slots;
         }

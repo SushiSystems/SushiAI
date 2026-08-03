@@ -38,13 +38,17 @@ add_executable(sushiai_tests
     functional/unit/test_module.cpp
     functional/unit/test_backward.cpp
     functional/unit/test_gradcheck.cpp
+    functional/unit/test_diagnostics.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_forward.cpp
     functional/integration/test_autograd_numeric.cpp
     functional/integration/test_training.cpp
+    functional/integration/test_resilience.cpp
 
     functional/regression/test_compile_once.cpp
+    functional/regression/test_determinism.cpp
+    functional/regression/test_learning_curve.cpp
 )
 
 # GTest::gtest_main is deliberately absent: common/test_main.cpp supplies main()

@@ -60,10 +60,29 @@
  *
  * The stable recipe subtracts a maximum before exponentiating. SushiBLAS has
  * no axis-wise reduction, so the shift is the tensor's @e global maximum
- * rather than a per-row one. That is not an approximation: log-softmax is
- * exactly invariant to subtracting any single scalar from every element, so
- * the global maximum gives the same answer as the row-wise one while still
- * driving every exponent to at most zero, which is all stability asks for.
+ * rather than a per-row one. In exact arithmetic that is not an approximation:
+ * log-softmax is invariant to subtracting any single scalar from every
+ * element, so the global maximum gives the same answer as the row-wise one
+ * while still driving every exponent to at most zero, which is all overflow
+ * stability asks for.
+ *
+ * @warning In floating point the two differ, and the difference has a
+ *          measurable edge. A row whose own maximum sits far @e below the
+ *          batch maximum has every one of its exponentials rounded to zero, so
+ *          its row sum underflows, @c log() of it is @c -inf, and the row's
+ *          log-probabilities come back @c +inf. Measured in binary32 on a
+ *          [2, 3] input: exact to about 90 below the batch maximum, about 7%
+ *          low at 100 (the sum is denormal by then), and @c +inf from about
+ *          104 on - which then makes the loss and every gradient below it
+ *          non-finite. Row-wise shifting has no such edge; the global shift
+ *          trades it for not needing an axis reduction SushiBLAS does not
+ *          have. It is the right trade for logits a training run actually
+ *          produces, whose rows sit within a few tens of each other, and it is
+ *          the wrong one for a model that has already diverged. A fused
+ *          SushiBLAS @c log_softmax_rows removes the edge along with the rest
+ *          of the recipe; nothing short of a real row-wise maximum does.
+ *          Integration_Resilience.LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange
+ *          pins the supported side of that boundary.
  *
  * The maximum stays on the device. Reading it back to the host and passing it
  * as an @c axpy alpha would be simpler to write, and it is what a first draft
