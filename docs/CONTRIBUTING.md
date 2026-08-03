@@ -1,19 +1,20 @@
 # Contributing to SushiAI
 
 SushiAI is currently a personal project developed by Mustafa Garip, at the
-**AI-0 scope-reset stage** — a skeleton, not yet a working ML library. To
-maintain a unified vision while the architecture is still being designed,
-**external pull requests are not being accepted at this stage** — but bug
-reports and design discussion are welcome, and this document is the
-reference for how the project is actually built.
+**AI-1 stage** — a graph-native autograd core that trains an MLP end to end,
+with memory planning, fusion and mixed precision still ahead. To maintain a
+unified vision while the architecture is still being designed, **external
+pull requests are not being accepted at this stage** — but bug reports and
+design discussion are welcome, and this document is the reference for how the
+project is actually built.
 
 By contributing you agree that your contributions are licensed under the
 project's **Apache License, Version 2.0** (see [`LICENSE`](../LICENSE)).
 
-> New to the codebase? Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first — it's
-> short, because there isn't much here yet — then
+> New to the codebase? Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first, then
 > [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
-> for what's actually planned and in what order.
+> for what's actually planned and in what order. `sa demo mlp` is the
+> fastest way to see the whole pipeline do something.
 
 ---
 
@@ -44,9 +45,11 @@ See [`CLI_GUIDE.md`](CLI_GUIDE.md) for the full command reference.
 
 - This is a personal project; if you're not the maintainer, the productive
   path is an issue — a bug report or a design discussion — not a PR.
-- **AI-1 onward is where the real design decisions are.** Nothing about
-  autograd, the graph API, or the training loop has been decided in code
-  yet — see the master plan before assuming a shape.
+- **AI-2 onward is where the open design decisions are.** The IR, the
+  differentiation transform, the layer/optimizer/data/training layers and the
+  compile-once contract are all decided in code now; memory planning, fusion
+  and mixed precision are not — and §25 of the master plan revises what §17–19
+  originally said about them. Read it before assuming a shape.
 - **Keep changes focused.** One logical change per commit.
 
 ---
@@ -57,10 +60,14 @@ See [`CLI_GUIDE.md`](CLI_GUIDE.md) for the full command reference.
 sa build                          # Release
 sa build --type debug             # Debug
 sa build --clean                  # wipe the build tree first
+sa build -D SB_SYCL_TARGETS=...   # any CMake cache variable, repeatable
 
 sa test --suite unit              # fast, run this often
 sa test --suite integration
+sa test --suite regression
 sa test --suite all
+
+sa demo mlp --epochs 1 --batches 2   # the showcase, in a couple of seconds
 ```
 
 Expectations for a mergeable change:
@@ -69,11 +76,18 @@ Expectations for a mergeable change:
 2. **A new symbol ships with a test.** Fast, deterministic tests go in
    `tests/functional/unit/`; anything exercising the real Engine/sibling
    chain goes in `tests/functional/integration/` (see
-   `test_engine_smoke.cpp` for the shape). There is no `regression` tier
-   yet — add one the first time there's a shipped bug to guard against.
+   `test_engine_smoke.cpp` for the shape); a guarantee whose failure would be
+   *silent* — the loop still converges, the run still reports success — goes
+   in `tests/functional/regression/` (see `test_compile_once.cpp`).
+   **The GTest suite-name prefix is the only thing that assigns a CTest
+   label**, so a suite named without `Unit_`/`Integration_`/`Regression_` is
+   invisible rather than failing.
 3. **A CMake or CLI change is verified end to end** — configure, build,
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
+4. **A change to `sa demo mlp`'s output keeps the compile-count line.** Two
+   tests pin it: the `Integration_Demo.MlpRunsAndReportsOneCompile` CTest
+   entry and `cli/tests/test_demo.py`.
 
 ---
 

@@ -33,6 +33,20 @@ if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
 endif()
 
+# --- Options ---
+# Named SA_* rather than SUSHIAI_*, matching SA_INSTALL_CMAKEDIR below and the
+# SB_*/SR_* cache variables the sibling repos use; the sushiai_ prefix rule in
+# CONTRIBUTING.md §4 governs CMake functions and targets, which share one
+# global namespace under D3's sibling add_subdirectory, not cache entries.
+#
+# Defaulted ON because `sa test` expects a test binary to exist, but it is an
+# option at all so a consumer that pulls this tree in with add_subdirectory is
+# not forced to compile - and, through gtest_discover_tests, to enumerate and
+# register - someone else's suite. SushiRuntime's SR_BUILD_TESTS defaults OFF
+# for the opposite reason (its own docs call that a wart, since a direct cmake
+# build then has nothing for ctest to run); ON is the honest default here.
+option(SA_BUILD_TESTS "Build the SushiAI test suite" ON)
+
 # --- Configuration ---
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -87,5 +101,11 @@ install(FILES
 )
 
 # --- Testing ---
-enable_testing()
-add_subdirectory(tests)
+# enable_testing() lives inside the guard too: with tests off there is nothing
+# to register, and calling it anyway would leave a CTestTestfile.cmake that
+# reports success over an empty suite - which is exactly the reading a CI lane
+# must never get.
+if(SA_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

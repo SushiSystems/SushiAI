@@ -1,15 +1,16 @@
 # SushiAI
 
-SushiAI is the AI/ML head of the SushiStack: a C++20 library that will grow a
-graph-native autograd core, memory planning, kernel fusion, and mixed
-precision on top of [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s
-tensor and BLAS layer, which itself runs on
+SushiAI is the AI/ML head of the SushiStack: a C++20 library with a
+graph-native autograd core — and, still ahead of it, memory planning, kernel
+fusion and mixed precision — built on
+[SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s tensor and BLAS
+layer, which itself runs on
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph.
 
-**AI-1 has landed: an MLP trains end to end.** `sa run sushiai_example`
-traces a two-layer model into SushiAI's own IR, differentiates that IR,
-lowers it to SushiBLAS once, compiles it once, and replays it per batch until
-the loss falls from `ln(C)` to convergence. Memory planning, kernel fusion
+**AI-1 has landed: an MLP trains end to end.** `sa demo mlp` traces a
+two-layer model into SushiAI's own IR, differentiates that IR, lowers it to
+SushiBLAS once, compiles it once, and replays it per batch until the loss
+falls from `ln(C)` to convergence. Memory planning, kernel fusion
 and mixed precision are still ahead — see
 [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
 for the roadmap and [ARCHITECTURE.md §7](ARCHITECTURE.md#7-whats-not-here-yet)
@@ -41,6 +42,9 @@ document promises a feature that plan hasn't reached.
   hermetic seeded synthetic classification problem generated on device, an
   MNIST IDX loader that activates only when the files are present, and a
   trainer that reports its compile count.
+- **`sa demo mlp`** — a real, flag-driven training program
+  (`examples/demo_mlp.cpp`), not a wrapper around the example. See
+  [the demo section](#the-demo-sa-demo-mlp) for its output.
 - `SushiAI::sushiai` — a `STATIC` library linking `SushiRuntime::SushiRuntime`
   and `SushiBLAS::sushiblas` `PUBLIC`.
 - A genuine [D3-resolved](ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
@@ -106,7 +110,17 @@ sa build                      # release (default)
 sa build --type debug
 sa build --type relwithdebinfo
 sa build --clean              # wipe the build tree first
+
+# Any CMake cache variable, repeatable, passed straight through to configure.
+# Values are cached, so dropping the flag later does not unset them.
+sa build -D SA_BUILD_TESTS=OFF
+sa build -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_61"
 ```
+
+`-D` is how SushiBLAS's AOT device targeting is reached from here: SushiAI
+`add_subdirectory`s SushiBLAS, so `SB_SYCL_TARGETS` is a cache variable of
+*this* build tree. Caller-supplied `-D`s are appended after every default the
+CLI sets, so an explicit one is never outranked.
 
 ### Building with CMake directly
 
@@ -119,6 +133,11 @@ cmake -B build -G Ninja \
   -DSUSHIBLAS_DIR=/path/to/sushiblas
 cmake --build build --config Release
 ```
+
+`SA_BUILD_TESTS` (default `ON`) builds the test suite. Turn it off
+(`-DSA_BUILD_TESTS=OFF`) when embedding SushiAI with `add_subdirectory` and
+you do not want someone else's suite compiled, discovered and registered into
+your CTest run.
 
 `CMAKE_C_COMPILER` must be the toolchain's plain `clang`, not `clang++` — a
 `clang++`-personality binary hardcodes C++ mode and breaks CMake's C-language
@@ -134,25 +153,94 @@ packages.
 sa config         # print resolved config with per-field source annotation
 sa env            # print the environment cmake/ctest/run subprocesses see
 sa doxygen        # build the Doxygen API reference
-sa demo mlp       # AI-7 showcase — not implemented yet, exits 1 with a pointer to the plan
+sa demo mlp       # train an MLP end to end (see below)
 ```
+
+## The demo (`sa demo mlp`)
+
+```bash
+sa demo mlp                                   # the defaults below
+sa demo mlp --epochs 4 --optimizer sgd        # anything you like
+sa demo mlp --help                            # the full flag list
+```
+
+It trains on MNIST when the training split's two IDX files are under
+`--mnist-dir` (`data/mnist` by default) and on a seeded synthetic
+classification problem otherwise — and says which it got, in both the header
+and the result block. The IDX files are not shipped and not downloaded, so
+out of the box you get the synthetic run below.
+
+Real output from `sa demo mlp` with no flags, on an AMD Ryzen 5 7600X CPU
+device. The runtime and SushiBLAS log at INFO to stdout in a Release build
+(their level is a compile-time constant, so a consumer cannot turn it down);
+those lines are elided at the `...` below, and it is exactly why the demo
+holds its result back and prints it as one block at the end:
+
+```text
+SushiAI MLP demo - configuration
+----------------------------------------------------------------
+SushiAI  : 0.1.0 on SushiBLAS 0.1.0
+Data     : SYNTHETIC FALLBACK - no MNIST here.
+           Looked for images: data/mnist\train-images-idx3-ubyte, labels: data/mnist\train-labels-idx1-ubyte.
+Model    : 32 -> 128 -> 6  (4998 learnable scalars)
+Optimizer: adamw (lr 0.003)
+Batches  : 16 x 32 from 'synthetic-classification'
+Graph    : 22 IR nodes over 22 values
+Buffers  : 31 tensors, 130 KiB
+Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
+
+...
+
+================================================================
+ SushiAI MLP demo - result
+ synthetic fallback, adamw, 32 -> 128 -> 6
+================================================================
+  epoch   1/8   loss 1.791759 -> 0.046497   accuracy 100.00%
+  epoch   2/8   loss 0.033573 -> 0.002221   accuracy 100.00%
+  epoch   3/8   loss 0.002060 -> 0.000783   accuracy 100.00%
+  epoch   4/8   loss 0.000772 -> 0.000569   accuracy 100.00%
+  epoch   5/8   loss 0.000565 -> 0.000500   accuracy 100.00%
+  epoch   6/8   loss 0.000496 -> 0.000460   accuracy 100.00%
+  epoch   7/8   loss 0.000455 -> 0.000427   accuracy 100.00%
+  epoch   8/8   loss 0.000422 -> 0.000398   accuracy 100.00%
+
+compiles       : 1
+steps          : 128
+ops per step   : 31
+loss           : 1.791759 -> 0.000398
+final accuracy : 100.00%
+wall clock     : 966.0 ms (7.55 ms/step)
+per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::profiling to collect it)
+----------------------------------------------------------------
+  compiles: 1  <- one lowering, one compile, 128 replays.
+================================================================
+```
+
+`1.791759` is `ln 6` to the last digit — the exact uniform-prior loss a
+zero-initialised classifier must start at. **`compiles: 1`** is the claim the
+whole design rests on: 128 training steps, one lowering, one compile. The
+CTest entry `Integration_Demo.MlpRunsAndReportsOneCompile` and
+`cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
 
 ## Running the tests
 
 ```bash
-sa test                          # functional suite (unit + integration) — the default
+sa test                          # functional (unit + integration + regression) — the default
 sa test --suite unit
 sa test --suite integration
+sa test --suite regression
 sa test --suite all
 
 sa run sushiai_tests -- --gtest_filter='Unit_Version.*'
 
 ctest --test-dir build -L unit
-ctest --test-dir build -L integration
+ctest --test-dir build -L regression
 ```
 
-There is no `regression` tier yet — nothing has shipped that a regression
-could guard against.
+The `regression` tier pins guarantees whose failure is silent — today
+`compile_count() == 1` across repeated `fit()` calls, and the fact that every
+replay actually dispatches instead of reporting complete over an unarmed plan
+(see `tests/functional/regression/test_compile_once.cpp`).
 
 ## How it works (today)
 
@@ -163,20 +251,30 @@ could guard against.
 sr::Execution::RuntimeContext ctx;
 sb::Engine engine(ctx);
 
-auto x = engine.create_tensor({4});
-auto y = engine.create_tensor({4});
+// A model is an aggregate list, not a registration ritual.
+sa::NN::Sequential model{
+    sa::NN::Linear{32, 128}, sa::NN::ReLU{}, sa::NN::Linear{128, 6},
+};
 
-engine.blas().axpy(2.0f, x, y);
-engine.execute();
-ctx.wait_all();
+// Trace, add cross-entropy, differentiate: all IR-to-IR, no device work yet.
+sa::Train::TrainingGraph built = sa::Train::build_classifier(model, 32, 32, 6);
 
-std::cout << "SushiAI " << SushiAI::version_string()
-          << " ran an op through SushiBLAS " << SUSHIBLAS_VERSION_STRING << ".\n";
+sa::Graph::TensorPool pool(engine);
+auto parameters = sa::Train::bind_parameters(built, pool);
+sa::NN::initialize(engine, model, pool);
+
+sa::Optim::AdamW optimizer(engine, parameters);
+
+// This constructor is where the one and only compile happens.
+sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer);
+
+sa::Data::SyntheticClassification data(engine, {.batch_size = 32, .features = 32, .classes = 6});
+std::cout << trainer.fit(data).to_string();   // reports compiles: 1
 ```
 
-SushiAI does not touch SYCL directly and defines no ops of its own yet — all
-compute is drawn from `SushiBLAS::sushiblas`, linked `PUBLIC` so the autograd
-core inside `sushiai` inherits it automatically. See
+SushiAI writes no SYCL and defines no kernels: every compute call goes through
+`SushiBLAS::sushiblas`, linked `PUBLIC`, and exactly one file
+(`src/graph/lowering.cpp`) makes those calls. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for the full picture and
 [the master plan](slop/make_sushiai_great_again.md) for what comes next.
 
@@ -207,11 +305,13 @@ include/SushiAI/
   train/                 The training loop and its run report
 src/                     One .cpp per header that needs one, same tree shape
 examples/
-  example.cpp            A whole training run, end to end
+  example.cpp            A whole training run, end to end — a teaching file
+  demo_mlp.cpp           The program behind `sa demo mlp` — a product surface
 tests/
   common/                     Process-global RuntimeContext + per-test Engine
   functional/unit/            Device-free: shapes, IR, autograd, the walk
   functional/integration/     Real Engine: forward values, gradcheck, training
+  functional/regression/      Guarantees whose failure is silent
   package/                    Out-of-tree find_package(SushiAI) consumer
 cli/                     Python `sa` / `sushiai` CLI package (Typer + rich)
 docs/

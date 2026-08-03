@@ -1,29 +1,34 @@
 # Integrating SushiAI
 
-How to consume SushiAI from another project today, at AI-0. This will grow
-substantially once SushiAI has an API surface of its own (AI-1 onward); for
-now, integrating SushiAI mostly means integrating what it links.
+How to consume SushiAI from another project today, at AI-1.
 
 ---
 
-## 1. The fact that shapes everything (for now)
+## 1. The fact that shapes everything
 
-**SushiAI's own public header (`include/SushiAI/SushiAI.h`) exposes only a
-version accessor today — no SYCL types, no tensor API, nothing to instantiate
-a kernel from.** Everything a consumer actually calls comes from
-`SushiBLAS::sushiblas`, which SushiAI links `PUBLIC`.
+**SushiAI defines no kernels and writes no SYCL, yet every consumer needs a
+SYCL compiler anyway.** The library's own surface is real — a graph IR, the
+differentiation transform, layers, losses, optimizers, a `Dataset` seam and a
+`Trainer` — but all compute is drawn from `SushiBLAS::sushiblas`, which
+SushiAI links `PUBLIC`.
 
-This means the SYCL requirement a consumer inherits is **transitive, not
-direct**: linking `SushiAI::sushiai` links `SushiBLAS::sushiblas`
-transitively, which carries `-fsycl` (on the intel-llvm toolchain) as a
-`PUBLIC` compile/link option, so a translation unit linking `SushiAI::sushiai`
-needs a SYCL-capable compiler even if it only calls
-`SushiAI::version_string()`. See SushiBLAS's own
+So the SYCL requirement a consumer inherits is **transitive, not direct**:
+linking `SushiAI::sushiai` links `SushiBLAS::sushiblas` transitively, which
+carries `-fsycl` (on the intel-llvm toolchain) as a `PUBLIC` compile/link
+option, so a translation unit linking `SushiAI::sushiai` needs a SYCL-capable
+compiler even if it only calls `SushiAI::version_string()`. See SushiBLAS's own
 [`INTEGRATION.md` §1](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/INTEGRATION.md#1-the-fact-that-shapes-everything)
 for exactly why the flag has to be `PUBLIC` there — SushiAI inherits it
 unchanged.
 
-This section will be rewritten once AI-1 lands SushiAI's own API surface.
+One consequence worth planning around: `include/SushiAI/SushiAI.h` pulls in
+both lanes. The **host lane** — `core/common.hpp`, `core/ops.hpp`,
+`core/shape.hpp`, `graph/ir.hpp`, `graph/builder.hpp`, `autograd/`,
+`nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS and no
+SYCL, so a translation unit that only builds or inspects a graph can include
+those headers directly and stay off the device compiler. Everything else,
+`core/allocation.hpp` included, is the device lane. See
+[ARCHITECTURE.md §3](ARCHITECTURE.md#3-the-library-target).
 
 ---
 
@@ -60,6 +65,10 @@ exactly this.
 [D3 layered resolution](ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
 SushiAI itself uses for its own two siblings applies one level up.
 
+Set `SA_BUILD_TESTS=OFF` before that `add_subdirectory` if you do not want
+SushiAI's suite compiled, enumerated by `gtest_discover_tests`, and
+registered into your own CTest run. It defaults to `ON`.
+
 ### Version compatibility
 
 `SameMinorVersion` compatibility while pre-1.0:
@@ -76,8 +85,9 @@ Linking `SushiAI::sushiai` gives you:
 | Include directories, the library itself | Obviously. |
 | Everything `SushiBLAS::sushiblas` exports `PUBLIC` (its include paths, `-fsycl`, and SushiRuntime's floating-point contract) | SushiAI links SushiBLAS `PUBLIC` — see §1. |
 
-You do **not** inherit SushiAI's own (currently minimal) warnings/
-sanitizer/architecture policy targets — see `cmake/SushiAIBuildPolicy.cmake`
+You do **not** inherit SushiAI's own warnings/sanitizer/architecture policy
+targets (`-Wall -Wextra -Werror -pedantic` is a rule for this tree, not for
+yours) — see `cmake/SushiAIBuildPolicy.cmake`
 and SushiBLAS's `ARCHITECTURE.md §10` for why that split matters for a
 `STATIC` library's export set.
 
@@ -115,7 +125,8 @@ prefixes — `SushiAIConfig.cmake` calls `find_dependency(SushiRuntime)` and
 **A parse error or link error mentioning `sycl`.** Your translation unit (or
 the whole target) is being compiled by a non-SYCL compiler — see §1.
 
-**Link errors on a BLAS symbol you expected `SushiAI` to provide.** Nothing
-here is SushiAI's own yet (AI-0) — check you're calling
-`SushiBLAS::sushiblas`'s API through `engine.blas()`/etc., not something this
-document implies exists on `SushiAI::sushiai` itself.
+**Link errors on a BLAS symbol you expected `SushiAI` to provide.** SushiAI
+defines no ops of its own — check you're calling `SushiBLAS::sushiblas`'s API
+through `engine.blas()`/etc. SushiAI's own surface is the graph, the
+differentiation transform, and the `nn`/`optim`/`data`/`train` layers built on
+top of it.

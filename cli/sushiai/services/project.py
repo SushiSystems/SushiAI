@@ -1,4 +1,4 @@
-"""Project build / test / run / clean / doxygen logic.
+"""Project build / test / run / demo / clean / doxygen logic.
 
 The cmake / ctest invocations are issued directly via subprocess with the
 snapshotted build env. SushiAI configures against the SushiRuntime sibling's
@@ -7,6 +7,11 @@ configure args resolve those from the sibling checkouts (or the config
 overrides) rather than provisioning anything - mirrors SushiEngine's `se`
 CLI, not SushiBLAS's `sb` (which still models an older, pre-SB-0/SB-2 oneAPI
 build).
+
+tests/CMakeLists.txt registers tests via gtest_discover_tests with CTest
+labels (unit / integration / regression) assigned from the GTest suite-name
+prefix convention, matching sushiblas/sushiengine — see the ``Suite`` enum
+below.
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ from __future__ import annotations
 import enum
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -33,8 +39,9 @@ class Suite(str, enum.Enum):
     # Fine-grained CTest labels (assigned in tests/CMakeLists.txt from the GTest
     # suite-name prefix convention).
     unit = "unit"
+    regression = "regression"
     integration = "integration"
-    functional = "functional"   # umbrella: unit + integration (no regression tier yet)
+    functional = "functional"   # umbrella: unit + regression + integration
     all = "all"
 
 
@@ -44,8 +51,17 @@ class Suite(str, enum.Enum):
 # current CMake (see tests/CMakeLists.txt). `all` selects everything (no -L).
 _SUITE_LABEL_REGEX = {
     Suite.unit: "^unit$",
+    Suite.regression: "^regression$",
     Suite.integration: "^integration$",
-    Suite.functional: "^(unit|integration)$",
+    Suite.functional: "^(unit|integration|regression)$",
+}
+
+# `sa demo <name>` -> the executable that IS that demo. A demo is a separate
+# binary from an example on purpose: it is a supported entry point with a
+# stable flag and output contract, while examples/example.cpp is a teaching
+# file people are meant to edit. See examples/demo_mlp.cpp's header comment.
+_DEMO_TARGETS = {
+    "mlp": "sushiai_demo_mlp",
 }
 
 _CMAKE_BUILD_TYPE = {
@@ -196,7 +212,8 @@ def _resolved_c_compiler(cxx: str) -> str:
     return cxx
 
 
-def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str) -> list[str]:
+def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
+                    defines: Sequence[str] | None = None) -> list[str]:
     runtime = cfg.runtime_dir(root)
     blas = cfg.blas_dir(root)
     cxx = cfg.resolved_compiler(root)
@@ -227,10 +244,22 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str) -
                 f"-DVCPKG_TARGET_TRIPLET={cfg.vcpkg_triplet}",
                 f"-DCMAKE_PREFIX_PATH={vcpkg}/installed/{cfg.vcpkg_triplet}",
             ]
+
+    # Caller-supplied cache variables are appended last, after every default
+    # this function sets, so that an explicit -D is never silently outranked by
+    # one of them.
+    for entry in defines or ():
+        if "=" not in entry:
+            raise ValueError(
+                f"-D expects VAR=VALUE, got {entry!r}. "
+                "Use VAR= to clear a variable.")
+        args.append(f"-D{entry}")
+
     return args
 
 
-def build(build_type: BuildType, clean: bool = False) -> int:
+def build(build_type: BuildType, clean: bool = False,
+          defines: Sequence[str] | None = None) -> int:
     console.header("Project Build")
     root = find_project_root()
     cfg = load_config()
@@ -256,7 +285,13 @@ def build(build_type: BuildType, clean: bool = False) -> int:
             shutil.rmtree(build_dir, ignore_errors=True)
     else:
         console.info("Reconfiguring in place...")
-    rc = _run(_configure_args(cfg, root, build_dir, cmake_build_type), env, cwd=root)
+    try:
+        configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, defines)
+    except ValueError as exc:
+        console.error(str(exc))
+        return 2
+
+    rc = _run(configure_args, env, cwd=root)
     if rc != 0:
         console.error("CMake configure failed.")
         return rc
@@ -328,6 +363,42 @@ def run(target: str | None = None, sort: bool = False,
     if exe is None:
         return 1
 
+    console.info(f"Executing: {exe.name}")
+    console.console.print(f"[dim]{exe}[/dim]")
+    return _run([str(exe), *(app_args or [])], env, cwd=root)
+
+
+def demo(name: str, app_args: Sequence[str] | None = None) -> int:
+    """Run a showcase demo, forwarding *app_args* to it verbatim.
+
+    The flag surface lives in the demo program, not here: duplicating it in
+    Typer would give two places to change and one to forget, and the demo's
+    own ``--help`` is then the only reference anybody has to read.
+
+    Run from the repo root, so a demo's relative data path (the MLP demo looks
+    for ``data/mnist``) means the same thing wherever ``sa`` was invoked from.
+    """
+    console.header(f"SushiAI Demo: {name}")
+
+    target = _DEMO_TARGETS.get(name)
+    if target is None:
+        available = ", ".join(sorted(_DEMO_TARGETS))
+        console.error(f"Unknown demo '{name}'. Available: {available}.")
+        return 2
+
+    root = find_project_root()
+    cfg = load_config()
+    build_dir = _build_dir(root)
+    if not build_dir.is_dir():
+        console.error("build/ not found. Run `sa build` first.")
+        return 1
+
+    exe = discovery.match_by_name(build_dir, target)
+    if exe is None:
+        console.error(f"'{target}' is not built. Run `sa build` first.")
+        return 1
+
+    env = load_build_env(cfg, build_dir)
     console.info(f"Executing: {exe.name}")
     console.console.print(f"[dim]{exe}[/dim]")
     return _run([str(exe), *(app_args or [])], env, cwd=root)

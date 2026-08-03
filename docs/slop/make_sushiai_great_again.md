@@ -303,14 +303,18 @@ selects no SYCL toolchain of its own (it builds with the runtime's choice), so t
 Identical anatomy with `sa` + `sushiai` entry points, `SA_*` env prefix, and
 `[module] depends_on = ["sushiruntime", "sushiblas"]`. Lands together with AI-0's repo skeleton —
 the new tree is born CLI-first, there is never a commit of the new SushiAI that must be built by
-raw cmake. Extra command beyond the standard set: `sa demo mlp` (runs the AI-7 showcase; thin
-wrapper over `sa run`, correctly reports "not implemented yet" today rather than faking output).
+raw cmake. Extra command beyond the standard set: `sa demo mlp` (runs the AI-7 showcase — its own
+`sushiai_demo_mlp` binary, not a wrapper over `sa run` against the example; see §23).
 
-**Status (2026-08-02): done and pytest-verified (11/11), including the
+**Status (2026-08-03): done and pytest-verified (12/12), including the
 `_resolved_c_compiler()` fix for the bundled toolchain's `clang++`-personality
-C-probe bug.** `sa --help` / `sa config` / `sa demo mlp` all verified against
-the real dev environment. Not yet re-verified after that fix via a real `sa
-build` — see AI-0's status note below.
+C-probe bug and a real `sa build --type release` since.** `sa --help` /
+`sa config` / `sa demo mlp` all verified against the real dev environment.
+`sa build` also gained `-D/--define VAR=VALUE` (repeatable, appended after
+every CLI-set default), mirroring `sb build` — without it SushiBLAS's
+`SB_SYCL_TARGETS` was unreachable through the sanctioned path, since SushiAI
+`add_subdirectory`s SushiBLAS and AOT targeting is a cache variable of this
+build tree.
 
 ## 8. ST-3 — Install, doctor, CI
 
@@ -444,29 +448,18 @@ SushiRuntime and SushiBLAS. Old prototype code is deleted on the new branch (git
 it; no `legacy/` folder). The old `docs/Roadmap.md` (CUDA/Unity era) is superseded by this plan;
 its PINN/GNN ambitions survive as v1.x/v2 candidates.
 
-**Status (2026-08-02): skeleton, tests, packaging shape, CLI, `.gitignore`,
-and the full sushiruntime-style `docs/` set are all in place and committed.
-Build/test/package verification (the plan's own §"Verification" list) is
-NOT fully done — this is the one open item before AI-0 can be called
-closed:**
-- Manually verified once, in Debug-ish settings, before this note: library +
-  tests + example build, link, and run against both live siblings on real
-  hardware; `sushiai_tests` 3/3 pass; a real out-of-tree
-  `find_package(SushiAI)` consumer (`tests/package/`) configured, built, and
-  ran.
-- A later `sa build` (Release, through the CLI, after the C-compiler fix
-  above) got to `[153/219]` and failed with three unresolved compile errors
-  in **SushiBLAS's own** pre-existing test files
-  (`test_constant.cpp`/`test_leaky_relu.cpp`/`test_gelu.cpp`, all under
-  `-O3 -DNDEBUG`) — root cause not diagnosed; the background task's captured
-  output only kept the last ~60 lines, which had the `FAILED:` markers and
-  full compiler invocations but not the actual `error:` diagnostics, and no
-  build has been re-run since (owner paused all builds this session over a
-  hardware-thermal concern). **Next session: re-run `sa build --type
-  release` (or `sb build --type release` directly against sushiblas) with
-  full output captured, read the actual `error:` text, and fix or file it.**
-  This is very likely a SushiBLAS-side issue (Release+NDEBUG-only), not a
-  SushiAI one — see the matching note in SushiBLAS's own `docs/CHANGELOG.md`.
+**Status: CLOSED (2026-08-03).** Skeleton, tests, packaging shape, CLI,
+`.gitignore`, and the full sushiruntime-style `docs/` set are all in place
+and committed, and the verification list is done:
+- Library + tests + example build, link, and run against both live siblings
+  on real hardware; a real out-of-tree `find_package(SushiAI)` consumer
+  (`tests/package/`) configured, built, and ran.
+- **The Release-build blocker this section used to leave open is gone.** A
+  full `sa build --type release` compiles
+  `test_constant.cpp`/`test_leaky_relu.cpp`/`test_gelu.cpp` cleanly (they
+  failed under `-O3 -DNDEBUG` on 2026-08-02 with the diagnostics unread), and
+  `sa test --suite all` is green. It predated the SB-3/SB-6 commits and was
+  a SushiBLAS-side issue, as suspected. Verified from both sides; see §25.
 
 ## 17. AI-1 — Graph-native autograd core
 
@@ -537,6 +530,25 @@ MNIST-class supervised training, end to end, driven by `sa demo mlp`:
 - the demo doubles as P6's consumer-shaped example for SushiBLAS and as SushiAI's integration
   test.
 
+**Status (2026-08-03): first cut landed, gates partly met.** `sa demo mlp` runs
+`examples/demo_mlp.cpp` — a flag-driven MLP classifier (epochs, batches, batch size, hidden
+width, features, classes, lr, optimizer, seed, MNIST directory) that trains end to end and
+reports the compile count, the per-epoch loss trajectory, the final accuracy and the wall clock.
+It is a separate binary from `sushiai_example` on purpose: a demo is a supported entry point with
+an output contract, an example is a teaching file people edit. Pinned by the
+`Integration_Demo.MlpRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
+
+Still open against the hard-gate list above:
+- **AI-2/AI-3 are not in it** — no static arena, no fused epilogues, because neither exists yet.
+- **No pinned reference loss curve.** The demo reports the trajectory; nothing compares it to a
+  stored one, so a convergence regression that still converges would pass.
+- **No per-node timing table.** The runtime only records timings under a
+  `RuntimeSettings::profiling` context, which the demo does not build; the report says so rather
+  than printing zeroes.
+- **MNIST is opportunistic.** The IDX files are not shipped and not downloaded, so the demo runs
+  on the seeded synthetic problem unless someone puts them in `data/mnist` — which means the
+  "MNIST-class" part of this gate is untested in CI.
+
 v1.x candidates after the gate: PINN training (aligning with the engine's forward-evaluator
 roadmap), GNN, Python frontend (v2).
 
@@ -562,10 +574,10 @@ A full literature review plus a four-repo API survey turned up substrate facts t
 parts of §17–§19's design as originally sketched. Recorded here because each was expensive to
 find and each would be expensive to rediscover.
 
-**AI-0 is closed.** The Release-build blocker §16 leaves open is gone: a full `sa build --type
-release` (208/208, reconfigure in place) compiled `test_leaky_relu.cpp`, `test_gelu.cpp` and
-`test_constant.cpp` cleanly, and `sa test --suite all` is 155/155 green. It predated the SB-3/SB-6
-commits. Both repos' CHANGELOGs still claim it is open and need correcting.
+**AI-0 is closed.** The Release-build blocker §16 used to leave open is gone: a full `sa build
+--type release` (208/208, reconfigure in place) compiled `test_leaky_relu.cpp`, `test_gelu.cpp`
+and `test_constant.cpp` cleanly, and `sa test --suite all` is green. It predated the SB-3/SB-6
+commits. §16 above has been corrected; SushiBLAS's own CHANGELOG is that repo's to fix.
 
 **§17's "backward rules emit into the same TaskGraph" must become "emit into SushiAI's own IR."**
 Four independent reasons: a `TaskGraph` node carries `ResourceRegion` *byte ranges*, which cannot
