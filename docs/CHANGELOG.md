@@ -74,6 +74,15 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   demo's loss trajectory is unchanged to the last printed digit.
 
 ### Added
+- **`sa doxygen` works.** A repo-root `Doxyfile` and `docs/api/mainpage.md` are
+  now committed, and `.gitignore` no longer swallows the Doxyfile — it listed
+  it, so the command reported `Doxyfile not found at repo root.` and exited 1 in
+  every fresh checkout while `CLI_GUIDE.md` documented it as a feature.
+  sushiruntime's committed Doxyfile is the model. Scope is `include/SushiAI`
+  minus `Detail`; output goes to `docs/api-site/html/` and the undocumented-symbol
+  log to `docs/api-site/doxygen-warnings.log`, both gitignored. `WARN_AS_ERROR`
+  is deliberately `NO`: a missing `@param` should surface as debt in the log, not
+  fail a docs build. Verified by running it — exit 0, `index.html` produced.
 - **AI-4 (part 2 of 2): gradient loss scaling with overflow backoff.** The
   numerics half of mixed precision: the backward seed is multiplied by a
   device-resident power of two, every gradient is screened for infinities and

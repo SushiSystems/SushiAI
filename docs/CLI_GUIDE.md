@@ -52,7 +52,7 @@ see exactly what the CLI resolved.
 | Command | What it's for |
 |---------|----------------|
 | `sa build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
-| `sa doxygen` | Generate the API reference — **not usable yet: no `Doxyfile` in this repo** |
+| `sa doxygen` | Generate the Doxygen API reference into `docs/api-site/html/` |
 | `sa demo mlp` | Train an MLP end to end and report the compile count |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
@@ -212,16 +212,25 @@ sa clean       # remove the build/ tree
 sa doxygen     # generate the Doxygen API reference
 ```
 
-**`sa doxygen` does not work yet.** It runs Doxygen against a repo-root
-`Doxyfile`, and this repo has none — the command reports
-`Doxyfile not found at repo root.` and exits 1. `Doxyfile` is also listed in
-`.gitignore`, so authoring one means editing that first. Until a Doxyfile lands
-(sushiruntime's is the model: a committed `Doxyfile` scoped to the public
-header surface), treat this command as unimplemented.
+It runs Doxygen against the repo-root `Doxyfile`, which is **committed** — for
+a while it was not, and `.gitignore` listed it, so the command reported
+`Doxyfile not found at repo root.` and exited 1 in every fresh checkout.
+sushiruntime commits its own for the same reason.
 
-When one does exist, Doxygen itself is an external tool, not vendored — install
-it or point `doxygen_exe` in `cli/config.local.toml` at an existing binary; the
-command prints the right install line if it cannot find one.
+Output lands in `docs/api-site/html/`, and warnings — every public symbol
+missing a doc comment — in `docs/api-site/doxygen-warnings.log`. Both are
+gitignored; the log is where the documentation debt is read off, and
+`WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
+build.
+
+Scope is `include/SushiAI` minus `Detail`. Unlike sushiruntime, which curates a
+fluent `api/` subtree, SushiAI has no such split: every installed header is
+surface a consumer writes against.
+
+Doxygen itself is an external tool, not vendored — install it or point
+`doxygen_exe` in `cli/config.local.toml` at an existing binary; the command
+prints the right install line if it cannot find one. The stack's provisioned
+toolchain ships one, so `ss install` is usually enough.
 
 ## `sa config` and `sa env` — diagnostics
 

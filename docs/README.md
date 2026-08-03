@@ -183,7 +183,7 @@ packages.
 ```bash
 sa config         # print resolved config with per-field source annotation
 sa env            # print the environment cmake/ctest/run subprocesses see
-sa doxygen        # build the Doxygen API reference (not usable yet — no Doxyfile in this repo)
+sa doxygen        # build the Doxygen API reference into docs/api-site/html/
 sa demo mlp       # train an MLP end to end (see below)
 ```
 
