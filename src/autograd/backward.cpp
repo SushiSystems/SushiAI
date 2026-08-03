@@ -263,17 +263,26 @@ namespace SushiAI
             void log_softmax_backward(const GradientTape&)
             {
                 // Reachable only when a LOG_SOFTMAX result is consumed by
-                // something other than NLL_LOSS. The standalone rule needs a
-                // row-wise sum of the incoming gradient, and SushiBLAS has no
-                // axis reduction to build one from, so say exactly that rather
-                // than let the caller wonder which of the seven lowered ops
-                // failed to differentiate.
+                // something other than NLL_LOSS. The standalone rule is
+                // `dx = dy - exp(L) * rowsum(dy)`, so it needs a row-wise sum of
+                // the incoming gradient - and a backward rule writes IR, never
+                // SushiBLAS calls, so what it is missing is an IR *node* for that
+                // sum, not the kernel underneath it.
+                //
+                // The kernel exists now: SushiBLAS grew `sum_along` alongside the
+                // `max_along` that fixed log-softmax's own stabilising shift. What
+                // is still absent here is an op identity, a builder entry point, a
+                // shape rule and a lowering for a row-wise sum, plus this rule
+                // written against them. Named rather than left implied, because
+                // the honest blocker moved and a stale message would send the next
+                // reader to the wrong repository.
                 SA_THROW_IF(true,
                             "LOG_SOFTMAX can only be differentiated as part of the fused "
-                            "LOG_SOFTMAX + NLL_LOSS pair in this release, because the standalone "
-                            "rule needs a row-wise reduction SushiBLAS does not expose. Feed its "
-                            "result to NLL_LOSS (see NN::CrossEntropyLoss), or add a row-sum "
-                            "operation first.");
+                            "LOG_SOFTMAX + NLL_LOSS pair in this release: the standalone rule "
+                            "needs a row-wise reduction of the incoming gradient, and SushiAI has "
+                            "no IR node for one yet (SushiBLAS::ReductionOps::sum_along is the "
+                            "kernel it would lower to). Feed its result to NLL_LOSS (see "
+                            "NN::CrossEntropyLoss), or add a row-sum operation first.");
             }
 
             void nll_loss_backward(const GradientTape& tape)

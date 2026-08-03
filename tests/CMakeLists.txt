@@ -54,6 +54,7 @@ add_executable(sushiai_tests
     functional/regression/test_fused_optimizer.cpp
     functional/regression/test_fusion_numerics.cpp
     functional/regression/test_learning_curve.cpp
+    functional/regression/test_log_softmax_stability.cpp
     functional/regression/test_static_memory.cpp
 )
 
