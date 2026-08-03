@@ -11,6 +11,8 @@ set(SUSHIAI_SOURCES
     core/allocation.cpp
 
     graph/builder.cpp
+    graph/precision.cpp
+    graph/cast_insertion.cpp
     graph/fusion.cpp
     graph/memory_plan.cpp
     graph/arena.cpp

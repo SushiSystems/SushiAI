@@ -415,6 +415,7 @@ namespace SushiAI
             if (node.op == Ops::SUM_ROWS.id)               { record_sum_rows(graph, node); return; }
             if (node.op == Ops::ACCUMULATE.id)             { record_accumulate(node); return; }
             if (node.op == Ops::ZERO.id)                   { record_zero(graph, node); return; }
+            if (node.op == Ops::CAST.id)                   { record_cast(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -849,6 +850,32 @@ namespace SushiAI
             // fill per step is the price of the buffer being packable at all.
             SushiBLAS::Tensor& zeros = output(graph, node, 0);
             engine_->random().constant(zeros, 0.0);
+            ++emitted_;
+        }
+
+        void Lowering::record_cast(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "CAST (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& source = input(node, 0);
+            SushiBLAS::Tensor& destination = output(graph, node, 0);
+
+            // `elementwise().convert`, which is the one SushiBLAS operation
+            // whose two operands may disagree on dtype - `blas().copy` refuses
+            // a mismatch, and every other family dispatches on a single shared
+            // element type. It declares `src.region()` and `dst.region()` to the
+            // dependency tracker rather than bare pointers, which is what makes
+            // this correct for two arena views: the fp16 copy of a parameter is
+            // read by a GEMM and the parameter itself is rewritten by the
+            // optimizer inside the same compiled plan, so both edges have to
+            // land or the update could overtake the conversion and still train.
+            //
+            // The planner cannot overlap these two buffers even though the
+            // source dies exactly where the destination is born: `precedes()`
+            // asks whether every use of the earlier buffer *strictly* reaches
+            // the later one's first write, and a node never reaches itself.
+            engine_->elementwise().convert(source, destination);
             ++emitted_;
         }
 

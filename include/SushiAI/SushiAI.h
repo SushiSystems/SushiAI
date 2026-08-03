@@ -37,12 +37,13 @@
  *
  * - The @b host lane - @c core/common.hpp, @c core/ops.hpp,
  *   @c core/shape.hpp, @c graph/ir.hpp, @c graph/builder.hpp,
- *   @c graph/fusion.hpp, @c graph/memory_plan.hpp, @c autograd/,
- *   @c nn/module.hpp, @c nn/layers.hpp, @c nn/loss.hpp - pulls in no SushiBLAS
- *   and no SYCL. Shape inference, graph topology, the differentiation
- *   transform, the fusion pass, the memory planner and the parameter walk are
- *   all testable without a device, and this repository's unit tests include
- *   those headers directly for exactly that reason.
+ *   @c graph/fusion.hpp, @c graph/memory_plan.hpp, @c graph/precision.hpp,
+ *   @c graph/cast_insertion.hpp, @c autograd/, @c nn/module.hpp,
+ *   @c nn/layers.hpp, @c nn/loss.hpp - pulls in no SushiBLAS and no SYCL.
+ *   Shape inference, graph topology, the differentiation transform, the fusion
+ *   pass, the memory planner, the precision policy, the cast pass and the
+ *   parameter walk are all testable without a device, and this repository's
+ *   unit tests include those headers directly for exactly that reason.
  * - The @b device lane - everything else, including @c core/allocation.hpp -
  *   reaches SushiBLAS and therefore SYCL.
  *
@@ -59,6 +60,8 @@
 
 #include "graph/ir.hpp"
 #include "graph/builder.hpp"
+#include "graph/precision.hpp"
+#include "graph/cast_insertion.hpp"
 #include "graph/fusion.hpp"
 #include "graph/memory_plan.hpp"
 #include "graph/arena.hpp"
