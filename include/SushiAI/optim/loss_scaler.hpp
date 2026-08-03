@@ -31,7 +31,7 @@
  * FLOPs are and fp32 everywhere it matters. What they do not address is
  * fp16's **exponent range**, and that is what this file is for.
  *
- * @section why What loss scaling is actually for
+ * @section why_scaling What loss scaling is actually for
  *
  * binary16's smallest normal is 6.1e-5 and its smallest subnormal 6.0e-8;
  * below that a value is exactly zero. A gradient that would have been 1e-8 in
