@@ -147,3 +147,45 @@ def test_sa_demo_mlp_rejects_an_unknown_precision():
 
     assert completed.returncode != 0
     assert "bfloat16" in (completed.stdout + completed.stderr)
+
+
+# `--activation` picks between two model *types*, so the demo instantiates a
+# different template for each - which makes "the flag reached the demo" and
+# "the right model was built" the same question. The fusion report answers it:
+# ReLU folds as `gemm+bias+relu`, GELU as `gemm+bias+gelu`, and the second only
+# exists because its epilogue spills the pre-activation its gradient reads.
+_ACTIVATION_CASES = [
+    ("relu", "gemm+bias+relu"),
+    ("gelu", "gemm+bias+gelu"),
+]
+
+
+@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
+@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+                    reason="no build tree — run `sa build` first")
+@pytest.mark.parametrize("activation,form", _ACTIVATION_CASES,
+                         ids=[c[0] for c in _ACTIVATION_CASES])
+def test_sa_demo_mlp_activation_flag_reaches_the_demo(activation, form):
+    """`--activation relu|gelu` is forwarded and changes which form is fused."""
+    completed = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS, "--activation", activation],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert f"fused    {form}" in completed.stdout, completed.stdout
+    assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
+
+
+@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
+@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+                    reason="no build tree — run `sa build` first")
+def test_sa_demo_mlp_rejects_an_unknown_activation():
+    """An unrecognised `--activation` value fails rather than falling back."""
+    completed = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS, "--activation", "swish"],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+
+    assert completed.returncode != 0
+    assert "swish" in (completed.stdout + completed.stderr)
