@@ -120,6 +120,24 @@ namespace
          * paying on their model and their device.
          */
         std::vector<sa::Graph::FusedForm> without;
+
+        /**
+         * @brief Whether the compute-bound operations run in fp16.
+         *
+         * Off by default, and that default is load-bearing rather than
+         * cautious: every number this demo prints - and the ones quoted in
+         * docs/README.md - is an fp32 number, and mixed precision must not
+         * move them by existing.
+         *
+         * A flag rather than a rebuild for the same reason `--fusion` is one:
+         * the interesting question is what the *difference* is on one machine,
+         * one dataset and one seed, and there is no honest way to answer it
+         * except by running both from the same binary. On this box there is no
+         * low-precision matrix unit, so what the difference is worth measuring
+         * for is the loss curve, never the wall clock - see the master plan's
+         * ground truth #23.
+         */
+        bool mixed_precision = false;
     };
 
     constexpr std::string_view USAGE = R"(sa demo mlp - train an MLP classifier end to end.
@@ -135,6 +153,12 @@ Usage: sushiai_demo_mlp [options]
   --lr F            learning rate      (default 3e-3 adamw / 0.2 sgd)
   --optimizer NAME  adamw | sgd                        (default adamw)
   --fusion on|off   run the operator fusion pass           (default on)
+  --precision P     fp32 | mixed                          (default fp32)
+                    'mixed' runs the matrix products and the epilogues a fused
+                    GEMM folds into them in fp16, keeping fp32 master weights,
+                    fp32 gradients and every reduction in fp32. There is no
+                    fp16 matrix unit on this machine, so this is a correctness
+                    switch and not a speed one.
   --no-fuse NAME    leave one catalog entry unmatched; repeatable. NAME is a
                     form as the report names it: gemm+bias, gemm+bias+relu,
                     gemm+bias+sigmoid, gemm+bias+tanh, exp-sub-scale
@@ -302,6 +326,13 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                 else if (state == "off") settings.fusion = false;
                 else SA_THROW_IF(true, "--fusion takes 'on' or 'off', got '{}'", state);
             }
+            else if (flag == "--precision")
+            {
+                const std::string name = value();
+                if (name == "fp32") settings.mixed_precision = false;
+                else if (name == "mixed") settings.mixed_precision = true;
+                else SA_THROW_IF(true, "--precision takes 'fp32' or 'mixed', got '{}'", name);
+            }
             else if (flag == "--optimizer")
             {
                 const std::string name = value();
@@ -466,6 +497,30 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
+     * @brief The cast pass's lines of the configuration report.
+     *
+     * Shown, like the fusion report and for the same reason: a conversion in
+     * the wrong place is a run that still converges. Under fp32 this is one
+     * line saying so, which keeps the banner's shape the same either way.
+     *
+     * @param report What the pass did.
+     * @return One line plus a count; always newline-terminated.
+     */
+    std::string describe_precision(const sa::Graph::CastReport& report)
+    {
+        if (report.count() == 0)
+            return SushiBLAS::Core::format(
+                "Precision: {}; every operation computes in the graph's own type\n",
+                report.policy());
+
+        return SushiBLAS::Core::format(
+            "Precision: {}; {} cast(s) - {} narrowing, {} widening back to the master type\n",
+            report.policy(), report.count(),
+            report.count_into(sa::DType::HALF),
+            report.count_into(sa::DType::FLOAT32));
+    }
+
+    /**
      * @brief The memory planner's line of the configuration report.
      *
      * The saving is shown rather than asserted: the "Buffers" line above prints
@@ -546,15 +601,29 @@ int main(int argc, char** argv)
             sa::NN::Linear{settings.hidden, classes},
         };
 
-        // Trace, add cross-entropy, differentiate, fuse. All IR-to-IR: no
-        // device work has happened yet, and nothing has been compiled.
+        // Trace, add cross-entropy, differentiate, insert casts, fuse. All
+        // IR-to-IR: no device work has happened yet, and nothing has been
+        // compiled.
         sa::Graph::FusionOptions fusion;
         fusion.enabled = settings.fusion;
         fusion.disabled = SushiRuntime::span<const sa::Graph::FusedForm>(settings.without.data(),
                                                                          settings.without.size());
 
+        // Both policies are constructed, and the pointer chooses. A policy
+        // object is a handful of bytes with no device behind it, and holding
+        // one of each keeps the lifetime question trivial - it has to outlive
+        // build_classifier and the Trainer's constructor, both of which are
+        // below it in this scope.
+        const sa::Graph::UniformPrecisionPolicy single_precision;
+        const sa::Graph::MixedPrecisionPolicy mixed_precision;
+
+        const sa::Graph::IPrecisionPolicy* precision =
+            settings.mixed_precision
+                ? static_cast<const sa::Graph::IPrecisionPolicy*>(&mixed_precision)
+                : static_cast<const sa::Graph::IPrecisionPolicy*>(&single_precision);
+
         sa::Train::TrainingGraph built = sa::Train::build_classifier(
-            model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion);
+            model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion, precision);
 
         // --- Memory and initialisation --------------------------------------
         sa::Graph::TensorPool pool(engine);
@@ -575,6 +644,13 @@ int main(int argc, char** argv)
         // below is counted across every one of those calls.
         sa::Train::TrainerOptions options;
         options.epochs = 1;
+
+        // The last refusal before the graph becomes device work: the trainer
+        // walks it against the same policy it was built with. Under fp32 the
+        // check is the pre-existing "one element type everywhere" rule, so it
+        // costs a walk and asserts something that was already true.
+        options.precision = precision;
+
         sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, *optimizer, options);
 
         // From the dataset, not from --batches: the MNIST path caps itself at
@@ -602,6 +678,7 @@ int main(int argc, char** argv)
                                        dataset.batch_count(), settings.batch_size, dataset.name())
             << SushiBLAS::Core::format("Graph    : {} IR nodes over {} values\n",
                                        built.graph.node_count(), built.graph.value_count())
+            << describe_precision(built.casts)
             << describe_fusion(built.fusion)
             << SushiBLAS::Core::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
                                        pool.tensor_count(), human_bytes(pool.allocated_bytes()),

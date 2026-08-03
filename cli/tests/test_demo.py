@@ -54,3 +54,46 @@ def test_sa_demo_mlp_runs_and_reports_one_compile():
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
+
+
+# `sa demo mlp` forwards its arguments verbatim, so a flag the demo grew is
+# only reachable if nothing in the CLI swallows it. The pair below is the
+# cheapest way to see that: fp32 must report no conversions and mixed must
+# report some, from the same command line, through the same forwarding.
+_PRECISION_CASES = [
+    ("fp32", re.compile(r"Precision:\s*fp32;\s*every operation")),
+    ("mixed", re.compile(r"Precision:\s*mixed;\s*[1-9]\d*\s*cast")),
+]
+
+
+@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
+@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+                    reason="no build tree — run `sa build` first")
+@pytest.mark.parametrize("mode,expected", _PRECISION_CASES, ids=[c[0] for c in _PRECISION_CASES])
+def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
+    """`--precision fp32|mixed` is forwarded and changes what the banner says."""
+    completed = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS, "--precision", mode],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert expected.search(completed.stdout), completed.stdout
+
+    # The compile-once contract holds in both, which is the point of putting
+    # mixed precision in the graph rather than switching dtypes per step.
+    assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
+
+
+@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
+@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+                    reason="no build tree — run `sa build` first")
+def test_sa_demo_mlp_rejects_an_unknown_precision():
+    """An unrecognised `--precision` value fails rather than falling back."""
+    completed = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS, "--precision", "bfloat16"],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+
+    assert completed.returncode != 0
+    assert "bfloat16" in (completed.stdout + completed.stderr)
