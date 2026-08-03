@@ -58,6 +58,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
     const std::array expected = {
         std::string_view("sushiai.leaf"),
         std::string_view("sushiai.accumulate"),
+        std::string_view("sushiai.cast"),
         std::string_view("sushiai.matmul"),
         std::string_view("sushiai.bias_add"),
         std::string_view("sushiai.add"),
