@@ -217,7 +217,7 @@ namespace SushiAI
             // which is not what happened - see the header's "The gate is per
             // parameter, and that is a real limitation".
             return SushiBLAS::Core::format(
-                "loss scale     : {:.0f} ({} overflowed steps, {} backoffs, {} growths)\n",
+                "loss scale     : {:.0f} (steps overflowed: {}, backoffs: {}, growths: {})\n",
                 state_.scale(), state_.skipped_steps(), state_.backoffs(), state_.growths());
         }
 
