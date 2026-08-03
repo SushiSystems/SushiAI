@@ -33,9 +33,19 @@ def build(
         help="Build type: release | debug | relwithdebinfo."),
     clean: bool = typer.Option(
         False, "--clean", help="Delete the build tree before configuring."),
+    define: Optional[list[str]] = typer.Option(
+        None, "--define", "-D", metavar="VAR=VALUE",
+        help="Pass a CMake cache variable through to configure. Repeatable. "
+             "Quote values containing ';', e.g. "
+             '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
 ):
-    """Configure and build the project."""
-    raise typer.Exit(project_svc.build(type, clean))
+    """Configure and build the project.
+
+    Cache variables set with -D persist in the build tree, so dropping the
+    flag on a later run does not unset them; pass VAR= to clear one, or
+    --clean to start over.
+    """
+    raise typer.Exit(project_svc.build(type, clean, define))
 
 
 @app.command("test")
@@ -95,16 +105,25 @@ demo_app = typer.Typer(help="Run a SushiAI showcase demo.", no_args_is_help=True
 app.add_typer(demo_app, name="demo")
 
 
-@demo_app.command("mlp")
-def demo_mlp():
-    """Run the MLP training showcase (AI-7).
+@demo_app.command(
+    "mlp",
+    # Unknown options are collected instead of rejected, and Typer's own --help
+    # is disabled, so every flag - including --help - reaches the demo. The
+    # demo owns its flag surface; restating it here would give two places to
+    # change and one to forget.
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+        "help_option_names": [],
+    },
+)
+def demo_mlp(ctx: typer.Context):
+    """Train an MLP end to end and report the compile count (AI-7 showcase).
 
-    Not implemented yet: AI-7 (the MLP training demo) hasn't landed - only the
-    AI-0 scope-reset skeleton has. See docs/slop/make_sushiai_great_again.md.
+    Flags are forwarded verbatim to the demo; `sa demo mlp --help` prints its
+    full list. Example: sa demo mlp --epochs 4 --optimizer sgd
     """
-    from . import console
-    console.error("`sa demo mlp` is not implemented yet — see AI-7 in the master plan.")
-    raise typer.Exit(1)
+    raise typer.Exit(project_svc.demo("mlp", list(ctx.args)))
 
 
 # --------------------------------------------------------------------------- #

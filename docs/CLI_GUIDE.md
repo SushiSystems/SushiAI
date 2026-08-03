@@ -1,12 +1,13 @@
 # The SushiAI CLI
 
 SushiAI ships with a small command-line tool that drives everything you do
-day to day: building the C++ library, running its tests, launching the
-example, and generating documentation. It is a thin wrapper around CMake and
-CTest that reads your machine-specific toolchain paths from a config file so
-you don't have to retype long compiler flags. It's modeled directly on
+day to day: building the C++ library, running its tests, running the demo and
+the example, and generating documentation. It is a thin wrapper around CMake
+and CTest that reads your machine-specific toolchain paths from a config file
+so you don't have to retype long compiler flags. It's modeled directly on
 [SushiEngine](https://github.com/SushiSystems/SushiEngine)'s `se` CLI, not
-SushiBLAS's `sb` (which still models an older, pre-toolchain-refresh build).
+SushiBLAS's `sb` (which still models an older, pre-toolchain-refresh build) —
+except for `build -D`, which is `sb`'s and is mirrored here flag for flag.
 
 ## Installing the CLI
 
@@ -48,7 +49,7 @@ see exactly what the CLI resolved.
 | Command | What it's for |
 |---------|----------------|
 | `sa build` / `test` / `run` / `clean` / `doxygen` | Build, test, run, and document the C++ project |
-| `sa demo` | Run a SushiAI showcase demo |
+| `sa demo mlp` | Train an MLP end to end and report the compile count |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
 
@@ -72,12 +73,36 @@ both `SushiRuntime` and `SushiBLAS`; set `sushiruntime_dir` / `sushiblas_dir`
 in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` in the
 environment) to point either elsewhere.
 
+### `-D` / `--define` — CMake cache variables
+
+```bash
+sa build -D SA_BUILD_TESTS=OFF
+sa build -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_61" -D SA_BUILD_TESTS=OFF
+```
+
+Repeatable, `VAR=VALUE`, passed straight through to `cmake` — the same flag
+`sb build` takes. A malformed entry is rejected before configure runs, with
+the message naming what you typed.
+
+Two things worth knowing:
+
+- **The values are cached.** They persist in the build tree, so dropping the
+  flag on a later run does *not* unset them. Pass `VAR=` to clear one, or
+  `--clean` to start over.
+- **They are appended last**, after every default the CLI sets, so an explicit
+  `-D` is never silently outranked by one of them.
+
+This is how AOT device targeting is reached: SushiAI `add_subdirectory`s
+SushiBLAS, so SushiBLAS's `SB_SYCL_TARGETS` is a cache variable of *this*
+build tree and there is no other sanctioned way to set it.
+
 ## `sa test`
 
 ```bash
-sa test                          # functional (unit+integration) — the default
+sa test                          # functional (unit+integration+regression) — the default
 sa test --suite unit
 sa test --suite integration
+sa test --suite regression
 sa test --suite all              # every test
 ```
 
@@ -86,11 +111,16 @@ sa test --filter 'Version.*'  # ctest -R regex over 'Suite.Case' test names
 sa test --repeat 5            # re-run each test up to 5x, stop on first failure
 ```
 
-There is no `regression` suite yet — nothing has shipped that a regression
-could guard against (see [CONTRIBUTING.md §3](CONTRIBUTING.md#3-building-and-testing-your-change)).
+The three tiers come from the GTest suite-name prefix (`Unit_*`,
+`Integration_*`, `Regression_*`) and nothing else — see
+`tests/CMakeLists.txt`. `regression` holds the guarantees whose failure is
+silent (see [CONTRIBUTING.md §3](CONTRIBUTING.md#3-building-and-testing-your-change)).
 
 For GoogleTest-level options CTest doesn't expose, run the binary directly
 with `sa run` and pass flags after `--`.
+
+`sa test` needs a build with `SA_BUILD_TESTS=ON`, which is the default; a tree
+configured with `-D SA_BUILD_TESTS=OFF` has no SushiAI tests registered.
 
 ## `sa run`
 
@@ -105,18 +135,30 @@ sa run --sort                         # interactively pick from the list of exec
 sa run sushiai_tests -- --gtest_filter='Unit_Version.*'
 ```
 
-## `sa demo` — the AI-7 showcase (not implemented yet)
+## `sa demo` — the AI-7 showcase
 
 ```bash
-sa demo mlp
+sa demo mlp                              # the defaults
+sa demo mlp --epochs 4 --optimizer sgd   # anything you like
+sa demo mlp --help                       # the full flag list
 ```
 
-This command exists in the CLI's surface today so its final shape doesn't
-need inventing later, but it does not run anything yet: it prints "`sa demo
-mlp` is not implemented yet — see AI-7 in the master plan" and exits with a
-non-zero status. See
-[`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
-for where AI-7 sits in the roadmap.
+`sa demo mlp` runs `sushiai_demo_mlp` (`examples/demo_mlp.cpp`) from the repo
+root, so a relative data path such as the demo's `data/mnist` default means
+the same thing wherever you invoked `sa` from. It trains an MLP end to end and
+reports the compile count, the per-epoch loss trajectory, the final accuracy
+and the wall clock. See
+[README.md § The demo](../README.md#the-demo-sa-demo-mlp) for real output.
+
+Two deliberate choices:
+
+- **The demo is its own binary, not `sushiai_example` with flags.** A demo is
+  a supported entry point whose flags and printed lines are a contract the
+  test suite pins; an example is a teaching file people are meant to edit.
+  `examples/demo_mlp.cpp`'s header comment argues it in full.
+- **Every flag is forwarded verbatim, including `--help`.** The demo owns its
+  flag surface; restating it in Typer would give two places to change and one
+  to forget. `sa demo --help` still lists the available demos.
 
 ## `sa clean` and `sa doxygen`
 

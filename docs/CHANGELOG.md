@@ -14,6 +14,56 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 ## [Unreleased]
 
 ### Added
+- **AI-7 (first cut): `sa demo mlp` runs a real training program.** The
+  command used to print "not implemented yet" and exit 1; it now runs
+  `sushiai_demo_mlp` (`examples/demo_mlp.cpp`), a flag-driven MLP classifier
+  that trains end to end and reports the compile count, the per-epoch loss
+  trajectory, the final accuracy and the wall clock.
+  - A **separate binary** from `sushiai_example`, not a wrapper over it: a
+    demo is a supported entry point whose flags and printed lines are a
+    contract, an example is a teaching file people are meant to edit. Reusing
+    the example would make every edit to a teaching file a change to a shipped
+    command.
+  - Flags for epochs, batches, batch size, hidden width, features, classes,
+    learning rate, optimizer (`adamw`/`sgd`), seed and MNIST directory,
+    parsed by a hand-written loop rather than a new dependency. The CLI
+    forwards every argument verbatim — including `--help` — so the flag
+    surface has exactly one definition.
+  - The learning-rate default is per-optimizer (3e-3 AdamW, 0.2 SGD), because
+    a shared default would make `--optimizer sgd` look broken rather than
+    merely different.
+  - MNIST when the IDX files are present, the seeded synthetic problem
+    otherwise, stated plainly in both the header and the result block. The
+    fallback itself is `data/dataset.hpp`'s, reused rather than reimplemented.
+  - The result is held back and printed as one block at the end.
+    SushiRuntime and SushiBLAS log at INFO to stdout in a Release build and
+    their level is a compile-time constant, so a report printed line by line
+    comes out shredded through it.
+  - Pinned by two tests: the `Integration_Demo.MlpRunsAndReportsOneCompile`
+    CTest entry (a two-step run, asserted against the compile-count line) and
+    `cli/tests/test_demo.py` (the same run through `sa demo mlp`, asserting
+    exit 0). A demo that rots silently is worse than no demo.
+- **`sa build -D/--define VAR=VALUE`**, repeatable, mirroring `sb build`'s
+  flag exactly. Cache variables are appended after every default the CLI
+  sets, so an explicit `-D` is never outranked; a malformed entry is rejected
+  before configure runs. This is the only sanctioned way to reach SushiBLAS's
+  `SB_SYCL_TARGETS` from here — SushiAI `add_subdirectory`s SushiBLAS, so AOT
+  device targeting is a cache variable of *this* build tree, and building
+  SushiAI for an NVIDIA GPU was previously impossible through `sa`.
+- **`SA_BUILD_TESTS`** (default `ON`), guarding `enable_testing()` and
+  `add_subdirectory(tests)` together — the same shape as SushiRuntime's
+  `SR_BUILD_TESTS`, but defaulted `ON` because `sa test` expects a test binary
+  to exist. A superproject that `add_subdirectory`s SushiAI can now turn the
+  suite off instead of compiling, discovering and registering 100 tests it
+  never asked for.
+- **A `regression` test tier** (`tests/functional/regression/`, CTest label
+  `regression`, `sa test --suite regression`), completing the
+  `unit`/`integration`/`regression` triple the rest of the stack uses. Its
+  first inhabitant, `test_compile_once.cpp`, pins the two claims in this
+  library whose failure is completely silent: `compile_count() == 1` across
+  repeated `fit()` calls (the shape `sa demo mlp` uses, which a single-`fit()`
+  test cannot see), and the fact that every replay actually dispatches rather
+  than reporting complete over an unarmed plan.
 - **AI-1: a graph-native autograd core, and an MLP that actually trains.**
   The whole pipeline exists end to end — trace a model into IR, differentiate
   the IR, lower it to SushiBLAS once, compile it once, replay it per batch.
@@ -63,7 +113,8 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     timings.
   - `core/ops.hpp` gained `EXP`, `ZERO` and the four activation-gradient
     identities, all covered by the existing collision `static_assert`.
-- A test suite that holds the claims to account: 98 SushiAI cases across
+- A test suite that holds the claims to account: 98 SushiAI cases at AI-1
+  (100 now, with the `regression` tier above) across
   device-free `Unit_*` (shape semantics, op-id uniqueness, single-assignment
   enforcement, `propagate_requires_grad`, backward-graph topology, the
   parameter walk, the gradient checker's own arithmetic) and `Integration_*`
@@ -114,8 +165,9 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 - The `sa` / `sushiai` CLI (Typer + rich), modeled on SushiEngine's `se`
   (shared bundled toolchain, no toolchain selection of its own), with the
   full `build`/`test`/`run`/`clean`/`doxygen`/`config`/`env` surface plus a
-  `demo mlp` command that correctly reports "not implemented yet — see AI-7"
-  rather than faking a showcase that doesn't exist.
+  `demo mlp` command that, at AI-0, correctly reported "not implemented yet —
+  see AI-7" rather than faking a showcase that didn't exist. It runs the real
+  showcase now — see the AI-7 entry above.
 - Full documentation set, mirroring SushiRuntime's documentation structure
   and scaled honestly to AI-0's actual scope: `README.md`, `ARCHITECTURE.md`,
   `CONTRIBUTING.md`, `CLI_GUIDE.md`, `INTEGRATION.md`, `CODE_OF_CONDUCT.md`,

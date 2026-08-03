@@ -39,23 +39,33 @@ disclosure. We are happy to coordinate timing with you.
 
 ## Scope and threat model
 
-SushiAI is at **AI-0** — a scope-reset skeleton with one compiled symbol
-(`SushiAI::version_string()`) and no operations of its own yet. Nearly all
-compute-relevant security surface today actually lives in
+SushiAI is at **AI-1** — a graph IR, a differentiation transform, layers,
+optimizers, a data seam and a training loop, none of which contain a kernel:
+SushiAI writes no SYCL, and every compute call goes through
+`SushiBLAS::Engine` from one file (`src/graph/lowering.cpp`).
+
+The one place SushiAI itself reads bytes it did not write is the MNIST IDX
+loader (`src/data/dataset.cpp`). It checks both magic numbers, requires the
+image and label counts to agree, and treats a short read as an error — but it
+does **not** bound the declared `rows * cols` before sizing its host buffer,
+so a malformed header can turn into an allocation failure rather than a clean
+rejection. It is aimed at a corrupted download, not at a hostile file; do not
+point it at input you do not control. Nearly all other compute-relevant
+security surface still lives in
 [SushiBLAS](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/SECURITY.md)
 (the kernels) and
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime/blob/main/docs/SECURITY.md)
 (the scheduler and memory pool) — please report a bug specific to either of
-those directly to that repository. This document will grow real,
-SushiAI-specific scope statements as AI-1 onward lands an autograd core,
-graph API, and (eventually) model/checkpoint loading — the last of which,
-like SushiBLAS's tensor file loaders, will be a genuine untrusted-input
-surface worth its own explicit scope.
+those directly to that repository. This document will grow further scope
+statements as model/checkpoint loading lands — that, like SushiBLAS's tensor
+file loaders, will be a genuine untrusted-input surface worth its own
+explicit section.
 
 In scope today:
 
-- Memory-safety bugs in SushiAI's own code (`src/`, `include/SushiAI/`) —
-  currently a very small surface, but a real one.
+- Memory-safety bugs in SushiAI's own code (`src/`, `include/SushiAI/`).
+- Malformed-input handling in the MNIST IDX loader (`src/data/dataset.cpp`),
+  within the limits stated above.
 - CMake/packaging defects that leak SushiAI's private build flags to a
   `find_package(SushiAI)` consumer (see `tests/package/`).
 

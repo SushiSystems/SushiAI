@@ -39,13 +39,18 @@ replay         ->  per batch, for ever
 Two properties are load-bearing and both are asserted by the test suite:
 the step is compiled exactly once no matter how many batches run
 (`CompiledStep::compile_count()`), and the steady state allocates nothing
-(`TensorPool::allocated_bytes()` stops moving after the first step).
+(`TensorPool::allocated_bytes()` stops moving after the first step). The
+first of those is additionally pinned in the `regression` tier
+(`tests/functional/regression/test_compile_once.cpp`) and in the demo's own
+CTest smoke test, because a recompile-per-step still converges — it just
+quietly pays graph analysis every step, and nothing else would notice.
 
 Alongside the core there is the scaffolding a real library needs from day
 one: a `find_package(SushiAI)`-able target verified by an out-of-tree
-consumer, a two-tier test suite with CTest labels, and the `sa` CLI. The
-`sa demo mlp` showcase is still AI-7 and still reports "not implemented
-yet"; the runnable equivalent today is `sa run sushiai_example`.
+consumer, a three-tier test suite with CTest labels (`unit` / `integration` /
+`regression`), and the `sa` CLI. `sa demo mlp` runs the showcase —
+`examples/demo_mlp.cpp`, a flag-driven training program, deliberately a
+separate binary from the `examples/example.cpp` teaching file.
 
 ---
 
@@ -196,6 +201,16 @@ SushiBLAS's `ARCHITECTURE.md §10`): linking a PRIVATE policy target, even
 against an install prefix, no access to this source tree — that runs a real
 op through both transitively-resolved siblings.
 
+`SA_BUILD_TESTS` (default `ON`) guards `enable_testing()` and
+`add_subdirectory(tests)` together, matching SushiRuntime's `SR_BUILD_TESTS`
+shape exactly. It exists for the other consumption mode: a superproject that
+`add_subdirectory`s SushiAI would otherwise be made to compile the suite,
+have `gtest_discover_tests` enumerate it, and register 100 tests it never
+asked for into its own CTest run. The default is `ON` rather than
+SushiRuntime's `OFF` because `sa test` expects a test binary to exist and a
+direct `cmake` build that silently produces none is the wart SushiRuntime's
+own docs record against that choice.
+
 CMake module files that define SushiAI-specific functions
 (`SushiAIBuildPolicy.cmake`, `SushiAICompilerWarnings.cmake`,
 `SushiAIOptimization.cmake`, `SushiAISanitizers.cmake`, `SushiAISyclTarget.cmake`)
@@ -231,8 +246,12 @@ does is the expensive kind of documentation debt:
 - **`LOG_SOFTMAX` is differentiable only as part of the fused
   `LOG_SOFTMAX` + `NLL_LOSS` pair.** The standalone rule needs a row-wise
   reduction SushiBLAS does not expose; it throws and says so.
-- **No mixed precision, no checkpointing, no serialization, no
-  `sa demo mlp`.**
+- **No mixed precision, no checkpointing, no serialization.**
+- **AI-7's metric gates are only partly met.** `sa demo mlp` exists and
+  reports `compiles: 1`, a zero-allocation steady state and finite-difference
+  checks are green in the suite, but there is no pinned reference loss curve
+  to compare a run against, and the per-node timing table needs a
+  `RuntimeSettings::profiling` context the demo does not build.
 
 The retired 2025-06 prototype (`core/tensor.h`, eager autograd, CUDA-only)
 that used to occupy this repository is **not** a migration source for any of
