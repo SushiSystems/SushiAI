@@ -242,7 +242,7 @@ value-dependent control flow in autograd (AI-1 non-goal). Named, not hand-waved.
 | AI-1 | Graph-native autograd core (+ finite-difference gradient checks) | AI-0, SB-4 | Forward+backward as one TaskGraph, compiled once, replayed |
 | AI-2 | Static memory planning (liveness, single arena) | AI-1 | No allocator traffic in the training hot loop |
 | AI-3 | Operator fusion over the generic `op_func` dispatch | AI-1 | Fewer launches, fewer intermediates |
-| AI-4 | Mixed precision plumbing (fp16 now, BF16 enum staged; fp32 masters) | AI-1 | Dtype half landed 2026-08-03; loss scaling still open. See §20 and ground truth #23 |
+| AI-4 | Mixed precision plumbing (fp16 now, BF16 enum staged; fp32 masters) | AI-1 | Dtype half and loss scaling both landed 2026-08-03; the skip is per parameter, not per step. See §20 and ground truth #23 |
 | AI-5 | Device-resident data discipline | AI-1 | No host round-trips stalling the async chain |
 | AI-6 | Distributed data/model parallelism (deferred) | AI-1..5 | Hangs off the runtime's distributed layer when needed |
 | AI-7 | v1 showcase: MLP training demo + metric gates (D4) | AI-1..3, AI-5 | The proof the framework is real |
@@ -560,7 +560,7 @@ plumbing from AI-1 (not retrofitted). Concretely: SushiBLAS's `DataType` gains `
 not a speed feature, on the current dev box — benchmark gates for AI-4 are defined on
 tensor-core-capable hardware only.
 
-**Status (2026-08-03): the dtype half has landed; the numerics half has not.**
+**Status (2026-08-03): both halves have landed.**
 
 Landed:
 - `graph/precision.hpp` — `IPrecisionPolicy`, injected the way `IFusionSelector` is, with a
@@ -575,11 +575,32 @@ Landed:
 - `--precision fp32|mixed` on `sa demo mlp`, `TrainerOptions::precision` as a pre-lowering check,
   and `Graph::find_dtype_mismatches()` as the invariant anyone can re-assert after any later pass.
 
-Not landed, and deliberately out of that change's scope:
-- **Loss scaling and overflow backoff.** SushiBLAS's `reductions().count_nonfinite()` exists for
-  it; nothing consumes it yet.
+Landed in the second change (the numerics half):
+- `optim/loss_scaler.hpp` — `LossScaleState` (the host state machine, engine-free and
+  unit-tested on its own) and `LossScaler` (its device-resident scale, its count buffer, and
+  the `count_nonfinite` screens it records into the plan).
+- `Ops::DYNAMIC_SCALE` — `y = x * s[0]` with `s` a 1-element value. `SCALE`'s factor is an
+  `Attributes` slot and therefore a compile-time constant; this one is a second *operand*, so
+  the scale changes between replays without recompiling. Emitted by `differentiate()`'s
+  NLL_LOSS seed rule, which is where the seed is built and therefore the one place the node
+  lands in topological position without re-routing anything.
+- `INVERSE_LOSS_SCALE` in both optimizers' `StepScalars`, applied before the decay and the
+  moments; exactly `1.0f` when nothing is scaling, so an unscaled run is byte-identical.
+- The skip is a **real branch** in the fused kernel, not a neutralised step size: `0 * inf` is
+  NaN, so zeroing the coefficients would write NaN into AdamW's first moment on exactly the
+  step the mechanism exists for.
+- `--loss-scale S` on `sa demo mlp`.
+
+Not landed:
+- **A whole-step skip.** The gate is per parameter. The edge that orders an update after its
+  own screen is the write-after-read hazard on that gradient; there is none between parameter
+  A's update and parameter B's screen, and `execute_zip_inplace` cannot declare an extra read
+  region. `--precision mixed --loss-scale 16777216` shows the difference: 8 overflowed steps
+  out of 8, and the loss still moves. Closing it means one hand-written `add_task` declaring
+  the count buffer as a read and a gradient as a write.
 - **bfloat16.** `SushiBLAS::Core::DataType` still has no entry.
-- **Any speed claim.** Measured on this box, `--precision mixed` is about 4.5x *slower*
+- **Any speed claim, and any claim that loss scaling helps here.** Measured on this box,
+  `--precision mixed` is about 4.5x *slower*
   (16.45 → 73.16 ms/step on the demo's default), because half arithmetic is emulated here. What
   was measured and is real: the loss tracks fp32 to 9.5e−4 relative and converges to the same
   place, on the default model and on a `--hidden 512 --batch-size 64` one. **Neither underflow

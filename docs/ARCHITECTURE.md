@@ -533,11 +533,25 @@ right types, that the masters stay fp32, and that the model still learns — see
 [README.md § Mixed precision](README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
 for the measured loss curves both ways.
 
-**What is not here: loss scaling.** fp16 gradients that underflow are lost,
-and the standard remedy — scaling the loss up before the backward pass and
-unscaling before the update, with a backoff when the scale overflows — is not
-implemented. On the demo's workload it is demonstrably not needed (both arms
-converge identically); on a larger model it would be.
+**Loss scaling is here too, and it is `optim/loss_scaler.hpp`.** The backward
+seed is multiplied by a device-resident power of two (`Ops::DYNAMIC_SCALE`,
+emitted by `differentiate()`'s seed rule so it lands in topological position
+and before anything narrows); `reductions().count_nonfinite()` screens every
+gradient inside the same compiled plan; the fused update divides the scale back
+out before the decay and the moments, and returns without touching anything
+when its parameter's screen came back non-zero. The scale halves on overflow
+and doubles after N clean steps, and it is device-resident so that neither
+move recompiles the step.
+
+Two things about it are worth knowing before relying on it. **On this workload
+it buys nothing** — fp16 without it neither stalls nor diverges here, so it is
+justified by theory and by larger models. And **the skip is per parameter**:
+the ordering that makes an update wait for its own screen is the
+write-after-read hazard on that gradient, and there is no such hazard between
+parameter A's update and parameter B's screen, so a step where only some
+gradients overflowed is a partial update rather than an empty one. Nothing
+unsafe results — no non-finite value reaches a parameter or a moment — and the
+header states what a whole-step skip would cost.
 
 ---
 
@@ -642,10 +656,12 @@ does is the expensive kind of documentation debt:
   not the kernel underneath one. `SushiBLAS::ReductionOps::sum_along` exists
   now; an op identity, a builder entry point, a shape rule, a lowering and the
   rule itself do not. It throws and says exactly that.
-- **Mixed precision has its dtype half and not its numerics half.** The
-  policy, the cast pass and the fp32 master weights are in (§5.3); **loss
-  scaling and overflow backoff are not**, so an fp16 gradient small enough to
-  underflow is simply lost, with nothing to detect it. There is also no
+- **Mixed precision's skip is per parameter, not per step.** The policy, the
+  cast pass, the fp32 master weights and loss scaling with overflow backoff are
+  all in (§5.3); what PyTorch's `GradScaler` does that this does not is freeze
+  *every* parameter when *any* gradient overflows. See
+  `optim/loss_scaler.hpp` for why the dependency edge that would give it is not
+  expressible through the `execute_zip_inplace` seam. There is also no
   bfloat16: `SushiBLAS::Core::DataType` has no such entry yet, and
   `MixedPrecisionPolicy` names its narrow type as a constructor parameter
   precisely so that adding one is a call-site change rather than a redesign.

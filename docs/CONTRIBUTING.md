@@ -2,8 +2,8 @@
 
 SushiAI is currently a personal project developed by Mustafa Garip, at the
 **AI-1 stage** — a graph-native autograd core that trains an MLP end to end,
-with memory planning, fusion and mixed precision's dtype plumbing landed and
-loss scaling still ahead. To maintain a
+with memory planning, fusion and mixed precision — dtype plumbing and
+gradient loss scaling both — landed. To maintain a
 unified vision while the architecture is still being designed, **external
 pull requests are not being accepted at this stage** — but bug reports and
 design discussion are welcome, and this document is the reference for how the
@@ -49,9 +49,9 @@ See [`CLI_GUIDE.md`](CLI_GUIDE.md) for the full command reference.
 - **AI-2 onward is where the open design decisions are.** The IR, the
   differentiation transform, the layer/optimizer/data/training layers, the
   compile-once contract, memory planning, fusion and the precision policy are
-  all decided in code now; mixed precision's *numerics* half — loss scaling
-  and overflow backoff — is not, and §25 of the master plan revises what
-  §17–19 originally said about the passes. Read it before assuming a shape.
+  all decided in code now, and so is mixed precision's *numerics* half — loss
+  scaling and overflow backoff. §25 of the master plan revises what §17–19
+  originally said about the passes; read it before assuming a shape.
 - **Keep changes focused.** One logical change per commit.
 
 ---
