@@ -74,6 +74,18 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   demo's loss trajectory is unchanged to the last printed digit.
 
 ### Added
+- **`docs/TUTORIAL.md`** — a walk from an empty checkout to a model that trains,
+  then to what each pipeline stage did with it. Every command in it was run and
+  every number is from that output. Its section 6 sample is compiled by
+  `Unit_Module.TheTutorialsCustomLayerTracesAndIsWalkable`, and the claim it is
+  built around — that `bias_add` is required rather than preferred, because
+  `require_same` compares dtype and shape and nothing here broadcasts
+  implicitly — by `TheTutorialIsRightThatMulWouldNotBroadcast`. Prose cannot
+  fail a build; that pair can. Writing it surfaced one real asymmetry worth
+  recording: a parameter *listed* in `fields()` but not wired into `forward()`
+  is caught by name (`src/train/trainer.cpp:65`), while one wired in but
+  *omitted* from `fields()` is not caught at all — it gets no gradient, no
+  optimizer slot, and silently never trains.
 - **GELU folds into the GEMM epilogue, by spilling its pre-activation.**
   `FusedForm::GEMM_BIAS_GELU` — cuBLASLt's `GELU_AUX_BIAS` shape — is the sixth
   catalog entry and the first whose IR node writes **two** values. The previous
