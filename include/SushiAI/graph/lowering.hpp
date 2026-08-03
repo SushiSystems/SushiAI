@@ -507,6 +507,7 @@ namespace SushiAI
                 void record_bias_add(const Graph& graph, NodeId id, const Node& node);
                 void record_binary(const Graph& graph, const Node& node);
                 void record_scale(const Graph& graph, const Node& node);
+                void record_dynamic_scale(const Graph& graph, NodeId id, const Node& node);
                 void record_unary_inplace(const Graph& graph, const Node& node);
                 void record_activation_backward(const Graph& graph, const Node& node);
                 void record_log_softmax(const Graph& graph, NodeId id, const Node& node);

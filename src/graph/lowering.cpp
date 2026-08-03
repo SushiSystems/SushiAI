@@ -401,6 +401,7 @@ namespace SushiAI
                 || node.op == Ops::SUB.id
                 || node.op == Ops::MUL.id)                 { record_binary(graph, node); return; }
             if (node.op == Ops::SCALE.id)                  { record_scale(graph, node); return; }
+            if (node.op == Ops::DYNAMIC_SCALE.id)          { record_dynamic_scale(graph, id, node); return; }
             if (node.op == Ops::EXP.id
                 || node.op == Ops::RELU.id
                 || node.op == Ops::GELU.id
@@ -676,6 +677,51 @@ namespace SushiAI
 
             engine_->blas().copy(x, y);
             engine_->blas().scal(static_cast<float>(node.attributes.get(0)), y);
+            emitted_ += 2;
+        }
+
+        void Lowering::record_dynamic_scale(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 2 || node.outputs.size() != 1,
+                        "DYNAMIC_SCALE (node {}) takes two operands and one result", id);
+
+            const SushiBLAS::Tensor& x = input(node, 0);
+            const SushiBLAS::Tensor& factor = input(node, 1);
+            SushiBLAS::Tensor& y = output(graph, node, 0);
+
+            SA_THROW_IF(factor.num_elements != 1,
+                        "DYNAMIC_SCALE (node {}) was given a {}-element factor; it must be one",
+                        id, factor.num_elements);
+
+            // Copy first, then multiply in place, which is exactly the shape
+            // record_scale() uses - so the two spellings differ in one thing
+            // only, where the factor comes from.
+            engine_->blas().copy(x, y);
+
+            // The factor's *address* is captured, never its value. That is the
+            // whole point of this operation: a captured float would be frozen
+            // into the recorded task and changing it would force a recompile,
+            // which is what Attributes' warning is about and what
+            // CompiledStep::compile_count() == 1 is asserted against.
+            //
+            // The buffer is not declared as a read of this task, and that is
+            // sound for exactly the access pattern optim/step_scalars.hpp
+            // argues for and no other: it is written only from the host,
+            // between replays, at a point where the previous replay has been
+            // waited on and the next has not been dispatched. A *device* writer
+            // would race, because there is no edge to order it.
+            constexpr const char* TASK_NAME = "sushiai.dynamic_scale";
+            static_assert(Ops::DYNAMIC_SCALE.name == std::string_view(TASK_NAME),
+                          "the task name must be the string its OpID hashes");
+
+            SushiBLAS::Dispatch::execute_unary_inplace(*engine_, y,
+                TASK_NAME, Ops::DYNAMIC_SCALE.id,
+                [f = static_cast<const void*>(factor.data())](auto v)
+                {
+                    using T = std::decay_t<decltype(v)>;
+                    return v * static_cast<const T*>(f)[0];
+                });
+
             emitted_ += 2;
         }
 

@@ -158,9 +158,35 @@ namespace SushiAI
                  */
                 void skip(Graph::NodeId node) const;
 
+                /**
+                 * @brief The device-resident factor the seeded gradient is multiplied by.
+                 *
+                 * @c Graph::NO_VALUE unless the caller passed one to
+                 * @c differentiate(). A rule that seeds the root gradient - only
+                 * @c NLL_LOSS today - must apply it; every other rule can ignore
+                 * it, because a factor applied once at the seed reaches the whole
+                 * backward pass by linearity.
+                 *
+                 * @return The 1-element value's id, or @c Graph::NO_VALUE.
+                 */
+                Graph::ValueId seed_factor() const noexcept { return seed_factor_; }
+
+                /**
+                 * @brief Applies @ref seed_factor to @p gradient, or returns it unchanged.
+                 *
+                 * The one line a seeding rule writes instead of branching on
+                 * @c seed_factor() itself, so that "no factor" and "a factor of
+                 * one" cannot diverge by a rule forgetting one of the two cases.
+                 *
+                 * @param gradient The seeded gradient.
+                 * @return @p gradient, or a @c DYNAMIC_SCALE of it.
+                 */
+                Graph::ValueId apply_seed_factor(Graph::ValueId gradient) const;
+
                 /** @brief Internal: constructs a tape over a differentiation run. */
-                GradientTape(Graph::GraphBuilder builder, Differentiator& owner) noexcept
-                    : builder_(builder), owner_(&owner) {}
+                GradientTape(Graph::GraphBuilder builder, Differentiator& owner,
+                             Graph::ValueId seed_factor = Graph::NO_VALUE) noexcept
+                    : builder_(builder), owner_(&owner), seed_factor_(seed_factor) {}
 
                 /** @brief Internal: points the tape at the next node. */
                 void retarget(Graph::NodeId node) noexcept { node_ = node; }
@@ -169,6 +195,7 @@ namespace SushiAI
                 Graph::GraphBuilder builder_;
                 Differentiator* owner_;
                 Graph::NodeId node_ = Graph::NO_NODE;
+                Graph::ValueId seed_factor_ = Graph::NO_VALUE;
         };
 
         /** @brief What every backward rule looks like. */
@@ -203,6 +230,15 @@ namespace SushiAI
          * @param graph The graph to differentiate and extend, in place.
          * @param loss The scalar being differentiated; must be a 1-element value.
          * @param wrt The values whose gradients the caller wants.
+         * @param seed_factor A 1-element value the seeded gradient is multiplied
+         *        by, or @c Graph::NO_VALUE for none. This is where gradient loss
+         *        scaling enters the graph, and it is here rather than in a pass
+         *        of its own for one reason: the seed is *built* here, so
+         *        multiplying it costs one node emitted in topological position,
+         *        where a later pass would have to re-route every consumer of the
+         *        seed and rebuild the node list to stay in insertion order. The
+         *        factor is a value and not a number because it changes between
+         *        replays; see @c Ops::DYNAMIC_SCALE and @c optim/loss_scaler.hpp.
          * @return One id per entry of @p wrt, in the same order;
          *         @c Graph::NO_VALUE where no gradient flows to that value.
          * @throws Error If @p loss is not scalar, is not produced by a rule
@@ -211,7 +247,8 @@ namespace SushiAI
          */
         std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
                                                   Graph::ValueId loss,
-                                                  SushiRuntime::span<const Graph::ValueId> wrt);
+                                                  SushiRuntime::span<const Graph::ValueId> wrt,
+                                                  Graph::ValueId seed_factor = Graph::NO_VALUE);
 
     } // namespace Autograd
 } // namespace SushiAI

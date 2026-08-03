@@ -152,6 +152,27 @@ namespace SushiAI
                  */
                 ValueId scale(ValueId x, double alpha) const;
 
+                /**
+                 * @brief Emits @c DYNAMIC_SCALE: Y = X * S[0], with S in device memory.
+                 *
+                 * The one emitter in this builder whose two operands are
+                 * deliberately *not* @c require_same: @p factor is a 1-element
+                 * value and @p x is whatever shape it is. They must still agree
+                 * on element type, because the kernel multiplies in one type and
+                 * a widening operand would be a silent precision change.
+                 *
+                 * @param x The tensor to scale.
+                 * @param factor A 1-element value holding the factor; the host
+                 *        is free to rewrite it between replays, which is the
+                 *        entire reason this operation exists.
+                 * @param debug_name A label for diagnostics; must outlive the graph.
+                 * @return The scaled value's id.
+                 * @throws Error If @p factor is not a single element, or the two
+                 *         operands disagree on element type.
+                 */
+                ValueId dynamic_scale(ValueId x, ValueId factor,
+                                      std::string_view debug_name = "dynamic_scale") const;
+
                 /** @brief Emits @c EXP: elementwise exp(X), out of place. */
                 ValueId exp(ValueId x) const;
 
