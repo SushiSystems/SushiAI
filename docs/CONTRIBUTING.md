@@ -12,7 +12,9 @@ project is actually built.
 By contributing you agree that your contributions are licensed under the
 project's **Apache License, Version 2.0** (see [`LICENSE`](../LICENSE)).
 
-> New to the codebase? Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first, then
+> New to the codebase? Start with [`TUTORIAL.md`](TUTORIAL.md) — it walks from
+> an empty checkout to a model that trains, and then explains what the library
+> did with it. Then [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design, and
 > [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
 > for what's actually planned and in what order. `sa demo mlp` is the
 > fastest way to see the whole pipeline do something.

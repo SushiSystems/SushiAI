@@ -168,3 +168,74 @@ TEST(Unit_Module, LinearRejectsAnInputWhoseInnerExtentIsWrong)
 
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }
+
+// =============================================================================
+// docs/TUTORIAL.md §6's custom layer, compiled
+// =============================================================================
+//
+// A tutorial whose code sample does not compile is worse than no tutorial, and
+// prose cannot be made to fail a build. So the sample lives here as well, and
+// the two must be kept identical: if you edit one, edit the other.
+//
+// The cases below also pin the two claims §6 makes *about* the sample - that
+// bias_add is required rather than a stylistic choice, and that the two ways of
+// getting fields() wrong fail differently.
+
+namespace
+{
+    /** @brief docs/TUTORIAL.md §6, verbatim. A learnable per-feature offset. */
+    struct MyOffset
+    {
+        int64_t width = 0;
+        NN::Parameter offset{};
+
+        static constexpr auto fields()
+        {
+            return std::tuple{ NN::field("offset", &MyOffset::offset) };
+        }
+
+        Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
+        {
+            const Graph::ValueId b = offset.declare(
+                builder, Shape{width}, NN::ParameterRole::BIAS,
+                width, width, "offset");
+            return builder.bias_add(x, b);
+        }
+    };
+}
+
+TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MyOffset layer{4};
+    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueId y = layer.forward(builder, x);
+
+    EXPECT_EQ(walk(layer), (std::vector<std::string>{"offset:[4]"}));
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
+
+    // The role the tutorial gives it, because it is what decides the
+    // initialiser: a BIAS starts at zero, a WEIGHT gets a fan-scaled draw.
+    EXPECT_EQ(layer.offset.role(), NN::ParameterRole::BIAS);
+
+    // It satisfies the Module contract, so it composes.
+    static_assert(NN::Module<MyOffset>, "the tutorial's layer must be a Module");
+}
+
+TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
+{
+    // §6 says bias_add is required rather than preferred, because mul goes
+    // through require_same and there is no implicit broadcast anywhere in this
+    // builder. That is the whole reason the sample reads the way it does, so it
+    // is asserted rather than left as a remark.
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueId b = builder.input(Shape{4}, "b");
+
+    EXPECT_THROW((void)builder.mul(x, b), Error);
+    EXPECT_NO_THROW((void)builder.bias_add(x, b));
+}
