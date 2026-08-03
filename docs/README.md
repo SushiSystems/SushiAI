@@ -37,7 +37,9 @@ document promises a feature that plan hasn't reached.
   the whole PyTorch-shaped named-parameter tree.
 - **Optimizers** (`optim/`) — SGD with PyTorch's momentum formulation, and
   AdamW with decoupled decay applied first and `eps` added after the bias
-  correction.
+  correction. Each parameter's whole update is **one kernel launch**, and the
+  update is recorded into the same compiled step as the forward and backward
+  passes — see [ARCHITECTURE.md §5.1](ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step).
 - **Data and a training loop** (`data/`, `train/`) — a `Dataset` seam, a
   hermetic seeded synthetic classification problem generated on device, an
   MNIST IDX loader that activates only when the files are present, and a
@@ -207,10 +209,10 @@ Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
 
 compiles       : 1
 steps          : 128
-ops per step   : 31
+ops per step   : 35
 loss           : 1.791759 -> 0.000380
 final accuracy : 100.00%
-wall clock     : 1047.9 ms (8.19 ms/step)
+wall clock     : 930.2 ms (7.27 ms/step)
 per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::profiling to collect it)
 ----------------------------------------------------------------
   compiles: 1  <- one lowering, one compile, 128 replays.
@@ -222,6 +224,18 @@ zero-initialised classifier must start at. **`compiles: 1`** is the claim the
 whole design rests on: 128 training steps, one lowering, one compile. The
 CTest entry `Integration_Demo.MlpRunsAndReportsOneCompile` and
 `cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
+
+**`ops per step: 35`** is 31 graph nodes plus one fused update per parameter —
+the optimizer is *inside* that single compiled plan
+([ARCHITECTURE.md §5.1](ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step)).
+The same run spelled the old way — twelve separate calls per parameter,
+flushed in a graph of their own after every replay — issues 81 device tasks
+per step where this issues 37, and compiles 278 task graphs over the run where
+this compiles 150. Measured on this machine (CPU/OpenCL, 12 cores, ten runs
+each, quiet), that is a median 8.80 → 7.74 ms/step. The wall clock is far
+noisier than the task count and the model is small enough that most of a step
+is neither the optimizer nor arithmetic, so the launch counts are the number
+to watch.
 
 The **`Arenas`** line is the memory planner reporting itself. Ten of the
 graph's twelve activations become views into one arena sized once before
@@ -281,9 +295,12 @@ sa::Data::SyntheticClassification data(engine, {.batch_size = 32, .features = 32
 std::cout << trainer.fit(data).to_string();   // reports compiles: 1
 ```
 
-SushiAI writes no SYCL and defines no kernels: every compute call goes through
-`SushiBLAS::sushiblas`, linked `PUBLIC`, and exactly one file
-(`src/graph/lowering.cpp`) makes those calls. See
+SushiAI writes no SYCL: no file here names a `sycl::` type or submits to a
+queue, every compute call goes through `SushiBLAS::sushiblas` (linked
+`PUBLIC`), and exactly one file (`src/graph/lowering.cpp`) turns IR into those
+calls. The optimizers do hand SushiBLAS a device functor for their fused
+update — plain arithmetic that SushiBLAS's own elementwise seam inlines into
+its own kernel. See
 [ARCHITECTURE.md](ARCHITECTURE.md) for the full picture and
 [the master plan](slop/make_sushiai_great_again.md) for what comes next.
 

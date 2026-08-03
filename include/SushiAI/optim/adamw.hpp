@@ -61,17 +61,46 @@
  *
  * @section state State buffers
  *
- * m, v and three scratch buffers are allocated once, at construction, each
- * with its own Storage - see optimizer.cpp for why an arena would be silently
- * wrong today. Their element type follows the parameter's, which on the
- * training path is FLOAT32 throughout; a mixed-type axpy is rejected by
- * SushiBLAS, so matching is the only option that type-checks, and half
- * precision is refused outright by the base class.
+ * m and v are allocated once, at construction, each with its own Storage - see
+ * optimizer.cpp for why an arena would be silently wrong today. Their element
+ * type follows the parameter's, which on the training path is FLOAT32
+ * throughout; a mixed-type axpy is rejected by SushiBLAS, so matching is the
+ * only option that type-checks, and half precision is refused outright by the
+ * base class.
+ *
+ * The fused kernel needs nothing else: g^2, the denominator and m/denom exist
+ * only inside one element's arithmetic and stay in registers.
+ * @c UpdateKernel::SEPARATE spells the same recipe as twelve SushiBLAS calls
+ * that have to hand those temporaries to each other through memory, so it -
+ * and only it - also allocates the three scratch buffers, including a buffer of
+ * ones whose sole purpose is to let an @c axpy add a constant.
+ *
+ * @section fusion The fused form, expression by expression
+ *
+ * The fused functor is written to reproduce the separate path's rounding
+ * exactly, not merely its algebra:
+ *
+ * @code
+ * theta = theta * decay                        // scal
+ * m     = m * b1 + (1 - b1) * g                // scal then axpy
+ * v     = v * b2 + (1 - b2) * (g * g)          // mul, scal, axpy
+ * d     = sqrt(v * (1 / bc2)) + eps            // copy, scal, sqrt, axpy
+ * theta = theta + (-lr / bc1) * (m / d)        // div then axpy
+ * @endcode
+ *
+ * Each line's operand order matches the kernel it replaces (`x *= alpha` is
+ * `x * alpha`, `y += alpha * x` is `y + (alpha * x)`), and the whole stack
+ * builds with `-ffp-contract=off` through SushiRuntime's determinism contract,
+ * so no `a * b + c` collapses into an FMA on one side of the comparison and not
+ * the other. The `theta * decay` multiply is guarded by `decay != 1` for the
+ * same reason the separate path guards it: to be the same operation, not an
+ * equivalent one.
  */
 
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/optim/step_scalars.hpp>
 
 namespace SushiAI
 {
@@ -97,6 +126,14 @@ namespace SushiAI
 
             /** @brief Decoupled weight decay, applied multiplicatively before the step. */
             double weight_decay = 0.01;
+
+            /**
+             * @brief One fused kernel per parameter, or the twelve separate ops.
+             *
+             * FUSED is the default and the shipping path; SEPARATE exists to be
+             * compared against. See optimizer.hpp.
+             */
+            UpdateKernel kernel = UpdateKernel::FUSED;
         };
 
         /**
@@ -116,8 +153,21 @@ namespace SushiAI
                 AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
                       AdamWOptions options = {});
 
-                /** @brief Applies one update to every parameter, then waits. */
-                void step() override;
+                /**
+                 * @brief Recomputes this step's scalars into the device buffer.
+                 *
+                 * The bias corrections are a function of the step counter, and
+                 * everything else is a function of @c options(), so this also
+                 * picks up a learning-rate schedule between replays without any
+                 * recompilation.
+                 */
+                void before_replay() override;
+
+                /** @brief True when the update is fused, and therefore replayable. */
+                bool is_replay_invariant() const noexcept override
+                {
+                    return options_.kernel == UpdateKernel::FUSED;
+                }
 
                 /** @brief The hyperparameters in force. */
                 const AdamWOptions& options() const noexcept { return options_; }
@@ -125,18 +175,32 @@ namespace SushiAI
                 /** @brief Mutable access, for a learning-rate schedule. */
                 AdamWOptions& options() noexcept { return options_; }
 
+            protected:
+                /**
+                 * @brief Records the update for every parameter into the engine's builder.
+                 * @return One task per parameter when fused; twelve with decay
+                 *         and eleven without, when not.
+                 */
+                std::size_t record_update() override;
+
             private:
                 struct State
                 {
                     SushiBLAS::Tensor first;    /**< m, the first moment. */
                     SushiBLAS::Tensor second;   /**< v, the second moment. */
+
+                    // SEPARATE only: registers in the fused kernel.
                     SushiBLAS::Tensor denom;    /**< The denominator, and g^2 before it. */
                     SushiBLAS::Tensor update;   /**< m / denom. */
                     SushiBLAS::Tensor ones;     /**< All ones, so eps can be added elementwise. */
                 };
 
+                std::size_t record_fused();
+                std::size_t record_separate();
+
                 AdamWOptions options_;
                 std::vector<State> state_;
+                StepScalars scalars_;
         };
 
     } // namespace Optim

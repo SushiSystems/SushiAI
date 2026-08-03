@@ -50,6 +50,7 @@ add_executable(sushiai_tests
 
     functional/regression/test_compile_once.cpp
     functional/regression/test_determinism.cpp
+    functional/regression/test_fused_optimizer.cpp
     functional/regression/test_learning_curve.cpp
     functional/regression/test_static_memory.cpp
 )

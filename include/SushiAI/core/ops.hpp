@@ -143,6 +143,19 @@ namespace SushiAI
         /** @brief Sums a matrix along its rows, yielding one value per column. */
         inline constexpr OpName SUM_ROWS = op("sushiai.sum_rows");
 
+        // --- Optimizer updates ----------------------------------------------
+        // Not IR operations: no node carries these and no backward rule looks
+        // them up. They are here because this file is the registry of every
+        // identity SushiAI puts into a SushiRuntime task, and the collision
+        // proof below is only worth anything if it covers all of them - a fused
+        // update that happened to hash onto MATMUL would silently take over its
+        // profiling row.
+
+        /** @brief One parameter's whole AdamW update, fused into one kernel. */
+        inline constexpr OpName ADAMW_UPDATE = op("sushiai.optim.adamw");
+        /** @brief One parameter's whole SGD update, fused into one kernel. */
+        inline constexpr OpName SGD_UPDATE = op("sushiai.optim.sgd");
+
         /**
          * @brief Every identity declared above, in one enumerable table.
          *
@@ -157,6 +170,7 @@ namespace SushiAI
             RELU_BACKWARD, GELU_BACKWARD, SIGMOID_BACKWARD, TANH_BACKWARD,
             LOG_SOFTMAX, NLL_LOSS,
             SUM_ROWS,
+            ADAMW_UPDATE, SGD_UPDATE,
         };
 
         /**

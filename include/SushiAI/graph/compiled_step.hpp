@@ -49,6 +49,20 @@
  * trust it. A training loop that recompiles per step still converges - it is
  * just quietly paying graph-analysis cost on every step, which is exactly the
  * kind of regression that hides for months.
+ *
+ * @section trailing Work that has no IR node
+ *
+ * A step is not only what the IR describes. The optimizer's parameter update
+ * has no node in the graph, and used to be recorded and flushed on its own
+ * every step for the reason optimizer.hpp records. Once it is fused - one
+ * kernel per parameter, its per-step numbers read from device memory rather
+ * than baked into a capture - it is replay-invariant work like any other, so
+ * @c CompiledStep takes an optional @c IStepRecorder and folds it into the same
+ * plan: recorded after the lowering, before the one compile, and driven around
+ * every replay. Nothing about the ordering needs stating, because every
+ * SushiBLAS call declares the bytes it touches and the runtime's dependency
+ * tracker sees that the update reads the gradients the backward pass wrote and
+ * writes the parameters the forward pass read.
  */
 
 #include <cstddef>
@@ -57,6 +71,7 @@
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering.hpp>
+#include <SushiAI/graph/step_recorder.hpp>
 
 namespace SushiAI
 {
@@ -84,9 +99,15 @@ namespace SushiAI
                  * @param engine The engine to record into; must outlive this step.
                  * @param graph The graph to lower; only read, and only here.
                  * @param pool The memory behind the graph's values; must outlive this step.
+                 * @param trailing Optional extra work to record into the same
+                 *        plan and drive around every replay - see the header's
+                 *        "Work that has no IR node". Must outlive this step,
+                 *        and must record only replay-invariant work; nothing
+                 *        here can check that, so the caller owes the promise.
                  * @throws Error If lowering fails - see Lowering::record.
                  */
-                CompiledStep(SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool);
+                CompiledStep(SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
+                             IStepRecorder* trailing = nullptr);
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;
@@ -96,11 +117,18 @@ namespace SushiAI
                 /**
                  * @brief Re-arms the plan, runs it, and waits for the device.
                  *
+                 * With a trailing recorder the replay is bracketed by its
+                 * @c before_replay() and @c after_replay(), so its per-step
+                 * numbers are refreshed while nothing is running.
+                 *
                  * A no-op for an empty graph: the execution engine rejects a
                  * plan with no roots, and a graph of only leaves legitimately
                  * has none.
                  */
                 void run();
+
+                /** @brief Whether extra non-IR work was folded into this plan. */
+                bool has_trailing_work() const noexcept { return trailing_ != nullptr; }
 
                 /**
                  * @brief How many times this step has been compiled.
@@ -130,6 +158,7 @@ namespace SushiAI
 
             private:
                 SushiBLAS::Engine* engine_;
+                IStepRecorder* trailing_;
                 SushiRuntime::Execution::CompiledGraph plan_;
                 std::size_t compile_count_ = 0;
                 std::size_t run_count_ = 0;

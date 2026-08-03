@@ -23,6 +23,7 @@ set(SUSHIAI_SOURCES
     nn/init.cpp
 
     optim/optimizer.cpp
+    optim/step_scalars.cpp
     optim/sgd.cpp
     optim/adamw.cpp
 

@@ -126,6 +126,40 @@ namespace SushiAI
             return text;
         }
 
+        namespace
+        {
+            /**
+             * @brief The recorder CompiledStep should fold in, or nothing.
+             *
+             * A free function because the answer is needed inside Trainer's
+             * member-initialiser list, before any member exists to hold it -
+             * and because refusing loudly is the whole point: an optimizer
+             * whose scalars are baked into its recorded tasks would replay step
+             * one's bias corrections for ever, converge anyway, and never say
+             * a word.
+             *
+             * @param optimizer The update rule.
+             * @param options The trainer's options.
+             * @return The optimizer as a recorder, or nullptr for PER_STEP.
+             * @throws Error If IN_PLAN was asked for and cannot be given.
+             */
+            Graph::IStepRecorder* placement_recorder(Optim::Optimizer& optimizer,
+                                                     const TrainerOptions& options)
+            {
+                if (options.optimizer_placement == OptimizerPlacement::PER_STEP)
+                    return nullptr;
+
+                SA_THROW_IF(!optimizer.is_replay_invariant(),
+                            "This optimizer's update is recorded as separate operations whose "
+                            "scalars are baked in at record time, so it cannot be compiled into "
+                            "the step: every replay would reuse the first step's bias "
+                            "corrections. Use Optim::UpdateKernel::FUSED, or ask for "
+                            "TrainerOptions::optimizer_placement = OptimizerPlacement::PER_STEP.");
+
+                return &optimizer;
+            }
+        }
+
         Trainer::Trainer(SushiBLAS::Engine& engine,
                          const Graph::Graph& graph,
                          Graph::TensorPool& pool,
@@ -137,7 +171,7 @@ namespace SushiAI
               spec_(spec),
               optimizer_(&optimizer),
               options_(options),
-              step_(engine, graph, pool)
+              step_(engine, graph, pool, placement_recorder(optimizer, options))
         {
             SA_THROW_IF(spec_.inputs == Graph::NO_VALUE || spec_.targets == Graph::NO_VALUE
                         || spec_.logits == Graph::NO_VALUE || spec_.loss == Graph::NO_VALUE,
@@ -214,6 +248,10 @@ namespace SushiAI
             engine_->execute();
             engine_->get_context().wait_all();
 
+            // With the optimizer in the plan this one call is forward,
+            // backward, the loss and the update. The metrics below are still
+            // this step's: the update writes parameters and its own state, and
+            // touches neither the loss nor the logits.
             step_.run();
 
             StepMetrics metrics;
@@ -221,7 +259,7 @@ namespace SushiAI
             if (options_.track_accuracy && !batch.labels.empty())
                 metrics.accuracy = score_accuracy(batch);
 
-            optimizer_->step();
+            if (!step_.has_trailing_work()) optimizer_->step();
             ++steps_;
 
             return metrics;

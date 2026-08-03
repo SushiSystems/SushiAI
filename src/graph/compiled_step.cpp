@@ -27,12 +27,19 @@ namespace SushiAI
 {
     namespace Graph
     {
-        CompiledStep::CompiledStep(SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool)
-            : engine_(&engine)
+        CompiledStep::CompiledStep(SushiBLAS::Engine& engine, const Graph& graph,
+                                   TensorPool& pool, IStepRecorder* trailing)
+            : engine_(&engine), trailing_(trailing)
         {
             Lowering lowering(engine, pool);
             lowering.record(graph);
             operations_ = lowering.emitted_operations();
+
+            // After the lowering and before the compile, so the trailing work
+            // joins this plan rather than a second one. Its ordering against
+            // the graph comes from the byte ranges each task declares, not from
+            // the order it was recorded in.
+            if (trailing_) operations_ += trailing_->record_into_step();
 
             // The one and only compile. It drains the engine's builder, which
             // is what makes the constant flush below safe to run afterwards -
@@ -55,10 +62,17 @@ namespace SushiAI
         {
             if (empty_) return;
 
+            // Between the last wait_all() and this dispatch, so a recorder may
+            // write into memory its own kernels read without a race and without
+            // a dependency edge to express - see step_recorder.hpp.
+            if (trailing_) trailing_->before_replay();
+
             plan_.rearm();
             engine_->get_context().get_execution_engine().execute(plan_);
             engine_->get_context().wait_all();
             ++run_count_;
+
+            if (trailing_) trailing_->after_replay();
         }
 
     } // namespace Graph

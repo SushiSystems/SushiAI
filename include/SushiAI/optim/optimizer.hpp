@@ -27,23 +27,43 @@
  * @file optimizer.hpp
  * @brief The parameter-update seam.
  *
- * @section why_not_in_graph Why the update is not part of the compiled step
+ * @section one_launch One launch per parameter, not eleven
  *
- * Everything else about a step is lowered into the IR, compiled once and
- * replayed. The update is not, and the reason is written into ir.hpp's
- * @c Attributes: a per-step scalar baked into a node becomes a compile-time
- * constant, and changing it forces a recompile - which is exactly what the
- * compile-once guarantee exists to prevent. AdamW's bias corrections are
- * per-step scalars by definition (1 - beta^t changes every step), and
- * SushiBLAS takes its alphas by value, so there is no way to hand a compiled
- * @c axpy a number that changes between replays.
+ * Spelled as separate SushiBLAS calls, an AdamW update is about eleven task
+ * launches per parameter per step - decay the parameter, scale each moment,
+ * accumulate each moment, correct, add epsilon, divide, step - and every one of
+ * them re-reads and rewrites state the one before it just had in registers. For
+ * an eight-tensor model that is ~88 launches for the optimizer against ~31 for
+ * the entire forward and backward graph. Measured in SushiBLAS, collapsing a
+ * five-tensor update into one kernel ran 16.2x faster at n=4096 and 22.2x at
+ * n=65536, with per-task cost essentially unchanged: the win is issuing fewer
+ * tasks, not doing cheaper arithmetic.
  *
- * So the optimizers record their own short op sequence per step and flush it.
- * The cost is one extra graph analysis per step over a handful of nodes per
- * parameter, which is small next to the forward and backward passes and is
- * measurable rather than hidden. The fix, when SushiRuntime's late-binding
- * block reaches the BLAS layer, is to make the scalars live bindings and fold
- * the update into the same compiled plan.
+ * So both optimizers default to @c UpdateKernel::FUSED, which is one
+ * @c Dispatch::execute_zip_inplace per parameter - one launch, one pass over
+ * memory, and no scratch buffers at all because the temporaries live in
+ * registers. @c UpdateKernel::SEPARATE keeps the original op sequence reachable,
+ * because a fused kernel that is quietly wrong about the arithmetic is a much
+ * more expensive bug than a slow one; the two are compared byte for byte in
+ * @c tests/functional/regression/test_fused_optimizer.cpp.
+ *
+ * @section in_graph Why the update can now be part of the compiled step
+ *
+ * It used not to be, and the recorded reason was real: a per-step scalar baked
+ * into a recorded node is a compile-time constant, AdamW's bias corrections are
+ * per-step scalars by definition (1 - beta^t changes every step), and SushiBLAS
+ * takes its alphas by value - so a compiled @c axpy could never be handed a
+ * number that changes between replays.
+ *
+ * Fusing removes the obstacle rather than working around it. One functor
+ * captures one **device pointer** to a small scalar buffer and reads the step's
+ * numbers from it (@c StepScalars). A pointer is capturable by value and the
+ * bytes behind it may change between replays, so the recorded work becomes
+ * launch-invariant - which is precisely the condition for it to be recorded
+ * into the same @c TaskGraph as the forward and backward passes and replayed
+ * with them. @c Optimizer therefore implements @c Graph::IStepRecorder, and
+ * @c Trainer folds it into the plan by default. @c is_replay_invariant() is the
+ * promise; a SEPARATE-kernel optimizer answers false and is stepped on its own.
  *
  * @section zero_grad There is no zero_grad()
  *
@@ -61,11 +81,38 @@
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/graph/step_recorder.hpp>
 
 namespace SushiAI
 {
     namespace Optim
     {
+        /**
+         * @enum UpdateKernel
+         * @brief How an optimizer spells its per-parameter update on the device.
+         */
+        enum class UpdateKernel
+        {
+            /**
+             * @brief One fused kernel per parameter; the default.
+             *
+             * Every temporary stays in a register, so the update is one launch
+             * and one pass over memory, and it is replay-invariant - which is
+             * what lets it be compiled into the training step.
+             */
+            FUSED,
+
+            /**
+             * @brief The original sequence of separate SushiBLAS calls.
+             *
+             * Kept reachable as the reference the fused kernel is checked
+             * against, and as the fallback if a device ever mis-compiles the
+             * fused functor. It bakes the step's scalars into the recorded
+             * tasks, so it cannot join the compiled plan.
+             */
+            SEPARATE,
+        };
+
         /**
          * @struct ParameterSlot
          * @brief One parameter and its gradient, as the optimizer sees them.
@@ -93,8 +140,13 @@ namespace SushiAI
          * Owns the parameter list and the step counter; subclasses own the
          * state buffers and the arithmetic. Non-copyable, because the state
          * buffers a subclass allocates are tied to these exact parameters.
+         *
+         * It is a @c Graph::IStepRecorder because an update whose scalars live
+         * in device memory is replay-invariant work like any other, and the
+         * whole benefit of fusing it is only collected once it stops being
+         * flushed on its own - see the file comment.
          */
-        class Optimizer
+        class Optimizer : public Graph::IStepRecorder
         {
             public:
                 /**
@@ -106,18 +158,47 @@ namespace SushiAI
                  */
                 Optimizer(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters);
 
-                virtual ~Optimizer() = default;
+                ~Optimizer() override = default;
 
                 Optimizer(const Optimizer&) = delete;
                 Optimizer& operator=(const Optimizer&) = delete;
 
                 /**
-                 * @brief Applies one update to every parameter.
+                 * @brief Applies one update to every parameter, standalone.
                  *
-                 * Records the whole update, executes it, and waits, so on
-                 * return the parameters are readable from the host.
+                 * Refreshes the step's scalars, records the whole update,
+                 * executes it, waits, and advances the counter - so on return
+                 * the parameters are readable from the host. This is the path
+                 * for an optimizer that is *not* part of a compiled step; when
+                 * it is, @c Graph::CompiledStep drives the same three phases
+                 * around its own replay instead.
+                 *
+                 * Not virtual: the phase order is the contract, and it is the
+                 * same one @c IStepRecorder states. Subclasses supply the
+                 * phases, not the sequence.
+                 *
+                 * @throws Error If this optimizer has already been recorded
+                 *         into a compiled step, which applies the update on
+                 *         every replay - stepping it again would apply it twice
+                 *         per batch, and the loop would happily converge at
+                 *         double the learning rate.
                  */
-                virtual void step() = 0;
+                void step();
+
+                /**
+                 * @brief Whether the work this optimizer records survives a replay unchanged.
+                 *
+                 * True only when every number that changes between steps travels
+                 * through device memory rather than through a value captured into
+                 * a recorded task - which is what @c UpdateKernel::FUSED
+                 * arranges. A caller that wants to fold the update into a
+                 * compiled plan must ask this first; folding one that answers
+                 * false would freeze step one's bias corrections into every step
+                 * that followed, and the loop would still converge.
+                 *
+                 * @return True when the update may be recorded into a compiled step.
+                 */
+                virtual bool is_replay_invariant() const noexcept = 0;
 
                 /** @brief How many parameters this optimizer updates. */
                 std::size_t parameter_count() const noexcept { return parameters_.size(); }
@@ -128,7 +209,50 @@ namespace SushiAI
                 /** @brief The parameters, for inspection. */
                 const std::vector<ParameterSlot>& parameters() const noexcept { return parameters_; }
 
+                /**
+                 * @brief Refreshes this step's numbers into device memory.
+                 *
+                 * Re-declared pure here even though @c IStepRecorder supplies a
+                 * default body, because inheriting that default is a silent
+                 * failure and not a benign one: the update would read whatever
+                 * the scalar buffer last held and apply step one's bias
+                 * corrections for ever, converging the whole time. Stating the
+                 * obligation costs an empty override at worst.
+                 */
+                void before_replay() override = 0;
+
+                /** @brief Bumps the step counter once the update has run. */
+                void after_replay() override { advance(); }
+
+                /**
+                 * @brief Records the update into the engine's builder, for a compiled step.
+                 *
+                 * @c final, and the only caller is a @c Graph::CompiledStep:
+                 * @c step() reaches the subclass hook directly. That is what
+                 * makes @c is_in_compiled_step() a fact rather than a guess,
+                 * and it is why calling both can be refused.
+                 *
+                 * @return How many device tasks were recorded.
+                 */
+                std::size_t record_into_step() final;
+
+                /**
+                 * @brief Whether a compiled step has taken ownership of this update.
+                 *
+                 * True from the moment a @c Graph::CompiledStep recorded it.
+                 */
+                bool is_in_compiled_step() const noexcept { return in_compiled_step_; }
+
             protected:
+                /**
+                 * @brief Records one update for every parameter; the subclass's job.
+                 *
+                 * Records only - nothing is executed and nothing is waited on.
+                 *
+                 * @return How many device tasks were recorded.
+                 */
+                virtual std::size_t record_update() = 0;
+
                 /** @brief Runs the recorded update and waits for the device. */
                 void flush();
 
@@ -148,6 +272,7 @@ namespace SushiAI
                 SushiBLAS::Engine* engine_;
                 std::vector<ParameterSlot> parameters_;
                 std::uint64_t step_ = 0;
+                bool in_compiled_step_ = false;
         };
 
     } // namespace Optim

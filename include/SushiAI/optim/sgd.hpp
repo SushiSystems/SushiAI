@@ -52,11 +52,32 @@
  *   it. That is what distinguishes this from AdamW's decoupled decay, and it
  *   is why the two need different weight-decay values for comparable
  *   regularisation.
+ *
+ * @section fusion One kernel, and where g_t went
+ *
+ * The default @c UpdateKernel::FUSED runs the whole recipe above as one
+ * @c execute_zip_inplace per parameter over (theta, g) or (theta, g, b). The
+ * staging buffer is gone from that path: @c g_t only ever exists between the
+ * first line and the last, so it is a register, not an allocation.
+ *
+ * The two per-step decisions - whether this is step 1, and whether Nesterov is
+ * on - are read from the device scalar buffer rather than branched on the host,
+ * because a compiled task is recorded once and cannot be re-recorded with a
+ * different shape. They are uniform across every work-item, so the branch is
+ * free, and it is a branch rather than arithmetic on purpose: `b = 0*b + 1*g`
+ * would turn a `-0.0` gradient into `+0.0` and a poisoned buffer into a NaN,
+ * where `b = g` is exactly what the separate path's `copy` does.
+ *
+ * Whether momentum is used at all is structural, not per-step: it decides
+ * whether the momentum buffer exists, and therefore how many operands the
+ * kernel has. Turning it on after construction is refused rather than silently
+ * ignored.
  */
 
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/optim/step_scalars.hpp>
 
 namespace SushiAI
 {
@@ -82,6 +103,14 @@ namespace SushiAI
 
             /** @brief Use Nesterov's look-ahead; requires momentum > 0 and dampening == 0. */
             bool nesterov = false;
+
+            /**
+             * @brief One fused kernel per parameter, or the separate ops.
+             *
+             * FUSED is the default and the shipping path; SEPARATE exists to be
+             * compared against. See optimizer.hpp.
+             */
+            UpdateKernel kernel = UpdateKernel::FUSED;
         };
 
         /**
@@ -107,8 +136,18 @@ namespace SushiAI
                 SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
                     SGDOptions options = {});
 
-                /** @brief Applies one update to every parameter, then waits. */
-                void step() override;
+                /**
+                 * @brief Recomputes this step's scalars into the device buffer.
+                 * @throws Error If momentum was switched on after construction,
+                 *         when there is no momentum buffer to switch it on for.
+                 */
+                void before_replay() override;
+
+                /** @brief True when the update is fused, and therefore replayable. */
+                bool is_replay_invariant() const noexcept override
+                {
+                    return options_.kernel == UpdateKernel::FUSED;
+                }
 
                 /** @brief The hyperparameters in force. */
                 const SGDOptions& options() const noexcept { return options_; }
@@ -116,15 +155,29 @@ namespace SushiAI
                 /** @brief Mutable access, for a learning-rate schedule. */
                 SGDOptions& options() noexcept { return options_; }
 
+            protected:
+                /**
+                 * @brief Records the update for every parameter into the engine's builder.
+                 * @return One task per parameter when fused, four or five each when not.
+                 */
+                std::size_t record_update() override;
+
             private:
                 struct State
                 {
-                    SushiBLAS::Tensor buffer;   /**< The momentum buffer b. */
-                    SushiBLAS::Tensor staged;   /**< The decayed gradient, kept off the graph's own buffer. */
+                    SushiBLAS::Tensor buffer;   /**< The momentum buffer b; absent when momentum is off. */
+                    SushiBLAS::Tensor staged;   /**< SEPARATE only: g_t, kept off the graph's own gradient buffer. */
                 };
+
+                std::size_t record_fused();
+                std::size_t record_separate();
 
                 SGDOptions options_;
                 std::vector<State> state_;
+                StepScalars scalars_;
+
+                /** @brief Whether a momentum buffer was allocated; fixed at construction. */
+                bool has_momentum_ = false;
         };
 
     } // namespace Optim

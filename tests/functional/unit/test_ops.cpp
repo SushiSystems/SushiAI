@@ -72,6 +72,8 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.log_softmax"),
         std::string_view("sushiai.nll_loss"),
         std::string_view("sushiai.sum_rows"),
+        std::string_view("sushiai.optim.adamw"),
+        std::string_view("sushiai.optim.sgd"),
     };
 
     EXPECT_EQ(Ops::ALL.size(), expected.size());

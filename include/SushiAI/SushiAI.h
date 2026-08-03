@@ -62,6 +62,7 @@
 #include "graph/memory_plan.hpp"
 #include "graph/arena.hpp"
 #include "graph/lowering.hpp"
+#include "graph/step_recorder.hpp"
 #include "graph/compiled_step.hpp"
 
 #include "autograd/backward.hpp"
@@ -72,6 +73,7 @@
 #include "nn/loss.hpp"
 #include "nn/init.hpp"
 
+#include "optim/step_scalars.hpp"
 #include "optim/optimizer.hpp"
 #include "optim/sgd.hpp"
 #include "optim/adamw.hpp"
