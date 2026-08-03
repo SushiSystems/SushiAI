@@ -232,7 +232,7 @@ namespace SushiAI
             // One functor per catalog entry, because that is what a catalog
             // entry *is* on this stack: `sycl_ext_codeplay_kernel_fusion` is
             // gone from intel-llvm, so a composition exists only if some
-            // template was instantiated with it, and these four instantiations
+            // template was instantiated with it, and these five instantiations
             // are the set. See graph/fusion.hpp.
             //
             // WHY THE BIAS IS A `const void*`
@@ -306,6 +306,69 @@ namespace SushiAI
                         value + static_cast<const T*>(bias)[col]);
                 }
             };
+
+            /**
+             * @brief Adds a per-column bias, **spills it**, then SushiBLAS's GELU.
+             *
+             * cuBLASLt calls this @c GELU_AUX_BIAS, and the auxiliary store is
+             * not an optimisation - it is the only reason this composition is
+             * allowed to exist. @c gelu_backward differentiates at the GELU's
+             * *input*; the other three epilogues may throw that tensor away
+             * because their gradients read the output instead. This one writes
+             * it out on the way past, so the value the backward rule reads is
+             * the value the unfused @c BIAS_ADD would have left there - the same
+             * graph value, under the same id. See graph/fusion.hpp's `spill`
+             * section and @c Ops::GEMM_BIAS_GELU.
+             *
+             * WHY INDEXING OFF row AND col IS EXACTLY-ONCE AND IN RANGE
+             *
+             * Both SYCL variants of @c Kernels::SYCL::gemm skip an out-of-range
+             * element *before* calling the epilogue
+             * (`if (global_row >= m) continue;` and the same for the column),
+             * and @c Kernels::Reference::gemm walks `i < m, j < n` directly. So
+             * the functor is invoked once per element of C and never outside
+             * it, and the store below lands on each element of the spill
+             * exactly once.
+             *
+             * The one thing @c row and @c col do *not* carry is a batch index -
+             * the reference kernel's own documentation says so, and the SYCL
+             * side does not supply one either, so every matrix of a batch would
+             * be spilled on top of the last. That is safe here because
+             * @c record_fused_gemm refuses a result that is not rank 2, which
+             * makes @c execute_gemm's `batch_size` exactly 1. The refusal is
+             * what this comment depends on; do not relax one without the other.
+             *
+             * The strides come from the aux tensor rather than being assumed,
+             * because the spill may be a view into a planned arena and may be
+             * column-major: @c Tensor::strides is what @c Tensor lays a shape
+             * out with, so `row * strides[0] + col * strides[1]` is the element
+             * under either layout, and @c Tensor::data() has already folded in
+             * @c storage_offset.
+             */
+            struct BiasGeluSpillEpilogue
+            {
+                const void* bias;
+                void* aux;
+                std::int64_t aux_row_stride;
+                std::int64_t aux_col_stride;
+
+                template<typename T>
+                T operator()(T value, std::int64_t row, std::int64_t col) const
+                {
+                    const T y = value + static_cast<const T*>(bias)[col];
+
+                    static_cast<T*>(aux)[row * aux_row_stride + col * aux_col_stride] = y;
+
+                    // SushiBLAS's own gelu expression, copied rather than
+                    // paraphrased - the same reason the three above are. A
+                    // re-derivation that groups the terms differently would be
+                    // correct mathematics and a different float, and fusion
+                    // promises to move no bits.
+                    const T y3 = y * y * y;
+                    const T inner = T(0.7978845608028654) * (y + T(0.044715) * y3);
+                    return T(0.5) * y * (T(1) + SushiBLAS::Dispatch::safe_tanh(inner));
+                }
+            };
         }
 
         const SushiBLAS::Tensor& Lowering::input(const Node& node, std::size_t index) const
@@ -367,12 +430,23 @@ namespace SushiAI
                     ? selector_->choose(query)
                     : DeviceFusionSelector::for_engine(*engine_).choose(query);
 
+            // "A shorter entry of the same family" is exactly one entry -
+            // GEMM_BIAS, the only one that folds no activation - and it is
+            // spelled out rather than approximated by "both are GEMM
+            // epilogues". That looser test let a selector answer
+            // gemm+bias+tanh to a gemm+bias+relu match, which passes every
+            // shape check and applies the wrong activation, and once a form
+            // could spill it also let one answer gemm+bias+gelu to a node with
+            // no auxiliary output for the epilogue to write.
+            const bool narrowed_within_family =
+                is_gemm_epilogue(query.matched) && choice.form == FusedForm::GEMM_BIAS;
+
             SA_THROW_IF(choice.form != FusedForm::NONE && choice.form != query.matched
-                        && !(is_gemm_epilogue(choice.form) && is_gemm_epilogue(query.matched)),
-                        "A fusion selector narrowed {} to {}, which is not a spelling of the "
-                        "same node. A selector may take the whole match, a shorter entry of the "
-                        "same family, or nothing at all.",
-                        fused_form_name(query.matched), fused_form_name(choice.form));
+                        && !narrowed_within_family,
+                        "A fusion selector answered {} to a {} node, which is not a spelling of "
+                        "it. A selector may take the whole match, narrow a GEMM epilogue to "
+                        "gemm+bias, or take nothing at all.",
+                        fused_form_name(choice.form), fused_form_name(query.matched));
 
             selections_.push_back(FusionSelection{query.matched, choice.form, choice.reason, 0});
             return choice;
@@ -473,11 +547,26 @@ namespace SushiAI
         void Lowering::record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
                                          FusedForm matched)
         {
-            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != 1,
-                        "{} (node {}) takes three operands - A, B and the bias - and one result",
-                        Ops::name_of(node.op), id);
+            // Two results for the one entry that spills its pre-activation, one
+            // for the rest. Checked against the catalog rather than merely
+            // "one or two", because a node arriving with the wrong number is a
+            // fusion-pass defect and the message should say which shape was
+            // expected.
+            const bool spills = fused_form_spills(matched);
+            const std::size_t results = spills ? 2u : 1u;
+
+            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != results,
+                        "{} (node {}) takes three operands - A, B and the bias - and {} result{}",
+                        Ops::name_of(node.op), id, results, results == 1 ? "" : "s");
 
             const Shape& out_shape = shape_of(graph, node.outputs[0]);
+
+            // Rank 2 is a correctness constraint and not tidiness for the
+            // spilling arm: execute_gemm derives `batch_size` from every
+            // dimension of C before the trailing two, and the epilogue is
+            // handed a (row, col) inside one matrix with no batch index - so a
+            // batched spill would write every matrix over the last one. See
+            // BiasGeluSpillEpilogue.
             SA_THROW_IF(out_shape.rank() != 2,
                         "{} (node {}) needs a rank-2 result; got {}",
                         Ops::name_of(node.op), id, out_shape.to_string());
@@ -486,6 +575,27 @@ namespace SushiAI
             const SushiBLAS::Tensor& b = input(node, 1);
             const SushiBLAS::Tensor& bias = input(node, 2);
             SushiBLAS::Tensor& c = output(graph, node, 0);
+
+            // Materialised before the switch, because both the fused arm and
+            // every declining one have to write it - a spill the selector
+            // talked us out of is still a spill the backward pass reads.
+            SushiBLAS::Tensor* const aux = spills ? &output(graph, node, 1) : nullptr;
+
+            if (spills)
+            {
+                SA_THROW_IF(shape_of(graph, node.outputs[1]) != out_shape,
+                            "{} (node {}) spills its pre-activation into a {} buffer, but its "
+                            "result is {}; the two are the same tensor written twice",
+                            Ops::name_of(node.op), id,
+                            shape_of(graph, node.outputs[1]).to_string(), out_shape.to_string());
+                SA_THROW_IF(dtype_of(graph, node.outputs[1]) != dtype_of(graph, node.outputs[0]),
+                            "{} (node {}) spills its pre-activation as {} but computes in {}; "
+                            "the epilogue stores the value it is holding, in the element type "
+                            "the GEMM was instantiated for",
+                            Ops::name_of(node.op), id,
+                            dtype_name(dtype_of(graph, node.outputs[1])),
+                            dtype_name(dtype_of(graph, node.outputs[0])));
+            }
 
             const bool transpose_a = node.attributes.flag(0);
             const bool transpose_b = node.attributes.flag(1);
@@ -564,6 +674,22 @@ namespace SushiAI
                                 BiasTanhEpilogue{values}).reads(bias));
                         break;
 
+                    case FusedForm::GEMM_BIAS_GELU:
+                        // The arm the paragraph above is about: `.writes(aux)`
+                        // is the declaration no other arm makes, and without it
+                        // the backward pass that reads the spill races the GEMM
+                        // that fills it - which resolves the right way often
+                        // enough to look like training.
+                        SushiBLAS::Dispatch::execute_gemm(
+                            *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
+                            Ops::GEMM_BIAS_GELU.name.data(), Ops::GEMM_BIAS_GELU.id,
+                            SushiBLAS::Dispatch::gemm_epilogue(
+                                BiasGeluSpillEpilogue{values, aux->data(),
+                                                      aux->strides[0], aux->strides[1]})
+                                .reads(bias)
+                                .writes(*aux));
+                        break;
+
                     default:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
@@ -575,16 +701,30 @@ namespace SushiAI
                 ++emitted_;
             }
 
+            // A spelling that did not fold the activation left the
+            // pre-activation sitting in C, which is precisely what the spill is
+            // supposed to contain - so one copy is the whole of it, and it has
+            // to happen here, before the trailing activation overwrites C in
+            // place. This is what makes a selector refusal cost launches and
+            // change no number: the aux buffer holds the same bytes either way.
+            if (spills && !fused_form_spills(choice.form))
+            {
+                engine_->blas().copy(c, *aux);
+                ++emitted_;
+            }
+
             // Whatever activation the chosen spelling did not fold in still has
             // to run, in place on the result. Correct for every activation in
-            // Ops::ACTIVATIONS, fused or not, because the fused node's output
-            // *is* the activation's output value - the pass only ever absorbs
-            // an activation whose gradient reads that same tensor.
+            // Ops::ACTIVATIONS, fused or not: for the three whose gradient
+            // reads their output the fused node's result *is* the activation's
+            // output value, and for GELU the pre-activation the gradient wants
+            // has just been spilled above.
             const OpID activation = fused_form_activation(matched);
             if (activation != Ops::LEAF.id && fused_form_activation(choice.form) != activation)
             {
                 if (activation == Ops::RELU.id)         engine_->nonlinear().relu(c);
                 else if (activation == Ops::SIGMOID.id) engine_->nonlinear().sigmoid(c);
+                else if (activation == Ops::GELU.id)    engine_->nonlinear().gelu(c);
                 else                                    engine_->nonlinear().tanh(c);
                 ++emitted_;
             }

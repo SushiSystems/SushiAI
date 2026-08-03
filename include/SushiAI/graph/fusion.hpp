@@ -55,10 +55,11 @@
  * looks healthy, which is why each is a checked rule rather than an assumption.
  *
  * 1. **A value consumed more than once cannot be fused away.** The fused kernel
- *    never writes the chain's interior values. If an interior value has a
- *    second consumer, fusing means either recomputing it or losing it, so the
- *    pass requires a use count of exactly one. It does not assume a chain and
- *    it does not "chase the last use"; it counts.
+ *    does not write the chain's interior values - with one declared exception,
+ *    @ref spill. If an interior value has a second consumer, fusing means
+ *    either recomputing it or losing it, so the pass requires a use count of
+ *    exactly one. It does not assume a chain and it does not "chase the last
+ *    use"; it counts.
  *
  * 2. **A value the backward pass differentiates at must survive.** This is
  *    rule 1 again, and deliberately so. The backward pass is *in the graph* by
@@ -66,15 +67,48 @@
  *    second consumer, and the use count already refuses. What makes that work
  *    out correctly per activation is @c Ops::ACTIVATIONS: ReLU's gradient reads
  *    its output (bit-identically - see that table), so its pre-activation has
- *    one consumer and folds; GELU's reads its input, so its pre-activation has
- *    two and does not. The catalog is @c static_assert-ed against that table,
- *    so a fused form for a non-recoverable activation cannot be added by
- *    accident.
+ *    one consumer and folds with nothing said about activations anywhere in
+ *    this pass; GELU's reads its input, so its pre-activation has two.
+ *
+ *    "Must survive" is the rule, and *stopping the fusion* is only one way to
+ *    satisfy it. @ref spill is the other, and it is the one GELU takes.
  *
  * 3. **A value someone outside the graph reads must survive.** The loss and the
  *    logits are ordinary activations to this pass and are read by the training
  *    loop. @c FusionOptions::observed is how a caller says so; the persistent
  *    lifetime classes are protected without being listed.
+ *
+ * @section spill An entry may write a second value: the pre-activation spill
+ *
+ * A catalog entry names one @c CatalogEntry::spill step whose result the fused
+ * kernel writes *as well as* its own. That is cuBLASLt's @c GELU_AUX_BIAS: the
+ * epilogue stores the fully-formed pre-activation to a second buffer on its way
+ * past and then returns the activated value, so an activation whose gradient
+ * differentiates at its input can be folded after all.
+ *
+ * Three consequences, all of them load-bearing:
+ *
+ * - **The spilled value keeps its id**, exactly like every other value here.
+ *   The fused node's second output *is* the value the absorbed @c BIAS_ADD used
+ *   to produce, so the backward rule that already reads it needs no change and
+ *   no pass has to be told about a new tensor. The value is written, so rules 1
+ *   and 3 simply do not apply to it - a second consumer is fine, and so is
+ *   being observed.
+ * - **Its other consumers must not run before the fused node.** The fused node
+ *   is emitted at the chain's *root* position, which is later than the absorbed
+ *   producer's, so a consumer sitting between the two would end up reading a
+ *   value written after it. That is @c FusionDecline::SPILL_READ_TOO_EARLY, and
+ *   it is checked rather than assumed because the only symptom would be a
+ *   graph the planner and the lowering then reason about in the wrong order.
+ * - **The entry must spill the right value.** Spilling the @c MATMUL's result
+ *   instead of the @c BIAS_ADD's would be as silently wrong as spilling
+ *   nothing, so @c every_fused_activation_survives() checks the position and not
+ *   merely the presence.
+ *
+ * The spill costs one buffer against a form that folds for free, and none at
+ * all against not folding: the value it writes is the one the unfused
+ * @c BIAS_ADD would have written anyway, kept rather than eliminated. It costs
+ * no launches either way.
  *
  * @section exact What fusion is allowed to change about the numbers
  *
@@ -138,6 +172,14 @@ namespace SushiAI
             /** @brief @c MATMUL, @c BIAS_ADD then @c TANH, as one GEMM. */
             GEMM_BIAS_TANH,
 
+            /**
+             * @brief @c MATMUL, @c BIAS_ADD then @c GELU, spilling the pre-activation.
+             *
+             * The only entry that writes two values. See @ref spill; without
+             * the spill this row could not exist, and the build says so.
+             */
+            GEMM_BIAS_GELU,
+
             /** @brief @c EXP, @c SUB then @c SCALE, as one elementwise pass. */
             EXP_SUB_SCALE,
         };
@@ -152,6 +194,7 @@ namespace SushiAI
                 case FusedForm::GEMM_BIAS_RELU:    return "gemm+bias+relu";
                 case FusedForm::GEMM_BIAS_SIGMOID: return "gemm+bias+sigmoid";
                 case FusedForm::GEMM_BIAS_TANH:    return "gemm+bias+tanh";
+                case FusedForm::GEMM_BIAS_GELU:    return "gemm+bias+gelu";
                 case FusedForm::EXP_SUB_SCALE:     return "exp-sub-scale";
             }
             return "unknown";
@@ -189,7 +232,7 @@ namespace SushiAI
          *
          * They share a lowering, an operand order ([A, B, bias]) and the
          * ordering obligation their undeclared bias read carries, so asking
-         * once is better than four comparisons at each site.
+         * once is better than five comparisons at each site.
          *
          * @param form The catalog entry.
          * @return True for the @c GEMM_BIAS family.
@@ -199,7 +242,8 @@ namespace SushiAI
             return form == FusedForm::GEMM_BIAS
                 || form == FusedForm::GEMM_BIAS_RELU
                 || form == FusedForm::GEMM_BIAS_SIGMOID
-                || form == FusedForm::GEMM_BIAS_TANH;
+                || form == FusedForm::GEMM_BIAS_TANH
+                || form == FusedForm::GEMM_BIAS_GELU;
         }
 
         /**
@@ -209,6 +253,35 @@ namespace SushiAI
          *         the form folds no activation.
          */
         OpID fused_form_activation(FusedForm form) noexcept;
+
+        /**
+         * @brief Whether a node of @p form writes an auxiliary second value.
+         *
+         * The one question every caller downstream of the pass has to be able
+         * to ask, because it is what decides how many outputs the node has:
+         * the lowering materialises a second tensor and declares a second
+         * write, and a test that wants to read the spill has to know it is
+         * there. See @ref spill.
+         *
+         * @param form The catalog entry.
+         * @return True when a node of @p form declares two outputs, the second
+         *         being the pre-activation its epilogue stores on its way past.
+         */
+        bool fused_form_spills(FusedForm form) noexcept;
+
+        /**
+         * @brief Whether any catalog entry folds @p activation into a GEMM.
+         *
+         * Asked by the report, so that "this activation stayed outside" is
+         * explained by the right sentence: an activation the catalog *can*
+         * fold was stopped by something situational, and one it cannot fold is
+         * a missing row. Reads the catalog rather than @c Ops::ACTIVATIONS,
+         * because since @ref spill exists the two answer different questions.
+         *
+         * @param activation A forward activation's identity.
+         * @return True when some entry's chain ends in @p activation.
+         */
+        bool catalog_folds_activation(OpID activation) noexcept;
 
         /**
          * @enum FusionDecline
@@ -238,13 +311,34 @@ namespace SushiAI
              * @brief The activation's gradient differentiates at its input.
              *
              * The one decline whose alternative is silently wrong rather than
-             * merely wasteful, and the reason the catalog has no entry to try
-             * in the first place: a fused kernel never writes the
-             * pre-activation, so the gradient would be taken at the wrong
-             * point, nothing would fail, and the model would train towards the
-             * wrong place. See @c Ops::Activation.
+             * merely wasteful: a fused kernel that writes only its result never
+             * writes the pre-activation, so the gradient would be taken at the
+             * wrong point, nothing would fail, and the model would train
+             * towards the wrong place. See @c Ops::Activation.
+             *
+             * Recorded when the activation has an @c INPUT gradient source
+             * *and* no catalog entry spills for it - which, since
+             * @c GEMM_BIAS_GELU exists, is true of no activation in
+             * @c Ops::ACTIVATIONS today. It is kept, and kept ahead of
+             * @c NO_CATALOG_ENTRY, because it is the run-time half of the
+             * @c static_assert in fusion.cpp: the next @c INPUT-gradient
+             * activation somebody adds gets this sentence until somebody adds
+             * its spilling entry, rather than a "safe to fold" one that is a
+             * lie.
              */
             GRADIENT_NEEDS_PRE_ACTIVATION,
+
+            /**
+             * @brief A spilled pre-activation is read before the fused node writes it.
+             *
+             * Only reachable for an entry with a @c CatalogEntry::spill. The
+             * fused node is emitted at the chain's root, so a consumer of the
+             * spilled value that sits between the absorbed producer and that
+             * root would read a value written after it - which is not a wrong
+             * number but a graph that is no longer in topological order, and
+             * every pass below this one assumes it is. See @ref spill.
+             */
+            SPILL_READ_TOO_EARLY,
 
             /**
              * @brief The activation could be folded and the catalog has no entry.
@@ -274,9 +368,12 @@ namespace SushiAI
                     return "an intermediate is read from outside the graph, so it must reach "
                            "memory";
                 case FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION:
-                    return "this activation's gradient differentiates at its input, which a "
-                           "fused kernel would never write - fusing anyway trains towards the "
-                           "wrong place without failing";
+                    return "this activation's gradient differentiates at its input and no "
+                           "catalog entry spills that tensor - fusing anyway trains towards "
+                           "the wrong place without failing";
+                case FusionDecline::SPILL_READ_TOO_EARLY:
+                    return "the pre-activation this form would spill is read by a node that "
+                           "runs before the fused GEMM would write it";
                 case FusionDecline::NO_CATALOG_ENTRY:
                     return "this activation is safe to fold but no catalog entry composes it "
                            "with a GEMM epilogue; add one";
@@ -344,6 +441,17 @@ namespace SushiAI
 
             /** @brief The value the fused node writes - the root's own result. */
             ValueId result = NO_VALUE;
+
+            /**
+             * @brief The pre-activation the fused node also writes, or @c NO_VALUE.
+             *
+             * Set only for an entry with a @c spill. It is an *interior* value
+             * of the chain that survived rather than being eliminated, which is
+             * why it is reported separately: "gemm+bias+gelu dropped one value
+             * and kept one" is the whole difference between this form and the
+             * silently wrong one it replaces.
+             */
+            ValueId spilled = NO_VALUE;
 
             /** @brief The values that stopped being written; they have no buffer now. */
             std::vector<ValueId> eliminated;
@@ -433,11 +541,12 @@ namespace SushiAI
          * interior values that have exactly one consumer, and rewrites every
          * accepted match into one node carrying the catalog entry's identity.
          * A longer form that is refused falls back to a shorter one rooted
-         * further up the same chain, so a GELU layer still gets its bias folded
-         * into the GEMM even though its activation cannot be.
+         * further up the same chain, so a layer whose activation has no entry
+         * still gets its bias folded into the GEMM.
          *
-         * Value ids are preserved exactly; node ids are not. See the file
-         * comment for both.
+         * Value ids are preserved exactly; node ids are not. A node is
+         * single-output unless its entry declares a @ref spill, in which case
+         * it writes two. See the file comment for all three.
          *
          * @param graph The graph to rewrite, in place.
          * @param options What the pass is allowed to do.

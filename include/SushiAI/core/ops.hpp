@@ -226,6 +226,26 @@ namespace SushiAI
         inline constexpr OpName GEMM_BIAS_TANH = op("sushiai.fused.gemm_bias_tanh");
 
         /**
+         * @brief GEMM with a bias broadcast and a GELU, **spilling the pre-activation**.
+         *
+         * The one fused form that writes two values, and the only reason it is
+         * allowed to exist at all. GELU's gradient differentiates at its
+         * *input* (see @ref Activation), so the other three epilogues' argument
+         * - "the fused kernel destroyed nothing the backward pass wanted" -
+         * does not apply to it. This form makes it apply: the epilogue stores
+         * @c value+bias[col] to a second buffer on its way past and then
+         * returns @c gelu of it, so the tensor the backward rule reads is
+         * written after all. It is cuBLASLt's @c GELU_AUX_BIAS, and the second
+         * output *is* the value the unfused @c BIAS_ADD would have produced -
+         * same id, same bytes - which is why no backward rule changes.
+         *
+         * @c graph/fusion.cpp's @c every_fused_activation_survives() is what
+         * ties the two halves together: an entry folding an @c INPUT-gradient
+         * activation without declaring that spill fails the build.
+         */
+        inline constexpr OpName GEMM_BIAS_GELU = op("sushiai.fused.gemm_bias_gelu");
+
+        /**
          * @brief One pass computing @c out = (exp(a) - b) * alpha.
          *
          * The cross-entropy gradient's whole elementwise tail: five recorded
@@ -258,7 +278,7 @@ namespace SushiAI
             LOG_SOFTMAX, NLL_LOSS,
             SUM_ROWS,
             ADAMW_UPDATE, SGD_UPDATE,
-            GEMM_BIAS, GEMM_BIAS_RELU, GEMM_BIAS_SIGMOID, GEMM_BIAS_TANH,
+            GEMM_BIAS, GEMM_BIAS_RELU, GEMM_BIAS_SIGMOID, GEMM_BIAS_TANH, GEMM_BIAS_GELU,
             EXP_SUB_SCALE,
         };
 
@@ -334,15 +354,21 @@ namespace SushiAI
          *    model simply learns the wrong thing. SushiBLAS fixes the
          *    convention per activation and this table mirrors it.
          *
-         * 2. **Whether the activation may be folded into the kernel that
-         *    produced its input.** A fused form never writes the
-         *    pre-activation. If the gradient reads the *output*, nothing was
-         *    destroyed and the fusion is exact. If it reads the *input*, the
-         *    fused form would train towards the wrong place - nothing throws,
-         *    nothing goes NaN, the loss still falls. That is the trap
-         *    cuBLASLt's @c GELU_AUX_BIAS exists to solve, and it is why
-         *    @c graph/fusion.hpp static_asserts that every fused-activation
-         *    catalog entry names an activation whose source is @c OUTPUT.
+         * 2. **What a fused form has to do to be allowed to fold the
+         *    activation.** A fused form writes only its final result unless it
+         *    is built to do otherwise. If the gradient reads the *output*,
+         *    nothing was destroyed and folding is exact and free. If it reads
+         *    the *input*, a form that writes only its result would train
+         *    towards the wrong place - nothing throws, nothing goes NaN, the
+         *    loss still falls. The fix is not to forbid the fold but to make
+         *    the fused kernel spill the pre-activation to a second buffer,
+         *    which is what cuBLASLt's @c GELU_AUX_BIAS does and what
+         *    @c Ops::GEMM_BIAS_GELU does here. So this field does not decide
+         *    "foldable or not" on its own; it decides **which of the two kinds
+         *    of catalog entry** the activation needs, and
+         *    @c graph/fusion.cpp's @c every_fused_activation_survives()
+         *    static_asserts that an @c INPUT-gradient activation only ever
+         *    appears in an entry that declares the spill.
          *
          * @c RELU reads the output rather than the input, which is a
          * substitution and not an approximation: SushiBLAS's @c relu_backward
@@ -387,14 +413,22 @@ namespace SushiAI
         }
 
         /**
-         * @brief Whether folding @p forward into its producer keeps backward exact.
+         * @brief Whether folding @p forward needs **no** auxiliary spill.
          *
          * True exactly when the gradient differentiates at the output, because
-         * then the pre-activation a fused form never writes was not needed. See
-         * @ref Activation for why this is the whole of the question.
+         * then the pre-activation a result-only fused form never writes was not
+         * needed in the first place.
+         *
+         * False is not "unfusable": it is "unfusable *for free*". An
+         * @c INPUT-gradient activation is still foldable by a form that spills
+         * the pre-activation to a second buffer - see @c Ops::GEMM_BIAS_GELU -
+         * and @c graph/fusion.hpp's catalog is what says which entries do. Read
+         * this predicate as a question about the *entry* an activation needs,
+         * not about whether one can exist; @ref Activation argues both halves.
          *
          * @param forward The forward activation's identity.
-         * @return True when the activation is safe to fuse in a training pass.
+         * @return True when folding @p forward destroys nothing the backward
+         *         pass reads, so no spill is required.
          */
         constexpr bool activation_survives_fusion(OpID forward) noexcept
         {

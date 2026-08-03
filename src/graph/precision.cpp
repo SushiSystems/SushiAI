@@ -51,7 +51,14 @@ namespace SushiAI
 
         bool narrows_under_mixed_precision(OpID op) noexcept
         {
-            // Rule 1: the matrix product and every spelling of it.
+            // Rule 1: the matrix product and every spelling of it this policy
+            // is willing to produce. GEMM_BIAS_GELU is deliberately absent -
+            // narrowing it would put the tanh approximation's `x*x*x` into
+            // fp16, and rule 5 argues that at length. Nothing is lost by the
+            // omission: under this policy a GELU layer never fuses into that
+            // form in the first place, so the answer here only has to be the
+            // one find_dtype_mismatches would agree with if it ever met one,
+            // and "the graph's own precision" is that answer.
             if (op == Ops::MATMUL.id
                 || op == Ops::GEMM_BIAS.id
                 || op == Ops::GEMM_BIAS_RELU.id
@@ -59,11 +66,16 @@ namespace SushiAI
                 || op == Ops::GEMM_BIAS_TANH.id)
                 return true;
 
-            // Rule 2: what a GEMM epilogue folds in. BIAS_ADD is in every one
-            // of the catalog's GEMM entries; the activations are the ones whose
-            // gradient reads their output, which is the same predicate the
-            // fusion catalog is static_asserted against - so this set cannot
-            // drift from the set of things that actually get folded.
+            // Rule 2: what a narrowed GEMM epilogue folds in. BIAS_ADD is in
+            // every one of the catalog's GEMM entries, so it has to agree with
+            // them. The activations are the ones whose gradient reads their
+            // output - which is *not* the same set as "the ones the catalog can
+            // fold" any more, because GEMM_BIAS_GELU folds GELU by spilling the
+            // pre-activation. The two sets are allowed to differ, and rule 5
+            // says why they must here: an activation this policy keeps wide
+            // gets a CAST between it and the GEMM, which stops the chain
+            // matching, so the fold this rule would have had to agree with
+            // never occurs.
             if (op == Ops::BIAS_ADD.id) return true;
             if (Ops::activation_survives_fusion(op)) return true;
 

@@ -51,7 +51,8 @@ namespace
     {
         public:
             template<typename BuildFn>
-            Probe(SushiBLAS::Engine& engine, Shape variable_shape, BuildFn&& build)
+            Probe(SushiBLAS::Engine& engine, Shape variable_shape, BuildFn&& build,
+                  bool fuse = false)
                 : pool_(engine)
             {
                 const GraphBuilder builder(graph_);
@@ -71,8 +72,31 @@ namespace
                 gradient_ = grads.at(0);
                 EXPECT_NE(gradient_, Graph::NO_VALUE);
 
+                // Off by default, because every case below this one is checking
+                // a backward *rule* and fusion is not allowed to change one. It
+                // is switchable because one case is checking the opposite
+                // direction: that a fused form which rewrites what the backward
+                // pass reads still leaves the same derivative behind. Ids
+                // survive the pass, so nothing recorded above needs remapping.
+                if (fuse)
+                {
+                    const ValueId observed[] = {loss_, targets_};
+                    Graph::FusionOptions options;
+                    options.observed = SushiRuntime::span<const ValueId>(observed, 2);
+                    fusion_ = Graph::fuse(graph_, options);
+                }
+
                 pool_.materialise_leaves(graph_);
                 step_ = std::make_unique<CompiledStep>(engine, graph_, pool_);
+            }
+
+            /** @brief What the fusion pass did, when the probe was asked to run it. */
+            const Graph::FusionReport& fusion() const noexcept { return fusion_; }
+
+            /** @brief What the lowering actually spelled, so a decline cannot pass unnoticed. */
+            SushiRuntime::span<const Graph::FusionSelection> selections() const noexcept
+            {
+                return step_->selections();
             }
 
             /** @brief Writes a constant leaf's values. */
@@ -148,6 +172,7 @@ namespace
             ValueId targets_ = Graph::NO_VALUE;
             ValueId loss_ = Graph::NO_VALUE;
             ValueId gradient_ = Graph::NO_VALUE;
+            Graph::FusionReport fusion_;
     };
 
     /** @brief Runs the full-Jacobian check and reports the result on failure. */
@@ -471,6 +496,61 @@ TEST_F(Integration_Autograd, Gelu)
 
     std::vector<double> point(probe.size());
     SaTest::HostNoise(162).fill(point, 1.5);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, AFusedGeluEpilogueHasTheSameDerivativeAsAnUnfusedOne)
+{
+    // The strongest oracle in the repository, pointed at the one fused form
+    // whose correctness is not a matter of "the same operations in the same
+    // order". GEMM_BIAS_GELU *rewrites what the backward pass reads*: the
+    // pre-activation now arrives from a store inside a GEMM kernel rather than
+    // from the ger that used to write it. A central difference does not care
+    // where it came from - it asks the graph what its own loss does when the
+    // variable moves, and compares that with what the graph says its gradient
+    // is. A spill holding the wrong tensor cannot survive that, and would
+    // survive any amount of "it trained and the loss fell".
+    //
+    // FLOAT64 throughout, as gradcheck.hpp requires; the whole epilogue is
+    // instantiated for double by execute_gemm's REAL domain.
+    ValueId weight = Graph::NO_VALUE;
+    ValueId bias = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{4, 5},
+                [&](const GraphBuilder& builder, ValueId x)
+                {
+                    // x is the variable: [4, 5] activations into a [3, 5]^T
+                    // weight, so the chain is matmul -> bias_add -> gelu and the
+                    // logits are [4, 3].
+                    weight = builder.input(Shape{3, 5}, "w", DType::FLOAT64);
+                    bias = builder.input(Shape{3}, "b", DType::FLOAT64);
+                    return builder.gelu(
+                        builder.bias_add(builder.matmul(x, weight, false, true), bias));
+                },
+                /*fuse=*/true);
+
+    // The test is only a test if the fused arm actually ran. Both halves are
+    // checked: the static pass matched, and the selector did not hand the
+    // lowering back the unfused spelling - which it would on a device without
+    // double precision, leaving this case quietly measuring the old path.
+    ASSERT_EQ(probe.fusion().count(Graph::FusedForm::GEMM_BIAS_GELU), 1u)
+        << probe.fusion().to_string();
+
+    bool spelled = false;
+    for (const Graph::FusionSelection& selection : probe.selections())
+        if (selection.chosen == Graph::FusedForm::GEMM_BIAS_GELU) spelled = true;
+
+    ASSERT_TRUE(spelled)
+        << "this device declined the fused GELU epilogue, so the gradient below is the "
+           "unfused one and this case is not checking what it claims to";
+
+    probe.fill_noise(weight, 171, 0.8);
+    probe.fill_noise(bias, 172, 0.5);
+    probe.fill_one_hot(4, 3);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(173).fill(point, 1.2);
 
     expect_gradient_matches(probe, point);
 }
