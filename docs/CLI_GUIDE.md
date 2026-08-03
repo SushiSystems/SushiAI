@@ -20,11 +20,14 @@ and it puts two commands on your `PATH`:
 They are identical; every example below uses `sa`.
 
 ```bash
-ss install-cli sushiai      # add --no-editable for a non-dev install
+ss install-cli sushiai      # always editable, against this checkout
 ```
 
-On Windows this installs through **pipx**; on Linux and macOS with **pip**
-into your current environment.
+This installs through **pipx** on every platform, into an isolated venv, then
+injects the shared `sushicli` package — which is published to no index, so pipx
+cannot resolve it as an ordinary dependency. The install is always editable and
+there is no flag to make it otherwise: a frozen copy would stop tracking
+`git pull`s on this checkout without ever saying so.
 
 ```bash
 pipx uninstall sushiai-cli   # to remove it later
@@ -48,7 +51,8 @@ see exactly what the CLI resolved.
 
 | Command | What it's for |
 |---------|----------------|
-| `sa build` / `test` / `run` / `clean` / `doxygen` | Build, test, run, and document the C++ project |
+| `sa build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
+| `sa doxygen` | Generate the API reference — **not usable yet: no `Doxyfile` in this repo** |
 | `sa demo mlp` | Train an MLP end to end and report the compile count |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
@@ -175,10 +179,16 @@ sa clean       # remove the build/ tree
 sa doxygen     # generate the Doxygen API reference
 ```
 
-`sa doxygen` runs Doxygen against the repo-root `Doxyfile`. Doxygen is an
-external tool, not vendored — install it or point `doxygen_exe` in
-`cli/config.local.toml` at an existing binary; the command prints the right
-install line if it cannot find one.
+**`sa doxygen` does not work yet.** It runs Doxygen against a repo-root
+`Doxyfile`, and this repo has none — the command reports
+`Doxyfile not found at repo root.` and exits 1. `Doxyfile` is also listed in
+`.gitignore`, so authoring one means editing that first. Until a Doxyfile lands
+(sushiruntime's is the model: a committed `Doxyfile` scoped to the public
+header surface), treat this command as unimplemented.
+
+When one does exist, Doxygen itself is an external tool, not vendored — install
+it or point `doxygen_exe` in `cli/config.local.toml` at an existing binary; the
+command prints the right install line if it cannot find one.
 
 ## `sa config` and `sa env` — diagnostics
 

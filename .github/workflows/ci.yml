@@ -1,0 +1,207 @@
+name: CI
+
+# Functional suite on every push / PR (fast, deterministic).
+#
+# Modelled on sushiruntime/.github/workflows/ci.yml, which is the stack's house
+# style for CI, and on sushiblas's, which solves the same dependency-chain
+# problem one level down. It is deliberately a subset — see "Deliberately
+# absent" at the bottom of this file for what was left out and why.
+#
+# PROVENANCE — read before trusting this file. As of its first commit this
+# workflow had never been executed: there is no runner on the machine it was
+# written on. The container image, the apt package list, the compiler flags,
+# the `source setvars.sh --force` line, the ctest label regex and the whole
+# `cli` job are copied from sushiruntime's ci.yml, which does pass. What is NEW
+# and has run nowhere is the three-checkout sibling layout (this repo's chain
+# is two levels deep and has no precedent anywhere in the stack),
+# `working-directory`, the SA_/SR_ test flags, and — most importantly —
+# compiling *this repo's* sources with icpx at all: SushiAI has only ever been
+# built here with intel-llvm clang++, and cmake/SushiAICompilerWarnings.cmake
+# turns on -Werror, so a warning icpx emits that clang++ does not will fail
+# this lane. The first red run is expected to be informative, not surprising.
+#
+# ---------------------------------------------------------------------------
+# Why this file calls cmake/ctest directly instead of `sa`
+# ---------------------------------------------------------------------------
+# docs/CLAUDE.md requires every build to go through `sa` and never to invoke
+# cmake/ninja directly; docs/CONTRIBUTING.md documents `sa build` / `sa test`
+# as the way the project is built. This workflow is the one exception, for two
+# reasons that apply only on a runner:
+#
+#   * `sa` resolves its compiler, cmake, ctest, ninja, pkgconf and vcpkg from
+#     the toolchain `ss install` provisions into <workspace>/dependencies/ and
+#     records in cli/config.local.toml. None of that exists on a stock GitHub
+#     runner, and provisioning it would mean running the umbrella's entire
+#     dependency pipeline just to compile one library.
+#   * `sa` snapshots its build environment into `.sushi_env.json`, which is
+#     gitignored — it is not in the checkout and, by design, cannot be.
+#
+# sushiruntime's own ci.yml sets this precedent and departs from the same rule
+# for the same reasons. The steps below are the CI-side expression of what
+# `sa build` configures locally (see cli/sushiai/services/project.py's
+# `_configure_args`), with one deliberate difference: the compiler. Locally the
+# stack builds with the provisioned intel-llvm `clang++`
+# (SR_SYCL_TOOLCHAIN=intel-llvm); here it builds with the container's `icpx`
+# (SR_SYCL_TOOLCHAIN=oneapi, inferred from the compiler name by
+# sushiruntime/cmake/Sycl.cmake). Both paths are supported by
+# cmake/SushiAISyclTarget.cmake; icpx is used because it is what sushiruntime's
+# passing CI uses and what the base image ships.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  functional:
+    name: Functional tests
+    runs-on: ubuntu-latest
+    # Intel oneAPI base image provides SYCL/DPC++ (icx/icpx) and the OpenCL CPU
+    # device the suite executes on. Same image as sushiruntime's and
+    # sushiblas's CI.
+    container:
+      image: intel/oneapi-basekit:latest
+    steps:
+      # SushiAI is the only module in the stack with two sibling dependencies,
+      # and cmake/Runtime.cmake + cmake/BLAS.cmake resolve each through the
+      # same three modes, in order: an already-defined target,
+      # find_package(...), then add_subdirectory of a sibling checkout. No
+      # SushiRuntime or SushiBLAS package is installed on a runner, so mode 3
+      # is what fires for both — exactly as on a developer box. Mode 3 resolves
+      # ${CMAKE_CURRENT_SOURCE_DIR}/../<module>, so all three repos are checked
+      # out as siblings under $GITHUB_WORKSPACE rather than this one sitting at
+      # its root.
+      #
+      # The two-level chain resolves itself from this layout with no extra
+      # plumbing: the root CMakeLists.txt includes Runtime before BLAS, so by
+      # the time BLAS.cmake add_subdirectory's sushiblas, SushiBLAS's own
+      # internal Runtime.cmake TARGET-guards onto the already-defined
+      # SushiRuntime::SushiRuntime instead of adding the same checkout a second
+      # time. (sushiblas/../sushiruntime is also this same directory, so even
+      # the fallback would agree.)
+      #
+      # SUSHISTACK_HOME is deliberately left unset: Runtime.cmake and BLAS.cmake
+      # prefer it only when the module actually exists under it, and leaving it
+      # unset makes the layout below the single thing that decides resolution.
+      - name: Check out SushiAI
+        uses: actions/checkout@v4
+        with:
+          path: sushiai
+
+      - name: Check out the SushiRuntime sibling
+        uses: actions/checkout@v4
+        with:
+          repository: SushiSystems/SushiRuntime
+          path: sushiruntime
+          # Unpinned (default branch, `main`) on purpose: this lane exists to
+          # catch the stack breaking across module boundaries, and a pinned SHA
+          # would hide precisely that.
+          #
+          # github.token is scoped to this repository only. Both siblings are
+          # public, so that is enough to clone them; if either is ever made
+          # private this checkout starts 404ing, and the fix is to add a
+          # repo-scoped PAT as the SUSHISTACK_CI_TOKEN secret. The expression
+          # below falls back to github.token whenever that secret is unset, so
+          # the hook costs nothing today.
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+
+      - name: Check out the SushiBLAS sibling
+        uses: actions/checkout@v4
+        with:
+          repository: SushiSystems/SushiBLAS
+          path: sushiblas
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            cmake ninja-build pkg-config git libhwloc-dev libgtest-dev
+
+      - name: Configure, build, and run functional suite
+        shell: bash
+        working-directory: sushiai
+        run: |
+          set -e
+          source /opt/intel/oneapi/setvars.sh --force
+          # SR_BUILD_TESTS is already OFF by default in sushiruntime, and
+          # SA_BUILD_TESTS already ON here; both are stated explicitly so a
+          # future change to either default cannot silently make this lane
+          # build the runtime's suite, or run over an empty one of our own.
+          #
+          # SushiBLAS's tests have no equivalent switch — its CMakeLists.txt
+          # calls add_subdirectory(tests) unconditionally — so this configure
+          # also builds sushiblas_tests, and the ctest run below also runs it.
+          # That is not a mistake and it is not a departure from local
+          # behaviour: `sa test` does exactly the same thing, because
+          # add_subdirectory puts sushiblas's tests in this build tree
+          # (build/sushiblas/tests/) and `ctest --test-dir build` walks the
+          # whole tree. It is also where SushiAI's "582 tests" figure comes
+          # from: 226 SushiAI + 356 SushiBLAS.
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx \
+            -DCMAKE_CXX_FLAGS=-fsycl \
+            -DSA_BUILD_TESTS=ON \
+            -DSR_BUILD_TESTS=OFF
+          cmake --build build
+          # The umbrella label regex `sa test` uses. "functional" is an
+          # alternation over the three sub-labels rather than a label of its
+          # own — see tests/CMakeLists.txt for why. This also picks up
+          # Integration_Demo.MlpRunsAndReportsOneCompile, which runs the
+          # `sa demo mlp` binary itself and asserts on its printed compile
+          # count.
+          ctest --test-dir build -L "unit|integration|regression" --output-on-failure
+
+  cli:
+    name: Python CLI (lint + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tooling
+        run: python -m pip install --upgrade pip pytest pyflakes
+
+      - name: Import-safety check (no crash outside a checkout)
+        working-directory: cli
+        # pyflakes catches undefined names / bad imports without needing sushicli.
+        run: python -m pyflakes sushiai || true
+
+      - name: Run CLI unit tests
+        working-directory: cli
+        # sushicli is an unpublished sibling package; tests/conftest.py stubs it,
+        # so the suite runs with only pytest + the standard library.
+        run: python -m pytest tests -q
+
+# ---------------------------------------------------------------------------
+# Deliberately absent (present in sushiruntime's ci.yml, not applicable here)
+# ---------------------------------------------------------------------------
+# * ThreadSanitizer job. sushiruntime's TSan lane targets a specific, named
+#   body of concurrency it owns — EBR fences, per-worker polling, epoch
+#   nesting. SushiAI owns none: there is not a single std::thread, std::mutex,
+#   std::atomic or condition_variable under src/ or include/ in this repo.
+#   Every thread its graphs execute on belongs to SushiRuntime, whose own CI
+#   already instruments them. There is also no gate to turn TSan on with —
+#   cmake/SushiAISanitizers.cmake is an empty INTERFACE target, unlike
+#   sushiruntime/cmake/Sanitizers.cmake's RelWithDebInfo auto-gate. A job here
+#   would either instrument someone else's races or pass vacuously.
+#
+# * Nightly benchmark job. SushiAI registers no `stress` or `performance` CTest
+#   labels, so `ctest -L "stress|performance"` would select nothing and report
+#   success over an empty suite. There is nothing to schedule, so this workflow
+#   has no `schedule:` trigger either.
+#
+# * Doxygen job. `sa doxygen` exists and reads a repo-root `Doxyfile`, but this
+#   repo has none — and `Doxyfile` is listed in .gitignore, so one cannot be
+#   committed without changing that first. Adding the job before the Doxyfile
+#   exists would produce a lane that always fails.
+#
+# * tests/package/ job. That directory is an out-of-tree consumer of an
+#   *installed* SushiAI, built by hand against an install prefix (see its
+#   CMakeLists.txt header). sushiruntime and sushiblas both have the same
+#   directory and likewise do not wire it into CI; doing so here first would be
+#   a new decision, not a match of the house style.

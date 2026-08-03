@@ -1,8 +1,8 @@
 # SushiAI
 
 SushiAI is the AI/ML head of the SushiStack: a C++17 library with a
-graph-native autograd core — and, still ahead of it, memory planning, kernel
-fusion and mixed precision — built on
+graph-native autograd core, a memory planner and a fusion pass — with mixed
+precision still ahead of it — built on
 [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s tensor and BLAS
 layer, which itself runs on
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph.
@@ -10,12 +10,13 @@ layer, which itself runs on
 **AI-1 has landed: an MLP trains end to end.** `sa demo mlp` traces a
 two-layer model into SushiAI's own IR, differentiates that IR, lowers it to
 SushiBLAS once, compiles it once, and replays it per batch until the loss
-falls from `ln(C)` to convergence. Memory planning, kernel fusion
-and mixed precision are still ahead — see
+falls from `ln(C)` to convergence. Memory planning and kernel fusion have
+landed since; mixed precision is still ahead — see
 [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
 for the roadmap and [ARCHITECTURE.md §7](ARCHITECTURE.md#7-whats-not-here-yet)
-for an honest list of what this tree does not do yet. Nothing in this
-document promises a feature that plan hasn't reached.
+for an honest list of what this tree does not do yet, including the limits the
+planner and the fusion catalog still have. Nothing in this document promises a
+feature that plan hasn't reached.
 
 ## What exists today
 
@@ -30,6 +31,12 @@ document promises a feature that plan hasn't reached.
 - **A lowering to SushiBLAS** (`graph/lowering.hpp`) — the only file in the
   library that calls `SushiBLAS::Engine` — and `CompiledStep`, which makes
   the compile-once/replay contract a type rather than a comment.
+- **A fusion pass** (`graph/fusion.hpp`) — a catalog of recipes applied as a
+  selector over the IR before lowering, reported per-run by `sa demo mlp` and
+  switchable with `--fusion off` / `--no-fuse NAME`.
+- **A memory planner and per-lifetime arenas** (`graph/memory_plan.hpp`,
+  `graph/arena.hpp`) — IR values packed into arenas by lifetime instead of one
+  `Storage` each, pinned by `Regression_StaticMemory`.
 - **Layers and losses** (`nn/`) — `Linear`, `ReLU`/`GELU`/`Tanh`/`Sigmoid`,
   `Sequential` with CTAD, `CrossEntropyLoss`, Kaiming/Xavier initialisation.
   No base class and no `register_module`: a layer publishes its parameters
@@ -106,7 +113,7 @@ working consumer.
 ## Building
 
 ```bash
-ss install-cli sushiai           # add --no-editable for a non-dev install
+ss install-cli sushiai           # always editable, against this checkout
 ```
 
 This gives you two equivalent commands on your PATH: **`sa`** (short) and
@@ -161,7 +168,7 @@ packages.
 ```bash
 sa config         # print resolved config with per-field source annotation
 sa env            # print the environment cmake/ctest/run subprocesses see
-sa doxygen        # build the Doxygen API reference
+sa doxygen        # build the Doxygen API reference (not usable yet — no Doxyfile in this repo)
 sa demo mlp       # train an MLP end to end (see below)
 ```
 
