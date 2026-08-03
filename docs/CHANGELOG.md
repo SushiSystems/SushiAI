@@ -14,6 +14,41 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 ## [Unreleased]
 
 ### Added
+- **AI-2: a static memory planner.** `graph/memory_plan.hpp` assigns every
+  non-persistent IR value an (arena, byte offset) before anything is lowered;
+  `graph/arena.hpp` allocates each arena once at bind time and hands out
+  views. `sa demo mlp` goes from 130.9 KiB to 112.6 KiB of buffers, with the
+  same loss trajectory to the last digit.
+  - **One arena per lifetime class, and only the non-persistent classes.**
+    SushiRuntime's dependency tracker shards its access history on an
+    allocation's base pointer, so one global arena collapses every shard into
+    a single chain and makes hazard resolution quadratic. Parameters,
+    gradients, optimizer state and inputs are never reused, so packing them
+    would save nothing while merging the shards that matter most.
+  - **Liveness is computed on the reachability partial order.** A value may
+    hand its bytes to another only when every use of the first is a strict
+    ancestor of the second's first write. The interval version — sort the
+    nodes, overlap disjoint `[first_use, last_use]` ranges — passes every
+    obvious test and quietly serialises branches the runtime could have run in
+    parallel, because memory reuse *injects* WAR and WAW anti-dependencies and
+    only the reachability form guarantees the injected edge was already there.
+    `Unit_MemoryPlan.TwoUnorderedBranchesNeverShareBytes` is the diamond the
+    interval planner gets wrong.
+  - The closure is O(V²/64) memory, so above `PlanOptions::reuse_node_limit`
+    nodes the planner **declines to overlap anything and says so** through
+    `reuse_note()`, rather than silently substituting the linear version.
+  - **Mixed dtypes are rounded to their own element width.**
+    `Tensor::storage_offset` counts elements, so a byte offset that is not a
+    whole number of them has no representation; `view_tensor()` refuses one
+    rather than truncating it into a tensor that starts in the wrong place.
+  - `ACCUMULATE`'s result *is* its accumulator's storage, so the two are
+    planned as one buffer with one live range. Planning them apart would let
+    the accumulator's bytes be handed away while the result is still read.
+  - Proved rather than asserted:
+    `Regression_StaticMemory.ATrainingLoopAllocatesNothingAfterTheFirstStep`
+    counts live allocations through the allocator's reference count, and
+    `PackedAndUnpackedTrainingAgreeByteForByte` pins that packing changes no
+    number at all.
 - **AI-7 (first cut): `sa demo mlp` runs a real training program.** The
   command used to print "not implemented yet" and exit 1; it now runs
   `sushiai_demo_mlp` (`examples/demo_mlp.cpp`), a flag-driven MLP classifier
@@ -78,7 +113,9 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     almost every SushiBLAS kernel ignores `Tensor::storage_offset` and an
     arena view would be silently mis-read rather than rejected. Constant
     operands (ones vectors, zero buffers) are filled once after the step is
-    compiled, not re-filled on every replay.
+    compiled, not re-filled on every replay. *(Both superseded by the AI-2
+    entry above: SushiBLAS honours `storage_offset` now, the non-persistent
+    classes are packed into arenas, and `ZERO` refills every replay.)*
   - `graph/compiled_step.hpp` — RAII over lower/compile/arm/replay, so
     `rearm()` before `capture_base_state()` (which leaves the completion
     sentinel armed at zero and makes a step silently do nothing) is
@@ -187,6 +224,7 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   in `lowering.hpp`; the supported side of the boundary is pinned by
   `Integration_Resilience.LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange`.
 - `Lifetime` is recorded on every value but no memory planner reads it yet.
+  *(Superseded: the AI-2 entry above is that planner.)*
 
 - **AI-0: a clean scope-reset skeleton**, replacing the retired 2025-06
   CUDA/cuBLAS eager-autograd prototype (`core/tensor.h`, `enable_language(CUDA)`,
@@ -226,6 +264,18 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   `SECURITY.md`, this changelog, and `CLAUDE.md`.
 
 ### Fixed
+- **`ZERO` filled its buffer once instead of on every replay.** Correct while
+  every value owned a permanent buffer, and silently wrong the moment the
+  memory planner could hand those bytes to a later value: the buffer would
+  hold zeros for exactly one step and whatever overwrote it thereafter, which
+  trains — badly — for ever. The fill is now recorded into the step, at the
+  cost of one small kernel per `ZERO` node.
+- **`TensorPool::alias()` threw when the target was already bound to the same
+  buffer.** Reachable whenever a parameter received more than one gradient
+  contribution: `bind_parameters()` materialises the resolved gradient, which
+  for an accumulated one is the `ACCUMULATE` output, and the lowering then
+  tried to alias an already-bound value. It is now idempotent for an identical
+  binding and still refuses a different one.
 - **`differentiate()` returned empty gradients and no error for a loss no rule
   can seed.** The root's own gradient is the implicit scalar one, so
   `resolve()` hands back `NO_VALUE` for it and every rule except

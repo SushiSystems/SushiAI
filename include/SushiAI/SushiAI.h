@@ -36,12 +36,13 @@
  * Two lanes live under this roof, and the split is worth knowing about:
  *
  * - The @b host lane - @c core/common.hpp, @c core/ops.hpp,
- *   @c core/shape.hpp, @c graph/ir.hpp, @c graph/builder.hpp, @c autograd/,
- *   @c nn/module.hpp, @c nn/layers.hpp, @c nn/loss.hpp - pulls in no
- *   SushiBLAS and no SYCL. Shape inference, graph topology, the
- *   differentiation transform and the parameter walk are all testable without
- *   a device, and this repository's unit tests include those headers directly
- *   for exactly that reason.
+ *   @c core/shape.hpp, @c graph/ir.hpp, @c graph/builder.hpp,
+ *   @c graph/memory_plan.hpp, @c autograd/, @c nn/module.hpp,
+ *   @c nn/layers.hpp, @c nn/loss.hpp - pulls in no SushiBLAS and no SYCL.
+ *   Shape inference, graph topology, the differentiation transform, the memory
+ *   planner and the parameter walk are all testable without a device, and this
+ *   repository's unit tests include those headers directly for exactly that
+ *   reason.
  * - The @b device lane - everything else, including @c core/allocation.hpp -
  *   reaches SushiBLAS and therefore SYCL.
  *
@@ -58,6 +59,8 @@
 
 #include "graph/ir.hpp"
 #include "graph/builder.hpp"
+#include "graph/memory_plan.hpp"
+#include "graph/arena.hpp"
 #include "graph/lowering.hpp"
 #include "graph/compiled_step.hpp"
 

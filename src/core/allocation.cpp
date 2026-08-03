@@ -162,4 +162,61 @@ namespace SushiAI
         return SushiBLAS::Tensor(storage, dims, like.dtype, 0, like.layout);
     }
 
+    SushiRuntime::sushi_ptr<SushiBLAS::Storage> allocate_arena(SushiBLAS::Engine& engine,
+                                                               std::size_t bytes)
+    {
+        // SushiBLAS::Storage refuses a zero-byte request, and it is right to:
+        // there is no valid pointer to hand back. An empty arena is a planner
+        // bug rather than a degenerate case to accommodate, so it is named here
+        // instead of surfacing as "Requested size cannot be zero".
+        SA_THROW_IF(bytes == 0,
+                    "An arena of zero bytes cannot be allocated; a plan that packs nothing "
+                    "should ask for no arena at all");
+
+        try
+        {
+            return SushiRuntime::make_sushi<SushiBLAS::Storage>(
+                engine.get_context().get_allocator(),
+                bytes,
+                SushiRuntime::Memory::Strategies::Shared::instance());
+        }
+        catch (const std::exception& failure)
+        {
+            throw Error(std::format("Could not allocate a {} byte arena: {}",
+                                    bytes, failure.what()));
+        }
+    }
+
+    SushiBLAS::Tensor view_tensor(SushiBLAS::Engine& engine,
+                                  const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena,
+                                  std::size_t byte_offset,
+                                  const Shape& shape,
+                                  DType dtype)
+    {
+        SA_THROW_IF(!arena, "Cannot view into a null arena");
+
+        const std::size_t element = dtype_size(dtype);
+
+        SA_THROW_IF(byte_offset % element != 0,
+                    "A {} view cannot start at byte {} of an arena: Tensor::storage_offset "
+                    "counts elements, so a start that is not a multiple of the {}-byte element "
+                    "width has no representation. The planner must round each tensor's start up "
+                    "to its own element width.",
+                    dtype_name(dtype), byte_offset, element);
+
+        const std::size_t bytes = static_cast<std::size_t>(shape.num_elements()) * element;
+
+        SA_THROW_IF(byte_offset + bytes > arena->size_bytes,
+                    "A {} {} view at byte {} needs {} bytes and would run past the end of a "
+                    "{} byte arena",
+                    dtype_name(dtype), shape.to_string(), byte_offset, bytes, arena->size_bytes);
+
+        return SushiBLAS::Tensor(arena,
+                                 std::span<const int64_t>(shape.data(),
+                                                          static_cast<std::size_t>(shape.rank())),
+                                 dtype,
+                                 static_cast<int64_t>(byte_offset / element),
+                                 engine.get_layout());
+    }
+
 } // namespace SushiAI

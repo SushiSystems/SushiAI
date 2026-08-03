@@ -183,17 +183,30 @@ namespace SushiAI
         }
 
         /**
-         * @brief Allocates the graph's leaves and pairs parameters with gradients.
+         * @brief Plans the graph's memory, allocates its leaves, and pairs
+         *        parameters with gradients.
+         *
+         * This is bind time, so this is where the memory planner runs: the
+         * graph is final by now (traced, differentiated, nothing left to
+         * append) and nothing has been lowered yet, which is the one window in
+         * which arena offsets can be decided at all. Every arena the plan asks
+         * for is allocated here, once, and reused by every replay afterwards.
+         *
+         * A pool that has already adopted a plan keeps it, so a caller who
+         * wants different @c PlanOptions - or no packing at all - can adopt
+         * their own first.
          *
          * @param built The traced graph.
          * @param pool Where the tensors are allocated.
+         * @param options How to pack; see Graph::PlanOptions.
          * @return One slot per parameter that actually receives a gradient.
          * @throws Error If a parameter received no gradient at all, which
          *         means it is disconnected from the loss and no optimizer
          *         could ever move it.
          */
         std::vector<Optim::ParameterSlot> bind_parameters(const TrainingGraph& built,
-                                                          Graph::TensorPool& pool);
+                                                          Graph::TensorPool& pool,
+                                                          Graph::PlanOptions options = {});
 
         /**
          * @struct TrainerOptions

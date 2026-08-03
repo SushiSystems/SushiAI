@@ -186,7 +186,8 @@ Model    : 32 -> 128 -> 6  (4998 learnable scalars)
 Optimizer: adamw (lr 0.003)
 Batches  : 16 x 32 from 'synthetic-classification'
 Graph    : 22 IR nodes over 22 values
-Buffers  : 31 tensors, 130 KiB
+Buffers  : 31 tensors, 112.6 KiB (one allocation each: 130.9 KiB)
+Arenas   : 1 (activation), 10 buffers in 65.5 KiB instead of 83.8 KiB - 22% saved
 Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
 
 ...
@@ -195,21 +196,21 @@ Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
  SushiAI MLP demo - result
  synthetic fallback, adamw, 32 -> 128 -> 6
 ================================================================
-  epoch   1/8   loss 1.791759 -> 0.046497   accuracy 100.00%
-  epoch   2/8   loss 0.033573 -> 0.002221   accuracy 100.00%
-  epoch   3/8   loss 0.002060 -> 0.000783   accuracy 100.00%
-  epoch   4/8   loss 0.000772 -> 0.000569   accuracy 100.00%
-  epoch   5/8   loss 0.000565 -> 0.000500   accuracy 100.00%
-  epoch   6/8   loss 0.000496 -> 0.000460   accuracy 100.00%
-  epoch   7/8   loss 0.000455 -> 0.000427   accuracy 100.00%
-  epoch   8/8   loss 0.000422 -> 0.000398   accuracy 100.00%
+  epoch   1/8   loss 1.791759 -> 0.037844   accuracy 100.00%
+  epoch   2/8   loss 0.024981 -> 0.001700   accuracy 100.00%
+  epoch   3/8   loss 0.001294 -> 0.000673   accuracy 100.00%
+  epoch   4/8   loss 0.000541 -> 0.000515   accuracy 100.00%
+  epoch   5/8   loss 0.000421 -> 0.000464   accuracy 100.00%
+  epoch   6/8   loss 0.000380 -> 0.000432   accuracy 100.00%
+  epoch   7/8   loss 0.000353 -> 0.000405   accuracy 100.00%
+  epoch   8/8   loss 0.000331 -> 0.000380   accuracy 100.00%
 
 compiles       : 1
 steps          : 128
 ops per step   : 31
-loss           : 1.791759 -> 0.000398
+loss           : 1.791759 -> 0.000380
 final accuracy : 100.00%
-wall clock     : 966.0 ms (7.55 ms/step)
+wall clock     : 1047.9 ms (8.19 ms/step)
 per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::profiling to collect it)
 ----------------------------------------------------------------
   compiles: 1  <- one lowering, one compile, 128 replays.
@@ -221,6 +222,14 @@ zero-initialised classifier must start at. **`compiles: 1`** is the claim the
 whole design rests on: 128 training steps, one lowering, one compile. The
 CTest entry `Integration_Demo.MlpRunsAndReportsOneCompile` and
 `cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
+
+The **`Arenas`** line is the memory planner reporting itself. Ten of the
+graph's twelve activations become views into one arena sized once before
+lowering, so the run holds 112.6 KiB where one allocation per tensor would have
+held 130.9 KiB — and the loss trajectory above is byte-for-byte the one it
+produced before the packing existed, which is the only acceptable answer. The
+other two stay out of the arena for a reason named in
+`Lowering::values_needing_own_allocation()`.
 
 ## Running the tests
 

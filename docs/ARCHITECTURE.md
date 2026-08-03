@@ -112,12 +112,13 @@ than through atomics (see `autograd/backward.hpp`).
 `include/SushiAI/SushiAI.h` is the master header and includes every public
 header. Two lanes live under it:
 
-- The **host lane** — `core/`, `graph/ir.hpp`, `graph/builder.hpp`,
-  `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — pulls in no
-  SushiBLAS and no SYCL. The `Unit_*` tests include these directly and run
-  without a device.
-- The **device lane** — `graph/lowering.hpp`, `graph/compiled_step.hpp`,
-  `nn/init.hpp`, `optim/`, `data/`, `train/` — reaches SushiBLAS.
+- The **host lane** — `core/` (except `core/allocation.hpp`),
+  `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`, `autograd/`,
+  `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — pulls in no SushiBLAS and
+  no SYCL. The `Unit_*` tests include these directly and run without a device.
+- The **device lane** — `core/allocation.hpp`, `graph/arena.hpp`,
+  `graph/lowering.hpp`, `graph/compiled_step.hpp`, `nn/init.hpp`, `optim/`,
+  `data/`, `train/` — reaches SushiBLAS.
 
 SYCL device-compilation policy (`sushiai_apply_sycl()`,
 `cmake/SushiAISyclTarget.cmake`) is applied `PUBLIC` on the intel-llvm path
@@ -154,16 +155,57 @@ in contributor order.
 
 ---
 
-## 5. Lowering, and one Storage per value
+## 5. Memory planning, and lowering
 
-`src/graph/lowering.cpp` is the only file that calls `SushiBLAS::Engine`.
-Its `TensorPool` gives every `ValueId` its own `SushiBLAS::Storage` rather
-than sub-allocating one arena, which is a correctness requirement today
-rather than a missed optimisation: almost every SushiBLAS kernel captures
-`tensor.storage->data_ptr` and ignores `tensor.storage_offset`, so an offset
-view handed to gemm, axpy or an elementwise op reads from element zero of
-the arena and produces a silently wrong answer. Distinct base pointers also
-keep SushiRuntime's dependency tracker sharded.
+`graph/memory_plan.hpp` decides where every non-persistent value's bytes go,
+before anything is lowered. It is a pure function of the IR — no engine, no
+allocator, no SYCL — which is why the whole pass is unit-tested over
+synthetic graphs in the device-free tier.
+
+Two decisions in it are load-bearing:
+
+- **One arena per lifetime class, and only the non-persistent classes.**
+  SushiRuntime's dependency tracker shards its access history on an
+  allocation's base pointer, so a single global arena would collapse every
+  shard into one chain and make hazard resolution quadratic. Parameters,
+  gradients, optimizer state and inputs live for the whole run, so packing
+  them would save nothing while merging exactly the shards that matter most;
+  they keep their own `Storage`.
+- **Liveness is the reachability partial order, not an interval overlap.**
+  Value `b1` may hand its bytes to `b2` only when *every* use of `b1` is a
+  strict ancestor of `b2`'s first write. A planner that instead sorts nodes
+  into a linear schedule and overlaps disjoint `[first_use, last_use]`
+  intervals passes every obvious test and quietly serialises branches the
+  runtime was free to run in parallel — memory reuse *injects* WAR and WAW
+  anti-dependencies, and only the reachability form guarantees the injected
+  edge was already implied. The transitive closure costs O(V²/64) memory, so
+  above `PlanOptions::reuse_node_limit` nodes the planner declines to overlap
+  anything and says so through `reuse_note()` rather than substituting the
+  linear approximation.
+
+`graph/arena.hpp`'s `ArenaSet` is the device-lane other half: it allocates
+one `Storage` per arena in its constructor and never allocates again, and
+hands out views through `view_tensor()` (`core/allocation.hpp`), which
+refuses a byte offset that is not a whole number of the view's elements —
+`Tensor::storage_offset` counts elements, so such an offset has no
+representation.
+
+This is only safe because SushiBLAS now honours `storage_offset` everywhere
+and `Tensor::region()` reports a view's own byte interval rather than the
+bare allocation base; two disjoint tensors in one arena therefore produce
+non-overlapping `ResourceRegion`s and do not falsely serialise. That claim is
+checked directly in `tests/functional/integration/test_arena.cpp`. One hole
+remains on the SushiBLAS side — `Dispatch::execute_reduction` still builds
+its regions from raw `data()` pointers, so a reduction operand at a non-zero
+offset gets *no* dependency edge at all. `Lowering::values_needing_own
+_allocation()` keeps those few values out of the arena and names the fix that
+retires the workaround.
+
+`src/graph/lowering.cpp` is the only file that calls `SushiBLAS::Engine`. Its
+`TensorPool` asks the plan where each value goes: packed values become arena
+views, everything else gets its own `Storage`. The planner assumes **every
+node writes all of its outputs on every replay**, which is why `ZERO` records
+its fill into the step rather than into the one-time constant queue.
 
 `graph/compiled_step.hpp` wraps the compile-once/replay contract in a type,
 because the ordering has a silent failure mode: `rearm()` before
@@ -230,10 +272,13 @@ first.
 Named honestly, because the gap between what a library claims and what it
 does is the expensive kind of documentation debt:
 
-- **No memory planner.** `Lifetime` is recorded on every value and nothing
-  reads it yet; every value gets its own permanent buffer. The planner that
-  packs the transient classes needs SushiBLAS to honour `storage_offset`
-  first (see §5).
+- **The memory planner packs IR values only.** The lowering's own temporaries
+  — `TensorPool::scratch()` and the shared `ones()` constants — are not IR
+  values, so they still get one `Storage` each. Packing them needs a
+  host-lane description of each operation's scratch requirements, shared
+  between the planner and the lowering; today those shapes are written inline
+  in `record_log_softmax()` and `record_nll_loss()`. On the demo they are
+  about 2 KiB of 130 KiB.
 - **No fusion pass.** The IR is shaped for one (a DAG that survives
   differentiation), but nothing partitions it.
 - **The optimizer update is not part of the compiled step.** AdamW's bias
