@@ -20,11 +20,20 @@ built on [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s tensor and
 op library, which is in turn scheduled by
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime).
 
-**SushiAI writes no SYCL and defines no kernels.** Every compute call in the
-library goes through `SushiBLAS::Engine`, and exactly one file —
-`src/graph/lowering.cpp` — makes those calls. Everything else deals in the
-IR described below, which is what keeps the differentiation, fusion and
+**SushiAI writes no SYCL.** No file here names a `sycl::` type, submits to a
+queue or writes a `parallel_for`; every compute call goes through
+`SushiBLAS::Engine`. Exactly one file — `src/graph/lowering.cpp` — turns *IR*
+into those calls, which is what keeps the differentiation, fusion and
 memory-planning passes device-free and testable without hardware.
+
+Two places outside the lowering call the engine directly, and both are honest
+about it because neither has an IR node to lower: `nn/init.cpp` and `data/`
+fill buffers through the engine's RNG, and `optim/` records the parameter
+update. `optim/` additionally hands SushiBLAS a **device functor** —
+`Dispatch::execute_zip_inplace`'s generic elementwise seam inlines it into a
+kernel SushiBLAS owns. That is plain C++ arithmetic on `auto&` parameters, not
+a kernel this repository defines, but it is device code and §5.1 says what
+holds it correct.
 
 The pipeline for one training step is:
 
@@ -214,6 +223,53 @@ zero, so the run reports complete before any kernel has been dispatched and
 the step quietly does nothing. Doing both in the constructor makes that
 state unrepresentable.
 
+It also takes an optional `IStepRecorder` (`graph/step_recorder.hpp`) — work
+that belongs to the step but has no IR node behind it, recorded after the
+lowering and before the one `compile()`, and driven around every replay. The
+optimizer's parameter update is what it exists for; see §5.1.
+
+### 5.1 The optimizer is part of the compiled step
+
+Spelled as separate SushiBLAS calls, an AdamW update is about eleven launches
+per parameter per step — for an eight-tensor model, ~88 launches against the
+~31 the whole forward and backward graph costs. Both optimizers now issue
+**one** `Dispatch::execute_zip_inplace` per parameter instead: that seam hands
+a functor lvalue references to every operand's element, so the entire recipe
+runs in one kernel with `g²`, the denominator and `m/denom` living in
+registers. The scratch buffers those temporaries needed are not allocated at
+all on the fused path.
+
+Fusing is also what let the update *join the plan*. The recorded obstacle was
+real — a per-step scalar baked into a recorded node is a compile-time constant,
+and AdamW's bias corrections change every step — but a single functor can
+capture a **device pointer** instead, and read the step's numbers from the
+small `Optim::StepScalars` buffer behind it. A pointer is capturable by value
+and its contents may change between replays, so the recorded work is
+launch-invariant and goes into the same `TaskGraph` as forward and backward.
+Ordering needs no new machinery: every call declares the bytes it reads and
+writes, so the tracker already sees that the update reads the gradients the
+backward pass wrote and writes the parameters the forward pass read.
+
+Two guarantees hold this down, both in the regression tier
+(`tests/functional/regression/test_fused_optimizer.cpp`): the fused kernel and
+the separate operations agree **byte for byte** (they can, because the whole
+stack builds with `-ffp-contract=off` and every expression keeps the operand
+order of the kernel it replaced), and folding the update into the plan changes
+no number either. `UpdateKernel::SEPARATE` keeps the reference spelling
+reachable; asking a trainer to compile one in is a thrown error, never a quiet
+downgrade. So is calling `step()` on an optimizer a plan already owns: the
+update is invisible inside a replay, so a stray call would train at double the
+learning rate and report nothing.
+
+What it is worth, measured rather than assumed: on `sa demo mlp`'s four
+parameters, a step goes from 81 device tasks in three dispatch rounds to 37 in
+two, and a whole run from 278 `TaskGraph::compile()` calls to 150. The wall
+clock moves much less — a median 8.80 to 7.74 ms/step over ten runs each on a
+quiet CPU/OpenCL box — because this model's largest tensor is 4096 elements
+and most of a step is neither the optimizer nor arithmetic. The launch counts
+are the honest number; the microbenchmark's 16-22x is what the same change is
+worth when the optimizer *is* the step.
+
 ---
 
 ## 6. Packaging
@@ -280,14 +336,22 @@ does is the expensive kind of documentation debt:
   in `record_log_softmax()` and `record_nll_loss()`. On the demo they are
   about 2 KiB of 130 KiB.
 - **No fusion pass.** The IR is shaped for one (a DAG that survives
-  differentiation), but nothing partitions it.
-- **The optimizer update is not part of the compiled step.** AdamW's bias
-  corrections are per-step scalars and SushiBLAS takes its alphas by value,
-  so the update is recorded and flushed separately each step. Feeding a
-  batch costs a second flush for the same reason: a compiled call captures
-  raw pointers, so the batch is copied into fixed buffers rather than bound
-  to them. Both collapse into the compiled plan once SushiRuntime's
-  late-binding block reaches the BLAS layer.
+  differentiation), but nothing partitions it. The optimizers' fused update
+  (§5.1) is hand-written against SushiBLAS's elementwise seam, not the output
+  of a pass — it is what a pass would have to produce, for one known graph.
+- **Feeding a batch still costs a flush of its own.** The optimizer no longer
+  does (§5.1), but the two `blas().copy()` calls that move a batch into the
+  plan's fixed input buffers do: they read a *different source tensor* every
+  step, and a recorded SushiBLAS call captures its operand addresses by value.
+  Fusing cannot help — the thing that changes is a pointer, not a scalar — and
+  neither can SushiRuntime's `LateBindings`, which re-points a node's iteration
+  count, base index and enabled flag but not the addresses its kernel captured.
+  `TaskGraph::add_offload_dynamic()` *does* carry re-pointable live read/write
+  lists, but only for offloadable tasks with a host fallback and no device
+  kernel, so it does not reach a `copy`. What would retire this is either an
+  operand-address late binding that ordinary device tasks can use, or a
+  `Dataset` that writes each batch straight into the two buffers the plan
+  already owns.
 - **`LOG_SOFTMAX` is differentiable only as part of the fused
   `LOG_SOFTMAX` + `NLL_LOSS` pair.** The standalone rule needs a row-wise
   reduction SushiBLAS does not expose; it throws and says so.

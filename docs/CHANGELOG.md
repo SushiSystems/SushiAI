@@ -14,6 +14,44 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 ## [Unreleased]
 
 ### Added
+- **One kernel launch per parameter, and the optimizer inside the compiled
+  step.** AdamW's update used to be about eleven SushiBLAS calls per parameter
+  per step — ~88 launches for an eight-tensor model, against the ~31 the whole
+  forward and backward graph costs. Both optimizers now issue one
+  `Dispatch::execute_zip_inplace` per parameter instead, and that update is
+  recorded into the same `TaskGraph` as the rest of the step.
+  - **The temporaries became registers.** `g²`, the denominator, `m/denom` and
+    SGD's staged gradient existed only to carry a value between two launches.
+    The fused path allocates none of them, including the buffer of ones whose
+    only job was to let an `axpy` add epsilon.
+  - **A device pointer is what unlocked folding it into the plan.** The
+    recorded obstacle was that SushiBLAS takes its alphas by value and AdamW's
+    bias corrections change every step, so a compiled `axpy` could never be
+    handed a number that changes between replays. One functor capturing a
+    pointer to `Optim::StepScalars` sidesteps that entirely: the pointer is
+    capturable, the bytes behind it are not frozen, and the recorded work
+    becomes launch-invariant. `Graph::IStepRecorder` is the seam;
+    `TrainerOptions::optimizer_placement` is the switch.
+  - **Byte for byte, not within a tolerance.** The fused kernel and the
+    separate operations produce bit-identical parameters, and so do the folded
+    and unfolded placements. Both are pinned in
+    `Regression_FusedOptimizer`. That was reachable because the stack builds
+    with `-ffp-contract=off` through SushiRuntime's determinism contract, so no
+    `a*b + c` collapses into an FMA on one side of the comparison and not the
+    other, and because every fused expression keeps the operand order of the
+    kernel it replaced.
+  - **`UpdateKernel::SEPARATE` keeps the reference spelling reachable**, and a
+    trainer asked to compile one into the step throws instead of quietly
+    stepping it outside — folding it would replay step one's bias corrections
+    for ever, and the model would converge anyway.
+  - **Calling `step()` on an optimizer the plan already owns is now an error.**
+    The update used to be visible in `Trainer::run_step()`, so a caller who
+    also stepped it got an obvious double update; inside a replay the same
+    mistake would quietly train at twice the learning rate.
+  - **Turning SGD's momentum on after construction is now an error.** The
+    momentum buffer is allocated at construction or not at all; the separate
+    path used to dereference a null tensor and the fused path would have
+    trained without momentum and said nothing.
 - **AI-2: a static memory planner.** `graph/memory_plan.hpp` assigns every
   non-persistent IR value an (arena, byte offset) before anything is lowered;
   `graph/arena.hpp` allocates each arena once at bind time and hands out
@@ -206,6 +244,12 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   batch must be copied into fixed buffers rather than bound to them. Both
   fold into the plan once SushiRuntime's late-binding block reaches the BLAS
   layer.
+  - *Superseded for the optimizer* by the fused-update entry at the top of
+    `[Unreleased]`: a functor capturing a device pointer needs no late binding
+    at all, and the update is in the plan now. The batch feed's half stands,
+    but the stated fix does not: `LateBindings` re-points a node's iteration
+    count, base index and enabled flag, not the operand addresses its kernel
+    captured. See [ARCHITECTURE.md §7](ARCHITECTURE.md#7-whats-not-here-yet).
 - `LOG_SOFTMAX` is differentiable only as part of the fused
   `LOG_SOFTMAX` + `NLL_LOSS` pair; the standalone rule needs a row-wise
   reduction SushiBLAS does not expose, and throws saying so.

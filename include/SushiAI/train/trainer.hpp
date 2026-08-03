@@ -29,19 +29,30 @@
  *
  * @section shape What a step actually costs
  *
- * The forward pass, the backward pass and the loss are one compiled plan, and
- * that plan is compiled exactly once for the life of the trainer -
- * @c compile_count() reports it and the test suite asserts it. Two things sit
- * outside that plan, and both are visible rather than hidden:
+ * The forward pass, the backward pass, the loss **and the optimizer's update**
+ * are one compiled plan, and that plan is compiled exactly once for the life of
+ * the trainer - @c compile_count() reports it and the test suite asserts it.
  *
- * 1. Feeding the batch. The compiled plan reads two fixed tensors, because a
- *    recorded SushiBLAS call captures raw pointers and there is no way to
- *    re-point one between replays. So each step copies the batch into those
- *    tensors with two @c blas().copy() calls and one flush. When SushiRuntime's
- *    late-binding block reaches the BLAS layer this becomes a pointer swap and
- *    the flush disappears.
- * 2. The optimizer, for the reason in optimizer.hpp: its scalars change every
- *    step and a compiled node's scalars cannot.
+ * The update joined the plan when it became replay-invariant: fused into one
+ * kernel per parameter whose per-step numbers are read from a device buffer
+ * rather than captured by value (optimizer.hpp and optim/step_scalars.hpp
+ * argue it in full). @c TrainerOptions::optimizer_placement decides, and
+ * @c IN_PLAN is refused loudly rather than silently downgraded if the optimizer
+ * cannot promise replay-invariance.
+ *
+ * One thing still sits outside the plan, and it is visible rather than hidden:
+ *
+ * - **Feeding the batch.** The compiled plan reads two fixed tensors, because a
+ *   recorded SushiBLAS call captures raw pointers and there is no way to
+ *   re-point one between replays. So each step copies the batch into those
+ *   tensors with two @c blas().copy() calls and one flush. SushiRuntime's
+ *   @c LateBindings does not fix this: it re-points a node's iteration count,
+ *   base index and enabled flag between replays, not the addresses its kernel
+ *   captured. Fusing does not help either - the two copies read a *different
+ *   source buffer* every step, which is a pointer, not a scalar, and a pointer
+ *   is exactly what cannot change. What would fix it is a late binding for an
+ *   operand address, or a dataset that stages every batch through the two
+ *   buffers the plan already owns.
  *
  * Accuracy costs one host read of the logits per step, and is optional for
  * that reason. It needs a per-row argmax; SushiBLAS's argmax is whole-tensor,
@@ -209,6 +220,29 @@ namespace SushiAI
                                                           Graph::PlanOptions options = {});
 
         /**
+         * @enum OptimizerPlacement
+         * @brief Whether the parameter update is part of the compiled step.
+         */
+        enum class OptimizerPlacement
+        {
+            /**
+             * @brief Recorded into the same plan as forward and backward; the default.
+             *
+             * One compile, one replay, no host round trip between the loss and
+             * the update. Requires @c Optim::Optimizer::is_replay_invariant().
+             */
+            IN_PLAN,
+
+            /**
+             * @brief Stepped on its own after every replay, with its own flush.
+             *
+             * The behaviour before the update could be compiled, and the only
+             * option for an optimizer whose recorded work is not replayable.
+             */
+            PER_STEP,
+        };
+
+        /**
          * @struct TrainerOptions
          * @brief How the loop behaves.
          */
@@ -222,6 +256,9 @@ namespace SushiAI
 
             /** @brief Collect the runtime's per-node timings; needs a profiling RuntimeContext. */
             bool profile = false;
+
+            /** @brief Whether to fold the optimizer's update into the compiled step. */
+            OptimizerPlacement optimizer_placement = OptimizerPlacement::IN_PLAN;
         };
 
         /**
@@ -290,7 +327,9 @@ namespace SushiAI
                  * @param spec The values the loop reads and writes.
                  * @param optimizer The update rule; must outlive the trainer.
                  * @param options How the loop behaves.
-                 * @throws Error If @p spec is incomplete or lowering fails.
+                 * @throws Error If @p spec is incomplete, lowering fails, or
+                 *         @p options asks for @c IN_PLAN placement of an
+                 *         optimizer that is not replay-invariant.
                  */
                 Trainer(SushiBLAS::Engine& engine,
                         const Graph::Graph& graph,
@@ -323,6 +362,9 @@ namespace SushiAI
 
                 /** @brief How many steps have run. */
                 std::size_t step_count() const noexcept { return steps_; }
+
+                /** @brief Whether the optimizer's update is part of the compiled step. */
+                bool optimizer_is_in_plan() const noexcept { return step_.has_trailing_work(); }
 
                 /** @brief The compiled step, for a test that wants to inspect it. */
                 const Graph::CompiledStep& step() const noexcept { return step_; }

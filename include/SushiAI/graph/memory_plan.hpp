@@ -50,8 +50,10 @@
  * Only the non-persistent classes are packed (see @c Graph::is_persistent).
  * Parameters, gradients, optimizer state and inputs live for the whole run, so
  * packing them would save nothing at all while merging the tracker shards of
- * precisely the tensors that are touched most - by the compiled step and by
- * the optimizer, which runs outside it.
+ * precisely the tensors that are touched most - the forward pass, the backward
+ * pass and the optimizer's update all reach them, and since the update joined
+ * the compiled step they are all in one plan, where a collapsed shard costs
+ * the most.
  *
  * @section liveness Liveness is a reachability partial order, not an interval
  *
