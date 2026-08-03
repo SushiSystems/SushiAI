@@ -177,6 +177,27 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::dynamic_scale(ValueId x, ValueId factor,
+                                            std::string_view debug_name) const
+        {
+            const Value& vx = graph_->value(x);
+            const Value& vf = graph_->value(factor);
+
+            SA_THROW_IF(vf.shape.num_elements() != 1,
+                        "DYNAMIC_SCALE's factor must be a single element; got {}",
+                        vf.shape.to_string());
+            SA_THROW_IF(vf.dtype != vx.dtype,
+                        "DYNAMIC_SCALE multiplies a {} tensor by a {} factor; the two must "
+                        "agree, because the kernel multiplies in one element type and a "
+                        "widening operand would change the arithmetic without saying so",
+                        dtype_name(vx.dtype), dtype_name(vf.dtype));
+
+            const ValueId out = declare(vx.shape, vx.dtype, Lifetime::ACTIVATION, debug_name);
+
+            graph_->add_node(Ops::DYNAMIC_SCALE.id, {x, factor}, {out});
+            return out;
+        }
+
         ValueId GraphBuilder::unary(OpID op, ValueId x) const
         {
             const Value& vx = graph_->value(x);

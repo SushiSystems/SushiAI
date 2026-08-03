@@ -126,6 +126,25 @@ namespace SushiAI
         /** @brief Multiplies every element by a host-side constant. */
         inline constexpr OpName SCALE = op("sushiai.scale");
 
+        /**
+         * @brief Multiplies every element by a **device-resident** scalar.
+         *
+         * @c SCALE's factor is an @c Attributes slot, which is a compile-time
+         * constant baked into the recorded task - see the warning on
+         * @c Graph::Attributes. That is right for `1/N` and wrong for anything
+         * that changes between replays, because changing it forces a recompile
+         * and @c CompiledStep::compile_count() is a pinned guarantee. This
+         * operation takes its factor as a **second operand**: a 1-element
+         * value the host rewrites between replays, exactly as
+         * @c Optim::StepScalars does for the optimizer's per-step numbers.
+         *
+         * Its one caller today is gradient loss scaling
+         * (@c optim/loss_scaler.hpp), which needs both directions - scaling the
+         * loss gradient up before it narrows to fp16, and dividing each
+         * parameter gradient back down before the update.
+         */
+        inline constexpr OpName DYNAMIC_SCALE = op("sushiai.dynamic_scale");
+
         /** @brief Elementwise natural exponential, out of place. */
         inline constexpr OpName EXP = op("sushiai.exp");
         /** @brief An all-zero tensor, read by nothing upstream. */
@@ -233,7 +252,7 @@ namespace SushiAI
         inline constexpr std::array ALL = {
             LEAF, ACCUMULATE, CAST,
             MATMUL, BIAS_ADD,
-            ADD, SUB, MUL, SCALE, EXP, ZERO,
+            ADD, SUB, MUL, SCALE, DYNAMIC_SCALE, EXP, ZERO,
             RELU, GELU, SIGMOID, TANH,
             RELU_BACKWARD, GELU_BACKWARD, SIGMOID_BACKWARD, TANH_BACKWARD,
             LOG_SOFTMAX, NLL_LOSS,

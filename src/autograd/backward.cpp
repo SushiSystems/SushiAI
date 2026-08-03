@@ -40,13 +40,14 @@ namespace SushiAI
         class Differentiator
         {
             public:
-                Differentiator(Graph::Graph& graph, Graph::ValueId loss)
+                Differentiator(Graph::Graph& graph, Graph::ValueId loss,
+                               Graph::ValueId seed_factor)
                     : graph_(graph),
                       loss_(loss),
                       builder_(graph),
                       forward_node_count_(graph.node_count()),
                       skipped_(graph.node_count(), false),
-                      tape_(Graph::GraphBuilder(graph), *this)
+                      tape_(Graph::GraphBuilder(graph), *this, seed_factor)
                 {
                 }
 
@@ -309,7 +310,8 @@ namespace SushiAI
                 {
                     // loss = -sum(L * Y) / N, so dL is just the targets, scaled.
                     if (tape.input_requires_grad(0))
-                        tape.contribute_input(0, builder.scale(targets, -1.0 / batch));
+                        tape.contribute_input(0, tape.apply_seed_factor(
+                            builder.scale(targets, -1.0 / batch)));
                     return;
                 }
 
@@ -329,7 +331,18 @@ namespace SushiAI
 
                 const Graph::ValueId probabilities = builder.exp(log_probs);
                 const Graph::ValueId difference = builder.sub(probabilities, targets);
-                tape.contribute(logits, builder.scale(difference, 1.0 / batch));
+                // The loss scale multiplies *here*, on the seeded gradient and
+                // before anything narrows. Two reasons it is this value and not
+                // another. It is the last point at which one multiply covers the
+                // whole backward pass - every gradient below it is linear in it -
+                // so one node buys the scaling of the entire graph. And the
+                // cross-entropy tail is kept in fp32 by the precision policy
+                // (graph/precision.hpp rule 4), so the factor is applied while
+                // there is still exponent range to apply it in; a scale inserted
+                // after the first cast to fp16 would overflow the very value it
+                // exists to keep out of the subnormals.
+                tape.contribute(logits, tape.apply_seed_factor(
+                    builder.scale(difference, 1.0 / batch)));
             }
 
             /** @brief One operation's backward rule, paired with its identity. */
@@ -388,6 +401,12 @@ namespace SushiAI
         const Graph::Node& GradientTape::node() const
         {
             return owner_->current_node();
+        }
+
+        Graph::ValueId GradientTape::apply_seed_factor(Graph::ValueId gradient) const
+        {
+            if (seed_factor_ == Graph::NO_VALUE) return gradient;
+            return builder_.dynamic_scale(gradient, seed_factor_, "loss_scaled_grad");
         }
 
         Graph::ValueId GradientTape::output_grad(std::size_t index) const
@@ -552,9 +571,10 @@ namespace SushiAI
 
         std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
                                                   Graph::ValueId loss,
-                                                  SushiRuntime::span<const Graph::ValueId> wrt)
+                                                  SushiRuntime::span<const Graph::ValueId> wrt,
+                                                  Graph::ValueId seed_factor)
         {
-            Differentiator differentiator(graph, loss);
+            Differentiator differentiator(graph, loss, seed_factor);
             differentiator.run();
 
             std::vector<Graph::ValueId> gradients;
