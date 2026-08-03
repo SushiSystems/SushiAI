@@ -110,6 +110,41 @@ namespace SushiAI
         }
 
         /**
+         * @brief A tensor's element bytes, for a bit-for-bit comparison.
+         *
+         * @c read_tensor widens everything to double, which is lossless for
+         * float and therefore fine for "are these equal" - but it cannot
+         * distinguish -0.0 from 0.0, and it says nothing about a payload
+         * difference between two NaNs. A determinism claim is about bits, so
+         * the check that guards it reads bits.
+         *
+         * @param tensor The tensor to read.
+         * @return Its @c num_elements elements, as raw bytes.
+         */
+        inline std::vector<unsigned char> read_tensor_bytes(const SushiBLAS::Tensor& tensor)
+        {
+            const std::size_t bytes = static_cast<std::size_t>(tensor.num_elements)
+                                    * dtype_size(tensor.dtype);
+            const auto* data = static_cast<const unsigned char*>(tensor.data());
+            return std::vector<unsigned char>(data, data + bytes);
+        }
+
+        /**
+         * @brief Reports the first byte at which two element buffers differ.
+         * @param a One buffer.
+         * @param b The other.
+         * @return The index, or a.size() when they are identical.
+         */
+        inline std::size_t first_difference(const std::vector<unsigned char>& a,
+                                            const std::vector<unsigned char>& b)
+        {
+            const std::size_t shared = a.size() < b.size() ? a.size() : b.size();
+            for (std::size_t i = 0; i < shared; ++i)
+                if (a[i] != b[i]) return i;
+            return shared;
+        }
+
+        /**
          * @brief A cheap deterministic value stream, for filling test tensors.
          *
          * A 64-bit splitmix step mapped to (-1, 1). Not a good PRNG and not

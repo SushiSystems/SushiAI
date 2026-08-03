@@ -70,6 +70,69 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::ZERO.id));
 }
 
+TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
+{
+    // A coverage ledger rather than a tautology.
+    //
+    // "Every operation has a rule" is the easy half. The half that rots is
+    // "every rule has been checked against a finite difference" - a rule added
+    // to the table in backward.cpp is picked up automatically by
+    // differentiate(), so a wrong one produces a model that trains slightly
+    // worse and nothing anywhere fails. Listing the proof beside the rule is
+    // what makes the omission visible: the second loop below fails when an
+    // operation gains a rule that nobody added a line for.
+    //
+    // The named tests live in functional/integration/test_autograd_numeric.cpp
+    // and all run in FLOAT64, for the reason gradcheck.hpp derives.
+    struct Proven
+    {
+        OpID op;
+        std::string_view proof;
+    };
+
+    const std::vector<Proven> ledger = {
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWith*"},
+        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAdd*"},
+        {Ops::ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
+        {Ops::SUB.id,        "Integration_Autograd.ElementwiseSubtractFromTheRight"},
+        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiply*"},
+        {Ops::SCALE.id,      "Integration_Autograd.Scale"},
+        {Ops::EXP.id,        "Integration_Autograd.Exp"},
+        {Ops::RELU.id,       "Integration_Autograd.ReluAwayFromItsKink"},
+        {Ops::GELU.id,       "Integration_Autograd.Gelu"},
+        {Ops::SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
+        {Ops::TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
+        {Ops::SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
+        {Ops::ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
+        {Ops::NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
+
+        // LOG_SOFTMAX's "rule" exists only to produce a good error; there is
+        // no gradient to verify, so its proof is the message test instead.
+        {Ops::LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
+    };
+
+    for (const Proven& entry : ledger)
+        EXPECT_TRUE(Autograd::has_backward_rule(entry.op))
+            << Ops::name_of(entry.op) << " lost its rule, but " << entry.proof
+            << " still claims to prove it";
+
+    for (const Ops::OpName& declared : Ops::ALL)
+    {
+        if (!Autograd::has_backward_rule(declared.id)) continue;
+
+        const bool listed = std::any_of(ledger.begin(), ledger.end(),
+                                        [&declared](const Proven& entry)
+                                        {
+                                            return entry.op == declared.id;
+                                        });
+
+        EXPECT_TRUE(listed)
+            << declared.name << " gained a backward rule with no entry in this ledger. Add a "
+               "FLOAT64 finite-difference case to test_autograd_numeric.cpp and name it here - "
+               "an unverified rule trains a model slightly wrong and fails nothing.";
+    }
+}
+
 TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
 {
     Graph::Graph graph;

@@ -205,7 +205,7 @@ op through both transitively-resolved siblings.
 `add_subdirectory(tests)` together, matching SushiRuntime's `SR_BUILD_TESTS`
 shape exactly. It exists for the other consumption mode: a superproject that
 `add_subdirectory`s SushiAI would otherwise be made to compile the suite,
-have `gtest_discover_tests` enumerate it, and register 100 tests it never
+have `gtest_discover_tests` enumerate it, and register 153 tests it never
 asked for into its own CTest run. The default is `ON` rather than
 SushiRuntime's `OFF` because `sa test` expects a test binary to exist and a
 direct `cmake` build that silently produces none is the wart SushiRuntime's

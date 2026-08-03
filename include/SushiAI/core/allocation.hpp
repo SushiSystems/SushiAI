@@ -73,7 +73,12 @@ namespace SushiAI
      * @param dims The extents, outermost first.
      * @param dtype The element type.
      * @return The new tensor; nothing else references its Storage.
-     * @throws Error If @p dims describes no elements.
+     * @throws Error If an extent is not positive, the extents multiply to more
+     *         than an int64_t (or their bytes to more than a size_t) can hold,
+     *         or the underlying allocation fails - in which case the message
+     *         names the shape, the element type and the byte count, because
+     *         "allocation failed for N bytes" alone does not identify which of
+     *         a model's tensors asked for them.
      */
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine,
                                       std::span<const int64_t> dims,
@@ -85,7 +90,7 @@ namespace SushiAI
      * @param shape The extents.
      * @param dtype The element type.
      * @return The new tensor; nothing else references its Storage.
-     * @throws Error If @p shape describes no elements.
+     * @throws Error As the span overload does.
      */
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine,
                                       const Shape& shape,
@@ -101,7 +106,7 @@ namespace SushiAI
      * @param engine The engine whose context owns the allocator.
      * @param like The tensor to copy the description from.
      * @return The new tensor; it shares nothing with @p like.
-     * @throws Error If @p like holds no elements.
+     * @throws Error If @p like holds no elements, or the allocation fails.
      */
     SushiBLAS::Tensor allocate_like(SushiBLAS::Engine& engine, const SushiBLAS::Tensor& like);
 

@@ -360,6 +360,56 @@ TEST_F(Integration_Autograd, ElementwiseMultiply)
     expect_gradient_matches(probe, point);
 }
 
+TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
+{
+    // dB = dC * A, the half the left-hand check cannot reach. The rule is
+    // written symmetrically, which is exactly why a copy-paste slip in it -
+    // reading inputs[1] on both sides - would leave the left-hand test green.
+    ValueId other = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
+    {
+        other = builder.input(Shape{4, 3}, "a", DType::FLOAT64);
+        return builder.mul(other, x);
+    });
+
+    probe.fill_noise(other, 124, 1.0);
+    probe.fill_noise(probe.targets(), 125, 1.0);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(126).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, AccumulateInTheForwardGraph)
+{
+    // ACCUMULATE has a backward rule and, until this test, nothing exercised
+    // it. The two fan-out tests above build an ACCUMULATE chain in the
+    // BACKWARD graph, and differentiate() only walks the forward nodes - so
+    // those chains are never themselves differentiated. Reaching the rule at
+    // all needs an ACCUMULATE the caller put in the forward pass.
+    //
+    // Its lowering aliases the result onto the accumulator's own buffer, so
+    // running the step leaves the variable holding x + other; every probe
+    // rewrites the whole variable first, which is what keeps that harmless.
+    ValueId other = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
+    {
+        other = builder.input(Shape{4, 3}, "delta", DType::FLOAT64);
+        return builder.accumulate(x, other);
+    });
+
+    probe.fill_noise(other, 231, 1.0);
+    probe.fill_noise(probe.targets(), 232, 1.0);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(233).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
 TEST_F(Integration_Autograd, Scale)
 {
     Probe probe(*engine, Shape{4, 3}, [](const GraphBuilder& builder, ValueId x)

@@ -490,6 +490,27 @@ namespace SushiAI
                         "differentiate() needs a scalar to differentiate; value {} has shape {}",
                         loss_, graph_.value(loss_).shape.to_string());
 
+            // Being one element is necessary and not sufficient. The root's own
+            // gradient is the implicit scalar one, so there is no tensor for
+            // resolve() to hand back, and every rule but nll_loss_backward
+            // reads that NO_VALUE as "nothing flows here" and returns. A [1, 1]
+            // MATMUL therefore differentiates to a complete set of empty
+            // gradients and no error - the caller only finds out one layer
+            // later, from bind_parameters blaming the model for a loss-side
+            // mistake. Reject it here, where the actual cause is still known.
+            const Graph::NodeId root_producer = graph_.value(loss_).producer;
+            SA_THROW_IF(root_producer == Graph::NO_NODE,
+                        "differentiate() cannot seed a gradient for value {}: nothing produces "
+                        "it. The loss must be the result of NLL_LOSS - see NN::CrossEntropyLoss.",
+                        loss_);
+            SA_THROW_IF(graph_.node(root_producer).op != Ops::NLL_LOSS.id,
+                        "differentiate() seeds the loss gradient as the implicit scalar one, and "
+                        "only NLL_LOSS knows to start from it. Value {} is produced by {}, whose "
+                        "rule declines an absent output gradient and returns, so every requested "
+                        "gradient would come back empty with nothing reported. Produce the loss "
+                        "with NLL_LOSS - see NN::CrossEntropyLoss.",
+                        loss_, Ops::name_of(graph_.node(root_producer).op));
+
             for (std::size_t offset = forward_node_count_; offset > 0; --offset)
             {
                 const Graph::NodeId id = static_cast<Graph::NodeId>(offset - 1);
