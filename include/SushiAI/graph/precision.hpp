@@ -58,15 +58,23 @@
  *    a low-precision matrix unit would go faster. Nothing else in the catalog
  *    would.
  *
- * 2. **@c BIAS_ADD and the *foldable* activations compute low too, and that is
- *    forced rather than chosen.** A @c GEMM_BIAS_RELU node applies its
+ * 2. **@c BIAS_ADD and the activations this policy narrows compute low, and
+ *    that is forced rather than chosen.** A @c GEMM_BIAS_RELU node applies its
  *    epilogue inside the GEMM's own kernel, in the GEMM's element type. So if
  *    the IR said @c BIAS_ADD computes in fp32, then fusing it into an fp16
  *    GEMM would change the numbers - and @c graph/fusion.hpp promises fusion
  *    changes none. The epilogue's precision is decided by the kernel that will
  *    absorb it, not by this policy; all this policy can do is agree with it.
- *    "Foldable" is @c Ops::activation_survives_fusion, which is the same table
- *    the fusion catalog is @c static_assert-ed against.
+ *
+ *    The rule reads in one direction only, and rule 5 is why that matters. It
+ *    says "an activation this policy narrows must be narrowed to the GEMM's
+ *    type"; it does **not** say "every activation the catalog can fold must be
+ *    narrowed". An activation the policy keeps wide is separated from the
+ *    narrowed GEMM by a @c CAST node - the pass runs before fusion, on purpose
+ *    (see @c Train::build_classifier) - and a chain with a conversion in the
+ *    middle does not match any catalog entry, so the fold that would have
+ *    changed the numbers never happens. Fusion and this policy therefore agree
+ *    without either one having to know about the other.
  *
  * 3. **Everything that sums many terms stays high: @c SUM_ROWS,
  *    @c LOG_SOFTMAX, @c NLL_LOSS, @c ACCUMULATE.** fp16 carries about 11 bits
@@ -88,14 +96,37 @@
  *    by the subtraction and not by the exponent range. @c EXP is on this list
  *    in every mainstream autocast policy for the same family of reasons.
  *
- * 5. **@c GELU stays high, unlike the other activations.** Two reasons, and
- *    the first is rule 2 read backwards: no catalog entry folds GELU (its
- *    gradient differentiates at its *input*, see @c Ops::Activation), so
- *    nothing forces its precision and the policy is free to pick. Given the
- *    freedom, the tanh approximation computes `x*x*x`, which overflows fp16 at
- *    |x| ≈ 40.3 and arrives at the tanh as an infinity; fp32 has room to spare
- *    there. Two casts is a cheap price for removing an overflow the model
- *    would never report.
+ * 5. **@c GELU stays high, unlike the other activations - and that makes
+ *    @c GEMM_BIAS_GELU an fp32-only catalog entry.** This rule used to rest on
+ *    two arguments and now rests on one, because the other stopped being true:
+ *    @c FusedForm::GEMM_BIAS_GELU folds GELU into the GEMM epilogue by spilling
+ *    the pre-activation, so "nothing folds it, therefore nothing forces its
+ *    precision" is no longer a reason for anything.
+ *
+ *    The surviving argument is the arithmetic, and it is enough on its own. The
+ *    tanh approximation computes `x*x*x`. fp16's largest finite value is 65504,
+ *    so the cube overflows to infinity at |x| ≈ 40.3 - and unlike an underflow,
+ *    loss scaling cannot reach it, because it is the *forward* activation and
+ *    the scale is applied to the backward seed. What arrives at the tanh is
+ *    then an infinity, and the rest follows from IEEE-754 rather than from any
+ *    measurement here: `tanh(±inf)` is ±1, so `0.5*x*(1+tanh)` returns `x` or
+ *    `0` rather than a NaN, which is exactly the shape of failure this file
+ *    exists to refuse - a wrong number with no symptom. A hidden pre-activation
+ *    past 40 is not the common case, but it is not exotic either: it needs one
+ *    unnormalised input scale or one over-large initialisation, and nothing in
+ *    the graph would report it. fp32 has room to spare, and two casts per layer
+ *    is a cheap price.
+ *
+ *    So the resolution of rule 2 against this one is deliberate and structural
+ *    rather than lucky: @c narrows_under_mixed_precision answers false for
+ *    @c GELU **and** for @c GEMM_BIAS_GELU, the cast pass therefore puts a
+ *    conversion between the narrowed @c BIAS_ADD and the wide @c GELU, and the
+ *    three-node chain stops matching. Under a narrowing policy a GELU layer
+ *    fuses to @c GEMM_BIAS and the activation runs on its own, exactly as it
+ *    did before the entry existed; under the uniform policy it fuses whole. One
+ *    entry, reachable at one precision, with the same numbers at both -
+ *    @c Regression_MixedPrecision pins that a mixed GELU model produces no
+ *    @c gemm+bias+gelu node.
  *
  * 6. **The optimizer is not on this list at all**, because its update is not
  *    an IR node - @c Optim records it against the fp32 parameter and the fp32
@@ -259,8 +290,10 @@ namespace SushiAI
          * safe answer and not a silent one.
          *
          * @param op The operation's identity.
-         * @return True for MATMUL, the fused GEMM forms, BIAS_ADD and the
-         *         foldable activations and their gradients.
+         * @return True for MATMUL, the fused GEMM forms that narrow, BIAS_ADD,
+         *         and the activations whose gradient reads their output,
+         *         together with those gradients. False for GELU and for
+         *         GEMM_BIAS_GELU; rule 5 argues why.
          */
         bool narrows_under_mixed_precision(OpID op) noexcept;
 

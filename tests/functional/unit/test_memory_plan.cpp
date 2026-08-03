@@ -519,3 +519,53 @@ TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
         EXPECT_EQ(first.placement(id).offset, second.placement(id).offset) << "value " << id;
     }
 }
+
+TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
+{
+    // FusedForm::GEMM_BIAS_GELU writes two values from one node: its result and
+    // the pre-activation its epilogue spills. They are the same shape, they are
+    // born at the same instant, and the planner packs by liveness - so "one
+    // died before the other was written" is exactly the mistake available here,
+    // and taking it would have the GELU computed from its own output with
+    // nothing to show for it.
+    //
+    // Nothing special is needed to prevent it, which is why it is worth
+    // pinning: `precedes()` asks whether every use of the earlier buffer
+    // *strictly* reaches the later one's first write, and a node does not reach
+    // itself. The planner therefore refuses both directions and the two
+    // conflict. That is an inference from an existing rule rather than a rule
+    // of its own, so a future rewrite of `precedes` could take it away silently.
+    Graph::Graph graph;
+
+    const ValueId input = graph.add_value(Shape{8, 4}, DType::FLOAT32, Lifetime::ACTIVATION, "x");
+    graph.add_node(Ops::LEAF.id, {}, {input});
+
+    const ValueId result = graph.add_value(Shape{8, 4}, DType::FLOAT32,
+                                           Lifetime::ACTIVATION, "y");
+    const ValueId spill = graph.add_value(Shape{8, 4}, DType::FLOAT32,
+                                          Lifetime::ACTIVATION, "pre");
+    graph.add_node(Ops::GEMM_BIAS_GELU.id, {input}, {result, spill});
+
+    // Both are read afterwards, as the forward and the backward pass read them.
+    const ValueId downstream = graph.add_value(Shape{8, 4}, DType::FLOAT32,
+                                               Lifetime::ACTIVATION, "h");
+    graph.add_node(Ops::RELU.id, {result}, {downstream});
+
+    const ValueId gradient = graph.add_value(Shape{8, 4}, DType::FLOAT32,
+                                             Lifetime::ACTIVATION, "dx");
+    graph.add_node(Ops::GELU_BACKWARD.id, {downstream, spill}, {gradient});
+
+    const MemoryPlan plan = MemoryPlan::build(graph);
+
+    ASSERT_TRUE(plan.is_packed(result));
+    ASSERT_TRUE(plan.is_packed(spill));
+    EXPECT_NE(plan.placement(result).buffer, plan.placement(spill).buffer)
+        << "the fused node's two results were aliased onto one buffer";
+    EXPECT_TRUE(plan.placement(result).offset + plan.placement(result).bytes
+                    <= plan.placement(spill).offset
+                || plan.placement(spill).offset + plan.placement(spill).bytes
+                    <= plan.placement(result).offset)
+        << "the fused node's two results overlap in the arena";
+
+    expect_no_live_overlap(graph, plan);
+}

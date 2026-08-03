@@ -182,7 +182,12 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         // very quantity it is protecting - see optim/loss_scaler.hpp.
         Ops::DYNAMIC_SCALE.id,
         Ops::ADD.id, Ops::MUL.id, Ops::ZERO.id,
-        Ops::GELU.id, Ops::GELU_BACKWARD.id,
+        // GELU and the one fused form that folds it. The form is a GEMM and
+        // rule 1 would otherwise take it; it is here because narrowing it puts
+        // the tanh approximation's `x*x*x` into fp16, which overflows at
+        // |x| ~ 40.3 - see graph/precision.hpp rule 5, which also explains why
+        // that leaves rules 2 and 5 consistent rather than merely quiet.
+        Ops::GELU.id, Ops::GELU_BACKWARD.id, Ops::GEMM_BIAS_GELU.id,
         Ops::LEAF.id, Ops::CAST.id,
         Ops::ADAMW_UPDATE.id, Ops::SGD_UPDATE.id,
     };
@@ -197,16 +202,28 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
               Ops::ALL.size());
 }
 
-TEST(Unit_Precision, GeluIsTheOneActivationThatStaysWide)
+TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
-    // Two reasons, and the test pins the one that is a property of the code
-    // rather than of the arithmetic: no catalog entry folds GELU, because its
-    // gradient differentiates at its input (Ops::Activation). The other reason
-    // is that SushiBLAS's tanh approximation computes x*x*x, which overflows
-    // fp16 at |x| about 40 - true, and not something a unit test can assert
-    // without a device.
+    // This rule used to rest on two arguments. One of them is gone:
+    // FusedForm::GEMM_BIAS_GELU folds GELU by spilling the pre-activation, so
+    // "nothing folds it, therefore nothing forces its precision" is no longer a
+    // reason for anything. The surviving argument is the arithmetic - the tanh
+    // approximation computes x*x*x, which overflows fp16 at |x| about 40.3 -
+    // and that is not something a unit test can assert without a device.
+    //
+    // What *is* checkable is that the conclusion did not quietly follow the
+    // dead premise: the catalog can fold GELU and the policy still keeps it
+    // wide, which is the pair of facts graph/precision.hpp rule 5 now asserts.
+    EXPECT_TRUE(Graph::catalog_folds_activation(Ops::GELU.id))
+        << "the catalog no longer folds GELU, so rule 5's first reason is back and this "
+           "test is guarding nothing";
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::GELU.id));
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::GELU.id));
+
+    // And the fused form goes with it, or the cast pass would narrow a node
+    // whose epilogue is the very expression rule 5 refuses to put in fp16.
+    EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::GEMM_BIAS_GELU.id));
+    EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::GEMM_BIAS_RELU.id));
 
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::RELU.id));
     EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::RELU.id));

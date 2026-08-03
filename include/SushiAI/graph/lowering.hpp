@@ -141,6 +141,30 @@
  *          alongside it). Both are gone: SushiBLAS's seam now takes the
  *          epilogue's own access set, so the edges land on the GEMM task itself
  *          and the plan holds one node per fused GEMM instead of two.
+ *
+ * @warning **The spilling arm also writes.** @c FusedForm::GEMM_BIAS_GELU's
+ *          epilogue stores the pre-activation to a second buffer before it
+ *          returns, so its access set carries a @c writes(aux) no other arm
+ *          has - and the backward rule that reads that buffer is in the same
+ *          compiled plan. Without the declaration it races the GEMM that fills
+ *          it, and a race that usually resolves the right way is
+ *          indistinguishable from training. The access set is declared inside
+ *          the arm that knows it, which is the whole reason
+ *          @c SushiBLAS::Dispatch::gemm_epilogue bundles the two rather than
+ *          taking the regions beside the functor.
+ *
+ * @section auxspill A fused node with two outputs
+ *
+ * @c FusedForm::GEMM_BIAS_GELU is the one catalog entry whose IR node writes
+ * two values: its result, and the pre-activation the GELU's gradient
+ * differentiates at. @c Graph::Node::outputs has always been a vector, so the
+ * IR needed no change - but the recorder does, in two places. It materialises
+ * @c outputs[1] before the selector is asked, and it writes that buffer on
+ * *every* spelling: the fused arm from inside the epilogue, and every declining
+ * arm with one @c blas().copy of C taken after the bias has landed and before
+ * the trailing activation overwrites it in place. A spelling that skipped the
+ * spill would be a spelling whose gradients differ, which is the one thing
+ * graph/fusion.hpp promises no spelling does.
  */
 
 #include <cstddef>

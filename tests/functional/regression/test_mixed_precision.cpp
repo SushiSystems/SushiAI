@@ -229,3 +229,59 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
             << " vs mixed " << mixed.losses[step];
     }
 }
+
+TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
+{
+    // graph/precision.hpp's rules 2 and 5 meet here, and this is the assertion
+    // that they meet consistently rather than merely quietly.
+    //
+    // Rule 2 says a fused epilogue runs inside the GEMM's kernel in the GEMM's
+    // element type, so an activation the catalog folds has to compute in the
+    // GEMM's type or fusion would change the numbers. Rule 5 says GELU stays
+    // wide - the tanh approximation computes x*x*x, which overflows fp16 at
+    // |x| about 40.3. Since FusedForm::GEMM_BIAS_GELU exists, those two would
+    // contradict each other if nothing kept them apart.
+    //
+    // What keeps them apart is the pass order, and it is structural rather than
+    // lucky: the cast pass runs *before* fusion, so an activation the policy
+    // keeps wide gets a CAST between it and the narrowed BIAS_ADD, and a chain
+    // with a conversion in the middle matches no catalog entry. Under fp32 the
+    // layer folds whole; under a narrowing policy it falls back to gemm+bias
+    // and the GELU runs on its own, exactly as it did before the entry existed.
+    //
+    // If this ever starts producing a gemm+bias+gelu node, an fp16 x*x*x is
+    // being computed and nothing else in the suite would say so.
+    using GeluMlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+
+    GeluMlp wide_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+    GeluMlp narrow_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+
+    const MixedPrecisionPolicy precision;
+
+    const Train::TrainingGraph wide = Train::build_classifier(
+        wide_model, BATCH, FEATURES, CLASSES, DType::FLOAT32, Graph::FusionOptions{}, nullptr);
+    const Train::TrainingGraph narrow = Train::build_classifier(
+        narrow_model, BATCH, FEATURES, CLASSES, DType::FLOAT32, Graph::FusionOptions{},
+        &precision);
+
+    // The control: with nothing narrowing, the entry is reachable and taken.
+    EXPECT_EQ(wide.fusion.count(Graph::FusedForm::GEMM_BIAS_GELU), 1u)
+        << wide.fusion.to_string();
+
+    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMM_BIAS_GELU), 0u)
+        << "a narrowing policy folded GELU into the GEMM, which puts the tanh "
+           "approximation's x*x*x into fp16 - see graph/precision.hpp rule 5\n"
+        << narrow.fusion.to_string();
+
+    // And it did not simply stop fusing: the bias still folds on both layers,
+    // so the fallback is the shorter entry rather than nothing.
+    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMM_BIAS), 2u)
+        << narrow.fusion.to_string();
+    EXPECT_GT(narrow.casts.count(), 0u) << "this arm narrowed nothing, so it proves nothing";
+
+    // The GELU itself is still in the graph, and still in the master type -
+    // which is the other half of rule 5 and the reason the fold is refused.
+    for (const Graph::Node& node : narrow.graph.nodes())
+        if (node.op == Ops::GELU.id)
+            EXPECT_EQ(narrow.graph.value(node.outputs[0]).dtype, DType::FLOAT32);
+}

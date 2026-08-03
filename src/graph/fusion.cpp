@@ -36,6 +36,9 @@ namespace SushiAI
             /** @brief The longest chain any catalog entry replaces. */
             constexpr std::size_t MAX_CHAIN = 3;
 
+            /** @brief @c CatalogEntry::spill for an entry that writes only its result. */
+            constexpr std::uint8_t NO_SPILL = 0xFF;
+
             /**
              * @struct FusedOperands
              * @brief What the fused node reads, and the scalars it carries.
@@ -64,6 +67,18 @@ namespace SushiAI
                 std::uint8_t length;
                 std::array<OpID, MAX_CHAIN> chain;
                 std::array<std::uint8_t, MAX_CHAIN> link;
+
+                /**
+                 * @brief Which chain step's result the fused kernel also writes.
+                 *
+                 * @c NO_SPILL for an entry that writes only the root's result,
+                 * which is every entry but one. Otherwise an index into
+                 * @c chain: the value that step used to produce becomes the
+                 * fused node's *second output*, keeping its id, rather than
+                 * being eliminated. See fusion.hpp's @c spill section for why
+                 * that is the whole of what makes a GELU epilogue safe.
+                 */
+                std::uint8_t spill;
 
                 /** @brief Gathers the fused node's operands from the matched chain. */
                 FusedOperands (*compose)(SushiRuntime::span<const Node* const> chain);
@@ -121,39 +136,56 @@ namespace SushiAI
              *
              * Order does not matter; the matcher sorts by length itself.
              */
-            constexpr std::array<CatalogEntry, 5> CATALOG = {{
+            constexpr std::array<CatalogEntry, 6> CATALOG = {{
                 {FusedForm::GEMM_BIAS_RELU, Ops::GEMM_BIAS_RELU.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::RELU.id}, {0, 0, 0},
+                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::RELU.id}, {0, 0, 0}, NO_SPILL,
                  &compose_gemm_epilogue},
 
                 {FusedForm::GEMM_BIAS_SIGMOID, Ops::GEMM_BIAS_SIGMOID.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::SIGMOID.id}, {0, 0, 0},
+                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::SIGMOID.id}, {0, 0, 0}, NO_SPILL,
                  &compose_gemm_epilogue},
 
                 {FusedForm::GEMM_BIAS_TANH, Ops::GEMM_BIAS_TANH.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::TANH.id}, {0, 0, 0},
+                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::TANH.id}, {0, 0, 0}, NO_SPILL,
+                 &compose_gemm_epilogue},
+
+                // The one row with a spill. Step 1 is the BIAS_ADD, so the value
+                // the fused node keeps writing is exactly the tensor
+                // gelu_backward differentiates at - which the assertion below
+                // checks rather than trusts, because spilling the MATMUL's
+                // result instead would be as silently wrong as spilling nothing.
+                {FusedForm::GEMM_BIAS_GELU, Ops::GEMM_BIAS_GELU.id, 3,
+                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::GELU.id}, {0, 0, 0}, 1,
                  &compose_gemm_epilogue},
 
                 {FusedForm::GEMM_BIAS, Ops::GEMM_BIAS.id, 2,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::LEAF.id}, {0, 0, 0},
+                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::LEAF.id}, {0, 0, 0}, NO_SPILL,
                  &compose_gemm_epilogue},
 
                 {FusedForm::EXP_SUB_SCALE, Ops::EXP_SUB_SCALE.id, 3,
-                 {Ops::EXP.id, Ops::SUB.id, Ops::SCALE.id}, {0, 0, 0},
+                 {Ops::EXP.id, Ops::SUB.id, Ops::SCALE.id}, {0, 0, 0}, NO_SPILL,
                  &compose_exp_sub_scale},
             }};
 
             /**
-             * @brief Proves no catalog entry folds an activation that cannot be folded.
+             * @brief Proves every folded activation still has the tensor its gradient reads.
              *
-             * This is the whole of Task 2's trap, closed at compile time. A
-             * fused form never writes the pre-activation, so an activation
-             * whose gradient differentiates *there* must not have an entry - and
-             * "must not" enforced by review is "will, eventually". The property
-             * lives in @c Ops::ACTIVATIONS, one table, read by the
-             * differentiation pass and by this assertion, so the two cannot
-             * drift apart. Adding a @c GEMM_BIAS_GELU row fails the build here
-             * rather than training a model towards the wrong place in silence.
+             * This is the whole of Task 2's trap, closed at compile time - and
+             * it is a *conditional* proof, not a blanket refusal, because the
+             * condition is what the fix consists of. An activation whose
+             * gradient differentiates at its **output** may be folded by any
+             * entry: the pre-activation was dead already. One that
+             * differentiates at its **input** may be folded only by an entry
+             * that writes that input to an auxiliary buffer, and only if the
+             * value it writes is the one the gradient actually reads - which,
+             * with @c link all zero, is the result of the step immediately
+             * before the activation.
+             *
+             * Both halves are checked. A row for a new @c INPUT-gradient
+             * activation with @c NO_SPILL fails here; so does one that spills
+             * the wrong step. Either way the build stops, rather than the model
+             * training towards the wrong place in silence - and "must not"
+             * enforced by review is "will, eventually".
              *
              * @c constexpr rather than @c consteval, which is C++20; the
              * static_assert below is the only caller and forces constant
@@ -165,18 +197,25 @@ namespace SushiAI
                 {
                     const OpID last = entry.chain[entry.length - 1];
                     if (Ops::activation_of(last) == nullptr) continue;
-                    if (!Ops::activation_survives_fusion(last)) return false;
+                    if (Ops::activation_survives_fusion(last)) continue;
+
+                    // From here on: the gradient reads the activation's input,
+                    // so the entry has to hand it back.
+                    if (entry.spill == NO_SPILL) return false;
+                    if (entry.spill != entry.length - 2) return false;
+                    if (entry.link[entry.length - 1] != 0) return false;
                 }
                 return true;
             }
 
             static_assert(every_fused_activation_survives(),
                           "A catalog entry folds an activation whose gradient differentiates at "
-                          "its input. The fused kernel never writes that tensor, so the backward "
-                          "pass would read something else and the model would train towards the "
-                          "wrong place without any test failing. Either the activation belongs in "
-                          "Ops::ACTIVATIONS with GradientSource::OUTPUT because its derivative is "
-                          "exactly recoverable from its output, or the entry must not exist.");
+                          "its input, without spilling that tensor to an auxiliary output - or it "
+                          "spills the wrong step of the chain. Either way the backward pass would "
+                          "read something else and the model would train towards the wrong place "
+                          "without any test failing. Give the entry a `spill` naming the step that "
+                          "produces the activation's operand and an epilogue arm that writes it "
+                          "(see GEMM_BIAS_GELU), or do not add the entry.");
 
             /**
              * @brief Whether @p form is switched off by @p options.
@@ -214,13 +253,22 @@ namespace SushiAI
                         : graph_(graph),
                           options_(options),
                           use_count_(graph.value_count(), 0),
+                          consumers_(graph.value_count()),
                           observed_(graph.value_count(), false),
                           claimed_(graph.node_count(), false),
                           root_(graph.node_count(), NO_NODE)
                     {
-                        for (const Node& node : graph.nodes())
-                            for (ValueId in : node.inputs)
+                        // Both, and they are not the same fact. `use_count_`
+                        // counts reads, so a node reading one value twice
+                        // refuses the fold exactly as two nodes would;
+                        // `consumers_` names *who*, which is what an entry with
+                        // a spill has to ask about - see spill_is_ordered().
+                        for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
+                            for (ValueId in : graph.node(id).inputs)
+                            {
                                 ++use_count_[in];
+                                consumers_[in].push_back(id);
+                            }
 
                         // A persistent value's buffer outlives the step, so
                         // something outside the graph is going to read or write
@@ -281,6 +329,25 @@ namespace SushiAI
                     FusionDecline interior_verdict(ValueId value) const;
 
                     /**
+                     * @brief Whether a spilled @p value's readers all run after the fused node.
+                     *
+                     * The fused node is emitted at @p root's position, later
+                     * than the absorbed producer's, so a reader sitting between
+                     * the two would read a value written after it. Nothing
+                     * about the *numbers* would be wrong; the graph would
+                     * simply stop being in topological order, which every pass
+                     * below this one takes as given. The chain's own consumer
+                     * is excluded because it is absorbed and disappears.
+                     *
+                     * @param value The value the entry would spill.
+                     * @param chain_consumer The chain node that reads it.
+                     * @param root The node the fused one will replace.
+                     * @return True when the fold keeps the order valid.
+                     */
+                    bool spill_is_ordered(ValueId value, NodeId chain_consumer,
+                                          NodeId root) const;
+
+                    /**
                      * @brief Records the activations that stayed out of a fused GEMM.
                      *
                      * The loop above cannot: an activation with no catalog entry
@@ -294,6 +361,7 @@ namespace SushiAI
                     const Graph& graph_;
                     const FusionOptions& options_;
                     std::vector<std::uint32_t> use_count_;
+                    std::vector<std::vector<NodeId>> consumers_;
                     std::vector<bool> observed_;
                     std::vector<bool> claimed_;
                     std::vector<NodeId> root_;
@@ -306,6 +374,13 @@ namespace SushiAI
                 if (observed_[value]) return FusionDecline::VALUE_IS_OBSERVED;
                 if (use_count_[value] == 1) return FusionDecline::NONE;
                 return FusionDecline::VALUE_HAS_OTHER_CONSUMERS;
+            }
+
+            bool Matcher::spill_is_ordered(ValueId value, NodeId chain_consumer, NodeId root) const
+            {
+                for (NodeId consumer : consumers_[value])
+                    if (consumer != chain_consumer && consumer < root) return false;
+                return true;
             }
 
             void Matcher::explain_unfused_activations()
@@ -329,11 +404,25 @@ namespace SushiAI
                     if (claimed.entry == nullptr) continue;
                     if (!is_gemm_epilogue(claimed.entry->form)) continue;
 
+                    // An activation the catalog *does* compose with a GEMM was
+                    // not skipped for want of a row, so whatever stopped it was
+                    // situational - disabled, an interior value with a second
+                    // consumer, a spill read too early - and the loop above
+                    // recorded that at this very node. Adding a second line
+                    // saying "no catalog entry composes it" would contradict
+                    // the first one; both of the sentences below are about a
+                    // composition that does not exist.
+                    if (catalog_folds_activation(node.op)) continue;
+
                     declined_.push_back(DeclinedFusion{
                         FusedForm::NONE,
                         node.op,
                         id,
                         node.inputs[0],
+                        // The split that matters to whoever reads this: one is
+                        // a row somebody forgot, the other is a row that cannot
+                        // be written without an epilogue that spills - which is
+                        // the run-time half of every_fused_activation_survives().
                         Ops::activation_survives_fusion(node.op)
                             ? FusionDecline::NO_CATALOG_ENTRY
                             : FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION,
@@ -354,7 +443,7 @@ namespace SushiAI
                 // Walk backwards along the chain. Every step has to be a real
                 // producer edge at the declared operand position, and the value
                 // on that edge has to be one this pass is allowed to stop
-                // writing.
+                // writing - or one the entry has undertaken to keep writing.
                 for (std::size_t step = length - 1; step > 0; --step)
                 {
                     const Node& consumer = graph_.node(chain[step]);
@@ -370,12 +459,30 @@ namespace SushiAI
                     if (graph_.node(producer).outputs.size() != 1) return false;
                     if (claimed_[producer]) return false;
 
-                    const FusionDecline verdict = interior_verdict(edge);
-                    if (verdict != FusionDecline::NONE)
+                    // The spilled edge is the one exception to rule 1, and it is
+                    // an exception for the only reason that could justify one:
+                    // the fused node goes on writing it, under the same id. So
+                    // a second consumer is fine and so is an outside reader -
+                    // there is a buffer for both. What still has to hold is the
+                    // *order*.
+                    if (entry.spill != NO_SPILL && step - 1 == entry.spill)
                     {
-                        blocked = edge;
-                        reason = verdict;
-                        return false;
+                        if (!spill_is_ordered(edge, chain[step], root))
+                        {
+                            blocked = edge;
+                            reason = FusionDecline::SPILL_READ_TOO_EARLY;
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        const FusionDecline verdict = interior_verdict(edge);
+                        if (verdict != FusionDecline::NONE)
+                        {
+                            blocked = edge;
+                            reason = verdict;
+                            return false;
+                        }
                     }
 
                     chain[step - 1] = producer;
@@ -481,6 +588,22 @@ namespace SushiAI
             return Ops::LEAF.id;
         }
 
+        bool fused_form_spills(FusedForm form) noexcept
+        {
+            for (const CatalogEntry& entry : CATALOG)
+                if (entry.form == form) return entry.spill != NO_SPILL;
+            return false;
+        }
+
+        bool catalog_folds_activation(OpID activation) noexcept
+        {
+            if (Ops::activation_of(activation) == nullptr) return false;
+
+            for (const CatalogEntry& entry : CATALOG)
+                if (entry.chain[entry.length - 1] == activation) return true;
+            return false;
+        }
+
         // =====================================================================
         // FusionReport
         // =====================================================================
@@ -506,6 +629,13 @@ namespace SushiAI
                 for (std::size_t i = 0; i < subtree.chain.size(); ++i)
                     text += SushiBLAS::Core::format("{}{}", i ? ", " : "", subtree.chain[i]);
                 text += SushiBLAS::Core::format("] -> value {}", subtree.result);
+
+                // Printed next to the result rather than folded into the
+                // dropped list, because it is the opposite of a dropped value
+                // and the difference is the whole of what makes this form safe.
+                if (subtree.spilled != NO_VALUE)
+                    text += SushiBLAS::Core::format(", spilling the pre-activation to value {}",
+                                                    subtree.spilled);
 
                 if (!subtree.eliminated.empty())
                 {
@@ -613,14 +743,29 @@ namespace SushiAI
                 FusedSubtree subtree;
                 subtree.form = entry.form;
                 subtree.result = chain[entry.length - 1]->outputs[0];
+                if (entry.spill != NO_SPILL)
+                    subtree.spilled = chain[entry.spill]->outputs[0];
+
                 for (std::size_t step = 0; step < entry.length; ++step)
                 {
                     subtree.chain.push_back(candidate->chain[step]);
-                    if (step + 1 < entry.length)
+
+                    // The spilled step's value is not eliminated - the fused
+                    // node keeps writing it, which is the whole point of the
+                    // entry having a spill at all.
+                    if (step + 1 < entry.length && step != entry.spill)
                         subtree.eliminated.push_back(chain[step]->outputs[0]);
                 }
 
-                rebuilt.add_node(entry.fused_op, operands.inputs, {subtree.result},
+                // Two outputs for a spilling entry, and in this order: the
+                // result first, so `outputs[0]` still means "what this node
+                // computes" for every walker that reads only the first one -
+                // the cast pass's precision query and the planner's alias
+                // merge both do.
+                std::vector<ValueId> outputs{subtree.result};
+                if (subtree.spilled != NO_VALUE) outputs.push_back(subtree.spilled);
+
+                rebuilt.add_node(entry.fused_op, operands.inputs, std::move(outputs),
                                  operands.attributes);
 
                 report.fused_.push_back(std::move(subtree));

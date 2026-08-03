@@ -34,14 +34,33 @@
 //
 // If this fails, the answer is to find which expression moved. Not to widen it.
 //
-// THE SECOND HALF: THE ACTIVATION THAT CANNOT BE FUSED
+// THE SECOND HALF: THE ACTIVATION THAT NEEDS A SPILL TO BE FUSED
 //
-// GELU's gradient differentiates at its input, so no catalog entry folds it and
-// the static pass says so out loud. That is checked twice over: the pass's own
-// refusal is a unit test, and here a GELU model is trained end to end and made
-// to match the unfused spelling exactly - because "we declined to fuse it" and
-// "we declined to fuse it *and the bias still fused correctly around it*" are
-// different claims, and only the second one is worth anything.
+// GELU's gradient differentiates at its input, so the epilogue that folds it
+// has to write that input to an auxiliary buffer on its way past -
+// cuBLASLt's GELU_AUX_BIAS, FusedForm::GEMM_BIAS_GELU here. Every way of
+// getting that wrong is silent, and worse than the others: a forward pass that
+// matches perfectly while the gradients are taken at the wrong point still
+// converges, just somewhere else.
+//
+// So a forward comparison is not the test and is not treated as one. The test
+// is that a GELU model trained end to end reaches byte-identical *parameters*
+// after 24 optimizer steps - which is a statement about the gradients, since
+// nothing else moves a weight - and it is taken three ways, against three
+// different fillings of the same buffer:
+//
+//   - AGeluMlpTrainsIdenticallyFusedAndUnfused, against the graph with no
+//     fusion pass at all;
+//   - DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt, against the same
+//     graph with only this catalog row switched off, so the difference is the
+//     entry and nothing else;
+//   - ASelectorRefusalStillFillsTheSpillAndMovesNoBit, against a selector that
+//     declines the fused arm, so the aux buffer is filled by a separate copy in
+//     the lowering rather than from inside the epilogue.
+//
+// TheSpillHoldsThePreActivationItself then reads the buffer directly and
+// compares it with a host-computed pre-activation, because three spellings can
+// agree while all three hold the wrong tensor.
 
 #include <cstddef>
 #include <cstdint>
@@ -283,14 +302,15 @@ TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
 // 2. The activation that must NOT be fused
 // =========================================================================
 
-TEST_F(Regression_Fusion, AGeluMlpStillTrainsCorrectlyAndItsActivationStaysOutside)
+TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
 {
-    // The trap, end to end. If GELU were folded into the GEMM, the backward
-    // pass would differentiate at the activation's *output* where its rule
-    // needs the input - nothing would throw, no value would go non-finite, and
-    // the loss would still fall. So the check is not "it trained", it is "it
-    // trained to exactly the same place as the unfused graph", plus the
-    // structural claim that the bias fused and the activation did not.
+    // The trap, end to end, and the claim that matters is about the *gradients*
+    // rather than the forward pass. A GEMM_BIAS_GELU that computed the right
+    // activation and spilled nothing would match the unfused forward exactly
+    // and still differentiate at the wrong tensor - nothing would throw, no
+    // value would go non-finite, and the loss would still fall. What it could
+    // not do is land the parameters on the same bits after 24 AdamW steps,
+    // because a weight only moves by its gradient.
     using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     Mlp fused_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
@@ -299,13 +319,13 @@ TEST_F(Regression_Fusion, AGeluMlpStillTrainsCorrectlyAndItsActivationStaysOutsi
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
 
-    // Two linear layers, both with their bias folded in, and no activation
-    // folded anywhere.
+    // Two linear layers - the first folding its GELU, the second with no
+    // activation to fold - and the cross-entropy gradient tail.
     EXPECT_EQ(fused.fused_subtrees, 3u)
-        << "expected two gemm+bias layers and the cross-entropy gradient tail";
-    EXPECT_GT(fused.declined, 0u) << "the GELU refusal is not in the report";
+        << "expected gemm+bias+gelu, gemm+bias and the cross-entropy gradient tail";
+    ASSERT_EQ(plain.fused_subtrees, 0u);
 
-    expect_runs_agree(fused, plain, "a GELU model whose activation cannot be fused");
+    expect_runs_agree(fused, plain, "a GELU epilogue spilling its pre-activation");
 
     // And it really did learn something, so "identical" is not two identically
     // broken runs.
@@ -314,7 +334,7 @@ TEST_F(Regression_Fusion, AGeluMlpStillTrainsCorrectlyAndItsActivationStaysOutsi
         << "the GELU model did not train at all, so agreeing with the control proves nothing";
 }
 
-TEST_F(Regression_Fusion, TheGeluRefusalNamesTheReasonRatherThanAUseCount)
+TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
     Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
@@ -322,12 +342,197 @@ TEST_F(Regression_Fusion, TheGeluRefusalNamesTheReasonRatherThanAUseCount)
     const Train::TrainingGraph built =
         Train::build_classifier(model, BATCH, FEATURES, CLASSES);
 
-    bool named = false;
-    for (const Graph::DeclinedFusion& decline : built.fusion.declined())
-        if (decline.reason == Graph::FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION)
-            named = true;
+    ASSERT_EQ(built.fusion.count(FusedForm::GEMM_BIAS_GELU), 1u) << built.fusion.to_string();
 
-    EXPECT_TRUE(named) << built.fusion.to_string();
+    for (const Graph::DeclinedFusion& decline : built.fusion.declined())
+        EXPECT_NE(decline.reason, Graph::FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION)
+            << built.fusion.to_string();
+
+    // The spilled value is the one the backward rule reads. Checked on the IR
+    // rather than through a loss, because "the gradient is taken at the right
+    // tensor" has no numerical symptom when it is wrong.
+    const Graph::FusedSubtree* gelu = nullptr;
+    for (const Graph::FusedSubtree& subtree : built.fusion.fused())
+        if (subtree.form == FusedForm::GEMM_BIAS_GELU) gelu = &subtree;
+
+    ASSERT_NE(gelu, nullptr);
+    ASSERT_NE(gelu->spilled, Graph::NO_VALUE);
+
+    const Graph::NodeId producer = built.graph.value(gelu->spilled).producer;
+    ASSERT_NE(producer, Graph::NO_NODE) << "nothing writes the spill";
+    EXPECT_EQ(built.graph.node(producer).op, Ops::GEMM_BIAS_GELU.id);
+
+    bool read_by_the_gradient = false;
+    for (const Graph::Node& node : built.graph.nodes())
+        if (node.op == Ops::GELU_BACKWARD.id && node.inputs.at(1) == gelu->spilled)
+            read_by_the_gradient = true;
+
+    EXPECT_TRUE(read_by_the_gradient)
+        << "gelu_backward does not read the spilled pre-activation, so the spill is "
+           "buying nothing and the fold is the silently wrong one";
+}
+
+TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
+{
+    // Read directly, not inferred from a downstream consequence. Everything
+    // else about this entry is checked through gradients that agree, and two
+    // spellings can agree while both hold the wrong tensor.
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+
+    constexpr int64_t ROWS = 4;
+    constexpr int64_t IN_DIM = 3;
+    constexpr int64_t OUT_DIM = 5;
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    const Graph::ValueId x = builder.input(Shape{ROWS, IN_DIM}, "x");
+    const Graph::ValueId w = builder.parameter(Shape{OUT_DIM, IN_DIM}, "w");
+    const Graph::ValueId b = builder.parameter(Shape{OUT_DIM}, "b");
+    const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
+    const Graph::ValueId out = builder.gelu(pre);
+
+    // `pre` is deliberately NOT observed: the fold has to survive on the spill
+    // and not on a pin, or this test would be pinning the wrong thing.
+    const std::vector<Graph::ValueId> observed{out};
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
+
+    const Graph::FusionReport report = Graph::fuse(graph, options);
+    ASSERT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 1u) << report.to_string();
+
+    TensorPool pool(engine);
+    pool.materialise_leaves(graph);
+
+    SaTest::HostNoise noise(0xC0FFEEu);
+    std::vector<double> x_values(static_cast<std::size_t>(ROWS * IN_DIM));
+    std::vector<double> w_values(static_cast<std::size_t>(OUT_DIM * IN_DIM));
+    std::vector<double> b_values(static_cast<std::size_t>(OUT_DIM));
+    noise.fill(SushiRuntime::span<double>(x_values.data(), x_values.size()), 2.0);
+    noise.fill(SushiRuntime::span<double>(w_values.data(), w_values.size()), 2.0);
+    noise.fill(SushiRuntime::span<double>(b_values.data(), b_values.size()), 2.0);
+
+    SaTest::write_tensor(pool.tensor(x),
+                         SushiRuntime::span<const double>(x_values.data(), x_values.size()));
+    SaTest::write_tensor(pool.tensor(w),
+                         SushiRuntime::span<const double>(w_values.data(), w_values.size()));
+    SaTest::write_tensor(pool.tensor(b),
+                         SushiRuntime::span<const double>(b_values.data(), b_values.size()));
+
+    Graph::Lowering lowering(engine, pool);
+    lowering.record(graph);
+    ASSERT_EQ(1u, lowering.emitted_operations())
+        << "this machine's device declined the fused form, so the epilogue never ran and "
+           "this test is not exercising what it claims to";
+
+    engine.execute();
+    SaTest::TestEnvironment::context().wait_all();
+
+    const std::vector<double> spilled = SaTest::read_tensor(pool.tensor(pre));
+    const std::vector<double> activated = SaTest::read_tensor(pool.tensor(out));
+
+    ASSERT_EQ(spilled.size(), static_cast<std::size_t>(ROWS * OUT_DIM));
+
+    // The reference the spill is compared against is computed here, on the
+    // host, from the inputs - not read out of some other tensor the same kernel
+    // wrote.
+    std::size_t separated = 0;
+
+    for (int64_t row = 0; row < ROWS; ++row)
+        for (int64_t col = 0; col < OUT_DIM; ++col)
+        {
+            double expected = b_values[static_cast<std::size_t>(col)];
+            for (int64_t k = 0; k < IN_DIM; ++k)
+                expected += x_values[static_cast<std::size_t>(row * IN_DIM + k)]
+                          * w_values[static_cast<std::size_t>(col * IN_DIM + k)];
+
+            const std::size_t index = static_cast<std::size_t>(row * OUT_DIM + col);
+            EXPECT_NEAR(spilled[index], expected, 1e-5)
+                << "the spill at (" << row << ", " << col << ") is not the pre-activation";
+
+            // And it is emphatically not the *post*-activation, which is the
+            // value a spill-less fold would leave for the backward pass. Where
+            // that check is made matters: gelu(x) tends to x for large positive
+            // x, so the two agree there to within a rounding error and an
+            // assertion taken on |x| large would be satisfied by either tensor.
+            // On the negative side gelu tends to zero instead, so a
+            // sufficiently negative element separates them by about |x|.
+            if (expected < -0.5)
+            {
+                ++separated;
+                EXPECT_GT(std::abs(spilled[index] - activated[index]), 0.1)
+                    << "the spill at (" << row << ", " << col << ") holds the activated "
+                    << "value, not the pre-activation";
+            }
+        }
+
+    EXPECT_GT(separated, 0u)
+        << "no element was negative enough for gelu(x) and x to differ, so the check "
+           "above never distinguished the spill from the result";
+}
+
+TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
+{
+    // The control that makes the case above a test rather than a description.
+    // With the fused arm declined, the aux buffer is filled by a separate copy
+    // in Lowering::record_fused_gemm instead of by the epilogue - a completely
+    // different code path to the same buffer - and the gradients have to come
+    // out identical. Delete either write and this comparison fails.
+    class RefuseEverything final : public Graph::IFusionSelector
+    {
+        public:
+            Graph::FusionChoice choose(const Graph::FusionQuery&) const override
+            {
+                return Graph::FusionChoice{FusedForm::NONE, "this device wants none of it"};
+            }
+    };
+
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+
+    Mlp taken_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+    Mlp refused_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+
+    const RefuseEverything refuse;
+    const TrainedRun taken = train(taken_model, FusionOptions{});
+    const TrainedRun refused = train(refused_model, FusionOptions{}, &refuse);
+
+    EXPECT_EQ(taken.fused_subtrees, refused.fused_subtrees);
+    EXPECT_EQ(refused.selector_refusals, refused.fused_subtrees);
+    EXPECT_GT(refused.operations_per_step, taken.operations_per_step);
+
+    expect_runs_agree(taken, refused, "a declined GELU epilogue that still spills");
+}
+
+TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
+{
+    // The A/B the brief for this entry is really about: the same model with the
+    // catalog row on and off. Off, the GELU is an ordinary IR node and the
+    // pre-activation is an ordinary value; on, it is a second output of a
+    // fused GEMM written from inside a device kernel. The parameters after 24
+    // steps have to be the same bits, and they are only the same bits if the
+    // gradients were.
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+
+    Mlp folded_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+    Mlp separate_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+
+    const std::vector<FusedForm> without{FusedForm::GEMM_BIAS_GELU};
+    FusionOptions narrowed;
+    narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
+
+    const TrainedRun folded = train(folded_model, FusionOptions{});
+    const TrainedRun separate = train(separate_model, narrowed);
+
+    EXPECT_EQ(folded.fused_subtrees, separate.fused_subtrees)
+        << "switching the three-node form off must fall back to gemm+bias, not to nothing";
+
+    // Two kernels more, exactly as switching the ReLU form off costs two: the
+    // activation becomes an out-of-place IR node again, which is a copy and a
+    // gelu. The spill costs nothing on this side, because the value the fused
+    // node spilled is the value BIAS_ADD writes anyway.
+    EXPECT_EQ(separate.operations_per_step, folded.operations_per_step + 2u);
+
+    expect_runs_agree(folded, separate, "switching the fused GELU epilogue off");
 }
 
 // =========================================================================
@@ -413,6 +618,56 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
            "dereferences. An in-degree of 0 means the read was never declared to "
            "SushiBLAS, and the optimizer's update is free to land before the forward "
            "pass has read the old value - which still trains, and still reports success.";
+}
+
+TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt)
+{
+    // The other half of the epilogue's access set, and the half only the
+    // spilling arm has. `.reads(bias)` orders the GEMM behind whoever writes
+    // the bias; `.writes(aux)` orders whoever reads the spill behind the GEMM.
+    // Without it the backward pass that differentiates at the pre-activation
+    // races the kernel that produced it - and a race that usually resolves the
+    // right way is indistinguishable from training, which is why this is
+    // asserted on in_degree and never on a loss.
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{BATCH, FEATURES}, "x");
+    const Graph::ValueId w = builder.parameter(Shape{HIDDEN, FEATURES}, "w");
+    const Graph::ValueId b = builder.parameter(Shape{HIDDEN}, "b");
+    const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
+    const Graph::ValueId out = builder.gelu(pre);
+
+    // A reader of the pre-activation, emitted after the GELU exactly as the
+    // differentiation pass emits gelu_backward.
+    const Graph::ValueId dy = builder.input(Shape{BATCH, HIDDEN}, "dy");
+    (void)builder.activation_backward(Ops::GELU_BACKWARD.id, dy, pre);
+
+    const std::vector<Graph::ValueId> observed{out};
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
+
+    const Graph::FusionReport fusion = Graph::fuse(graph, options);
+    ASSERT_EQ(1u, fusion.count(FusedForm::GEMM_BIAS_GELU)) << fusion.to_string();
+
+    TensorPool pool(engine);
+    pool.materialise_leaves(graph);
+
+    Graph::Lowering lowering(engine, pool);
+    lowering.record(graph);
+    ASSERT_EQ(2u, lowering.emitted_operations())
+        << "expected the fused GEMM and the activation gradient; this machine's device may "
+           "have declined the fused form, in which case this test is not exercising what "
+           "it claims to";
+
+    auto nodes = engine.get_graph().take_nodes();
+    ASSERT_EQ(2u, nodes.size());
+    EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+        << "The task that reads the spilled pre-activation must depend on the fused GEMM "
+           "whose epilogue wrote it. An in-degree of 0 means `.writes(aux)` was never "
+           "declared, the two may run concurrently, and the spill buys nothing at all - "
+           "while the run still trains and still reports success.";
 }
 
 TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)

@@ -17,13 +17,18 @@
 //
 //   - an intermediate with a second consumer (fusing it means losing it),
 //   - an intermediate the caller reads by id (same, from outside),
-//   - an activation whose gradient differentiates at its input.
+//   - a spilled pre-activation read by a node that runs before the fused one.
 //
-// The last one has a compile-time half as well, in fusion.cpp: adding a catalog
-// entry for such an activation fails a static_assert. That cannot be tested
-// from here - a test that fails to compile is not a test - so what is checked
-// here is the property the assertion reads, which is the thing that would have
-// to change first for the assertion to start passing wrongly.
+// The activation whose gradient differentiates at its input used to be a fourth
+// entry on that list. It is not any more: GEMM_BIAS_GELU folds it by spilling
+// the pre-activation to a second output, so the refusal became a *condition* -
+// an INPUT-gradient activation may be folded only by an entry that writes the
+// tensor its gradient reads, and only if it writes the right one. That has a
+// compile-time half in fusion.cpp: an entry breaking either half fails a
+// static_assert. It cannot be tested from here, because a test that fails to
+// compile is not a test, so what is checked here is the pair of properties the
+// assertion reads - and, above all, that the fold really does leave the
+// pre-activation written and readable by the backward node.
 
 #include <algorithm>
 #include <cstddef>
@@ -110,6 +115,7 @@ TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
     constexpr FusedForm ALL[] = {
         FusedForm::GEMM_BIAS, FusedForm::GEMM_BIAS_RELU,
         FusedForm::GEMM_BIAS_SIGMOID, FusedForm::GEMM_BIAS_TANH,
+        FusedForm::GEMM_BIAS_GELU,
         FusedForm::EXP_SUB_SCALE,
     };
 
@@ -126,7 +132,7 @@ TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
     EXPECT_EQ(Graph::fused_form_of(Ops::RELU.id), FusedForm::NONE);
 }
 
-TEST_F(Unit_Fusion, OnlyActivationsWhoseGradientReadsTheirOutputAreFoldable)
+TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts)
 {
     // The property fusion.cpp's static_assert reads. If this ever flips for an
     // activation that has a catalog entry, the assertion is the thing that
@@ -136,13 +142,32 @@ TEST_F(Unit_Fusion, OnlyActivationsWhoseGradientReadsTheirOutputAreFoldable)
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::SIGMOID.id));
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::TANH.id));
 
-    // GELU's tanh approximation is not invertible in closed form and
-    // SushiBLAS's gelu_backward takes the pre-activation, so folding it into
-    // the GEMM would differentiate at a tensor that never reached memory.
+    // SushiBLAS's gelu_backward takes the pre-activation, so an entry that
+    // wrote only its result would differentiate at a tensor that never reached
+    // memory. That has not changed and must not: it is the premise the
+    // static_assert reasons from.
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::GELU.id));
+
+    // What changed is the conclusion drawn from it. GELU is folded, by the one
+    // entry that spills - so "survives fusion" and "the catalog folds it" are
+    // now two questions with two answers, and a caller reading the first as the
+    // second gets the wrong one for exactly one activation.
+    EXPECT_TRUE(Graph::catalog_folds_activation(Ops::GELU.id));
+    EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GEMM_BIAS_GELU));
+
+    for (FusedForm form : {FusedForm::GEMM_BIAS, FusedForm::GEMM_BIAS_RELU,
+                           FusedForm::GEMM_BIAS_SIGMOID, FusedForm::GEMM_BIAS_TANH,
+                           FusedForm::EXP_SUB_SCALE})
+        EXPECT_FALSE(Graph::fused_form_spills(form))
+            << Graph::fused_form_name(form) << " grew a second output without a reason";
+
+    // Not an activation at all, so neither question applies to it.
+    EXPECT_FALSE(Graph::catalog_folds_activation(Ops::MATMUL.id));
+    EXPECT_FALSE(Graph::catalog_folds_activation(Ops::EXP.id));
 
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS), Ops::LEAF.id);
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS_RELU), Ops::RELU.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS_GELU), Ops::GELU.id);
 }
 
 // =========================================================================
@@ -338,12 +363,14 @@ TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
     EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_IS_OBSERVED));
 }
 
-TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputIsReportedAndLeftAlone)
+TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntrySpills)
 {
-    // The trap this whole design is arranged around. GELU's gradient reads the
-    // pre-activation, so the value has two consumers and the pass refuses - but
-    // "use count 2" is not an explanation anyone can act on, so the report has
-    // to name the actual reason.
+    // The trap this whole design is arranged around, and the shape of the graph
+    // in which it is sprung: the differentiation pass has already emitted
+    // gelu_backward reading the pre-activation, so that value has two
+    // consumers. Every other entry would stop there - rule 1 - and the reason
+    // this one does not is the reason it is allowed to exist: the fused node
+    // *keeps writing* that value, as a second output, under the same id.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -359,15 +386,152 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputIsReportedAndLeftAlone)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    // The GEMM and the bias still collapse; only the activation stays out.
+    ASSERT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 1u) << report.to_string();
+    EXPECT_EQ(count_op(graph, Ops::GELU.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
+
+    // The load-bearing assertion, and the one a plain GEMM_BIAS_GELU with no
+    // spill would fail: the pre-activation is still written, by the fused node,
+    // as its second output - and it is the *same* value, so gelu_backward's
+    // operand needed no rewriting and the backward rule needed no change.
+    ASSERT_EQ(report.fused().size(), 1u);
+    EXPECT_EQ(report.fused()[0].result, activated);
+    EXPECT_EQ(report.fused()[0].spilled, layer.biased);
+
+    const NodeId producer = graph.value(layer.biased).producer;
+    ASSERT_NE(producer, NO_NODE) << "the pre-activation has no producer - the spill was lost";
+    EXPECT_EQ(producer, graph.value(activated).producer)
+        << "the spill and the result must come from the same node";
+
+    const Graph::Node& fused = graph.node(producer);
+    ASSERT_EQ(fused.outputs.size(), 2u);
+    EXPECT_EQ(fused.outputs[0], activated);
+    EXPECT_EQ(fused.outputs[1], layer.biased);
+
+    // Only the MATMUL's result was dropped. Reporting the spilled value as
+    // eliminated would be a report that reads like the silently wrong version
+    // of this pass.
+    EXPECT_EQ(report.fused()[0].eliminated, std::vector<ValueId>{layer.product});
+    EXPECT_EQ(graph.value(layer.product).producer, NO_NODE);
+
+    // And gelu_backward still reads the pre-activation, not the result.
+    const Graph::Node& backward = graph.node(graph.value(gradient).producer);
+    ASSERT_EQ(backward.inputs.size(), 2u);
+    EXPECT_EQ(backward.inputs[1], layer.biased);
+}
+
+TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
+{
+    // The one new way this entry could break the graph, and it is not a wrong
+    // number - it is a wrong *order*. The fused node is emitted at the GELU's
+    // position, so a reader of the pre-activation sitting between the bias_add
+    // and the GELU would end up reading a value written after it, and every
+    // pass below assumes that cannot happen.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const Layer layer = trace_linear(builder);
+
+    // Emitted *before* the GELU, unlike the backward node in the case above.
+    const ValueId early = builder.scale(layer.biased, 2.0);
+    const ValueId activated = builder.gelu(layer.biased);
+
+    const std::vector<ValueId> observed{early, activated};
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+
+    const FusionReport report = Graph::fuse(graph, options);
+
+    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 0u) << report.to_string();
+    EXPECT_TRUE(declined_for(report, FusionDecline::SPILL_READ_TOO_EARLY));
+
+    // It still falls back to the shorter form, exactly as any other refusal of
+    // the three-node entry does.
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
     EXPECT_EQ(count_op(graph, Ops::GELU.id), 1u);
-    EXPECT_TRUE(declined_for(report, FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION));
 
-    // And the reason is spelled out, not left as a count.
-    const std::string text = report.to_string();
-    EXPECT_NE(text.find("differentiates at its input"), std::string::npos) << text;
-    EXPECT_NE(text.find("sushiai.gelu"), std::string::npos) << text;
+    // And the rewritten graph really is still topological, which is the
+    // property the refusal exists to protect.
+    for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
+        for (ValueId in : graph.node(id).inputs)
+        {
+            const NodeId producer = graph.value(in).producer;
+            if (producer == NO_NODE) continue;
+            EXPECT_LT(producer, id) << "node " << id << " reads value " << in;
+        }
+}
+
+TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
+{
+    // The mirror of VALUE_IS_OBSERVED. That rule exists because a fused form
+    // gives an interior value no buffer to read; this entry gives it one, so
+    // naming the pre-activation as observed must not refuse the fold.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const Layer layer = trace_linear(builder);
+    const ValueId activated = builder.gelu(layer.biased);
+
+    const std::vector<ValueId> observed{layer.biased, activated};
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+
+    const FusionReport report = Graph::fuse(graph, options);
+
+    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 1u) << report.to_string();
+    EXPECT_FALSE(declined_for(report, FusionDecline::VALUE_IS_OBSERVED));
+    EXPECT_NE(graph.value(layer.biased).producer, NO_NODE);
+}
+
+TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
+{
+    // A spill licenses one interior value and no others. The MATMUL's result is
+    // not spilled, so a second reader of it refuses the whole chain exactly as
+    // it does for every other entry - and the fallback is nothing, because
+    // gemm+bias is blocked by the same value.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const Layer layer = trace_linear(builder);
+
+    const ValueId also = builder.scale(layer.product, 2.0);
+    const ValueId activated = builder.gelu(layer.biased);
+
+    const std::vector<ValueId> observed{also, activated};
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+
+    const FusionReport report = Graph::fuse(graph, options);
+
+    EXPECT_TRUE(report.fused().empty()) << report.to_string();
+    EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_HAS_OTHER_CONSUMERS));
+    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 1u);
+}
+
+TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const Layer layer = trace_linear(builder);
+    const ValueId activated = builder.gelu(layer.biased);
+
+    const std::vector<ValueId> observed{activated};
+    const std::vector<FusedForm> off{FusedForm::GEMM_BIAS_GELU};
+
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.disabled = SushiRuntime::span<const FusedForm>(off.data(), off.size());
+
+    const FusionReport report = Graph::fuse(graph, options);
+
+    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 0u);
+    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::DISABLED));
+
+    // And the GELU that stayed outside is not also reported as unfoldable.
+    // "Its gradient differentiates at its input" and "no catalog entry composes
+    // it" are both false here and both would send a reader to change the wrong
+    // thing; the DISABLED line above is the whole and only reason.
+    EXPECT_FALSE(declined_for(report, FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION));
+    EXPECT_FALSE(declined_for(report, FusionDecline::NO_CATALOG_ENTRY));
 }
 
 TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)

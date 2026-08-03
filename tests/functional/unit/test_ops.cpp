@@ -85,6 +85,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.fused.gemm_bias_relu"),
         std::string_view("sushiai.fused.gemm_bias_sigmoid"),
         std::string_view("sushiai.fused.gemm_bias_tanh"),
+        std::string_view("sushiai.fused.gemm_bias_gelu"),
         std::string_view("sushiai.fused.exp_sub_scale"),
     };
 
