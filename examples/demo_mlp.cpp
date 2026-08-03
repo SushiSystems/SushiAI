@@ -138,6 +138,22 @@ namespace
          * ground truth #23.
          */
         bool mixed_precision = false;
+
+        /**
+         * @brief The gradient loss scale, or 0 for no scaling at all.
+         *
+         * Off by default, and the default is a claim rather than caution: with
+         * it off no node is emitted, so the graph, the operation count and
+         * every number this demo prints are exactly what they were before loss
+         * scaling existed.
+         *
+         * It is also worth being blunt about what turning it on buys *here*.
+         * On this workload fp16 without loss scaling neither stalls nor
+         * diverges - both arms converge to the same loss - so the flag exists
+         * to make the machinery runnable and inspectable, not because the demo
+         * needs it. See optim/loss_scaler.hpp.
+         */
+        double loss_scale = 0.0;
     };
 
     constexpr std::string_view USAGE = R"(sa demo mlp - train an MLP classifier end to end.
@@ -159,6 +175,13 @@ Usage: sushiai_demo_mlp [options]
                     fp32 gradients and every reduction in fp32. There is no
                     fp16 matrix unit on this machine, so this is a correctness
                     switch and not a speed one.
+  --loss-scale S    gradient loss scaling, starting at S  (default off)
+                    S must be a power of two, so the unscale before the update
+                    is exact. Overflow halves it and throws the step away;
+                    2000 clean steps double it. This workload does not overflow
+                    at a sane scale and converges the same without it, so the
+                    honest use is `--precision mixed --loss-scale 16777216`,
+                    which overflows fp16 deliberately and shows the backoff.
   --no-fuse NAME    leave one catalog entry unmatched; repeatable. NAME is a
                     form as the report names it: gemm+bias, gemm+bias+relu,
                     gemm+bias+sigmoid, gemm+bias+tanh, exp-sub-scale
@@ -325,6 +348,16 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                 if (state == "on") settings.fusion = true;
                 else if (state == "off") settings.fusion = false;
                 else SA_THROW_IF(true, "--fusion takes 'on' or 'off', got '{}'", state);
+            }
+            else if (flag == "--loss-scale")
+            {
+                // Only positivity is checked here; that the value is a power of
+                // two is LossScaleState's rule and it says so far better than a
+                // duplicate here could - see optim/loss_scaler.hpp.
+                settings.loss_scale = parse_real(flag, value());
+                SA_THROW_IF(settings.loss_scale <= 0.0,
+                            "--loss-scale takes a positive power of two, or omit it for none; "
+                            "got {}", settings.loss_scale);
             }
             else if (flag == "--precision")
             {
@@ -622,8 +655,11 @@ int main(int argc, char** argv)
                 ? static_cast<const sa::Graph::IPrecisionPolicy*>(&mixed_precision)
                 : static_cast<const sa::Graph::IPrecisionPolicy*>(&single_precision);
 
+        const bool scaling = settings.loss_scale > 0.0;
+
         sa::Train::TrainingGraph built = sa::Train::build_classifier(
-            model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion, precision);
+            model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion,
+            precision, scaling);
 
         // --- Memory and initialisation --------------------------------------
         sa::Graph::TensorPool pool(engine);
@@ -633,9 +669,27 @@ int main(int argc, char** argv)
         init.seed = settings.seed;
         sa::NN::initialize(engine, model, pool, init);
 
+        const std::size_t parameter_count = parameters.size();
+
         double learning_rate = 0.0;
         const std::unique_ptr<sa::Optim::Optimizer> optimizer =
             make_optimizer(engine, std::move(parameters), settings, learning_rate);
+
+        // Constructed here rather than inside the `if` so it outlives the
+        // trainer, which records the optimizer's update - and therefore the
+        // scaler's screens - into the compiled plan.
+        std::unique_ptr<sa::Optim::LossScaler> scaler;
+
+        if (scaling)
+        {
+            sa::Optim::LossScaleOptions scale_options;
+            scale_options.initial = settings.loss_scale;
+
+            scaler = std::make_unique<sa::Optim::LossScaler>(
+                engine, pool.tensor(built.loss_scale), parameter_count, scale_options);
+
+            optimizer->set_loss_scaler(scaler.get());
+        }
 
         // --- The one compile ------------------------------------------------
         // Trainer's constructor lowers and compiles the step. Epochs are driven
@@ -679,6 +733,14 @@ int main(int argc, char** argv)
             << SushiBLAS::Core::format("Graph    : {} IR nodes over {} values\n",
                                        built.graph.node_count(), built.graph.value_count())
             << describe_precision(built.casts)
+            << (scaling
+                    ? SushiBLAS::Core::format("Scaling  : gradients scaled by {:.0f}, "
+                                              "halved on overflow, doubled every {} clean "
+                                              "steps\n",
+                                              scaler->scale(),
+                                              scaler->state().options().growth_interval)
+                    : std::string{"Scaling  : off; no node is emitted and the graph is "
+                                  "unchanged\n"})
             << describe_fusion(built.fusion)
             << SushiBLAS::Core::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
                                        pool.tensor_count(), human_bytes(pool.allocated_bytes()),
@@ -726,6 +788,7 @@ int main(int argc, char** argv)
             << "================================================================\n"
             << trajectory
             << "\n" << run.to_string()
+            << (scaling ? scaler->to_string() : std::string{})
             << "----------------------------------------------------------------\n"
             << SushiBLAS::Core::format("  compiles: {}  <- one lowering, one compile, {} replays.\n",
                                        run.compile_count, run.steps)

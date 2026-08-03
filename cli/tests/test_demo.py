@@ -85,6 +85,56 @@ def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
+# The same forwarding check for the loss-scaling flag, and it asserts the one
+# thing about it worth asserting through the CLI: a dyadic scale is *exact*, so
+# a scaled fp32 run must report the same loss as an unscaled one to the last
+# printed digit. A rounding introduced anywhere in the scale/unscale round trip
+# would move that digit.
+@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
+@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+                    reason="no build tree — run `sa build` first")
+def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
+    """`--loss-scale` is forwarded, reported, and changes no fp32 number."""
+    loss = re.compile(r"^loss\s+:\s+(\S+) -> (\S+)$", re.MULTILINE)
+
+    plain = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+    scaled = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "65536"],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+
+    assert plain.returncode == 0, plain.stdout + plain.stderr
+    assert scaled.returncode == 0, scaled.stdout + scaled.stderr
+
+    assert "Scaling  : gradients scaled by 65536" in scaled.stdout, scaled.stdout
+    assert "loss scale     : 65536" in scaled.stdout, scaled.stdout
+    assert _COMPILE_ONCE.search(scaled.stdout), scaled.stdout
+
+    plain_loss = loss.search(plain.stdout)
+    scaled_loss = loss.search(scaled.stdout)
+    assert plain_loss and scaled_loss, plain.stdout + scaled.stdout
+    assert plain_loss.groups() == scaled_loss.groups(), (
+        "scaling by a power of two moved the loss, so the unscale is not exact"
+    )
+
+
+@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
+@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+                    reason="no build tree — run `sa build` first")
+def test_sa_demo_mlp_rejects_a_non_dyadic_loss_scale():
+    """A scale that is not a power of two fails rather than rounding quietly."""
+    completed = subprocess.run(
+        ["sa", "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "3"],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    )
+
+    assert completed.returncode != 0
+    assert "power of two" in (completed.stdout + completed.stderr)
+
+
 @pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
