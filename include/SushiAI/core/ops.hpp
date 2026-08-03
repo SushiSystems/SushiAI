@@ -199,17 +199,14 @@ namespace SushiAI
          */
         inline constexpr OpName EXP_SUB_SCALE = op("sushiai.fused.exp_sub_scale");
 
-        /**
-         * @brief The ordering node a fused epilogue's undeclared reads need.
-         *
-         * @c Dispatch::execute_gemm declares A, B and C to the runtime's
-         * dependency tracker and nothing the epilogue itself touches - the
-         * functor is an opaque callable to that layer. A bias vector the
-         * epilogue dereferences is therefore invisible, and SushiBLAS says in
-         * its own documentation that the caller owns ordering it. This is that
-         * ordering, made explicit; see @c Lowering::declare_epilogue_operand.
-         */
-        inline constexpr OpName EPILOGUE_OPERANDS = op("sushiai.fused.epilogue_operands");
+        // There was an EPILOGUE_OPERANDS identity here, naming a host-side node
+        // that submitted no work and carried the dependency edges a fused GEMM's
+        // epilogue could not declare for itself. SushiBLAS's seam takes the
+        // epilogue's access set now
+        // (`Dispatch::gemm_epilogue(f).reads(t).writes(t)`), so the edges land on
+        // the GEMM task and the node has no producer. Removed rather than left as
+        // an unused constant: an operation identity nothing emits is a name a
+        // reader has to chase before finding out it means nothing.
 
         /**
          * @brief Every identity declared above, in one enumerable table.
@@ -227,7 +224,7 @@ namespace SushiAI
             SUM_ROWS,
             ADAMW_UPDATE, SGD_UPDATE,
             GEMM_BIAS, GEMM_BIAS_RELU, GEMM_BIAS_SIGMOID, GEMM_BIAS_TANH,
-            EXP_SUB_SCALE, EPILOGUE_OPERANDS,
+            EXP_SUB_SCALE,
         };
 
         /**

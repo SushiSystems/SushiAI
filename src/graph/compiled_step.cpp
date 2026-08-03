@@ -35,7 +35,6 @@ namespace SushiAI
             Lowering lowering(engine, pool, selector);
             lowering.record(graph);
             operations_ = lowering.emitted_operations();
-            ordering_nodes_ = lowering.ordering_nodes();
 
             const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
             selections_.assign(chosen.begin(), chosen.end());

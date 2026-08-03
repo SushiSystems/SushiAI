@@ -122,21 +122,25 @@
  * between. Every spelling of a given node produces the same bytes; see
  * graph/fusion.hpp on @c -ffp-contract=off.
  *
- * @warning **A fused GEMM's epilogue reads memory the runtime cannot see.**
- *          @c Dispatch::execute_gemm declares A, B and C to the dependency
- *          tracker and nothing else, because the epilogue is an opaque callable
- *          to that layer - SushiBLAS says so in its own documentation and hands
- *          the obligation to the caller. Here the epilogue dereferences a bias,
- *          and that bias is a parameter the optimizer rewrites inside the same
+ * @warning **A fused GEMM's epilogue reads memory the runtime cannot see by
+ *          itself.** @c Dispatch::execute_gemm declares A, B and C to the
+ *          dependency tracker and nothing more, because the epilogue is an
+ *          opaque callable to that layer - which is exactly what lets this file
+ *          write one in plain C++. Here the epilogue dereferences a bias, and
+ *          that bias is a parameter the optimizer rewrites inside the same
  *          compiled plan, so an undeclared read is a write-after-read hazard
- *          the runtime would not order: the update could land before the
- *          forward pass had read the old value. It would still train.
- *          @c declare_epilogue_operand() is the fix - a host-side node that
- *          submits no work and exists only to carry the two edges the epilogue
- *          cannot declare for itself. It is not free (it is a node in the plan)
- *          and it is not a kernel launch, which is the trade this makes
- *          knowingly. What would retire it is an @c execute_gemm overload
- *          taking the epilogue's own read set.
+ *          nothing would order: the update could land before the forward pass
+ *          had read the old value, and it would still train. The declaration is
+ *          therefore load-bearing, and it is made where the functor is built -
+ *          @c SushiBLAS::Dispatch::gemm_epilogue(f).reads(bias) in
+ *          @c record_fused_gemm, one per catalog arm.
+ *
+ *          This used to cost a host-side node per fused GEMM that submitted no
+ *          work and existed only to carry those edges
+ *          (@c Lowering::declare_epilogue_operand, and @c ordering_nodes()
+ *          alongside it). Both are gone: SushiBLAS's seam now takes the
+ *          epilogue's own access set, so the edges land on the GEMM task itself
+ *          and the plan holds one node per fused GEMM instead of two.
  */
 
 #include <cstddef>
@@ -471,23 +475,16 @@ namespace SushiAI
                  */
                 void record(const Graph& graph);
 
-                /** @brief How many SushiBLAS calls the last record() emitted. */
-                std::size_t emitted_operations() const noexcept { return emitted_; }
-
                 /**
-                 * @brief How many plan nodes the last record() added in total.
+                 * @brief How many SushiBLAS calls the last record() emitted.
                  *
-                 * Larger than @c emitted_operations() by the number of
-                 * host-side ordering nodes a fused epilogue needed - see the
-                 * header's warning. Reported separately rather than folded in,
-                 * because "how many kernels run" and "how many nodes the
-                 * scheduler walks" are different questions and a fusion change
-                 * moves them in opposite directions.
+                 * Also the plan's node count: every node this lowering adds is
+                 * a recorded operation. It was not always - a fused GEMM used
+                 * to need a host-side ordering node beside it, counted apart by
+                 * an @c ordering_nodes() that no longer exists because nothing
+                 * produces one (see the file comment).
                  */
-                std::size_t emitted_nodes() const noexcept { return emitted_ + ordering_nodes_; }
-
-                /** @brief How many host-side ordering nodes the last record() added. */
-                std::size_t ordering_nodes() const noexcept { return ordering_nodes_; }
+                std::size_t emitted_operations() const noexcept { return emitted_; }
 
                 /**
                  * @brief What the selector chose for each fused node, in order.
@@ -523,23 +520,6 @@ namespace SushiAI
                 void record_fused_exp_sub_scale(const Graph& graph, NodeId id, const Node& node,
                                                 FusedForm matched);
 
-                /**
-                 * @brief Emits the dependency edges a fused epilogue cannot declare.
-                 *
-                 * A host-side node that runs nothing. It reads @p operand and
-                 * writes @p result, which is exactly the pair of edges the
-                 * epilogue's own read would have produced had
-                 * @c Dispatch::execute_gemm been able to see it: whatever wrote
-                 * @p operand is ordered before, whatever rewrites it is ordered
-                 * after, and the GEMM that follows is pulled in behind through
-                 * the write-after-write on @p result.
-                 *
-                 * @param operand The memory the epilogue dereferences.
-                 * @param result The fused GEMM's output, recorded immediately after.
-                 */
-                void declare_epilogue_operand(const SushiBLAS::Tensor& operand,
-                                              const SushiBLAS::Tensor& result);
-
                 /** @brief Asks the selector, recording the answer for selections(). */
                 FusionChoice select(const FusionQuery& query);
 
@@ -551,7 +531,6 @@ namespace SushiAI
                 const IFusionSelector* selector_ = nullptr;
                 std::vector<FusionSelection> selections_;
                 std::size_t emitted_ = 0;
-                std::size_t ordering_nodes_ = 0;
         };
 
     } // namespace Graph

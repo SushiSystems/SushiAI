@@ -532,16 +532,21 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   moved to differentiate at its output too, which is bit-identical rather than approximate, and is
   what makes the pass need no activation-specific knowledge: the pre-activation then has one
   consumer, so an ordinary use count folds ReLU and refuses GELU.
-- **The `GELU_AUX_BIAS` shape is not implementable on this seam and is declined, not faked.**
-  `execute_gemm` declares A, B and C to the dependency tracker and explicitly hands the epilogue's
-  own accesses back to the caller, so an aux buffer the functor wrote would get no edge and its
-  reader would race the write. Retiring that needs an `execute_gemm` overload carrying the
-  epilogue's read/write set — SushiBLAS-side work.
-- **The same gap costs one node per fused GEMM today.** The epilogue's *bias* read is undeclared
-  and the bias is a parameter the optimizer rewrites in the same plan, so
-  `Lowering::declare_epilogue_operand()` emits a `TaskGraph::add_native` node that runs nothing and
-  exists only for its two access declarations. Counted separately from the kernels in
-  `RunReport::ordering_nodes_per_step`.
+- **The `GELU_AUX_BIAS` shape was declined for a seam reason that no longer holds.** `execute_gemm`
+  used to declare A, B and C and hand the epilogue's own accesses back to the caller, so an aux
+  buffer the functor wrote would get no edge and its reader would race the write. SushiBLAS now
+  takes the epilogue's access set — `Dispatch::gemm_epilogue(f).reads(t).writes(t)` — so the aux
+  write is declarable. The fusion itself is still not implemented: it needs an op identity, a
+  catalog row, a second output on the fused node, a lowering arm, a backward rule reading the
+  spill, and a `static_assert` that can distinguish "no aux buffer" from "an aux buffer is
+  provided". Still declined, no longer for the seam's sake.
+- **That gap also used to cost one node per fused GEMM, and no longer does.** The epilogue's *bias*
+  read is a parameter the optimizer rewrites in the same plan, and it was declared with a
+  `Lowering::declare_epilogue_operand()` that emitted a do-nothing `TaskGraph::add_native` node,
+  counted apart in `RunReport::ordering_nodes_per_step`. `record_fused_gemm` declares it through
+  the seam now (`gemm_epilogue(f).reads(bias)`, per catalog arm), so the node, the counter and the
+  `Ops::EPILOGUE_OPERANDS` identity are gone: 27 plan nodes per fused step become 25, with `ops per
+  step` unchanged at 25.
 - **The largest remaining term is `LOG_SOFTMAX`'s nine calls**, and it is not a fusion-pass
   problem: it needs the row-wise reduction SushiBLAS does not expose. `NLL_LOSS`'s three are
   blocked the same way — the reduction seam takes no transform functor.

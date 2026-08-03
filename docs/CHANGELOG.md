@@ -66,7 +66,7 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 - **AI-3: automatic operator fusion — a static tree pass and a dynamic
   selector.** A step's forward and backward graph goes from 31 recorded
   SushiBLAS calls to 21 on `sa demo mlp`'s model (35 to 25 counting the
-  optimizer), plus two host-side ordering nodes that launch no kernel.
+  optimizer).
   - **Fusion is a selector over a pre-compiled catalog, not a code generator.**
     `sycl_ext_codeplay_kernel_fusion` is gone from intel-llvm, so a functor
     composition is a C++ template instantiation and the set of compositions is
@@ -99,21 +99,41 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     against the unfused graph over a full training run in
     `Regression_Fusion`, and `FusionOptions::enabled = false` keeps that
     reference reachable — the same shape `Optim::UpdateKernel::SEPARATE` has.
-  - **A fused epilogue's undeclared reads are declared explicitly.**
-    `Dispatch::execute_gemm` describes A, B and C to the dependency tracker and
-    nothing the epilogue touches, and the bias it dereferences is a parameter
-    the optimizer rewrites inside the same plan. `declare_epilogue_operand()`
-    emits a `TaskGraph::add_native` node that runs nothing and carries the two
-    edges; `RunReport::ordering_nodes_per_step` counts them apart from the
-    kernels so the trade stays visible.
+  - **A fused epilogue's operands are declared to the dependency tracker.**
+    `Dispatch::execute_gemm` describes A, B and C and cannot see into the
+    functor, and the bias it dereferences is a parameter the optimizer rewrites
+    inside the same plan — an undeclared read is not a wrong edge, it is *no*
+    edge. `Lowering::record_fused_gemm` therefore passes the functor and its
+    operands together, `gemm_epilogue(BiasReluEpilogue{...}).reads(bias)`, one
+    per catalog arm; the edge lands on the GEMM task itself.
+    `Regression_Fusion.AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias`
+    asserts it on `in_degree` rather than on a loss.
+
+    This was originally paid for differently: a `declare_epilogue_operand()`
+    that emitted a `TaskGraph::add_native` node running nothing, one per fused
+    GEMM, counted apart from the kernels by a
+    `RunReport::ordering_nodes_per_step`. SushiBLAS's seam takes the epilogue's
+    access set now, so the node, the counter and the
+    `Ops::EPILOGUE_OPERANDS` identity are all gone and `operations_per_step` is
+    the plan's node count again. On `sa demo mlp`'s model that is **27 plan
+    nodes per fused step before and 25 after**: `ops per step` is unchanged at
+    25 — no kernel was added or removed — and the two host-side nodes that sat
+    beside them are gone, one per taken GEMM-epilogue fusion (`gemm+bias+relu`
+    and `gemm+bias`; `exp-sub-scale` never needed one).
   - **The pass explains itself.** `FusionReport` names every subtree it
     collapsed and every one it refused, with the value that blocked it and the
     reason — `sa demo mlp` prints it, because every way this pass can be wrong
     produces a run that still converges.
-  - **An auxiliary-buffer GELU epilogue is declined, not approximated.** The
-    seam declares no epilogue-side regions, so an aux buffer the functor wrote
-    would get no dependency edge and its reader would race the write. That is a
-    SushiBLAS-side change, and it is named rather than worked around.
+  - **An auxiliary-buffer GELU epilogue is declined, not approximated.** It was
+    declined because the seam declared no epilogue-side regions, so an aux
+    buffer the functor wrote would get no dependency edge and its reader would
+    race the write. That half is fixed —
+    `Dispatch::gemm_epilogue(f).writes(aux)` puts the buffer in the GEMM task's
+    write set — and the fusion itself is still not implemented, because it also
+    needs an op identity, a catalog row, a second output on the fused node, a
+    lowering arm, a backward rule that reads the spill, and a `static_assert`
+    that can tell "no aux buffer" from "an aux buffer is provided". Named
+    rather than worked around, as before; the seam is no longer the reason.
   - **The wall clock has two terms and only one is an improvement.** A step's
     steady-state cost falls from 0.57 to 0.40 ms on `sa demo mlp`'s model, but
     the first step rises from 0.97 to 1.88 s because each fused form is a

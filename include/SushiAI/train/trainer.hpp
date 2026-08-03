@@ -330,18 +330,16 @@ namespace SushiAI
             /** @brief How many steps ran. */
             std::size_t steps = 0;
 
-            /** @brief How many SushiBLAS calls the compiled step is made of. */
-            std::size_t operations_per_step = 0;
-
             /**
-             * @brief How many host-side ordering nodes the step also holds.
+             * @brief How many SushiBLAS calls the compiled step is made of.
              *
-             * Non-zero only when a fused GEMM epilogue is in the plan. Kept out
-             * of @c operations_per_step because they submit no device work, and
-             * reported at all because they are still nodes the scheduler walks
-             * - see Graph::Lowering::declare_epilogue_operand.
+             * Also its node count. A fused GEMM used to add a host-side
+             * ordering node beside its kernel, reported apart from this by an
+             * @c ordering_nodes_per_step that no longer exists - SushiBLAS's
+             * GEMM seam takes the epilogue's own access set now, so there is
+             * nothing left to count.
              */
-            std::size_t ordering_nodes_per_step = 0;
+            std::size_t operations_per_step = 0;
 
             /** @brief The first step's loss. */
             double first_loss = 0.0;

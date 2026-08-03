@@ -400,33 +400,52 @@ non-recoverable is narrower than it looked: sigmoid and tanh **are** exactly
 recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's rules already
 take the output, so only GELU is genuinely blocked here.
 
-An auxiliary-buffer GELU epilogue - cuBLASLt's `GELU_AUX_BIAS` shape - is
-**not implementable through today's seam** and is declined rather than
-approximated. `Dispatch::execute_gemm` declares A, B and C to the dependency
-tracker and nothing the epilogue touches, so an aux buffer the functor wrote
-would get no edge at all and its reader would race the write. That is a
-SushiBLAS-side change (an epilogue read/write set on the seam), not something
-this side can work around.
+An auxiliary-buffer GELU epilogue - cuBLASLt's `GELU_AUX_BIAS` shape - **is now
+expressible at the seam and is still not implemented here.** The blocker used to
+be that `Dispatch::execute_gemm` declared A, B and C and nothing the epilogue
+touched, so an aux buffer the functor wrote would get no edge at all and its
+reader would race the write. SushiBLAS closed that:
+`Dispatch::gemm_epilogue(f).writes(aux)` puts the buffer in the GEMM task's own
+write set, and SushiBLAS's `Unit_GEMMSeamTest` asserts the resulting edge on
+`in_degree` (with a control for the undeclared spelling, which gets none).
+What remains is entirely on this side and is a separate
+change: a `GEMM_BIAS_GELU` identity and catalog row, an epilogue functor that
+spills its pre-activation, a second output on the fused node (so the shape rule
+and the builder both know about the aux value), a lowering arm that allocates it
+and declares the write, and a backward rule that reads *that* buffer rather than
+the node's output - plus the `static_assert` in `fusion.cpp`, which today refuses
+any catalog entry folding an activation that differentiates at its input and
+would have to learn the difference between "no aux buffer" and "an aux buffer is
+provided". The seam is no longer the reason not to.
 
-### The cost the epilogue carries
+### The cost the epilogue carried
 
-The same gap bites the bias. A fused GEMM's epilogue dereferences a bias vector
+The same gap bit the bias. A fused GEMM's epilogue dereferences a bias vector
 the tracker cannot see, and that bias is a parameter the optimizer rewrites
 *inside the same compiled plan* - so an undeclared read is a write-after-read
 hazard nothing orders. A transitive path through the gradient happens to exist
 for a plain feed-forward model, and relying on it is exactly the accident that
-survives every test and breaks on the first second writer. So
-`Lowering::declare_epilogue_operand()` emits a `TaskGraph::add_native` node that
-runs nothing and exists only for its two access declarations: it reads the bias
-and writes the result, which pushes the optimizer's update out behind it and
-pulls the GEMM in front of it. One node per fused GEMM, no kernel launch.
-`RunReport::ordering_nodes_per_step` counts them separately from
-`operations_per_step` so a fusion change cannot hide behind them.
+survives every test and breaks on the first second writer.
+
+This used to be paid for with a `Lowering::declare_epilogue_operand()` that
+emitted a `TaskGraph::add_native` node running nothing, present only for its two
+access declarations - one node per fused GEMM, no kernel launch, counted apart by
+a `RunReport::ordering_nodes_per_step`. All of that is gone.
+`Lowering::record_fused_gemm` now hands SushiBLAS the epilogue and its operands
+together, `gemm_epilogue(BiasReluEpilogue{...}).reads(bias)`, once per catalog
+arm - per arm rather than once above the `switch`, because the access set belongs
+to the spelling and an arm that spilled a pre-activation would declare a write
+the others do not. The edge lands on the GEMM task itself, so
+`operations_per_step` is the plan's node count again.
+`Regression_Fusion.AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias` asserts
+that edge on `in_degree` rather than on a loss: with no edge the tasks may still
+come out in the right order on any given run, so a loss that falls proves
+nothing.
 
 ### What it is worth, measured — and what it costs
 
-On `sa demo mlp`'s model a step goes from **35 recorded SushiBLAS calls to 25**
-plus 2 host-side ordering nodes, all of it out of the forward and backward
+On `sa demo mlp`'s model a step goes from **35 recorded SushiBLAS calls to 25**,
+all of it out of the forward and backward
 graph: the first layer's `gemm+bias+relu` replaces five calls with one, the
 second layer's `gemm+bias` replaces three with one, and the cross-entropy
 gradient's `exp/sub/scale` tail replaces five with one. Every fused form is
