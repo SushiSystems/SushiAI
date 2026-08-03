@@ -20,6 +20,10 @@ for an honest list of what this tree does not do yet, including the limits the
 planner and the fusion catalog still have. Nothing in this document promises a
 feature that plan hasn't reached.
 
+> **Start here:** [`TUTORIAL.md`](TUTORIAL.md) walks from an empty checkout to a
+> model that trains, and then explains what each stage of the pipeline did with
+> it — including the failure modes that are silent rather than loud.
+
 ## What exists today
 
 - **A graph IR** (`graph/ir.hpp`, `graph/builder.hpp`) — single-assignment,
