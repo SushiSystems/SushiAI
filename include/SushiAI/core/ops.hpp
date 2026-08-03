@@ -94,6 +94,22 @@ namespace SushiAI
         /** @brief Accumulates a gradient contribution into an existing buffer. */
         inline constexpr OpName ACCUMULATE = op("sushiai.accumulate");
 
+        /**
+         * @brief Copies a value into another element type, out of place.
+         *
+         * The only operation in this library whose operand and result are
+         * *allowed* to disagree on dtype - every other one is checked against
+         * a single element type by @c GraphBuilder, and SushiBLAS throws on a
+         * mismatch below that. It is emitted by exactly one place,
+         * @c graph/cast_insertion.hpp, and it is what makes mixed precision a
+         * property of the graph rather than a runtime reinterpretation: a
+         * value computed in fp16 and a value stored in fp32 are two values
+         * with two buffers and a node between them, so the memory planner, the
+         * dependency tracker and any reader of the IR all see the conversion
+         * instead of having to infer it.
+         */
+        inline constexpr OpName CAST = op("sushiai.cast");
+
         // --- Linear algebra -------------------------------------------------
         /** @brief 2-D matrix product, transposition expressed by flags not views. */
         inline constexpr OpName MATMUL = op("sushiai.matmul");
@@ -215,7 +231,7 @@ namespace SushiAI
          * turns an OpID back into a printable name.
          */
         inline constexpr std::array ALL = {
-            LEAF, ACCUMULATE,
+            LEAF, ACCUMULATE, CAST,
             MATMUL, BIAS_ADD,
             ADD, SUB, MUL, SCALE, EXP, ZERO,
             RELU, GELU, SIGMOID, TANH,

@@ -238,6 +238,38 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::cast(ValueId x, DType dtype, std::string_view debug_name) const
+        {
+            const Value& vx = graph_->value(x);
+
+            SA_THROW_IF(!is_real_float(vx.dtype) || !is_real_float(dtype),
+                        "CAST converts between the real floating types only (half, float32, "
+                        "float64) and was asked for {} -> {}. A complex operand has no single "
+                        "real value to narrow to, and a float-to-integer conversion is a "
+                        "rounding policy this library is not entitled to choose for a caller.",
+                        dtype_name(vx.dtype), dtype_name(dtype));
+
+            const ValueId out = declare(vx.shape, dtype, Lifetime::ACTIVATION, debug_name);
+            graph_->add_node(Ops::CAST.id, {x}, {out});
+            return out;
+        }
+
+        void GraphBuilder::cast_into(ValueId source, ValueId destination) const
+        {
+            const Value& vs = graph_->value(source);
+            const Value& vd = graph_->value(destination);
+
+            SA_THROW_IF(vs.shape != vd.shape,
+                        "CAST copies element for element, so its operands must have one shape; "
+                        "got {} and {}", vs.shape.to_string(), vd.shape.to_string());
+            SA_THROW_IF(!is_real_float(vs.dtype) || !is_real_float(vd.dtype),
+                        "CAST converts between the real floating types only (half, float32, "
+                        "float64) and was asked for {} -> {}",
+                        dtype_name(vs.dtype), dtype_name(vd.dtype));
+
+            graph_->add_node(Ops::CAST.id, {source}, {destination});
+        }
+
         ValueId GraphBuilder::accumulate(ValueId acc, ValueId delta) const
         {
             require_same(acc, delta, "ACCUMULATE");

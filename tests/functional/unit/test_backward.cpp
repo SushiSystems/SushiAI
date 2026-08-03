@@ -68,6 +68,14 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     // to hand a gradient to and no rule to write.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::LEAF.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::ZERO.id));
+
+    // CAST has none either, and that is a pipeline-ordering statement rather
+    // than an omission: casts are inserted *after* differentiation
+    // (graph/cast_insertion.hpp says why), so no graph this transform sees can
+    // contain one. A graph that somehow did would fail loudly, naming the
+    // operation, rather than differentiating a conversion the pass had not
+    // established the precision of yet.
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::CAST.id));
 }
 
 TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)

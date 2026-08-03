@@ -230,6 +230,46 @@ namespace SushiAI
                 ValueId accumulate(ValueId acc, ValueId delta) const;
 
                 /**
+                 * @brief Emits @c CAST: a copy of @p x in a different element type.
+                 *
+                 * The one emitter here whose result deliberately does *not*
+                 * share its operand's dtype, which is why it is the only route
+                 * to one - every other entry point runs @c require_same or an
+                 * equivalent check, and that stays true now that casts exist
+                 * (see @c graph/cast_insertion.hpp). A conversion that is not
+                 * spelled as a node is a conversion the memory planner cannot
+                 * size, the dependency tracker cannot order and a reader of the
+                 * IR cannot see.
+                 *
+                 * @param x The value to convert.
+                 * @param dtype The result's element type; may equal @p x's, in
+                 *        which case this is an ordinary copy.
+                 * @param debug_name A label for diagnostics; must outlive the graph.
+                 * @return The converted value's id, with an activation lifetime.
+                 * @throws Error If either element type is not a real float -
+                 *         SushiBLAS's converting copy is bounded to HALF,
+                 *         FLOAT32 and FLOAT64, and refuses the rest by name.
+                 */
+                ValueId cast(ValueId x, DType dtype, std::string_view debug_name = "cast") const;
+
+                /**
+                 * @brief Emits @c CAST writing an *existing* value.
+                 *
+                 * The result-side half of a cast. @ref cast declares its own
+                 * result, which is what an operand conversion needs; widening a
+                 * low-precision result into a buffer that already exists - a
+                 * gradient the optimizer reads, a logit the training loop reads
+                 * - has to write the value the caller already holds the id of,
+                 * or the id would stop naming the number.
+                 *
+                 * @param source The value to read.
+                 * @param destination The value to write; must have no producer yet.
+                 * @throws Error If the shapes disagree, either element type is
+                 *         not a real float, or @p destination is already written.
+                 */
+                void cast_into(ValueId source, ValueId destination) const;
+
+                /**
                  * @brief Declares a value with the same shape, dtype and lifetime as @p like.
                  * @param like The value to copy the description from.
                  * @param debug_name A label for diagnostics; must outlive the graph.
