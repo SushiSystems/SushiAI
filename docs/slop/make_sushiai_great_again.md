@@ -553,3 +553,84 @@ roadmap), GNN, Python frontend (v2).
    undecided at implementation time: match the `se` convention.
 4. **Value-dependent control flow in autograd** (AI-1) — out of scope for v1; revisit for
    PINN/GNN.
+
+---
+
+## 25. Substrate findings, 2026-08-03 (these change AI-1/AI-2/AI-3 as written above)
+
+A full literature review plus a four-repo API survey turned up substrate facts that invalidate
+parts of §17–§19's design as originally sketched. Recorded here because each was expensive to
+find and each would be expensive to rediscover.
+
+**AI-0 is closed.** The Release-build blocker §16 leaves open is gone: a full `sa build --type
+release` (208/208, reconfigure in place) compiled `test_leaky_relu.cpp`, `test_gelu.cpp` and
+`test_constant.cpp` cleanly, and `sa test --suite all` is 155/155 green. It predated the SB-3/SB-6
+commits. Both repos' CHANGELOGs still claim it is open and need correcting.
+
+**§17's "backward rules emit into the same TaskGraph" must become "emit into SushiAI's own IR."**
+Four independent reasons: a `TaskGraph` node carries `ResourceRegion` *byte ranges*, which cannot
+be assigned before the memory planner runs, which itself needs the joint forward+backward graph;
+fusion partitions a DAG, and there is no DAG left once differentiation has flushed to the runtime;
+closure over its own output is the one property that makes higher-order derivatives fall out
+(AOTAutograd cannot do double-backward precisely because it lacks it); and `TaskGraph::compile()`
+**drains** its builder, so it is not a structure that can be held and rewritten. Pipeline:
+forward IR → differentiate → fuse → plan → lower to `TaskGraph` once → compile once → replay.
+
+**Compile-once/replay has an unguarded footgun.** `CompiledGraph::rearm()` before
+`capture_base_state()` leaves `base_in_degree` empty, so the node loop no-ops *but the sentinel is
+still stored with in-degree 0* — it fires immediately and the run reports complete before any work
+runs. No assert catches it, and sushiruntime has zero tests that replay a raw `CompiledGraph` or
+that reference `rearm`/`capture_base_state` by name. Wrap both calls in one RAII type.
+
+**§18's "single arena" is the wrong shape.** The dependency tracker shards its access history on
+the *base pointer*, so one arena collapses 1024 shards into one chain and makes hazard resolution
+quadratic. Worse, memory reuse *injects* WAR/WAW anti-dependencies: reusing bytes across parallel
+branches silently serialises them — still correct, but the parallelism loss is invisible. Use one
+arena per lifetime class (parameter / gradient / optimizer-state / input / activation / scratch),
+and compute liveness over the **reachability partial order**, not linear timestep intervals.
+
+**§19's fusion is reachable but bounded.** `sycl_ext_codeplay_kernel_fusion` has been *removed*
+from intel-llvm, so there is no runtime IR-level fusion. Every functor composition is a distinct
+template instantiation, so composition is a compile-time choice and a "dynamic fusion pass" can
+only *select among pre-instantiated combinations*. The generic helpers that make composition
+possible (`execute_binary` and friends) live in `src/` and are not installed, so they must be
+promoted to `include/` before SushiAI can reach them at all. Highest value-per-line change
+available: an `Epilogue` template parameter on `kernels/sycl/blas/level3/gemm.hpp`'s write-back
+line, signature `T operator()(T value, int64_t row, int64_t col)` — the row/col arguments are what
+make bias broadcast expressible. Note the trap cuBLASLt's `GELU_AUX_BIAS` exists to solve: an
+activation epilogue in a *forward training* pass must write its pre-activation to an aux buffer or
+be invertible, or the backward is silently wrong.
+
+**The op registry cannot use static-initialiser self-registration.** `sushiai` is a STATIC
+library; linker GC drops a TU nothing references, so self-registering ops vanish in some link
+configurations with no diagnostic. A `constexpr` table plus a `static_assert` uniqueness check is
+correct, greppable and free. (32-bit FNV-1a `OpID`s do collide eventually — the assert is not
+paranoia.)
+
+**Most SushiBLAS ops ignore `Tensor::storage_offset`.** Only the reductions, `logic().all/any`,
+`random().constant` and `io()` honour it; the other ~28 files capture `t.storage->data_ptr`
+directly. Feeding a sliced view to gemm/axpy/elementwise silently operates from element 0. This is
+a live latent bug today and a blocking one for any arena design — fix it in SushiBLAS before AI-2.
+
+**The GTX 1060 is currently not executing anything.** NVIDIA's OpenCL driver implements no
+SPIR-V ingestion (`clCreateProgramWithIL` is absent), so the SYCL OpenCL backend cannot reach the
+card at all — which is why every prior session observed "GPU auto-detect falling back to
+CPU/OpenCL". Reaching the GPU requires intel-llvm built with `--cuda` and
+`-fsycl-targets=nvidia_gpu_sm_61`, and note that intel-llvm documents support only for sm_75+, so
+sm_61 is below the tested floor. Until then every benchmark number on this machine is a CPU
+number, and ground truth #23's fp16 caveat is moot because no fp16 runs on the GPU either.
+
+**An MLP training step needs no new SushiBLAS kernels.** Stable log-softmax and cross-entropy
+compose entirely from already-built ops: global (not per-row) max shift via `reductions().max` —
+numerically sufficient, since all it has to guarantee is that every `exp` argument is ≤ 0 — row
+sums via `gemv` against a ones vector, and broadcast of the log-sum-exp back over rows via `ger`
+(which is unconjugated, so `ger(ones, b, C)` is also the bias-add). A fused
+`log_softmax_rows` op remains worth adding later for the kernel-count win, not for correctness.
+
+**Numerics that are silently wrong if written the obvious way** (each verified against primary
+sources): AdamW's `eps` goes outside the sqrt and is added *after* dividing by
+`sqrt(bias_correction2)` — the other order makes the effective epsilon 31.6× too large on step 1;
+LayerNorm's `eps` goes *inside* (different units); `t` starts at 1; decoupled decay applies to
+`theta_{t-1}` before the adaptive step; gradient clipping must run unscale → clip → step. And
+finite-difference gradient checks must run in FLOAT64 — fp32 central differences bottom out near
+2.4e-5 relative accuracy, which cannot distinguish a correct gradient from a real bug.

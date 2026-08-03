@@ -1,10 +1,32 @@
 cmake_minimum_required(VERSION 3.20)
 
 # --- Define SushiAI Library ---
-# AI-0 scope reset: deliberately minimal. Grows as AI-1 (graph-native
-# autograd) and beyond land - see docs/slop/make_sushiai_great_again.md.
+# Every source belongs in this ONE variable: it feeds add_library() AND
+# sushiai_apply_sycl() below, so a file added straight to add_library() would
+# compile without -fsycl on the intel-llvm path and fail to link the moment it
+# touches a SushiBLAS kernel.
 set(SUSHIAI_SOURCES
     version.cpp
+
+    core/allocation.cpp
+
+    graph/builder.cpp
+    graph/lowering.cpp
+    graph/compiled_step.cpp
+
+    autograd/backward.cpp
+    autograd/gradcheck.cpp
+
+    nn/layers.cpp
+    nn/init.cpp
+
+    optim/optimizer.cpp
+    optim/sgd.cpp
+    optim/adamw.cpp
+
+    data/dataset.cpp
+
+    train/trainer.cpp
 )
 
 add_library(sushiai STATIC ${SUSHIAI_SOURCES})
@@ -40,10 +62,10 @@ set_target_properties(sushiai PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# SYCL device-compilation policy (see cmake/SyclTarget.cmake). version.cpp
-# itself has no SYCL content yet, but future sources will, and -fsycl on the
-# intel-llvm path must be applied PUBLIC so examples/tests inherit it from
-# linking sushiai rather than reapplying it themselves.
+# SYCL device-compilation policy (see cmake/SushiAISyclTarget.cmake). The
+# lowering, optimizer, dataset and trainer sources all reach SushiBLAS and
+# therefore SYCL; -fsycl on the intel-llvm path is applied PUBLIC so examples
+# and tests inherit it from linking sushiai rather than reapplying it.
 sushiai_apply_sycl(sushiai SOURCES ${SUSHIAI_SOURCES})
 
 # --- Install & export (SB-6 packaging shape, from day one) ---

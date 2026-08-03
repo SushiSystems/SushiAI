@@ -1,10 +1,10 @@
 # SushiAI Architecture
 
-This document describes how SushiAI is built today. It is intentionally
-short: SushiAI is at **AI-0**, a scope-reset skeleton, and this document
-names only what actually exists under `include/SushiAI/`, `src/`, and
-`cmake/`. It will grow section by section as AI-1 (graph-native autograd)
-and beyond land — see
+This document describes how SushiAI is built today, and names only what
+actually exists under `include/SushiAI/`, `src/`, and `cmake/`. **AI-1** has
+landed: the graph IR, the differentiation transform, the lowering to
+SushiBLAS, the layer/optimizer/data/training layers, and an MLP that trains
+end to end. It will keep growing section by section — see
 [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
 for what's coming and in what order.
 
@@ -13,32 +13,39 @@ for what's coming and in what order.
 
 ---
 
-## 1. What SushiAI is (and isn't, yet)
+## 1. What SushiAI is
 
-SushiAI is meant to become the AI/ML head of the SushiStack: a graph-native
-autograd core with memory planning, kernel fusion, and mixed precision,
+SushiAI is the AI/ML head of the SushiStack: a graph-native autograd core
 built on [SushiBLAS](https://github.com/SushiSystems/SushiBLAS)'s tensor and
-op library. **None of that exists yet.** What exists is the scaffolding a
-real library needs from day one so that no future commit ever has to be
-"the one that finally adds packaging" or "the one that finally sets up
-testing":
+op library, which is in turn scheduled by
+[SushiRuntime](https://github.com/SushiSystems/SushiRuntime).
 
-- A library target (`SushiAI::sushiai`) that actually compiles, links
-  against both of its intended dependencies, and installs/exports correctly.
-- A real dependency chain to two siblings, resolved the same layered way
-  every other SushiStack module resolves its dependencies.
-- A test suite structure (unit/integration, CTest labels) ready to grow.
-- `find_package(SushiAI)` packaging, verified with a real out-of-tree
-  consumer — not deferred to "later, when there's something worth
-  packaging."
-- A CLI (`sa`) with the full command surface (`build`/`test`/`run`/`clean`/
-  `doxygen`/`config`/`env`) a real project needs, plus a `demo mlp` command
-  that exists and correctly reports "not implemented yet" rather than
-  faking output.
+**SushiAI writes no SYCL and defines no kernels.** Every compute call in the
+library goes through `SushiBLAS::Engine`, and exactly one file —
+`src/graph/lowering.cpp` — makes those calls. Everything else deals in the
+IR described below, which is what keeps the differentiation, fusion and
+memory-planning passes device-free and testable without hardware.
 
-SushiAI touches no SYCL directly and defines no operations of its own. Every
-compute call in the one example/test that exists is a `SushiBLAS::sushiblas`
-call.
+The pipeline for one training step is:
+
+```
+trace a model  ->  forward IR
+differentiate  ->  forward + backward IR      (IR -> IR, no device work)
+lower          ->  a SushiRuntime TaskGraph   (the only SushiBLAS calls)
+compile        ->  ONCE, per model
+replay         ->  per batch, for ever
+```
+
+Two properties are load-bearing and both are asserted by the test suite:
+the step is compiled exactly once no matter how many batches run
+(`CompiledStep::compile_count()`), and the steady state allocates nothing
+(`TensorPool::allocated_bytes()` stops moving after the first step).
+
+Alongside the core there is the scaffolding a real library needs from day
+one: a `find_package(SushiAI)`-able target verified by an out-of-tree
+consumer, a two-tier test suite with CTest labels, and the `sa` CLI. The
+`sa demo mlp` showcase is still AI-7 and still reports "not implemented
+yet"; the runnable equivalent today is `sa run sushiai_example`.
 
 ---
 
@@ -69,41 +76,100 @@ aliases regardless of which mode actually resolved them.
 
 ## 3. The library target
 
-`src/CMakeLists.txt` defines one target:
+`src/CMakeLists.txt` defines one target, built from one source list:
 
 ```cmake
-add_library(sushiai STATIC version.cpp)
+set(SUSHIAI_SOURCES version.cpp graph/... autograd/... nn/... optim/... data/... train/...)
+
+add_library(sushiai STATIC ${SUSHIAI_SOURCES})
 add_library(SushiAI::sushiai ALIAS sushiai)
 
 target_link_libraries(sushiai PUBLIC
     SushiRuntime::SushiRuntime
     SushiBLAS::sushiblas
 )
+
+sushiai_apply_sycl(sushiai SOURCES ${SUSHIAI_SOURCES})
 ```
 
-Both dependencies are linked `PUBLIC` — a future autograd core built inside
-`sushiai` will need both, and every current consumer (examples, tests)
-already needs `SushiBLAS::sushiblas` to do anything, so there is nothing to
-gain by hiding the link. This also means SushiAI inherits SushiRuntime's
-`sushiruntime_deterministic_fp` floating-point contract transitively; it
-owns no copy of that guarantee itself.
+`SUSHIAI_SOURCES` feeds both `add_library()` and `sushiai_apply_sycl()`, so
+a source added directly to `add_library()` would compile without `-fsycl` on
+the intel-llvm path and fail to link the moment it touches a SushiBLAS
+kernel. One variable, both consumers.
 
-`include/SushiAI/version.hpp` defines `SUSHIAI_VERSION_{MAJOR,MINOR,PATCH,STRING}`
-and `SUSHIAI_VERSION_ENCODE`; `src/version.cpp` implements the one function
-`SushiAI::version_string()` declared there. `include/SushiAI/SushiAI.h` is
-the master header — today it includes only `version.hpp`, and grows one
-include per header SushiAI adds.
+Both dependencies are linked `PUBLIC` — the lowering needs SushiBLAS, and
+every consumer needs it to construct an `Engine` anyway. SushiAI therefore
+inherits SushiRuntime's `sushiruntime_deterministic_fp` floating-point
+contract transitively rather than owning a copy of that guarantee, which is
+also why gradient accumulation is ordered through the graph's edges rather
+than through atomics (see `autograd/backward.hpp`).
+
+`include/SushiAI/SushiAI.h` is the master header and includes every public
+header. Two lanes live under it:
+
+- The **host lane** — `core/`, `graph/ir.hpp`, `graph/builder.hpp`,
+  `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — pulls in no
+  SushiBLAS and no SYCL. The `Unit_*` tests include these directly and run
+  without a device.
+- The **device lane** — `graph/lowering.hpp`, `graph/compiled_step.hpp`,
+  `nn/init.hpp`, `optim/`, `data/`, `train/` — reaches SushiBLAS.
 
 SYCL device-compilation policy (`sushiai_apply_sycl()`,
-`cmake/SushiAISyclTarget.cmake`) is applied to `sushiai` even though
-`version.cpp` itself has no SYCL content — applied `PUBLIC` on the intel-llvm
-path (`-fsycl`) so that examples and tests inherit it from linking `sushiai`
-rather than reapplying it themselves, and so the flag is already in place
-for the first source file that does need it.
+`cmake/SushiAISyclTarget.cmake`) is applied `PUBLIC` on the intel-llvm path
+so examples and tests inherit `-fsycl` from linking `sushiai` rather than
+reapplying it.
 
 ---
 
-## 4. Packaging
+## 4. The IR, and why differentiation writes IR
+
+`include/SushiAI/graph/ir.hpp` defines a single-assignment DAG of
+`Value`s and `Node`s. `graph/builder.hpp` is the only thing that creates
+nodes, so every operation's shape inference is stated exactly once.
+
+A backward rule reads that IR and writes more of it. It never calls
+SushiBLAS and never touches a `TaskGraph`. The full argument is in
+`ir.hpp`'s file comment; the short version is that a `TaskGraph` node
+carries byte ranges that cannot be known until the memory planner has seen
+the whole forward *and* backward graph, that fusion needs a DAG to
+partition, and that `TaskGraph::compile()` drains its builder and so cannot
+be held and rewritten.
+
+`autograd/backward.hpp` implements the reverse walk. Its rule registry is a
+file-scope `constexpr` array of `{OpID, function pointer}`, deliberately not
+a self-registering map: `sushiai` is a **static** library, so a translation
+unit whose only job is to run a registration constructor resolves no symbol
+and is dropped by the linker — silently, and only in a downstream consumer's
+build.
+
+Gradient accumulation at a fan-out is tiered: zero contributors means no
+gradient value at all (a symbolic zero, not a materialised buffer), one
+means the gradient *is* that value, and two or more emit `ACCUMULATE` nodes
+in contributor order.
+
+---
+
+## 5. Lowering, and one Storage per value
+
+`src/graph/lowering.cpp` is the only file that calls `SushiBLAS::Engine`.
+Its `TensorPool` gives every `ValueId` its own `SushiBLAS::Storage` rather
+than sub-allocating one arena, which is a correctness requirement today
+rather than a missed optimisation: almost every SushiBLAS kernel captures
+`tensor.storage->data_ptr` and ignores `tensor.storage_offset`, so an offset
+view handed to gemm, axpy or an elementwise op reads from element zero of
+the arena and produces a silently wrong answer. Distinct base pointers also
+keep SushiRuntime's dependency tracker sharded.
+
+`graph/compiled_step.hpp` wraps the compile-once/replay contract in a type,
+because the ordering has a silent failure mode: `rearm()` before
+`capture_base_state()` leaves the completion sentinel armed at in-degree
+zero, so the run reports complete before any kernel has been dispatched and
+the step quietly does nothing. Doing both in the constructor makes that
+state unrepresentable.
+
+---
+
+## 6. Packaging
 
 SushiAI is `find_package`-able from its very first commit, mirroring
 SushiBLAS's SB-6 packaging shape exactly: `SushiAI::sushiai` (a `STATIC`
@@ -144,16 +210,34 @@ first.
 
 ---
 
-## 5. What's not here yet
+## 7. What's not here yet
 
-Everything past the scaffolding above is **AI-1 onward** and does not exist
-in this tree: no tensor/graph API of SushiAI's own, no autograd, no layers,
-no optimizers, no loss functions, no training loop, no `sa demo mlp`
-implementation. The retired 2025-06 prototype (`core/tensor.h`, eager
-autograd, CUDA-only) that used to occupy this repository is **not** a
-migration source for any of this — it predates the SushiStack integration
-entirely and was deleted, not ported, at AI-0. See the master plan for the
-actual sequencing.
+Named honestly, because the gap between what a library claims and what it
+does is the expensive kind of documentation debt:
+
+- **No memory planner.** `Lifetime` is recorded on every value and nothing
+  reads it yet; every value gets its own permanent buffer. The planner that
+  packs the transient classes needs SushiBLAS to honour `storage_offset`
+  first (see §5).
+- **No fusion pass.** The IR is shaped for one (a DAG that survives
+  differentiation), but nothing partitions it.
+- **The optimizer update is not part of the compiled step.** AdamW's bias
+  corrections are per-step scalars and SushiBLAS takes its alphas by value,
+  so the update is recorded and flushed separately each step. Feeding a
+  batch costs a second flush for the same reason: a compiled call captures
+  raw pointers, so the batch is copied into fixed buffers rather than bound
+  to them. Both collapse into the compiled plan once SushiRuntime's
+  late-binding block reaches the BLAS layer.
+- **`LOG_SOFTMAX` is differentiable only as part of the fused
+  `LOG_SOFTMAX` + `NLL_LOSS` pair.** The standalone rule needs a row-wise
+  reduction SushiBLAS does not expose; it throws and says so.
+- **No mixed precision, no checkpointing, no serialization, no
+  `sa demo mlp`.**
+
+The retired 2025-06 prototype (`core/tensor.h`, eager autograd, CUDA-only)
+that used to occupy this repository is **not** a migration source for any of
+this — it predates the SushiStack integration entirely and was deleted, not
+ported, at AI-0. See the master plan for the actual sequencing.
 
 ## Project layout
 
