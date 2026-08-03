@@ -147,6 +147,7 @@ sa demo mlp --epochs 4 --optimizer sgd   # anything you like
 sa demo mlp --fusion off                 # the unfused graph, for an A/B
 sa demo mlp --no-fuse gemm+bias+relu     # one catalog entry off; repeatable
 sa demo mlp --precision mixed            # fp16 products, fp32 master weights
+sa demo mlp --loss-scale 65536           # gradient loss scaling, halving on overflow
 sa demo mlp --help                       # the full flag list
 ```
 
@@ -170,6 +171,22 @@ the mixed run is several times slower — see
 [README.md § Mixed precision](../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
 for the measured figures. What the flag is for is running the two arms from
 one binary and comparing the *loss curves*.
+
+`--loss-scale S` turns on gradient loss scaling: the backward seed is
+multiplied by `S`, every gradient is screened for infinities and NaNs, an
+overflowed parameter's update is skipped, the scale halves, and 2000 clean
+steps double it. `S` must be a power of two so that the unscale before the
+update is exact — the demo run at `--precision fp32 --loss-scale 65536`
+reports a loss identical to the unscaled one, which is that exactness being
+visible rather than a coincidence.
+
+**It makes this demo no better, and that is the honest reading.** fp16 here
+neither stalls nor underflows, so the flag is for watching the machinery:
+`--precision mixed --loss-scale 65536` overflows once and backs off to 32768
+(PyTorch's default scale is too high for this model's fp16 backward pass), and
+`--loss-scale 16777216` overflows on every step and walks the scale down eight
+halvings — with `compiles: 1` throughout, which is what the scale being a
+device-resident value rather than a graph attribute buys.
 
 `sa demo mlp` runs `sushiai_demo_mlp` (`examples/demo_mlp.cpp`) from the repo
 root, so a relative data path such as the demo's `data/mnist` default means
