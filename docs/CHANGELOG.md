@@ -14,6 +14,17 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 ## [Unreleased]
 
 ### Fixed
+- **`Trainer::score_accuracy()` refuses logits it cannot read instead of
+  reinterpreting them.** It chose between `double` and `float` with `float` as
+  the fallback, which was right while every graph was fp32 or fp64 and became a
+  silent wrong answer the moment a precision policy could hand it a half
+  buffer: `data_as<float>()` over half data reads two elements as one and
+  reports an accuracy that is fiction — nothing throws, nothing is `NaN`, and
+  the run says 100%. It now names the dtype and says how to keep the logits
+  readable. Found while wiring AI-4; the shipped path never reached it, because
+  `build_classifier` lists the logits as observed and the cast pass cannot
+  narrow an observed value. `Integration_MixedPrecision.AccuracyRefusesLogitsItCannotRead`
+  builds the graph the unsafe way on purpose and pins the refusal.
 - **Log-softmax shifts by each row's own maximum, not the batch's.** The
   previous shift returned `+inf` for any row about 104 below the batch maximum,
   which made the loss `NaN` and every gradient under it non-finite — so a
@@ -63,6 +74,80 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   demo's loss trajectory is unchanged to the last printed digit.
 
 ### Added
+- **AI-4 (part 1 of 2): mixed-precision dtype plumbing — a precision policy
+  and a cast-insertion pass.** fp16 compute with fp32 master weights, expressed
+  as structure in the IR rather than as a runtime reinterpretation.
+  **Loss scaling and overflow backoff are explicitly not in this change**, so
+  an fp16 gradient small enough to underflow is still simply lost.
+  - **`graph/precision.hpp` is the policy** — `IPrecisionPolicy` answers, per
+    operation, which element type it computes in, split from the pass the same
+    way `fusion_selector.hpp` is split from `fusion.hpp`: the pass is a
+    mechanical rewrite, the policy is a set of judgements about numerics that
+    has to be argued. `UniformPrecisionPolicy` is the default and answers "the
+    graph's own type" to everything, so nothing that existed before this change
+    behaves differently.
+  - **`MixedPrecisionPolicy` narrows two families and nothing else.** `MATMUL`
+    and the fused GEMM forms, because that is where the FLOPs are; and
+    `BIAS_ADD` plus the *foldable* activations, because a `GEMM_BIAS_RELU` node
+    applies its epilogue inside the GEMM's kernel in the GEMM's element type —
+    so the unfused spelling has to agree or fusion would change the numbers,
+    which the fusion pass promises it never does. Everything that sums many
+    terms stays wide (`SUM_ROWS`, `LOG_SOFTMAX`, `NLL_LOSS`, `ACCUMULATE`), and
+    so does the cross-entropy tail (`EXP`, `SUB`, `SCALE`): its gradient is
+    `(softmax(x) − y)/N`, a subtraction of nearly-equal numbers for the correct
+    class, and cancellation is the one thing loss scaling cannot rescue. `GELU`
+    stays wide too — nothing folds it, so nothing forces its precision, and its
+    tanh approximation computes `x*x*x`, which overflows fp16 at |x| ≈ 40.
+  - **`graph/cast_insertion.hpp` is the pass** — host lane, pure IR to IR,
+    the same shape as `fusion.hpp` and `memory_plan.hpp`. It inserts an
+    `Ops::CAST` node at every dtype boundary so that every node's operands
+    agree with its computed type *by construction*, and it checks that
+    invariant on its own output before returning.
+  - **It runs between `differentiate()` and `fuse()`, and both neighbours are
+    load-bearing.** After differentiation because a backward node needs casting
+    as much as a forward one and there are none to cast before the transform
+    runs; before fusion because a conversion dropped into a `MATMUL` →
+    `BIAS_ADD` → `RELU` chain would break the chain the matcher looks for.
+  - **Master weights are never rewritten.** A parameter keeps its id, its
+    `FLOAT32` dtype and its `Lifetime::PARAMETER`; so does its gradient, and
+    the optimizer is untouched. The fp16 a GEMM reads is a *derived* value with
+    an activation lifetime. The backward direction falls out of the same rule:
+    a gradient is a persistent lifetime class, so it is pinned, so an fp16
+    matmul writes a fresh narrow result and a cast widens it into the buffer
+    the optimizer accumulates in.
+  - **`Graph::find_dtype_mismatches()` states the invariant as a function**, so
+    it can be checked after the fact — including after fusion has rewritten
+    nodes, which is exactly where a master weight could be swallowed.
+    `TrainerOptions::precision` runs it before lowering and refuses a graph
+    that fails, which is the last point at which a misplaced conversion is
+    still visible rather than a model that merely learns worse.
+  - **`sa demo mlp --precision fp32|mixed`**, defaulting to `fp32`. The demo
+    reports the conversions it inserted, in both directions, next to the fusion
+    report and for the same reason: every way this pass can be wrong produces a
+    run that still converges.
+  - **What it is worth on this machine: correctness, and nothing else.** There
+    is no fp16 matrix unit here, so half arithmetic is emulated and
+    `--precision mixed` is *slower*. Measured on `--epochs 8 --batches 16`,
+    same seed, one binary: 25 → 35 recorded operations per step (the ten
+    conversions, and nothing else structural — the fused forms all survive),
+    2105.9 ms → 9364.9 ms wall clock, and a loss trajectory that tracks fp32
+    to 9.5e−4 relative at the largest printed loss and finishes at the same
+    0.000380 with the same 100% accuracy. Repeated at `--hidden 512
+    --batch-size 64` — a 512-long fp16 reduction inside each product — both
+    arms reach 0.000003 after 48 steps. **On this workload, fp16 without loss
+    scaling neither stalls nor diverges**, which means the loss-scaling work
+    that follows is justified by theory and by larger models rather than by
+    anything measured here.
+  - **`gradcheck` is deliberately not extended to fp16.** A central difference
+    in half precision has a noise floor around 1e−2, three orders of magnitude
+    *worse* than the discrepancy a wrong backward rule produces, so such a
+    check could not fail for the right reason. A gradient rule is a statement
+    about the mathematics, so verifying it once in FLOAT64 verifies it for
+    every precision; what mixed precision can get wrong is the plumbing, and
+    that is a graph-shape question.
+  - Consumes SushiBLAS's new `engine.elementwise().convert()`, the one
+    operation in that library whose operands may disagree on dtype.
+
 - **AI-3: automatic operator fusion — a static tree pass and a dynamic
   selector.** A step's forward and backward graph goes from 31 recorded
   SushiBLAS calls to 21 on `sa demo mlp`'s model (35 to 25 counting the

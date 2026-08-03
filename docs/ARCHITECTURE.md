@@ -166,8 +166,9 @@ than through atomics (see `autograd/backward.hpp`).
 header. Two lanes live under it:
 
 - The **host lane** — `core/` (except `core/allocation.hpp`),
-  `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`, `autograd/`,
-  `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS
+  `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
+  `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
+  `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS
   *engine* and no SYCL. The `Unit_*` tests include these directly and run
   without a device. What it does reach of its siblings is vocabulary only, and
   every one of those headers is `<cstddef>`-and-friends deep:
@@ -476,6 +477,70 @@ change whose headline number invites reporting only the favourable half.
 
 ---
 
+## 5.3 Mixed precision is structure in the IR, not a runtime switch
+
+`graph/precision.hpp` and `graph/cast_insertion.hpp` are the dtype half of
+AI-4. They are split along the same seam `fusion.hpp` and
+`fusion_selector.hpp` are split along, and for the same reason: the **pass**
+is a mechanical rewrite anybody can verify, and the **policy** is a set of
+judgements about numerics that has to be argued. Putting them in one file
+would mean the argument and the machinery move together.
+
+- `IPrecisionPolicy` answers, per operation, which element type it computes
+  in. `UniformPrecisionPolicy` — the default — answers "the graph's own
+  type" to everything, so a graph built without a policy is byte-for-byte what
+  it was before this existed. `MixedPrecisionPolicy` narrows two families and
+  nothing else: `MATMUL` and the fused GEMM forms, and the `BIAS_ADD` plus
+  foldable activation those forms absorb.
+- `insert_casts()` reads the policy and rewrites the graph so every node's
+  operands and results carry its computed type, emitting an `Ops::CAST` node
+  at each boundary. `find_dtype_mismatches()` states the resulting invariant
+  as a function anyone can call — including after fusion, which is where it
+  earns its keep.
+
+**Why the epilogue's precision is forced rather than chosen.** A
+`GEMM_BIAS_RELU` node applies its epilogue inside the GEMM's kernel, in the
+GEMM's element type. If the IR said `BIAS_ADD` computes in fp32, fusing it
+into an fp16 GEMM would change the numbers — and §5.2 promises fusion changes
+none. So the policy does not get to pick for anything a catalog entry can
+absorb; it has to agree with the kernel that will absorb it. `GELU` is the
+visible consequence of the rule read backwards: no entry folds it (its
+gradient differentiates at its input), so nothing forces its precision, and it
+stays wide.
+
+**Where the pass runs, and why exactly there.** Between `differentiate()` and
+`fuse()`. After differentiation, because a backward node needs casting as much
+as a forward one and there are none to cast before the transform runs; before
+fusion, because a conversion dropped into the middle of a `MATMUL` →
+`BIAS_ADD` → `RELU` chain would break the chain the matcher is looking for.
+
+**Master weights.** A parameter keeps its id, its `FLOAT32` dtype and its
+`Lifetime::PARAMETER`; so does its gradient, and the optimizer is untouched.
+The fp16 a GEMM reads is a *derived* value with an activation lifetime,
+produced by a cast and rewritten every replay because the parameter it reads
+changed. The rule the pass applies is one sentence — a value's element type
+follows its producer's computed type unless something outside the pass depends
+on it — and "outside" means a persistent lifetime class or a value the caller
+named as observed. The backward direction falls out of it: a gradient value is
+`Lifetime::GRADIENT`, so it is pinned, so an fp16 matmul writes a fresh narrow
+result and a cast widens it into the buffer the optimizer accumulates in.
+
+**What it is worth here: correctness, and nothing else.** This machine has no
+fp16 matrix unit, so half arithmetic is emulated and `--precision mixed` is
+several times *slower* than fp32. No timing gate exists for it and none should
+until the hardware does. What is real and tested is that the graph carries the
+right types, that the masters stay fp32, and that the model still learns — see
+[README.md § Mixed precision](README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
+for the measured loss curves both ways.
+
+**What is not here: loss scaling.** fp16 gradients that underflow are lost,
+and the standard remedy — scaling the loss up before the backward pass and
+unscaling before the update, with a backoff when the scale overflows — is not
+implemented. On the demo's workload it is demonstrably not needed (both arms
+converge identically); on a larger model it would be.
+
+---
+
 ## 6. Packaging
 
 SushiAI is `find_package`-able from its very first commit, mirroring
@@ -577,7 +642,20 @@ does is the expensive kind of documentation debt:
   not the kernel underneath one. `SushiBLAS::ReductionOps::sum_along` exists
   now; an op identity, a builder entry point, a shape rule, a lowering and the
   rule itself do not. It throws and says exactly that.
-- **No mixed precision, no checkpointing, no serialization.**
+- **Mixed precision has its dtype half and not its numerics half.** The
+  policy, the cast pass and the fp32 master weights are in (§5.3); **loss
+  scaling and overflow backoff are not**, so an fp16 gradient small enough to
+  underflow is simply lost, with nothing to detect it. There is also no
+  bfloat16: `SushiBLAS::Core::DataType` has no such entry yet, and
+  `MixedPrecisionPolicy` names its narrow type as a constructor parameter
+  precisely so that adding one is a call-site change rather than a redesign.
+- **`gradcheck` cannot verify a mixed-precision graph**, and is not meant to.
+  A central difference in fp16 has a noise floor around 1e-2, three orders of
+  magnitude worse than the discrepancy a wrong rule produces. A gradient rule
+  is a statement about the mathematics, so checking it once in FLOAT64 checks
+  it for every precision; the plumbing is checked by `find_dtype_mismatches`
+  instead. `autograd/gradcheck.hpp` says so in full.
+- **No checkpointing, no serialization.**
 - **AI-7's metric gates are only partly met.** `sa demo mlp` exists and
   reports `compiles: 1`, a zero-allocation steady state and finite-difference
   checks are green in the suite, but there is no pinned reference loss curve

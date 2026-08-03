@@ -242,7 +242,7 @@ value-dependent control flow in autograd (AI-1 non-goal). Named, not hand-waved.
 | AI-1 | Graph-native autograd core (+ finite-difference gradient checks) | AI-0, SB-4 | Forward+backward as one TaskGraph, compiled once, replayed |
 | AI-2 | Static memory planning (liveness, single arena) | AI-1 | No allocator traffic in the training hot loop |
 | AI-3 | Operator fusion over the generic `op_func` dispatch | AI-1 | Fewer launches, fewer intermediates |
-| AI-4 | Mixed precision plumbing (fp16 now, BF16 enum staged; fp32 masters) | AI-1 | Ready for tensor-core hardware; see ground truth #23 |
+| AI-4 | Mixed precision plumbing (fp16 now, BF16 enum staged; fp32 masters) | AI-1 | Dtype half landed 2026-08-03; loss scaling still open. See §20 and ground truth #23 |
 | AI-5 | Device-resident data discipline | AI-1 | No host round-trips stalling the async chain |
 | AI-6 | Distributed data/model parallelism (deferred) | AI-1..5 | Hangs off the runtime's distributed layer when needed |
 | AI-7 | v1 showcase: MLP training demo + metric gates (D4) | AI-1..3, AI-5 | The proof the framework is real |
@@ -559,6 +559,33 @@ plumbing from AI-1 (not retrofitted). Concretely: SushiBLAS's `DataType` gains `
 (gemv, io) are closed in SB-1/SB-3. Per ground truth #23, Pascal makes fp16 a correctness feature,
 not a speed feature, on the current dev box — benchmark gates for AI-4 are defined on
 tensor-core-capable hardware only.
+
+**Status (2026-08-03): the dtype half has landed; the numerics half has not.**
+
+Landed:
+- `graph/precision.hpp` — `IPrecisionPolicy`, injected the way `IFusionSelector` is, with a
+  `UniformPrecisionPolicy` default (so nothing that existed changed) and a
+  `MixedPrecisionPolicy` that narrows `MATMUL`, the fused GEMM forms, `BIAS_ADD` and the
+  foldable activations, and nothing else. The narrow type is a constructor parameter, so
+  bfloat16 is a call-site change on the day `DataType` grows one.
+- `graph/cast_insertion.hpp` — the IR-to-IR pass, run between `differentiate()` and `fuse()`.
+  `Ops::CAST` lowers to SushiBLAS's new `elementwise().convert()`.
+- fp32 master weights, fp32 gradients, fp32 optimizer update — a parameter keeps its id, dtype
+  and lifetime, and the fp16 a GEMM reads is a derived activation-lifetime value.
+- `--precision fp32|mixed` on `sa demo mlp`, `TrainerOptions::precision` as a pre-lowering check,
+  and `Graph::find_dtype_mismatches()` as the invariant anyone can re-assert after any later pass.
+
+Not landed, and deliberately out of that change's scope:
+- **Loss scaling and overflow backoff.** SushiBLAS's `reductions().count_nonfinite()` exists for
+  it; nothing consumes it yet.
+- **bfloat16.** `SushiBLAS::Core::DataType` still has no entry.
+- **Any speed claim.** Measured on this box, `--precision mixed` is about 4.5x *slower*
+  (16.45 → 73.16 ms/step on the demo's default), because half arithmetic is emulated here. What
+  was measured and is real: the loss tracks fp32 to 9.5e−4 relative and converges to the same
+  place, on the default model and on a `--hidden 512 --batch-size 64` one. **Neither underflow
+  stall nor divergence was observed on this workload**, which is a fact worth knowing before
+  commissioning the loss-scaling work — it is justified by theory and by larger models, not by
+  anything this demo does.
 
 ## 21. AI-5 — Device-resident data discipline
 

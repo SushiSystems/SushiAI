@@ -146,6 +146,7 @@ sa demo mlp                              # the defaults
 sa demo mlp --epochs 4 --optimizer sgd   # anything you like
 sa demo mlp --fusion off                 # the unfused graph, for an A/B
 sa demo mlp --no-fuse gemm+bias+relu     # one catalog entry off; repeatable
+sa demo mlp --precision mixed            # fp16 products, fp32 master weights
 sa demo mlp --help                       # the full flag list
 ```
 
@@ -154,6 +155,21 @@ than assumed: both spellings produce the same numbers and differ only in how
 many kernels they launch, so the comparison has to come from one binary against
 one SushiBLAS build. `--no-fuse` takes a form's name exactly as the demo's
 `Fusion` line prints it.
+
+`--precision` is the same idea for mixed precision. `fp32` — the default —
+means every operation computes in the graph's own element type and the cast
+pass inserts nothing, so nothing about an existing run changes. `mixed` runs
+the matrix products and the epilogues a fused GEMM folds into them in fp16,
+keeping fp32 master weights, fp32 gradients, fp32 reductions and an fp32
+optimizer update; the demo's `Precision` line reports how many conversions
+that cost and in which direction.
+
+**On this machine `--precision mixed` is a correctness switch, not a speed
+one.** There is no fp16 matrix unit here, so half arithmetic is emulated and
+the mixed run is several times slower — see
+[README.md § Mixed precision](../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
+for the measured figures. What the flag is for is running the two arms from
+one binary and comparing the *loss curves*.
 
 `sa demo mlp` runs `sushiai_demo_mlp` (`examples/demo_mlp.cpp`) from the repo
 root, so a relative data path such as the demo's `data/mnist` default means

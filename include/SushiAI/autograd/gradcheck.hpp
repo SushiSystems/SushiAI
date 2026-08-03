@@ -45,6 +45,27 @@
  * Every function passed in must therefore evaluate in FLOAT64 end to end -
  * including the device work behind it.
  *
+ * @section mixed This checker and mixed precision are incompatible, and that is fine
+ *
+ * Stated plainly rather than left as a gap somebody trips over. A graph built
+ * under @c Graph::MixedPrecisionPolicy evaluates its matrix products in fp16,
+ * whose eps is 9.8e-4; the same derivation puts the best achievable relative
+ * accuracy of a difference quotient there at about eps^(2/3) = 1e-2, which is
+ * three orders of magnitude *worse* than the disagreement a wrong backward
+ * rule produces. A gradcheck over such a graph would not be a weak test, it
+ * would be noise - and every way of "fixing" it lowers the bar until the check
+ * stops being able to fail for the right reason.
+ *
+ * The right response is not to weaken this file. What a gradient rule states
+ * is a fact about the *mathematics*, and mixed precision is a fact about the
+ * arithmetic underneath it: the rule for @c MATMUL is the same rule whichever
+ * element type evaluates it, so checking it once in fp64 checks it for every
+ * precision. What mixed precision can then get wrong is not the rule but the
+ * plumbing - which operand carries which type, and where the conversions sit -
+ * and that is a graph-shape question, answered by
+ * @c Graph::find_dtype_mismatches and the tests around it rather than by a
+ * finite difference.
+ *
  * @section kinks Kinks
  *
  * ReLU-family activations are not differentiable at zero, and a difference
