@@ -627,7 +627,6 @@ int main(int argc, char** argv)
             run.last_loss = epoch_report.last_loss;
             run.last_accuracy = epoch_report.last_accuracy;
             run.operations_per_step = epoch_report.operations_per_step;
-            run.ordering_nodes_per_step = epoch_report.ordering_nodes_per_step;
             run.steps += epoch_report.steps;
             run.duration_ms += epoch_report.duration_ms;
 

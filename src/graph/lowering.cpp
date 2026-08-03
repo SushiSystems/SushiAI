@@ -351,7 +351,6 @@ namespace SushiAI
         void Lowering::record(const Graph& graph)
         {
             emitted_ = 0;
-            ordering_nodes_ = 0;
             selections_.clear();
 
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
@@ -377,34 +376,6 @@ namespace SushiAI
 
             selections_.push_back(FusionSelection{query.matched, choice.form, choice.reason, 0});
             return choice;
-        }
-
-        void Lowering::declare_epilogue_operand(const SushiBLAS::Tensor& operand,
-                                                const SushiBLAS::Tensor& result)
-        {
-            // A host node that runs nothing, whose entire purpose is its two
-            // access declarations. See lowering.hpp's warning for why the fused
-            // GEMM cannot make them itself; in short, SushiBLAS declares A, B
-            // and C and explicitly hands the epilogue's own reads back to the
-            // caller, and the bias here is a parameter the optimizer rewrites
-            // inside this very plan.
-            //
-            // Recorded immediately before the GEMM, so the write-after-write on
-            // `result` pulls the GEMM in behind it and the read of `operand`
-            // pushes the optimizer's update out in front. Neither edge is
-            // implied by anything else - the transitive path through the
-            // gradient happens to exist for a plain feed-forward model today,
-            // and relying on it would be exactly the kind of accident that
-            // survives every test and breaks the first time somebody adds a
-            // second writer.
-            SushiRuntime::Graph::TaskMetadata meta;
-            meta.name = Ops::EPILOGUE_OPERANDS.name.data();
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-            meta.op_id = Ops::EPILOGUE_OPERANDS.id;
-
-            engine_->get_graph().add_native({operand.region()}, {result.region()},
-                                            []{}, {}, meta);
-            ++ordering_nodes_;
         }
 
         void Lowering::record_node(const Graph& graph, NodeId id)
@@ -543,10 +514,24 @@ namespace SushiAI
             }
             else
             {
-                declare_epilogue_operand(bias, c);
-
                 const void* const values = bias.data();
 
+                // `.reads(bias)` is the whole of what used to be a separate
+                // host-side ordering node. SushiBLAS declares A, B and C and
+                // cannot see inside the functor, so the bias the epilogue
+                // dereferences has to be declared by whoever built the functor
+                // around it - which is here. It is not optional bookkeeping:
+                // the bias is a parameter the optimizer rewrites inside this
+                // same compiled plan, so without the declaration the update is
+                // free to land before the forward pass has read the old value,
+                // and the run still trains.
+                //
+                // Declared per arm rather than once above the switch on
+                // purpose: the access set belongs to the spelling. An arm that
+                // spilled a pre-activation would declare a *write* the others
+                // do not, and hoisting the declaration out of the arm that
+                // knows it is how the two drift apart.
+                //
                 // One arm per catalog entry. This switch is the point at which
                 // "which compositions exist" stops being a runtime question:
                 // each arm instantiates a different template, and a composition
@@ -557,28 +542,32 @@ namespace SushiAI
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
                             Ops::GEMM_BIAS_RELU.name.data(), Ops::GEMM_BIAS_RELU.id,
-                            BiasReluEpilogue{values});
+                            SushiBLAS::Dispatch::gemm_epilogue(
+                                BiasReluEpilogue{values}).reads(bias));
                         break;
 
                     case FusedForm::GEMM_BIAS_SIGMOID:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
                             Ops::GEMM_BIAS_SIGMOID.name.data(), Ops::GEMM_BIAS_SIGMOID.id,
-                            BiasSigmoidEpilogue{values});
+                            SushiBLAS::Dispatch::gemm_epilogue(
+                                BiasSigmoidEpilogue{values}).reads(bias));
                         break;
 
                     case FusedForm::GEMM_BIAS_TANH:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
                             Ops::GEMM_BIAS_TANH.name.data(), Ops::GEMM_BIAS_TANH.id,
-                            BiasTanhEpilogue{values});
+                            SushiBLAS::Dispatch::gemm_epilogue(
+                                BiasTanhEpilogue{values}).reads(bias));
                         break;
 
                     default:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
                             Ops::GEMM_BIAS.name.data(), Ops::GEMM_BIAS.id,
-                            BiasEpilogue{values});
+                            SushiBLAS::Dispatch::gemm_epilogue(
+                                BiasEpilogue{values}).reads(bias));
                         break;
                 }
                 ++emitted_;

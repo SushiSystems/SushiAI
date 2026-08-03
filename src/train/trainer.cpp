@@ -105,13 +105,6 @@ namespace SushiAI
                 "ops per step   : {}\n",
                 compile_count, steps, operations_per_step);
 
-            // Printed only when there are any, so a run with no fused epilogue
-            // reads exactly as it did before rather than carrying a line of
-            // zero.
-            if (ordering_nodes_per_step != 0)
-                text += SushiBLAS::Core::format("ordering nodes : {} (host-side, no kernel)\n",
-                                                ordering_nodes_per_step);
-
             text += SushiBLAS::Core::format(
                 "loss           : {:.6f} -> {:.6f}\n"
                 "final accuracy : {:.2f}%\n"
@@ -292,7 +285,6 @@ namespace SushiAI
 
             RunReport report;
             report.operations_per_step = step_.operation_count();
-            report.ordering_nodes_per_step = step_.ordering_node_count();
 
             const auto started = std::chrono::steady_clock::now();
 

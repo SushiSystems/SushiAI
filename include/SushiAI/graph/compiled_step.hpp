@@ -155,17 +155,6 @@ namespace SushiAI
                 /** @brief How many SushiBLAS calls the step is made of. */
                 std::size_t operation_count() const noexcept { return operations_; }
 
-                /**
-                 * @brief How many host-side ordering nodes the step also holds.
-                 *
-                 * Zero unless a fused GEMM epilogue is in the plan. Counted
-                 * apart from @c operation_count() rather than added to it,
-                 * because they are not kernels and lumping them in would let a
-                 * fusion change look like no change at all - see
-                 * @c Lowering::declare_epilogue_operand.
-                 */
-                std::size_t ordering_node_count() const noexcept { return ordering_nodes_; }
-
                 /** @brief What the selector chose for each fused node; see Lowering. */
                 SushiRuntime::span<const FusionSelection> selections() const noexcept
                 {
@@ -190,7 +179,6 @@ namespace SushiAI
                 std::size_t compile_count_ = 0;
                 std::size_t run_count_ = 0;
                 std::size_t operations_ = 0;
-                std::size_t ordering_nodes_ = 0;
                 bool empty_ = false;
         };
 

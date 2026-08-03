@@ -228,7 +228,6 @@ Schedule : 8 epochs x 16 batches = 128 steps, seed 942917386647760909
 compiles       : 1
 steps          : 128
 ops per step   : 25
-ordering nodes : 2 (host-side, no kernel)
 loss           : 1.791759 -> 0.000380
 final accuracy : 100.00%
 wall clock     : 1955.5 ms (15.28 ms/step)
@@ -265,7 +264,7 @@ Measured on this machine (CPU/OpenCL, 12 cores, idle, `--fusion off` and
 
 | | unfused | fused |
 |---|---|---|
-| kernels per step | 35 | 25 (+2 host-side ordering nodes) |
+| kernels per step | 35 | 25 |
 | steady-state cost | 0.57 ms/step | **0.40 ms/step** |
 | first step | 0.97 s | **1.88 s** |
 

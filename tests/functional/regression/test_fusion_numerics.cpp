@@ -95,7 +95,6 @@ namespace
         std::vector<double> accuracies;
         std::size_t compiles = 0;
         std::size_t operations_per_step = 0;
-        std::size_t ordering_nodes_per_step = 0;
         std::size_t fused_subtrees = 0;
         std::size_t declined = 0;
         std::size_t selector_refusals = 0;
@@ -149,7 +148,6 @@ namespace
 
         const Train::RunReport report = trainer.fit(dataset);
         run.operations_per_step = report.operations_per_step;
-        run.ordering_nodes_per_step = report.ordering_nodes_per_step;
 
         for (int64_t epoch = 0; epoch < EPOCHS; ++epoch)
             for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
@@ -356,14 +354,65 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 
     EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 10u);
 
-    // And the price: one host-side ordering node per fused GEMM epilogue,
-    // carrying the dependency edges execute_gemm cannot declare for a bias its
-    // functor dereferences. Two layers, two nodes, no kernels.
-    EXPECT_EQ(fused.ordering_nodes_per_step, 2u);
-    EXPECT_EQ(plain.ordering_nodes_per_step, 0u);
-
+    // And no price beside it. Each fused GEMM used to need a host-side ordering
+    // node carrying the dependency edges execute_gemm could not declare for a
+    // bias its functor dereferences - two layers, two extra nodes. SushiBLAS's
+    // seam takes the epilogue's own access set now, so `operations_per_step` is
+    // the whole plan again and the two counts cannot drift apart.
     EXPECT_EQ(fused.compiles, 1u);
     EXPECT_EQ(plain.compiles, 1u);
+}
+
+TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
+{
+    // The hazard the fused spelling carries and the unfused one does not: the
+    // epilogue dereferences the bias from inside the GEMM kernel, and the
+    // optimizer rewrites that same bias inside this same compiled plan.
+    // SushiBLAS cannot see into the functor, so the declaration is this
+    // library's to make - `gemm_epilogue(f).reads(bias)` in
+    // Lowering::record_fused_gemm.
+    //
+    // Asserted on `in_degree`, never on a loss. With no edge the two tasks may
+    // still come out in the right order on any given run, so a loss that falls
+    // proves nothing at all about ordering - which is exactly why this failure
+    // mode survives an otherwise green suite. The node count is asserted for
+    // the same reason it is worth stating: this used to be three nodes, the
+    // third being a host-side ordering node that ran nothing and existed only
+    // to carry this edge.
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{BATCH, FEATURES}, "x");
+    const Graph::ValueId w = builder.parameter(Shape{HIDDEN, FEATURES}, "w");
+    const Graph::ValueId b = builder.parameter(Shape{HIDDEN}, "b");
+    builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b));
+
+    const Graph::FusionReport fusion = Graph::fuse(graph, FusionOptions{});
+    ASSERT_EQ(1u, fusion.fused().size()) << fusion.to_string();
+
+    TensorPool pool(engine);
+    pool.materialise_leaves(graph);
+
+    // Stands in for the optimizer's update: a task in this same plan that
+    // writes the very bias the epilogue reads. Recorded first, so an edge can
+    // only run from it to the GEMM.
+    SushiBLAS::Tensor& bias = pool.tensor(b);
+    engine.elementwise().mul(bias, bias, bias);
+
+    Graph::Lowering lowering(engine, pool);
+    lowering.record(graph);
+    ASSERT_EQ(1u, lowering.emitted_operations())
+        << "this machine's device declined the fused form, so there is no epilogue to "
+           "order and this test is not exercising what it claims to";
+
+    auto nodes = engine.get_graph().take_nodes();
+    ASSERT_EQ(2u, nodes.size());
+    EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+        << "The fused GEMM must depend on the task that wrote the bias its epilogue "
+           "dereferences. An in-degree of 0 means the read was never declared to "
+           "SushiBLAS, and the optimizer's update is free to land before the forward "
+           "pass has read the old value - which still trains, and still reports success.";
 }
 
 TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
@@ -429,9 +478,6 @@ TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
         << "this machine's own device declined a form; the measurement notes assume it did not";
 
     EXPECT_GT(refused.operations_per_step, taken.operations_per_step);
-    EXPECT_EQ(refused.ordering_nodes_per_step, 0u)
-        << "an unfused spelling reads no memory the tracker cannot see, so it needs no "
-           "ordering node";
 
     expect_runs_agree(taken, refused, "a selector that refuses every form");
 }
