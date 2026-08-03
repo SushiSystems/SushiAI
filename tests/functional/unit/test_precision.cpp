@@ -176,6 +176,11 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
     const OpID stays[] = {
         Ops::SUM_ROWS.id, Ops::LOG_SOFTMAX.id, Ops::NLL_LOSS.id, Ops::ACCUMULATE.id,
         Ops::EXP.id, Ops::SUB.id, Ops::SCALE.id, Ops::EXP_SUB_SCALE.id,
+        // DYNAMIC_SCALE carries the gradient loss scale, which is the one
+        // number in the graph that exists to keep values *out* of fp16's
+        // subnormals. Narrowing the node that applies it would overflow the
+        // very quantity it is protecting - see optim/loss_scaler.hpp.
+        Ops::DYNAMIC_SCALE.id,
         Ops::ADD.id, Ops::MUL.id, Ops::ZERO.id,
         Ops::GELU.id, Ops::GELU_BACKWARD.id,
         Ops::LEAF.id, Ops::CAST.id,

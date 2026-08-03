@@ -65,6 +65,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.sub"),
         std::string_view("sushiai.mul"),
         std::string_view("sushiai.scale"),
+        std::string_view("sushiai.dynamic_scale"),
         std::string_view("sushiai.exp"),
         std::string_view("sushiai.zero"),
         std::string_view("sushiai.relu"),
