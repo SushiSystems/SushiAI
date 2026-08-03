@@ -11,9 +11,9 @@ layer, which itself runs on
 two-layer model into SushiAI's own IR, differentiates that IR, lowers it to
 SushiBLAS once, compiles it once, and replays it per batch until the loss
 falls from `ln(C)` to convergence. Memory planning and kernel fusion have
-landed since, and so has the **dtype half of mixed precision** — fp16
-products with fp32 master weights, `--precision mixed`. Loss scaling and
-overflow backoff are still ahead of it — see
+landed since, and so has **mixed precision** — fp16 products with fp32
+master weights (`--precision mixed`) and gradient loss scaling with overflow
+backoff (`--loss-scale S`) — see
 [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
 for the roadmap and [ARCHITECTURE.md §7](ARCHITECTURE.md#7-whats-not-here-yet)
 for an honest list of what this tree does not do yet, including the limits the
@@ -43,8 +43,15 @@ feature that plan hasn't reached.
   `graph/cast_insertion.hpp`) — a per-operation precision policy and an
   IR-to-IR pass that inserts explicit `CAST` nodes at every dtype boundary, so
   the fp16 a GEMM reads is a *derived* value and the fp32 master weight it came
-  from is untouched. `--precision mixed`. **Loss scaling is not here yet**, so
-  this is the dtype half of AI-4 and not all of it.
+  from is untouched. `--precision mixed`.
+- **Gradient loss scaling** (`optim/loss_scaler.hpp`) — the numerics half:
+  the backward seed is multiplied by a device-resident power of two, the
+  gradient is divided back out inside the optimizer's fused kernel before the
+  decay and the moments, `reductions().count_nonfinite()` screens every
+  gradient, and an overflowed step is skipped by a real branch in that kernel.
+  Halve on overflow, double after N clean steps. `--loss-scale S`. **It does
+  nothing for this demo** — see below — and the scale is device-resident
+  precisely so that changing it does not recompile the step.
 - **Layers and losses** (`nn/`) — `Linear`, `ReLU`/`GELU`/`Tanh`/`Sigmoid`,
   `Sequential` with CTAD, `CrossEntropyLoss`, Kaiming/Xavier initialisation.
   No base class and no `register_module`: a layer publishes its parameters
@@ -356,9 +363,27 @@ claim: fp16 training without loss scaling is
 expected to lose small gradients to underflow, and on this small MLP it
 demonstrably does not. Repeating it with `--hidden 512 --batch-size 64` (a
 512-long fp16 reduction inside each product) gives the same answer — both
-arms reach 0.000003 after 48 steps. So the loss-scaling work that follows is
-justified by theory and by larger models, and **not** by anything this
-workload does.
+arms reach 0.000003 after 48 steps. So the loss scaling that has since landed
+is justified by theory and by larger models, and **not** by anything this
+workload does — turning it on here makes the demo no better, and saying so is
+worth more than a claim that it does.
+
+What `--loss-scale` *is* good for on this box is watching the machinery work.
+`sa demo mlp --epochs 1 --batches 4 --precision fp32 --loss-scale 65536` gives
+`loss 1.791759 -> 1.133352`, bit-identical to the unscaled run, which is the
+whole point of a dyadic scale: the round trip through 65536 and back is exact.
+`--precision mixed --loss-scale 65536` reports one overflowed step and a
+backoff to 32768 — PyTorch's own default scale is too high for this model's
+fp16 backward pass, and the backoff finds that out in one step. Pushing it to
+`--loss-scale 16777216` overflows on all 8 steps and walks the scale from
+2^24 down to 2^16 without recompiling: `compiles: 1` throughout.
+
+One honest caveat: the skip is **per parameter**, not per step. A parameter
+whose own gradient stayed finite still updates on an overflowed step, so the
+report says "overflowed steps" rather than "skipped". No infinity or NaN
+reaches a parameter or a moment either way — that is asserted bit for bit in
+`Regression_LossScaling` — but it is a partial step where PyTorch would take
+none. `optim/loss_scaler.hpp` explains what a whole-step skip would cost.
 
 `gradcheck` and mixed precision are incompatible, and deliberately so:
 `autograd/gradcheck.hpp` requires FLOAT64 because a central difference in

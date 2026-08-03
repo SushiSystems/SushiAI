@@ -74,11 +74,75 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   demo's loss trajectory is unchanged to the last printed digit.
 
 ### Added
+- **AI-4 (part 2 of 2): gradient loss scaling with overflow backoff.** The
+  numerics half of mixed precision: the backward seed is multiplied by a
+  device-resident power of two, every gradient is screened for infinities and
+  NaNs inside the same compiled plan, an overflowed parameter'''s update is
+  skipped by a branch, and the scale halves on overflow and doubles after N
+  clean steps.
+  - **It does nothing for this demo, and that is the finding.** fp16 here
+    neither stalls nor diverges; both arms converge to the same loss. Loss
+    scaling is justified by theory and by deeper models, not by anything this
+    workload does. Every test that matters therefore *constructs* an overflow
+    rather than waiting for one: `--loss-scale 16777216` under `--precision
+    mixed` pushes the fp32 logit gradient to about 1e6, and binary16'''s largest
+    finite value is 65504, so the cast into the backward matmul produces real
+    infinities.
+  - **`Ops::DYNAMIC_SCALE` is why the scale can change without a recompile.**
+    `SCALE` takes its factor from an `Attributes` slot, which becomes a
+    compile-time constant baked into the recorded task; this operation takes it
+    as a second *operand* — a 1-element value the host rewrites between
+    replays, exactly as `StepScalars` does for the optimizer. `compile_count()`
+    stays at 1 across a run in which the scale changes eight times, and a test
+    asserts it.
+  - **The scale is applied at the seed**, in `differentiate()`'''s `NLL_LOSS`
+    rule. One multiply covers the whole backward pass because every gradient
+    below the seed is linear in it, and the cross-entropy tail is kept in fp32
+    by the precision policy — so the factor lands while there is still exponent
+    range to apply it in. It is an argument to `differentiate()` rather than a
+    pass of its own because the seed is *built* there, and a later pass would
+    have to re-route every consumer of it and rebuild the node list to stay in
+    topological order.
+  - **The skip is a real branch, and it has to be.** The cheap version —
+    neutralise the update through the scalars it already reads, step size zero
+    and beta1 one — fails on exactly the step it exists for: `0 * inf` is NaN
+    in IEEE-754, so `m = 1*m + 0*g` writes NaN into AdamW'''s first moment,
+    nothing throws, and the loss goes NaN a step later with the cause three
+    layers away. `Regression_LossScaling` reads the *moments* as raw bytes
+    before and after a skipped step, not only the parameters, because a test
+    that checked the parameters alone would pass on that bug.
+  - **The unscale is exact.** Every constant is a power of two, so scaling and
+    unscaling change only the exponent field: a scaled run and an unscaled one
+    agree bit for bit (`EXPECT_EQ`, not `EXPECT_NEAR`), and `sa demo mlp
+    --precision fp32 --loss-scale 65536` reports the same loss as the unscaled
+    run to the last digit. The unscale happens inside the fused kernel, before
+    the decay and before the moments — v would otherwise carry the scale
+    squared, which no later division could take back out.
+  - **The host decides the scale, the device decides the skip**, because the
+    two have different deadlines. The skip must be decided inside the replay,
+    since the screen runs a few tasks before the update in the same plan; the
+    next scale has until the next forward pass, so it is chosen at the step
+    boundary from a buffer the device has already been waited on — the same
+    place `Trainer::run_step` already reads the loss. That also keeps the state
+    machine readable without adding a synchronisation.
+  - **Known limitation: the skip is per parameter, not per step.** The edge
+    that orders an update after its own screen is the write-after-read hazard
+    on that gradient, and there is none between parameter A'''s update and
+    parameter B'''s screen. `--precision mixed --loss-scale 16777216` reports 8
+    overflowed steps out of 8 and the loss still moves, because on each of them
+    some gradients were finite. Nothing unsafe results — no non-finite value
+    reaches a parameter or a moment — but PyTorch would have taken no step at
+    all. Closing it needs one hand-written task declaring the count buffer as a
+    read and a gradient as a write.
+  - Loss scaling requires `UpdateKernel::FUSED` and says so by name: the
+    separate spelling has no branch to take, so it would unscale correctly and
+    then apply every overflowed step anyway.
+
 - **AI-4 (part 1 of 2): mixed-precision dtype plumbing — a precision policy
   and a cast-insertion pass.** fp16 compute with fp32 master weights, expressed
   as structure in the IR rather than as a runtime reinterpretation.
-  **Loss scaling and overflow backoff are explicitly not in this change**, so
-  an fp16 gradient small enough to underflow is still simply lost.
+  **Loss scaling and overflow backoff were explicitly not in this change**;
+  they are the entry above.
   - **`graph/precision.hpp` is the policy** — `IPrecisionPolicy` answers, per
     operation, which element type it computes in, split from the pass the same
     way `fusion_selector.hpp` is split from `fusion.hpp`: the pass is a
