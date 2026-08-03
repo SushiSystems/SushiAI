@@ -55,6 +55,7 @@ namespace SushiAI
                 RETAINED,               /**< 1 - dampening. */
                 FIRST_STEP,             /**< 1 on the first step, 0 afterwards. */
                 NESTEROV,               /**< 1 when Nesterov's look-ahead is on. */
+                INVERSE_LOSS_SCALE,     /**< 1 / the gradient loss scale; exactly 1 unscaled. */
                 SCALAR_COUNT,
             };
 
@@ -94,7 +95,7 @@ namespace SushiAI
             }
         }
 
-        void SGD::before_replay()
+        void SGD::write_step_scalars()
         {
             // Momentum decides how many operands the recorded kernel has, so it
             // is structural rather than per-step. Turning it on afterwards used
@@ -120,6 +121,10 @@ namespace SushiAI
             values[FIRST_STEP] = step_count() == 0 ? 1.0f : 0.0f;
             values[NESTEROV] = options_.nesterov ? 1.0f : 0.0f;
 
+            // A power of two, or exactly 1 when nothing is scaling; both are
+            // exact multipliers. See optim/loss_scaler.hpp.
+            values[INVERSE_LOSS_SCALE] = inverse_loss_scale();
+
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
@@ -133,6 +138,10 @@ namespace SushiAI
         {
             const float* const s = scalars_.device_pointer();
 
+            // Null unless a loss scaler is attached; see optim/loss_scaler.hpp
+            // for why an overflowed step has to be skipped by a branch.
+            const std::int64_t* const gate = gradient_gate();
+
             for (std::size_t i = 0; i < slots().size(); ++i)
             {
                 ParameterSlot& slot = slots()[i];
@@ -144,14 +153,20 @@ namespace SushiAI
 
                     SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
                         TASK_NAME, Ops::SGD_UPDATE.id,
-                        [s](auto& theta, auto& g)
+                        [s, gate, i](auto& theta, auto& g)
                         {
                             using T = std::decay_t<decltype(theta)>;
 
+                            // The whole step, thrown away, before anything is
+                            // read or written.
+                            if (gate != nullptr && gate[i] != 0) return;
+
                             // The gradient buffer belongs to the compiled step
                             // and is rewritten by the next forward pass, so the
-                            // decay term goes into a register instead of it.
-                            T staged = g;
+                            // decay term goes into a register instead of it -
+                            // and so does the unscale, which has to come before
+                            // the decay and before the momentum blend.
+                            T staged = g * static_cast<T>(s[INVERSE_LOSS_SCALE]);
 
                             const T decay = static_cast<T>(s[WEIGHT_DECAY]);
                             if (decay != static_cast<T>(0)) staged = staged + decay * theta;
@@ -167,11 +182,13 @@ namespace SushiAI
 
                 SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
                     TASK_NAME, Ops::SGD_UPDATE.id,
-                    [s](auto& theta, auto& g, auto& b)
+                    [s, gate, i](auto& theta, auto& g, auto& b)
                     {
                         using T = std::decay_t<decltype(theta)>;
 
-                        T staged = g;
+                        if (gate != nullptr && gate[i] != 0) return;
+
+                        T staged = g * static_cast<T>(s[INVERSE_LOSS_SCALE]);
 
                         const T decay = static_cast<T>(s[WEIGHT_DECAY]);
                         if (decay != static_cast<T>(0)) staged = staged + decay * theta;

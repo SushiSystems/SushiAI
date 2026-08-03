@@ -56,6 +56,7 @@ namespace SushiAI
                 INVERSE_BC2,        /**< 1 / (1 - beta2^t). */
                 EPSILON,            /**< eps, added after the correction. */
                 STEP_SIZE,          /**< -lr / (1 - beta1^t). */
+                INVERSE_LOSS_SCALE, /**< 1 / the gradient loss scale; exactly 1 when unscaled. */
                 SCALAR_COUNT,
             };
 
@@ -118,7 +119,7 @@ namespace SushiAI
             flush();
         }
 
-        void AdamW::before_replay()
+        void AdamW::write_step_scalars()
         {
             const double t = static_cast<double>(step_count() + 1);
             const double bias_correction1 = 1.0 - std::pow(options_.beta1, t);
@@ -139,7 +140,29 @@ namespace SushiAI
             values[STEP_SIZE] =
                 static_cast<float>(-options_.learning_rate / bias_correction1);
 
+            // A power of two, or exactly 1 when nothing is scaling. Both are
+            // exact multipliers, so an unscaled run is bit-for-bit what it was
+            // before loss scaling existed and a scaled one recovers the
+            // gradient with no rounding at all - see optim/loss_scaler.hpp.
+            values[INVERSE_LOSS_SCALE] = inverse_loss_scale();
+
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
+        }
+
+        const SushiBLAS::Tensor& AdamW::first_moment(std::size_t index) const
+        {
+            SA_THROW_IF(index >= state_.size(),
+                        "This AdamW updates {} parameters; there is no moment {}",
+                        state_.size(), index);
+            return state_[index].first;
+        }
+
+        const SushiBLAS::Tensor& AdamW::second_moment(std::size_t index) const
+        {
+            SA_THROW_IF(index >= state_.size(),
+                        "This AdamW updates {} parameters; there is no moment {}",
+                        state_.size(), index);
+            return state_[index].second;
         }
 
         std::size_t AdamW::record_update()
@@ -155,6 +178,12 @@ namespace SushiAI
             // a task that is only ever recorded once. See step_scalars.hpp.
             const float* const s = scalars_.device_pointer();
 
+            // Null unless a loss scaler is attached, which is how "there is
+            // nothing to skip for" is spelled; the test is uniform across the
+            // whole launch either way. See optim/loss_scaler.hpp for why the
+            // skip has to be this branch and cannot be a zeroed step size.
+            const std::int64_t* const gate = gradient_gate();
+
             for (std::size_t i = 0; i < slots().size(); ++i)
             {
                 ParameterSlot& slot = slots()[i];
@@ -166,9 +195,24 @@ namespace SushiAI
 
                 SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
                     TASK_NAME, Ops::ADAMW_UPDATE.id,
-                    [s](auto& theta, auto& g, auto& m, auto& v)
+                    [s, gate, i](auto& theta, auto& g_scaled, auto& m, auto& v)
                     {
                         using T = std::decay_t<decltype(theta)>;
+
+                        // 0. The whole step, thrown away. Before anything is
+                        //    read or written, so theta, m and v come out of an
+                        //    overflowed step bit-identical to what they went in
+                        //    as. Neutralising the coefficients instead would
+                        //    set m to NaN, because 0 * inf is NaN and the
+                        //    gradient here is an infinity by definition.
+                        if (gate != nullptr && gate[i] != 0) return;
+
+                        // 0b. Undo the loss scale, before the decay and before
+                        //     the moments. A moment built from a scaled
+                        //     gradient is a scaled moment, and v would have the
+                        //     scale squared into it - dividing afterwards could
+                        //     not take either back out.
+                        const T g = g_scaled * static_cast<T>(s[INVERSE_LOSS_SCALE]);
 
                         // 1. Decoupled decay, on theta_{t-1}, before anything
                         //    else. Guarded rather than always multiplied, so

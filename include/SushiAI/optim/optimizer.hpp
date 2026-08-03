@@ -82,6 +82,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/optim/loss_scaler.hpp>
 
 namespace SushiAI
 {
@@ -210,19 +211,55 @@ namespace SushiAI
                 const std::vector<ParameterSlot>& parameters() const noexcept { return parameters_; }
 
                 /**
+                 * @brief Attaches a gradient loss scaler to this optimizer.
+                 *
+                 * The scaler's screens have to be recorded *before* the updates
+                 * and its state machine advanced *after* them, and both are
+                 * orderings a caller could get wrong silently - so the optimizer
+                 * owns the sequence rather than documenting it. See
+                 * @c optim/loss_scaler.hpp.
+                 *
+                 * @param scaler The scaler, or null to detach; must outlive this
+                 *        optimizer. It is not owned: the same scaler backs a
+                 *        graph value the training graph already holds.
+                 * @throws Error If this optimizer's update is not
+                 *         replay-invariant. The skip is a branch inside the
+                 *         fused kernel and the separate spelling has no way to
+                 *         express one, so a scaled run on the separate path
+                 *         would unscale correctly and then apply every
+                 *         overflowed step anyway.
+                 */
+                void set_loss_scaler(LossScaler* scaler);
+
+                /** @brief The scaler attached to this optimizer, or null. */
+                LossScaler* loss_scaler() const noexcept { return scaler_; }
+
+                /**
                  * @brief Refreshes this step's numbers into device memory.
                  *
-                 * Re-declared pure here even though @c IStepRecorder supplies a
-                 * default body, because inheriting that default is a silent
-                 * failure and not a benign one: the update would read whatever
-                 * the scalar buffer last held and apply step one's bias
-                 * corrections for ever, converging the whole time. Stating the
-                 * obligation costs an empty override at worst.
+                 * @c final, and it is the *sequence* that is final rather than
+                 * the work: the scaler's per-step publication has to happen
+                 * alongside the optimizer's own, and a subclass that overrode
+                 * this would silently drop it. Subclasses supply
+                 * @ref write_step_scalars instead - which is still their whole
+                 * job, since this adds one call around it.
                  */
-                void before_replay() override = 0;
+                void before_replay() final;
 
-                /** @brief Bumps the step counter once the update has run. */
-                void after_replay() override { advance(); }
+                /**
+                 * @brief Advances the state machine, then the step counter.
+                 *
+                 * @c final for the same reason, plus one that is sharper: the
+                 * counter must **not** advance on a skipped step. SGD's
+                 * @c FIRST_STEP flag is derived from it and initialises the
+                 * momentum buffer, which is allocated but not zeroed - so a
+                 * skipped first step followed by an advanced counter would have
+                 * the second step read an uninitialised buffer and blend it into
+                 * the momentum. AdamW's bias corrections have the milder version
+                 * of the same problem: correcting for a step whose moments never
+                 * moved.
+                 */
+                void after_replay() final;
 
                 /**
                  * @brief Records the update into the engine's builder, for a compiled step.
@@ -253,6 +290,52 @@ namespace SushiAI
                  */
                 virtual std::size_t record_update() = 0;
 
+                /**
+                 * @brief The scaler's screens and then the update, in that order.
+                 *
+                 * The one place the two are sequenced, so both entry points -
+                 * @c step() and @c record_into_step() - get the same order and
+                 * neither can be given the other one by a later edit.
+                 *
+                 * @return How many device tasks were recorded, screens included.
+                 */
+                std::size_t record_all();
+
+                /**
+                 * @brief Writes this step's scalars into device memory; the subclass's job.
+                 *
+                 * Runs where @c IStepRecorder::before_replay() does and under
+                 * the same rules: host only, no device work, after the previous
+                 * replay was waited on. Pure rather than defaulted because
+                 * inheriting an empty body is a silent failure - the update
+                 * would read whatever the scalar buffer last held and apply step
+                 * one's bias corrections for ever, converging the whole time.
+                 */
+                virtual void write_step_scalars() = 0;
+
+                /**
+                 * @brief What the gradient must be multiplied by before the update.
+                 *
+                 * Exactly 1 when no scaler is attached, so the unscale is
+                 * `x * 1.0f` - the identity for every float including the signed
+                 * zeros, which is what keeps an unscaled run byte-identical to
+                 * one built before loss scaling existed.
+                 *
+                 * @return The reciprocal of the current loss scale.
+                 */
+                float inverse_loss_scale() const noexcept;
+
+                /**
+                 * @brief The count buffer an update kernel gates on, or null.
+                 *
+                 * Null when no scaler is attached, and a kernel must test it -
+                 * a null capture is how "there is nothing to skip for" is
+                 * spelled, and it is uniform across the whole launch.
+                 *
+                 * @return Element @c i is parameter @c i's non-finite count.
+                 */
+                const std::int64_t* gradient_gate() const noexcept;
+
                 /** @brief Runs the recorded update and waits for the device. */
                 void flush();
 
@@ -273,6 +356,7 @@ namespace SushiAI
                 std::vector<ParameterSlot> parameters_;
                 std::uint64_t step_ = 0;
                 bool in_compiled_step_ = false;
+                LossScaler* scaler_ = nullptr;
         };
 
     } // namespace Optim

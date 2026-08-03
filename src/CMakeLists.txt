@@ -28,6 +28,7 @@ set(SUSHIAI_SOURCES
 
     optim/optimizer.cpp
     optim/step_scalars.cpp
+    optim/loss_scaler.cpp
     optim/sgd.cpp
     optim/adamw.cpp
 

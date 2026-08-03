@@ -142,6 +142,17 @@ namespace SushiAI
             /** @brief Every parameter, paired with its gradient. */
             std::vector<ParameterBinding> parameters;
 
+            /**
+             * @brief The 1-element leaf the backward seed is multiplied by.
+             *
+             * @c Graph::NO_VALUE unless @c build_classifier was asked for loss
+             * scaling. When it is set, the tensor behind it is what
+             * @c Optim::LossScaler is constructed over - the pool materialises
+             * it like any other input leaf, and the scaler rewrites it from the
+             * host between replays.
+             */
+            Graph::ValueId loss_scale = Graph::NO_VALUE;
+
             /** @brief What the cast pass converted, and where. */
             Graph::CastReport casts;
 
@@ -194,6 +205,14 @@ namespace SushiAI
          *        which the cast pass inserts nothing and the graph is exactly
          *        what it was before mixed precision existed. Read only during
          *        this call.
+         * @param loss_scaling Whether to give the backward seed a device-resident
+         *        factor. False leaves the graph byte-identical to one built
+         *        before loss scaling existed - not merely equivalent: no node is
+         *        emitted, so nothing about the plan changes. True declares one
+         *        1-element input leaf, reports it as
+         *        @c TrainingGraph::loss_scale, and multiplies the seeded
+         *        gradient by it; see @c optim/loss_scaler.hpp for what then
+         *        writes it and why it cannot be a constant.
          * @return The graph, the value ids, the parameter/gradient pairs and
          *         both passes' reports.
          * @throws Error If the model's output is not [batch, classes].
@@ -202,7 +221,8 @@ namespace SushiAI
         TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
                                        int64_t classes, DType dtype = DType::FLOAT32,
                                        Graph::FusionOptions fusion = {},
-                                       const Graph::IPrecisionPolicy* precision = nullptr)
+                                       const Graph::IPrecisionPolicy* precision = nullptr,
+                                       bool loss_scaling = false)
         {
             TrainingGraph built;
             const Graph::GraphBuilder builder(built.graph);
@@ -229,9 +249,17 @@ namespace SushiAI
                 wrt.push_back(parameter.id());
             });
 
+            // Declared before differentiation because the seed rule multiplies
+            // by it, and always FLOAT32: it lands in the cross-entropy tail,
+            // which the precision policy keeps in the master type precisely so
+            // there is exponent range left to scale into.
+            if (loss_scaling)
+                built.loss_scale = builder.input(Shape{1}, "loss_scale", DType::FLOAT32);
+
             const std::vector<Graph::ValueId> gradients =
                 Autograd::differentiate(built.graph, built.spec.loss,
-                                        SushiRuntime::span<const Graph::ValueId>(wrt.data(), wrt.size()));
+                                        SushiRuntime::span<const Graph::ValueId>(wrt.data(), wrt.size()),
+                                        built.loss_scale);
 
             for (std::size_t i = 0; i < built.parameters.size(); ++i)
                 built.parameters[i].gradient = gradients[i];
@@ -239,6 +267,7 @@ namespace SushiAI
             std::vector<Graph::ValueId> observed{
                 built.spec.inputs, built.spec.targets, built.spec.logits, built.spec.loss,
             };
+            if (built.loss_scale != Graph::NO_VALUE) observed.push_back(built.loss_scale);
             observed.insert(observed.end(), fusion.observed.begin(), fusion.observed.end());
             fusion.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
 
