@@ -160,6 +160,45 @@ namespace SushiAI
 
                 return &optimizer;
             }
+
+            /**
+             * @brief Passes @p graph through, refusing one its policy disowns.
+             *
+             * A free function returning its own argument, for the reason
+             * @c placement_recorder is one: the check has to happen *before*
+             * @c step_ is constructed, and @c step_ is constructed in the
+             * member-initialiser list - so a constructor body would be running
+             * after the lowering it was meant to guard.
+             *
+             * And this is the last place a misplaced conversion is still
+             * visible. Past here the graph becomes recorded SushiBLAS work,
+             * where a *missing* cast throws by name - so that half needs no
+             * help - and a cast in the wrong place does not throw at all: the
+             * step runs, the loss falls, and the model simply learns worse.
+             *
+             * @param graph The graph about to be lowered.
+             * @param options The trainer's options.
+             * @return @p graph, unchanged.
+             * @throws Error If any node's operands disagree with its precision.
+             */
+            const Graph::Graph& verified(const Graph::Graph& graph, const TrainerOptions& options)
+            {
+                if (options.precision == nullptr) return graph;
+
+                const std::vector<Graph::DTypeMismatch> mismatches =
+                    Graph::find_dtype_mismatches(graph, *options.precision);
+
+                SA_THROW_IF(!mismatches.empty(),
+                            "This graph does not agree with the precision policy it was given: "
+                            "{} node(s) read or write an element type they do not compute in. "
+                            "The first is: {}. Build the graph with the same policy - "
+                            "build_classifier()'s `precision` argument runs the cast pass "
+                            "between differentiation and fusion, which is the only window in "
+                            "which the conversions can be placed.",
+                            mismatches.size(), Graph::describe(mismatches.front()));
+
+                return graph;
+            }
         }
 
         Trainer::Trainer(SushiBLAS::Engine& engine,
@@ -173,7 +212,8 @@ namespace SushiAI
               spec_(spec),
               optimizer_(&optimizer),
               options_(options),
-              step_(engine, graph, pool, placement_recorder(optimizer, options),
+              step_(engine, verified(graph, options), pool,
+                    placement_recorder(optimizer, options),
                     options.fusion_selector)
         {
             SA_THROW_IF(spec_.inputs == Graph::NO_VALUE || spec_.targets == Graph::NO_VALUE
@@ -207,6 +247,23 @@ namespace SushiAI
         double Trainer::score_accuracy(const Data::Batch& batch) const
         {
             const SushiBLAS::Tensor& logits = pool_->tensor(spec_.logits);
+
+            // Refused rather than reinterpreted. This used to be a two-way
+            // choice between double and float with float as the else, which was
+            // right while every graph was fp32 or fp64 and became a silent
+            // wrong answer the moment a precision policy could hand this an
+            // fp16 buffer: `data_as<float>()` on half data reads two elements
+            // as one and reports an accuracy nobody could tell was fiction.
+            // Keeping the logits readable is the caller's job, and it is a job
+            // they already have a way to do - naming them to the cast pass as
+            // observed, which build_classifier does for every StepSpec value.
+            SA_THROW_IF(logits.dtype != DType::FLOAT32 && logits.dtype != DType::FLOAT64,
+                        "Accuracy needs a host read of the logits and they are {}; only "
+                        "float32 and float64 can be read back. Either switch accuracy "
+                        "tracking off, or keep the logits in the master type - "
+                        "Train::build_classifier already lists them as observed, so a "
+                        "precision policy cannot narrow them.",
+                        dtype_name(logits.dtype));
 
             // The per-row argmax is done here rather than on the device
             // because SushiBLAS's argmax is whole-tensor and a diagnostic does

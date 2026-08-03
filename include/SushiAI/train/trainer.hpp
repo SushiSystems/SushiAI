@@ -77,11 +77,13 @@
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering.hpp>
+#include <SushiAI/graph/precision.hpp>
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/optim/optimizer.hpp>
@@ -140,6 +142,9 @@ namespace SushiAI
             /** @brief Every parameter, paired with its gradient. */
             std::vector<ParameterBinding> parameters;
 
+            /** @brief What the cast pass converted, and where. */
+            Graph::CastReport casts;
+
             /** @brief What the fusion pass did to @c graph, and what it refused. */
             Graph::FusionReport fusion;
         };
@@ -152,34 +157,52 @@ namespace SushiAI
          * the generic walk yields - so a parameter cannot be left out of the
          * backward pass by forgetting to mention it.
          *
-         * Fusion runs last, on the joint forward-and-backward graph, because a
-         * forward node is only fusable if the backward pass no longer needs
-         * what the fused form would stop writing - a question that cannot be
-         * asked before the backward pass exists. The four values @c StepSpec
-         * names are handed to the pass as observed, so an activation the
-         * training loop reads by id is never fused away underneath it;
-         * parameters and gradients are protected by their lifetime class and
-         * need no listing. Value ids survive the pass, so everything already
-         * recorded above - including the ids inside the model's own
-         * @c NN::Parameter members - keeps meaning what it meant.
+         * Then the two IR-to-IR passes, in this order and not the other one:
+         *
+         * 1. **Cast insertion**, so that every node's operands carry the
+         *    element type that node computes in. After differentiation, because
+         *    a backward node needs casting as much as a forward one and there
+         *    are none to cast before the transform runs; before fusion, because
+         *    a conversion dropped into the middle of a fusable chain would
+         *    break it. @c graph/cast_insertion.hpp argues both.
+         * 2. **Fusion**, on the joint forward-and-backward graph, because a
+         *    forward node is only fusable if the backward pass no longer needs
+         *    what the fused form would stop writing - a question that cannot be
+         *    asked before the backward pass exists.
+         *
+         * The four values @c StepSpec names are handed to *both* passes as
+         * observed, so an activation the training loop reads by id is neither
+         * fused away underneath it nor quietly retyped under it; parameters and
+         * gradients are protected by their lifetime class and need no listing.
+         * Value ids survive both passes, so everything already recorded above -
+         * including the ids inside the model's own @c NN::Parameter members -
+         * keeps meaning what it meant.
          *
          * @param module The model to trace; its parameters are declared here.
          * @param batch Samples per step.
          * @param features Input features per sample.
          * @param classes How many classes.
-         * @param dtype The element type for the whole graph.
+         * @param dtype The element type for the whole graph. Under a mixed
+         *        policy this is the *master* type: parameters, gradients and
+         *        optimizer state keep it, and only derived values narrow.
          * @param fusion What the fusion pass is allowed to do; @c enabled=false
          *        gives the unfused graph, which is the reference a byte-for-byte
          *        comparison needs. @c FusionOptions::observed is filled in here
          *        and any value the caller listed is added to it.
+         * @param precision Which element type each operation computes in, or
+         *        null for @c Graph::UniformPrecisionPolicy - the default, under
+         *        which the cast pass inserts nothing and the graph is exactly
+         *        what it was before mixed precision existed. Read only during
+         *        this call.
          * @return The graph, the value ids, the parameter/gradient pairs and
-         *         the fusion report.
+         *         both passes' reports.
          * @throws Error If the model's output is not [batch, classes].
          */
         template<typename M>
         TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
                                        int64_t classes, DType dtype = DType::FLOAT32,
-                                       Graph::FusionOptions fusion = {})
+                                       Graph::FusionOptions fusion = {},
+                                       const Graph::IPrecisionPolicy* precision = nullptr)
         {
             TrainingGraph built;
             const Graph::GraphBuilder builder(built.graph);
@@ -219,6 +242,11 @@ namespace SushiAI
             observed.insert(observed.end(), fusion.observed.begin(), fusion.observed.end());
             fusion.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
 
+            Graph::CastOptions casts;
+            casts.policy = precision;
+            casts.observed = fusion.observed;
+
+            built.casts = Graph::insert_casts(built.graph, casts);
             built.fusion = Graph::fuse(built.graph, fusion);
 
             return built;
@@ -303,6 +331,27 @@ namespace SushiAI
              * sets one field. See graph/fusion_selector.hpp.
              */
             const Graph::IFusionSelector* fusion_selector = nullptr;
+
+            /**
+             * @brief The precision policy the graph was built under, for checking.
+             *
+             * Set it to the same policy handed to @c build_classifier and the
+             * trainer walks the finished graph before lowering anything,
+             * refusing one whose operands do not agree with the precision each
+             * node computes in. Null skips the check.
+             *
+             * It is a *check* and not the knob that applies mixed precision,
+             * and that is forced rather than stylistic: casts have to be
+             * inserted between differentiation and fusion, and by the time a
+             * @c Trainer exists both have already run. What is left for this
+             * layer to do is the one thing worth doing here - being the last
+             * place that can refuse, before the graph turns into recorded
+             * device work where a misplaced conversion stops being visible and
+             * becomes a model that trains slightly worse.
+             *
+             * Read once, in the constructor, and must outlive that call.
+             */
+            const Graph::IPrecisionPolicy* precision = nullptr;
         };
 
         /**
