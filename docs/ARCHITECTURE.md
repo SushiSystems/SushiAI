@@ -253,12 +253,20 @@ This is only safe because SushiBLAS now honours `storage_offset` everywhere
 and `Tensor::region()` reports a view's own byte interval rather than the
 bare allocation base; two disjoint tensors in one arena therefore produce
 non-overlapping `ResourceRegion`s and do not falsely serialise. That claim is
-checked directly in `tests/functional/integration/test_arena.cpp`. One hole
-remains on the SushiBLAS side — `Dispatch::execute_reduction` still builds
-its regions from raw `data()` pointers, so a reduction operand at a non-zero
-offset gets *no* dependency edge at all. `Lowering::values_needing_own
-_allocation()` keeps those few values out of the arena and names the fix that
-retires the workaround.
+checked directly in `tests/functional/integration/test_arena.cpp`.
+
+`Lowering::values_needing_own_allocation()` keeps the two reduction operands of
+`LOG_SOFTMAX` and `NLL_LOSS` out of the arena, and it is a **workaround whose
+premise no longer holds**. It was written when `Dispatch::execute_reduction`
+built its `ResourceRegion`s from raw `data()` pointers, so a reduction operand
+at a non-zero offset got *no* dependency edge at all. SushiBLAS fixed that —
+both `execute_reduction` and the newer `execute_folding_axis_reduction` build
+their regions from `Tensor::region()`, and SushiBLAS pins it in
+`Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation` and
+`Unit_AxisReductions.AxisReductionsOrderAgainstViewsOfOneAllocation`. Deleting
+this function is therefore unblocked; it has not been done, because it changes
+the memory plan and deserves its own change and its own arena verification
+rather than riding along with an unrelated one.
 
 `src/graph/lowering.cpp` is the only file that calls `SushiBLAS::Engine`. Its
 `TensorPool` asks the plan where each value goes: packed values become arena
@@ -523,11 +531,13 @@ does is the expensive kind of documentation debt:
   about 2 KiB of 130 KiB.
 - **The fusion catalog is five entries, and the biggest node in the graph is
   not one of them.** `LOG_SOFTMAX` still lowers to nine calls, which is now the
-  single largest term in a step, and collapsing it needs a row-wise reduction
-  SushiBLAS does not expose rather than a catalog row. `NLL_LOSS`'s three calls
-  are blocked the same way: the reduction seam takes no transform functor, so
-  its elementwise `mul` cannot ride into the sum. Neither is a fusion-pass
-  problem; both are one SushiBLAS operation away.
+  single largest term in a step. Collapsing it further is a catalog problem
+  rather than a missing-operation one now: SushiBLAS exposes the row-wise
+  maximum (`max_along`) and the row-wise sum (`sum_along`) the recipe needs, and
+  `record_log_softmax()` already uses the first of them. `NLL_LOSS`'s three
+  calls are still blocked on the *whole-tensor* seam taking no transform
+  functor, so its elementwise `mul` cannot ride into the sum. Neither is a
+  fusion-pass problem.
 - **Feeding a batch still costs a flush of its own.** The optimizer no longer
   does (§5.1), but the two `blas().copy()` calls that move a batch into the
   plan's fixed input buffers do: they read a *different source tensor* every
@@ -542,8 +552,12 @@ does is the expensive kind of documentation debt:
   `Dataset` that writes each batch straight into the two buffers the plan
   already owns.
 - **`LOG_SOFTMAX` is differentiable only as part of the fused
-  `LOG_SOFTMAX` + `NLL_LOSS` pair.** The standalone rule needs a row-wise
-  reduction SushiBLAS does not expose; it throws and says so.
+  `LOG_SOFTMAX` + `NLL_LOSS` pair.** The standalone rule is
+  `dx = dy - exp(L) * rowsum(dy)`, and a backward rule writes IR rather than
+  SushiBLAS calls — so what it is missing is an **IR node** for a row-wise sum,
+  not the kernel underneath one. `SushiBLAS::ReductionOps::sum_along` exists
+  now; an op identity, a builder entry point, a shape rule, a lowering and the
+  rule itself do not. It throws and says exactly that.
 - **No mixed precision, no checkpointing, no serialization.**
 - **AI-7's metric gates are only partly met.** `sa demo mlp` exists and
   reports `compiles: 1`, a zero-allocation steady state and finite-difference

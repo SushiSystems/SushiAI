@@ -73,42 +73,44 @@
  * every replay, and filling them eagerly mid-recording would call
  * @c Engine::execute(), which compiles and drains the half-built step.
  *
- * @section logsoftmax Why log-softmax shifts by a device-side global maximum
+ * @section logsoftmax Why log-softmax shifts by a device-side per-row maximum
  *
- * The stable recipe subtracts a maximum before exponentiating. SushiBLAS has
- * no axis-wise reduction, so the shift is the tensor's @e global maximum
- * rather than a per-row one. In exact arithmetic that is not an approximation:
- * log-softmax is invariant to subtracting any single scalar from every
- * element, so the global maximum gives the same answer as the row-wise one
- * while still driving every exponent to at most zero, which is all overflow
- * stability asks for.
+ * The stable recipe subtracts a maximum before exponentiating, and the maximum
+ * has to be each row's own: @c SushiBLAS::ReductionOps::max_along over axis 1.
  *
- * @warning In floating point the two differ, and the difference has a
- *          measurable edge. A row whose own maximum sits far @e below the
- *          batch maximum has every one of its exponentials rounded to zero, so
- *          its row sum underflows, @c log() of it is @c -inf, and the row's
- *          log-probabilities come back @c +inf. Measured in binary32 on a
- *          [2, 3] input: exact to about 90 below the batch maximum, about 7%
- *          low at 100 (the sum is denormal by then), and @c +inf from about
- *          104 on - which then makes the loss and every gradient below it
- *          non-finite. Row-wise shifting has no such edge; the global shift
- *          trades it for not needing an axis reduction SushiBLAS does not
- *          have. It is the right trade for logits a training run actually
- *          produces, whose rows sit within a few tens of each other, and it is
- *          the wrong one for a model that has already diverged. A fused
- *          SushiBLAS @c log_softmax_rows removes the edge along with the rest
- *          of the recipe; nothing short of a real row-wise maximum does.
- *          Integration_Resilience.LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange
- *          pins the supported side of that boundary.
+ * It used to be the tensor's @e global maximum, because SushiBLAS had no axis
+ * reduction to build a per-row one from, and the justification was that in
+ * exact arithmetic the two agree - log-softmax is invariant to subtracting any
+ * single scalar from a row, so any shift that drives every exponent to at most
+ * zero is as good as any other. That is true of the subtraction and false of
+ * the whole recipe, because what destroys the invariance is the @e exponential
+ * underneath it.
+ *
+ * @warning This is the shape of the bug that argument produced, kept because it
+ *          is the kind that comes back. A row whose own maximum sat far @e below
+ *          the batch maximum had every one of its exponentials rounded to zero,
+ *          so its row sum was exactly zero, @c log() of it was @c -inf, and the
+ *          row's log-probabilities came back @c +inf - which made the loss
+ *          @c NaN and every gradient under it non-finite, so a run trained on
+ *          @c NaN and reported success. Measured in binary32 on a [2, 3] input,
+ *          as the worst absolute deviation from the answer the same code gives
+ *          at a gap of zero: 2.15e-06 at a gap of 90, 2.70e-02 at 100 (the row
+ *          sum is subnormal by then), and @c +inf from 104. The per-row shift
+ *          does not move that boundary, it removes it: the gap never enters the
+ *          arithmetic, so that deviation is exactly zero at every gap.
+ *          @c Regression_LogSoftmaxStability pins those numbers, and asserts the
+ *          gap-independence specifically as an equality rather than a tolerance
+ *          (its correctness cases are the usual @c EXPECT_NEAR at 1e-4).
  *
  * The maximum stays on the device. Reading it back to the host and passing it
  * as an @c axpy alpha would be simpler to write, and it is what a first draft
  * does - but the alpha would be captured when the step is @e recorded, so a
  * compiled-once, replayed-many step would keep shifting by the first step's
- * maximum forever. Broadcasting the 1-element maximum through a gemv against
- * a [C, 1] ones matrix costs one extra tiny kernel and keeps the whole step
- * replayable, which is the property AI-1 exists to prove. A future fused
- * SushiBLAS @c log_softmax_rows would replace the whole seven-op recipe.
+ * maximum forever. A per-row maximum is a vector, so it broadcasts back over
+ * the columns with the @c ger the recipe already performs, and needs no
+ * broadcast kernel of its own - which is why the row-wise spelling is one
+ * recorded call @e cheaper than the global one it replaced, not dearer. A
+ * future fused SushiBLAS @c log_softmax_rows would replace the whole recipe.
  *
  * @section fused Where the fused forms turn back into kernels
  *

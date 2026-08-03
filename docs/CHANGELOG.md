@@ -13,6 +13,55 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 
 ## [Unreleased]
 
+### Fixed
+- **Log-softmax shifts by each row's own maximum, not the batch's.** The
+  previous shift returned `+inf` for any row about 104 below the batch maximum,
+  which made the loss `NaN` and every gradient under it non-finite — so a
+  diverged run trained on `NaN` and reported success rather than a large loss.
+  The justification for the global shift was that log-softmax is invariant to
+  subtracting any single scalar from a row, which is true of the subtraction and
+  false of the recipe: what destroys the invariance is the exponential
+  underneath it, and a row far enough down has every one of its exponentials
+  round to zero, a row sum of exactly zero, and `log(0) == -inf`.
+
+  Measured in binary32 on a [2, 3] input whose true log-probabilities are −0.41
+  to −2.41. The quantity is the worst absolute **deviation from the answer the
+  same code gives at a gap of 0** — the one figure directly measured on both
+  sides, by `TheAnswerDoesNotDependOnTheGapAtAll`'s `EXPECT_EQ`:
+
+  | row-to-batch-max gap | before | after |
+  |---------------------:|--------:|-----------:|
+  |                   90 | 2.15e−06 | 0 (exactly) |
+  |                  100 | 2.70e−02 | 0 (exactly) |
+  |                  104 |    `inf` | 0 (exactly) |
+  |                  200 |    `inf` | 0 (exactly) |
+
+  The fix does not move the boundary, it removes it: the gap never enters the
+  arithmetic, so the answer does not depend on it — which is why that assertion
+  is an **exact equality** rather than a tolerance. Measured against the
+  hand-computed expectation directly instead, the gap-100 case was 2.7033e−02
+  off, 6.6% of the largest true log-probability (−0.40761). The residual at the
+  gaps that pass is not quoted on either side because it was not measured; a
+  passing `EXPECT_NEAR` only bounds it under 1e−4.
+
+  `tests/functional/regression/test_log_softmax_stability.cpp` also pins the
+  loss and the fused cross-entropy gradient at every gap — the two places the
+  `+inf` actually ends a run.
+
+  It needed a **row-wise maximum**, which needed an axis reduction SushiBLAS did
+  not expose; that reduction (`ReductionOps::max_along` / `sum_along`, over a new
+  segmented launch shape) is the sibling half of this change. The lowering is one
+  recorded call *cheaper* than before, not dearer: a per-row maximum is already a
+  vector, so it broadcasts back over the columns through the `ger` the recipe
+  performs anyway and needs no broadcast kernel of its own. `record_log_softmax()`
+  goes from ten recorded SushiBLAS calls to nine — and `emitted_ += 9` was
+  already claiming nine, so the reported `ops per step` was under-counting by one
+  and is now accurate at the same value. Steady-state cost on `sa demo mlp`,
+  interleaved A/B on a quiet CPU/OpenCL box, slope between 1 024 and 4 096 steps:
+  **0.50 → 0.45 ms/step** (median of three each; the box's run-to-run spread is
+  about ±0.05, so this is a small real saving rather than a precise one). The
+  demo's loss trajectory is unchanged to the last printed digit.
+
 ### Added
 - **AI-3: automatic operator fusion — a static tree pass and a dynamic
   selector.** A step's forward and backward graph goes from 31 recorded
@@ -382,6 +431,11 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 - `LOG_SOFTMAX` is differentiable only as part of the fused
   `LOG_SOFTMAX` + `NLL_LOSS` pair; the standalone rule needs a row-wise
   reduction SushiBLAS does not expose, and throws saying so.
+  - *Partly superseded* by the row-wise-shift entry at the top of
+    `[Unreleased]`: SushiBLAS exposes `sum_along` now, so the blocker is no
+    longer a missing kernel. It is a missing **IR node** — a backward rule
+    writes IR, not SushiBLAS calls. The rule still throws; its message says
+    which of the two it is waiting on.
 - **`LOG_SOFTMAX` shifts by the batch's global maximum, and that has a
   numerical edge.** Shift invariance is exact in real arithmetic but not in
   floating point: a row whose own maximum sits far below the batch maximum has
@@ -396,6 +450,9 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   `log_softmax_rows` that would replace the whole seven-op recipe. Documented
   in `lowering.hpp`; the supported side of the boundary is pinned by
   `Integration_Resilience.LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange`.
+  - ***Fixed***, by the row-wise-shift entry at the top of `[Unreleased]`.
+    SushiBLAS grew the axis reduction; `record_log_softmax()` shifts by
+    `max_along(x, 1)` and the gap no longer reaches the arithmetic at all.
 - `Lifetime` is recorded on every value but no memory planner reads it yet.
   *(Superseded: the AI-2 entry above is that planner.)*
 

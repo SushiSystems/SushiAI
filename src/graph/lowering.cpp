@@ -738,35 +738,54 @@ namespace SushiAI
             const SushiBLAS::Tensor& x = input(node, 0);
             SushiBLAS::Tensor& out = output(graph, node, 0);
 
-            SushiBLAS::Tensor& peak      = pool_->scratch(id, 0, Shape{1}, dtype);
-            SushiBLAS::Tensor& peak_row  = pool_->scratch(id, 1, Shape{cols}, dtype);
-            SushiBLAS::Tensor& shifted   = pool_->scratch(id, 2, x_shape, dtype);
-            SushiBLAS::Tensor& exponents = pool_->scratch(id, 3, x_shape, dtype);
-            SushiBLAS::Tensor& row_sums  = pool_->scratch(id, 4, Shape{rows}, dtype);
+            SushiBLAS::Tensor& row_max   = pool_->scratch(id, 0, Shape{rows}, dtype);
+            SushiBLAS::Tensor& shifted   = pool_->scratch(id, 1, x_shape, dtype);
+            SushiBLAS::Tensor& exponents = pool_->scratch(id, 2, x_shape, dtype);
+            SushiBLAS::Tensor& row_sums  = pool_->scratch(id, 3, Shape{rows}, dtype);
 
-            SushiBLAS::Tensor& ones_rows   = pool_->ones(Shape{rows}, dtype);
-            SushiBLAS::Tensor& ones_cols   = pool_->ones(Shape{cols}, dtype);
-            SushiBLAS::Tensor& ones_column = pool_->ones(Shape{cols, 1}, dtype);
+            SushiBLAS::Tensor& ones_cols = pool_->ones(Shape{cols}, dtype);
 
-            // 1. The global maximum. Log-softmax is invariant to subtracting any
-            //    single scalar, so a whole-tensor reduction is as correct as a
-            //    row-wise one and SushiBLAS has no row-wise one to offer.
-            engine_->reductions().max(x, peak);
+            // 1. Each row's OWN maximum, not the batch's.
+            //
+            //    This used to be a whole-tensor `reductions().max`, broadcast to
+            //    every row, on the argument that log-softmax is invariant to
+            //    subtracting any single scalar from a row. The argument is sound
+            //    in real arithmetic and false in binary32, because what destroys
+            //    the invariance is not the subtraction but the exponential below
+            //    it: a row sitting far under the batch maximum has every
+            //    `exp(x - batch_max)` collapse through the subnormals to zero, so
+            //    its row sum is exactly zero, `log(0)` is `-inf`, and step 4
+            //    returns `+inf` for the whole row. Measured on this project's
+            //    OpenCL CPU device over a row whose true log-probabilities are
+            //    around -0.41 to -2.41, as the worst absolute deviation from the
+            //    answer the same code gives at a gap of zero: 2.15e-06 at a gap
+            //    of 90, 2.70e-02 at 100, and `+inf` from 104 - which then makes
+            //    the loss NaN and the gradient non-finite, so the run trains on
+            //    NaN and reports success. Shifting by the row's own maximum takes
+            //    the gap out of the arithmetic entirely rather than moving the
+            //    threshold, so that deviation is exactly zero at every gap.
+            //    tests/functional/regression/test_log_softmax_stability.cpp pins
+            //    every one of those numbers.
+            //
+            //    It also costs one recorded call less than the global shift did,
+            //    because a per-row vector needs no broadcast back out to a row.
+            engine_->reductions().max_along(x, 1, row_max);
 
-            // 2. Broadcast it to a row without a host round trip, so nothing
-            //    per-step is baked into the recorded call (see the file comment).
-            engine_->blas().gemv(ones_column, peak, peak_row, false, 1.0f, 0.0f);
-
-            // 3. shifted = X - 1 (max)^T; every exponent is now at most zero.
+            // 2. shifted = X - (row_max) 1^T; every exponent is now at most zero,
+            //    and every row has at least one exponent that is exactly zero.
             engine_->blas().copy(x, shifted);
-            engine_->blas().ger(ones_rows, peak_row, shifted, -1.0f);
+            engine_->blas().ger(row_max, ones_cols, shifted, -1.0f);
 
-            // 4. row_sums = rowwise sum of exp(shifted).
+            // 3. row_sums = rowwise sum of exp(shifted). Still a gemv against a
+            //    ones vector rather than the new `sum_along`: both are correct
+            //    here - every summand is in (0, 1] after step 2, so there is
+            //    nothing for a compensated fold to recover - and leaving it alone
+            //    keeps this change to the one line that was wrong.
             engine_->blas().copy(shifted, exponents);
             engine_->elementwise().exp(exponents);
             engine_->blas().gemv(exponents, ones_cols, row_sums, false, 1.0f, 0.0f);
 
-            // 5. out = shifted - log(rowsum) broadcast back over the columns.
+            // 4. out = shifted - log(rowsum) broadcast back over the columns.
             engine_->elementwise().log(row_sums);
             engine_->blas().copy(shifted, out);
             engine_->blas().ger(row_sums, ones_cols, out, -1.0f);

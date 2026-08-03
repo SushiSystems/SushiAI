@@ -609,13 +609,18 @@ TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
 
 TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
 {
-    // The shift is by the batch's GLOBAL maximum, not a per-row one - see
-    // lowering.hpp, including the warning about where that stops working. A
-    // row whose own maximum is far below the batch maximum has all of its
-    // exponentials rounded to zero and comes back +inf; measured, that starts
-    // at a gap of about 104 in binary32. This pins the supported side: 60 is
-    // exact, and it must stay exact, because the failure past the edge is
-    // silent enough already without the working range quietly shrinking.
+    // A gap of 60 between the two rows' own maxima. This used to pin the
+    // *supported side* of a boundary: the shift was by the batch's global
+    // maximum, so a row far enough below it came back +inf, and 60 was
+    // comfortably inside the range that still worked.
+    //
+    // There is no boundary now - the shift is each row's own maximum, so the
+    // gap does not reach the arithmetic - and the case is kept unchanged
+    // anyway. It is the shape a training run actually produces, and a
+    // regression that reintroduced a global shift would still pass every test
+    // whose rows sit on top of each other. The gaps that break a global shift
+    // are pinned separately, with their measured errors, in
+    // tests/functional/regression/test_log_softmax_stability.cpp.
     const int64_t columns = 3;
 
     std::vector<double> logits = {
