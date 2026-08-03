@@ -72,6 +72,27 @@ namespace
     };
 
     /**
+     * @enum ActivationKind
+     * @brief Which hidden activation the demo's one hidden layer uses.
+     *
+     * Two entries rather than every activation the library has, because these
+     * two are the two *kinds*: ReLU's gradient reads its own output, so it
+     * folds into the GEMM epilogue for free, and GELU's reads its input, so it
+     * folds only because @c FusedForm::GEMM_BIAS_GELU spills that input to a
+     * second buffer. Being able to run both from one binary is what makes the
+     * cost of that spill a measurement rather than a claim: the fusion report,
+     * `ops per step` and the `Buffers` line are all printed for whichever was
+     * asked for, and comparing `--activation gelu` against
+     * `--activation gelu --no-fuse gemm+bias+gelu` is the A/B that says what
+     * the entry actually buys.
+     */
+    enum class ActivationKind
+    {
+        RELU, /**< The default; folds with nothing spilled. */
+        GELU, /**< Folds only via the auxiliary pre-activation spill. */
+    };
+
+    /**
      * @struct Settings
      * @brief Everything the demo takes from the command line.
      *
@@ -97,6 +118,7 @@ namespace
 
         std::uint64_t seed = 0x0D15EA5E'0BADF00Dull; /**< Seeds both the data and the weights. */
         OptimizerKind optimizer = OptimizerKind::ADAMW;
+        ActivationKind activation = ActivationKind::RELU;
         std::filesystem::path mnist_directory = "data/mnist";
 
         /**
@@ -168,6 +190,13 @@ Usage: sushiai_demo_mlp [options]
   --classes N       classes, synthetic only            (default 6)
   --lr F            learning rate      (default 3e-3 adamw / 0.2 sgd)
   --optimizer NAME  adamw | sgd                        (default adamw)
+  --activation A    relu | gelu                          (default relu)
+                    The two kinds of fusable activation. ReLU's gradient reads
+                    its own output, so it folds into the GEMM epilogue with
+                    nothing else written; GELU's reads its input, so it folds
+                    only because that input is spilled to a second buffer on
+                    the way past (cuBLASLt calls it GELU_AUX_BIAS). The fusion
+                    report names whichever form was matched.
   --fusion on|off   run the operator fusion pass           (default on)
   --precision P     fp32 | mixed                          (default fp32)
                     'mixed' runs the matrix products and the epilogues a fused
@@ -184,7 +213,8 @@ Usage: sushiai_demo_mlp [options]
                     which overflows fp16 deliberately and shows the backoff.
   --no-fuse NAME    leave one catalog entry unmatched; repeatable. NAME is a
                     form as the report names it: gemm+bias, gemm+bias+relu,
-                    gemm+bias+sigmoid, gemm+bias+tanh, exp-sub-scale
+                    gemm+bias+sigmoid, gemm+bias+tanh, gemm+bias+gelu,
+                    exp-sub-scale
   --seed N          seeds the data and the weights  (default: printed below)
   --mnist-dir PATH  where to look for the IDX files    (default data/mnist)
   -h, --help        print this and exit
@@ -373,6 +403,13 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                 else if (name == "sgd") settings.optimizer = OptimizerKind::SGD;
                 else SA_THROW_IF(true, "--optimizer takes 'adamw' or 'sgd', got '{}'", name);
             }
+            else if (flag == "--activation")
+            {
+                const std::string name = value();
+                if (name == "relu") settings.activation = ActivationKind::RELU;
+                else if (name == "gelu") settings.activation = ActivationKind::GELU;
+                else SA_THROW_IF(true, "--activation takes 'relu' or 'gelu', got '{}'", name);
+            }
             else SA_THROW_IF(true, "Unknown flag '{}'. Run with --help.", flag);
         }
 
@@ -516,8 +553,18 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                                    report.nodes_before(), report.nodes_after());
 
         for (const sa::Graph::FusedSubtree& subtree : report.fused())
-            text += SushiBLAS::Core::format("           fused    {} -> value {}\n",
+        {
+            text += SushiBLAS::Core::format("           fused    {} -> value {}",
                                             sa::Graph::fused_form_name(subtree.form), subtree.result);
+
+            // The one form that writes two values says so here. Without the
+            // line a reader has no way to tell the safe fold from the silently
+            // wrong one, which look identical in every other number printed.
+            if (subtree.spilled != sa::Graph::NO_VALUE)
+                text += SushiBLAS::Core::format(" (+ pre-activation spilled to value {})",
+                                                subtree.spilled);
+            text += "\n";
+        }
 
         for (const sa::Graph::DeclinedFusion& decline : report.declined())
             text += SushiBLAS::Core::format("           declined {}: {}\n",
@@ -603,37 +650,31 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         return text;
     }
 
-} // namespace
-
-int main(int argc, char** argv)
-{
-    try
+    /**
+     * @brief Trains @p model end to end and prints the demo's whole contract.
+     *
+     * A template because the model's type is its structure: NN::Sequential is
+     * a variadic aggregate, so "the same MLP with GELU instead of ReLU" is a
+     * different type rather than a different value, and --activation therefore
+     * picks between two instantiations rather than setting a field. Everything
+     * from the trace to the final compile-count line lives here, so the two
+     * arms cannot print different things by drifting apart.
+     *
+     * @tparam M The model type; must satisfy NN::Module.
+     * @param engine The engine everything is recorded on.
+     * @param model The model to train; its parameters are declared by the trace.
+     * @param data The dataset and its provenance, for the banner.
+     * @param dataset The dataset itself.
+     * @param settings The parsed command line.
+     * @param features Input features per sample.
+     * @param classes How many classes.
+     * @return EXIT_SUCCESS, or EXIT_FAILURE if the step was compiled more than once.
+     */
+    template<typename M>
+    int train_and_report(sb::Engine& engine, M& model, const DataChoice& data,
+                         const sa::Data::Dataset& dataset, const Settings& settings,
+                         int64_t features, int64_t classes)
     {
-        bool wants_help = false;
-        const Settings settings = parse_command_line(argc, argv, wants_help);
-        if (wants_help)
-        {
-            std::cout << USAGE;
-            return EXIT_SUCCESS;
-        }
-
-        sr::Execution::RuntimeContext context;
-        sb::Engine engine(context);
-
-        // --- Data ---------------------------------------------------------
-        const DataChoice data = load_dataset(engine, settings);
-        const sa::Data::Dataset& dataset = *data.dataset;
-
-        const int64_t features = dataset.input_dim();
-        const int64_t classes = dataset.num_classes();
-
-        // --- Model --------------------------------------------------------
-        sa::NN::Sequential model{
-            sa::NN::Linear{features, settings.hidden},
-            sa::NN::ReLU{},
-            sa::NN::Linear{settings.hidden, classes},
-        };
-
         // Trace, add cross-entropy, differentiate, insert casts, fuse. All
         // IR-to-IR: no device work has happened yet, and nothing has been
         // compiled.
@@ -803,6 +844,51 @@ int main(int argc, char** argv)
         }
 
         return EXIT_SUCCESS;
+    }
+
+} // namespace
+
+int main(int argc, char** argv)
+{
+    try
+    {
+        bool wants_help = false;
+        const Settings settings = parse_command_line(argc, argv, wants_help);
+        if (wants_help)
+        {
+            std::cout << USAGE;
+            return EXIT_SUCCESS;
+        }
+
+        sr::Execution::RuntimeContext context;
+        sb::Engine engine(context);
+
+        // --- Data ---------------------------------------------------------
+        const DataChoice data = load_dataset(engine, settings);
+        const sa::Data::Dataset& dataset = *data.dataset;
+
+        const int64_t features = dataset.input_dim();
+        const int64_t classes = dataset.num_classes();
+
+        // --- Model --------------------------------------------------------
+        // The activation is a type, not a field, so the choice is made here
+        // and everything after it is the same code either way.
+        if (settings.activation == ActivationKind::GELU)
+        {
+            sa::NN::Sequential model{
+                sa::NN::Linear{features, settings.hidden},
+                sa::NN::GELU{},
+                sa::NN::Linear{settings.hidden, classes},
+            };
+            return train_and_report(engine, model, data, dataset, settings, features, classes);
+        }
+
+        sa::NN::Sequential model{
+            sa::NN::Linear{features, settings.hidden},
+            sa::NN::ReLU{},
+            sa::NN::Linear{settings.hidden, classes},
+        };
+        return train_and_report(engine, model, data, dataset, settings, features, classes);
     }
     catch (const std::exception& error)
     {

@@ -146,6 +146,7 @@ sa demo mlp                              # the defaults
 sa demo mlp --epochs 4 --optimizer sgd   # anything you like
 sa demo mlp --fusion off                 # the unfused graph, for an A/B
 sa demo mlp --no-fuse gemm+bias+relu     # one catalog entry off; repeatable
+sa demo mlp --activation gelu            # the epilogue that spills its input
 sa demo mlp --precision mixed            # fp16 products, fp32 master weights
 sa demo mlp --loss-scale 65536           # gradient loss scaling, halving on overflow
 sa demo mlp --help                       # the full flag list
@@ -156,6 +157,34 @@ than assumed: both spellings produce the same numbers and differ only in how
 many kernels they launch, so the comparison has to come from one binary against
 one SushiBLAS build. `--no-fuse` takes a form's name exactly as the demo's
 `Fusion` line prints it.
+
+`--activation` picks the hidden layer's nonlinearity, and the two it offers are
+the two *kinds* rather than a sample of the library's four. `relu` — the
+default — has a gradient that reads its own output, so folding it into the GEMM
+epilogue destroys nothing and needs nothing extra. `gelu` has a gradient that
+reads its **input**, so `gemm+bias+gelu` only exists because its epilogue
+spills that input to a second buffer on the way past (cuBLASLt calls the shape
+`GELU_AUX_BIAS`). Measured here on the default schedule, at `--precision fp32`:
+
+| run | `ops per step` | buffers | final loss |
+|---|---|---|---|
+| `--activation gelu` | 25 | 112.7 KiB | 0.000343 |
+| `--activation gelu --no-fuse gemm+bias+gelu` | 27 | 112.7 KiB | 0.000343 |
+| `--activation gelu --fusion off` | 35 | 112.7 KiB | 0.000343 |
+
+Two launches saved against the fallback and ten against the unfused graph, at
+**no cost in memory at all** — the spill is not a new buffer, it is the
+pre-activation the unfused `BIAS_ADD` would have written anyway, kept instead of
+eliminated. The identical final loss across all three is the point of the
+exercise: the spill is what makes the gradients agree, and
+`Regression_Fusion.AGeluMlpTrainsIdenticallyFusedAndUnfused` pins it as a
+byte-for-byte parameter comparison rather than as six printed decimals.
+
+Under `--precision mixed` the GELU layer is **not** folded — the fusion line
+shows `gemm+bias` twice — because the tanh approximation computes `x*x*x`,
+which overflows fp16 at |x| ≈ 40.3. See
+[ARCHITECTURE.md §6.2](ARCHITECTURE.md) for why that is a structural
+consequence of the pass order rather than a special case.
 
 `--precision` is the same idea for mixed precision. `fp32` — the default —
 means every operation computes in the graph's own element type and the cast
