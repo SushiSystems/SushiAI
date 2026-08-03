@@ -136,13 +136,6 @@ namespace SushiAI
                 SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
                     SGDOptions options = {});
 
-                /**
-                 * @brief Recomputes this step's scalars into the device buffer.
-                 * @throws Error If momentum was switched on after construction,
-                 *         when there is no momentum buffer to switch it on for.
-                 */
-                void before_replay() override;
-
                 /** @brief True when the update is fused, and therefore replayable. */
                 bool is_replay_invariant() const noexcept override
                 {
@@ -161,6 +154,18 @@ namespace SushiAI
                  * @return One task per parameter when fused, four or five each when not.
                  */
                 std::size_t record_update() override;
+
+                /**
+                 * @brief Recomputes this step's scalars into the device buffer.
+                 *
+                 * Called by @c Optimizer::before_replay(), which is @c final so
+                 * that the loss scaler's own publication cannot be dropped by an
+                 * override here.
+                 *
+                 * @throws Error If momentum was switched on after construction,
+                 *         when there is no momentum buffer to switch it on for.
+                 */
+                void write_step_scalars() override;
 
             private:
                 struct State

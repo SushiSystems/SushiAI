@@ -153,16 +153,6 @@ namespace SushiAI
                 AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
                       AdamWOptions options = {});
 
-                /**
-                 * @brief Recomputes this step's scalars into the device buffer.
-                 *
-                 * The bias corrections are a function of the step counter, and
-                 * everything else is a function of @c options(), so this also
-                 * picks up a learning-rate schedule between replays without any
-                 * recompilation.
-                 */
-                void before_replay() override;
-
                 /** @brief True when the update is fused, and therefore replayable. */
                 bool is_replay_invariant() const noexcept override
                 {
@@ -182,6 +172,44 @@ namespace SushiAI
                  *         and eleven without, when not.
                  */
                 std::size_t record_update() override;
+
+                /**
+                 * @brief Recomputes this step's scalars into the device buffer.
+                 *
+                 * The bias corrections are a function of the step counter, and
+                 * everything else is a function of @c options(), so this also
+                 * picks up a learning-rate schedule between replays without any
+                 * recompilation. Called by @c Optimizer::before_replay(), which
+                 * is @c final so that the loss scaler's own publication cannot
+                 * be dropped by an override here.
+                 */
+                void write_step_scalars() override;
+
+            public:
+                /**
+                 * @brief Parameter @p index's first moment, m.
+                 *
+                 * Exposed for one reason, and it is worth stating because
+                 * exposing optimizer state is otherwise a smell: the failure
+                 * mode a skipped loss-scaled step has is a NaN written into the
+                 * *moments* while the parameters stay clean, and there is no
+                 * other way for a test to see that. A test that could only read
+                 * the parameters would pass on exactly the bug the gate exists
+                 * to prevent - see optim/loss_scaler.hpp.
+                 *
+                 * @param index Which parameter, in slot order.
+                 * @return Its first moment.
+                 * @throws Error If @p index is out of range.
+                 */
+                const SushiBLAS::Tensor& first_moment(std::size_t index) const;
+
+                /**
+                 * @brief Parameter @p index's second moment, v.
+                 * @param index Which parameter, in slot order.
+                 * @return Its second moment.
+                 * @throws Error If @p index is out of range.
+                 */
+                const SushiBLAS::Tensor& second_moment(std::size_t index) const;
 
             private:
                 struct State

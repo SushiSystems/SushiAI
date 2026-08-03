@@ -79,6 +79,7 @@
 #include "nn/init.hpp"
 
 #include "optim/step_scalars.hpp"
+#include "optim/loss_scaler.hpp"
 #include "optim/optimizer.hpp"
 #include "optim/sgd.hpp"
 #include "optim/adamw.hpp"
