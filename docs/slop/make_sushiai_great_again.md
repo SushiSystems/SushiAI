@@ -531,15 +531,22 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   `tanh_backward` already take the output, so they fuse. Only GELU is genuinely blocked. ReLU was
   moved to differentiate at its output too, which is bit-identical rather than approximate, and is
   what makes the pass need no activation-specific knowledge: the pre-activation then has one
-  consumer, so an ordinary use count folds ReLU and refuses GELU.
-- **The `GELU_AUX_BIAS` shape was declined for a seam reason that no longer holds.** `execute_gemm`
-  used to declare A, B and C and hand the epilogue's own accesses back to the caller, so an aux
-  buffer the functor wrote would get no edge and its reader would race the write. SushiBLAS now
-  takes the epilogue's access set — `Dispatch::gemm_epilogue(f).reads(t).writes(t)` — so the aux
-  write is declarable. The fusion itself is still not implemented: it needs an op identity, a
-  catalog row, a second output on the fused node, a lowering arm, a backward rule reading the
-  spill, and a `static_assert` that can distinguish "no aux buffer" from "an aux buffer is
-  provided". Still declined, no longer for the seam's sake.
+  consumer, so an ordinary use count folds ReLU and refuses GELU. (GELU folds now as well, but not
+  on a use count — see the `GELU_AUX_BIAS` entry below.)
+- **The `GELU_AUX_BIAS` shape was declined for a seam reason that no longer holds — and is now
+  built.** `execute_gemm` used to declare A, B and C and hand the epilogue's own accesses back to
+  the caller, so an aux buffer the functor wrote would get no edge and its reader would race the
+  write. SushiBLAS now takes the epilogue's access set —
+  `Dispatch::gemm_epilogue(f).reads(t).writes(t)` — so the aux write is declarable. Everything this
+  entry then listed as outstanding landed as `FusedForm::GEMM_BIAS_GELU`, with one item resolving
+  more cheaply than expected: the "backward rule reading the spill" turned out to need no new rule
+  at all. Fusion runs *after* differentiation, so `gelu_backward` is already in the graph reading
+  the pre-activation by id; making that same id the fused node's second output means the existing
+  rule reads the spill without knowing anything changed. The `static_assert` did learn the
+  distinction, and also checks that the entry spills the *right* step of the chain — spilling the
+  `MATMUL`'s result instead of the `BIAS_ADD`'s would be as silently wrong as spilling nothing.
+  The one thing the entry cannot do is run under a narrowing precision policy, and that is
+  deliberate: see §25's precision note and `graph/precision.hpp` rule 5.
 - **That gap also used to cost one node per fused GEMM, and no longer does.** The epilogue's *bias*
   read is a parameter the optimizer rewrites in the same plan, and it was declared with a
   `Lowering::declare_epilogue_operand()` that emitted a do-nothing `TaskGraph::add_native` node,

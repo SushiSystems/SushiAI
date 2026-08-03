@@ -74,6 +74,76 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   demo's loss trajectory is unchanged to the last printed digit.
 
 ### Added
+- **GELU folds into the GEMM epilogue, by spilling its pre-activation.**
+  `FusedForm::GEMM_BIAS_GELU` — cuBLASLt's `GELU_AUX_BIAS` shape — is the sixth
+  catalog entry and the first whose IR node writes **two** values. The previous
+  entry in this changelog said the fusion was "declined, not approximated" and
+  listed what it would take; this is that list, done.
+  - **The epilogue stores the fully formed pre-activation to a second buffer
+    and then returns `gelu` of it.** That is the whole of why the entry is
+    allowed to exist: `gelu_backward` differentiates at the GELU's *input*, so
+    a result-only fold would take the gradient at the wrong point — with no
+    exception, no `NaN`, and a loss that still falls.
+  - **The second output is the same `ValueId` the absorbed `BIAS_ADD` used to
+    produce.** So `gelu_backward` reads exactly what it always read: no
+    backward rule changed, no pass learned about a new tensor, and the
+    "value ids survive the pass" contract is unbroken. What the fusion pass
+    gained is a per-entry `spill` step whose interior value is exempt from the
+    single-consumer rule — because it still reaches memory — and a new refusal,
+    `FusionDecline::SPILL_READ_TOO_EARLY`, for the one case the exemption could
+    break: a reader of that value sitting between the absorbed producer and the
+    chain's root, which would leave the rewritten graph out of topological
+    order.
+  - **The `static_assert` was relaxed, not removed.** It no longer refuses every
+    entry folding an activation whose gradient reads its input; it refuses one
+    that folds such an activation **without** a spill, or that spills the wrong
+    step of the chain. A hypothetical `GEMM_BIAS_SILU` added without an
+    auxiliary write still fails the build, which was the whole point of having
+    it.
+  - **`writes(aux)` is as load-bearing as `reads(bias)`.** The spill is read by
+    the backward pass inside the same compiled plan, so an undeclared write is
+    not a wrong edge but *no* edge, and the reader races the kernel that filled
+    it — a race that usually resolves the right way is indistinguishable from
+    training.
+    `Regression_Fusion.WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt`
+    asserts it on `in_degree`.
+  - **Two launches saved and no memory spent.** On `sa demo mlp
+    --activation gelu` (new flag; `relu` remains the default and every existing
+    number is unchanged) at `--precision fp32`: **25** `ops per step` with the
+    entry taken, **27** with `--no-fuse gemm+bias+gelu`, **35** with
+    `--fusion off` — all three reaching a final loss of 0.000343, and all three
+    at 112.7 KiB of buffers. The spill is not a new allocation: it is the
+    pre-activation the unfused `BIAS_ADD` would have written anyway, kept
+    instead of eliminated.
+  - **Checked against a finite difference, not only against itself.**
+    `Integration_Autograd.AFusedGeluEpilogueHasTheSameDerivativeAsAnUnfusedOne`
+    runs `check_full_jacobian` over an fp64 graph with the entry taken, and
+    asserts the selector really spelled the fused arm first — a forward
+    comparison would pass with the spill deleted, and a gradcheck does not.
+    `Regression_Fusion` adds the byte-for-byte parameter A/B against both the
+    unfused graph and the disabled entry, plus a direct read of the spill
+    against a host-computed pre-activation.
+  - **Under a narrowing precision policy the entry is unreachable, on purpose.**
+    `graph/precision.hpp` rule 5 kept GELU wide for two reasons, one of which
+    this change destroys — "nothing folds it, so nothing forces its precision".
+    The surviving one is enough: the tanh approximation computes `x*x*x`, which
+    overflows fp16 at |x| ≈ 40.3, and `tanh(±inf)` then returns ±1 rather than
+    `NaN`, so the result is a wrong number with no symptom. Because the cast
+    pass runs *before* fusion, an activation the policy keeps wide gets a `CAST`
+    between it and the narrowed `BIAS_ADD` and the three-node chain stops
+    matching — so `GEMM_BIAS_GELU` is an fp32-only entry as a consequence of the
+    pass order rather than as a special case.
+    `narrows_under_mixed_precision` answers false for both `GELU` and
+    `GEMM_BIAS_GELU`, and
+    `Regression_MixedPrecision.AGeluLayerIsNotFoldedUnderANarrowingPolicy` pins
+    that a mixed GELU model folds `gemm+bias` twice and `gemm+bias+gelu` never.
+  - **A fusion selector may no longer answer an unrelated form.** The check in
+    `Lowering::select` accepted any GEMM epilogue in place of any other, which
+    would have let a selector answer `gemm+bias+tanh` to a `gemm+bias+relu`
+    match — the wrong activation, past every shape check — and, once a form
+    could spill, `gemm+bias+gelu` to a node with no auxiliary output. It now
+    accepts the match itself, `gemm+bias`, or nothing, which is what the
+    surrounding documentation already claimed.
 - **`sa doxygen` works.** A repo-root `Doxyfile` and `docs/api/mainpage.md` are
   now committed, and `.gitignore` no longer swallows the Doxyfile — it listed
   it, so the command reported `Doxyfile not found at repo root.` and exited 1 in
@@ -243,7 +313,8 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     `gemm_bias_sigmoid`, `gemm_bias_tanh` through
     `Dispatch::execute_gemm`'s epilogue, and `exp_sub_scale` — the whole
     elementwise tail of the cross-entropy gradient — through
-    `Dispatch::execute_zip_inplace`.
+    `Dispatch::execute_zip_inplace`. (`gemm_bias_gelu` was added later; see the
+    top of this section.)
   - **The per-activation decision is a property of the op, not a case in the
     pass.** `Ops::ACTIVATIONS` states where each activation's gradient reads;
     the differentiation pass and a `static_assert` over the catalog both read
@@ -252,7 +323,9 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     ReLU now differentiates at its output, which is bit-identical
     (`relu(x) > 0` exactly when `x > 0`) and is what leaves its pre-activation
     with a single consumer so an ordinary use count licenses the fold. GELU is
-    declined and the report says why.
+    declined and the report says why. (Superseded: it folds now, via the spill
+    described at the top of this section, and the `static_assert` learned the
+    difference between an entry with an auxiliary buffer and one without.)
   - **Byte for byte, not within a tolerance.** Every fused form is compared
     against the unfused graph over a full training run in
     `Regression_Fusion`, and `FusionOptions::enabled = false` keeps that
@@ -282,7 +355,9 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
     collapsed and every one it refused, with the value that blocked it and the
     reason — `sa demo mlp` prints it, because every way this pass can be wrong
     produces a run that still converges.
-  - **An auxiliary-buffer GELU epilogue is declined, not approximated.** It was
+  - **An auxiliary-buffer GELU epilogue is declined, not approximated.**
+    *(Superseded — it is implemented; see the top of this section. Kept because
+    the list of what it would take is what got built, item for item.)* It was
     declined because the seam declared no epilogue-side regions, so an aux
     buffer the functor wrote would get no dependency edge and its reader would
     race the write. That half is fixed —

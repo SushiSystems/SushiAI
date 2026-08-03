@@ -35,7 +35,11 @@ feature that plan hasn't reached.
   the compile-once/replay contract a type rather than a comment.
 - **A fusion pass** (`graph/fusion.hpp`) — a catalog of recipes applied as a
   selector over the IR before lowering, reported per-run by `sa demo mlp` and
-  switchable with `--fusion off` / `--no-fuse NAME`.
+  switchable with `--fusion off` / `--no-fuse NAME`. One entry,
+  `gemm+bias+gelu`, spills its pre-activation to a second output so an
+  activation whose gradient reads its *input* can be folded without the
+  backward pass losing what it differentiates at; `sa demo mlp --activation
+  gelu` runs it.
 - **A memory planner and per-lifetime arenas** (`graph/memory_plan.hpp`,
   `graph/arena.hpp`) — IR values packed into arenas by lifetime instead of one
   `Storage` each, pinned by `Regression_StaticMemory`.
