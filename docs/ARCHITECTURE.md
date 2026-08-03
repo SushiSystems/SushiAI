@@ -382,12 +382,12 @@ property of the op rather than a case inside the pass. `Ops::ACTIVATIONS` states
 where each activation's gradient reads, once, and both the differentiation pass
 and the catalog's `static_assert` consult it:
 
-| activation | gradient reads | foldable |
-|---|---|---|
-| ReLU | its output | yes |
-| sigmoid | its output | yes |
-| tanh | its output | yes |
-| GELU | its **input** | no |
+| activation | gradient reads | foldable | entry it needs |
+|---|---|---|---|
+| ReLU | its output | yes | any; the pre-activation was dead already |
+| sigmoid | its output | yes | any |
+| tanh | its output | yes | any |
+| GELU | its **input** | yes, **with a spill** | one that writes the pre-activation to a second output |
 
 ReLU moved from reading its input to reading its output as part of this work,
 and that is a substitution rather than an approximation: SushiBLAS's
@@ -395,29 +395,50 @@ and that is a substitution rather than an approximation: SushiBLAS's
 `x > 0`, so the two spellings are **bit-identical**. Making it unconditional -
 not a rewrite the fusion pass applies - is what leaves the pre-activation with
 a single consumer in the plain graph too, so an ordinary use count says yes for
-ReLU and no for GELU with no activation-specific code in the matcher at all.
-The three entries in `docs/slop`'s §25 note about GELU/SiLU/sigmoid/tanh being
-non-recoverable is narrower than it looked: sigmoid and tanh **are** exactly
-recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's rules already
-take the output, so only GELU is genuinely blocked here.
+ReLU with no activation-specific code in the matcher at all, and would say no
+for GELU. The three entries in `docs/slop`'s §25 note about GELU/SiLU/sigmoid/
+tanh being non-recoverable is narrower than it looked: sigmoid and tanh **are**
+exactly recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's rules
+already take the output, so GELU was the only one the use count genuinely
+refused.
 
-An auxiliary-buffer GELU epilogue - cuBLASLt's `GELU_AUX_BIAS` shape - **is now
-expressible at the seam and is still not implemented here.** The blocker used to
-be that `Dispatch::execute_gemm` declared A, B and C and nothing the epilogue
-touched, so an aux buffer the functor wrote would get no edge at all and its
-reader would race the write. SushiBLAS closed that:
-`Dispatch::gemm_epilogue(f).writes(aux)` puts the buffer in the GEMM task's own
-write set, and SushiBLAS's `Unit_GEMMSeamTest` asserts the resulting edge on
-`in_degree` (with a control for the undeclared spelling, which gets none).
-What remains is entirely on this side and is a separate
-change: a `GEMM_BIAS_GELU` identity and catalog row, an epilogue functor that
-spills its pre-activation, a second output on the fused node (so the shape rule
-and the builder both know about the aux value), a lowering arm that allocates it
-and declares the write, and a backward rule that reads *that* buffer rather than
-the node's output - plus the `static_assert` in `fusion.cpp`, which today refuses
-any catalog entry folding an activation that differentiates at its input and
-would have to learn the difference between "no aux buffer" and "an aux buffer is
-provided". The seam is no longer the reason not to.
+**The auxiliary-buffer GELU epilogue — cuBLASLt's `GELU_AUX_BIAS` shape — is
+implemented.** `FusedForm::GEMM_BIAS_GELU`'s epilogue stores the fully formed
+pre-activation to a second buffer on its way past and then returns `gelu` of it,
+so the tensor `gelu_backward` differentiates at is written after all and the
+fold is exact rather than approximate.
+
+Four things make that work, and each is a place it could have gone silently
+wrong:
+
+- **The second output is the same value.** `Graph::Node::outputs` was already a
+  vector; the fused node's `outputs[1]` is the very `ValueId` the absorbed
+  `BIAS_ADD` used to produce. So `gelu_backward` reads what it always read, no
+  backward rule changed, and no pass had to learn about a new tensor.
+- **Rule 1 is relaxed for exactly that value and nothing else.** A catalog entry
+  names one `spill` step; the interior value at that step may have any number of
+  consumers and may be observed, because it still reaches memory. Every other
+  interior value is governed by the use count as before.
+- **Order, not just liveness.** The fused node is emitted at the chain's root,
+  later than the absorbed producer, so a consumer of the spilled value that sat
+  between the two would read a value written after it.
+  `FusionDecline::SPILL_READ_TOO_EARLY` refuses that case; the training graph
+  never hits it, because `gelu_backward` is appended after the forward pass.
+- **The write is declared.** `Dispatch::gemm_epilogue(f).reads(bias).writes(aux)`
+  puts the spill in the GEMM task's own write set, so whatever reads it is
+  ordered behind the kernel that filled it. Without that declaration nothing
+  fails and nothing is slower — the reader simply races the write, which is the
+  hazard SushiBLAS's seam exists to close.
+
+The `static_assert` in `fusion.cpp` learned the difference the previous version
+of this section predicted it would have to. It no longer refuses every entry
+folding an `INPUT`-gradient activation; it refuses one that folds such an
+activation **without** a spill, or that spills the wrong step of the chain. It
+still fails the build for a hypothetical `GEMM_BIAS_SILU` added without an
+auxiliary write.
+
+Under a narrowing precision policy the entry is unreachable, and deliberately
+so — see §6.2.
 
 ### The cost the epilogue carried
 
@@ -502,11 +523,29 @@ would mean the argument and the machinery move together.
 `GEMM_BIAS_RELU` node applies its epilogue inside the GEMM's kernel, in the
 GEMM's element type. If the IR said `BIAS_ADD` computes in fp32, fusing it
 into an fp16 GEMM would change the numbers — and §5.2 promises fusion changes
-none. So the policy does not get to pick for anything a catalog entry can
-absorb; it has to agree with the kernel that will absorb it. `GELU` is the
-visible consequence of the rule read backwards: no entry folds it (its
-gradient differentiates at its input), so nothing forces its precision, and it
-stays wide.
+none. So the policy does not get to pick for anything a catalog entry **will**
+absorb; it has to agree with the kernel that absorbs it.
+
+**`GELU` is the one place that rule meets a limit, and the resolution is the
+pass order.** Since `GEMM_BIAS_GELU` exists, a catalog entry *can* absorb GELU —
+so "nothing folds it, therefore nothing forces its precision" is no longer an
+argument for anything. The reason it still stays wide is arithmetic and nothing
+else: the tanh approximation computes `x*x*x`, fp16's largest finite value is
+65504, so the cube overflows at |x| ≈ 40.3 and `tanh(±inf)` then returns ±1 —
+`0.5*x*(1+tanh)` yields `x` or `0` rather than a NaN, a wrong number with no
+symptom. (That last step is IEEE-754 arithmetic, not a figure measured here.)
+Loss scaling cannot reach it either, because it is a *forward* activation and
+the scale is applied to the backward seed.
+
+Keeping it wide makes `GEMM_BIAS_GELU` an **fp32-only catalog entry**, and that
+falls out of the pass order rather than needing a special case: the cast pass
+runs before fusion, so an activation the policy keeps wide gets a `CAST` between
+it and the narrowed `BIAS_ADD`, and a chain with a conversion in the middle
+matches no entry. Under a narrowing policy a GELU layer therefore folds to
+`gemm+bias` and the activation runs on its own — exactly as it did before the
+entry existed — and `narrows_under_mixed_precision` answers false for both
+`GELU` and `GEMM_BIAS_GELU` so the two halves cannot drift.
+`Regression_MixedPrecision.AGeluLayerIsNotFoldedUnderANarrowingPolicy` pins it.
 
 **Where the pass runs, and why exactly there.** Between `differentiate()` and
 `fuse()`. After differentiation, because a backward node needs casting as much
