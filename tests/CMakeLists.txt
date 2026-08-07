@@ -48,6 +48,7 @@ add_executable(sushiai_tests
     functional/unit/test_layer_stack.cpp
     functional/unit/test_config.cpp
     functional/unit/test_objective.cpp
+    functional/unit/test_spatial_shapes.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp
