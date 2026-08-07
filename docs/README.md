@@ -74,6 +74,34 @@ feature that plan hasn't reached.
   hermetic seeded synthetic classification problem generated on device, an
   MNIST IDX loader that activates only when the files are present, and a
   trainer that reports its compile count.
+- **A model can be a JSON file** (`config/`, `nn/ilayer.hpp`,
+  `nn/layer_stack.hpp`) — `sushiai train train.json` and
+  `sushiai inference model.json model.ckpt eval.json` contain **no layer,
+  loss, dataset or optimizer type name**; each arrives through a constant
+  `{name, factory}` table keyed by a string out of the configuration. The
+  runtime layer list costs nothing per step, because `forward()` runs once at
+  trace time and the graph is compiled once and replayed. An unknown key or
+  `type` is an error listing what *is* accepted. See
+  [CLI_GUIDE.md](CLI_GUIDE.md#sushiai-train-and-sushiai-inference--config-driven-runs).
+- **Checkpointing** (`io/`) — a versioned, explicitly little-endian `SACP`
+  format recording a name, a dtype and a `Shape` per tensor, so `[256, 6]`
+  cannot load into `[6, 256]`. A checkpoint written by a hand-written
+  `Sequential` loads into a `LayerStack` built from the equivalent
+  `model.json`, and the reverse — which is how the compile-time and runtime
+  paths are *proved* to describe one model.
+
+```json
+{
+  "sushiai_model": 1,
+  "input": { "features": 6 },
+  "layers": [
+    { "type": "linear", "units": 256 },
+    { "type": "gelu" },
+    { "type": "linear", "units": 4 }
+  ]
+}
+```
+
 - **`sa demo mlp`** — a real, flag-driven training program
   (`examples/demo_mlp.cpp`), not a wrapper around the example. See
   [the demo section](#the-demo-sa-demo-mlp) for its output.
@@ -485,14 +513,22 @@ include/SushiAI/
   graph/                 The IR, its builder, the passes (planner, precision,
                          casts, fusion), the lowering, CompiledStep
   autograd/              Differentiation and gradient checking
-  nn/                    Parameters, the Module contract, layers, losses, init
-  optim/                 SGD and AdamW
-  data/                  The Dataset seam, synthetic data, the MNIST loader
-  train/                 The training loop and its run report
+  config/                Config::Value, the registry lookup, the three schemas
+  nn/                    Parameters, the Module contract, layers, losses, init,
+                         and the runtime path: ILayer, LayerStack, the registry
+  optim/                 SGD and AdamW, and the registry that selects them
+  data/                  The Dataset seam, synthetic data, rings, MNIST
+  io/                    The SACP checkpoint: the byte format, and the binding
+  train/                 The training loop, its run report, and IObjective
 src/                     One .cpp per header that needs one, same tree shape
+apps/
+  train.cpp              `sushiai train` — no layer, loss, dataset or
+                         optimizer type name appears in it
+  inference.cpp          `sushiai inference` — forward pass only, no objective
 examples/
   example.cpp            A whole training run, end to end — a teaching file
   demo_mlp.cpp           The program behind `sa demo mlp` — a product surface
+  heavy_mlp/             Three JSON files: the same model as configuration
 tests/
   common/                     Process-global RuntimeContext + per-test Engine
   functional/unit/            Device-free: shapes, IR, autograd, the walk

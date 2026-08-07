@@ -125,11 +125,23 @@ int main(int argc, char** argv)
                   << SushiBLAS::Core::format("Data       : {} ({} x {})\n\n",
                                              dataset->name(), dataset->batch_count(), rows);
 
-        // The predicted-class distribution, which is the one summary that
-        // needs no loss and no label semantics - so it is what a driver
-        // knowing no objective can honestly report.
+        // Two summaries, and the second is the one that means anything.
+        //
+        // The predicted-class distribution alone cannot distinguish a perfect
+        // model from a random one on class-balanced data - both give a uniform
+        // spread - so it is reported beside top-1 agreement with the labels
+        // the dataset supplies, not instead of it.
+        //
+        // Reading Batch::labels names no loss and no objective: labels are part
+        // of the Dataset seam, and top-1 agreement is a property of the data
+        // and the output, not of what the model was trained to minimise. It is
+        // reported only when the output width matches the class count, because
+        // otherwise the two are not comparable and a number would be fiction.
+        const bool labelled = model.output_features() == dataset->num_classes();
+
         std::vector<std::size_t> predicted_counts(static_cast<std::size_t>(outputs), 0);
         std::size_t samples = 0;
+        std::size_t agreeing = 0;
 
         for (std::size_t b = 0; b < dataset->batch_count(); ++b)
         {
@@ -148,8 +160,10 @@ int main(int argc, char** argv)
             const float* scores = pool.tensor(output).data_as<float>();
             for (int64_t r = 0; r < rows; ++r)
             {
-                ++predicted_counts[static_cast<std::size_t>(argmax_row(scores + r * outputs,
-                                                                       outputs))];
+                const int64_t predicted = argmax_row(scores + r * outputs, outputs);
+                ++predicted_counts[static_cast<std::size_t>(predicted)];
+                if (labelled && predicted == batch.labels[static_cast<std::size_t>(r)])
+                    ++agreeing;
                 ++samples;
             }
         }
@@ -162,6 +176,17 @@ int main(int argc, char** argv)
                                                  predicted_counts[i],
                                                  100.0 * static_cast<double>(predicted_counts[i])
                                                        / static_cast<double>(samples));
+
+        if (labelled)
+            std::cout << SushiBLAS::Core::format(
+                "\ntop-1 agreement with the labels: {}/{} = {:.2f}%\n",
+                agreeing, samples,
+                100.0 * static_cast<double>(agreeing) / static_cast<double>(samples));
+        else
+            std::cout << SushiBLAS::Core::format(
+                "\nThe model has {} outputs and the data {} classes, so top-1 agreement "
+                "is not comparable and is not reported.\n",
+                outputs, dataset->num_classes());
 
         std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", step.compile_count());
         if (step.compile_count() != 1)

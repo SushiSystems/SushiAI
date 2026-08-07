@@ -594,6 +594,99 @@ header states what a whole-step skip would cost.
 
 ---
 
+## 5.4 A model can be a file, and the driver that reads one is written once
+
+`NN::Sequential` decides its layer list at compile time: it holds a
+`std::tuple<Ls...>`, its `fields()` is `static constexpr`, and the parameter
+walk over it is a template walk. A JSON file decides that list at run time. The
+two cannot be reconciled — one is a type, the other is data — so there is a
+second, runtime-polymorphic path: `nn/ilayer.hpp`'s `ILayer` and
+`nn/layer_stack.hpp`'s `LayerStack`.
+
+**In this architecture that path costs nothing.** `forward()` runs *once*, at
+trace time, to emit IR; the graph is compiled once and replayed (§1). A
+`std::vector<std::unique_ptr<ILayer>>` therefore adds no per-step work at all.
+The same design would be indefensible in an eager framework, where it would
+mean a virtual call per layer per step — the graph-native architecture is what
+pays for this feature.
+
+### One walk, three cases
+
+`for_each_parameter` (`nn/module.hpp`) dispatches on three cases now, tried in
+this order: a type that enumerates itself through `walk_parameters`; a
+container that recurses through `visit_children`; a leaf that applies its
+`fields()` list. The first arm is what a runtime layer list needs, because
+`fields()` is static and returns member pointers of one concrete type, and a
+container walk over children that are all `ILayer&` would find no parameters
+*while reporting no error*.
+
+The arm is strictly additive — `layers.hpp` asserts that neither `Linear` nor
+`Sequential` takes it — and everything downstream is a template over that one
+walk, so `NN::initialize`, `Train::build_graph`, `NN::parameter_elements` and
+the checkpoint I/O all consume a `LayerStack` without knowing a second kind of
+model exists. A virtual cannot be a template, so the visitor is type-erased
+through `NN::ParameterVisitor`, which *refers* to its callable rather than
+owning it and therefore allocates nothing.
+
+### Four registries, and why they are constant tables
+
+```
+apps/train.cpp  (no type names; never edited again)
+   |
+   +-- NN::LAYER_REGISTRY       "linear", "gelu"
+   +-- Data::DATASET_REGISTRY   "rings"
+   +-- Optim::OPTIMIZER_REGISTRY "adamw", "sgd"
+   +-- Train::OBJECTIVE_REGISTRY "cross_entropy"
+```
+
+Each is a file-scope `constexpr` array of `{name, factory function pointer}`,
+in the shape of `Ops::ALL` and the fusion `CATALOG`, and `"type"` is the
+discriminator key in all four — so `Config::find_entry` is written once and
+serves all of them. **Nothing self-registers**, for the reason §4 gives for the
+backward-rule table.
+
+Two rules make growth local. A **layer's own factory** is the only thing that
+knows which keys it accepts, so adding `conv2d` never edits the parser; and an
+unknown `type` or key is an **error listing what is available**, so a typed
+`"unitss": 256` cannot train silently against a default.
+
+`Train::IObjective` is the seam that breaks the classifier lock-in:
+`build_classifier` hardcoded `NN::CrossEntropyLoss`, and it is now a wrapper
+over `build_graph(module, objective, ...)`. `CrossEntropyObjective` emits the
+same operations in the same order as the code it replaced, which is why the
+whole existing suite is the regression test for that change.
+
+### Checkpoints, split along the host/device lane
+
+`io/checkpoint_format.hpp` is the `SACP` byte stream alone — a magic, a
+version, and per tensor a name, a dtype, a `Shape` and a payload, every scalar
+encoded a byte at a time so the little-endian order is stated rather than
+inherited. No tensors, no engine, so its whole malformed-file surface is a
+device-free unit test. `io/checkpoint.hpp` is the device half: the
+`template<typename M>` save/load that walks `for_each_parameter` and binds
+records to `TensorPool` tensors.
+
+Three properties are structural rather than checked beside the code:
+
+- **The reader allocates nothing from a file-declared size.** `next()` returns
+  a header, the caller compares it against a destination it already owns, and
+  `read_payload()` copies into that destination.
+- **Filled slots, not a record count.** A file with one duplicated name and one
+  missing name has the right count, and the unfilled parameter would then read
+  uninitialised device memory — `allocate_tensor` does not zero, so a forward
+  pass over it produces numbers rather than crashing.
+- **A `Shape`, not an element count.** `[256, 6]` cannot load into `[6, 256]`.
+
+`LayerStack` names its parameters exactly as `Sequential` does, gaps included,
+because `LayerAdapter` delegates to the same `for_each_parameter` walk. That is
+what lets a checkpoint written by either load into the other, and
+`Integration_Checkpoint.ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack`
+proves the two paths describe one model **by the checkpoint itself**, rather
+than through a second mechanism whose own correctness would then be the open
+question.
+
+---
+
 ## 6. Packaging
 
 SushiAI is `find_package`-able from its very first commit, mirroring
@@ -634,7 +727,7 @@ prove it.
 `add_subdirectory(tests)` together, matching SushiRuntime's `SR_BUILD_TESTS`
 shape exactly. It exists for the other consumption mode: a superproject that
 `add_subdirectory`s SushiAI would otherwise be made to compile the suite,
-have `gtest_discover_tests` enumerate it, and register 153 tests it never
+have `gtest_discover_tests` enumerate it, and register 376 tests it never
 asked for into its own CTest run. The default is `ON` rather than
 SushiRuntime's `OFF` because `sa test` expects a test binary to exist and a
 direct `cmake` build that silently produces none is the wart SushiRuntime's
@@ -710,7 +803,18 @@ does is the expensive kind of documentation debt:
   is a statement about the mathematics, so checking it once in FLOAT64 checks
   it for every precision; the plumbing is checked by `find_dtype_mismatches`
   instead. `autograd/gradcheck.hpp` says so in full.
-- **No checkpointing, no serialization.**
+- **The `Dataset` seam is still classification-shaped.**
+  `Data::Dataset::num_classes()` is pure virtual and `Data::Batch` carries
+  one-hot targets and integer labels. `rings` and `SyntheticClassification`
+  both answer it meaningfully; a PINN or a detector would not. Widening the
+  data abstraction is a separate change that deserves its own argument, and it
+  is recorded here rather than quietly carried.
+- **`Train::Trainer` still feeds `StepSpec::targets` per step.**
+  `Train::ObjectiveLeaves` (§8) is what generalises that field, and
+  `TrainingGraph` carries both — but an objective that declares some *other*
+  leaf has nothing writing it, so such an objective cannot yet be driven by
+  `Trainer`. Wiring it to feed arbitrary declared leaves is the change that
+  closes this.
 - **AI-7's metric gates are only partly met.** `sa demo mlp` exists and
   reports `compiles: 1`, a zero-allocation steady state and finite-difference
   checks are green in the suite, but there is no pinned reference loss curve

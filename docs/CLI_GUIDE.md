@@ -240,7 +240,9 @@ Two deliberate choices:
 
 ```bash
 sushiai train      examples/heavy_mlp/train.json
-sushiai inference  examples/heavy_mlp/model.json  heavy_mlp.ckpt  examples/heavy_mlp/eval.json
+sushiai inference  examples/heavy_mlp/model.json \
+                   examples/heavy_mlp/heavy_mlp.ckpt \
+                   examples/heavy_mlp/eval.json
 ```
 
 `sa` and `sushiai` are the same program (`cli/pyproject.toml` binds both), so
@@ -312,9 +314,16 @@ closes a way of being silently wrong:
 The architecture file carries no data block, because it describes a model. So
 `inference` needs to be told what to run on, and an optional flag that always
 errored when omitted would be a lie about optionality. It traces the forward
-pass only — no loss, no backward pass, no optimizer — and reports the
-predicted-class distribution, which is the one summary that needs neither a
-loss nor label semantics.
+pass only — no loss, no backward pass, no optimizer.
+
+It reports the predicted-class distribution **and** top-1 agreement with the
+labels the dataset supplies. The distribution alone would be useless: on
+class-balanced data a perfect model and a random one both give a uniform
+spread. Reading the labels names no loss and no objective — labels are part of
+the `Data::Dataset` seam, and top-1 agreement is a property of the data and
+the output rather than of what the model was trained to minimise. It is
+reported only when the model's output width matches the dataset's class count,
+because otherwise the two are not comparable and a number would be fiction.
 
 ### Exit codes and output
 

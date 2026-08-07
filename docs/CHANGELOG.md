@@ -13,6 +13,55 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 
 ## [Unreleased]
 
+### Added
+- **A model's architecture can be a JSON file, and the two drivers that read
+  one are written once.** `sushiai train train.json` and
+  `sushiai inference model.json model.ckpt eval.json` contain **no layer, loss,
+  dataset or optimizer type name** — every one arrives through a constant
+  registry table keyed by a string out of the configuration. That is checked
+  rather than claimed: grepping `apps/*.cpp` for `Linear`, `GELU`,
+  `CrossEntropy`, `AdamW`, `SGD`, `Rings` or `Sequential` matches only the
+  comment describing the property. Adding a convolution or a detection loss is
+  a table row and a factory function in the library, and these two files do not
+  change.
+- **`NN::LayerStack`, a layer list decided at run time**, joined to the
+  existing compile-time `NN::Sequential` by one additive arm in
+  `for_each_parameter`. It costs nothing per step: `forward()` runs once, at
+  trace time, and the graph is compiled once and replayed. It names its
+  parameters exactly as `Sequential` does — gaps and all — because
+  `NN::LayerAdapter` delegates to the same walk, so the two paths cannot drift.
+- **Checkpointing**, closing the "no checkpointing, no serialization" gap
+  `ARCHITECTURE.md §7` listed. The `SACP` format is versioned, magic-tagged and
+  explicitly little-endian, and records a `Shape` and a dtype per tensor rather
+  than an element count — so a `[256, 6]` weight cannot load into a `[6, 256]`
+  one. The reader allocates nothing from a file-declared size, and tracks
+  filled slots rather than a record count, because a file with one duplicated
+  name and one missing name has the right count and would leave a parameter
+  reading uninitialised device memory.
+- **The equivalence of the compile-time and runtime paths is proved by the
+  checkpoint itself.** A `Sequential` and a `LayerStack` built from the
+  equivalent `model.json` exchange a checkpoint in both directions, with the
+  return trip landing in a third model on a different seed so a load that did
+  nothing cannot pass.
+- **`Train::IObjective` and `Train::OBJECTIVE_REGISTRY`**, breaking the
+  classifier lock-in before it cost anything: `build_classifier` hardcoded
+  `NN::CrossEntropyLoss` and is now a wrapper over
+  `build_graph(module, objective, ...)`. `CrossEntropyObjective` emits the same
+  operations in the same order as the code it replaced, and the gate for that
+  was the whole existing suite passing with no test changed and none adjusted.
+- **`Config::Value`**, a typed configuration tree behind a JSON parser named in
+  no public header, so the dependency reaches no consumer. An unknown key or an
+  unknown `type` is an error listing what *is* accepted, because a typed
+  `"unitss": 256` must not train silently against a default.
+- **`Data::Rings`**, the concentric-rings problem moved out of the example and
+  into the library. Its class is a function of `x² + y²`, so no linear
+  classifier separates it — a gate a shallow model actually fails, where the
+  existing synthetic dataset is one any correct implementation passes.
+- `examples/heavy_mlp/` is three JSON files and a README now; its three C++
+  sources are gone. Measured on this box: 50 epochs in about 30 seconds,
+  `compiles: 1`, and **86.33% top-1 agreement** on 512 held-out points drawn
+  from a different seed.
+
 ### Fixed
 - **`Trainer::score_accuracy()` refuses logits it cannot read instead of
   reinterpreting them.** It chose between `double` and `float` with `float` as

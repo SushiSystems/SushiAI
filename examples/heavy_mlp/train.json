@@ -1,0 +1,10 @@
+{
+  "sushiai_train": 1,
+  "model": "model.json",
+  "objective": { "type": "cross_entropy" },
+  "data":      { "type": "rings", "batch_size": 64, "batches": 64,
+                 "classes": 4, "seed": 3735928559 },
+  "optimizer": { "type": "adamw", "learning_rate": 3e-3, "weight_decay": 0.01 },
+  "epochs": 50,
+  "checkpoint": "heavy_mlp.ckpt"
+}

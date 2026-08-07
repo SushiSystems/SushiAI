@@ -1,0 +1,15 @@
+{
+  "sushiai_model": 1,
+  "input": { "features": 6 },
+  "layers": [
+    { "type": "linear", "units": 256 },
+    { "type": "gelu" },
+    { "type": "linear", "units": 256 },
+    { "type": "gelu" },
+    { "type": "linear", "units": 128 },
+    { "type": "gelu" },
+    { "type": "linear", "units": 64 },
+    { "type": "gelu" },
+    { "type": "linear", "units": 4 }
+  ]
+}
