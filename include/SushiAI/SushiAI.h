@@ -53,6 +53,8 @@
 
 #include "version.hpp"
 
+#include "config/value.hpp"
+
 #include "core/common.hpp"
 #include "core/ops.hpp"
 #include "core/shape.hpp"

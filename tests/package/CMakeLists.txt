@@ -55,6 +55,25 @@ foreach(_sa_leaked IN ITEMS sushiai_warnings sushiai_perf sushiai_sanitizers)
     endif()
 endforeach()
 
+# The config layer's JSON parser is an implementation detail of
+# src/config/*.cpp and must not reach here. It is easy to lose by accident:
+# `sushiai` is STATIC, so a plain target_link_libraries(... PRIVATE ...) is
+# recorded as $<LINK_ONLY:...> in the exported interface, and this consumer -
+# which never runs find_package(nlohmann_json) - would then fail to configure
+# on a name it should never have heard. src/CMakeLists.txt pulls the include
+# directories on as values for exactly that reason; this is the assertion that
+# it still does.
+foreach(_sa_private_dep IN ITEMS nlohmann_json)
+    string(FIND "${_sa_interface_links}" "${_sa_private_dep}" _sa_found)
+    if(NOT _sa_found EQUAL -1)
+        message(FATAL_ERROR
+            "SushiAI's exported interface names '${_sa_private_dep}', which is "
+            "private to src/config/. See src/CMakeLists.txt for why a STATIC "
+            "library cannot simply link it PRIVATE. "
+            "Full link interface: ${_sa_interface_links}")
+    endif()
+endforeach()
+
 message(STATUS "SushiAI interface compile options: ${_sa_interface_options}")
 message(STATUS "SushiAI interface link libraries:  ${_sa_interface_links}")
 

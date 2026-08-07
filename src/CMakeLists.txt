@@ -8,6 +8,8 @@ cmake_minimum_required(VERSION 3.20)
 set(SUSHIAI_SOURCES
     version.cpp
 
+    config/value.cpp
+
     core/allocation.cpp
 
     graph/builder.cpp
@@ -65,6 +67,39 @@ sushiai_apply_build_policy(sushiai)
 target_link_libraries(sushiai PUBLIC
     SushiRuntime::SushiRuntime
     SushiBLAS::sushiblas
+)
+
+# --- The config layer's JSON parser ---
+# The name `nlohmann` appears in no public header: src/config/value.cpp is the
+# only translation unit that includes it. That is the containment
+# SushiRuntime::span and SushiBLAS::Core::format apply to std::span and
+# std::format, and it is what lets cmake/SushiAIConfig.cmake.in stay free of a
+# find_dependency() and the out-of-tree consumer in tests/package/ never see
+# this dependency at all.
+#
+# The include directories are pulled on as VALUES rather than by linking the
+# target, and that is required rather than stylistic. `sushiai` is STATIC, so a
+# static archive carries none of its dependencies - CMake therefore records
+# even a PRIVATE link as $<LINK_ONLY:...> in the exported
+# INTERFACE_LINK_LIBRARIES, and a consumer that ran find_package(SushiAI)
+# without also finding nlohmann_json would fail to configure on a name it
+# should never have heard. Measured, not assumed: the export set carried
+# $<LINK_ONLY:nlohmann_json::nlohmann_json> until this was written this way.
+#
+# It is safe to drop rather than propagate because nlohmann_json is an
+# INTERFACE (header-only) target: it contributes include directories and
+# definitions and there is no archive for anyone to link. This is the same
+# export-set-safe shape sushiai_apply_build_policy() uses for the warning,
+# architecture and sanitizer targets - see docs/ARCHITECTURE.md §6.
+#
+# Declared in cli/sushistack.deps.toml rather than a vcpkg.json manifest; that
+# file's header says why a manifest would break this build.
+find_package(nlohmann_json CONFIG REQUIRED)
+target_include_directories(sushiai PRIVATE
+    "$<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_INCLUDE_DIRECTORIES>"
+)
+target_compile_definitions(sushiai PRIVATE
+    "$<TARGET_PROPERTY:nlohmann_json::nlohmann_json,INTERFACE_COMPILE_DEFINITIONS>"
 )
 
 # --- Properties ---
