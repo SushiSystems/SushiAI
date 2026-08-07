@@ -65,6 +65,7 @@
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiAI
 {
@@ -158,11 +159,19 @@ namespace SushiAI
          */
         struct Attributes
         {
-            /** @brief How many slots are meaningful. */
-            static constexpr std::size_t CAPACITY = 4;
+            /**
+             * @brief How many slots are meaningful.
+             *
+             * Eight, because that is @c SushiRuntime::TaskMetadata's
+             * @c K_MAX_PARAMS (task_types.hpp:146) - the array an attribute is
+             * ultimately copied into. A ninth slot would build here and be
+             * silently dropped at lowering, so the two are pinned together by
+             * the static_assert below rather than left to agree by memory.
+             */
+            static constexpr std::size_t CAPACITY = 8;
 
             /** @brief The scalar values, interpreted per operation. */
-            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0};
+            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
             /** @brief Reads slot @p index, or zero when it is out of range. */
             constexpr double get(std::size_t index) const noexcept
@@ -176,6 +185,11 @@ namespace SushiAI
                 return get(index) != 0.0;
             }
         };
+
+        static_assert(Attributes::CAPACITY <= SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS,
+                      "A graph attribute slot has no lowered destination: TaskMetadata "
+                      "carries K_MAX_PARAMS scalars and an attribute beyond that would "
+                      "be dropped by graph/lowering.cpp without any diagnostic.");
 
         /**
          * @struct Value

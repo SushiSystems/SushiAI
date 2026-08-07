@@ -183,3 +183,19 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
             if (producer != NO_NODE) EXPECT_LT(producer, i);
         }
 }
+
+TEST(Unit_IR, AttributesHoldTheEightSlotsAConvolutionNeeds)
+{
+    // CV-5's eight: kernel_h/w, stride_h/w, dilation_h/w, pad_top, pad_left.
+    // Eight is not a round number chosen for comfort - it is exactly
+    // SushiRuntime's TaskMetadata::K_MAX_PARAMS, which is what an attribute
+    // is ultimately copied into, so a ninth slot could not be lowered.
+    EXPECT_EQ(Graph::Attributes::CAPACITY, std::size_t{8});
+
+    Graph::Attributes a;
+    for (std::size_t i = 0; i < Graph::Attributes::CAPACITY; ++i)
+        a.values[i] = static_cast<double>(i + 1);
+
+    EXPECT_EQ(a.get(7), 8.0);
+    EXPECT_EQ(a.get(8), 0.0) << "out-of-range reads must stay defined and yield zero";
+}
