@@ -86,4 +86,6 @@
 
 #include "data/dataset.hpp"
 
+#include "io/checkpoint_format.hpp"
+
 #include "train/trainer.hpp"

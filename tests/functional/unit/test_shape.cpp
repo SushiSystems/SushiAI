@@ -9,6 +9,7 @@
 // RuntimeContext, which is what keeps the unit tier fast.
 
 #include <unordered_map>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/core/shape.hpp>
 
@@ -58,6 +59,35 @@ TEST(Unit_Shape, RankBeyondTheMaximumIsRejected)
     const std::initializer_list<int64_t> too_many = {1, 1, 1, 1, 1, 1, 1, 1, 1};
     ASSERT_GT(static_cast<int32_t>(too_many.size()), SushiAI::MAX_RANK);
     EXPECT_THROW((void)Shape(too_many), SushiAI::Error);
+}
+
+TEST(Unit_Shape, BuildsFromExtentsKnownOnlyAtRunTime)
+{
+    // The case an initializer list cannot serve: a rank that came from a file.
+    const std::vector<int64_t> dims{64, 784};
+    const Shape shape(SushiRuntime::span<const int64_t>(dims.data(), dims.size()));
+
+    EXPECT_EQ(shape, (Shape{64, 784}));
+    EXPECT_EQ(shape.to_string(), "[64, 784]");
+}
+
+TEST(Unit_Shape, BuildsTheScalarFromAnEmptyExtentSpan)
+{
+    const std::vector<int64_t> none;
+    const Shape shape{SushiRuntime::span<const int64_t>(none.data(), none.size())};
+    EXPECT_EQ(shape.rank(), 0);
+    EXPECT_EQ(shape.num_elements(), 1);
+}
+
+TEST(Unit_Shape, RuntimeExtentsGetTheSameValidationAsAListDoes)
+{
+    const std::vector<int64_t> non_positive{4, 0};
+    EXPECT_THROW((void)Shape(SushiRuntime::span<const int64_t>(non_positive.data(), 2)),
+                 SushiAI::Error);
+
+    const std::vector<int64_t> too_many(static_cast<std::size_t>(SushiAI::MAX_RANK) + 1, 1);
+    EXPECT_THROW((void)Shape(SushiRuntime::span<const int64_t>(too_many.data(), too_many.size())),
+                 SushiAI::Error);
 }
 
 TEST(Unit_Shape, EqualityComparesRankAndEveryExtent)

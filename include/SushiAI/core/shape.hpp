@@ -38,6 +38,7 @@
 #include <string>
 #include <cstdint>
 #include <initializer_list>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -71,6 +72,34 @@ namespace SushiAI
                 {
                     SA_THROW_IF(d <= 0, "Shape extents must be positive; got {}", d);
                     dims_[static_cast<std::size_t>(rank_++)] = d;
+                }
+            }
+
+            /**
+             * @brief Constructs from extents that are only known at run time.
+             *
+             * The initializer-list constructor above cannot serve a caller
+             * whose rank comes from a file or from another library's tensor:
+             * an initializer list is a compile-time construct, so a reader
+             * holding @c rank extents in a buffer had no way to build a Shape
+             * short of a switch over every rank. Validation is identical - the
+             * two constructors reject the same shapes with the same messages.
+             *
+             * Explicit, because a span silently becoming a Shape would let an
+             * extent buffer be passed where a shape was meant.
+             *
+             * @param dims The extent of each dimension, outermost first.
+             * @throws Error If the rank exceeds MAX_RANK or any extent is not positive.
+             */
+            explicit Shape(SushiRuntime::span<const int64_t> dims)
+            {
+                SA_THROW_IF(dims.size() > static_cast<std::size_t>(MAX_RANK),
+                            "Shape rank {} exceeds the maximum of {}", dims.size(), MAX_RANK);
+
+                for (std::size_t i = 0; i < dims.size(); ++i)
+                {
+                    SA_THROW_IF(dims[i] <= 0, "Shape extents must be positive; got {}", dims[i]);
+                    dims_[static_cast<std::size_t>(rank_++)] = dims[i];
                 }
             }
 
