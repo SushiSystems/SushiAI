@@ -192,6 +192,25 @@ namespace SushiAI
                       "be dropped by graph/lowering.cpp without any diagnostic.");
 
         /**
+         * @enum TensorLayout
+         * @brief Which axis order a rank-4 value's extents are in.
+         *
+         * Deliberately not @c SushiAI::Layout, which aliases SushiBLAS's
+         * @c {ROW_MAJOR, COLUMN_MAJOR} - that is a matrix's storage order and a
+         * different question. Mixed-layout GEMM is a real BLAS use case;
+         * a layout change in the middle of a convolutional network is a bug,
+         * which is why this one is a graph-wide invariant (CV-4) rather than a
+         * per-operand choice.
+         */
+        enum class TensorLayout : std::uint8_t
+        {
+            /** @brief Channels innermost - the single native layout (CV-3). */
+            NHWC,
+            /** @brief Channels before the spatial axes; a boundary only. */
+            NCHW,
+        };
+
+        /**
          * @struct Value
          * @brief One single-assignment tensor-shaped value in the graph.
          */
@@ -202,6 +221,14 @@ namespace SushiAI
 
             /** @brief The value's element type. */
             DType dtype = DType::FLOAT32;
+
+            /**
+             * @brief The axis order this value's extents are in.
+             *
+             * Graph-wide rather than free-floating: see @ref TensorLayout and
+             * @c Graph::finalise(), which proves every node preserves it.
+             */
+            TensorLayout layout = TensorLayout::NHWC;
 
             /** @brief Which arena owns this value's storage. */
             Lifetime lifetime = Lifetime::ACTIVATION;
@@ -268,7 +295,8 @@ namespace SushiAI
                                   Lifetime lifetime,
                                   std::string_view debug_name = {})
                 {
-                    values_.push_back(Value{shape, dtype, lifetime, NO_NODE, false, debug_name});
+                    values_.push_back(Value{shape, dtype, TensorLayout::NHWC, lifetime,
+                                            NO_NODE, false, debug_name});
                     return static_cast<ValueId>(values_.size() - 1);
                 }
 
@@ -364,12 +392,33 @@ namespace SushiAI
                 const std::vector<Node>& nodes() const noexcept { return nodes_; }
 
                 /**
+                 * @brief Completes the forward graph: propagation, then proof.
+                 *
+                 * Call once, after the forward graph is complete and before
+                 * differentiating. Named for the phase rather than for one of
+                 * its steps, so that gaining the layout proof did not make the
+                 * name a lie.
+                 *
+                 * @throws Error If any node other than @c LAYOUT_CONVERT
+                 *         produces a result whose layout differs from its
+                 *         operands' (CV-4).
+                 */
+                void finalise()
+                {
+                    propagate_requires_grad();
+                    prove_layout_uniformity();
+                }
+
+                /** @brief A mutable reference to value @p id, for passes that rewrite it. */
+                Value& mutable_value(ValueId id) { return values_[id]; }
+
+            private:
+                /**
                  * @brief Propagates @c requires_grad forward from the leaves.
                  *
                  * A value needs a gradient exactly when some input it descends
                  * from needs one. One forward sweep suffices because insertion
-                 * order is topological. Call once, after the forward graph is
-                 * complete and before differentiating.
+                 * order is topological.
                  */
                 void propagate_requires_grad() noexcept
                 {
@@ -385,7 +434,38 @@ namespace SushiAI
                     }
                 }
 
-            private:
+                /**
+                 * @brief Proves no node but LAYOUT_CONVERT changes the layout.
+                 *
+                 * Checked per node rather than by sweeping every value for a
+                 * single dominant layout, because the sweep could not express
+                 * the one legitimate exemption without also accepting a graph
+                 * that is half converted.
+                 */
+                void prove_layout_uniformity() const
+                {
+                    for (const Node& n : nodes_)
+                    {
+                        if (n.op == Ops::LAYOUT_CONVERT.id || n.inputs.empty())
+                            continue;
+
+                        const TensorLayout expected = values_[n.inputs.front()].layout;
+                        for (ValueId in : n.inputs)
+                            SA_THROW_IF(values_[in].layout != expected,
+                                        "Node '{}' reads operands in two different layouts; "
+                                        "only LAYOUT_CONVERT may cross layouts (CV-4).",
+                                        Ops::name_of(n.op));
+
+                        for (ValueId out : n.outputs)
+                            SA_THROW_IF(values_[out].layout != expected,
+                                        "Node '{}' produces a result whose layout differs "
+                                        "from its operands'. Only LAYOUT_CONVERT may do that "
+                                        "(CV-4); everything else would silently train the "
+                                        "model on transposed data.",
+                                        Ops::name_of(n.op));
+                    }
+                }
+
                 std::vector<Value> values_;
                 std::vector<Node> nodes_;
         };

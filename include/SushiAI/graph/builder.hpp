@@ -251,6 +251,21 @@ namespace SushiAI
                 ValueId accumulate(ValueId acc, ValueId delta) const;
 
                 /**
+                 * @brief Emits @c LAYOUT_CONVERT: the one node CV-4 exempts from
+                 *        preserving a value's TensorLayout.
+                 *
+                 * Permutes a rank-4 value's extents to match @p layout - NHWC's
+                 * [N,H,W,C] becomes NCHW's [N,C,H,W] and back - and stamps the
+                 * result with the requested layout.
+                 *
+                 * @param x The rank-4 value to convert.
+                 * @param layout The result's layout.
+                 * @return The converted value's id.
+                 * @throws Error If @p x is not rank 4.
+                 */
+                ValueId layout_convert(ValueId x, TensorLayout layout) const;
+
+                /**
                  * @brief Emits @c CAST: a copy of @p x in a different element type.
                  *
                  * The one emitter here whose result deliberately does *not*

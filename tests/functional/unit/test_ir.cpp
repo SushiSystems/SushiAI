@@ -80,7 +80,7 @@ TEST(Unit_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
     EXPECT_FALSE(graph.value(y).requires_grad);
     EXPECT_FALSE(graph.value(z).requires_grad);
 
-    graph.propagate_requires_grad();
+    graph.finalise();
 
     EXPECT_FALSE(graph.value(x).requires_grad);
     EXPECT_TRUE(graph.value(w).requires_grad);
@@ -98,7 +98,7 @@ TEST(Unit_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
     const ValueId w = builder.parameter(Shape{3, 3}, "w");
     const ValueId live = builder.matmul(x, w, false, false);
 
-    graph.propagate_requires_grad();
+    graph.finalise();
 
     EXPECT_FALSE(graph.value(frozen).requires_grad);
     EXPECT_TRUE(graph.value(live).requires_grad);

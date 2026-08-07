@@ -177,6 +177,89 @@ namespace SushiAI
         /** @brief Gradient of TANH; second operand is the forward output. */
         inline constexpr OpName TANH_BACKWARD = op("sushiai.tanh_backward");
 
+        // --- Structural -----------------------------------------------------
+
+        /** @brief Reinterprets extents without moving data. */
+        inline constexpr OpName RESHAPE = op("sushiai.reshape");
+        /** @brief The only node permitted to change a value's TensorLayout (CV-4). */
+        inline constexpr OpName LAYOUT_CONVERT = op("sushiai.layout_convert");
+
+        // --- Convolution, as CV-1 spells it ---------------------------------
+        //
+        // There is deliberately no CONV2D. A convolution is IM2COL followed by
+        // MATMUL, which is why its weight gradient needs no rule of its own -
+        // matmul_backward already produces it.
+
+        /** @brief Gathers each window into a row of a column matrix. */
+        inline constexpr OpName IM2COL = op("sushiai.im2col");
+        /** @brief The adjoint of IM2COL; a gather, never an atomic scatter (CV-6). */
+        inline constexpr OpName COL2IM = op("sushiai.col2im");
+
+        // --- Pooling --------------------------------------------------------
+
+        /** @brief Windowed maximum; also writes the argmax indices. */
+        inline constexpr OpName MAXPOOL2D = op("sushiai.maxpool2d");
+        /** @brief Routes each gradient back through the recorded argmax. */
+        inline constexpr OpName MAXPOOL2D_BACKWARD = op("sushiai.maxpool2d_backward");
+        /** @brief Windowed mean, dividing by the window area (count_include_pad). */
+        inline constexpr OpName AVGPOOL2D = op("sushiai.avgpool2d");
+        /** @brief Spreads each gradient evenly over the window it came from. */
+        inline constexpr OpName AVGPOOL2D_BACKWARD = op("sushiai.avgpool2d_backward");
+
+        // --- Whole-plane spatial --------------------------------------------
+
+        /** @brief Global average over H and W: [N,H,W,C] -> [N,C]. */
+        inline constexpr OpName SPATIAL_MEAN = op("sushiai.spatial_mean");
+        /**
+         * @brief Broadcasts an [N,C] gradient over [N,H,W,C], scaled by 1/(H*W).
+         *
+         * A distinct operation rather than a reuse of BIAS_ADD's or
+         * CHANNEL_AFFINE's broadcast: this one is per-(n,c), those are per-row
+         * and per-channel. Its absence was a real gap in an earlier draft.
+         */
+        inline constexpr OpName SPATIAL_MEAN_BACKWARD = op("sushiai.spatial_mean_backward");
+        /** @brief Nearest-neighbour upsample by an integer scale. */
+        inline constexpr OpName UPSAMPLE2D = op("sushiai.upsample2d");
+        /** @brief Sums each source pixel's replicas back together. */
+        inline constexpr OpName UPSAMPLE2D_BACKWARD = op("sushiai.upsample2d_backward");
+
+        // --- Structure ------------------------------------------------------
+
+        /** @brief Joins several values along the channel axis. */
+        inline constexpr OpName CONCAT_CHANNELS = op("sushiai.concat_channels");
+        /**
+         * @brief Extracts a channel range.
+         *
+         * Declared as an operation in its own right rather than as
+         * CONCAT_CHANNELS's private backward, because it is independently
+         * reachable: Darknet's route layer with a group index is exactly this.
+         */
+        inline constexpr OpName SLICE_CHANNELS = op("sushiai.slice_channels");
+
+        // --- Normalisation --------------------------------------------------
+
+        /** @brief Batch normalisation's forward pass over an NHWC value. */
+        inline constexpr OpName BATCHNORM2D = op("sushiai.batchnorm2d");
+        /** @brief Batch normalisation's gradient, for input, gamma and beta. */
+        inline constexpr OpName BATCHNORM2D_BACKWARD = op("sushiai.batchnorm2d_backward");
+        /** @brief Per-channel scale and shift: y = gamma * x + beta. */
+        inline constexpr OpName CHANNEL_AFFINE = op("sushiai.channel_affine");
+        /**
+         * @brief Updates a BatchNorm's running statistics.
+         *
+         * Not part of the differentiated graph (CV-7): it reads batch
+         * statistics and writes buffers no gradient flows through, so it is
+         * emitted into the training step beside the graph rather than into it.
+         */
+        inline constexpr OpName BATCHNORM_UPDATE_STATS = op("sushiai.batchnorm_update_stats");
+
+        // --- Activation -----------------------------------------------------
+
+        /** @brief Leaky ReLU; its slope is attribute slot 0. */
+        inline constexpr OpName LEAKY_RELU = op("sushiai.leaky_relu");
+        /** @brief Gradient of LEAKY_RELU; second operand is the forward output. */
+        inline constexpr OpName LEAKY_RELU_BACKWARD = op("sushiai.leaky_relu_backward");
+
         // --- Losses and normalisation ---------------------------------------
         /** @brief Row-wise log-softmax, computed max-shifted for stability. */
         inline constexpr OpName LOG_SOFTMAX = op("sushiai.log_softmax");
@@ -273,13 +356,20 @@ namespace SushiAI
             LEAF, ACCUMULATE, CAST,
             MATMUL, BIAS_ADD,
             ADD, SUB, MUL, SCALE, DYNAMIC_SCALE, EXP, ZERO,
-            RELU, GELU, SIGMOID, TANH,
+            RELU, GELU, SIGMOID, TANH, LEAKY_RELU,
             RELU_BACKWARD, GELU_BACKWARD, SIGMOID_BACKWARD, TANH_BACKWARD,
+            LEAKY_RELU_BACKWARD,
             LOG_SOFTMAX, NLL_LOSS,
             SUM_ROWS,
             ADAMW_UPDATE, SGD_UPDATE,
             GEMM_BIAS, GEMM_BIAS_RELU, GEMM_BIAS_SIGMOID, GEMM_BIAS_TANH, GEMM_BIAS_GELU,
             EXP_SUB_SCALE,
+            RESHAPE, LAYOUT_CONVERT,
+            IM2COL, COL2IM,
+            MAXPOOL2D, MAXPOOL2D_BACKWARD, AVGPOOL2D, AVGPOOL2D_BACKWARD,
+            SPATIAL_MEAN, SPATIAL_MEAN_BACKWARD, UPSAMPLE2D, UPSAMPLE2D_BACKWARD,
+            CONCAT_CHANNELS, SLICE_CHANNELS,
+            BATCHNORM2D, BATCHNORM2D_BACKWARD, CHANNEL_AFFINE, BATCHNORM_UPDATE_STATS,
         };
 
         /**

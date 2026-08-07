@@ -216,7 +216,7 @@ namespace SushiAI
          * which is exactly the condition under which a value's gradient is
          * complete by the time its producer asks for it.
          *
-         * @c propagate_requires_grad() runs first, and any node none of whose
+         * @c Graph::finalise() runs first, and any node none of whose
          * operands requires a gradient is skipped whole. A frozen layer
          * therefore contributes no nodes at all rather than nodes that compute
          * a gradient nobody reads.

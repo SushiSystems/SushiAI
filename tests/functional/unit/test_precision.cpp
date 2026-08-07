@@ -190,6 +190,20 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::GELU.id, Ops::GELU_BACKWARD.id, Ops::GEMM_BIAS_GELU.id,
         Ops::LEAF.id, Ops::CAST.id,
         Ops::ADAMW_UPDATE.id, Ops::SGD_UPDATE.id,
+        // The twenty spatial/CV identities: none of them is a GEMM epilogue or
+        // an activation this policy folds, so each gets the same safe default
+        // as everything else nobody has special-cased - stay at the graph's
+        // own precision.
+        Ops::RESHAPE.id, Ops::LAYOUT_CONVERT.id,
+        Ops::IM2COL.id, Ops::COL2IM.id,
+        Ops::MAXPOOL2D.id, Ops::MAXPOOL2D_BACKWARD.id,
+        Ops::AVGPOOL2D.id, Ops::AVGPOOL2D_BACKWARD.id,
+        Ops::SPATIAL_MEAN.id, Ops::SPATIAL_MEAN_BACKWARD.id,
+        Ops::UPSAMPLE2D.id, Ops::UPSAMPLE2D_BACKWARD.id,
+        Ops::CONCAT_CHANNELS.id, Ops::SLICE_CHANNELS.id,
+        Ops::BATCHNORM2D.id, Ops::BATCHNORM2D_BACKWARD.id,
+        Ops::CHANNEL_AFFINE.id, Ops::BATCHNORM_UPDATE_STATS.id,
+        Ops::LEAKY_RELU.id, Ops::LEAKY_RELU_BACKWARD.id,
     };
 
     for (OpID op : stays)

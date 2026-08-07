@@ -508,7 +508,7 @@ namespace SushiAI
 
         void Differentiator::run()
         {
-            graph_.propagate_requires_grad();
+            graph_.finalise();
 
             SA_THROW_IF(graph_.value(loss_).shape.num_elements() != 1,
                         "differentiate() needs a scalar to differentiate; value {} has shape {}",
