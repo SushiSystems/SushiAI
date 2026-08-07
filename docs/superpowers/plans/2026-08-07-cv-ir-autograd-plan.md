@@ -42,13 +42,13 @@ override the task text below wherever the two disagree.
 Task 2 originally added `mutable_value` as an unchecked write accessor. `ir.hpp:356`
 already has a public non-const `Value& value(ValueId)` that does the same thing and
 guards with `SA_THROW_IF(id >= values_.size(), ...)`. The new one made
-`graph.mutable_value(graph.value_count()).layout = ...` an out-of-bounds write with no
+`graph.value(graph.value_count()).layout = ...` an out-of-bounds write with no
 diagnostic, where the accessor that already existed throws. Every `mutable_value(` in
 the tasks below reads `value(`.
 
 **A-2 — Layout is carried by `declare_like`, not stamped by each emitter.**
 As first written, every emitter in Tasks 5, 6, 7, 14, 15 and 16 followed its `declare(...)`
-with `graph_.mutable_value(out).layout = in.layout;` — the same line eighteen times, any
+with `graph_.value(out).layout = in.layout;` — the same line eighteen times, any
 one of which could be forgotten. A forgotten line is not a crash: the value silently
 keeps the `NHWC` default, and the first graph that puts it downstream of a
 `LAYOUT_CONVERT` is rejected by `finalise()` for a violation it did not commit.
@@ -279,7 +279,7 @@ namespace SushiAI
             const ValueId w = builder.parameter({4, 3}, "w");
             const ValueId y = builder.matmul(x, w);
 
-            graph.mutable_value(y).layout = TensorLayout::NCHW;
+            graph.value(y).layout = TensorLayout::NCHW;
 
             EXPECT_THROW(graph.finalise(), Error);
         }
@@ -998,7 +998,7 @@ In `src/graph/builder.cpp`:
 
             const ValueId out = declare(Shape({rows, cols}), in.dtype,
                                         Lifetime::ACTIVATION, "cols");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
             emit(Ops::IM2COL.id, {x}, {out}, geometry_attributes(g));
             return out;
         }
@@ -1027,7 +1027,7 @@ In `src/graph/builder.cpp`:
                         image_shape[2], image_shape[3], rows, width);
 
             const ValueId out = declare(image_shape, c.dtype, Lifetime::ACTIVATION, "image");
-            graph_.mutable_value(out).layout = c.layout;
+            graph_.value(out).layout = c.layout;
             emit(Ops::COL2IM.id, {cols}, {out}, geometry_attributes(g));
             return out;
         }
@@ -1254,8 +1254,8 @@ In `src/graph/builder.cpp`:
             const Shape pooled({in.shape[0], out_h, out_w, in.shape[3]});
             const ValueId out = declare(pooled, in.dtype, Lifetime::ACTIVATION, "pooled");
             const ValueId idx = declare(pooled, DType::INT64, Lifetime::ACTIVATION, "argmax");
-            graph_.mutable_value(out).layout = in.layout;
-            graph_.mutable_value(idx).layout = in.layout;
+            graph_.value(out).layout = in.layout;
+            graph_.value(idx).layout = in.layout;
 
             emit(Ops::MAXPOOL2D.id, {x}, {out, idx}, geometry_attributes(g));
             return PoolResult{out, idx};
@@ -1279,7 +1279,7 @@ In `src/graph/builder.cpp`:
 
             const ValueId out = declare(Shape({in.shape[0], out_h, out_w, in.shape[3]}),
                                         in.dtype, Lifetime::ACTIVATION, "pooled");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
             emit(Ops::AVGPOOL2D.id, {x}, {out}, geometry_attributes(g));
             return out;
         }
@@ -1297,7 +1297,7 @@ In `src/graph/builder.cpp`:
             const ValueId out = declare(Shape({in.shape[0], in.shape[1] * scale_h,
                                                in.shape[2] * scale_w, in.shape[3]}),
                                         in.dtype, Lifetime::ACTIVATION, "upsampled");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
 
             Attributes a;
             a.values[0] = static_cast<double>(scale_h);
@@ -1431,7 +1431,7 @@ Declarations in `builder.hpp` follow the pattern of Tasks 5–6 exactly: `@brief
 
             const ValueId out = declare(Shape({in.shape[0], in.shape[3]}), in.dtype,
                                         Lifetime::ACTIVATION, "spatial_mean");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
             emit(Ops::SPATIAL_MEAN.id, {x}, {out}, Attributes{});
             return out;
         }
@@ -1466,7 +1466,7 @@ Declarations in `builder.hpp` follow the pattern of Tasks 5–6 exactly: `@brief
             const ValueId out = declare(
                 Shape({first.shape[0], first.shape[1], first.shape[2], channels}),
                 first.dtype, Lifetime::ACTIVATION, "concat");
-            graph_.mutable_value(out).layout = first.layout;
+            graph_.value(out).layout = first.layout;
 
             emit(Ops::CONCAT_CHANNELS.id,
                  std::vector<ValueId>(parts.begin(), parts.end()), {out}, Attributes{});
@@ -1485,7 +1485,7 @@ Declarations in `builder.hpp` follow the pattern of Tasks 5–6 exactly: `@brief
             const ValueId out = declare(
                 Shape({in.shape[0], in.shape[1], in.shape[2], count}),
                 in.dtype, Lifetime::ACTIVATION, "slice");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
 
             Attributes a;
             a.values[0] = static_cast<double>(offset);
@@ -1508,7 +1508,7 @@ Declarations in `builder.hpp` follow the pattern of Tasks 5–6 exactly: `@brief
             }
 
             const ValueId out = declare(in.shape, in.dtype, Lifetime::ACTIVATION, "affine");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
             emit(Ops::CHANNEL_AFFINE.id, {x, gamma, beta}, {out}, Attributes{});
             return out;
         }
@@ -1522,7 +1522,7 @@ Declarations in `builder.hpp` follow the pattern of Tasks 5–6 exactly: `@brief
                         in.shape.element_count(), shape.element_count());
 
             const ValueId out = declare(shape, in.dtype, Lifetime::ACTIVATION, "reshape");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
             emit(Ops::RESHAPE.id, {x}, {out}, Attributes{});
             return out;
         }
@@ -1539,7 +1539,7 @@ Declarations in `builder.hpp` follow the pattern of Tasks 5–6 exactly: `@brief
                 : Shape({in.shape[0], in.shape[2], in.shape[3], in.shape[1]});
 
             const ValueId out = declare(converted, in.dtype, Lifetime::ACTIVATION, "converted");
-            graph_.mutable_value(out).layout = to;
+            graph_.value(out).layout = to;
             emit(Ops::LAYOUT_CONVERT.id, {x}, {out}, Attributes{});
             return out;
         }
@@ -2501,7 +2501,7 @@ Expected: FAIL to compile — `batchnorm2d` has no emitter.
                                          "bn_saved_mean");
             const ValueId inv_std = declare(per_channel, in.dtype, Lifetime::ACTIVATION,
                                             "bn_saved_inv_std");
-            graph_.mutable_value(y).layout = in.layout;
+            graph_.value(y).layout = in.layout;
 
             Attributes a;
             a.values[0] = epsilon;
@@ -2615,7 +2615,7 @@ Expected: FAIL to compile — no `leaky_relu` emitter.
 
             const Value& in = graph_.values()[x];
             const ValueId out = declare(in.shape, in.dtype, Lifetime::ACTIVATION, "leaky_relu");
-            graph_.mutable_value(out).layout = in.layout;
+            graph_.value(out).layout = in.layout;
 
             Attributes a;
             a.values[0] = slope;
@@ -2796,7 +2796,7 @@ Expected: FAIL to compile.
                 const Value& original = graph.values()[cols];
                 const ValueId clone = graph.declare_value(
                     original.shape, original.dtype, Lifetime::SCRATCH, "cols_remat");
-                graph.mutable_value(clone).layout = original.layout;
+                graph.value(clone).layout = original.layout;
                 graph.append_node(Node{source.op, source.inputs, {clone}, source.attributes});
 
                 for (std::size_t j : backward_consumers)
@@ -2804,12 +2804,12 @@ Expected: FAIL to compile.
                         if (in == cols) in = clone;
 
                 // The original now dies at the end of the forward pass.
-                graph.mutable_value(cols).lifetime = Lifetime::SCRATCH;
+                graph.value(cols).lifetime = Lifetime::SCRATCH;
             }
         }
 ```
 
-`declare_value`, `append_node` and `mutable_node` are the mutating entry points this pass needs. Add whichever of them `Graph` does not already have, beside `mutable_value` from Task 2, each with Doxygen saying it exists for graph-to-graph passes.
+`declare_value`, `append_node` and `mutable_node` are the mutating entry points this pass needs. Add whichever of them `Graph` does not already have, beside the existing checked `value(ValueId)` accessor (see amendment A-1), each with Doxygen saying it exists for graph-to-graph passes. Each must guard its index the way `value()` does — a pass writing past the end of `nodes_` is the same defect A-1 removed, in the other container.
 
 - [ ] **Step 4: Run the tests**
 
