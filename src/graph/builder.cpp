@@ -435,5 +435,97 @@ namespace SushiAI
             return out;
         }
 
+        PoolResult GraphBuilder::maxpool2d(ValueId x, const ConvGeometry& g) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+
+            // Symmetric padding is assumed here and stated in the header. A
+            // layer that pads asymmetrically calls maxpool2d_with_extents.
+            const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
+                                                g.dilation_h, g.kernel_h, g.stride_h);
+            const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
+                                                g.dilation_w, g.kernel_w, g.stride_w);
+            SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                        "A {}x{} pool window does not fit a {}x{} input padded by {},{}.",
+                        g.kernel_h, g.kernel_w, in.shape[1], in.shape[2],
+                        g.pad_top, g.pad_left);
+
+            return maxpool2d_with_extents(x, g, out_h, out_w);
+        }
+
+        PoolResult GraphBuilder::maxpool2d_with_extents(ValueId x, const ConvGeometry& g,
+                                                        int64_t out_h, int64_t out_w) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "maxpool2d reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                        "maxpool2d was given non-positive output extents {}x{}",
+                        out_h, out_w);
+
+            const Shape pooled({in.shape[0], out_h, out_w, in.shape[3]});
+            const ValueId out = declare_like(x, pooled, in.dtype, Lifetime::ACTIVATION, "pooled");
+            const ValueId idx = declare_like(x, pooled, DType::INT64, Lifetime::ACTIVATION, "argmax");
+
+            graph_->add_node(Ops::MAXPOOL2D.id, {x}, {out, idx}, geometry_attributes(g));
+            return PoolResult{out, idx};
+        }
+
+        ValueId GraphBuilder::avgpool2d(ValueId x, const ConvGeometry& g) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "avgpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "avgpool2d reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+
+            const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
+                                                g.dilation_h, g.kernel_h, g.stride_h);
+            const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
+                                                g.dilation_w, g.kernel_w, g.stride_w);
+            SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                        "A {}x{} pool window does not fit a {}x{} input padded by {},{}.",
+                        g.kernel_h, g.kernel_w, in.shape[1], in.shape[2],
+                        g.pad_top, g.pad_left);
+
+            const ValueId out = declare_like(x, Shape({in.shape[0], out_h, out_w, in.shape[3]}),
+                                             in.dtype, Lifetime::ACTIVATION, "pooled");
+            graph_->add_node(Ops::AVGPOOL2D.id, {x}, {out}, geometry_attributes(g));
+            return out;
+        }
+
+        ValueId GraphBuilder::upsample2d(ValueId x, int64_t scale_h, int64_t scale_w) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "upsample2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "upsample2d reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(scale_h < 1 || scale_w < 1,
+                        "upsample2d needs scales of at least one; got {}x{}",
+                        scale_h, scale_w);
+
+            const ValueId out = declare_like(x, Shape({in.shape[0], in.shape[1] * scale_h,
+                                                        in.shape[2] * scale_w, in.shape[3]}),
+                                             in.dtype, Lifetime::ACTIVATION, "upsampled");
+
+            Attributes a{};
+            a.values[0] = static_cast<double>(scale_h);
+            a.values[1] = static_cast<double>(scale_w);
+            graph_->add_node(Ops::UPSAMPLE2D.id, {x}, {out}, a);
+            return out;
+        }
+
     } // namespace Graph
 } // namespace SushiAI

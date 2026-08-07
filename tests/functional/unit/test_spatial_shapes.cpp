@@ -195,5 +195,123 @@ namespace SushiAI
 
             EXPECT_THROW((void)builder.im2col(x_nchw, g), Error);
         }
+
+        TEST(Unit_SpatialShapes, MaxPoolProducesAValueAndItsArgmaxTogether)
+        {
+            // The indices are a second *result*, not a second output tensor the
+            // caller allocates: the backward rule needs exactly the indices
+            // this forward produced, and a pair returned together cannot be
+            // mismatched the way two separate calls could.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 4, 4, 3}, "x");
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 2; g.kernel_w = 2;
+            g.stride_h = 2; g.stride_w = 2;
+
+            const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+
+            EXPECT_EQ(graph.values()[pooled.output].shape, Shape({2, 2, 2, 3}));
+            EXPECT_EQ(graph.values()[pooled.indices].shape, Shape({2, 2, 2, 3}));
+            EXPECT_EQ(graph.values()[pooled.indices].dtype, DType::INT64)
+                << "an index is not a number to interpolate; a float index would "
+                   "compare unequal to the integer the forward wrote";
+        }
+
+        TEST(Unit_SpatialShapes, MaxPoolHandlesYoloTinysAsymmetricThirteenToThirteen)
+        {
+            // YOLOv3-tiny's last pool: 2x2 stride 1 over 13x13, padded only on
+            // the bottom and right, staying 13x13. ConvGeometry cannot express
+            // that padding, so the caller states the extents - and this is the
+            // case that proves the explicit overload is load-bearing rather
+            // than decorative.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 13, 13, 256}, "x");
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 2; g.kernel_w = 2;
+
+            const Graph::PoolResult pooled = builder.maxpool2d_with_extents(x, g, 13, 13);
+            EXPECT_EQ(graph.values()[pooled.output].shape, Shape({1, 13, 13, 256}));
+
+            // Without the explicit extents the same geometry gives 12x12.
+            EXPECT_EQ(graph.values()[builder.maxpool2d(x, g).output].shape,
+                      Shape({1, 12, 12, 256}));
+        }
+
+        TEST(Unit_SpatialShapes, AvgPoolProducesOnlyAValue)
+        {
+            // No indices: its backward divides by a constant window area and
+            // needs nothing the forward recorded (CV-6).
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 6, 6, 3}, "x");
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 3; g.kernel_w = 3;
+            g.stride_h = 3; g.stride_w = 3;
+
+            EXPECT_EQ(graph.values()[builder.avgpool2d(x, g)].shape, Shape({2, 2, 2, 3}));
+        }
+
+        TEST(Unit_SpatialShapes, UpsampleMultipliesTheSpatialExtentsOnly)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 3, 5, 7}, "x");
+
+            EXPECT_EQ(graph.values()[builder.upsample2d(x, 2, 2)].shape, Shape({2, 6, 10, 7}));
+        }
+
+        TEST(Unit_SpatialShapes, UpsampleRejectsANonPositiveScale)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 2, 2, 1}, "x");
+
+            EXPECT_THROW((void)builder.upsample2d(x, 0, 2), Error);
+        }
+
+        TEST(Unit_SpatialShapes, MaxPoolRejectsAnNchwInput)
+        {
+            // maxpool2d reads extents off axes 1,2,3 assuming NHWC; handed an
+            // NCHW value it must throw rather than pool the channel axis.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 4, 4}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 2; g.kernel_w = 2;
+            g.stride_h = 2; g.stride_w = 2;
+
+            EXPECT_THROW((void)builder.maxpool2d(x_nchw, g), Error);
+        }
+
+        TEST(Unit_SpatialShapes, AvgPoolRejectsAnNchwInput)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 6, 6}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 3; g.kernel_w = 3;
+            g.stride_h = 3; g.stride_w = 3;
+
+            EXPECT_THROW((void)builder.avgpool2d(x_nchw, g), Error);
+        }
+
+        TEST(Unit_SpatialShapes, UpsampleRejectsAnNchwInput)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 2, 2}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+            EXPECT_THROW((void)builder.upsample2d(x_nchw, 2, 2), Error);
+        }
     }
 }
