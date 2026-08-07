@@ -101,6 +101,21 @@ namespace SushiAI
         }
 
         /**
+         * @struct PoolResult
+         * @brief A max-pool's two results, returned together.
+         *
+         * Returned as a pair rather than left to two calls because the backward
+         * rule must route through exactly the indices *this* forward wrote.
+         * Two independent values could be mismatched, and the mismatch would
+         * not throw - it would route every gradient to a plausible wrong pixel.
+         */
+        struct PoolResult
+        {
+            ValueId output;   /**< @brief The pooled @c [N,H_o,W_o,C] value. */
+            ValueId indices;  /**< @brief The INT64 argmax, same shape. */
+        };
+
+        /**
          * @class GraphBuilder
          * @brief Emits shape-checked IR nodes into a Graph.
          *
@@ -458,6 +473,50 @@ namespace SushiAI
                 ValueId col2im_with_extents(ValueId cols, Shape image_shape,
                                             const ConvGeometry& g,
                                             int64_t out_h, int64_t out_w) const;
+
+                /**
+                 * @brief Emits @c MAXPOOL2D, with symmetric padding assumed.
+                 * @param x The @c [N,H,W,C] input.
+                 * @param g The window geometry.
+                 * @return The pooled value and its argmax indices.
+                 * @throws Error If @p x is not rank 4, not NHWC, or the
+                 *         window does not fit.
+                 */
+                PoolResult maxpool2d(ValueId x, const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits @c MAXPOOL2D with the output extents stated outright.
+                 * @param x The @c [N,H,W,C] input.
+                 * @param g The window geometry.
+                 * @param out_h The pooled height.
+                 * @param out_w The pooled width.
+                 * @return The pooled value and its argmax indices.
+                 * @throws Error If @p x is not rank 4, not NHWC, or either
+                 *         extent is not positive.
+                 */
+                PoolResult maxpool2d_with_extents(ValueId x, const ConvGeometry& g,
+                                                  int64_t out_h, int64_t out_w) const;
+
+                /**
+                 * @brief Emits @c AVGPOOL2D. Divides by the full window area.
+                 * @param x The @c [N,H,W,C] input.
+                 * @param g The window geometry.
+                 * @return The pooled value's id.
+                 * @throws Error If @p x is not rank 4, not NHWC, or the
+                 *         window does not fit.
+                 */
+                ValueId avgpool2d(ValueId x, const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits @c UPSAMPLE2D: nearest-neighbour, integer scale.
+                 * @param x The @c [N,H,W,C] input.
+                 * @param scale_h The vertical replication factor.
+                 * @param scale_w The horizontal replication factor.
+                 * @return The upsampled value's id.
+                 * @throws Error If @p x is not rank 4, not NHWC, or either
+                 *         scale is below one.
+                 */
+                ValueId upsample2d(ValueId x, int64_t scale_h, int64_t scale_w) const;
 
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
