@@ -1,0 +1,139 @@
+/**************************************************************************/
+/* model_config.hpp                                                       */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                https://github.com/SushiSystems/SushiAI                 */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+#pragma once
+
+/**
+ * @file model_config.hpp
+ * @brief An architecture, and nothing about how it is trained.
+ *
+ * @section schema What a model.json says
+ *
+ * @code
+ * {
+ *   "sushiai_model": 1,
+ *   "input": { "features": 6 },
+ *   "layers": [
+ *     { "type": "linear", "units": 256 },
+ *     { "type": "gelu" },
+ *     { "type": "linear", "units": 4 }
+ *   ]
+ * }
+ * @endcode
+ *
+ * Three properties, each of which closes a class of silent mistake:
+ *
+ * - **@c sushiai_model is a version.** Same reason the checkpoint carries one:
+ *   a format change must be an error, not a misread.
+ * - **@c units is the output width only, and the input width is chained.**
+ *   @c input.features seeds the chain and each layer's input is its
+ *   predecessor's output, so a dimension mismatch between adjacent layers is
+ *   not expressible in the file at all.
+ * - **An unknown key is an error, not an ignored one.** A typed
+ *   @c "unitss": 256 must not train silently against a default.
+ *
+ * @section validation Who validates what
+ *
+ * This parser validates the document's own shape - the version, the top-level
+ * keys, that @c layers is a non-empty array of objects each carrying a
+ * @c "type". It does **not** know which keys a layer accepts; a @ref LayerSpec
+ * carries them through untouched and the layer's own factory rejects what it
+ * does not recognise.
+ *
+ * That is the schema-side expression of "the driver knows no types": if this
+ * file validated layer fields, adding @c "conv2d" would mean editing this
+ * file, and a schema change would stop being local to the layer that caused
+ * it.
+ *
+ * Host lane: no SushiBLAS engine, no SYCL.
+ */
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <SushiAI/config/value.hpp>
+#include <SushiAI/core/common.hpp>
+
+namespace SushiAI
+{
+    namespace Config
+    {
+        /** @brief The model-file version this build reads. */
+        inline constexpr std::int64_t MODEL_VERSION = 1;
+
+        /**
+         * @struct LayerSpec
+         * @brief One layer as the file spelled it: a type, and everything else.
+         */
+        struct LayerSpec
+        {
+            /** @brief The @c NN::LAYER_REGISTRY key, e.g. "linear". */
+            std::string type;
+
+            /**
+             * @brief Every other key the layer object carried.
+             *
+             * The layer object with @c "type" removed, so the key that chose
+             * the factory is not also a key the factory has to allow.
+             */
+            Value attributes;
+        };
+
+        /**
+         * @struct ModelSpec
+         * @brief A parsed architecture.
+         */
+        struct ModelSpec
+        {
+            /** @brief Features per sample entering the first layer. */
+            std::int64_t input_features = 0;
+
+            /** @brief The layers, in application order. */
+            std::vector<LayerSpec> layers;
+        };
+
+        /**
+         * @brief Turns a parsed model document into a @ref ModelSpec.
+         * @param root The parsed document.
+         * @param origin What to call it in a diagnostic, usually a path.
+         * @return The spec.
+         * @throws Error If the version is absent or wrong, a top-level key is
+         *         unknown, @c input.features is not positive, @c layers is
+         *         empty, or a layer entry is not an object carrying a string
+         *         @c "type".
+         */
+        ModelSpec parse_model(const Value& root, std::string_view origin);
+
+        /**
+         * @brief Reads, parses and validates the model file at @p path.
+         * @param path The file to read.
+         * @return The spec.
+         * @throws Error If the file cannot be read, is not valid JSON, or is
+         *         not a valid model document.
+         */
+        ModelSpec load_model(const std::filesystem::path& path);
+
+    } // namespace Config
+} // namespace SushiAI

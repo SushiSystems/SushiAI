@@ -260,6 +260,25 @@ namespace SushiAI
         };
 
         /**
+         * @brief Checks @p root's version field, which must be present and exact.
+         *
+         * Every configuration document this library reads leads with one, for
+         * the same reason the checkpoint does: the format's next change must be
+         * an error rather than a misread. It is stated once here because three
+         * document kinds need it and a version check written three times is a
+         * version check that will eventually disagree with itself.
+         *
+         * @param root The document's root object.
+         * @param key The version field's name, e.g. "sushiai_model".
+         * @param expected The version this build reads.
+         * @param origin What to call the document in a diagnostic.
+         * @throws Error If @p root is not an object, @p key is absent, it is
+         *         not a whole number, or it is not @p expected.
+         */
+        void require_version(const Value& root, std::string_view key,
+                             std::int64_t expected, std::string_view origin);
+
+        /**
          * @brief Parses @p text as a JSON document.
          * @param text The document.
          * @param origin What to call it in a diagnostic, usually a path.

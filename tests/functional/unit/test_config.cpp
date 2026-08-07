@@ -15,12 +15,22 @@
 // tests/common/test_throws.hpp for the argument in full.
 
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/config/model_config.hpp>
+#include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/nn/layer_registry.hpp>
+#include <SushiAI/nn/layer_stack.hpp>
+#include <SushiAI/nn/module.hpp>
 #include "../../common/test_throws.hpp"
 
 using SushiAI::Config::Kind;
@@ -156,4 +166,372 @@ TEST(Unit_Config, AnObjectBuiltFromMismatchedVectorsIsRefused)
     std::vector<std::string> keys{"a", "b"};
     std::vector<Value> values{Value::integer(1)};
     SA_EXPECT_ERROR((void)Value::object(std::move(keys), std::move(values)), "2 keys", "1 value");
+}
+
+// ---------------------------------------------------------------------------
+// The model document, and the layer registry it selects through.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    /** @brief Parses @p text as a model document called "model.json". */
+    SushiAI::Config::ModelSpec model_from(std::string_view text)
+    {
+        return SushiAI::Config::parse_model(parse_json(text, "model.json"), "model.json");
+    }
+
+    constexpr std::string_view GOOD_MODEL = R"({
+        "sushiai_model": 1,
+        "input": {"features": 6},
+        "layers": [{"type": "linear", "units": 8},
+                   {"type": "gelu"},
+                   {"type": "linear", "units": 4}]
+    })";
+}
+
+TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
+{
+    const SushiAI::Config::ModelSpec model = model_from(GOOD_MODEL);
+
+    EXPECT_EQ(model.input_features, 6);
+    ASSERT_EQ(model.layers.size(), 3u);
+    EXPECT_EQ(model.layers[0].type, "linear");
+    EXPECT_EQ(model.layers[1].type, "gelu");
+    EXPECT_EQ(model.layers[2].type, "linear");
+
+    // "type" is gone from the attributes, so no factory has to allow the key
+    // that selected it.
+    EXPECT_FALSE(model.layers[0].attributes.has("type"));
+    EXPECT_TRUE(model.layers[0].attributes.has("units"));
+    EXPECT_EQ(model.layers[1].attributes.keys().size(), 0u);
+}
+
+TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
+{
+    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(GOOD_MODEL));
+
+    EXPECT_EQ(stack.size(), 3u);
+    EXPECT_EQ(stack.output_features(), 4);
+
+    // The activation preserves the width it was handed, which is why the file
+    // never states one for it.
+    EXPECT_EQ(stack.layer(0).output_features(), 8);
+    EXPECT_EQ(stack.layer(1).output_features(), 8);
+}
+
+TEST(Unit_Config, AConfiguredStackTracesToTheDeclaredOutputWidth)
+{
+    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(GOOD_MODEL));
+
+    SushiAI::Graph::Graph graph;
+    const SushiAI::Graph::GraphBuilder builder(graph);
+    const SushiAI::Graph::ValueId x = builder.input(SushiAI::Shape{4, 6}, "inputs");
+
+    EXPECT_EQ(graph.value(stack.forward(builder, x)).shape, (SushiAI::Shape{4, 4}));
+}
+
+TEST(Unit_Config, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
+{
+    const SushiAI::Config::ModelSpec model = model_from(R"({
+        "sushiai_model": 1,
+        "input": {"features": 6},
+        "layers": [{"type": "conv2d", "units": 8}]
+    })");
+
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(model),
+                    "conv2d", "layer type", "'linear'", "'gelu'");
+}
+
+TEST(Unit_Config, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
+{
+    const SushiAI::Config::ModelSpec typo = model_from(R"({
+        "sushiai_model": 1,
+        "input": {"features": 6},
+        "layers": [{"type": "linear", "unitss": 8}]
+    })");
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(typo), "layer 0 'linear'", "'unitss'");
+
+    // And an activation takes nothing at all, so a width written onto one is
+    // an error rather than a line that does nothing.
+    const SushiAI::Config::ModelSpec stray = model_from(R"({
+        "sushiai_model": 1,
+        "input": {"features": 6},
+        "layers": [{"type": "gelu", "units": 8}]
+    })");
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(stray), "layer 0 'gelu'", "'units'");
+}
+
+TEST(Unit_Config, ALayerFactoryRefusesANonPositiveWidth)
+{
+    const SushiAI::Config::ModelSpec model = model_from(R"({
+        "sushiai_model": 1,
+        "input": {"features": 6},
+        "layers": [{"type": "linear", "units": 0}]
+    })");
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(model), "layer 0 'linear'", "'units'");
+}
+
+TEST(Unit_Config, UseBiasDefaultsToTrueAndCanBeTurnedOff)
+{
+    SushiAI::NN::LayerStack with_bias = SushiAI::NN::build_layer_stack(model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6},
+        "layers": [{"type": "linear", "units": 4}]
+    })"));
+    SushiAI::NN::LayerStack without_bias = SushiAI::NN::build_layer_stack(model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6},
+        "layers": [{"type": "linear", "units": 4, "use_bias": false}]
+    })"));
+
+    SushiAI::Graph::Graph a;
+    SushiAI::Graph::Graph b;
+    const SushiAI::Graph::GraphBuilder builder_a(a);
+    const SushiAI::Graph::GraphBuilder builder_b(b);
+    (void)with_bias.forward(builder_a, builder_a.input(SushiAI::Shape{2, 6}, "x"));
+    (void)without_bias.forward(builder_b, builder_b.input(SushiAI::Shape{2, 6}, "x"));
+
+    EXPECT_EQ(SushiAI::NN::parameter_count(with_bias), 2u);
+    EXPECT_EQ(SushiAI::NN::parameter_count(without_bias), 1u);
+}
+
+TEST(Unit_Config, AMissingModelVersionIsAnErrorThatSaysWhy)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({"input": {"features": 6}, "layers": []})"),
+                    "sushiai_model", "misread");
+}
+
+TEST(Unit_Config, AFutureModelVersionIsAnError)
+{
+    SA_EXPECT_ERROR(
+        (void)model_from(R"({"sushiai_model": 2, "input": {"features": 6}, "layers": []})"),
+        "version 2", "version 1");
+}
+
+TEST(Unit_Config, AnUnknownTopLevelModelKeyIsAnError)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6},
+        "layers": [{"type": "gelu"}], "optimizer": {"type": "adamw"}
+    })"), "'optimizer'", "'layers'");
+}
+
+TEST(Unit_Config, AModelWithNoLayersIsAnError)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6}, "layers": []
+    })"), "no layers");
+}
+
+TEST(Unit_Config, ANonPositiveInputWidthIsAnError)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "sushiai_model": 1, "input": {"features": 0}, "layers": [{"type": "gelu"}]
+    })"), "'features'", "positive");
+}
+
+TEST(Unit_Config, ALayerThatIsNotAnObjectIsAnError)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6}, "layers": ["linear"]
+    })"), "layer 0", "a string");
+}
+
+// ---------------------------------------------------------------------------
+// The train and eval documents.
+//
+// Path resolution is the one thing here that needs real files on disk: the
+// property is that a relative path resolves against the CONFIG FILE's own
+// directory rather than the process working directory, and that cannot be
+// asserted without a config file that is somewhere.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    /** @brief Parses @p text as a train document, resolving paths against ".". */
+    SushiAI::Config::TrainSpec train_from(std::string_view text)
+    {
+        return SushiAI::Config::parse_train(parse_json(text, "train.json"), "train.json", ".");
+    }
+
+    constexpr std::string_view GOOD_TRAIN = R"({
+        "sushiai_train": 1,
+        "model": "model.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings", "batch_size": 8, "batches": 2, "classes": 4},
+        "optimizer": {"type": "adamw", "learning_rate": 0.003},
+        "epochs": 3,
+        "checkpoint": "out/model.ckpt"
+    })";
+
+    /**
+     * @class TemporaryDirectory
+     * @brief A directory that removes itself, so a failing test leaves nothing behind.
+     */
+    class TemporaryDirectory
+    {
+        public:
+            explicit TemporaryDirectory(const char* name)
+                : path_(std::filesystem::temp_directory_path() / name)
+            {
+                std::filesystem::remove_all(path_);
+                std::filesystem::create_directories(path_);
+            }
+
+            ~TemporaryDirectory()
+            {
+                std::error_code ignored;
+                std::filesystem::remove_all(path_, ignored);
+            }
+
+            TemporaryDirectory(const TemporaryDirectory&) = delete;
+            TemporaryDirectory& operator=(const TemporaryDirectory&) = delete;
+
+            const std::filesystem::path& path() const noexcept { return path_; }
+
+            /** @brief Writes @p text into this directory as @p name. */
+            std::filesystem::path write(const char* name, std::string_view text) const
+            {
+                const std::filesystem::path file = path_ / name;
+                std::ofstream out(file, std::ios::binary);
+                out.write(text.data(), static_cast<std::streamsize>(text.size()));
+                return file;
+            }
+
+        private:
+            std::filesystem::path path_;
+    };
+}
+
+TEST(Unit_Config, ParsesATrainDocumentIntoItsFourTypedBlocks)
+{
+    const SushiAI::Config::TrainSpec spec = train_from(GOOD_TRAIN);
+
+    EXPECT_EQ(spec.objective_type, "cross_entropy");
+    EXPECT_EQ(spec.data.type, "rings");
+    EXPECT_EQ(spec.optimizer_type, "adamw");
+    EXPECT_EQ(spec.epochs, 3);
+
+    // Each block's "type" is separated out, so no factory has to allow it.
+    EXPECT_FALSE(spec.optimizer_attributes.has("type"));
+    EXPECT_DOUBLE_EQ(spec.optimizer_attributes.at("learning_rate", "optimizer")
+                                              .as_real("learning_rate"), 0.003);
+    EXPECT_EQ(spec.data.attributes.at("batch_size", "data").as_int("batch_size"), 8);
+}
+
+TEST(Unit_Config, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
+{
+    const TemporaryDirectory directory("sushiai_config_paths");
+    const std::filesystem::path config = directory.write("train.json", GOOD_TRAIN);
+
+    const SushiAI::Config::TrainSpec spec = SushiAI::Config::load_train(config);
+
+    EXPECT_EQ(spec.model_path, directory.path() / "model.json");
+    EXPECT_EQ(spec.checkpoint, directory.path() / "out" / "model.ckpt");
+}
+
+TEST(Unit_Config, LeavesAnAbsolutePathAlone)
+{
+    const std::filesystem::path absolute =
+        std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
+
+    // generic_string() spells separators as '/', which JSON needs no escaping
+    // for - so the document is built by concatenation rather than through a
+    // second, test-only escaper nobody would maintain.
+    const std::string text =
+        R"({"sushiai_train": 1, "model": ")" + absolute.generic_string() +
+        R"(", "objective": {"type": "cross_entropy"},
+            "data": {"type": "rings"}, "optimizer": {"type": "adamw"}})";
+
+    const SushiAI::Config::TrainSpec spec =
+        SushiAI::Config::parse_train(parse_json(text, "train.json"), "train.json",
+                                     "/some/other/place");
+    EXPECT_EQ(spec.model_path, absolute);
+}
+
+TEST(Unit_Config, EpochsDefaultsToOneAndMustBePositive)
+{
+    const SushiAI::Config::TrainSpec defaulted = train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })");
+    EXPECT_EQ(defaulted.epochs, 1);
+    EXPECT_TRUE(defaulted.checkpoint.empty());
+
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "epochs": 0
+    })"), "'epochs'", "positive");
+}
+
+TEST(Unit_Config, AnUnknownTopLevelTrainKeyIsAnError)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "epochz": 3
+    })"), "'epochz'", "'epochs'");
+}
+
+TEST(Unit_Config, AMissingTrainBlockNamesIt)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "optimizer": {"type": "adamw"}
+    })"), "'data'");
+}
+
+TEST(Unit_Config, ATypedBlockThatIsNotAnObjectIsAnError)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": "cross_entropy",
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })"), "'objective'", "a string");
+}
+
+TEST(Unit_Config, AFutureTrainVersionIsAnError)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 2, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })"), "version 2", "version 1");
+}
+
+TEST(Unit_Config, ParsesAnEvalDocument)
+{
+    const SushiAI::Config::DataSpec data = SushiAI::Config::parse_data(
+        parse_json(R"({
+            "sushiai_data": 1,
+            "data": {"type": "rings", "batch_size": 512, "batches": 1, "seed": 3735928575}
+        })", "eval.json"), "eval.json");
+
+    EXPECT_EQ(data.type, "rings");
+    EXPECT_EQ(data.attributes.at("batch_size", "data").as_int("batch_size"), 512);
+    EXPECT_EQ(data.attributes.at("seed", "data").as_int("seed"), 3735928575);
+}
+
+TEST(Unit_Config, AnEvalDocumentCarriesNoModelBlock)
+{
+    // The architecture is a separate file that inference is handed separately,
+    // so naming one here is an error rather than something silently preferred
+    // over the one on the command line.
+    SA_EXPECT_ERROR((void)SushiAI::Config::parse_data(
+        parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"}, "model": "m.json"})",
+                   "eval.json"), "eval.json"), "'model'", "'data'");
+}
+
+TEST(Unit_Config, LoadingAnAbsentFileNamesThePath)
+{
+    SA_EXPECT_ERROR((void)SushiAI::Config::load_train("no/such/train.json"),
+                    "no/such/train.json");
 }
