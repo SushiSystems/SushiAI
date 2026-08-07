@@ -54,6 +54,9 @@
 #include "version.hpp"
 
 #include "config/value.hpp"
+#include "config/registry.hpp"
+#include "config/model_config.hpp"
+#include "config/train_config.hpp"
 
 #include "core/common.hpp"
 #include "core/ops.hpp"
@@ -79,6 +82,7 @@
 #include "nn/layers.hpp"
 #include "nn/ilayer.hpp"
 #include "nn/layer_stack.hpp"
+#include "nn/layer_registry.hpp"
 #include "nn/loss.hpp"
 #include "nn/init.hpp"
 

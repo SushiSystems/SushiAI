@@ -9,6 +9,8 @@ set(SUSHIAI_SOURCES
     version.cpp
 
     config/value.cpp
+    config/model_config.cpp
+    config/train_config.cpp
 
     core/allocation.cpp
 
@@ -27,6 +29,7 @@ set(SUSHIAI_SOURCES
 
     nn/layers.cpp
     nn/layer_stack.cpp
+    nn/layer_registry.cpp
     nn/init.cpp
 
     optim/optimizer.cpp

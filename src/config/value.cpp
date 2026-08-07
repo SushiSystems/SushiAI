@@ -311,6 +311,27 @@ namespace SushiAI
             return Value::object(std::move(keys), std::move(values));
         }
 
+        void require_version(const Value& root, std::string_view key,
+                             std::int64_t expected, std::string_view origin)
+        {
+            SA_THROW_IF(root.kind() != Kind::OBJECT,
+                        "'{}' must be an object whose first key is '{}', but it is {}",
+                        origin, key, kind_name(root.kind()));
+
+            SA_THROW_IF(!root.has(key),
+                        "'{}' has no '{}'. Every SushiAI configuration document leads "
+                        "with its version, so that a format change is an error rather "
+                        "than a misread.", origin, key);
+
+            const std::string context = "'" + std::string(origin) + "'s '"
+                                      + std::string(key) + "'";
+            const std::int64_t version = root.at(key, origin).as_int(context);
+
+            SA_THROW_IF(version != expected,
+                        "'{}' is a {} version {} document; this build reads version {}",
+                        origin, key, version, expected);
+        }
+
         // --- Parsing ---------------------------------------------------------
 
         Value parse_json(std::string_view text, std::string_view origin)
