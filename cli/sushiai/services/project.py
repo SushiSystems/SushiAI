@@ -404,6 +404,39 @@ def demo(name: str, app_args: Sequence[str] | None = None) -> int:
     return _run([str(exe), *(app_args or [])], env, cwd=root)
 
 
+def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
+    """Run one of the shipped app binaries, forwarding *app_args* verbatim.
+
+    The same locate-build-then-exec shape as :func:`demo`, factored out rather
+    than repeated: both need the build directory, the resolved environment and
+    the repo root as the working directory, and a second copy would be a second
+    place for the "run `sa build` first" advice to go stale.
+
+    Run from the repo root, so a configuration path a caller typed relative to
+    the checkout means the same thing wherever ``sushiai`` was invoked from.
+    Paths *inside* a configuration file resolve against that file's own
+    directory, which is the library's rule and not this one's.
+    """
+    console.header(title)
+
+    root = find_project_root()
+    cfg = load_config()
+    build_dir = _build_dir(root)
+    if not build_dir.is_dir():
+        console.error("build/ not found. Run `sa build` first.")
+        return 1
+
+    exe = discovery.match_by_name(build_dir, target)
+    if exe is None:
+        console.error(f"'{target}' is not built. Run `sa build` first.")
+        return 1
+
+    env = load_build_env(cfg, build_dir)
+    console.info(f"Executing: {exe.name}")
+    console.console.print(f"[dim]{exe}[/dim]")
+    return _run([str(exe), *app_args], env, cwd=root)
+
+
 def clean_tree(root: Path) -> None:
     build_dir = _build_dir(root)
     if build_dir.is_dir():

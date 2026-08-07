@@ -127,6 +127,53 @@ def demo_mlp(ctx: typer.Context):
 
 
 # --------------------------------------------------------------------------- #
+# train / inference (config-driven, per the config-driven training design)
+# --------------------------------------------------------------------------- #
+# Arguments are forwarded verbatim, exactly as `demo mlp` forwards its flags:
+# the argument surface lives in the C++ program, and restating it here would
+# give two places to change and one to forget. That matters more here than for
+# the demo, because the whole point of these two programs is that they are
+# written once and never edited again.
+@app.command(
+    "train",
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+        "help_option_names": [],
+    },
+)
+def train(ctx: typer.Context):
+    """Train a model described by a JSON configuration.
+
+    Usage: sushiai train <train.json>. The configuration names the
+    architecture file, the objective, the data, the optimizer, the epoch count
+    and where to write the checkpoint; paths inside it resolve against its own
+    directory. Example: sushiai train examples/heavy_mlp/train.json
+    """
+    raise typer.Exit(
+        project_svc.run_app("sushiai_train", "SushiAI Train", list(ctx.args)))
+
+
+@app.command(
+    "inference",
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+        "help_option_names": [],
+    },
+)
+def inference(ctx: typer.Context):
+    """Evaluate a trained checkpoint over a dataset.
+
+    Usage: sushiai inference <model.json> <model.ckpt> <eval.json>. The data
+    is a positional argument because the architecture file carries no data
+    block, so an optional flag would always error when omitted.
+    """
+    raise typer.Exit(
+        project_svc.run_app("sushiai_inference", "SushiAI Inference", list(ctx.args)))
+
+
+# --------------------------------------------------------------------------- #
 # config / env (diagnostics)
 # --------------------------------------------------------------------------- #
 @app.command("config")
