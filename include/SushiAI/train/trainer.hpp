@@ -87,6 +87,7 @@
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/train/objective.hpp>
 
 namespace SushiAI
 {
@@ -153,6 +154,17 @@ namespace SushiAI
              */
             Graph::ValueId loss_scale = Graph::NO_VALUE;
 
+            /**
+             * @brief The leaves the objective declared, by role.
+             *
+             * @c StepSpec still names @c targets, because @c Train::Trainer
+             * feeds exactly that tensor per step. Wiring the trainer to feed
+             * arbitrary declared leaves is a separate change with its own
+             * argument; this is the shape it will use. Recorded as debt in
+             * docs/ARCHITECTURE.md alongside @c Dataset::num_classes().
+             */
+            ObjectiveLeaves leaves;
+
             /** @brief What the cast pass converted, and where. */
             Graph::CastReport casts;
 
@@ -163,10 +175,15 @@ namespace SushiAI
         /**
          * @brief Traces @p module into a full training graph and differentiates it.
          *
-         * Declares the input and target leaves, runs the model, applies
-         * cross-entropy, then differentiates with respect to every parameter
+         * Declares the input leaf, lets @p objective declare whatever leaves it
+         * needs, runs the model, asks @p objective for the scalar to
+         * differentiate, then differentiates with respect to every parameter
          * the generic walk yields - so a parameter cannot be left out of the
          * backward pass by forgetting to mention it.
+         *
+         * The objective is a parameter rather than a hardcoded loss because a
+         * driver written against a hardcoded one is rewritten at the first
+         * model that is not a classifier. See train/objective.hpp.
          *
          * Then the two IR-to-IR passes, in this order and not the other one:
          *
@@ -190,9 +207,10 @@ namespace SushiAI
          * keeps meaning what it meant.
          *
          * @param module The model to trace; its parameters are declared here.
+         * @param objective What the model is being trained to minimise; read
+         *        only during this call.
          * @param batch Samples per step.
          * @param features Input features per sample.
-         * @param classes How many classes.
          * @param dtype The element type for the whole graph. Under a mixed
          *        policy this is the *master* type: parameters, gradients and
          *        optimizer state keep it, and only derived values narrow.
@@ -213,34 +231,44 @@ namespace SushiAI
          *        @c TrainingGraph::loss_scale, and multiplies the seeded
          *        gradient by it; see @c optim/loss_scaler.hpp for what then
          *        writes it and why it cannot be a constant.
-         * @return The graph, the value ids, the parameter/gradient pairs and
-         *         both passes' reports.
-         * @throws Error If the model's output is not [batch, classes].
+         * @return The graph, the value ids, the declared leaves, the
+         *         parameter/gradient pairs and both passes' reports.
+         * @throws Error If the model's output is not the shape @p objective needs.
          */
         template<typename M>
-        TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
-                                       int64_t classes, DType dtype = DType::FLOAT32,
-                                       Graph::FusionOptions fusion = {},
-                                       const Graph::IPrecisionPolicy* precision = nullptr,
-                                       bool loss_scaling = false)
+        TrainingGraph build_graph(M& module, const IObjective& objective,
+                                  int64_t batch, int64_t features,
+                                  DType dtype = DType::FLOAT32,
+                                  Graph::FusionOptions fusion = {},
+                                  const Graph::IPrecisionPolicy* precision = nullptr,
+                                  bool loss_scaling = false)
         {
             TrainingGraph built;
             const Graph::GraphBuilder builder(built.graph);
 
             built.spec.inputs = builder.input(Shape{batch, features}, "inputs", dtype);
-            built.spec.targets = builder.input(Shape{batch, classes}, "targets", dtype);
+
+            // Declared here, between the input leaf and the model's own trace,
+            // because that is exactly where the target leaf used to be
+            // declared. Value ids are positions, so moving this call would
+            // renumber the whole graph - and every regression test that pins a
+            // node count or a byte-for-byte result would then be comparing two
+            // different graphs while appearing to compare one.
+            objective.declare(builder, built.leaves);
 
             built.spec.logits = module.forward(builder, built.spec.inputs);
 
-            // By value: every emission below can reallocate the value vector.
-            const Shape logit_shape = built.graph.value(built.spec.logits).shape;
-            const Shape expected_shape{batch, classes};
-            SA_THROW_IF(logit_shape != expected_shape,
-                        "The model produced {} but the loss needs {}",
-                        logit_shape.to_string(), expected_shape.to_string());
+            // The objective checks the output's shape, because what shape an
+            // output must be is the objective's question: a detector's is not
+            // a classifier's.
+            built.spec.loss = objective.loss(builder, built.graph, built.spec.logits,
+                                             built.leaves);
 
-            built.spec.loss = NN::CrossEntropyLoss{}.forward(builder, built.spec.logits,
-                                                             built.spec.targets);
+            // StepSpec still names the target leaf, because Trainer feeds
+            // exactly that tensor per step. An objective that declares no such
+            // role leaves it NO_VALUE, and such an objective cannot yet be
+            // driven by Trainer - see TrainingGraph::leaves.
+            if (built.leaves.has("targets")) built.spec.targets = built.leaves.at("targets");
 
             std::vector<Graph::ValueId> wrt;
             NN::for_each_parameter(module, [&](const std::string& name, NN::Parameter& parameter)
@@ -279,6 +307,41 @@ namespace SushiAI
             built.fusion = Graph::fuse(built.graph, fusion);
 
             return built;
+        }
+
+        /**
+         * @brief Traces @p module into a cross-entropy classifier's training graph.
+         *
+         * A thin wrapper over @ref build_graph supplying
+         * @ref CrossEntropyObjective, kept because every existing caller and
+         * test names it and because a classifier is still the common case.
+         * The graph it produces is @ref build_graph's, node for node.
+         *
+         * @param module The model to trace; its parameters are declared here.
+         * @param batch Samples per step.
+         * @param features Input features per sample.
+         * @param classes How many classes.
+         * @param dtype The element type for the whole graph; under a mixed
+         *        policy this is the master type.
+         * @param fusion What the fusion pass is allowed to do.
+         * @param precision Which element type each operation computes in, or
+         *        null for the uniform policy.
+         * @param loss_scaling Whether to give the backward seed a
+         *        device-resident factor.
+         * @return The graph, the value ids, the parameter/gradient pairs and
+         *         both passes' reports.
+         * @throws Error If the model's output is not [batch, classes].
+         */
+        template<typename M>
+        TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
+                                       int64_t classes, DType dtype = DType::FLOAT32,
+                                       Graph::FusionOptions fusion = {},
+                                       const Graph::IPrecisionPolicy* precision = nullptr,
+                                       bool loss_scaling = false)
+        {
+            const CrossEntropyObjective objective(batch, classes, dtype);
+            return build_graph(module, objective, batch, features, dtype, fusion,
+                               precision, loss_scaling);
         }
 
         /**

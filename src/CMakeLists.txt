@@ -43,6 +43,7 @@ set(SUSHIAI_SOURCES
 
     io/checkpoint_format.cpp
 
+    train/objective.cpp
     train/trainer.cpp
 )
 
