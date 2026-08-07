@@ -262,5 +262,16 @@ namespace SushiAI
         static_assert(!ModuleContainer<Linear>,
                       "A leaf layer must not look like a container");
 
+        // The runtime-walk arm for_each_parameter gained for LayerStack is
+        // strictly additive, and these two assertions are what say so: neither
+        // a compile-time leaf nor a compile-time container may start taking it,
+        // because doing so would silently change which walk enumerates them
+        // while every existing test kept passing.
+        static_assert(!Detail::HasParameterWalk<Linear>::value,
+                      "A compile-time leaf must be enumerated by its fields(), "
+                      "not by a runtime walk");
+        static_assert(!Detail::HasParameterWalk<Sequential<Linear, ReLU>>::value,
+                      "Sequential must be enumerated as a container, not by a runtime walk");
+
     } // namespace NN
 } // namespace SushiAI

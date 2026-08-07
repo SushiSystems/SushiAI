@@ -55,11 +55,28 @@
  * comparison against a reference implementation a diff rather than a
  * translation exercise.
  *
+ * @section runtime A layer list that only exists at run time
+ *
+ * A model built from a JSON file cannot publish a @c fields() list, because
+ * @c fields() is @c static and returns member pointers of one concrete type,
+ * and it cannot be walked as a container either, because its children are all
+ * the same @c ILayer& and a @c fields() walk over that finds nothing while
+ * reporting no error. So @c for_each_parameter has a third case: a type that
+ * offers @c walk_parameters is asked to enumerate itself, through the
+ * type-erased @ref ParameterVisitor.
+ *
+ * The arm is strictly additive - no type that compiled before it existed takes
+ * it, and layers.hpp asserts exactly that - and it is what lets one walk serve
+ * both the compile-time @c Sequential and the runtime @c LayerStack. Because
+ * everything downstream is a template over this walk, nothing else in the
+ * library learned that a second kind of model exists.
+ *
  * Host lane: no SushiBLAS, no SYCL.
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -194,6 +211,67 @@ namespace SushiAI
             return ParameterField<M>{name, member};
         }
 
+        /**
+         * @class ParameterVisitor
+         * @brief A non-owning reference to a parameter callback, for a virtual walk.
+         *
+         * @ref for_each_parameter takes its visitor as a template parameter,
+         * which a virtual function cannot be. A layer list decided at run time
+         * therefore needs the callback type-erased before it can cross the
+         * @c ILayer boundary - and erased without allocating, because the walk
+         * runs on the trace path and inside checkpoint I/O, neither of which
+         * should heap-allocate to describe a callable the caller already holds.
+         *
+         * It *refers* to the callable rather than owning it, exactly as a
+         * @c string_view refers to characters: the referent must outlive the
+         * visitor. Every construction site in this library passes a named
+         * local, so there is no temporary to dangle.
+         */
+        class ParameterVisitor
+        {
+            public:
+                /**
+                 * @brief Wraps @p callable, which must outlive this visitor.
+                 *
+                 * Excluded for @c ParameterVisitor itself so that wrapping one
+                 * a second time copies it rather than building a trampoline
+                 * that jumps through another trampoline.
+                 *
+                 * @tparam Fn Anything callable as (const std::string&, Parameter&).
+                 * @param callable The callback; stored by address.
+                 */
+                template<typename Fn,
+                         typename = std::enable_if_t<
+                             !std::is_same<std::decay_t<Fn>, ParameterVisitor>::value>>
+                ParameterVisitor(Fn& callable) noexcept
+                    // The const_cast is what lets a const callable - which is
+                    // what `Fn` deduces to whenever the walk is already inside
+                    // one erasure - be referred to through one `void*` member.
+                    // It is never cast back to a non-const pointer: `Fn` below
+                    // carries the constness, so the call is const-correct.
+                    : target_(const_cast<void*>(static_cast<const void*>(std::addressof(callable)))),
+                      invoke_([](void* target, const std::string& name, Parameter& parameter)
+                              {
+                                  (*static_cast<Fn*>(target))(name, parameter);
+                              })
+                {
+                }
+
+                /**
+                 * @brief Applies the wrapped callback.
+                 * @param name The parameter's dotted name.
+                 * @param parameter The parameter itself.
+                 */
+                void operator()(const std::string& name, Parameter& parameter) const
+                {
+                    invoke_(target_, name, parameter);
+                }
+
+            private:
+                void* target_ = nullptr;
+                void (*invoke_)(void*, const std::string&, Parameter&) = nullptr;
+        };
+
         namespace Detail
         {
             /**
@@ -254,6 +332,32 @@ namespace SushiAI
             template<typename T>
             struct IsModuleContainer<T, std::void_t<
                 decltype(std::declval<T&>().visit_children(ChildProbe{}))>>
+                : std::true_type {};
+
+            /**
+             * @struct HasParameterWalk
+             * @brief Detects a layer that enumerates its own parameters at run time.
+             *
+             * Neither of the other two cases can serve a @c LayerStack, which
+             * holds @c std::unique_ptr<ILayer>: @c fields() is static and
+             * returns member pointers of one concrete type, and
+             * @c visit_children would hand every child out as the same
+             * @c ILayer& - so a @c fields() walk over it would find nothing and
+             * report no error, which is the silent kind of wrong this file
+             * exists to refuse. Such a type publishes @c walk_parameters
+             * instead and this detector routes the walk to it.
+             *
+             * @tparam T The candidate layer type.
+             */
+            template<typename T, typename = void>
+            struct HasParameterWalk : std::false_type {};
+
+            /** @brief The satisfied case: T offers walk_parameters(prefix, visitor). */
+            template<typename T>
+            struct HasParameterWalk<T, std::void_t<
+                decltype(std::declval<T&>().walk_parameters(
+                    std::declval<std::string_view>(),
+                    std::declval<const ParameterVisitor&>()))>>
                 : std::true_type {};
 
             /** @brief Joins a parameter-path prefix to a leaf name, PyTorch style. */
@@ -322,8 +426,20 @@ namespace SushiAI
          * @brief Visits every declared parameter of @p module, deepest name first.
          *
          * The single walk the optimizer, the initializer and any serializer all
-         * go through. A container recurses with its child index appended to the
-         * prefix; a leaf layer applies its fields() list.
+         * go through. Three cases, tried in this order:
+         *
+         * 1. A layer that enumerates its own parameters at run time - a
+         *    @c LayerStack, whose list came from a config file - is asked to do
+         *    so through @c walk_parameters. First, so a type that offers both a
+         *    walk and a @c fields() list is enumerated by the walk it wrote
+         *    rather than by the empty list it inherited.
+         * 2. A container recurses with its child index appended to the prefix.
+         * 3. A leaf layer applies its @c fields() list.
+         *
+         * Everything downstream is @c template<typename @c M> over this one
+         * walk, so all three cases reach @c NN::initialize,
+         * @c Train::build_graph, @c NN::parameter_elements and the checkpoint
+         * I/O without any of them knowing there is more than one.
          *
          * @param module The model or layer to walk.
          * @param prefix The name prefix; empty at the root.
@@ -332,7 +448,16 @@ namespace SushiAI
         template<typename M, typename Fn>
         void for_each_parameter(M& module, std::string_view prefix, Fn&& visitor)
         {
-            if constexpr (ModuleContainer<M>)
+            if constexpr (Detail::HasParameterWalk<M>::value)
+            {
+                // ParameterVisitor refers to its callable rather than owning
+                // it, so the erased visitor is a named local pointing at
+                // `visitor` - which is itself a named lvalue here, whatever
+                // Fn deduced to.
+                const ParameterVisitor erased(visitor);
+                module.walk_parameters(prefix, erased);
+            }
+            else if constexpr (ModuleContainer<M>)
             {
                 module.visit_children([&](std::size_t index, auto& child)
                 {
