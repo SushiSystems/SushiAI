@@ -96,6 +96,7 @@
 #include "data/dataset.hpp"
 
 #include "io/checkpoint_format.hpp"
+#include "io/checkpoint.hpp"
 
 #include "train/objective.hpp"
 #include "train/trainer.hpp"

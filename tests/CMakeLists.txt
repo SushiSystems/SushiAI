@@ -56,6 +56,7 @@ add_executable(sushiai_tests
     functional/integration/test_mixed_precision.cpp
     functional/integration/test_resilience.cpp
     functional/integration/test_registries.cpp
+    functional/integration/test_checkpoint.cpp
 
     functional/regression/test_compile_once.cpp
     functional/regression/test_determinism.cpp
