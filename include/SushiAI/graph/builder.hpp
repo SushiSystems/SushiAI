@@ -54,6 +54,53 @@ namespace SushiAI
     namespace Graph
     {
         /**
+         * @struct ConvGeometry
+         * @brief A 2-D window's shape and placement, in CV-5's eight slots.
+         *
+         * Mirrors SushiBLAS's @c Spatial::ConvGeometry field for field, and for
+         * the same reason it carries no @c pad_bottom or @c pad_right: those
+         * only ever decide the output extent, which the host computes and
+         * states outright. Deriving them back from an extent would assume
+         * symmetric padding, which YOLOv3-tiny's 13->13 pool violates.
+         */
+        struct ConvGeometry
+        {
+            int64_t kernel_h = 1;   /**< @brief Window height, in taps. */
+            int64_t kernel_w = 1;   /**< @brief Window width, in taps. */
+            int64_t stride_h = 1;   /**< @brief Vertical step between windows. */
+            int64_t stride_w = 1;   /**< @brief Horizontal step between windows. */
+            int64_t dilation_h = 1; /**< @brief Vertical spacing between taps. */
+            int64_t dilation_w = 1; /**< @brief Horizontal spacing between taps. */
+            int64_t pad_top = 0;    /**< @brief Rows of zeros above the input. */
+            int64_t pad_left = 0;   /**< @brief Columns of zeros left of the input. */
+        };
+
+        /**
+         * @brief The number of windows one axis yields.
+         *
+         * The one formula for this in SushiAI, so that a layer's shape
+         * inference and the geometry it hands SushiBLAS cannot disagree.
+         *
+         * @param in The input extent.
+         * @param pad_before Padding before the first element.
+         * @param pad_after Padding after the last.
+         * @param dilation The spacing between taps.
+         * @param kernel The number of taps.
+         * @param stride The step between windows.
+         * @return The output extent, or 0 when the window does not fit.
+         */
+        constexpr int64_t output_extent(int64_t in, int64_t pad_before, int64_t pad_after,
+                                        int64_t dilation, int64_t kernel,
+                                        int64_t stride) noexcept
+        {
+            if (stride <= 0 || kernel <= 0 || dilation <= 0) return 0;
+            const int64_t covered = dilation * (kernel - 1) + 1;
+            const int64_t padded = in + pad_before + pad_after;
+            if (padded < covered) return 0;
+            return (padded - covered) / stride + 1;
+        }
+
+        /**
          * @class GraphBuilder
          * @brief Emits shape-checked IR nodes into a Graph.
          *
@@ -331,6 +378,56 @@ namespace SushiAI
                  */
                 ValueId declare_like(ValueId like, Shape shape, DType dtype,
                                      Lifetime lifetime, std::string_view debug_name) const;
+
+                // --- Spatial -----------------------------------------------------
+
+                /**
+                 * @brief Emits @c IM2COL: each window becomes one row of a matrix.
+                 *
+                 * The result is @c [N*H_o*W_o, kernel_h*kernel_w*C], which is
+                 * exactly the left operand of the GEMM a convolution is (CV-1).
+                 * Padding is assumed symmetric here and only here, because a
+                 * caller that needs otherwise states its own extents through
+                 * @ref im2col_with_extents.
+                 *
+                 * @param x The @c [N,H,W,C] input.
+                 * @param g The window geometry.
+                 * @return The column matrix's id.
+                 * @throws Error If @p x is not rank 4, or the window does not
+                 *         fit the padded input.
+                 */
+                ValueId im2col(ValueId x, const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits @c IM2COL with the output extents stated outright.
+                 *
+                 * The overload an asymmetrically-padded layer uses.
+                 *
+                 * @param x The @c [N,H,W,C] input.
+                 * @param g The window geometry.
+                 * @param out_h The number of window rows.
+                 * @param out_w The number of window columns.
+                 * @return The column matrix's id.
+                 * @throws Error If @p x is not rank 4 or either extent is not positive.
+                 */
+                ValueId im2col_with_extents(ValueId x, const ConvGeometry& g,
+                                            int64_t out_h, int64_t out_w) const;
+
+                /**
+                 * @brief Emits @c COL2IM: the adjoint of @ref im2col.
+                 *
+                 * A gather over the input pixels, never an atomic scatter
+                 * (CV-6), which is what makes it bit-reproducible.
+                 *
+                 * @param cols The column matrix.
+                 * @param image_shape The @c [N,H,W,C] shape to return to.
+                 * @param g The window geometry @p cols was produced with.
+                 * @return The image's id.
+                 * @throws Error If @p image_shape is not rank 4, or @p cols
+                 *         does not have the row and column counts that
+                 *         geometry implies.
+                 */
+                ValueId col2im(ValueId cols, Shape image_shape, const ConvGeometry& g) const;
 
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
