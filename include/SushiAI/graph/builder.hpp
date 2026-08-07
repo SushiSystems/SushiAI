@@ -386,15 +386,15 @@ namespace SushiAI
                  *
                  * The result is @c [N*H_o*W_o, kernel_h*kernel_w*C], which is
                  * exactly the left operand of the GEMM a convolution is (CV-1).
-                 * Padding is assumed symmetric here and only here, because a
-                 * caller that needs otherwise states its own extents through
-                 * @ref im2col_with_extents.
+                 * This overload derives the output extents assuming symmetric
+                 * padding; a caller that needs otherwise states its own
+                 * extents through @ref im2col_with_extents.
                  *
                  * @param x The @c [N,H,W,C] input.
                  * @param g The window geometry.
                  * @return The column matrix's id.
-                 * @throws Error If @p x is not rank 4, or the window does not
-                 *         fit the padded input.
+                 * @throws Error If @p x is not rank 4, not NHWC, or the
+                 *         window does not fit the padded input.
                  */
                 ValueId im2col(ValueId x, const ConvGeometry& g) const;
 
@@ -408,7 +408,8 @@ namespace SushiAI
                  * @param out_h The number of window rows.
                  * @param out_w The number of window columns.
                  * @return The column matrix's id.
-                 * @throws Error If @p x is not rank 4 or either extent is not positive.
+                 * @throws Error If @p x is not rank 4, not NHWC, or either
+                 *         extent is not positive.
                  */
                 ValueId im2col_with_extents(ValueId x, const ConvGeometry& g,
                                             int64_t out_h, int64_t out_w) const;
@@ -417,17 +418,46 @@ namespace SushiAI
                  * @brief Emits @c COL2IM: the adjoint of @ref im2col.
                  *
                  * A gather over the input pixels, never an atomic scatter
-                 * (CV-6), which is what makes it bit-reproducible.
+                 * (CV-6), which is what makes it bit-reproducible. This
+                 * overload re-derives @p cols's expected row count from @p g
+                 * assuming symmetric padding, which is wrong whenever the
+                 * forward pass padded asymmetrically (bottom/right only, as
+                 * @c ConvGeometry's own doc warns). A caller that knows the
+                 * forward's actual window counts - which a backward rule
+                 * always does, because the forward already wrote them into
+                 * the graph - states them through @ref col2im_with_extents
+                 * instead.
                  *
                  * @param cols The column matrix.
                  * @param image_shape The @c [N,H,W,C] shape to return to.
                  * @param g The window geometry @p cols was produced with.
                  * @return The image's id.
-                 * @throws Error If @p image_shape is not rank 4, or @p cols
-                 *         does not have the row and column counts that
-                 *         geometry implies.
+                 * @throws Error If @p image_shape is not rank 4, @p cols is
+                 *         not rank 2 or not NHWC, or @p cols does not have
+                 *         the row and column counts that geometry implies
+                 *         under symmetric padding.
                  */
                 ValueId col2im(ValueId cols, Shape image_shape, const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits @c COL2IM with the window counts stated outright.
+                 *
+                 * The overload a backward rule uses, because the forward's extents
+                 * are already written down in the graph and need not be re-derived.
+                 *
+                 * @param cols The column matrix.
+                 * @param image_shape The @c [N,H,W,C] shape to return to.
+                 * @param g The window geometry @p cols was produced with.
+                 * @param out_h The number of window rows @p cols holds.
+                 * @param out_w The number of window columns @p cols holds.
+                 * @return The image's id.
+                 * @throws Error If @p image_shape is not rank 4, @p cols is
+                 *         not rank 2 or not NHWC, or @p cols does not have
+                 *         `N*out_h*out_w` rows and `kernel_h*kernel_w*C` columns.
+                 */
+                ValueId col2im_with_extents(ValueId cols, Shape image_shape,
+                                            const ConvGeometry& g,
+                                            int64_t out_h, int64_t out_w) const;
 
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
