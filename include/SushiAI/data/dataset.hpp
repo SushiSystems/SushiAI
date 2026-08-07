@@ -56,6 +56,7 @@
  *          when you need byte-identical data twice.
  */
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -64,6 +65,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -195,6 +197,89 @@ namespace SushiAI
         };
 
         /**
+         * @struct RingsOptions
+         * @brief How to shape the concentric-rings problem.
+         */
+        struct RingsOptions
+        {
+            /** @brief Samples per batch. */
+            int64_t batch_size = 64;
+
+            /** @brief How many batches to generate. */
+            int64_t batches = 64;
+
+            /** @brief How many classes; one per ring. */
+            int64_t classes = 4;
+
+            /** @brief Extra pure-Gaussian features carrying no signal at all. */
+            int64_t distractor_features = 4;
+
+            /** @brief Ring c spans radius [c, c + ring_width). */
+            double ring_width = 1.0;
+
+            /** @brief Gaussian jitter added to x and y. */
+            double position_noise = 0.12;
+
+            /** @brief The seed; the same seed gives the same data. */
+            std::uint64_t seed = 0x0D15EA5E'0BADF00Dull;
+        };
+
+        /**
+         * @class Rings
+         * @brief Concentric rings, labelled by which ring a point falls in.
+         *
+         * @section why Why this problem and not another synthetic one
+         *
+         * Four concentric rings in a plane, one class per ring. The decision
+         * boundary is a degree-2 polynomial in the inputs - the class is a
+         * function of x² + y² - so **no linear classifier can separate it**: a
+         * single Linear layer tops out near chance accuracy no matter how it is
+         * trained. That is what makes it a gate a shallow model actually fails,
+         * where @ref SyntheticClassification (linearly separable by
+         * construction) is one that any correct implementation passes.
+         *
+         * A handful of purely Gaussian distractor features ride along with
+         * (x, y), so the network also has to learn which inputs are signal.
+         *
+         * @section host Generated on the host, and why that is enough
+         *
+         * Every SushiBLAS tensor here is backed by shared USM - the same idiom
+         * the MNIST loader uses - so writing through @c data_as<float>() is
+         * sufficient and no device kernel is needed. The RNG is a seeded
+         * @c std::mt19937_64 rather than the engine's Philox stream, which
+         * makes reproducibility a property of the seed alone: see this file's
+         * warning about @c Engine::set_seed for why the device stream does not
+         * give that.
+         *
+         * Samples are assigned to classes round-robin, so every batch is
+         * exactly balanced and accuracy needs no class weighting to read
+         * correctly.
+         */
+        class Rings final : public Dataset
+        {
+            public:
+                /**
+                 * @brief Generates the whole dataset.
+                 * @param engine The engine that allocates the tensors.
+                 * @param options The problem's shape.
+                 * @throws Error If any extent in @p options is not positive, or
+                 *         the distractor count is negative.
+                 */
+                Rings(SushiBLAS::Engine& engine, RingsOptions options = {});
+
+                int64_t batch_size() const noexcept override { return options_.batch_size; }
+                int64_t input_dim() const noexcept override { return 2 + options_.distractor_features; }
+                int64_t num_classes() const noexcept override { return options_.classes; }
+                std::size_t batch_count() const noexcept override { return batches_.size(); }
+                const Batch& batch(std::size_t index) const override;
+                std::string_view name() const noexcept override { return "rings"; }
+
+            private:
+                RingsOptions options_;
+                std::vector<Batch> batches_;
+        };
+
+        /**
          * @struct MnistOptions
          * @brief Where the IDX files are and how much of them to use.
          */
@@ -242,6 +327,69 @@ namespace SushiAI
          */
         std::unique_ptr<Dataset> try_load_mnist(SushiBLAS::Engine& engine,
                                                 const MnistOptions& options = {});
+
+        // --- The registry a configuration file selects through -----------------
+
+        /**
+         * @brief Builds one dataset from its configuration attributes.
+         * @param engine The engine that allocates and fills the tensors.
+         * @param attributes The dataset's own keys; the factory rejects any it does not know.
+         * @param context What to call this dataset in a diagnostic.
+         * @return The dataset.
+         */
+        using DatasetFactory = std::unique_ptr<Dataset> (*)(SushiBLAS::Engine& engine,
+                                                            const Config::Value& attributes,
+                                                            std::string_view context);
+
+        /**
+         * @struct DatasetEntry
+         * @brief One row of @ref DATASET_REGISTRY.
+         */
+        struct DatasetEntry
+        {
+            /** @brief The "type" a configuration file spells. */
+            std::string_view type;
+
+            /** @brief What builds it. */
+            DatasetFactory make;
+        };
+
+        /**
+         * @brief Builds a @ref Rings from its configuration attributes.
+         * @param engine The engine that allocates the tensors.
+         * @param attributes batch_size, batches, classes, distractors, ring_width,
+         *        position_noise and seed, all optional.
+         * @param context What to call this dataset in a diagnostic.
+         * @return The dataset.
+         * @throws Error If a key is unknown or a value is out of range.
+         */
+        std::unique_ptr<Dataset> make_rings(SushiBLAS::Engine& engine,
+                                            const Config::Value& attributes,
+                                            std::string_view context);
+
+        /**
+         * @brief Every dataset type a configuration file may name.
+         *
+         * A file-scope constant table; nothing self-registers. See
+         * config/registry.hpp for why that is forced rather than preferred.
+         */
+        inline constexpr std::array<DatasetEntry, 1> DATASET_REGISTRY = {
+            DatasetEntry{"rings", &make_rings},
+        };
+
+        /**
+         * @brief Builds the dataset named @p type.
+         * @param engine The engine that allocates and fills the tensors.
+         * @param type The registry key.
+         * @param attributes The dataset's own keys.
+         * @param context What to call it in a diagnostic.
+         * @return The dataset.
+         * @throws Error If @p type is unknown; the message lists every type
+         *         this build has.
+         */
+        std::unique_ptr<Dataset> make_dataset(SushiBLAS::Engine& engine, std::string_view type,
+                                              const Config::Value& attributes,
+                                              std::string_view context);
 
     } // namespace Data
 } // namespace SushiAI

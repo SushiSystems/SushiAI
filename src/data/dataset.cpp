@@ -22,10 +22,14 @@
 /**************************************************************************/
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <fstream>
+#include <random>
+#include <string>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/core/format.hpp>
+#include <SushiAI/config/registry.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/data/dataset.hpp>
 
@@ -35,6 +39,51 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Every key a "rings" dataset accepts. */
+            constexpr std::string_view RINGS_KEYS[] = {
+                "batch_size", "batches", "classes", "distractors",
+                "ring_width", "position_noise", "seed",
+            };
+
+            /** @brief Wraps a literal key list as a span, for reject_unknown_keys. */
+            template<std::size_t N>
+            SushiRuntime::span<const std::string_view> as_span(const std::string_view (&keys)[N])
+            {
+                return SushiRuntime::span<const std::string_view>(keys, N);
+            }
+
+            /**
+             * @brief Reads an optional whole number from a dataset's attributes.
+             * @param attributes The dataset's keys.
+             * @param key Which one.
+             * @param prefix What to call this dataset in a diagnostic.
+             * @param fallback Returned when @p key is absent.
+             * @return The value, or @p fallback.
+             */
+            int64_t read_int(const Config::Value& attributes, std::string_view key,
+                             const std::string& prefix, int64_t fallback)
+            {
+                const Config::Value spelled = Config::Value::integer(fallback);
+                return attributes.at_or(key, spelled)
+                                 .as_int(prefix + " '" + std::string(key) + "'");
+            }
+
+            /**
+             * @brief Reads an optional real from a dataset's attributes.
+             * @param attributes The dataset's keys.
+             * @param key Which one.
+             * @param prefix What to call this dataset in a diagnostic.
+             * @param fallback Returned when @p key is absent.
+             * @return The value, or @p fallback.
+             */
+            double read_real(const Config::Value& attributes, std::string_view key,
+                             const std::string& prefix, double fallback)
+            {
+                const Config::Value spelled = Config::Value::real(fallback);
+                return attributes.at_or(key, spelled)
+                                 .as_real(prefix + " '" + std::string(key) + "'");
+            }
+
             /** @brief Writes a one-hot row pattern straight into shared USM. */
             void write_one_hot(SushiBLAS::Tensor& targets,
                                const std::vector<int32_t>& labels,
@@ -282,6 +331,124 @@ namespace SushiAI
 
             return std::make_unique<MaterialisedDataset>(std::move(batches), rows, pixels,
                                                          classes, "mnist");
+        }
+
+        // --- Rings -----------------------------------------------------------
+
+        Rings::Rings(SushiBLAS::Engine& engine, RingsOptions options)
+            : options_(options)
+        {
+            SA_THROW_IF(options_.batch_size <= 0 || options_.batches <= 0
+                        || options_.classes <= 0,
+                        "Rings needs a positive batch size, batch count and class count; "
+                        "got {}, {} and {}",
+                        options_.batch_size, options_.batches, options_.classes);
+            SA_THROW_IF(options_.distractor_features < 0,
+                        "Rings needs a non-negative distractor count, got {}",
+                        options_.distractor_features);
+            SA_THROW_IF(options_.ring_width <= 0.0,
+                        "Rings needs a positive ring width, got {}", options_.ring_width);
+            SA_THROW_IF(options_.position_noise < 0.0,
+                        "Rings needs a non-negative position noise, got {}",
+                        options_.position_noise);
+
+            const int64_t features = input_dim();
+            const int64_t classes = options_.classes;
+            const int64_t rows = options_.batch_size;
+
+            constexpr double TWO_PI = 6.283185307179586476925286766559;
+
+            // A host RNG rather than the engine's Philox stream, so
+            // reproducibility is a property of the seed alone - see this
+            // header's warning about Engine::set_seed for why the device
+            // stream does not give that.
+            std::mt19937_64 rng(options_.seed);
+            std::uniform_real_distribution<double> theta_dist(0.0, TWO_PI);
+            std::uniform_real_distribution<double> band_dist(0.0, options_.ring_width);
+            std::normal_distribution<double> jitter(0.0, options_.position_noise);
+            std::normal_distribution<double> distractor(0.0, 1.0);
+
+            batches_.reserve(static_cast<std::size_t>(options_.batches));
+
+            int64_t running = 0;
+            for (int64_t b = 0; b < options_.batches; ++b)
+            {
+                Batch batch;
+                const int64_t sample_dims[2] = {rows, features};
+                const int64_t target_dims[2] = {rows, classes};
+                batch.inputs = allocate_tensor(engine,
+                                               SushiRuntime::span<const int64_t>(sample_dims, 2));
+                batch.targets = allocate_tensor(engine,
+                                                SushiRuntime::span<const int64_t>(target_dims, 2));
+                batch.labels.resize(static_cast<std::size_t>(rows));
+
+                float* x = batch.inputs.data_as<float>();
+
+                for (int64_t r = 0; r < rows; ++r)
+                {
+                    // Round-robin over classes, exactly as SyntheticClassification
+                    // does, so every batch is balanced and accuracy needs no class
+                    // weighting to read correctly.
+                    const int64_t label = (running++) % classes;
+                    batch.labels[static_cast<std::size_t>(r)] = static_cast<int32_t>(label);
+
+                    const double radius = static_cast<double>(label) + band_dist(rng);
+                    const double theta = theta_dist(rng);
+
+                    float* row = x + r * features;
+                    row[0] = static_cast<float>(radius * std::cos(theta) + jitter(rng));
+                    row[1] = static_cast<float>(radius * std::sin(theta) + jitter(rng));
+                    for (int64_t f = 0; f < options_.distractor_features; ++f)
+                        row[2 + f] = static_cast<float>(distractor(rng));
+                }
+
+                write_one_hot(batch.targets, batch.labels, classes);
+                batches_.push_back(std::move(batch));
+            }
+        }
+
+        const Batch& Rings::batch(std::size_t index) const
+        {
+            SA_THROW_IF(index >= batches_.size(),
+                        "Batch {} is out of range; the dataset has {}", index, batches_.size());
+            return batches_[index];
+        }
+
+        // --- The registry ------------------------------------------------------
+
+        std::unique_ptr<Dataset> make_rings(SushiBLAS::Engine& engine,
+                                            const Config::Value& attributes,
+                                            std::string_view context)
+        {
+            attributes.reject_unknown_keys(context, as_span(RINGS_KEYS));
+
+            RingsOptions options;
+            const std::string prefix(context);
+
+            options.batch_size = read_int(attributes, "batch_size", prefix, options.batch_size);
+            options.batches = read_int(attributes, "batches", prefix, options.batches);
+            options.classes = read_int(attributes, "classes", prefix, options.classes);
+            options.distractor_features =
+                read_int(attributes, "distractors", prefix, options.distractor_features);
+            options.ring_width = read_real(attributes, "ring_width", prefix, options.ring_width);
+            options.position_noise =
+                read_real(attributes, "position_noise", prefix, options.position_noise);
+
+            // Read as a signed whole number because that is what JSON's grammar
+            // and Config::Value carry; reinterpreted rather than range-checked,
+            // so any 64-bit pattern a file can spell is a usable seed.
+            options.seed = static_cast<std::uint64_t>(
+                read_int(attributes, "seed", prefix, static_cast<int64_t>(options.seed)));
+
+            return std::make_unique<Rings>(engine, options);
+        }
+
+        std::unique_ptr<Dataset> make_dataset(SushiBLAS::Engine& engine, std::string_view type,
+                                              const Config::Value& attributes,
+                                              std::string_view context)
+        {
+            return Config::find_entry(DATASET_REGISTRY, type, "dataset type")
+                       .make(engine, attributes, context);
         }
 
     } // namespace Data

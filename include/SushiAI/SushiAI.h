@@ -91,6 +91,7 @@
 #include "optim/optimizer.hpp"
 #include "optim/sgd.hpp"
 #include "optim/adamw.hpp"
+#include "optim/optimizer_registry.hpp"
 
 #include "data/dataset.hpp"
 

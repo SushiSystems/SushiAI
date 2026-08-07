@@ -37,6 +37,7 @@ set(SUSHIAI_SOURCES
     optim/loss_scaler.cpp
     optim/sgd.cpp
     optim/adamw.cpp
+    optim/optimizer_registry.cpp
 
     data/dataset.cpp
 
