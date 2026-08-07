@@ -9,7 +9,10 @@
 // thing that decides whether the optimizer sees a layer at all - is testable
 // without hardware.
 
+#include <cstddef>
 #include <string>
+#include <string_view>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/graph/builder.hpp>
@@ -238,4 +241,90 @@ TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
 
     EXPECT_THROW((void)builder.mul(x, b), Error);
     EXPECT_NO_THROW((void)builder.bias_add(x, b));
+}
+
+// ---------------------------------------------------------------------------
+// The third arm: a layer whose parameters are enumerated at run time.
+//
+// The stub below is deliberately not a LayerStack. This file tests the walk,
+// and the walk's contract is `walk_parameters(prefix, ParameterVisitor)` -
+// anything satisfying it is enumerated through it, whether or not it is one of
+// the library's own types. Testing it against LayerStack would tie the walk's
+// test to a type that arrived two commits later.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+    /** @brief A leaf that publishes an empty fields() and walks itself instead. */
+    class WalkableStub
+    {
+        public:
+            WalkableStub()
+            {
+                weight_.declare(builder_, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "w");
+                bias_.declare(builder_, Shape{2}, NN::ParameterRole::BIAS, 0, 0, "b");
+            }
+
+            static constexpr auto fields() { return std::tuple<>{}; }
+
+            Graph::ValueId forward(const Graph::GraphBuilder&, Graph::ValueId x) { return x; }
+
+            void walk_parameters(std::string_view prefix, const NN::ParameterVisitor& visitor)
+            {
+                visitor(NN::Detail::join(prefix, "weight"), weight_);
+                visitor(NN::Detail::join(prefix, "bias"), bias_);
+            }
+
+        private:
+            Graph::Graph graph_{};
+            Graph::GraphBuilder builder_{graph_};
+            Parameter weight_{};
+            Parameter bias_{};
+    };
+
+    /** @brief A container holding a walkable child, to check the two arms compose. */
+    class StubHolder
+    {
+        public:
+            static constexpr auto fields() { return std::tuple<>{}; }
+
+            Graph::ValueId forward(const Graph::GraphBuilder&, Graph::ValueId x) { return x; }
+
+            template<typename Fn>
+            void visit_children(Fn&& visitor) { visitor(std::size_t{0}, child_); }
+
+        private:
+            WalkableStub child_{};
+    };
+}
+
+TEST(Unit_Module, AWalkableLeafIsEnumeratedByItsOwnWalk)
+{
+    WalkableStub stub;
+    EXPECT_EQ(walk(stub), (std::vector<std::string>{"weight:[2, 3]", "bias:[2]"}));
+    EXPECT_EQ(NN::parameter_count(stub), 2u);
+    EXPECT_EQ(NN::parameter_elements(stub), 8);
+}
+
+TEST(Unit_Module, AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther)
+{
+    // The two arms compose: the container supplies "0.", the walkable child
+    // supplies the leaf names, and nothing about the join changed.
+    StubHolder holder;
+    EXPECT_EQ(walk(holder), (std::vector<std::string>{"0.weight:[2, 3]", "0.bias:[2]"}));
+}
+
+TEST(Unit_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
+{
+    // layers.hpp asserts this for Linear and Sequential at build time; restated
+    // here so the property is visible in the test that covers the walk, and so
+    // it names the detector rather than the arm's consequences.
+    static_assert(NN::Detail::HasParameterWalk<WalkableStub>::value,
+                  "the stub must be detected as walking itself");
+    static_assert(!NN::Detail::HasParameterWalk<Linear>::value,
+                  "a compile-time leaf must not take the runtime arm");
+    static_assert(!NN::Detail::HasParameterWalk<Sequential<Linear, ReLU>>::value,
+                  "a compile-time container must not take the runtime arm");
+    static_assert(!NN::Detail::HasParameterWalk<StubHolder>::value,
+                  "a container holding a walkable child is still a container");
 }
