@@ -151,3 +151,17 @@ TEST(Unit_Ops, ThereIsNoConv2dIdentity)
     // add one will do it by analogy rather than by reading the spec.
     EXPECT_EQ(Ops::name_of(Ops::op("sushiai.conv2d").id), "sushiai.unknown");
 }
+
+TEST(Unit_Ops, LeakyReluDifferentiatesAtItsOutput)
+{
+    // For alpha > 0, leaky_relu(x) > 0 exactly when x > 0, so reading the
+    // output instead of the input is a bit-identical substitution - the same
+    // argument the table already records for RELU, not an approximation.
+    // It is what makes the fold free: an ordinary use count licenses it with
+    // no activation-specific knowledge in the fusion pass.
+    const Ops::Activation* entry = Ops::activation_of(Ops::LEAKY_RELU.id);
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->backward, Ops::LEAKY_RELU_BACKWARD.id);
+    EXPECT_EQ(entry->gradient_source, Ops::GradientSource::OUTPUT);
+    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::LEAKY_RELU.id));
+}
