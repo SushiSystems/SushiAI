@@ -75,6 +75,8 @@
 
 #include "nn/module.hpp"
 #include "nn/layers.hpp"
+#include "nn/ilayer.hpp"
+#include "nn/layer_stack.hpp"
 #include "nn/loss.hpp"
 #include "nn/init.hpp"
 

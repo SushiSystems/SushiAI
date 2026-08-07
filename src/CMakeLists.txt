@@ -24,6 +24,7 @@ set(SUSHIAI_SOURCES
     autograd/gradcheck.cpp
 
     nn/layers.cpp
+    nn/layer_stack.cpp
     nn/init.cpp
 
     optim/optimizer.cpp
