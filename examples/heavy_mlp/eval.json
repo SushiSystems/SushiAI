@@ -1,0 +1,5 @@
+{
+  "sushiai_data": 1,
+  "data": { "type": "rings", "batch_size": 512, "batches": 1,
+            "classes": 4, "seed": 3735928575 }
+}

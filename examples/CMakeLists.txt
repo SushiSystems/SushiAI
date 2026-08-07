@@ -3,22 +3,10 @@
 # supported `sa demo mlp` command, whose flags and printed lines are a
 # contract the test suite pins. See demo_mlp.cpp's header for the full
 # argument for keeping them apart.
-#
-# heavy_mlp_train / heavy_mlp_infer are a pair: a deeper (four hidden layer)
-# MLP trained on a nonlinear classification problem (concentric rings - not
-# linearly separable, see heavy_mlp/model.hpp) and a second, separate binary
-# that loads the checkpoint the first one writes and evaluates it with no
-# loss and no backward pass. Two binaries rather than one with a --mode flag,
-# because that is what "training" and "inference" actually are: two
-# processes that share a model definition and disagree about everything
-# else a Trainer needs.
-set(SUSHIAI_EXAMPLE_TARGETS sushiai_example sushiai_demo_mlp
-                             heavy_mlp_train heavy_mlp_infer)
+set(SUSHIAI_EXAMPLE_TARGETS sushiai_example sushiai_demo_mlp)
 
 add_executable(sushiai_example example.cpp)
 add_executable(sushiai_demo_mlp demo_mlp.cpp)
-add_executable(heavy_mlp_train heavy_mlp/train.cpp)
-add_executable(heavy_mlp_infer heavy_mlp/infer.cpp)
 
 foreach(target IN LISTS SUSHIAI_EXAMPLE_TARGETS)
     target_link_libraries(${target} PRIVATE sushiai)
