@@ -34,6 +34,8 @@ set(SUSHIAI_SOURCES
 
     data/dataset.cpp
 
+    io/checkpoint_format.cpp
+
     train/trainer.cpp
 )
 
