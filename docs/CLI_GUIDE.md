@@ -54,6 +54,8 @@ see exactly what the CLI resolved.
 | `sa build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
 | `sa doxygen` | Generate the Doxygen API reference into `docs/api-site/html/` |
 | `sa demo mlp` | Train an MLP end to end and report the compile count |
+| `sushiai train` | Train a model described by a JSON configuration |
+| `sushiai inference` | Evaluate a trained checkpoint over a dataset |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
 
@@ -233,6 +235,93 @@ Two deliberate choices:
 - **Every flag is forwarded verbatim, including `--help`.** The demo owns its
   flag surface; restating it in Typer would give two places to change and one
   to forget. `sa demo --help` still lists the available demos.
+
+## `sushiai train` and `sushiai inference` — config-driven runs
+
+```bash
+sushiai train      examples/heavy_mlp/train.json
+sushiai inference  examples/heavy_mlp/model.json  heavy_mlp.ckpt  examples/heavy_mlp/eval.json
+```
+
+`sa` and `sushiai` are the same program (`cli/pyproject.toml` binds both), so
+these work under either name; they are spelled `sushiai` here because that is
+how the design document names them.
+
+### What the two commands are for
+
+A model's architecture lives in a JSON file rather than in the C++ type
+system, and these two drivers consume it. The point is not convenience: it is
+that `apps/train.cpp` contains **no layer, loss, dataset or optimizer type
+name** and therefore never has to be edited as the library grows. Every one of
+those arrives through a constant registry table keyed by a string out of the
+configuration, so adding a convolution or a detection loss is a table row and
+a factory function in the library.
+
+### The three documents
+
+| File | Describes | Named by |
+|---|---|---|
+| `model.json` | the architecture alone | `train.json`, and `inference`'s first argument |
+| `train.json` | objective, data, optimizer, epochs, checkpoint | `sushiai train` |
+| `eval.json` | the data to evaluate on | `inference`'s third argument |
+
+```json
+{
+  "sushiai_model": 1,
+  "input": { "features": 6 },
+  "layers": [
+    { "type": "linear", "units": 256 },
+    { "type": "gelu" },
+    { "type": "linear", "units": 4 }
+  ]
+}
+```
+
+```json
+{
+  "sushiai_train": 1,
+  "model": "model.json",
+  "objective": { "type": "cross_entropy" },
+  "data":      { "type": "rings", "batch_size": 64, "batches": 64,
+                 "classes": 4, "seed": 3735928559 },
+  "optimizer": { "type": "adamw", "learning_rate": 3e-3, "weight_decay": 0.01 },
+  "epochs": 50,
+  "checkpoint": "heavy_mlp.ckpt"
+}
+```
+
+Four things about the schema are worth knowing before you write one, and each
+closes a way of being silently wrong:
+
+- **Each document leads with a version key.** A format change is then an error
+  rather than a misread.
+- **`units` is an output width only.** The input width is chained from
+  `input.features`, so a dimension mismatch between adjacent layers is not
+  expressible.
+- **An unknown key is an error, not an ignored one.** A typed `"unitss": 256`
+  must not train silently against a default, so the message lists what the
+  layer *does* accept. An unknown `type` likewise lists every type the build
+  has.
+- **Relative paths resolve against the configuration file's own directory**,
+  not your working directory — so `sushiai train examples/heavy_mlp/train.json`
+  works from the repository root and a configuration directory can be moved
+  without editing what is inside it.
+
+### Why inference takes its data as an argument
+
+The architecture file carries no data block, because it describes a model. So
+`inference` needs to be told what to run on, and an optional flag that always
+errored when omitted would be a lie about optionality. It traces the forward
+pass only — no loss, no backward pass, no optimizer — and reports the
+predicted-class distribution, which is the one summary that needs neither a
+loss nor label semantics.
+
+### Exit codes and output
+
+Both exit `0` on success and non-zero on any configuration or runtime error,
+printing the library's own diagnostic — which names the file, the key and what
+was found. Both print a `compiles: 1` line; two CTest cases pin it, the same
+way `sa demo mlp`'s is pinned.
 
 ## `sa clean` and `sa doxygen`
 
