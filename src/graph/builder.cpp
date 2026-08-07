@@ -376,6 +376,9 @@ namespace SushiAI
             const Value& in = graph_->value(x);
             SA_THROW_IF(in.shape.rank() != 4,
                         "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "im2col reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
             SA_THROW_IF(out_h <= 0 || out_w <= 0,
                         "im2col was given non-positive output extents {}x{}", out_h, out_w);
 
@@ -391,17 +394,32 @@ namespace SushiAI
         ValueId GraphBuilder::col2im(ValueId cols, Shape image_shape,
                                      const ConvGeometry& g) const
         {
+            // Symmetric padding is assumed here and stated in the header. A
+            // backward rule that knows the forward's actual window counts -
+            // which it always does, because the forward wrote them into the
+            // graph - calls col2im_with_extents instead.
+            const int64_t out_h = output_extent(image_shape[1], g.pad_top, g.pad_top,
+                                                g.dilation_h, g.kernel_h, g.stride_h);
+            const int64_t out_w = output_extent(image_shape[2], g.pad_left, g.pad_left,
+                                                g.dilation_w, g.kernel_w, g.stride_w);
+
+            return col2im_with_extents(cols, image_shape, g, out_h, out_w);
+        }
+
+        ValueId GraphBuilder::col2im_with_extents(ValueId cols, Shape image_shape,
+                                                   const ConvGeometry& g,
+                                                   int64_t out_h, int64_t out_w) const
+        {
             const Value& c = graph_->value(cols);
             SA_THROW_IF(image_shape.rank() != 4,
                         "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
                         image_shape.rank());
             SA_THROW_IF(c.shape.rank() != 2,
                         "col2im reads a rank-2 column matrix; got rank {}", c.shape.rank());
+            SA_THROW_IF(c.layout != TensorLayout::NHWC,
+                        "col2im returns NHWC; this column matrix was produced from an "
+                        "NCHW value. Cross with layout_convert first (CV-3).");
 
-            const int64_t out_h = output_extent(image_shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
-            const int64_t out_w = output_extent(image_shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
             const int64_t rows = image_shape[0] * out_h * out_w;
             const int64_t width = g.kernel_h * g.kernel_w * image_shape[3];
 

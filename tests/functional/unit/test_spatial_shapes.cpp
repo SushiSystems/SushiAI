@@ -134,5 +134,66 @@ namespace SushiAI
 
             EXPECT_THROW((void)builder.col2im(cols, Shape({2, 6, 6, 3}), g), Error);
         }
+
+        TEST(Unit_SpatialShapes, Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward)
+        {
+            // A 3x3 stride-1 window with padding only on the bottom/right of a
+            // 13x13 input still yields 13x13 windows, but that is NOT what the
+            // symmetric formula (13-3)/1+1 = 11 would say. The forward pass
+            // (im2col_with_extents) states 13x13 outright; the backward rule
+            // must be able to state the same numbers back, because it is the
+            // one holding them, not re-deriving them from ConvGeometry alone.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 13, 13, 3}, "x");
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 3; g.kernel_w = 3;
+            // pad_top = pad_left = 0: padding was applied bottom/right only,
+            // which ConvGeometry cannot express and does not need to.
+
+            const ValueId cols = builder.im2col_with_extents(x, g, 13, 13);
+            EXPECT_EQ(graph.values()[cols].shape, Shape({1 * 13 * 13, 3 * 3 * 3}));
+
+            const ValueId image = builder.col2im_with_extents(cols, Shape({1, 13, 13, 3}),
+                                                               g, 13, 13);
+            EXPECT_EQ(graph.values()[image].shape, Shape({1, 13, 13, 3}));
+        }
+
+        TEST(Unit_SpatialShapes, Col2ImDerivingStillRejectsThatSameAsymmetricPair)
+        {
+            // The point of the twin above: the deriving col2im assumes
+            // symmetric padding and is NOT a substitute for it. Feeding it the
+            // exact cols/image pair that col2im_with_extents accepted above
+            // must still throw, proving the twin is load-bearing rather than
+            // decorative.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 13, 13, 3}, "x");
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 3; g.kernel_w = 3;
+
+            const ValueId cols = builder.im2col_with_extents(x, g, 13, 13);
+
+            EXPECT_THROW((void)builder.col2im(cols, Shape({1, 13, 13, 3}), g), Error);
+        }
+
+        TEST(Unit_SpatialShapes, Im2ColRejectsAnNchwInput)
+        {
+            // im2col reads extents off axes 1,2,3 assuming NHWC. Handed an
+            // NCHW value it would read channels as height and produce a
+            // plausible but silently wrong shape instead of throwing.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 32, 32}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 3; g.kernel_w = 3;
+            g.pad_top = 1;  g.pad_left = 1;
+
+            EXPECT_THROW((void)builder.im2col(x_nchw, g), Error);
+        }
     }
 }
