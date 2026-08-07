@@ -45,6 +45,7 @@ add_executable(sushiai_tests
     functional/unit/test_loss_scaling.cpp
     functional/unit/test_checkpoint_format.cpp
     functional/unit/test_layer_stack.cpp
+    functional/unit/test_config.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp

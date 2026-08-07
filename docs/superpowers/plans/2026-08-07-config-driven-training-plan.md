@@ -68,7 +68,38 @@ Every task's requirements implicitly include this section.
    `cli/sushistack.deps.toml` (`docs/CONTRIBUTING.md §7`); no repository in the
    stack carries a manifest. `nlohmann_json` is already present in that tree.
    Decided with the maintainer on 2026-08-07.
-2. **`StepSpec` keeps its `targets` field for this slice.** `ObjectiveLeaves`
+2. **A `PRIVATE` link is not enough to keep the parser out of the export set**
+   (spec §6 assumes it is). `sushiai` is a **STATIC** library, so a static
+   archive carries none of its dependencies and CMake records even a `PRIVATE`
+   link as `$<LINK_ONLY:...>` in the exported `INTERFACE_LINK_LIBRARIES`.
+   Measured, not assumed: with `target_link_libraries(sushiai PRIVATE
+   nlohmann_json::nlohmann_json)` the generated `SushiAITargets.cmake` carried
+   `$<LINK_ONLY:nlohmann_json::nlohmann_json>`, and a consumer that ran
+   `find_package(SushiAI)` without also finding `nlohmann_json` would fail to
+   configure on a name it should never have heard.
+
+   The fix is the export-set-safe shape `docs/ARCHITECTURE.md §6` already
+   documents for the policy targets: pull the include directories and
+   definitions on as **values** through `$<TARGET_PROPERTY:...>` rather than
+   linking the target. Safe to drop rather than propagate because
+   `nlohmann_json` is an INTERFACE (header-only) target — there is no archive
+   for anyone to link. Guarded by a new check in `tests/package/CMakeLists.txt`
+   beside the existing flag-hygiene ones.
+
+3. **The parser is `nlohmann::ordered_json`, not `nlohmann::json`.** The
+   default keeps an object's members in a `std::map` and hands them back
+   alphabetically; `Config::Value` promises the order the file spelled, so that
+   a "this object carries 'a', 'b', 'c'" diagnostic reads the way the file
+   does. Caught by `Unit_Config.KeepsTheKeyOrderTheFileSpelled`.
+
+4. **`Shape` gained a run-time extent constructor** (`explicit
+   Shape(SushiRuntime::span<const int64_t>)`). The spec's checkpoint reader
+   cannot exist without one: `Shape` was constructible only from an
+   `initializer_list`, which a reader whose rank came from a file cannot
+   produce short of a switch over every rank. Validation is identical to the
+   existing constructor's.
+
+5. **`StepSpec` keeps its `targets` field for this slice.** `ObjectiveLeaves`
    is what generalises it, and `TrainingGraph` carries both — but rewiring
    `Train::Trainer` to feed arbitrary declared leaves is a separate change with
    its own argument. The spec's actual commitment (that `apps/train.cpp` names

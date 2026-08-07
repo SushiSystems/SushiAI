@@ -8,8 +8,17 @@
 # table below declares both dependencies and `ss` folds their requirements
 # into SushiAI's readiness picture.
 #
-# No port entries beyond that: nothing new to declare here yet, matching
-# SushiBLAS's own fragment.
+# One port beyond that, declared below: the config layer's JSON parser.
+#
+# It is declared HERE rather than in a vcpkg.json manifest, and that is a
+# decision rather than an omission. A manifest beside the top-level
+# CMakeLists.txt switches vcpkg out of classic mode, at which point the shared
+# dependencies/vcpkg/installed tree leaves the prefix path - and that tree is
+# exactly what `sa build` passes as CMAKE_PREFIX_PATH (see
+# cli/sushiai/services/project.py), and where hwloc, gtest and opencl resolve
+# from for this repository and both siblings. A manifest would therefore have
+# to list the whole stack's dependencies, moving provisioning out of SushiStack
+# and into SushiAI. No repository in the stack carries one.
 #
 # Field reference:
 #   description    Human-readable purpose (shown by `ss doctor`).
@@ -20,3 +29,9 @@
 
 [module]
 depends_on = ["sushiruntime", "sushiblas"]
+
+[nlohmann-json]
+description   = "Header-only JSON parser. Read by src/config/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."
+required      = true
+linux_apt     = ["nlohmann-json3-dev"]
+windows_vcpkg = ["nlohmann-json"]
