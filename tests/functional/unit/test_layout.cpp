@@ -55,7 +55,7 @@ namespace SushiAI
             const ValueId w = builder.parameter({4, 3}, "w");
             const ValueId y = builder.matmul(x, w);
 
-            graph.mutable_value(y).layout = TensorLayout::NCHW;
+            graph.value(y).layout = TensorLayout::NCHW;
 
             EXPECT_THROW(graph.finalise(), Error);
         }
@@ -71,6 +71,23 @@ namespace SushiAI
 
             EXPECT_EQ(graph.values()[y].layout, TensorLayout::NCHW);
             EXPECT_NO_THROW(graph.finalise());
+        }
+
+        TEST(Unit_Layout, DeclareLikeInheritsTheSourceValuesLayout)
+        {
+            // Fourteen tasks still to come each emit a value and carry its
+            // layout forward by hand; declare_like is the one place that does
+            // it, so a forgotten carry cannot happen.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 3, 4, 5}, "x");
+            const ValueId y = builder.layout_convert(x, TensorLayout::NCHW);
+
+            const ValueId z = builder.declare_like(y, graph.value(y).shape,
+                                                    graph.value(y).dtype,
+                                                    Graph::Lifetime::ACTIVATION, "z");
+
+            EXPECT_EQ(graph.values()[z].layout, TensorLayout::NCHW);
         }
 
         TEST(Unit_Layout, FinaliseStillPropagatesRequiresGrad)

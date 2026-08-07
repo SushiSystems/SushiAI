@@ -409,9 +409,6 @@ namespace SushiAI
                     prove_layout_uniformity();
                 }
 
-                /** @brief A mutable reference to value @p id, for passes that rewrite it. */
-                Value& mutable_value(ValueId id) { return values_[id]; }
-
             private:
                 /**
                  * @brief Propagates @c requires_grad forward from the leaves.
