@@ -97,4 +97,5 @@
 
 #include "io/checkpoint_format.hpp"
 
+#include "train/objective.hpp"
 #include "train/trainer.hpp"
