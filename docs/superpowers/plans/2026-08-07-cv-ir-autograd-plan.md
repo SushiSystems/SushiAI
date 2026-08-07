@@ -80,6 +80,56 @@ Every `declare(...)` + layout-stamp pair in the tasks below becomes one `declare
 call. `layout_convert` is the single exception and keeps declaring plainly, then setting
 the layout it was asked for — it is the one node permitted to change it.
 
+**A-3 — `col2im` gains an explicit-extents twin, exactly as `im2col` has.**
+As first written, `col2im(cols, image_shape, g)` derived its expected row count by
+recomputing the output extents from the geometry — which assumes symmetric padding, the
+assumption `ConvGeometry`'s own doc block warns about two hundred lines earlier. It
+therefore *rejects* a legitimate pair: an `im2col_with_extents(x, g, 13, 13)` over a
+`[1,13,13,3]` input with `kernel=3, stride=1, pad_top=0, pad_left=0` yields `[169, 27]`,
+and `col2im` recomputes `11×11 = 121` and throws. Task 11's `im2col_backward` calls
+exactly that pair, so the false rejection would have landed one task later, in someone
+else's context.
+
+```cpp
+                /**
+                 * @brief Emits @c COL2IM with the window counts stated outright.
+                 *
+                 * The overload a backward rule uses, because the forward's extents
+                 * are already written down in the graph and need not be re-derived.
+                 *
+                 * @param cols The column matrix.
+                 * @param image_shape The @c [N,H,W,C] shape to return to.
+                 * @param g The window geometry @p cols was produced with.
+                 * @param out_h The number of window rows @p cols holds.
+                 * @param out_w The number of window columns @p cols holds.
+                 * @return The image's id.
+                 * @throws Error If @p image_shape is not rank 4, @p cols is not rank 2,
+                 *         or @p cols does not have `N*out_h*out_w` rows and
+                 *         `kernel_h*kernel_w*C` columns.
+                 */
+                ValueId col2im_with_extents(ValueId cols, Shape image_shape,
+                                            const ConvGeometry& g,
+                                            int64_t out_h, int64_t out_w) const;
+```
+
+The deriving `col2im` stays, now a forwarder, and its Doxygen says outright that it
+assumes symmetric padding and names the twin. Tasks 11 and 16 call the twin.
+
+**A-4 — every spatial emitter rejects a non-NHWC operand.**
+`im2col` read its extents off `shape[1]`/`shape[2]` without checking the layout, so an
+NCHW `[1,3,32,32]` value produced `[96, 288]` — a plausible shape, silently wrong, which
+is the exact failure class this task exists to prevent. One line, beside the rank check
+that is already there:
+
+```cpp
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "im2col reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+```
+
+Applies to every spatial emitter in Tasks 5, 6, 7 and 14 — anything that indexes
+`shape[1]`, `shape[2]` or `shape[3]` as a spatial or channel axis.
+
 ---
 
 ## File structure
