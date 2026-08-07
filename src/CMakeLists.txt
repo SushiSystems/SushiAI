@@ -24,6 +24,7 @@ set(SUSHIAI_SOURCES
     graph/lowering.cpp
     graph/compiled_step.cpp
 
+    autograd/tape.cpp
     autograd/backward.cpp
     autograd/gradcheck.cpp
 

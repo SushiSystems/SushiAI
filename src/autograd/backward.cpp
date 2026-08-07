@@ -24,76 +24,13 @@
 #include <array>
 #include <unordered_map>
 #include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/autograd/rule.hpp>
+#include "differentiator.hpp"
 
 namespace SushiAI
 {
     namespace Autograd
     {
-        /**
-         * @class Differentiator
-         * @brief One differentiation run's bookkeeping.
-         *
-         * Holds the contributions per primal value, the memoised sums, and the
-         * set of nodes a fusion has already absorbed. Lives only for the length
-         * of a @c differentiate() call.
-         */
-        class Differentiator
-        {
-            public:
-                Differentiator(Graph::Graph& graph, Graph::ValueId loss,
-                               Graph::ValueId seed_factor)
-                    : graph_(graph),
-                      loss_(loss),
-                      builder_(graph),
-                      forward_node_count_(graph.node_count()),
-                      skipped_(graph.node_count(), false),
-                      tape_(Graph::GraphBuilder(graph), *this, seed_factor)
-                {
-                }
-
-                /** @brief Runs the reverse sweep over the forward nodes. */
-                void run();
-
-                /** @brief The summed gradient of @p primal, materialising the sum on first read. */
-                Graph::ValueId resolve(Graph::ValueId primal);
-
-                /** @brief Records one gradient contribution to @p primal. */
-                void contribute(Graph::ValueId primal, Graph::ValueId gradient);
-
-                /** @brief Marks @p node as already differentiated by a fusion. */
-                void skip(Graph::NodeId node);
-
-                /** @brief Whether @p value is the scalar being differentiated. */
-                bool is_root(Graph::ValueId value) const noexcept { return value == loss_; }
-
-                /**
-                 * @brief The node the tape currently points at.
-                 *
-                 * A snapshot, not a reference into the graph. Every rule emits
-                 * while it is running, and emitting grows the node vector,
-                 * which reallocates and would leave a rule holding a dangling
-                 * reference to the very node it is differentiating. Copying one
-                 * node per differentiated node is unmeasurable; the alternative
-                 * is a use-after-free that only appears once a graph outgrows
-                 * its initial capacity.
-                 */
-                const Graph::Node& current_node() const noexcept { return current_node_; }
-
-                /** @brief The graph being extended. */
-                Graph::Graph& graph() noexcept { return graph_; }
-
-            private:
-                Graph::Graph& graph_;
-                Graph::ValueId loss_;
-                Graph::GraphBuilder builder_;
-                std::size_t forward_node_count_;
-                std::vector<bool> skipped_;
-                std::unordered_map<Graph::ValueId, std::vector<Graph::ValueId>> contributions_;
-                std::unordered_map<Graph::ValueId, Graph::ValueId> resolved_;
-                GradientTape tape_;
-                Graph::Node current_node_{};
-        };
-
         // =====================================================================
         // Backward rules
         // =====================================================================
@@ -392,63 +329,6 @@ namespace SushiAI
         bool has_backward_rule(OpID op) noexcept
         {
             return find_rule(op) != nullptr;
-        }
-
-        // =====================================================================
-        // GradientTape
-        // =====================================================================
-
-        const Graph::Node& GradientTape::node() const
-        {
-            return owner_->current_node();
-        }
-
-        Graph::ValueId GradientTape::apply_seed_factor(Graph::ValueId gradient) const
-        {
-            if (seed_factor_ == Graph::NO_VALUE) return gradient;
-            return builder_.dynamic_scale(gradient, seed_factor_, "loss_scaled_grad");
-        }
-
-        Graph::ValueId GradientTape::output_grad(std::size_t index) const
-        {
-            const Graph::Node& n = node();
-            SA_THROW_IF(index >= n.outputs.size(),
-                        "{} has no result {}", Ops::name_of(n.op), index);
-            return owner_->resolve(n.outputs[index]);
-        }
-
-        bool GradientTape::output_is_root(std::size_t index) const
-        {
-            const Graph::Node& n = node();
-            SA_THROW_IF(index >= n.outputs.size(),
-                        "{} has no result {}", Ops::name_of(n.op), index);
-            return owner_->is_root(n.outputs[index]);
-        }
-
-        bool GradientTape::input_requires_grad(std::size_t index) const
-        {
-            const Graph::Node& n = node();
-            SA_THROW_IF(index >= n.inputs.size(),
-                        "{} has no operand {}", Ops::name_of(n.op), index);
-            return owner_->graph().value(n.inputs[index]).requires_grad;
-        }
-
-        void GradientTape::contribute(Graph::ValueId primal, Graph::ValueId gradient) const
-        {
-            owner_->contribute(primal, gradient);
-        }
-
-        void GradientTape::contribute_input(std::size_t index, Graph::ValueId gradient) const
-        {
-            const Graph::Node& n = node();
-            SA_THROW_IF(index >= n.inputs.size(),
-                        "{} has no operand {}", Ops::name_of(n.op), index);
-            owner_->contribute(n.inputs[index], gradient);
-        }
-
-        void GradientTape::skip(Graph::NodeId node_to_skip) const
-        {
-            owner_->skip(node_to_skip);
         }
 
         // =====================================================================
