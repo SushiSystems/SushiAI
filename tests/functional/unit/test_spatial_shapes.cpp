@@ -21,6 +21,7 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+#include <array>
 #include <gtest/gtest.h>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -312,6 +313,126 @@ namespace SushiAI
             const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
             EXPECT_THROW((void)builder.upsample2d(x_nchw, 2, 2), Error);
+        }
+
+        TEST(Unit_SpatialShapes, SpatialMeanReducesToNAndC)
+        {
+            // The [N,C] the numeric Probe's loss needs, which is why every
+            // convolutional gradient test in this plan ends with this call.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({4, 7, 7, 512}, "x");
+
+            EXPECT_EQ(graph.values()[builder.spatial_mean(x)].shape, Shape({4, 512}));
+        }
+
+        TEST(Unit_SpatialShapes, SpatialMeanRejectsAnNchwInput)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 4, 4}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+            EXPECT_THROW((void)builder.spatial_mean(x_nchw), Error);
+        }
+
+        TEST(Unit_SpatialShapes, ConcatSumsTheChannelAxisAndNothingElse)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId a = builder.input({2, 8, 8, 16}, "a");
+            const ValueId b = builder.input({2, 8, 8, 32}, "b");
+            const std::array<ValueId, 2> parts = {a, b};
+
+            EXPECT_EQ(graph.values()[builder.concat_channels(
+                          SushiRuntime::span<const ValueId>(parts.data(), parts.size()))].shape,
+                      Shape({2, 8, 8, 48}));
+        }
+
+        TEST(Unit_SpatialShapes, ConcatRejectsOperandsThatDisagreeOffTheChannelAxis)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId a = builder.input({2, 8, 8, 16}, "a");
+            const ValueId b = builder.input({2, 4, 8, 16}, "b");
+            const std::array<ValueId, 2> parts = {a, b};
+
+            EXPECT_THROW((void)builder.concat_channels(
+                SushiRuntime::span<const ValueId>(parts.data(), parts.size())), Error);
+        }
+
+        TEST(Unit_SpatialShapes, ConcatRejectsAnNchwOperand)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId a = builder.input({1, 3, 4, 4}, "a");
+            const ValueId a_nchw = builder.layout_convert(a, Graph::TensorLayout::NCHW);
+            const ValueId b = builder.input({1, 3, 4, 4}, "b");
+            const ValueId b_nchw = builder.layout_convert(b, Graph::TensorLayout::NCHW);
+            const std::array<ValueId, 2> parts = {a_nchw, b_nchw};
+
+            EXPECT_THROW((void)builder.concat_channels(
+                SushiRuntime::span<const ValueId>(parts.data(), parts.size())), Error);
+        }
+
+        TEST(Unit_SpatialShapes, SliceTakesAChannelRangeAndRefusesToOverrun)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 8, 8, 48}, "x");
+
+            EXPECT_EQ(graph.values()[builder.slice_channels(x, 16, 32)].shape,
+                      Shape({2, 8, 8, 32}));
+            EXPECT_THROW((void)builder.slice_channels(x, 32, 32), Error);
+        }
+
+        TEST(Unit_SpatialShapes, SliceRejectsAnNchwInput)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 4, 4}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+            EXPECT_THROW((void)builder.slice_channels(x_nchw, 0, 1), Error);
+        }
+
+        TEST(Unit_SpatialShapes, ChannelAffineKeepsTheShapeAndChecksTheParameters)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 8, 8, 16}, "x");
+            const ValueId gamma = builder.parameter({16}, "gamma");
+            const ValueId beta = builder.parameter({16}, "beta");
+
+            EXPECT_EQ(graph.values()[builder.channel_affine(x, gamma, beta)].shape,
+                      Shape({2, 8, 8, 16}));
+
+            const ValueId wrong = builder.parameter({8}, "wrong");
+            EXPECT_THROW((void)builder.channel_affine(x, wrong, beta), Error);
+        }
+
+        TEST(Unit_SpatialShapes, ChannelAffineRejectsAnNchwInput)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 4, 4}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId gamma = builder.parameter({3}, "gamma");
+            const ValueId beta = builder.parameter({3}, "beta");
+
+            EXPECT_THROW((void)builder.channel_affine(x_nchw, gamma, beta), Error);
+        }
+
+        TEST(Unit_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
+        {
+            // The one failure mode a reshape has: it moves no data, so a
+            // mismatched count is not a resize, it is reading past the end.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 3, 4}, "x");
+
+            EXPECT_EQ(graph.values()[builder.reshape(x, Shape({6, 4}))].shape, Shape({6, 4}));
+            EXPECT_THROW((void)builder.reshape(x, Shape({6, 5})), Error);
         }
     }
 }

@@ -527,5 +527,121 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::spatial_mean(ValueId x) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "spatial_mean needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "spatial_mean reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+
+            const ValueId out = declare_like(x, Shape({in.shape[0], in.shape[3]}), in.dtype,
+                                             Lifetime::ACTIVATION, "spatial_mean");
+            graph_->add_node(Ops::SPATIAL_MEAN.id, {x}, {out});
+            return out;
+        }
+
+        ValueId GraphBuilder::concat_channels(SushiRuntime::span<const ValueId> parts) const
+        {
+            SA_THROW_IF(parts.empty(), "concat_channels needs at least one operand");
+
+            const Value& first = graph_->value(parts[0]);
+            SA_THROW_IF(first.shape.rank() != 4,
+                        "concat_channels needs rank-4 operands; got rank {}",
+                        first.shape.rank());
+            SA_THROW_IF(first.layout != TensorLayout::NHWC,
+                        "concat_channels reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+
+            int64_t channels = 0;
+            for (std::size_t i = 0; i < parts.size(); ++i)
+            {
+                const Value& p = graph_->value(parts[i]);
+                SA_THROW_IF(p.shape.rank() != 4,
+                            "concat_channels needs rank-4 operands; got rank {}",
+                            p.shape.rank());
+                SA_THROW_IF(p.layout != TensorLayout::NHWC,
+                            "concat_channels reads NHWC; this value is NCHW. Cross with "
+                            "layout_convert first (CV-3).");
+                SA_THROW_IF(p.shape[0] != first.shape[0] || p.shape[1] != first.shape[1]
+                                || p.shape[2] != first.shape[2],
+                            "concat_channels operands must agree on N, H and W; "
+                            "got [{}, {}, {}, *] against [{}, {}, {}, *].",
+                            p.shape[0], p.shape[1], p.shape[2],
+                            first.shape[0], first.shape[1], first.shape[2]);
+                SA_THROW_IF(p.dtype != first.dtype,
+                            "concat_channels operands must share a dtype");
+                channels += p.shape[3];
+            }
+
+            const ValueId out = declare_like(
+                parts[0], Shape({first.shape[0], first.shape[1], first.shape[2], channels}),
+                first.dtype, Lifetime::ACTIVATION, "concat");
+
+            graph_->add_node(Ops::CONCAT_CHANNELS.id,
+                             std::vector<ValueId>(parts.begin(), parts.end()), {out});
+            return out;
+        }
+
+        ValueId GraphBuilder::slice_channels(ValueId x, int64_t offset, int64_t count) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "slice_channels needs a rank-4 input; got rank {}", in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "slice_channels reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(offset < 0 || count <= 0 || offset + count > in.shape[3],
+                        "slice_channels [{}, {}) does not fit {} channels",
+                        offset, offset + count, in.shape[3]);
+
+            const ValueId out = declare_like(
+                x, Shape({in.shape[0], in.shape[1], in.shape[2], count}),
+                in.dtype, Lifetime::ACTIVATION, "slice");
+
+            Attributes a{};
+            a.values[0] = static_cast<double>(offset);
+            graph_->add_node(Ops::SLICE_CHANNELS.id, {x}, {out}, a);
+            return out;
+        }
+
+        ValueId GraphBuilder::channel_affine(ValueId x, ValueId gamma, ValueId beta) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "channel_affine needs a rank-4 input; got rank {}", in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "channel_affine reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+
+            for (ValueId p : {gamma, beta})
+            {
+                const Value& v = graph_->value(p);
+                SA_THROW_IF(v.shape.rank() != 1 || v.shape[0] != in.shape[3],
+                            "channel_affine's per-channel parameters must be [{}]; got a "
+                            "rank-{} value", in.shape[3], v.shape.rank());
+            }
+
+            const ValueId out = declare_like(x, in.shape, in.dtype, Lifetime::ACTIVATION,
+                                             "affine");
+            graph_->add_node(Ops::CHANNEL_AFFINE.id, {x, gamma, beta}, {out});
+            return out;
+        }
+
+        ValueId GraphBuilder::reshape(ValueId x, Shape shape) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.num_elements() != shape.num_elements(),
+                        "reshape moves no data, so it cannot change the element count: "
+                        "{} elements cannot be seen as {}.",
+                        in.shape.num_elements(), shape.num_elements());
+
+            const ValueId out = declare_like(x, shape, in.dtype, Lifetime::ACTIVATION, "reshape");
+            graph_->add_node(Ops::RESHAPE.id, {x}, {out});
+            return out;
+        }
+
     } // namespace Graph
 } // namespace SushiAI

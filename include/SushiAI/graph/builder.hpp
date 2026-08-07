@@ -44,6 +44,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/common.hpp>
@@ -517,6 +518,55 @@ namespace SushiAI
                  *         scale is below one.
                  */
                 ValueId upsample2d(ValueId x, int64_t scale_h, int64_t scale_w) const;
+
+                /**
+                 * @brief Emits @c SPATIAL_MEAN: the mean of every [H,W] plane.
+                 * @param x The @c [N,H,W,C] input.
+                 * @return The @c [N,C] result's id.
+                 * @throws Error If @p x is not rank 4 or not NHWC.
+                 */
+                ValueId spatial_mean(ValueId x) const;
+
+                /**
+                 * @brief Emits @c CONCAT_CHANNELS: joins operands along the channel axis.
+                 * @param parts The @c [N,H,W,C_i] operands, at least one, sharing
+                 *        N, H, W and dtype.
+                 * @return The @c [N,H,W,sum(C_i)] result's id.
+                 * @throws Error If @p parts is empty, any operand is not rank 4
+                 *         or not NHWC, or the operands disagree on N, H, W or dtype.
+                 */
+                ValueId concat_channels(SushiRuntime::span<const ValueId> parts) const;
+
+                /**
+                 * @brief Emits @c SLICE_CHANNELS: a contiguous channel range.
+                 * @param x The @c [N,H,W,C] input.
+                 * @param offset The first channel taken.
+                 * @param count The number of channels taken.
+                 * @return The @c [N,H,W,count] result's id.
+                 * @throws Error If @p x is not rank 4, not NHWC, or the range
+                 *         @c [offset, offset+count) does not fit @p x's channels.
+                 */
+                ValueId slice_channels(ValueId x, int64_t offset, int64_t count) const;
+
+                /**
+                 * @brief Emits @c CHANNEL_AFFINE: per-channel Y = gamma * X + beta.
+                 * @param x The @c [N,H,W,C] input.
+                 * @param gamma The @c [C] per-channel scale.
+                 * @param beta The @c [C] per-channel shift.
+                 * @return The @c [N,H,W,C] result's id.
+                 * @throws Error If @p x is not rank 4, not NHWC, or either
+                 *         parameter is not a rank-1 @c [C] value.
+                 */
+                ValueId channel_affine(ValueId x, ValueId gamma, ValueId beta) const;
+
+                /**
+                 * @brief Emits @c RESHAPE: a view of @p x with different extents.
+                 * @param x The value reshaped.
+                 * @param shape The result's extents.
+                 * @return The reshaped value's id.
+                 * @throws Error If @p shape's element count differs from @p x's.
+                 */
+                ValueId reshape(ValueId x, Shape shape) const;
 
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
