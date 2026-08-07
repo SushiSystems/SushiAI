@@ -33,6 +33,55 @@ The spec (CV-4) and `include/SushiAI/graph/ir.hpp:202`'s own doc comment already
 
 ---
 
+## Amendments made during execution
+
+Both came out of Task 2+3's review, were put to the user, and are settled. They
+override the task text below wherever the two disagree.
+
+**A-1 — There is no `Graph::mutable_value()`. Use the existing `Graph::value(ValueId)`.**
+Task 2 originally added `mutable_value` as an unchecked write accessor. `ir.hpp:356`
+already has a public non-const `Value& value(ValueId)` that does the same thing and
+guards with `SA_THROW_IF(id >= values_.size(), ...)`. The new one made
+`graph.mutable_value(graph.value_count()).layout = ...` an out-of-bounds write with no
+diagnostic, where the accessor that already existed throws. Every `mutable_value(` in
+the tasks below reads `value(`.
+
+**A-2 — Layout is carried by `declare_like`, not stamped by each emitter.**
+As first written, every emitter in Tasks 5, 6, 7, 14, 15 and 16 followed its `declare(...)`
+with `graph_.mutable_value(out).layout = in.layout;` — the same line eighteen times, any
+one of which could be forgotten. A forgotten line is not a crash: the value silently
+keeps the `NHWC` default, and the first graph that puts it downstream of a
+`LAYOUT_CONVERT` is rejected by `finalise()` for a violation it did not commit.
+
+`GraphBuilder` gains:
+
+```cpp
+                /**
+                 * @brief Declares a value that inherits @p like's layout.
+                 *
+                 * The layout is a graph-wide invariant (CV-4), so an emitter that
+                 * forgot to carry it forward would not fail where it was written -
+                 * it would fail in `finalise()`, on a graph that is correct, naming
+                 * an operation that did nothing wrong. Carrying it here means no
+                 * emitter can forget.
+                 *
+                 * @param like The value whose layout the result adopts.
+                 * @param shape The result's extents.
+                 * @param dtype The result's element type.
+                 * @param lifetime Which arena owns the result.
+                 * @param debug_name The profiling label.
+                 * @return The new value's id.
+                 */
+                ValueId declare_like(ValueId like, Shape shape, DType dtype,
+                                     Lifetime lifetime, std::string_view debug_name) const;
+```
+
+Every `declare(...)` + layout-stamp pair in the tasks below becomes one `declare_like(...)`
+call. `layout_convert` is the single exception and keeps declaring plainly, then setting
+the layout it was asked for — it is the one node permitted to change it.
+
+---
+
 ## File structure
 
 **Modified — IR and identities**
