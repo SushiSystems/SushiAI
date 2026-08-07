@@ -83,6 +83,7 @@ endif()
 # --- Subdirectories ---
 add_subdirectory(src)
 add_subdirectory(examples)
+add_subdirectory(apps)
 
 # --- Package files (SB-6 packaging shape, from day one) ---
 include(CMakePackageConfigHelpers)
