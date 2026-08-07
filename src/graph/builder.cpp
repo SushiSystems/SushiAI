@@ -40,6 +40,14 @@ namespace SushiAI
             return graph_->add_value(shape, dtype, lifetime, debug_name);
         }
 
+        ValueId GraphBuilder::declare_like(ValueId like, Shape shape, DType dtype,
+                                           Lifetime lifetime, std::string_view debug_name) const
+        {
+            const ValueId out = declare(shape, dtype, lifetime, debug_name);
+            graph_->value(out).layout = graph_->value(like).layout;
+            return out;
+        }
+
         void GraphBuilder::require_same(ValueId a, ValueId b, std::string_view what) const
         {
             const Value& va = graph_->value(a);
@@ -317,7 +325,7 @@ namespace SushiAI
                     : vx.shape;
 
             const ValueId out = declare(converted, vx.dtype, Lifetime::ACTIVATION, "layout_convert");
-            graph_->mutable_value(out).layout = layout;
+            graph_->value(out).layout = layout;
             graph_->add_node(Ops::LAYOUT_CONVERT.id, {x}, {out});
             return out;
         }

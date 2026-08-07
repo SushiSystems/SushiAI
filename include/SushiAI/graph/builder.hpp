@@ -313,6 +313,25 @@ namespace SushiAI
                  */
                 ValueId like(ValueId like, std::string_view debug_name = {}) const;
 
+                /**
+                 * @brief Declares a value that inherits @p like's layout.
+                 *
+                 * The layout is a graph-wide invariant (CV-4), so an emitter that
+                 * forgot to carry it forward would not fail where it was written -
+                 * it would fail in `finalise()`, on a graph that is correct, naming
+                 * an operation that did nothing wrong. Carrying it here means no
+                 * emitter can forget.
+                 *
+                 * @param like The value whose layout the result adopts.
+                 * @param shape The result's extents.
+                 * @param dtype The result's element type.
+                 * @param lifetime Which arena owns the result.
+                 * @param debug_name The profiling label.
+                 * @return The new value's id.
+                 */
+                ValueId declare_like(ValueId like, Shape shape, DType dtype,
+                                     Lifetime lifetime, std::string_view debug_name) const;
+
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
                                 std::string_view debug_name = {}) const;
