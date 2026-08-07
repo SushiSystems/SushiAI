@@ -35,6 +35,7 @@ add_executable(sushiai_tests
     functional/unit/test_shape.cpp
     functional/unit/test_ops.cpp
     functional/unit/test_ir.cpp
+    functional/unit/test_layout.cpp
     functional/unit/test_memory_plan.cpp
     functional/unit/test_precision.cpp
     functional/unit/test_fusion.cpp

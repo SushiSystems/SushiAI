@@ -301,5 +301,26 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::layout_convert(ValueId x, TensorLayout layout) const
+        {
+            const Value& vx = graph_->value(x);
+            SA_THROW_IF(vx.shape.rank() != 4,
+                        "LAYOUT_CONVERT needs a rank-4 operand; got {}", vx.shape.to_string());
+
+            // NHWC's [N,H,W,C] is NCHW's [N,C,H,W]; permute whichever direction
+            // this conversion actually crosses, based on the operand's own
+            // layout rather than the target alone.
+            const Shape converted = (vx.layout == TensorLayout::NHWC && layout == TensorLayout::NCHW)
+                ? Shape{vx.shape[0], vx.shape[3], vx.shape[1], vx.shape[2]}
+                : (vx.layout == TensorLayout::NCHW && layout == TensorLayout::NHWC)
+                    ? Shape{vx.shape[0], vx.shape[2], vx.shape[3], vx.shape[1]}
+                    : vx.shape;
+
+            const ValueId out = declare(converted, vx.dtype, Lifetime::ACTIVATION, "layout_convert");
+            graph_->mutable_value(out).layout = layout;
+            graph_->add_node(Ops::LAYOUT_CONVERT.id, {x}, {out});
+            return out;
+        }
+
     } // namespace Graph
 } // namespace SushiAI
