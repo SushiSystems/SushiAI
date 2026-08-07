@@ -164,6 +164,9 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::BIAS_ADD.id,
         Ops::RELU.id, Ops::SIGMOID.id, Ops::TANH.id,
         Ops::RELU_BACKWARD.id, Ops::SIGMOID_BACKWARD.id, Ops::TANH_BACKWARD.id,
+        // LEAKY_RELU joined Ops::ACTIVATIONS with GradientSource::OUTPUT, so
+        // it genuinely narrows now - the same substitution argument as RELU.
+        Ops::LEAKY_RELU.id, Ops::LEAKY_RELU_BACKWARD.id,
     };
 
     for (OpID op : narrows)
@@ -203,7 +206,6 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::CONCAT_CHANNELS.id, Ops::SLICE_CHANNELS.id,
         Ops::BATCHNORM2D.id, Ops::BATCHNORM2D_BACKWARD.id,
         Ops::CHANNEL_AFFINE.id, Ops::BATCHNORM_UPDATE_STATS.id,
-        Ops::LEAKY_RELU.id, Ops::LEAKY_RELU_BACKWARD.id,
     };
 
     for (OpID op : stays)

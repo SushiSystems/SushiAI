@@ -482,11 +482,12 @@ namespace SushiAI
         };
 
         /** @brief Every activation this library differentiates, in one table. */
-        inline constexpr std::array<Activation, 4> ACTIVATIONS = {{
-            {RELU.id,    RELU_BACKWARD.id,    GradientSource::OUTPUT},
-            {GELU.id,    GELU_BACKWARD.id,    GradientSource::INPUT},
-            {SIGMOID.id, SIGMOID_BACKWARD.id, GradientSource::OUTPUT},
-            {TANH.id,    TANH_BACKWARD.id,    GradientSource::OUTPUT},
+        inline constexpr std::array<Activation, 5> ACTIVATIONS = {{
+            {RELU.id,       RELU_BACKWARD.id,       GradientSource::OUTPUT},
+            {GELU.id,       GELU_BACKWARD.id,       GradientSource::INPUT},
+            {SIGMOID.id,    SIGMOID_BACKWARD.id,    GradientSource::OUTPUT},
+            {TANH.id,       TANH_BACKWARD.id,       GradientSource::OUTPUT},
+            {LEAKY_RELU.id, LEAKY_RELU_BACKWARD.id, GradientSource::OUTPUT},
         }};
 
         /**
