@@ -13,10 +13,15 @@ foreach(target IN LISTS SUSHIAI_EXAMPLE_TARGETS)
     sushiai_apply_build_policy(${target})
 
     # --- Post-Build: Copy the runtime DLL to the output directory ---
-    # hwloc is a private implementation detail of SushiRuntime's own build (linked
-    # PRIVATE via PkgConfig::HWLOC, BUILD_INTERFACE-only) and never reaches
-    # consumers, so only the runtime's own DLL needs copying here - matching
-    # sushiblas's own examples/tests precedent exactly.
+    # Only the runtime's own DLL is copied. hwloc is linked PRIVATE by
+    # SushiRuntime (PkgConfig::HWLOC, BUILD_INTERFACE-only), so it never reaches
+    # a consumer's *link line* - but PRIVATE says nothing about the loader, and
+    # hwloc-15.dll is in sushiruntime.dll's import table regardless. These
+    # binaries get it from PATH instead: `sa` puts the vcpkg installed bin there
+    # for every build/test/run subprocess (see cli/sushiai/env.py), which is why
+    # nothing needs copying here. An out-of-tree consumer has no such PATH, and
+    # the package suite stages hwloc explicitly for exactly that reason (see
+    # _deploy_consumer_dlls).
     if(WIN32)
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different

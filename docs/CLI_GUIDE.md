@@ -138,13 +138,22 @@ the way a third party consumes the library, through `find_package(SushiAI)`,
 with no access to this source tree. Both intermediates live under `build/`,
 so `sa clean` reclaims them.
 
-This is the only test in the repo that can see what
-`find_package(SushiAI)` actually hands somebody. Every in-tree test includes
-individual headers from the source tree, so a public header that is missing
-from `install(DIRECTORY)`, unreachable from the `SushiAI/SushiAI.h` umbrella,
-or that only compiles because a sibling checkout happened to sit next to it,
-is invisible to all of them. That gap is not hypothetical: four headers were
-missing from the umbrella and no test in the repo could have said so.
+This is the only test in the repo that can see what `find_package(SushiAI)`
+actually hands somebody. Every in-tree test includes individual headers from
+the source tree, so a public header that the umbrella names but
+`install(DIRECTORY)` does not ship, or that only compiles because a sibling
+checkout happened to sit next to it, is invisible to all of them.
+
+**What it does not cover**, and this is worth being exact about since the
+suite was written in response to a header bug: the suite compiles what
+`SushiAI/SushiAI.h` names, so it catches *referenced but not installed*. The
+inverse — *installed but never referenced by the umbrella*, which is the actual
+bug that prompted this work, four headers missing from the umbrella — it cannot
+catch by construction. A header the umbrella does not name is simply never
+compiled, and nothing fails. That half is checked at configure time instead, in
+`src/CMakeLists.txt`: every `include/SushiAI/**/*.hpp` must appear in the
+umbrella or the configure fails with the list. The two checks are
+complementary and neither subsumes the other.
 
 It also checks what the exported CMake interface *does not* carry — warnings,
 `-Werror`, sanitizers, `-march=`, the in-tree policy targets, and the config
@@ -165,13 +174,21 @@ rather than package concerns:
   must also see the install prefix. `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` are
   excluded too, for a stronger reason: handing the consumer the sibling source
   trees is the shortcut this suite exists to forbid.
-- On Windows the built binary needs `sushiruntime.dll` beside it or it exits
-  `0xC0000135` before reaching `main`, which looks like a package failure and
-  is not one. In-tree targets get it from a `POST_BUILD` copy; the CLI stands
-  in for the consumer and stages everything in the prefix's `bin/`.
+- On Windows the built binary needs `sushiruntime.dll` **and `hwloc-15.dll`**
+  beside it or it exits `0xC0000135` before reaching `main`, which looks like a
+  package failure and is not one. hwloc is linked PRIVATE by SushiRuntime and
+  so never appears on a consumer's link line — but PRIVATE is a link-time
+  statement and the loader does not read `INTERFACE_LINK_LIBRARIES`; hwloc is
+  in `sushiruntime.dll`'s import table either way. In-tree binaries get it from
+  PATH (`sa` puts the vcpkg installed `bin` there, see `cli/sushiai/env.py`);
+  the CLI stages both DLLs for the consumer instead, and runs it with that PATH
+  entry removed so the staging is actually load-bearing rather than shadowed by
+  the developer's environment.
 
-The install prefix is deleted before each run, so a header deleted from the
-tree cannot keep satisfying an include from a stale prefix.
+Both `build/package/prefix` and `build/package/consumer` are deleted before
+each run: a stale prefix would let a header deleted from the tree keep
+satisfying an include, and a stale consumer directory would let a DLL staged by
+an earlier run keep satisfying the loader.
 
 It is **not** part of `--suite all`, which covers only the CTest tests. A full
 install plus a second configure and build costs minutes and is rarely what you
