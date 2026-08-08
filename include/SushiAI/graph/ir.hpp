@@ -368,16 +368,36 @@ namespace SushiAI
                  * on naming the same values; node ids do not survive, exactly
                  * as they do not survive @c insert_casts().
                  *
+                 * The ordering guard runs in both directions, because a
+                 * one-sided one would let through exactly the arrangement this
+                 * function exists to prevent. Rejecting a result that already
+                 * has a producer is the single-assignment check and is not the
+                 * ordering check: a result with @e no producer can still be
+                 * *read* by a node before @p before, and inserting its producer
+                 * after that reader would build the out-of-order graph
+                 * @c MemoryPlan::build() then refuses - the guard's own contract
+                 * broken by the guard.
+                 *
+                 * @warning Linear in both tables per call: the producer bump
+                 *          sweeps every value and the reader check sweeps every
+                 *          node before @p before. That is nothing at one call
+                 *          per rewritten operation, which is what the one caller
+                 *          does, but it is not the primitive to build a bulk
+                 *          rewrite on - a pass inserting many nodes should
+                 *          rebuild the node vector once instead.
+                 *
                  * @param before The position to insert at; @c node_count()
                  *        appends. Every operand must already be produced
-                 *        strictly before it, or the result would be the
-                 *        out-of-order graph this function exists to avoid.
+                 *        strictly before it, and no result may already be read
+                 *        before it, or the result would be the out-of-order
+                 *        graph this function exists to avoid.
                  * @param node The operation, its operands and its results.
                  * @return The inserted node's id, which is @p before.
                  * @throws Error If @p before is past the end, an operand or
                  *         result id is unknown, an operand's producer is not
-                 *         strictly before @p before, or a result already has
-                 *         a producer.
+                 *         strictly before @p before, a result is already read by
+                 *         a node before @p before, or a result already has a
+                 *         producer.
                  */
                 NodeId insert_node(NodeId before, Node node)
                 {
@@ -408,6 +428,19 @@ namespace SushiAI
                                     "The IR is single-assignment; emit a new value instead.",
                                     Ops::name_of(node.op), v,
                                     Ops::name_of(nodes_[values_[v].producer].op));
+
+                        // The mirror of the operand check above. A result
+                        // nothing produces yet may still already be read, and
+                        // inserting its producer after that reader is the same
+                        // out-of-order graph from the other side.
+                        for (NodeId reader = 0; reader < before; ++reader)
+                            for (ValueId in : nodes_[reader].inputs)
+                                SA_THROW_IF(in == v,
+                                            "Operation {} would be inserted at {} but writes "
+                                            "value {}, which node {} reads. Insertion order must "
+                                            "stay a topological order; insert before the result's "
+                                            "first reader.",
+                                            Ops::name_of(node.op), before, v, reader);
                     }
 
                     // Bump first, then claim: claiming first would bump the

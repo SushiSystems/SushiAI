@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -182,6 +183,55 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
             const Graph::NodeId producer = graph.value(in).producer;
             if (producer != NO_NODE) EXPECT_LT(producer, i);
         }
+}
+
+TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
+{
+    // The half of insert_node's ordering guard that single-assignment does not
+    // already cover. A result with no producer passes the single-assignment
+    // check whatever its position, so without this the function would accept a
+    // producer placed after its own reader - exactly the arrangement it exists
+    // to prevent, and one MemoryPlan::build() would then reject on a graph
+    // insert_node had approved.
+    Graph::Graph graph;
+    const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
+    const ValueId orphan = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "orphan");
+    const ValueId y = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "y");
+
+    // Node 0 reads `orphan`, which nothing writes yet.
+    (void)graph.add_node(Ops::ADD.id, {x, orphan}, {y});
+
+    SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}),
+                    "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
+
+    // Rejected rather than half-applied: nothing was inserted and no producer
+    // was claimed.
+    EXPECT_EQ(graph.node_count(), 1u);
+    EXPECT_EQ(graph.value(orphan).producer, NO_NODE);
+
+    // The same node ahead of that reader is fine, which is what makes the
+    // rejection above a statement about position rather than about the node.
+    EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}));
+    EXPECT_EQ(graph.node_count(), 2u);
+    EXPECT_EQ(graph.value(orphan).producer, Graph::NodeId{0});
+    EXPECT_EQ(graph.value(y).producer, Graph::NodeId{1});
+}
+
+TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
+{
+    // The mirror of the case above, and the one that was guarded first.
+    Graph::Graph graph;
+    const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
+    const ValueId y = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "y");
+    const ValueId z = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "z");
+
+    (void)graph.add_node(Ops::RELU.id, {x}, {y});
+
+    SA_EXPECT_ERROR((void)graph.insert_node(0, Graph::Node{Ops::TANH.id, {y}, {z}, {}}),
+                    "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes", "topological");
+
+    EXPECT_EQ(graph.node_count(), 1u);
+    EXPECT_EQ(graph.value(z).producer, NO_NODE);
 }
 
 TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)

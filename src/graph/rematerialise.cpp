@@ -83,6 +83,21 @@ namespace SushiAI
                 // One consumer is the forward GEMM and nothing else reads the
                 // matrix, so there is no live range to shorten; none at all is
                 // a dead gather, which is not this pass's problem either.
+                //
+                // "Every consumer after the first" rather than "every backward
+                // consumer", because there is nothing in the IR to ask. The
+                // pass runs after differentiate(), so both phases are already in
+                // the node list and no marker separates them; a node index would
+                // only work for a pass that ran during differentiation.
+                //
+                // The two are the same set for every graph differentiation
+                // produces, and the shape that would separate them - a second
+                // *forward* reader of a column matrix, which would get a
+                // rematerialisation it did not need - is one nothing in the IR
+                // can build today. A column matrix is the left operand of a
+                // GEMM and nothing else consumes that shape. Left as the
+                // structural rule rather than a phase test because the
+                // structural rule is the one that stays checkable.
                 if (consumers.size() < 2) continue;
 
                 // Both copied rather than referenced: the declaration below
