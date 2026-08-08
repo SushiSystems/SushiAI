@@ -17,6 +17,7 @@ below.
 from __future__ import annotations
 
 import enum
+import os
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -411,12 +412,14 @@ def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> 
     Without them the binary exits with 0xC0000135 before reaching main, which
     looks like a package failure and is not one.
 
-    Everything in the prefix's bin/ is taken rather than a named list: the
-    prefix holds exactly what this project installed, and naming
-    sushiruntime.dll here would be a fourth place to remember when the set
-    changes. hwloc is not among them - it is linked PRIVATE by SushiRuntime and
-    never reaches a consumer, which is why the in-tree copies do not stage it
-    either.
+    Two sources, and the second one is the easy mistake. Everything in the
+    prefix's bin/ is taken rather than a named list, since the prefix holds
+    exactly what this project installed. hwloc is then taken from the vcpkg
+    tree on top: SushiRuntime links it PRIVATE, so it is absent from the CMake
+    *interface* and a consumer never names it - but PRIVATE is a link-time
+    statement, not a load-time one, and hwloc-15.dll is in sushiruntime.dll's
+    import table all the same. The loader does not read
+    INTERFACE_LINK_LIBRARIES.
 
     @param cfg The resolved configuration.
     @param root The project root.
@@ -426,10 +429,51 @@ def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> 
     if not cfg.is_windows:
         return  # ELF consumers resolve via RPATH; nothing to stage.
 
-    dlls = list((prefix / "bin").glob("*.dll"))
-    for dll in dlls:
+    sources = list((prefix / "bin").glob("*.dll"))
+    if vcpkg_prefix := _vcpkg_prefix(cfg, root):
+        sources += list(Path(vcpkg_prefix, "bin").glob("hwloc*.dll"))
+
+    for dll in sources:
         shutil.copy2(dll, dest / dll.name)
-    console.info(f"Deployed {len(dlls)} shared libraries beside the consumer.")
+    console.info(f"Deployed {len(sources)} shared libraries beside the consumer.")
+
+
+def _consumer_run_env(cfg: Config, root: Path, env: dict[str, str]) -> dict[str, str]:
+    """The build env with the vcpkg installed bin removed from PATH.
+
+    ``load_build_env`` prepends that directory precisely so sushiruntime.dll
+    can find hwloc (see env.py). That is right for every in-tree binary and
+    wrong for this one: with it on PATH the consumer loads whether or not
+    :func:`_deploy_consumer_dlls` staged anything, so the deployment half of
+    this suite would assert nothing and pass. A third party has no vcpkg tree
+    on PATH, and the point of the package suite is to stop being a third party
+    in name only.
+
+    Only that one entry is dropped. The bundled SYCL toolchain's bin stays -
+    a consumer built with this compiler genuinely needs its redistributables,
+    and removing it would be testing the toolchain's installer, not this
+    package.
+
+    @param cfg The resolved configuration.
+    @param root The project root.
+    @param env The snapshotted build environment.
+    @return A copy of *env* with the vcpkg bin filtered out of PATH.
+    """
+    vcpkg_prefix = _vcpkg_prefix(cfg, root)
+    if not cfg.is_windows or not vcpkg_prefix:
+        return env
+
+    vcpkg_bin = Path(vcpkg_prefix, "bin")
+    stripped = dict(env)
+    for key, value in env.items():
+        if key.upper() != "PATH":
+            continue
+        kept = [
+            entry for entry in value.split(os.pathsep)
+            if not entry or Path(entry) != vcpkg_bin
+        ]
+        stripped[key] = os.pathsep.join(kept)
+    return stripped
 
 
 def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) -> int:
@@ -462,10 +506,15 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     prefix = build_dir / "package" / "prefix"
     consumer = build_dir / "package" / "consumer"
 
-    # A stale prefix would let a header deleted since the last run keep
-    # satisfying an include, so the install starts from nothing.
-    if prefix.is_dir():
-        shutil.rmtree(prefix, ignore_errors=True)
+    # Both start from nothing. A stale prefix would let a header deleted since
+    # the last run keep satisfying an include; a stale consumer directory would
+    # let a DLL staged by an earlier run - or by hand - keep satisfying the
+    # loader, which is how a deployment regression hides. Found the hard way:
+    # a hand-copied hwloc-15.dll from a manual run months earlier was still
+    # sitting there, making the run step prove nothing.
+    for stale in (prefix, consumer):
+        if stale.is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
 
     console.info(f"Installing to {prefix}...")
     rc = _run([_cmake(cfg), "--install", str(build_dir),
@@ -521,11 +570,15 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     _deploy_consumer_dlls(cfg, root, prefix, exe.parent)
 
     console.info(f"Executing: {exe.name}")
-    rc = _run([str(exe)], env, cwd=consumer)
+    rc = _run([str(exe)], _consumer_run_env(cfg, root, env), cwd=consumer)
     if rc == 0:
         console.success("Package consumer built and ran against the install prefix.")
     else:
-        console.error("The package consumer failed at runtime.")
+        console.error(
+            "The package consumer failed at runtime.\n"
+            "  - exit code 0xC0000135 (-1073741515) means the loader could not "
+            "find a DLL, not that the package is broken: something in the "
+            "install's import graph is not staged by _deploy_consumer_dlls.")
     return rc
 
 

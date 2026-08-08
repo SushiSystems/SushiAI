@@ -130,20 +130,32 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   an out-of-tree consumer, builds it and runs it. `tests/package/` already
   existed but was driven by hand; nothing ran it.
 
-  It exists because of a bug no test in this repo could have caught: four
-  public headers (`autograd/tape.hpp`, `autograd/rule.hpp`,
-  `autograd/rules/all.hpp`, `graph/rematerialise.hpp`) were missing from the
-  `SushiAI/SushiAI.h` umbrella. Every in-tree test includes headers directly
-  from the source tree, so what `find_package(SushiAI)` actually hands a third
-  party — the installed headers, the exported interface, the transitive
-  `find_dependency` on both siblings — was never exercised anywhere. Verified
-  by making an installed header unreachable and confirming the suite fails on
-  it.
+  Every in-tree test includes headers directly from the source tree, so what
+  `find_package(SushiAI)` actually hands a third party — the installed headers,
+  the exported interface, the transitive `find_dependency` on both siblings,
+  and the DLLs the binary needs beside it — was never exercised anywhere.
+  Verified by making an installed header unreachable and confirming the
+  consumer fails to compile through the installed umbrella.
 
   It is not a CTest label and not part of `--suite all`, which now prints a
   line saying so rather than leaving the gap to be discovered. `--filter` and
   `--repeat` are CTest knobs and exit 2 here rather than being silently
-  ignored. See [CLI_GUIDE.md](CLI_GUIDE.md#-suite-package).
+  ignored. See [CLI_GUIDE.md](CLI_GUIDE.md#--suite-package).
+- **A configure-time check that `SushiAI/SushiAI.h` names every installed
+  header.** This is what actually closes the bug that prompted the packaging
+  work: four public headers (`autograd/tape.hpp`, `autograd/rule.hpp`,
+  `autograd/rules/all.hpp`, `graph/rematerialise.hpp`) were installed but
+  missing from the umbrella, and they were found by reading rather than by a
+  failing test.
+
+  The package suite cannot catch that case and it would be wrong to claim it
+  does: it compiles what the umbrella names, so it catches *referenced but not
+  installed*, while the inverse — installed but never referenced — simply never
+  gets compiled and nothing fails. `src/CMakeLists.txt` now globs
+  `include/SushiAI/**/*.hpp` and fails the configure with the list of any that
+  the umbrella does not include. No exclusions: everything under that directory
+  is public, and anything that is not belongs outside the installed include
+  tree. All 51 headers pass today.
 
 ### Changed
 - The compiler and host-tool flags in `cli/sushiai/services/project.py` moved
@@ -153,6 +165,14 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   reasons that have nothing to do with packaging. `CMAKE_PREFIX_PATH` stays
   per-caller — it is the one setting the two configures legitimately disagree
   on.
+- Corrected the claim in `examples/CMakeLists.txt` that hwloc "never reaches
+  consumers". It never reaches a consumer's *link line* — SushiRuntime links it
+  PRIVATE — but it is in `sushiruntime.dll`'s import table, and the loader does
+  not read `INTERFACE_LINK_LIBRARIES`. In-tree binaries get it from PATH, which
+  `sa` populates for every subprocess; the package suite stages it beside the
+  consumer instead and runs the consumer with that PATH entry removed, so the
+  deployment claim is under test rather than shadowed by the developer's
+  environment.
 - **`src/autograd/backward.cpp` is gone, split into one translation unit per
   domain.** It was 600 lines with four unrelated reasons to change, and the
   twenty new identities above would all have landed in it. The implementation
