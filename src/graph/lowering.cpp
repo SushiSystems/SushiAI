@@ -497,6 +497,14 @@ namespace SushiAI
             if (node.op == Ops::LAYOUT_CONVERT.id)         { record_layout_convert(graph, id, node); return; }
             if (node.op == Ops::IM2COL.id)                 { record_im2col(graph, id, node); return; }
             if (node.op == Ops::COL2IM.id)                 { record_col2im(graph, id, node); return; }
+            if (node.op == Ops::MAXPOOL2D.id)              { record_maxpool2d(graph, id, node); return; }
+            if (node.op == Ops::MAXPOOL2D_BACKWARD.id)     { record_maxpool2d_backward(graph, id, node); return; }
+            if (node.op == Ops::AVGPOOL2D.id)              { record_avgpool2d(graph, id, node); return; }
+            if (node.op == Ops::AVGPOOL2D_BACKWARD.id)     { record_avgpool2d_backward(graph, id, node); return; }
+            if (node.op == Ops::UPSAMPLE2D.id)             { record_upsample2d(graph, id, node); return; }
+            if (node.op == Ops::UPSAMPLE2D_BACKWARD.id)    { record_upsample2d_backward(graph, id, node); return; }
+            if (node.op == Ops::SPATIAL_MEAN.id)           { record_spatial_mean(graph, id, node); return; }
+            if (node.op == Ops::SPATIAL_MEAN_BACKWARD.id)  { record_spatial_mean_backward(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -1199,6 +1207,127 @@ namespace SushiAI
             windowed_extents_of(node, id, "COL2IM", out_h, out_w);
 
             engine_->spatial().col2im(cols, image, g, out_h, out_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_maxpool2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 2,
+                        "MAXPOOL2D (node {}) takes one operand and two results "
+                        "(the pooled value and its argmax indices)", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+            SushiBLAS::Tensor& indices = output(graph, node, 1);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_max(in, out, indices, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_maxpool2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 2 || node.outputs.size() != 1,
+                        "MAXPOOL2D_BACKWARD (node {}) takes a gradient and the forward's "
+                        "indices, and produces one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            const SushiBLAS::Tensor& indices = input(node, 1);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_max_backward(dy, indices, dx, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_avgpool2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "AVGPOOL2D (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_avg(in, out, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_avgpool2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "AVGPOOL2D_BACKWARD (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_avg_backward(dy, dx, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_upsample2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "UPSAMPLE2D (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            const int64_t scale_h = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t scale_w = static_cast<int64_t>(node.attributes.get(1));
+
+            engine_->spatial().upsample_nearest(in, out, scale_h, scale_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_upsample2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "UPSAMPLE2D_BACKWARD (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            const int64_t scale_h = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t scale_w = static_cast<int64_t>(node.attributes.get(1));
+
+            engine_->spatial().upsample_nearest_backward(dy, dx, scale_h, scale_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_spatial_mean(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "SPATIAL_MEAN (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            engine_->reductions().mean_spatial(in, out);
+            ++emitted_;
+        }
+
+        void Lowering::record_spatial_mean_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "SPATIAL_MEAN_BACKWARD (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            // The divisor is read from dx's own shape - the [N,H,W,C] gradient
+            // this node is about to fill - rather than carried as a separate
+            // attribute, so the forward's mean_spatial and this broadcast can
+            // never disagree about what H*W was.
+            const Shape& dx_shape = shape_of(graph, node.outputs[0]);
+            const double scale = 1.0 / static_cast<double>(dx_shape[1] * dx_shape[2]);
+
+            engine_->spatial().broadcast_spatial(dy, dx, scale);
             ++emitted_;
         }
 

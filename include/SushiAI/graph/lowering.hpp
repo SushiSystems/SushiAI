@@ -544,6 +544,14 @@ namespace SushiAI
                 void record_layout_convert(const Graph& graph, NodeId id, const Node& node);
                 void record_im2col(const Graph& graph, NodeId id, const Node& node);
                 void record_col2im(const Graph& graph, NodeId id, const Node& node);
+                void record_maxpool2d(const Graph& graph, NodeId id, const Node& node);
+                void record_maxpool2d_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_avgpool2d(const Graph& graph, NodeId id, const Node& node);
+                void record_avgpool2d_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_upsample2d(const Graph& graph, NodeId id, const Node& node);
+                void record_upsample2d_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_spatial_mean(const Graph& graph, NodeId id, const Node& node);
+                void record_spatial_mean_backward(const Graph& graph, NodeId id, const Node& node);
 
                 void record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
                                        FusedForm matched);

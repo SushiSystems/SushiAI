@@ -218,18 +218,18 @@ namespace SushiAI
         // --- Pooling --------------------------------------------------------
 
         /** @brief Windowed maximum; also writes the argmax indices. */
-        inline constexpr OpName MAXPOOL2D = op("sushiai.maxpool2d");
+        inline constexpr OpName MAXPOOL2D = differentiable_op("sushiai.maxpool2d");
         /** @brief Routes each gradient back through the recorded argmax. */
         inline constexpr OpName MAXPOOL2D_BACKWARD = op("sushiai.maxpool2d_backward");
         /** @brief Windowed mean, dividing by the window area (count_include_pad). */
-        inline constexpr OpName AVGPOOL2D = op("sushiai.avgpool2d");
+        inline constexpr OpName AVGPOOL2D = differentiable_op("sushiai.avgpool2d");
         /** @brief Spreads each gradient evenly over the window it came from. */
         inline constexpr OpName AVGPOOL2D_BACKWARD = op("sushiai.avgpool2d_backward");
 
         // --- Whole-plane spatial --------------------------------------------
 
         /** @brief Global average over H and W: [N,H,W,C] -> [N,C]. */
-        inline constexpr OpName SPATIAL_MEAN = op("sushiai.spatial_mean");
+        inline constexpr OpName SPATIAL_MEAN = differentiable_op("sushiai.spatial_mean");
         /**
          * @brief Broadcasts an [N,C] gradient over [N,H,W,C], scaled by 1/(H*W).
          *
@@ -239,7 +239,7 @@ namespace SushiAI
          */
         inline constexpr OpName SPATIAL_MEAN_BACKWARD = op("sushiai.spatial_mean_backward");
         /** @brief Nearest-neighbour upsample by an integer scale. */
-        inline constexpr OpName UPSAMPLE2D = op("sushiai.upsample2d");
+        inline constexpr OpName UPSAMPLE2D = differentiable_op("sushiai.upsample2d");
         /** @brief Sums each source pixel's replicas back together. */
         inline constexpr OpName UPSAMPLE2D_BACKWARD = op("sushiai.upsample2d_backward");
 

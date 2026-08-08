@@ -501,6 +501,98 @@ TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGiven
             << "at row " << (i / 9) << " tap " << (i % 9);
 }
 
+TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
+{
+    // A gradcheck says the backward is consistent with whatever the forward
+    // happens to compute; this is the forward's own proof. N=1, H=2, W=2,
+    // C=1, values 0,1,2,3 in row-major (h,w) order, one 2x2 window covering
+    // the whole image: the maximum is 3.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(pooled.output));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_NEAR(result[0], 3.0, 1e-9);
+}
+
+TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
+{
+    // Same window as the max-pool case above; the average of 0,1,2,3 is 1.5.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const ValueId pooled = builder.avgpool2d(x, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(pooled));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_NEAR(result[0], 1.5, 1e-9);
+}
+
+TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
+{
+    // A single pixel, scale 2x2, replicated into a 2x2 block of the same
+    // value.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 1, 1, 1}, "x");
+    const ValueId up = builder.upsample2d(x, 2, 2);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{5.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(up));
+    const std::vector<double> expected = {5.0, 5.0, 5.0, 5.0};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
+{
+    // N=1, H=2, W=2, C=1, values 0,1,2,3: the mean of the whole plane is 1.5.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueId mean = builder.spatial_mean(x);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(mean));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_NEAR(result[0], 1.5, 1e-9);
+}
+
 TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;

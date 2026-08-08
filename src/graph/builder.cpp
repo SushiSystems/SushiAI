@@ -561,6 +561,100 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::maxpool2d_backward(ValueId dy, ValueId indices, Shape input_shape,
+                                                 const ConvGeometry& g) const
+        {
+            const Value& gy = graph_->value(dy);
+            SA_THROW_IF(gy.shape.rank() != 4,
+                        "maxpool2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                        "rank {}", gy.shape.rank());
+            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
+                        "maxpool2d_backward reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(input_shape.rank() != 4,
+                        "maxpool2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                        "rank {}", input_shape.rank());
+
+            const Value& ix = graph_->value(indices);
+            SA_THROW_IF(ix.dtype != DType::INT64,
+                        "maxpool2d_backward's indices must be INT64; got {}",
+                        dtype_name(ix.dtype));
+            SA_THROW_IF(ix.shape != gy.shape,
+                        "maxpool2d_backward's indices must share its output gradient's shape");
+
+            const ValueId out = declare_like(dy, input_shape, gy.dtype,
+                                             Lifetime::ACTIVATION, "dx");
+            graph_->add_node(Ops::MAXPOOL2D_BACKWARD.id, {dy, indices}, {out},
+                             geometry_attributes(g));
+            return out;
+        }
+
+        ValueId GraphBuilder::avgpool2d_backward(ValueId dy, Shape input_shape,
+                                                 const ConvGeometry& g) const
+        {
+            const Value& gy = graph_->value(dy);
+            SA_THROW_IF(gy.shape.rank() != 4,
+                        "avgpool2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                        "rank {}", gy.shape.rank());
+            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
+                        "avgpool2d_backward reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(input_shape.rank() != 4,
+                        "avgpool2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                        "rank {}", input_shape.rank());
+
+            const ValueId out = declare_like(dy, input_shape, gy.dtype,
+                                             Lifetime::ACTIVATION, "dx");
+            graph_->add_node(Ops::AVGPOOL2D_BACKWARD.id, {dy}, {out}, geometry_attributes(g));
+            return out;
+        }
+
+        ValueId GraphBuilder::upsample2d_backward(ValueId dy, Shape input_shape,
+                                                  int64_t scale_h, int64_t scale_w) const
+        {
+            const Value& gy = graph_->value(dy);
+            SA_THROW_IF(gy.shape.rank() != 4,
+                        "upsample2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                        "rank {}", gy.shape.rank());
+            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
+                        "upsample2d_backward reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(input_shape.rank() != 4,
+                        "upsample2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                        "rank {}", input_shape.rank());
+            SA_THROW_IF(scale_h < 1 || scale_w < 1,
+                        "upsample2d_backward needs scales of at least one; got {}x{}",
+                        scale_h, scale_w);
+
+            const ValueId out = declare_like(dy, input_shape, gy.dtype,
+                                             Lifetime::ACTIVATION, "dx");
+
+            Attributes a{};
+            a.values[0] = static_cast<double>(scale_h);
+            a.values[1] = static_cast<double>(scale_w);
+            graph_->add_node(Ops::UPSAMPLE2D_BACKWARD.id, {dy}, {out}, a);
+            return out;
+        }
+
+        ValueId GraphBuilder::spatial_mean_backward(ValueId dy, Shape input_shape) const
+        {
+            const Value& gy = graph_->value(dy);
+            SA_THROW_IF(gy.shape.rank() != 2,
+                        "spatial_mean_backward needs a rank-2 [N,C] output gradient; got "
+                        "rank {}", gy.shape.rank());
+            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
+                        "spatial_mean_backward reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(input_shape.rank() != 4,
+                        "spatial_mean_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                        "rank {}", input_shape.rank());
+
+            const ValueId out = declare_like(dy, input_shape, gy.dtype,
+                                             Lifetime::ACTIVATION, "dx");
+            graph_->add_node(Ops::SPATIAL_MEAN_BACKWARD.id, {dy}, {out});
+            return out;
+        }
+
         ValueId GraphBuilder::concat_channels(SushiRuntime::span<const ValueId> parts) const
         {
             SA_THROW_IF(parts.empty(), "concat_channels needs at least one operand");

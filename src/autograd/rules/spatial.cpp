@@ -119,5 +119,63 @@ namespace SushiAI
 
             tape.contribute_input(0, tape.builder().im2col_with_extents(dy, g, out_h, out_w));
         }
+
+        void maxpool2d_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            // The indices are this node's second *result*, so the rule reads
+            // exactly what its own forward wrote - there is no way to pair a
+            // gradient with another pool's argmax.
+            const Graph::Node& node = tape.node();
+            tape.contribute_input(0, tape.builder().maxpool2d_backward(
+                dy, node.outputs[1], tape.graph().value(node.inputs[0]).shape,
+                geometry_of(node)));
+        }
+
+        void avgpool2d_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            // No index and no saved forward: every element of a window gets
+            // the same share, so the divisor is the window area alone. This is
+            // why it is a separate function from the max rule rather than the
+            // same one with a flag.
+            const Graph::Node& node = tape.node();
+            tape.contribute_input(0, tape.builder().avgpool2d_backward(
+                dy, tape.graph().value(node.inputs[0]).shape, geometry_of(node)));
+        }
+
+        void upsample2d_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            const Graph::Node& node = tape.node();
+            tape.contribute_input(0, tape.builder().upsample2d_backward(
+                dy, tape.graph().value(node.inputs[0]).shape,
+                static_cast<int64_t>(node.attributes.get(0)),
+                static_cast<int64_t>(node.attributes.get(1))));
+        }
+
+        void spatial_mean_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            const Graph::Node& node = tape.node();
+            tape.contribute_input(0, tape.builder().spatial_mean_backward(
+                dy, tape.graph().value(node.inputs[0]).shape));
+        }
     }
 }
