@@ -645,6 +645,94 @@ TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
+TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
+{
+    // N=1, H=1, W=2, C=2. Two pixels sharing one pair of parameters is what
+    // separates a per-channel broadcast from a per-row one: BIAS_ADD's
+    // broadcast would give the second pixel the second channel's numbers.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 1, 2, 2}, "x");
+    const ValueId gamma = builder.input(Shape{2}, "gamma");
+    const ValueId beta = builder.input(Shape{2}, "beta");
+    const ValueId y = builder.channel_affine(x, gamma, beta);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4});
+    write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 3.0});
+    write_tensor(run.pool.tensor(beta), std::vector<double>{10.0, 20.0});
+
+    run.compile();
+    run.step->run();
+
+    // [1*2+10, 2*3+20, 3*2+10, 4*3+20]
+    const std::vector<double> expected = {12.0, 26.0, 16.0, 32.0};
+    const std::vector<double> result = read_tensor(run.pool.tensor(y));
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-6) << "at " << i;
+}
+
+TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
+{
+    // N=2, H=2, W=1, C=2, so each channel is folded over four elements and the
+    // two channels have deliberately different scales - a normalisation that
+    // reduced over the wrong axis would still produce four finite numbers.
+    //
+    // Channel 0 sees 1, 2, 3, 4:    mean 2.5, biased variance 1.25.
+    // Channel 1 sees 10, 20, 30, 40: mean 25, biased variance 125.
+    //
+    // Biased, dividing by N*H*W rather than by N*H*W - 1: that is what the
+    // forward normalises by, and the saved statistics are what the backward
+    // reads, so an unbiased divisor here would be a different function.
+    constexpr double EPSILON = 1e-5;
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{2, 2, 1, 2}, "x");
+    const ValueId gamma = builder.input(Shape{2}, "gamma");
+    const ValueId beta = builder.input(Shape{2}, "beta");
+    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, EPSILON);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1, 10, 2, 20, 3, 30, 4, 40});
+    write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 1.0});
+    write_tensor(run.pool.tensor(beta), std::vector<double>{0.0, 5.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> mean = read_tensor(run.pool.tensor(bn.saved_mean));
+    ASSERT_EQ(mean.size(), 2u);
+    EXPECT_NEAR(mean[0], 2.5, 1e-6);
+    EXPECT_NEAR(mean[1], 25.0, 1e-6);
+
+    const double inv0 = 1.0 / std::sqrt(1.25 + EPSILON);
+    const double inv1 = 1.0 / std::sqrt(125.0 + EPSILON);
+
+    const std::vector<double> inv_std = read_tensor(run.pool.tensor(bn.saved_inv_std));
+    ASSERT_EQ(inv_std.size(), 2u);
+    EXPECT_NEAR(inv_std[0], inv0, 1e-6);
+    EXPECT_NEAR(inv_std[1], inv1, 1e-6);
+
+    const std::array<double, 4> channel0 = {1.0, 2.0, 3.0, 4.0};
+    const std::array<double, 4> channel1 = {10.0, 20.0, 30.0, 40.0};
+
+    std::vector<double> expected(8);
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        expected[i * 2]     = 2.0 * (channel0[i] - 2.5) * inv0 + 0.0;
+        expected[i * 2 + 1] = 1.0 * (channel1[i] - 25.0) * inv1 + 5.0;
+    }
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(bn.output));
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+}
+
 TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;

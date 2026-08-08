@@ -1024,3 +1024,150 @@ TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
 
     expect_gradient_matches(probe, point);
 }
+
+TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItComputed)
+{
+    // The rule that is easy to get subtly wrong and hard to notice: the batch
+    // mean and variance are functions of x, so dx has three terms, not one.
+    // Treating them as constants gives a gradient that is right on average
+    // over the batch and wrong per element - the model still trains, slightly
+    // worse, with nothing to point at.
+    ValueId gamma = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape({4, 3, 3, 5}),
+                [&gamma, &beta](const GraphBuilder& b, ValueId x)
+    {
+        gamma = b.parameter(Shape{5}, "gamma", DType::FLOAT64);
+        beta = b.parameter(Shape{5}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+    });
+
+    probe.fill_noise(gamma, 471, 1.0);
+    probe.fill_noise(beta, 472, 1.0);
+    probe.fill_one_hot(4, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(473).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput)
+{
+    // The same node differentiated at gamma instead of x. Separate rather than
+    // folded into the case above because the Probe checks one variable, and
+    // dgamma is the term that would survive unnoticed if it were summed over
+    // the wrong axis - a [C] result of the right shape either way.
+    ValueId x = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{5}, [&x, &beta](const GraphBuilder& b, ValueId gamma)
+    {
+        x = b.input(Shape({4, 3, 3, 5}), "x", DType::FLOAT64);
+        beta = b.parameter(Shape{5}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+    });
+
+    probe.fill_noise(x, 481, 1.0);
+    probe.fill_noise(beta, 482, 1.0);
+    probe.fill_one_hot(4, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(483).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, BatchNormsShiftGradientIsThePlainSumOfDy)
+{
+    ValueId x = Graph::NO_VALUE;
+    ValueId gamma = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{5}, [&x, &gamma](const GraphBuilder& b, ValueId beta)
+    {
+        x = b.input(Shape({4, 3, 3, 5}), "x", DType::FLOAT64);
+        gamma = b.parameter(Shape{5}, "gamma", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+    });
+
+    probe.fill_noise(x, 491, 1.0);
+    probe.fill_noise(gamma, 492, 1.0);
+    probe.fill_one_hot(4, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(493).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ChannelAffineDifferentiatesAtItsInput)
+{
+    ValueId gamma = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape({2, 4, 4, 6}),
+                [&gamma, &beta](const GraphBuilder& b, ValueId x)
+    {
+        gamma = b.parameter(Shape{6}, "gamma", DType::FLOAT64);
+        beta = b.parameter(Shape{6}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
+    });
+
+    probe.fill_noise(gamma, 501, 1.0);
+    probe.fill_noise(beta, 502, 1.0);
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(503).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ChannelAffinesScaleGradientSumsOverNHAndW)
+{
+    // dgamma is a sum over three axes at once. A sum over the wrong ones -
+    // per-sample rather than per-channel - is still a [C]-shaped value when
+    // N happens to equal C, which is why this is checked numerically rather
+    // than by shape.
+    ValueId x = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{6}, [&x, &beta](const GraphBuilder& b, ValueId gamma)
+    {
+        x = b.input(Shape({2, 4, 4, 6}), "x", DType::FLOAT64);
+        beta = b.parameter(Shape{6}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
+    });
+
+    probe.fill_noise(x, 511, 1.0);
+    probe.fill_noise(beta, 512, 1.0);
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(513).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ChannelAffinesShiftGradientSumsOverNHAndW)
+{
+    ValueId x = Graph::NO_VALUE;
+    ValueId gamma = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{6}, [&x, &gamma](const GraphBuilder& b, ValueId beta)
+    {
+        x = b.input(Shape({2, 4, 4, 6}), "x", DType::FLOAT64);
+        gamma = b.parameter(Shape{6}, "gamma", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
+    });
+
+    probe.fill_noise(x, 521, 1.0);
+    probe.fill_noise(gamma, 522, 1.0);
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(523).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}

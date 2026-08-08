@@ -117,6 +117,42 @@ namespace SushiAI
         };
 
         /**
+         * @struct BatchNormResult
+         * @brief A batch normalisation's output and the statistics it computed.
+         *
+         * The two statistics are returned rather than recomputed for the same
+         * reason @ref PoolResult returns its indices: the backward pass needs
+         * exactly the numbers *this* forward normalised by. Recomputing them
+         * from an input a later node may have overwritten is how a
+         * normalisation drifts without anything failing.
+         *
+         * Plan C's @c BatchNorm2d layer reads @c saved_mean and
+         * @c saved_inv_std to update its running statistics, which CV-7 keeps
+         * out of the graph entirely.
+         */
+        struct BatchNormResult
+        {
+            ValueId output;         /**< @brief The normalised [N,H,W,C] value. */
+            ValueId saved_mean;     /**< @brief The batch mean, [C]. */
+            ValueId saved_inv_std;  /**< @brief 1/sqrt(var + eps), [C]. */
+        };
+
+        /**
+         * @struct BatchNormGrads
+         * @brief A batch normalisation's three gradients, produced together.
+         *
+         * One node rather than three, because all three share the two
+         * reductions over the batch: splitting them would compute the same
+         * sums three times.
+         */
+        struct BatchNormGrads
+        {
+            ValueId dx;      /**< @brief The [N,H,W,C] input gradient. */
+            ValueId dgamma;  /**< @brief The [C] scale gradient. */
+            ValueId dbeta;   /**< @brief The [C] shift gradient. */
+        };
+
+        /**
          * @class GraphBuilder
          * @brief Emits shape-checked IR nodes into a Graph.
          *
@@ -613,6 +649,67 @@ namespace SushiAI
                  *         parameter is not a rank-1 @c [C] value.
                  */
                 ValueId channel_affine(ValueId x, ValueId gamma, ValueId beta) const;
+
+                /**
+                 * @brief Sums an @c [N,H,W,C] value down to @c [C].
+                 *
+                 * @c CHANNEL_AFFINE's parameter gradients, and nothing else so
+                 * far. Deliberately *not* a new identity: in NHWC the fold is
+                 * over axis 0 of the zero-copy rank-2 @c [N*H*W, C] view, which
+                 * is the case the design says "needs nothing new" - so this is
+                 * the two identities that already spell it, @c RESHAPE followed
+                 * by @c SUM_ROWS. A third op for a composition that already has
+                 * a lowering would be one more thing to keep in step with the
+                 * precision policy and the identity table for no new capability.
+                 *
+                 * Not @c SPATIAL_MEAN's sibling either, despite the shape
+                 * similarity: @c SPATIAL_MEAN's surviving position is the pair
+                 * @c (n,c) and needs the second segment axis; this one's is
+                 * @c c alone.
+                 *
+                 * @param x The @c [N,H,W,C] input.
+                 * @return The @c [C] per-channel sum's id.
+                 * @throws Error If @p x is not rank 4 or not NHWC.
+                 */
+                ValueId sum_channels(ValueId x) const;
+
+                /**
+                 * @brief Emits @c BATCHNORM2D: normalise over N, H and W, then scale and shift.
+                 *
+                 * @param x The @c [N,H,W,C] input.
+                 * @param gamma The @c [C] per-channel scale.
+                 * @param beta The @c [C] per-channel shift.
+                 * @param epsilon Added to the variance before the square root;
+                 *        must be positive.
+                 * @return The normalised value and the two saved statistics.
+                 * @throws Error If @p x is not rank 4, not NHWC, either
+                 *         parameter is not a rank-1 @c [C] value, or @p epsilon
+                 *         is not positive.
+                 */
+                BatchNormResult batchnorm2d(ValueId x, ValueId gamma, ValueId beta,
+                                            double epsilon) const;
+
+                /**
+                 * @brief Emits @c BATCHNORM2D_BACKWARD: all three gradients at once.
+                 *
+                 * The statistics come in as values rather than being recomputed,
+                 * so this node differentiates the normalisation the forward
+                 * actually performed. @p gamma is read because @c dx is scaled
+                 * by it; the running statistics are not operands at all (CV-7).
+                 *
+                 * @param dy The @c [N,H,W,C] output gradient.
+                 * @param x The forward's input.
+                 * @param gamma The @c [C] scale the forward applied.
+                 * @param saved_mean The @c [C] batch mean the forward computed.
+                 * @param saved_inv_std The @c [C] inverse standard deviation it computed.
+                 * @return The input, scale and shift gradients.
+                 * @throws Error If @p dy or @p x is not rank 4 or not NHWC, they
+                 *         disagree in shape or dtype, or any of the three
+                 *         per-channel operands is not a rank-1 @c [C] value.
+                 */
+                BatchNormGrads batchnorm2d_backward(ValueId dy, ValueId x, ValueId gamma,
+                                                    ValueId saved_mean,
+                                                    ValueId saved_inv_std) const;
 
                 /**
                  * @brief Emits @c RESHAPE: a view of @p x with different extents.

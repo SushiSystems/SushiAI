@@ -742,6 +742,108 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::sum_channels(ValueId x) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "sum_channels needs a rank-4 input; got rank {}", in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "sum_channels reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+
+            // Channels innermost is what makes this two existing nodes rather
+            // than a new one: [N,H,W,C] and [N*H*W, C] are the same bytes in
+            // the same order, so the per-channel sum is a column sum of that
+            // view and SUM_ROWS already is one.
+            const int64_t rows = in.shape[0] * in.shape[1] * in.shape[2];
+            return sum_rows(reshape(x, Shape({rows, in.shape[3]})));
+        }
+
+        BatchNormResult GraphBuilder::batchnorm2d(ValueId x, ValueId gamma, ValueId beta,
+                                                  double epsilon) const
+        {
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "batchnorm2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "batchnorm2d reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            SA_THROW_IF(epsilon <= 0.0,
+                        "batchnorm2d's epsilon must be positive; got {}", epsilon);
+
+            for (ValueId p : {gamma, beta})
+            {
+                const Value& v = graph_->value(p);
+                SA_THROW_IF(v.shape.rank() != 1 || v.shape[0] != in.shape[3],
+                            "batchnorm2d's per-channel parameters must be [{}]; got a "
+                            "rank-{} value", in.shape[3], v.shape.rank());
+                SA_THROW_IF(v.dtype != in.dtype,
+                            "batchnorm2d's per-channel parameters must share the input's "
+                            "element type; got {} against {}",
+                            dtype_name(v.dtype), dtype_name(in.dtype));
+            }
+
+            const Shape per_channel({in.shape[3]});
+            const ValueId y = declare_like(x, in.shape, in.dtype, Lifetime::ACTIVATION, "bn");
+
+            // Saved rather than recomputed: the backward needs exactly the
+            // statistics the forward used, and recomputing them from a value
+            // some later node may have overwritten is how a normalisation
+            // silently drifts.
+            const ValueId mean = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
+                                              "bn_saved_mean");
+            const ValueId inv_std = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
+                                                 "bn_saved_inv_std");
+
+            Attributes a{};
+            a.values[0] = epsilon;
+            graph_->add_node(Ops::BATCHNORM2D.id, {x, gamma, beta}, {y, mean, inv_std}, a);
+            return BatchNormResult{y, mean, inv_std};
+        }
+
+        BatchNormGrads GraphBuilder::batchnorm2d_backward(ValueId dy, ValueId x, ValueId gamma,
+                                                          ValueId saved_mean,
+                                                          ValueId saved_inv_std) const
+        {
+            const Value& gy = graph_->value(dy);
+            SA_THROW_IF(gy.shape.rank() != 4,
+                        "batchnorm2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                        "rank {}", gy.shape.rank());
+            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
+                        "batchnorm2d_backward reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+
+            const Value& in = graph_->value(x);
+            SA_THROW_IF(in.shape.rank() != 4,
+                        "batchnorm2d_backward needs a rank-4 [N,H,W,C] input; got rank {}",
+                        in.shape.rank());
+            SA_THROW_IF(in.layout != TensorLayout::NHWC,
+                        "batchnorm2d_backward reads NHWC; this value is NCHW. Cross with "
+                        "layout_convert first (CV-3).");
+            require_same(dy, x, "batchnorm2d_backward");
+
+            for (ValueId p : {gamma, saved_mean, saved_inv_std})
+            {
+                const Value& v = graph_->value(p);
+                SA_THROW_IF(v.shape.rank() != 1 || v.shape[0] != in.shape[3],
+                            "batchnorm2d_backward's per-channel operands must be [{}]; got a "
+                            "rank-{} value", in.shape[3], v.shape.rank());
+            }
+
+            const Shape per_channel({in.shape[3]});
+            const ValueId dx = declare_like(x, in.shape, in.dtype, Lifetime::ACTIVATION, "bn_dx");
+            const ValueId dgamma = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
+                                                "bn_dgamma");
+            const ValueId dbeta = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
+                                               "bn_dbeta");
+
+            graph_->add_node(Ops::BATCHNORM2D_BACKWARD.id,
+                             {dy, x, gamma, saved_mean, saved_inv_std},
+                             {dx, dgamma, dbeta});
+            return BatchNormGrads{dx, dgamma, dbeta};
+        }
+
         ValueId GraphBuilder::reshape(ValueId x, Shape shape) const
         {
             const Value& in = graph_->value(x);

@@ -69,6 +69,13 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::SPATIAL_MEAN.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::CONCAT_CHANNELS.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::SLICE_CHANNELS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::BATCHNORM2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::CHANNEL_AFFINE.id));
+
+    // BATCHNORM_UPDATE_STATS has none, and that is CV-7 rather than an
+    // omission: a running mean is a buffer the training step writes beside
+    // the graph, not a value any gradient flows through.
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_UPDATE_STATS.id));
 
     // LEAF and ZERO produce values from nothing, so there is nothing upstream
     // to hand a gradient to and no rule to write.
@@ -136,6 +143,10 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
         {Ops::CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
         {Ops::SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
+
+        {Ops::BATCHNORM2D.id,
+         "Integration_Autograd.BatchNorms{Gradient,Scale,Shift}*"},
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffine*"},
     };
 
     for (const Proven& entry : ledger)

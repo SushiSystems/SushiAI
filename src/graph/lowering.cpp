@@ -507,6 +507,9 @@ namespace SushiAI
             if (node.op == Ops::SPATIAL_MEAN_BACKWARD.id)  { record_spatial_mean_backward(graph, id, node); return; }
             if (node.op == Ops::CONCAT_CHANNELS.id)        { record_concat_channels(graph, id, node); return; }
             if (node.op == Ops::SLICE_CHANNELS.id)         { record_slice_channels(graph, id, node); return; }
+            if (node.op == Ops::CHANNEL_AFFINE.id)         { record_channel_affine(graph, id, node); return; }
+            if (node.op == Ops::BATCHNORM2D.id)            { record_batchnorm2d(graph, id, node); return; }
+            if (node.op == Ops::BATCHNORM2D_BACKWARD.id)   { record_batchnorm2d_backward(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -1366,6 +1369,196 @@ namespace SushiAI
 
             engine_->spatial().slice_channels(in, offset, out);
             ++emitted_;
+        }
+
+        namespace
+        {
+            /**
+             * @brief The zero-copy `[N*H*W, C]` view of an NHWC tensor.
+             *
+             * Channels innermost is what makes this free: the rank-4 and the
+             * rank-2 readings are the same bytes in the same order, so a
+             * per-channel fold is a column sum of this view and needs no new
+             * kernel. Built the way record_reshape builds its own view, from
+             * the storage and offset rather than from a pointer, so an operand
+             * living inside a planned arena is addressed correctly.
+             */
+            SushiBLAS::Tensor channel_rows(const SushiBLAS::Tensor& t, int64_t rows, int64_t cols)
+            {
+                const int64_t extents[2] = {rows, cols};
+                return SushiBLAS::Tensor(
+                    t.storage, SushiRuntime::span<const int64_t>(extents, 2),
+                    t.dtype, t.storage_offset, t.layout);
+            }
+        }
+
+        void Lowering::record_channel_affine(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != 1,
+                        "CHANNEL_AFFINE (node {}) takes three operands and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            const SushiBLAS::Tensor& gamma = input(node, 1);
+            const SushiBLAS::Tensor& beta = input(node, 2);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            engine_->spatial().channel_affine(in, gamma, beta, out);
+            ++emitted_;
+        }
+
+        void Lowering::record_batchnorm2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != 3,
+                        "BATCHNORM2D (node {}) takes three operands and three results - the "
+                        "normalised value and the two statistics its own backward reads", id);
+
+            const Shape& x_shape = shape_of(graph, node.inputs[0]);
+            SA_THROW_IF(x_shape.rank() != 4,
+                        "BATCHNORM2D (node {}) needs a rank-4 [N,H,W,C] operand; got {}",
+                        id, x_shape.to_string());
+
+            const SushiBLAS::Tensor& x = input(node, 0);
+            SA_THROW_IF(!x.is_contiguous(),
+                        "BATCHNORM2D (node {}) folds its statistics over a rank-2 view of its "
+                        "operand, which a strided view would read wrong", id);
+
+            const SushiBLAS::Tensor& gamma = input(node, 1);
+            const SushiBLAS::Tensor& beta = input(node, 2);
+
+            SushiBLAS::Tensor& y = output(graph, node, 0);
+            SushiBLAS::Tensor& mean = output(graph, node, 1);
+            SushiBLAS::Tensor& inv_std = output(graph, node, 2);
+
+            const DType dtype = dtype_of(graph, node.inputs[0]);
+            const int64_t channels = x_shape[3];
+            const int64_t rows = x_shape[0] * x_shape[1] * x_shape[2];
+            const double inverse_rows = 1.0 / static_cast<double>(rows);
+            const double epsilon = node.attributes.get(0);
+
+            const Shape per_channel({channels});
+            SushiBLAS::Tensor& ones = pool_->ones(per_channel, dtype);
+            SushiBLAS::Tensor& negated_mean = pool_->scratch(id, 0, per_channel, dtype);
+            SushiBLAS::Tensor& centred = pool_->scratch(id, 1, x_shape, dtype);
+            SushiBLAS::Tensor& squared = pool_->scratch(id, 2, x_shape, dtype);
+            SushiBLAS::Tensor& variance = pool_->scratch(id, 3, per_channel, dtype);
+            SushiBLAS::Tensor& scale = pool_->scratch(id, 4, per_channel, dtype);
+
+            // The batch mean: a column sum of the [N*H*W, C] view, which is
+            // the fold the design says NHWC already spells with no new kernel.
+            const SushiBLAS::Tensor x_rows = channel_rows(x, rows, channels);
+            engine_->reductions().sum_along(x_rows, 0, mean);
+            engine_->blas().scal(inverse_rows, mean);
+
+            // Two passes rather than E[x*x] - E[x]*E[x]. The one-pass form is a
+            // subtraction of two numbers that are equal to several digits when
+            // the channel's mean is large next to its spread, and it loses
+            // exactly those digits - which shows up as a variance that is
+            // slightly wrong, or negative, and a normalisation that trains
+            // anyway. The second pass costs one traversal and is exact.
+            engine_->blas().copy(mean, negated_mean);
+            engine_->blas().scal(-1.0, negated_mean);
+            engine_->spatial().channel_affine(x, ones, negated_mean, centred);
+
+            engine_->elementwise().mul(centred, centred, squared);
+            const SushiBLAS::Tensor squared_rows = channel_rows(squared, rows, channels);
+            engine_->reductions().sum_along(squared_rows, 0, variance);
+            engine_->blas().scal(inverse_rows, variance);
+
+            // epsilon added through the shared ones vector rather than a
+            // constant fill, so nothing here allocates a buffer to hold one
+            // repeated number.
+            engine_->blas().axpy(epsilon, ones, variance);
+
+            engine_->blas().copy(variance, inv_std);
+            engine_->elementwise().sqrt(inv_std);
+            engine_->elementwise().reciprocal(inv_std);
+
+            // y = gamma * x_hat + beta, and x_hat = centred * inv_std, so the
+            // whole apply half is one channel_affine over the centred value.
+            engine_->elementwise().mul(gamma, inv_std, scale);
+            engine_->spatial().channel_affine(centred, scale, beta, y);
+
+            emitted_ += 12;
+        }
+
+        void Lowering::record_batchnorm2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 5 || node.outputs.size() != 3,
+                        "BATCHNORM2D_BACKWARD (node {}) takes the output gradient, the forward's "
+                        "input and gamma, and the two saved statistics, and produces three "
+                        "gradients", id);
+
+            const Shape& x_shape = shape_of(graph, node.inputs[1]);
+            SA_THROW_IF(x_shape.rank() != 4,
+                        "BATCHNORM2D_BACKWARD (node {}) needs a rank-4 [N,H,W,C] input; got {}",
+                        id, x_shape.to_string());
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            const SushiBLAS::Tensor& x = input(node, 1);
+            const SushiBLAS::Tensor& gamma = input(node, 2);
+            const SushiBLAS::Tensor& mean = input(node, 3);
+            const SushiBLAS::Tensor& inv_std = input(node, 4);
+
+            SA_THROW_IF(!dy.is_contiguous() || !x.is_contiguous(),
+                        "BATCHNORM2D_BACKWARD (node {}) folds over rank-2 views of its two "
+                        "rank-4 operands, which a strided view would read wrong", id);
+
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+            SushiBLAS::Tensor& dgamma = output(graph, node, 1);
+            SushiBLAS::Tensor& dbeta = output(graph, node, 2);
+
+            const DType dtype = dtype_of(graph, node.inputs[1]);
+            const int64_t channels = x_shape[3];
+            const int64_t rows = x_shape[0] * x_shape[1] * x_shape[2];
+            const double inverse_rows = 1.0 / static_cast<double>(rows);
+
+            const Shape per_channel({channels});
+            SushiBLAS::Tensor& shift = pool_->scratch(id, 0, per_channel, dtype);
+            SushiBLAS::Tensor& x_hat = pool_->scratch(id, 1, x_shape, dtype);
+            SushiBLAS::Tensor& product = pool_->scratch(id, 2, x_shape, dtype);
+            SushiBLAS::Tensor& direct = pool_->scratch(id, 3, per_channel, dtype);
+            SushiBLAS::Tensor& hat_term = pool_->scratch(id, 4, per_channel, dtype);
+            SushiBLAS::Tensor& mean_term = pool_->scratch(id, 5, per_channel, dtype);
+            SushiBLAS::Tensor& correction = pool_->scratch(id, 6, x_shape, dtype);
+            SushiBLAS::Tensor& zero = pool_->scratch(id, 7, per_channel, dtype);
+
+            // x_hat = (x - mean) * inv_std, rebuilt from the statistics the
+            // forward saved rather than from a fresh reduction over x: the
+            // forward normalised by *these* numbers, and a second reduction
+            // over a buffer a later node may have written would differentiate
+            // a different function.
+            engine_->elementwise().mul(mean, inv_std, shift);
+            engine_->blas().scal(-1.0, shift);
+            engine_->spatial().channel_affine(x, inv_std, shift, x_hat);
+
+            // The two reductions that make this not an elementwise scale.
+            // dbeta is the plain sum of dy; dgamma is the sum of dy * x_hat.
+            const SushiBLAS::Tensor dy_rows = channel_rows(dy, rows, channels);
+            engine_->reductions().sum_along(dy_rows, 0, dbeta);
+
+            engine_->elementwise().mul(dy, x_hat, product);
+            const SushiBLAS::Tensor product_rows = channel_rows(product, rows, channels);
+            engine_->reductions().sum_along(product_rows, 0, dgamma);
+
+            // dx = (gamma * inv_std / M) * (M * dy - dbeta - x_hat * dgamma),
+            // regrouped per channel as
+            //     dx = direct * dy + hat_term * x_hat + mean_term
+            // so that the whole thing is two channel_affine passes and an axpy
+            // rather than a broadcast of each reduction in turn.
+            engine_->elementwise().mul(gamma, inv_std, direct);
+
+            engine_->elementwise().mul(direct, dgamma, hat_term);
+            engine_->blas().scal(-inverse_rows, hat_term);
+
+            engine_->elementwise().mul(direct, dbeta, mean_term);
+            engine_->blas().scal(-inverse_rows, mean_term);
+
+            engine_->random().constant(zero, 0.0);
+            engine_->spatial().channel_affine(dy, direct, zero, dx);
+            engine_->spatial().channel_affine(x_hat, hat_term, mean_term, correction);
+            engine_->blas().axpy(1.0, correction, dx);
+
+            emitted_ += 14;
         }
 
     } // namespace Graph

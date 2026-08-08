@@ -259,11 +259,11 @@ namespace SushiAI
         // --- Normalisation --------------------------------------------------
 
         /** @brief Batch normalisation's forward pass over an NHWC value. */
-        inline constexpr OpName BATCHNORM2D = op("sushiai.batchnorm2d");
+        inline constexpr OpName BATCHNORM2D = differentiable_op("sushiai.batchnorm2d");
         /** @brief Batch normalisation's gradient, for input, gamma and beta. */
         inline constexpr OpName BATCHNORM2D_BACKWARD = op("sushiai.batchnorm2d_backward");
         /** @brief Per-channel scale and shift: y = gamma * x + beta. */
-        inline constexpr OpName CHANNEL_AFFINE = op("sushiai.channel_affine");
+        inline constexpr OpName CHANNEL_AFFINE = differentiable_op("sushiai.channel_affine");
         /**
          * @brief Updates a BatchNorm's running statistics.
          *
