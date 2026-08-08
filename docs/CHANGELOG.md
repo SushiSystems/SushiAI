@@ -15,24 +15,30 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 
 ### Added
 - **Twenty operation identities, and the vocabulary for a convolutional
-  network.** `IM2COL` / `COL2IM`, `MAXPOOL2D` / `AVGPOOL2D` / `UPSAMPLE2D` /
-  `SPATIAL_MEAN` and their backwards, `CONCAT_CHANNELS` / `SLICE_CHANNELS`,
-  `BATCHNORM2D` / `BATCHNORM2D_BACKWARD` / `CHANNEL_AFFINE`,
-  `BATCHNORM_UPDATE_STATS`, and `LEAKY_RELU` / `LEAKY_RELU_BACKWARD`. Each is
-  in `Ops::ALL`, so the existing `all_ids_unique` collision proof covers it,
-  and fourteen of them carry the `differentiable` flag. The flag is a claim;
-  the `static_assert` in `autograd/rules/all.hpp` is the proof, and it is
-  `all.hpp` rather than `core/ops.hpp` because the check needs to see the rule
-  table and `core/` cannot depend on `autograd/`.
+  network.** All twenty, in `Ops::ALL`'s order: `RESHAPE`, `LAYOUT_CONVERT`,
+  `IM2COL`, `COL2IM`, `MAXPOOL2D`, `MAXPOOL2D_BACKWARD`, `AVGPOOL2D`,
+  `AVGPOOL2D_BACKWARD`, `SPATIAL_MEAN`, `SPATIAL_MEAN_BACKWARD`, `UPSAMPLE2D`,
+  `UPSAMPLE2D_BACKWARD`, `CONCAT_CHANNELS`, `SLICE_CHANNELS`, `BATCHNORM2D`,
+  `BATCHNORM2D_BACKWARD`, `CHANNEL_AFFINE`, `BATCHNORM_UPDATE_STATS`,
+  `LEAKY_RELU` and `LEAKY_RELU_BACKWARD`. Each is in `Ops::ALL`, so the
+  existing `all_ids_unique` collision proof covers it.
 
-  `BATCHNORM_UPDATE_STATS` is the exception on both counts: no flag, no rule,
-  and no case in `Lowering::record_node`. CV-7 keeps a BatchNorm's running
-  statistics out of the IR — they are recorded into the training step beside
-  the graph, the way `SGD_UPDATE` and `ADAMW_UPDATE` already are. A graph
-  carrying one is a graph built wrong, and it throws saying so;
+  **Thirteen** carry the `differentiable` flag — the seven that do not are the
+  six explicit `*_BACKWARD` identities, which are gradients rather than things
+  with gradients, and `BATCHNORM_UPDATE_STATS`. The flag is a claim; the
+  `static_assert` in `autograd/rules/all.hpp` is the proof, and it is `all.hpp`
+  rather than `core/ops.hpp` because the check needs to see the rule table and
+  `core/` cannot depend on `autograd/`.
+
+  `BATCHNORM_UPDATE_STATS` is the one with no flag, no rule **and** no case in
+  `Lowering::record_node`. CV-7 keeps a BatchNorm's running statistics out of
+  the IR — they are recorded into the training step beside the graph, the way
+  `SGD_UPDATE` and `ADAMW_UPDATE` already are, and those two are the other two
+  identities `Lowering::record_node` has no case for. A graph carrying any of
+  the three is a graph built wrong, and it throws saying so;
   `Integration_Resilience.BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo`
-  pins that, so the gap is a decision rather than something to be discovered
-  and "fixed" later.
+  pins that for the one a graph builder could plausibly emit by mistake, so the
+  gap is a decision rather than something to be discovered and "fixed" later.
 - **`TensorLayout` on every `Value`, and `Graph::finalise()` proves it (CV-4).**
   `LAYOUT_CONVERT` is the only node allowed operands and results that disagree
   about layout. `finalise()` closes a graph — it propagates `requires_grad` and
