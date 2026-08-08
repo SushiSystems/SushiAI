@@ -21,6 +21,8 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+#include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/rules/spatial.hpp>
 
 // IM2COL and COL2IM are each other's adjoint (CV-1): a convolution is IM2COL
@@ -176,6 +178,57 @@ namespace SushiAI
             const Graph::Node& node = tape.node();
             tape.contribute_input(0, tape.builder().spatial_mean_backward(
                 dy, tape.graph().value(node.inputs[0]).shape));
+        }
+
+        void concat_channels_backward(const GradientTape& tape)
+        {
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            // One slice per operand, at that operand's running offset. Walked
+            // in operand order rather than looked up anywhere, because the
+            // offset is defined only by the order the forward concatenated in.
+            const Graph::Node& node = tape.node();
+            int64_t offset = 0;
+            for (std::size_t i = 0; i < node.inputs.size(); ++i)
+            {
+                const int64_t channels = tape.graph().value(node.inputs[i]).shape[3];
+                if (tape.input_requires_grad(i))
+                    tape.contribute_input(i, tape.builder().slice_channels(dy, offset, channels));
+                offset += channels;
+            }
+        }
+
+        void slice_channels_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            // The adjoint of a slice is a scatter into zeros. Expressed as a
+            // concat of up to three parts rather than as a new identity: the
+            // ranges before and after the slice are zeros, and CONCAT_CHANNELS
+            // already knows how to place a run of channels at an offset.
+            const Graph::Node& node = tape.node();
+            const Shape in = tape.graph().value(node.inputs[0]).shape;
+            const int64_t offset = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t taken = tape.graph().value(node.outputs[0]).shape[3];
+            const DType dtype = tape.graph().value(dy).dtype;
+
+            std::vector<Graph::ValueId> parts;
+            if (offset > 0)
+                parts.push_back(tape.builder().zeros(
+                    Shape({in[0], in[1], in[2], offset}), dtype));
+            parts.push_back(dy);
+            if (offset + taken < in[3])
+                parts.push_back(tape.builder().zeros(
+                    Shape({in[0], in[1], in[2], in[3] - offset - taken}), dtype));
+
+            tape.contribute_input(0, parts.size() == 1
+                ? dy
+                : tape.builder().concat_channels(
+                      SushiRuntime::span<const Graph::ValueId>(parts.data(), parts.size())));
         }
     }
 }
