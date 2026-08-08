@@ -717,6 +717,16 @@ namespace SushiAI
                             "because callers hold them across the pass", id, fresh);
 
                 rebuilt.value(fresh).requires_grad = value.requires_grad;
+
+                // add_value defaults the layout to NHWC, so a tag that is not
+                // copied here is not lost but *changed*, and nothing
+                // downstream disagrees with the wrong answer: the shapes still
+                // line up and every kernel still runs. What it costs is
+                // Lowering::record_layout_convert, which reads this tag on
+                // both sides to decide whether to relabel one into [N,H,W,C];
+                // a genuine NCHW -> NHWC convert that reads as NHWC -> NHWC
+                // applies no transpose and copies transposed data through.
+                rebuilt.value(fresh).layout = value.layout;
             }
 
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
@@ -776,6 +786,16 @@ namespace SushiAI
             report.after_ = rebuilt.node_count();
 
             graph = std::move(rebuilt);
+
+            // The pass rebuilds the value table, so it re-proves what that
+            // rebuild claims to preserve. finalise() runs at one point in a
+            // five-stage pipeline, and this invariant is exactly the kind that
+            // fails silently: a dropped layout tag reads as NHWC, agrees with
+            // every shape check, and turns a genuine conversion into a copy of
+            // transposed data. O(nodes) against a rewrite already O(nodes),
+            // and the same argument the dtype check below makes for itself.
+            graph.prove_layout_uniformity();
+
             return report;
         }
 

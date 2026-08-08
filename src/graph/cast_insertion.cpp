@@ -50,6 +50,30 @@ namespace SushiAI
             }
 
             /**
+             * @brief Whether @p dtype is something a precision policy may move.
+             *
+             * MAXPOOL2D writes a pooled tensor and, beside it, an INT64 argmax
+             * its backward reads as a table of offsets. That second result has
+             * no precision to choose: narrowing it is not a cheaper number, it
+             * is a different pixel, and widening it is a rounding policy this
+             * library is not entitled to invent (the same reason
+             * @c GraphBuilder::cast refuses anything but real float to real
+             * float).
+             *
+             * So the pass skips these values everywhere it would otherwise
+             * compare against a node's computed type - which is what makes
+             * "one dtype per node" true of the values that have one, rather
+             * than of every value the node touches. It is deliberately keyed
+             * on the value's element type and not on an op list: any later
+             * operation with an index-shaped result inherits the exemption
+             * without editing this pass.
+             */
+            bool has_precision(DType dtype) noexcept
+            {
+                return is_real_float(dtype);
+            }
+
+            /**
              * @brief The element type @p node computes in, per @p policy.
              *
              * A node's declared precision is read from its first result rather
@@ -230,6 +254,7 @@ namespace SushiAI
                 const NodeId producer = graph.value(id).producer;
                 if (pinned[id] || producer == NO_NODE) continue;
                 if (is_structural(graph.node(producer).op)) continue;
+                if (!has_precision(declared[id])) continue;
 
                 final_dtype[id] = computed[producer];
                 if (final_dtype[id] != declared[id]) ++report.retyped_;
@@ -254,6 +279,15 @@ namespace SushiAI
                             "callers hold them across the pass", id, fresh);
 
                 rebuilt.value(fresh).requires_grad = value.requires_grad;
+
+                // add_value defaults the layout to NHWC, so a tag that is not
+                // copied here is not lost but *changed* - and every shape
+                // check downstream agrees with the wrong answer. What it costs
+                // is Lowering::record_layout_convert, which reads these two
+                // tags to decide whether to relabel a side into [N,H,W,C]: a
+                // genuine NCHW -> NHWC convert that reads as NHWC -> NHWC
+                // applies no transpose and copies transposed data through.
+                rebuilt.value(fresh).layout = value.layout;
             }
 
             const GraphBuilder builder(rebuilt);
@@ -277,6 +311,7 @@ namespace SushiAI
                 for (ValueId in : node.inputs)
                 {
                     if (rebuilt.value(in).dtype == wanted) { inputs.push_back(in); continue; }
+                    if (!has_precision(rebuilt.value(in).dtype)) { inputs.push_back(in); continue; }
 
                     const CastKey key{in, static_cast<std::int32_t>(wanted)};
                     const auto found = converted.find(key);
@@ -303,6 +338,7 @@ namespace SushiAI
                 for (ValueId out : node.outputs)
                 {
                     if (rebuilt.value(out).dtype == wanted) { outputs.push_back(out); continue; }
+                    if (!has_precision(rebuilt.value(out).dtype)) { outputs.push_back(out); continue; }
 
                     // By value, every field of it. `add_value` grows the value
                     // vector, and a reference into a vector that reallocates is
@@ -335,6 +371,10 @@ namespace SushiAI
             report.after_ = rebuilt.node_count();
             graph = std::move(rebuilt);
 
+            // The same argument the dtype check below makes, for the other
+            // invariant this rebuild has to carry by hand. See fuse().
+            graph.prove_layout_uniformity();
+
             // The pass's whole contract in one line, checked rather than
             // asserted in a comment. It is O(nodes) against a rewrite that is
             // already O(nodes), and every way of getting the placement wrong
@@ -366,13 +406,17 @@ namespace SushiAI
 
                 const DType wanted = policy.choose(query).dtype;
 
+                // Same exemption as the pass, and stated here too rather than
+                // shared by accident: a checker that flagged the index buffer
+                // would report insert_casts() as defective for leaving alone
+                // the one value it must leave alone.
                 for (ValueId in : node.inputs)
-                    if (graph.value(in).dtype != wanted)
+                    if (has_precision(graph.value(in).dtype) && graph.value(in).dtype != wanted)
                         mismatches.push_back(DTypeMismatch{
                             id, node.op, in, graph.value(in).dtype, wanted, false});
 
                 for (ValueId out : node.outputs)
-                    if (graph.value(out).dtype != wanted)
+                    if (has_precision(graph.value(out).dtype) && graph.value(out).dtype != wanted)
                         mismatches.push_back(DTypeMismatch{
                             id, node.op, out, graph.value(out).dtype, wanted, true});
             }

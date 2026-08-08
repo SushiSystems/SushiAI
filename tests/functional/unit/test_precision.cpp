@@ -758,3 +758,128 @@ TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
 
     EXPECT_THROW(Graph::insert_casts(graph, options), Error);
 }
+
+namespace
+{
+    /**
+     * @struct Pooled
+     * @brief A maxpool graph, differentiated, with the index buffer named.
+     *
+     * MAXPOOL2D is the first operation in this IR whose results are not all
+     * one element type: it writes the pooled tensor and, beside it, the INT64
+     * argmax its backward reads. The cast pass derives one precision per node
+     * from `outputs[0]`, which makes the argmax look like a value in the wrong
+     * type rather than a value with no precision to choose.
+     *
+     * x is a parameter rather than an input for the reason
+     * test_argmax_lifetime.cpp gives: MAXPOOL2D_BACKWARD is only emitted when
+     * something upstream of the pool needs a gradient.
+     */
+    struct Pooled
+    {
+        Graph::Graph graph;
+        ValueId x = NO_VALUE;
+        ValueId indices = NO_VALUE;
+        ValueId loss = NO_VALUE;
+    };
+
+    Pooled trace_pool()
+    {
+        Pooled p;
+        const GraphBuilder builder(p.graph);
+
+        p.x = builder.parameter(Shape{2, 8, 8, 4}, "x");
+        const ValueId w = builder.parameter(Shape{4, 4}, "w");
+
+        Graph::ConvGeometry g;
+        g.kernel_h = 2; g.kernel_w = 2;
+        g.stride_h = 2; g.stride_w = 2;
+
+        const Graph::PoolResult pool = builder.maxpool2d(p.x, g);
+        p.indices = pool.indices;
+
+        const ValueId rows = builder.reshape(builder.spatial_mean(pool.output), Shape{2, 4});
+        const ValueId hidden = builder.relu(builder.matmul(rows, w));
+        const ValueId target = builder.input(Shape{2, 4}, "target");
+
+        p.loss = builder.nll_loss(builder.log_softmax(hidden), target);
+        p.graph.finalise();
+
+        const std::vector<ValueId> wrt{w, p.x};
+        (void)Autograd::differentiate(p.graph, p.loss,
+            SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+
+        return p;
+    }
+
+    /** @brief Whether any CAST node in @p graph reads or writes @p value. */
+    bool any_cast_touches(const Graph::Graph& graph, ValueId value)
+    {
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op != Ops::CAST.id) continue;
+            for (ValueId in : node.inputs) if (in == value) return true;
+            for (ValueId out : node.outputs) if (out == value) return true;
+        }
+        return false;
+    }
+}
+
+TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
+{
+    // The pass forced every operand and every result of a node to one dtype,
+    // derived from the node's first result. For MAXPOOL2D that is FLOAT32 from
+    // the pooled tensor, so the INT64 argmax read as a mismatch and the pass
+    // tried to convert it - and GraphBuilder::cast refuses anything but
+    // real-float to real-float by design, so the whole build threw.
+    //
+    // Policy-independent by construction: `wanted` comes from outputs[0], not
+    // from the policy's choose(), so the uniform policy reaches it too.
+    Pooled p = trace_pool();
+
+    ASSERT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
+    ASSERT_EQ(count_op(p.graph, Ops::MAXPOOL2D_BACKWARD.id), 1u)
+        << "no pool backward was emitted, so the operand half of this test is vacuous";
+
+    EXPECT_NO_THROW(Graph::insert_casts(p.graph, CastOptions{}));
+
+    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64)
+        << "the argmax was retyped; its backward reads it as a routing table of offsets";
+    EXPECT_FALSE(any_cast_touches(p.graph, p.indices))
+        << "a CAST was wrapped around the index buffer, which is a rounding policy nobody asked for";
+}
+
+TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
+{
+    Pooled p = trace_pool();
+
+    const MixedPrecisionPolicy policy;
+    CastOptions options;
+    options.policy = &policy;
+
+    const std::vector<ValueId> observed{p.x, p.loss};
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+
+    EXPECT_NO_THROW(Graph::insert_casts(p.graph, options));
+
+    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
+    EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
+}
+
+TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
+{
+    // The loud half of the same defect. An unpinned argmax is retyped in
+    // place and the mismatch disappears silently; a pinned one keeps its id
+    // and its INT64 buffer, so the pass reaches for the widening cast - and
+    // CAST is real-float to real-float by design.
+    Pooled p = trace_pool();
+
+    const std::vector<ValueId> observed{p.indices};
+    CastOptions options;
+    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+
+    EXPECT_NO_THROW(Graph::insert_casts(p.graph, options));
+
+    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
+    EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
+}

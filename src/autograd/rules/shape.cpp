@@ -35,7 +35,7 @@ namespace SushiAI
             if (dy == Graph::NO_VALUE) return;
 
             const Graph::ValueId x = tape.node().inputs[0];
-            tape.contribute_input(0, tape.builder().reshape(dy, tape.graph().values()[x].shape));
+            tape.contribute_input(0, tape.builder().reshape(dy, tape.graph().value(x).shape));
         }
 
         void layout_convert_backward(const GradientTape& tape)
@@ -49,7 +49,7 @@ namespace SushiAI
             // here is simply the conversion back to the operand's own layout.
             const Graph::ValueId x = tape.node().inputs[0];
             tape.contribute_input(0, tape.builder().layout_convert(
-                dy, tape.graph().values()[x].layout));
+                dy, tape.graph().value(x).layout));
         }
     }
 }

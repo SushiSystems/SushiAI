@@ -520,35 +520,27 @@ namespace SushiAI
                     prove_layout_uniformity();
                 }
 
-            private:
-                /**
-                 * @brief Propagates @c requires_grad forward from the leaves.
-                 *
-                 * A value needs a gradient exactly when some input it descends
-                 * from needs one. One forward sweep suffices because insertion
-                 * order is topological.
-                 */
-                void propagate_requires_grad() noexcept
-                {
-                    for (const Node& n : nodes_)
-                    {
-                        bool any = false;
-                        for (ValueId in : n.inputs)
-                            if (values_[in].requires_grad) { any = true; break; }
-
-                        if (any)
-                            for (ValueId out : n.outputs)
-                                values_[out].requires_grad = true;
-                    }
-                }
-
                 /**
                  * @brief Proves no node but LAYOUT_CONVERT changes the layout.
+                 *
+                 * Public because @c finalise() is not the only place the
+                 * property can be lost. It holds of the graph the builder
+                 * emits; the passes that rebuild the graph - @c fuse() and
+                 * @c insert_casts() - copy the value table entry by entry, and
+                 * a copy that drops the layout tag resets every value to
+                 * @c add_value's NHWC default. That failure is silent by
+                 * construction: the shapes still line up, every kernel still
+                 * runs, and the model trains on transposed data. So each
+                 * rebuilding pass re-proves what it claims to have preserved.
                  *
                  * Checked per node rather than by sweeping every value for a
                  * single dominant layout, because the sweep could not express
                  * the one legitimate exemption without also accepting a graph
                  * that is half converted.
+                 *
+                 * @throws Error If any node other than @c LAYOUT_CONVERT reads
+                 *         operands in two layouts, or produces a result whose
+                 *         layout differs from its operands' (CV-4).
                  */
                 void prove_layout_uniformity() const
                 {
@@ -571,6 +563,28 @@ namespace SushiAI
                                         "(CV-4); everything else would silently train the "
                                         "model on transposed data.",
                                         Ops::name_of(n.op));
+                    }
+                }
+
+            private:
+                /**
+                 * @brief Propagates @c requires_grad forward from the leaves.
+                 *
+                 * A value needs a gradient exactly when some input it descends
+                 * from needs one. One forward sweep suffices because insertion
+                 * order is topological.
+                 */
+                void propagate_requires_grad() noexcept
+                {
+                    for (const Node& n : nodes_)
+                    {
+                        bool any = false;
+                        for (ValueId in : n.inputs)
+                            if (values_[in].requires_grad) { any = true; break; }
+
+                        if (any)
+                            for (ValueId out : n.outputs)
+                                values_[out].requires_grad = true;
                     }
                 }
 
