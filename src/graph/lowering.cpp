@@ -521,6 +521,15 @@ namespace SushiAI
                 return;
             }
 
+            // BATCHNORM_UPDATE_STATS reaches this throw on purpose, and is the
+            // only declared identity that does. CV-7 keeps a BatchNorm's
+            // running statistics out of the IR: they are recorded into the
+            // training step beside the graph, like SGD_UPDATE and
+            // ADAMW_UPDATE, which src/optim/{sgd,adamw}.cpp emit directly and
+            // which likewise never pass through here. A node carrying it is
+            // therefore a graph that was built wrong, and the throw is the
+            // correct answer rather than a missing case. See
+            // Unit_Lowering.BatchNormUpdateStatsIsNotAnIrOperation.
             SA_THROW_IF(true,
                         "No lowering for operation {} (node {}). Add it to Lowering::record_node "
                         "or remove it from the graph.",
@@ -1362,6 +1371,10 @@ namespace SushiAI
             // attribute, so the forward's mean_spatial and this broadcast can
             // never disagree about what H*W was.
             const Shape& dx_shape = shape_of(graph, node.outputs[0]);
+            SA_THROW_IF(dx_shape.rank() != 4,
+                        "SPATIAL_MEAN_BACKWARD (node {}) needs a rank-4 [N,H,W,C] result to read "
+                        "H and W from; got {}", id, dx_shape.to_string());
+
             const double scale = 1.0 / static_cast<double>(dx_shape[1] * dx_shape[2]);
 
             engine_->spatial().broadcast_spatial(dy, dx, scale);
@@ -1386,7 +1399,9 @@ namespace SushiAI
                 engine_->spatial().concat_channels(src, out, offset);
                 offset += shape_of(graph, node.inputs[i])[3];
             }
-            ++emitted_;
+
+            // One copy per operand, not one for the node.
+            emitted_ += node.inputs.size();
         }
 
         void Lowering::record_slice_channels(const Graph& graph, NodeId id, const Node& node)
@@ -1510,7 +1525,11 @@ namespace SushiAI
             engine_->elementwise().mul(gamma, inv_std, scale);
             engine_->spatial().channel_affine(centred, scale, beta, y);
 
-            emitted_ += 12;
+            // Fourteen: two sum_along, four scal, two copy, two channel_affine,
+            // two mul, one axpy, sqrt and reciprocal. pool_->ones() is not
+            // counted, matching record_bias_add - the vector is shared and its
+            // fill is not this node's work.
+            emitted_ += 14;
         }
 
         void Lowering::record_batchnorm2d_backward(const Graph& graph, NodeId id, const Node& node)
@@ -1590,7 +1609,9 @@ namespace SushiAI
             engine_->spatial().channel_affine(x_hat, hat_term, mean_term, correction);
             engine_->blas().axpy(1.0, correction, dx);
 
-            emitted_ += 14;
+            // Fifteen: two sum_along, five mul, three scal, three
+            // channel_affine, one constant fill and one axpy.
+            emitted_ += 15;
         }
 
     } // namespace Graph

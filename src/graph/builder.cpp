@@ -32,6 +32,25 @@ namespace SushiAI
             /** @brief Builds a rank-1 or rank-2 Shape from loose extents. */
             Shape shape_of(int64_t rows) { return Shape{rows}; }
             Shape shape_of(int64_t rows, int64_t cols) { return Shape{rows, cols}; }
+
+            /**
+             * @brief The one definition of a legal LeakyReLU slope.
+             *
+             * Asked for by both leaky_relu() and activation_backward(), which
+             * must agree: a slope the forward emitter accepts and the backward
+             * one rejects is a graph that builds and cannot be differentiated,
+             * and the reverse is a plain-ReLU gradient emitted silently. Two
+             * copies of the predicate is how that disagreement arrives, so
+             * there is one. The messages stay separate - they explain
+             * different mistakes - but the rule does not.
+             *
+             * At 0 it is a ReLU and at 1 the identity, and both make the
+             * output-reading gradient (ops.hpp's ACTIVATIONS) unsound.
+             */
+            bool is_legal_leaky_relu_slope(double slope)
+            {
+                return slope > 0.0 && slope < 1.0;
+            }
         }
 
         ValueId GraphBuilder::declare(Shape shape, DType dtype, Lifetime lifetime,
@@ -223,7 +242,7 @@ namespace SushiAI
 
         ValueId GraphBuilder::leaky_relu(ValueId x, double slope) const
         {
-            SA_THROW_IF(slope <= 0.0 || slope >= 1.0,
+            SA_THROW_IF(!is_legal_leaky_relu_slope(slope),
                         "leaky_relu's slope must be in (0, 1); got {}. At 0 it is a ReLU "
                         "and at 1 it is the identity, and both would make the "
                         "output-reading gradient (ops.hpp's ACTIVATIONS) unsound.",
@@ -257,13 +276,13 @@ namespace SushiAI
             // A default-constructed Attributes reads as slope 0 in slot 0,
             // which is a legal-looking double but an illegal slope: silently
             // running LEAKY_RELU_BACKWARD at slope 0 is a plain-ReLU
-            // gradient, not the one the caller asked for. The range mirrors
-            // leaky_relu()'s own guard exactly, so the two cannot disagree
-            // about what a legal slope is.
+            // gradient, not the one the caller asked for. The predicate is
+            // shared with leaky_relu()'s own guard, so the two cannot
+            // disagree about what a legal slope is.
             if (op == Ops::LEAKY_RELU_BACKWARD.id)
             {
                 const double slope = attributes.get(0);
-                SA_THROW_IF(slope <= 0.0 || slope >= 1.0,
+                SA_THROW_IF(!is_legal_leaky_relu_slope(slope),
                             "LEAKY_RELU_BACKWARD's slope (attribute slot 0) must be in (0, 1); "
                             "got {}. An absent or out-of-range slope would silently emit a "
                             "plain-ReLU gradient instead of the leaky one that was asked for.",
@@ -272,9 +291,14 @@ namespace SushiAI
 
             require_same(dy, primal, Ops::name_of(op));
 
+            // declare_like, not declare: a gradient has its primal's layout.
+            // Rank-2 activations make the two indistinguishable today, but a
+            // spatial dy carries NHWC and a default-layout dx would make
+            // finalise()'s uniformity proof fail - or worse, pass while the
+            // consumer reads the wrong axis order (A-2).
             const Value& v = graph_->value(dy);
-            const ValueId out = declare(v.shape, v.dtype, Lifetime::ACTIVATION,
-                                        Ops::name_of(op));
+            const ValueId out = declare_like(dy, v.shape, v.dtype, Lifetime::ACTIVATION,
+                                             Ops::name_of(op));
             graph_->add_node(op, {dy, primal}, {out}, attributes);
             return out;
         }
