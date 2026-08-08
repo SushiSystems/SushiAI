@@ -34,7 +34,24 @@ namespace SushiAI
 {
     namespace Autograd
     {
+        /**
+         * @brief IM2COL's gradient: col2im, scattering each row back onto the
+         *        pixels its window read, summing where windows overlapped.
+         * @param tape The differentiation state for this node.
+         */
+        void im2col_backward(const GradientTape& tape);
+
+        /**
+         * @brief COL2IM's gradient: im2col with the forward's own geometry,
+         *        the adjoint of the adjoint.
+         * @param tape The differentiation state for this node.
+         */
+        void col2im_backward(const GradientTape& tape);
+
         /** @brief Spatial operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 0> SPATIAL_RULES = {{}};
+        inline constexpr std::array<RuleEntry, 2> SPATIAL_RULES = {{
+            {Ops::IM2COL.id, &im2col_backward},
+            {Ops::COL2IM.id, &col2im_backward},
+        }};
     }
 }

@@ -365,6 +365,73 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
         EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
 }
 
+TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
+{
+    // A gradcheck says the backward is consistent with whatever the forward
+    // happens to compute; it says nothing about whether the forward computes
+    // the right thing. This is the forward's own proof, worked out by hand.
+    //
+    // N=1, H=2, W=2, C=1 with a 2x2 kernel and no padding covers the whole
+    // image in exactly one window, so the column matrix's single row is the
+    // input read in tap order (r, s) with channel innermost - which, for one
+    // channel, is simply row-major (h, w).
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const ValueId cols = builder.im2col(x, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(cols));
+    const std::vector<double> expected = {0, 1, 2, 3};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
+{
+    // The claim col2im makes and im2col_backward leans on: a pixel covered by
+    // several windows receives the *sum* of their contributions, not the
+    // last one written. N=1, H=3, W=3, C=1 with a 2x2 kernel and no padding
+    // has four windows (origins (0,0), (0,1), (1,0), (1,1)); the corner
+    // pixels sit under exactly one of them, the edge pixels under two, and
+    // the centre pixel under all four. Feeding every column entry a 1 turns
+    // the expected image into that overlap count, worked out by hand:
+    //
+    //   1 2 1
+    //   2 4 2
+    //   1 2 1
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId cols = builder.input(Shape{4, 4}, "cols");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const ValueId image = builder.col2im(cols, Shape{1, 3, 3, 1}, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(cols), std::vector<double>(16, 1.0));
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(image));
+    const std::vector<double> expected = {1, 2, 1, 2, 4, 2, 1, 2, 1};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
 TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;

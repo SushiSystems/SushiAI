@@ -211,9 +211,9 @@ namespace SushiAI
         // matmul_backward already produces it.
 
         /** @brief Gathers each window into a row of a column matrix. */
-        inline constexpr OpName IM2COL = op("sushiai.im2col");
+        inline constexpr OpName IM2COL = differentiable_op("sushiai.im2col");
         /** @brief The adjoint of IM2COL; a gather, never an atomic scatter (CV-6). */
-        inline constexpr OpName COL2IM = op("sushiai.col2im");
+        inline constexpr OpName COL2IM = differentiable_op("sushiai.col2im");
 
         // --- Pooling --------------------------------------------------------
 

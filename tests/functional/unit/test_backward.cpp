@@ -120,6 +120,9 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
 
         {Ops::RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
         {Ops::LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
+
+        {Ops::IM2COL.id, "Integration_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
+        {Ops::COL2IM.id, "Integration_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
     };
 
     for (const Proven& entry : ledger)
