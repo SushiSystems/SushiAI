@@ -754,3 +754,98 @@ TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
 
     expect_gradient_matches(probe, point);
 }
+
+TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatmul)
+{
+    // CV-1's claim, checked numerically: with no CONV2D identity, a
+    // convolution's gradient is im2col_backward composed with the matmul
+    // rule that was already there. If this passes, convolution needs no
+    // rule of its own - which is the entire reason there isn't one.
+    //
+    // Single-hop by design (A-7): im2col feeds straight into a matmul, never
+    // into its own col2im. A round trip through col2im would make the
+    // forward composite the identity, and then any involutive, shape-correct
+    // backward - including a plain reshape - would pass for the wrong
+    // reason.
+    // spatial_mean has no gradient rule yet (Task 12), so [N, C] is reached
+    // straight off the matmul: with a 1x1 window grid folded into rows there
+    // would be nothing to average over anyway, and the matmul's own output is
+    // already rank 2 - [N*H_o*W_o, C_out] - so no reshape is needed either.
+    ValueId weights = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{2, 5, 5, 3}, [&weights](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId cols = builder.im2col(x, g);                      // [2*25, 27]
+        weights = builder.parameter(Shape{27, 8}, "w", DType::FLOAT64); // 8 output channels
+        return builder.log_softmax(builder.matmul(cols, weights));      // [2*25, 8]
+    });
+
+    probe.fill_noise(weights, 301, 1.0);
+    // A probe ending in log_softmax must use one-hot targets (A-6): the fused
+    // NLL_LOSS rule's closed form is only the true derivative of this loss
+    // when the target row is one-hot.
+    probe.fill_one_hot(50, 8);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(302).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel)
+{
+    // A stride-1 padded 3x3 has every interior pixel read by nine windows, so
+    // its gradient is a sum of nine terms. A col2im that overwrote instead of
+    // accumulating would give exactly one of them - a gradient that is the
+    // right shape, the right sign, and roughly a ninth of the right size.
+    ValueId weights = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{1, 4, 4, 2}, [&weights](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId cols = builder.im2col(x, g);
+        weights = builder.parameter(Shape{18, 4}, "w", DType::FLOAT64);
+        return builder.log_softmax(builder.matmul(cols, weights)); // [16, 4]
+    });
+
+    probe.fill_noise(weights, 311, 1.0);
+    probe.fill_one_hot(16, 4);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(312).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
+{
+    // COL2IM's own rule (im2col_backward's mirror image), checked without
+    // routing through im2col at all: the variable here *is* the column
+    // matrix, fed straight into col2im and then reshaped into log_softmax.
+    // That keeps this single-hop by construction (A-7) - there is no im2col
+    // on this path for a col2im to be the adjoint of, so nothing here could
+    // be satisfied by an involutive round trip.
+    Probe probe(*engine, Shape{9, 18}, [](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId image = builder.col2im(x, Shape{1, 3, 3, 2}, g); // [1, 3, 3, 2]
+        return builder.log_softmax(builder.reshape(image, Shape{1, 18}));
+    });
+
+    probe.fill_one_hot(1, 18);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(321).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}

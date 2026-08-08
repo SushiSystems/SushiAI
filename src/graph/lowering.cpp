@@ -29,6 +29,7 @@
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
+#include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/lowering.hpp>
 
 namespace SushiAI
@@ -494,6 +495,8 @@ namespace SushiAI
             if (node.op == Ops::CAST.id)                   { record_cast(graph, id, node); return; }
             if (node.op == Ops::RESHAPE.id)                { record_reshape(graph, id, node); return; }
             if (node.op == Ops::LAYOUT_CONVERT.id)         { record_layout_convert(graph, id, node); return; }
+            if (node.op == Ops::IM2COL.id)                 { record_im2col(graph, id, node); return; }
+            if (node.op == Ops::COL2IM.id)                 { record_col2im(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -1121,6 +1124,76 @@ namespace SushiAI
                 ? destination.transpose(1, 2).transpose(2, 3) : destination;
 
             engine_->spatial().layout_convert(source_view, dest_view);
+            ++emitted_;
+        }
+
+        namespace
+        {
+            /** @brief Reads CV-5's eight slots back into a SushiBLAS geometry. */
+            SushiBLAS::Spatial::ConvGeometry blas_geometry_of(const Node& node) noexcept
+            {
+                SushiBLAS::Spatial::ConvGeometry g;
+                g.kernel_h   = static_cast<int64_t>(node.attributes.get(0));
+                g.kernel_w   = static_cast<int64_t>(node.attributes.get(1));
+                g.stride_h   = static_cast<int64_t>(node.attributes.get(2));
+                g.stride_w   = static_cast<int64_t>(node.attributes.get(3));
+                g.dilation_h = static_cast<int64_t>(node.attributes.get(4));
+                g.dilation_w = static_cast<int64_t>(node.attributes.get(5));
+                g.pad_top    = static_cast<int64_t>(node.attributes.get(6));
+                g.pad_left   = static_cast<int64_t>(node.attributes.get(7));
+                return g;
+            }
+        }
+
+        void Lowering::record_im2col(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "IM2COL (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& cols = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+            const Shape& in_shape = graph.value(node.inputs[0]).shape;
+
+            // The node's attributes hold only CV-5's eight geometry slots, not
+            // the output extents a caller of im2col_with_extents may have
+            // stated outright - so the extents this lowering hands to
+            // SushiBLAS are re-derived from the geometry under the symmetric
+            // padding the derived-extent GraphBuilder overload assumes. Every
+            // caller in this task's graphs builds through that overload, so
+            // the re-derivation reproduces exactly the extents the output
+            // value's shape was already declared with.
+            const int64_t out_w = output_extent(in_shape[2], g.pad_left, g.pad_left,
+                                                g.dilation_w, g.kernel_w, g.stride_w);
+            const int64_t out_h = output_extent(in_shape[1], g.pad_top, g.pad_top,
+                                                g.dilation_h, g.kernel_h, g.stride_h);
+
+            engine_->spatial().im2col(in, cols, g, out_h, out_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_col2im(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "COL2IM (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& cols = input(node, 0);
+            SushiBLAS::Tensor& image = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+            const Shape& image_shape = graph.value(node.outputs[0]).shape;
+
+            // Same re-derivation as record_im2col, from the *output* image's
+            // extents this time: the destination's H and W are already
+            // written down in the graph regardless of which GraphBuilder
+            // overload produced this node.
+            const int64_t out_w = output_extent(image_shape[2], g.pad_left, g.pad_left,
+                                                g.dilation_w, g.kernel_w, g.stride_w);
+            const int64_t out_h = output_extent(image_shape[1], g.pad_top, g.pad_top,
+                                                g.dilation_h, g.kernel_h, g.stride_h);
+
+            engine_->spatial().col2im(cols, image, g, out_h, out_w);
             ++emitted_;
         }
 
