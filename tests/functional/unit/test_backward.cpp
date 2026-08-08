@@ -119,7 +119,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
 
         {Ops::RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
-        {Ops::LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsTheConverseConversion"},
+        {Ops::LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
     };
 
     for (const Proven& entry : ledger)
