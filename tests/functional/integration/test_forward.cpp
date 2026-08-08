@@ -432,6 +432,75 @@ TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
+TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
+{
+    // The case a symmetric re-derivation gets wrong *silently*. A [1, 4, 5, 1]
+    // input with a 3x3 window, stride 1, pad_top 1 and pad_left 1, padded
+    // 2 below and 0 on the right, has
+    //
+    //     out_h = (4 + 1 + 2 - 3) + 1 = 5     out_w = (5 + 1 + 0 - 3) + 1 = 4
+    //
+    // Re-deriving those from the geometry alone assumes the padding is
+    // symmetric and yields 4x5 instead - the transpose of the real window
+    // grid. Both are 20 windows, so the row-count check agrees and both
+    // window origins stay inside the padded input: nothing throws, the
+    // numbers are just wrong. That is why the extents travel in the node's
+    // attributes rather than being recomputed.
+    //
+    // The input is 0..19 in row-major (h, w) order, so a window with origin
+    // (oh - 1, ow - 1) reads the pixels h*5 + w it covers and a zero
+    // wherever the window hangs off the image. Row oh*4 + ow of the result
+    // is that window in tap order. Worked out from that rule, the last row
+    // (oh = 4, ow = 3, origin (3, 2)) covers only the input's bottom-right
+    // three pixels, 17 18 19, and is padding everywhere else - whereas the
+    // transposed grid would put 13 14 0 18 19 0 0 0 0 there.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 4, 5, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 3; g.kernel_w = 3;
+    g.pad_top = 1;  g.pad_left = 1;
+    const ValueId cols = builder.im2col_with_extents(x, g, 5, 4);
+
+    OneShot run(*engine, graph);
+    std::vector<double> image(20);
+    for (std::size_t i = 0; i < image.size(); ++i) image[i] = static_cast<double>(i);
+    write_tensor(run.pool.tensor(x), image);
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(cols));
+    const std::vector<double> expected = {
+        0,  0,  0,  0,  0,  1,  0,  5,  6,
+        0,  0,  0,  0,  1,  2,  5,  6,  7,
+        0,  0,  0,  1,  2,  3,  6,  7,  8,
+        0,  0,  0,  2,  3,  4,  7,  8,  9,
+        0,  0,  1,  0,  5,  6,  0, 10, 11,
+        0,  1,  2,  5,  6,  7, 10, 11, 12,
+        1,  2,  3,  6,  7,  8, 11, 12, 13,
+        2,  3,  4,  7,  8,  9, 12, 13, 14,
+        0,  5,  6,  0, 10, 11,  0, 15, 16,
+        5,  6,  7, 10, 11, 12, 15, 16, 17,
+        6,  7,  8, 11, 12, 13, 16, 17, 18,
+        7,  8,  9, 12, 13, 14, 17, 18, 19,
+        0, 10, 11,  0, 15, 16,  0,  0,  0,
+       10, 11, 12, 15, 16, 17,  0,  0,  0,
+       11, 12, 13, 16, 17, 18,  0,  0,  0,
+       12, 13, 14, 17, 18, 19,  0,  0,  0,
+        0, 15, 16,  0,  0,  0,  0,  0,  0,
+       15, 16, 17,  0,  0,  0,  0,  0,  0,
+       16, 17, 18,  0,  0,  0,  0,  0,  0,
+       17, 18, 19,  0,  0,  0,  0,  0,  0,
+    };
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9)
+            << "at row " << (i / 9) << " tap " << (i % 9);
+}
+
 TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;

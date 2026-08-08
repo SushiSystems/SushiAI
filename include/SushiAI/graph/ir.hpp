@@ -145,10 +145,12 @@ namespace SushiAI
          * @struct Attributes
          * @brief An operation's scalar configuration, stored inline.
          *
-         * Deliberately a small fixed array rather than a map: it is copied
-         * into the lowered TaskMetadata, which itself holds only eight inline
-         * slots, and a node with more than a handful of scalar knobs is a
-         * design smell rather than a case to accommodate.
+         * Deliberately a small fixed array rather than a map: a node with more
+         * than a handful of scalar knobs is a design smell rather than a case
+         * to accommodate. Nothing downstream truncates it - `lowering.cpp`
+         * reads slots with @c get() and hands the values straight to
+         * SushiBLAS, so no attribute is ever copied into a fixed-width
+         * metadata array. The capacity is simply what the operations need.
          *
          * @warning Do not put a per-step value here. A learning rate, a loss
          *          scale or an RNG counter baked into an attribute becomes a
@@ -162,16 +164,22 @@ namespace SushiAI
             /**
              * @brief How many slots are meaningful.
              *
-             * Eight, because that is @c SushiRuntime::TaskMetadata's
-             * @c K_MAX_PARAMS (task_types.hpp:146) - the array an attribute is
-             * ultimately copied into. A ninth slot would build here and be
-             * silently dropped at lowering, so the two are pinned together by
-             * the static_assert below rather than left to agree by memory.
+             * Ten: CV-5's eight geometry slots - kernel_h, kernel_w, stride_h,
+             * stride_w, dilation_h, dilation_w, pad_top, pad_left - plus the
+             * two output extents, @c out_h in slot 8 and @c out_w in slot 9.
+             *
+             * The extents have to be carried rather than re-derived. Deriving
+             * them from the geometry assumes the padding is symmetric, and an
+             * asymmetrically-padded window grid can derive to its own
+             * transpose: a [1, 4, 5, C] input with a 3x3 window padded 1 above
+             * and 1 left, 2 below and 0 right, is really 5x4 windows but
+             * derives to 4x5. Both are 20 windows, so every shape check
+             * agrees and the gather silently returns the wrong numbers.
              */
-            static constexpr std::size_t CAPACITY = 8;
+            static constexpr std::size_t CAPACITY = 10;
 
             /** @brief The scalar values, interpreted per operation. */
-            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
             /** @brief Reads slot @p index, or zero when it is out of range. */
             constexpr double get(std::size_t index) const noexcept
@@ -185,11 +193,6 @@ namespace SushiAI
                 return get(index) != 0.0;
             }
         };
-
-        static_assert(Attributes::CAPACITY <= SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS,
-                      "A graph attribute slot has no lowered destination: TaskMetadata "
-                      "carries K_MAX_PARAMS scalars and an attribute beyond that would "
-                      "be dropped by graph/lowering.cpp without any diagnostic.");
 
         /**
          * @enum TensorLayout

@@ -49,6 +49,19 @@ namespace SushiAI
                 g.pad_left   = static_cast<int64_t>(node.attributes.get(7));
                 return g;
             }
+
+            /** @brief Reads the forward's own window grid out of slots 8-9. */
+            void extents_of(const Graph::Node& node, const char* what,
+                            int64_t& out_h, int64_t& out_w)
+            {
+                out_h = static_cast<int64_t>(node.attributes.get(8));
+                out_w = static_cast<int64_t>(node.attributes.get(9));
+
+                SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                            "{}'s gradient needs the forward's window grid, but the node "
+                            "carries {}x{} in attribute slots 8 and 9",
+                            what, out_h, out_w);
+            }
         }
 
         void im2col_backward(const GradientTape& tape)
@@ -64,21 +77,22 @@ namespace SushiAI
             // gather, so the sum's order is fixed and the result is
             // bit-reproducible (CV-6).
             //
-            // col2im_with_extents, not the derived-extent col2im: the derived
-            // overload assumes symmetric padding, but the forward's real
-            // output extents are already sitting in the column matrix's own
-            // shape, so re-deriving them would silently misbehave on an
-            // asymmetrically-padded layer.
+            // col2im_with_extents, not the derived-extent col2im, and the
+            // extents are read out of the forward node's slots 8 and 9 rather
+            // than recomputed. Recomputing them means assuming the padding was
+            // symmetric, and an asymmetric window grid can derive to its own
+            // transpose with the same window count - which every shape check
+            // downstream accepts, so the gradient would come back wrong rather
+            // than throwing. The forward wrote its real grid into the node;
+            // this reads it.
             const Graph::Node& node = tape.node();
             const Graph::ValueId x = node.inputs[0];
             const Graph::ConvGeometry g = geometry_of(node);
             const Shape image_shape = tape.graph().value(x).shape;
-            const Shape cols_shape = tape.graph().value(node.outputs[0]).shape;
 
-            const int64_t windows_per_image = cols_shape[0] / image_shape[0];
-            const int64_t out_w = Graph::output_extent(image_shape[2], g.pad_left, g.pad_left,
-                                                        g.dilation_w, g.kernel_w, g.stride_w);
-            const int64_t out_h = windows_per_image / out_w;
+            int64_t out_h = 0;
+            int64_t out_w = 0;
+            extents_of(node, "IM2COL", out_h, out_w);
 
             tape.contribute_input(0, tape.builder().col2im_with_extents(
                 dy, image_shape, g, out_h, out_w));
@@ -91,20 +105,19 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // The adjoint of the adjoint. The extents come from the column
-            // matrix this node consumed rather than from the geometry, because
-            // that operand may have been produced by an asymmetrically padded
-            // im2col whose extents the geometry cannot reproduce.
+            // The adjoint of the adjoint, over the same window grid the
+            // forward used - read from slots 8 and 9 for the same reason
+            // im2col_backward reads them: the column matrix this node consumed
+            // may have come from an asymmetrically padded im2col, whose grid
+            // the geometry cannot reproduce and can silently transpose.
             const Graph::Node& node = tape.node();
             const Graph::ConvGeometry g = geometry_of(node);
-            const Shape image = tape.graph().value(node.outputs[0]).shape;
-            const int64_t windows = tape.graph().value(node.inputs[0]).shape[0];
-            const int64_t per_image = windows / image[0];
-            const int64_t out_w = Graph::output_extent(image[2], g.pad_left, g.pad_left,
-                                                       g.dilation_w, g.kernel_w, g.stride_w);
 
-            tape.contribute_input(0, tape.builder().im2col_with_extents(
-                dy, g, per_image / out_w, out_w));
+            int64_t out_h = 0;
+            int64_t out_w = 0;
+            extents_of(node, "COL2IM", out_h, out_w);
+
+            tape.contribute_input(0, tape.builder().im2col_with_extents(dy, g, out_h, out_w));
         }
     }
 }

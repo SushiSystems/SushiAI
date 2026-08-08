@@ -184,18 +184,25 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
         }
 }
 
-TEST(Unit_IR, AttributesHoldTheEightSlotsAConvolutionNeeds)
+TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 {
-    // CV-5's eight: kernel_h/w, stride_h/w, dilation_h/w, pad_top, pad_left.
-    // Eight is not a round number chosen for comfort - it is exactly
-    // SushiRuntime's TaskMetadata::K_MAX_PARAMS, which is what an attribute
-    // is ultimately copied into, so a ninth slot could not be lowered.
-    EXPECT_EQ(Graph::Attributes::CAPACITY, std::size_t{8});
+    // Ten, not eight. CV-5's eight are the geometry: kernel_h/w, stride_h/w,
+    // dilation_h/w, pad_top, pad_left. Slots 8 and 9 are the output extents
+    // out_h and out_w, and they have to be carried rather than re-derived:
+    // deriving them from the geometry assumes symmetric padding, and an
+    // asymmetric window grid can derive to its own transpose with the same
+    // window count, which every downstream shape check accepts.
+    //
+    // Ten is not capped by anything downstream. Nothing copies an attribute
+    // into a fixed-width metadata array - lowering.cpp reads slots with get()
+    // and passes the values straight to SushiBLAS.
+    EXPECT_EQ(Graph::Attributes::CAPACITY, std::size_t{10});
 
     Graph::Attributes a;
     for (std::size_t i = 0; i < Graph::Attributes::CAPACITY; ++i)
         a.values[i] = static_cast<double>(i + 1);
 
     EXPECT_EQ(a.get(7), 8.0);
-    EXPECT_EQ(a.get(8), 0.0) << "out-of-range reads must stay defined and yield zero";
+    EXPECT_EQ(a.get(9), 10.0);
+    EXPECT_EQ(a.get(10), 0.0) << "out-of-range reads must stay defined and yield zero";
 }

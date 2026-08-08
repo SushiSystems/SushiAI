@@ -1143,6 +1143,27 @@ namespace SushiAI
                 g.pad_left   = static_cast<int64_t>(node.attributes.get(7));
                 return g;
             }
+
+            /**
+             * @brief Reads the window grid a windowed node carries in slots 8-9.
+             *
+             * Read, never re-derived. Deriving the extents from the geometry
+             * assumes symmetric padding, and an asymmetric grid can derive to
+             * its own transpose with the same window count - which the row
+             * check and the origin checks both accept, so the gather returns
+             * wrong numbers and nothing throws.
+             */
+            void windowed_extents_of(const Node& node, NodeId id, const char* what,
+                                     int64_t& out_h, int64_t& out_w)
+            {
+                out_h = static_cast<int64_t>(node.attributes.get(8));
+                out_w = static_cast<int64_t>(node.attributes.get(9));
+
+                SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                            "{} (node {}) carries a {}x{} window grid; its emitter did "
+                            "not write the output extents into attribute slots 8 and 9",
+                            what, id, out_h, out_w);
+            }
         }
 
         void Lowering::record_im2col(const Graph& graph, NodeId id, const Node& node)
@@ -1154,20 +1175,10 @@ namespace SushiAI
             SushiBLAS::Tensor& cols = output(graph, node, 0);
 
             const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
-            const Shape& in_shape = graph.value(node.inputs[0]).shape;
 
-            // The node's attributes hold only CV-5's eight geometry slots, not
-            // the output extents a caller of im2col_with_extents may have
-            // stated outright - so the extents this lowering hands to
-            // SushiBLAS are re-derived from the geometry under the symmetric
-            // padding the derived-extent GraphBuilder overload assumes. Every
-            // caller in this task's graphs builds through that overload, so
-            // the re-derivation reproduces exactly the extents the output
-            // value's shape was already declared with.
-            const int64_t out_w = output_extent(in_shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
-            const int64_t out_h = output_extent(in_shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
+            int64_t out_h = 0;
+            int64_t out_w = 0;
+            windowed_extents_of(node, id, "IM2COL", out_h, out_w);
 
             engine_->spatial().im2col(in, cols, g, out_h, out_w);
             ++emitted_;
@@ -1182,16 +1193,10 @@ namespace SushiAI
             SushiBLAS::Tensor& image = output(graph, node, 0);
 
             const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
-            const Shape& image_shape = graph.value(node.outputs[0]).shape;
 
-            // Same re-derivation as record_im2col, from the *output* image's
-            // extents this time: the destination's H and W are already
-            // written down in the graph regardless of which GraphBuilder
-            // overload produced this node.
-            const int64_t out_w = output_extent(image_shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
-            const int64_t out_h = output_extent(image_shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
+            int64_t out_h = 0;
+            int64_t out_w = 0;
+            windowed_extents_of(node, id, "COL2IM", out_h, out_w);
 
             engine_->spatial().col2im(cols, image, g, out_h, out_w);
             ++emitted_;

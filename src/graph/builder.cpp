@@ -346,6 +346,24 @@ namespace SushiAI
                 a.values[7] = static_cast<double>(g.pad_left);
                 return a;
             }
+
+            /**
+             * @brief CV-5's eight slots plus the output extents in slots 8-9.
+             *
+             * IM2COL and COL2IM carry their window grid rather than letting
+             * the lowering re-derive it, because a re-derivation has to assume
+             * symmetric padding and an asymmetric grid can derive to its own
+             * transpose with the same window count - which every shape check
+             * accepts.
+             */
+            Attributes windowed_attributes(const ConvGeometry& g,
+                                           int64_t out_h, int64_t out_w) noexcept
+            {
+                Attributes a = geometry_attributes(g);
+                a.values[8] = static_cast<double>(out_h);
+                a.values[9] = static_cast<double>(out_w);
+                return a;
+            }
         }
 
         ValueId GraphBuilder::im2col(ValueId x, const ConvGeometry& g) const
@@ -387,7 +405,7 @@ namespace SushiAI
 
             const ValueId out = declare_like(x, shape_of(rows, cols), in.dtype,
                                              Lifetime::ACTIVATION, "cols");
-            graph_->add_node(Ops::IM2COL.id, {x}, {out}, geometry_attributes(g));
+            graph_->add_node(Ops::IM2COL.id, {x}, {out}, windowed_attributes(g, out_h, out_w));
             return out;
         }
 
@@ -431,7 +449,7 @@ namespace SushiAI
 
             const ValueId out = declare_like(cols, image_shape, c.dtype,
                                              Lifetime::ACTIVATION, "image");
-            graph_->add_node(Ops::COL2IM.id, {cols}, {out}, geometry_attributes(g));
+            graph_->add_node(Ops::COL2IM.id, {cols}, {out}, windowed_attributes(g, out_h, out_w));
             return out;
         }
 
