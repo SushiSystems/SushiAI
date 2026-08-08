@@ -672,3 +672,51 @@ TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
 
     EXPECT_TRUE(result.passed) << result.to_string();
 }
+
+TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
+{
+    // A reshape moves no data, so its gradient is its incoming gradient in the
+    // original shape. Worth a numeric check anyway: "reshape back to the input
+    // shape" and "reshape back to the output shape" are both one line and only
+    // one is right.
+    Probe probe(*engine, Shape{3, 8}, [](const GraphBuilder& builder, ValueId x)
+    {
+        return builder.log_softmax(builder.reshape(builder.reshape(x, Shape{4, 6}), Shape{3, 8}));
+    });
+
+    // The fused LOG_SOFTMAX + NLL_LOSS rule's closed form assumes a one-hot
+    // target row (nll_loss_backward's comment: "valid because the targets are
+    // one-hot"); noise there would make the *analytic* gradient legitimately
+    // disagree with the numeric one for reasons that have nothing to do with
+    // RESHAPE.
+    probe.fill_one_hot(3, 8);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(232).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, LayoutConvertsGradientIsTheConverseConversion)
+{
+    // The adjoint of a permutation is the inverse permutation. Getting it
+    // wrong gives a gradient of exactly the right magnitude in the wrong
+    // place - which no tolerance-based check on the loss would notice.
+    //
+    // A rank-4 probe needs a reduction down to [N, C] to reach the loss;
+    // spatial_mean's own backward rule is Tasks 11-13' work, not this one's,
+    // so RESHAPE - already proven above - does the flattening instead.
+    Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
+    {
+        const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+        const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+        return builder.log_softmax(builder.reshape(back, Shape{2, 60}));
+    });
+
+    probe.fill_one_hot(2, 60);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(242).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}

@@ -200,9 +200,9 @@ namespace SushiAI
         // --- Structural -----------------------------------------------------
 
         /** @brief Reinterprets extents without moving data. */
-        inline constexpr OpName RESHAPE = op("sushiai.reshape");
+        inline constexpr OpName RESHAPE = differentiable_op("sushiai.reshape");
         /** @brief The only node permitted to change a value's TensorLayout (CV-4). */
-        inline constexpr OpName LAYOUT_CONVERT = op("sushiai.layout_convert");
+        inline constexpr OpName LAYOUT_CONVERT = differentiable_op("sushiai.layout_convert");
 
         // --- Convolution, as CV-1 spells it ---------------------------------
         //

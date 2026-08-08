@@ -24,9 +24,7 @@
 #pragma once
 
 // Shape and layout operations' backward rules: RESHAPE, LAYOUT_CONVERT and
-// friends. Empty until Task 10 - this file exists now so the table in
-// rules/all.hpp never needs to change shape when a domain's first rule
-// arrives, only when a domain arrives.
+// friends.
 
 #include <array>
 #include <SushiAI/autograd/rule.hpp>
@@ -35,7 +33,15 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        /** @brief Shape operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 0> SHAPE_RULES = {{}};
+        /** @brief Reshapes the incoming gradient back to the operand's shape. */
+        void reshape_backward(const GradientTape& tape);
+        /** @brief Converts the incoming gradient back to the operand's layout. */
+        void layout_convert_backward(const GradientTape& tape);
+
+        /** @brief Structural operations' backward rules. */
+        inline constexpr std::array<RuleEntry, 2> SHAPE_RULES = {{
+            {Ops::RESHAPE.id,        &reshape_backward},
+            {Ops::LAYOUT_CONVERT.id, &layout_convert_backward},
+        }};
     }
 }

@@ -110,6 +110,52 @@ TEST_F(Integration_Forward, SumRowsProducesColumnSums)
     EXPECT_NEAR(result[1], 12.0, 1e-5);
 }
 
+TEST_F(Integration_Forward, ReshapeReinterpretsRowMajorLinearOrder)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{3, 4}, "x");
+    const ValueId y = builder.reshape(x, Shape{2, 6});
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(y));
+    ASSERT_EQ(result.size(), 12u);
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], static_cast<double>(i), 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // N=1, H=1, W=2, C=3: small enough to hand-trace every element's move.
+    const ValueId x = builder.input(Shape{1, 1, 2, 3}, "x");
+    const ValueId y = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+    OneShot run(*engine, graph);
+
+    // NHWC, channels innermost: (w=0,c=0..2) = 0,1,2; (w=1,c=0..2) = 3,4,5.
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5});
+
+    run.compile();
+    run.step->run();
+
+    // NCHW, channels outermost of the spatial block: for each c, the two W
+    // positions in order - (c=0,w=0..1)=0,3; (c=1,w=0..1)=1,4; (c=2,w=0..1)=2,5.
+    const std::vector<double> expected = {0, 3, 1, 4, 2, 5};
+    const std::vector<double> result = read_tensor(run.pool.tensor(y));
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+}
+
 TEST_F(Integration_Forward, ElementwiseAndScaleMatchTheirDefinitions)
 {
     Graph::Graph graph;
