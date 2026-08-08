@@ -65,7 +65,6 @@
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/common.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiAI
 {

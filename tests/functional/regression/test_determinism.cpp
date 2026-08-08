@@ -8,7 +8,7 @@
 // Bit-for-bit reproducibility, end to end.
 //
 // This is the guarantee the whole stack is arranged around and the one nothing
-// proved. SushiRuntime promises sushiruntime_deterministic_fp; backward.cpp
+// proved. SushiRuntime promises sushiruntime_deterministic_fp; autograd/tape.cpp
 // sums a fan-out through an ordered ACCUMULATE chain rather than float
 // atomics, and says in its own header that an atomic sum "would break that
 // quietly, showing up as a training run that cannot be reproduced rather than
