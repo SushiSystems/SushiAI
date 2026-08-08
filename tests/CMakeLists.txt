@@ -50,6 +50,7 @@ add_executable(sushiai_tests
     functional/unit/test_config.cpp
     functional/unit/test_objective.cpp
     functional/unit/test_spatial_shapes.cpp
+    functional/unit/test_rematerialise.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp
@@ -60,6 +61,7 @@ add_executable(sushiai_tests
     functional/integration/test_resilience.cpp
     functional/integration/test_registries.cpp
     functional/integration/test_checkpoint.cpp
+    functional/integration/test_rematerialise.cpp
 
     functional/regression/test_compile_once.cpp
     functional/regression/test_determinism.cpp

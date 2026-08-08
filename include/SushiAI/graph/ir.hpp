@@ -348,6 +348,82 @@ namespace SushiAI
                     return id;
                 }
 
+                /**
+                 * @brief Inserts an operation *before* node @p before.
+                 *
+                 * The entry point a graph-to-graph pass needs and @ref add_node
+                 * cannot serve. Appending is enough while a graph is being
+                 * built, because a builder emits producers before consumers by
+                 * construction. A pass that recomputes an already-consumed
+                 * value has the opposite problem: the consumers it is rewiring
+                 * are already in @c nodes_, so an appended producer would sit
+                 * *after* its own readers. That is not a cosmetic ordering
+                 * complaint - @c MemoryPlan::build() rests on "insertion order
+                 * is a topological order" and rejects the graph by name, and a
+                 * lowering that got past it would record a GEMM reading a
+                 * buffer nothing had written yet.
+                 *
+                 * Every value whose producer sits at or after @p before has its
+                 * @c Value::producer bumped, so the ids a caller is holding go
+                 * on naming the same values; node ids do not survive, exactly
+                 * as they do not survive @c insert_casts().
+                 *
+                 * @param before The position to insert at; @c node_count()
+                 *        appends. Every operand must already be produced
+                 *        strictly before it, or the result would be the
+                 *        out-of-order graph this function exists to avoid.
+                 * @param node The operation, its operands and its results.
+                 * @return The inserted node's id, which is @p before.
+                 * @throws Error If @p before is past the end, an operand or
+                 *         result id is unknown, an operand's producer is not
+                 *         strictly before @p before, or a result already has
+                 *         a producer.
+                 */
+                NodeId insert_node(NodeId before, Node node)
+                {
+                    SA_THROW_IF(before > nodes_.size(),
+                                "Cannot insert before node {}; the graph has {} nodes",
+                                before, nodes_.size());
+
+                    for (ValueId v : node.inputs)
+                    {
+                        SA_THROW_IF(v >= values_.size(),
+                                    "Operation {} reads value {}, which does not exist",
+                                    Ops::name_of(node.op), v);
+                        SA_THROW_IF(values_[v].producer != NO_NODE
+                                        && values_[v].producer >= before,
+                                    "Operation {} would be inserted at {} but reads value {}, "
+                                    "which node {} writes. Insertion order must stay a "
+                                    "topological order; insert after the operand's producer.",
+                                    Ops::name_of(node.op), before, v, values_[v].producer);
+                    }
+
+                    for (ValueId v : node.outputs)
+                    {
+                        SA_THROW_IF(v >= values_.size(),
+                                    "Operation {} writes value {}, which does not exist",
+                                    Ops::name_of(node.op), v);
+                        SA_THROW_IF(values_[v].producer != NO_NODE,
+                                    "Operation {} writes value {}, which is already written by {}. "
+                                    "The IR is single-assignment; emit a new value instead.",
+                                    Ops::name_of(node.op), v,
+                                    Ops::name_of(nodes_[values_[v].producer].op));
+                    }
+
+                    // Bump first, then claim: claiming first would bump the
+                    // producer this call is establishing.
+                    for (Value& value : values_)
+                        if (value.producer != NO_NODE && value.producer >= before)
+                            ++value.producer;
+
+                    for (ValueId v : node.outputs)
+                        values_[v].producer = before;
+
+                    nodes_.insert(nodes_.begin() + static_cast<std::ptrdiff_t>(before),
+                                  std::move(node));
+                    return before;
+                }
+
                 /** @brief Read-only access to a value. */
                 const Value& value(ValueId id) const
                 {
