@@ -423,6 +423,53 @@ namespace SushiAI
             EXPECT_THROW((void)builder.channel_affine(x_nchw, gamma, beta), Error);
         }
 
+        TEST(Unit_SpatialShapes, BatchNorm2dKeepsItsShapeAndDeclaresTwoPerChannelStatistics)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 8, 8, 16}, "x");
+            const ValueId gamma = builder.parameter({16}, "gamma");
+            const ValueId beta = builder.parameter({16}, "beta");
+
+            const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
+            EXPECT_EQ(graph.values()[bn.output].shape, Shape({2, 8, 8, 16}));
+            EXPECT_EQ(graph.values()[bn.saved_mean].shape, Shape({16}));
+            EXPECT_EQ(graph.values()[bn.saved_inv_std].shape, Shape({16}));
+
+            const ValueId wrong = builder.parameter({8}, "wrong");
+            EXPECT_THROW((void)builder.batchnorm2d(x, wrong, beta, 1e-5), Error);
+
+            // A non-positive epsilon is a division by the standard deviation
+            // itself, which is exactly zero for a constant channel.
+            EXPECT_THROW((void)builder.batchnorm2d(x, gamma, beta, 0.0), Error);
+        }
+
+        TEST(Unit_SpatialShapes, BatchNorm2dRejectsAnNchwInput)
+        {
+            // The layout check runs before any extent is read, so the operand
+            // that is wrong is the one the message names.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({1, 3, 4, 4}, "x");
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId gamma = builder.parameter({3}, "gamma");
+            const ValueId beta = builder.parameter({3}, "beta");
+
+            EXPECT_THROW((void)builder.batchnorm2d(x_nchw, gamma, beta, 1e-5), Error);
+        }
+
+        TEST(Unit_SpatialShapes, SumChannelsFoldsEverythingButTheChannelAxis)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId x = builder.input({2, 8, 8, 16}, "x");
+
+            EXPECT_EQ(graph.values()[builder.sum_channels(x)].shape, Shape({16}));
+
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            EXPECT_THROW((void)builder.sum_channels(x_nchw), Error);
+        }
+
         TEST(Unit_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
         {
             // The one failure mode a reshape has: it moves no data, so a

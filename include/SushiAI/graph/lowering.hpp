@@ -554,6 +554,9 @@ namespace SushiAI
                 void record_spatial_mean_backward(const Graph& graph, NodeId id, const Node& node);
                 void record_concat_channels(const Graph& graph, NodeId id, const Node& node);
                 void record_slice_channels(const Graph& graph, NodeId id, const Node& node);
+                void record_channel_affine(const Graph& graph, NodeId id, const Node& node);
+                void record_batchnorm2d(const Graph& graph, NodeId id, const Node& node);
+                void record_batchnorm2d_backward(const Graph& graph, NodeId id, const Node& node);
 
                 void record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
                                        FusedForm matched);
