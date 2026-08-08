@@ -125,8 +125,34 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   sources are gone. Measured on this box: 50 epochs in about 30 seconds,
   `compiles: 1`, and **86.33% top-1 agreement** on 512 held-out points drawn
   from a different seed.
+- **`sa test --suite package`**, which installs SushiAI to
+  `build/package/prefix`, configures `tests/package/` against that prefix as
+  an out-of-tree consumer, builds it and runs it. `tests/package/` already
+  existed but was driven by hand; nothing ran it.
+
+  It exists because of a bug no test in this repo could have caught: four
+  public headers (`autograd/tape.hpp`, `autograd/rule.hpp`,
+  `autograd/rules/all.hpp`, `graph/rematerialise.hpp`) were missing from the
+  `SushiAI/SushiAI.h` umbrella. Every in-tree test includes headers directly
+  from the source tree, so what `find_package(SushiAI)` actually hands a third
+  party — the installed headers, the exported interface, the transitive
+  `find_dependency` on both siblings — was never exercised anywhere. Verified
+  by making an installed header unreachable and confirming the suite fails on
+  it.
+
+  It is not a CTest label and not part of `--suite all`, which now prints a
+  line saying so rather than leaving the gap to be discovered. `--filter` and
+  `--repeat` are CTest knobs and exit 2 here rather than being silently
+  ignored. See [CLI_GUIDE.md](CLI_GUIDE.md#-suite-package).
 
 ### Changed
+- The compiler and host-tool flags in `cli/sushiai/services/project.py` moved
+  into one shared `_toolchain_args()` helper, used by both the project's own
+  configure and the package consumer's. Two copies would drift the first time
+  someone added a flag, and the package suite would then start failing for
+  reasons that have nothing to do with packaging. `CMAKE_PREFIX_PATH` stays
+  per-caller — it is the one setting the two configures legitimately disagree
+  on.
 - **`src/autograd/backward.cpp` is gone, split into one translation unit per
   domain.** It was 600 lines with four unrelated reasons to change, and the
   twenty new identities above would all have landed in it. The implementation
