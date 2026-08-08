@@ -486,6 +486,29 @@ TEST_F(Integration_Autograd, ReluAwayFromItsKink)
     expect_gradient_matches(probe, point);
 }
 
+TEST_F(Integration_Autograd, LeakyReluHasBothOfItsSlopes)
+{
+    // Sampled off the kink, and deliberately over a range wide enough that
+    // some elements land on each side: a probe that only ever sees positive
+    // inputs would pass with the negative slope hard-coded to zero, i.e.
+    // with a plain ReLU. See LeakyReluBranchSwapIsCaughtByProbePoints below
+    // for the count of negative points this actually samples.
+    Probe probe(*engine, Shape{4, 8}, [](const GraphBuilder& builder, ValueId x)
+    {
+        return builder.log_softmax(builder.leaky_relu(x, 0.1));
+    });
+
+    probe.fill_one_hot(4, 8);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(171).fill(point, 1.5);
+
+    // LEAKY_RELU is not differentiable at zero, same as RELU.
+    Autograd::push_off_kinks(point);
+
+    expect_gradient_matches(probe, point);
+}
+
 TEST_F(Integration_Autograd, Gelu)
 {
     Probe probe(*engine, Shape{4, 3}, [](const GraphBuilder& builder, ValueId x)

@@ -123,6 +123,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::GELU.id,       "Integration_Autograd.Gelu"},
         {Ops::SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
         {Ops::TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
+        {Ops::LEAKY_RELU.id, "Integration_Autograd.LeakyReluHasBothOfItsSlopes"},
         {Ops::SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
         {Ops::ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
         {Ops::NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},

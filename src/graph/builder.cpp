@@ -221,6 +221,24 @@ namespace SushiAI
         ValueId GraphBuilder::sigmoid(ValueId x) const { return unary(Ops::SIGMOID.id, x); }
         ValueId GraphBuilder::tanh(ValueId x) const { return unary(Ops::TANH.id, x); }
 
+        ValueId GraphBuilder::leaky_relu(ValueId x, double slope) const
+        {
+            SA_THROW_IF(slope <= 0.0 || slope >= 1.0,
+                        "leaky_relu's slope must be in (0, 1); got {}. At 0 it is a ReLU "
+                        "and at 1 it is the identity, and both would make the "
+                        "output-reading gradient (ops.hpp's ACTIVATIONS) unsound.",
+                        slope);
+
+            const Value& in = graph_->value(x);
+            const ValueId out = declare_like(x, in.shape, in.dtype, Lifetime::ACTIVATION,
+                                             "leaky_relu");
+
+            Attributes a{};
+            a.values[0] = slope;
+            graph_->add_node(Ops::LEAKY_RELU.id, {x}, {out}, a);
+            return out;
+        }
+
         ValueId GraphBuilder::zeros(Shape shape, DType dtype) const
         {
             const ValueId out = declare(shape, dtype, Lifetime::ACTIVATION, "zeros");
@@ -228,10 +246,12 @@ namespace SushiAI
             return out;
         }
 
-        ValueId GraphBuilder::activation_backward(OpID op, ValueId dy, ValueId primal) const
+        ValueId GraphBuilder::activation_backward(OpID op, ValueId dy, ValueId primal,
+                                                  Attributes attributes) const
         {
             SA_THROW_IF(op != Ops::RELU_BACKWARD.id && op != Ops::GELU_BACKWARD.id
-                        && op != Ops::SIGMOID_BACKWARD.id && op != Ops::TANH_BACKWARD.id,
+                        && op != Ops::SIGMOID_BACKWARD.id && op != Ops::TANH_BACKWARD.id
+                        && op != Ops::LEAKY_RELU_BACKWARD.id,
                         "{} is not an activation gradient", Ops::name_of(op));
 
             require_same(dy, primal, Ops::name_of(op));
@@ -239,7 +259,7 @@ namespace SushiAI
             const Value& v = graph_->value(dy);
             const ValueId out = declare(v.shape, v.dtype, Lifetime::ACTIVATION,
                                         Ops::name_of(op));
-            graph_->add_node(op, {dy, primal}, {out});
+            graph_->add_node(op, {dy, primal}, {out}, attributes);
             return out;
         }
 

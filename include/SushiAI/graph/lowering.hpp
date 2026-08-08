@@ -534,6 +534,8 @@ namespace SushiAI
                 void record_dynamic_scale(const Graph& graph, NodeId id, const Node& node);
                 void record_unary_inplace(const Graph& graph, const Node& node);
                 void record_activation_backward(const Graph& graph, const Node& node);
+                void record_leaky_relu(const Graph& graph, const Node& node);
+                void record_leaky_relu_backward(const Graph& graph, const Node& node);
                 void record_log_softmax(const Graph& graph, NodeId id, const Node& node);
                 void record_nll_loss(const Graph& graph, NodeId id, const Node& node);
                 void record_sum_rows(const Graph& graph, const Node& node);
