@@ -232,7 +232,7 @@ asymmetric 13→13 pool was never at risk.
 
 | File | Responsibility after this plan |
 |---|---|
-| `include/SushiAI/graph/ir.hpp` | `Attributes::CAPACITY` 8; `TensorLayout`; `Value::layout`; `Graph::finalise()` |
+| `include/SushiAI/graph/ir.hpp` | `Attributes::CAPACITY` 10 (see A-8); `TensorLayout`; `Value::layout`; `Graph::finalise()` |
 | `include/SushiAI/core/ops.hpp` | Twenty new identities, the `differentiable` flag, `LEAKY_RELU` in `ACTIVATIONS` |
 | `include/SushiAI/graph/builder.hpp` | Emitter + shape inference declarations for every new identity |
 | `src/graph/builder.cpp` | Their definitions |
