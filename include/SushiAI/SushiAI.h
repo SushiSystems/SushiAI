@@ -74,8 +74,12 @@
 #include "graph/lowering.hpp"
 #include "graph/step_recorder.hpp"
 #include "graph/compiled_step.hpp"
+#include "graph/rematerialise.hpp"
 
 #include "autograd/backward.hpp"
+#include "autograd/tape.hpp"
+#include "autograd/rule.hpp"
+#include "autograd/rules/all.hpp"
 #include "autograd/gradcheck.hpp"
 
 #include "nn/module.hpp"

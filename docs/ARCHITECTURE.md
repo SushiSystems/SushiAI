@@ -201,17 +201,108 @@ the whole forward *and* backward graph, that fusion needs a DAG to
 partition, and that `TaskGraph::compile()` drains its builder and so cannot
 be held and rewritten.
 
-`autograd/backward.hpp` implements the reverse walk. Its rule registry is a
-file-scope `constexpr` array of `{OpID, function pointer}`, deliberately not
-a self-registering map: `sushiai` is a **static** library, so a translation
-unit whose only job is to run a registration constructor resolves no symbol
-and is dropped by the linker — silently, and only in a downstream consumer's
-build.
+`autograd/backward.hpp` declares the reverse walk — `differentiate()` and
+`has_backward_rule()` — and nothing else.
 
 Gradient accumulation at a fan-out is tiered: zero contributors means no
 gradient value at all (a symbolic zero, not a materialised buffer), one
 means the gradient *is* that value, and two or more emit `ACCUMULATE` nodes
 in contributor order.
+
+### 4.1 One translation unit per domain
+
+There is no `backward.cpp`. The implementation is three kinds of file:
+
+| File | What it owns |
+|---|---|
+| `src/autograd/differentiator.cpp` | `differentiate()`, the reverse traversal, and the seed |
+| `src/autograd/tape.cpp` | `GradientTape` — how a rule reads its node and contributes a gradient |
+| `src/autograd/rules/<domain>.cpp` | The rules themselves, one file per domain |
+
+The domains are `elementwise`, `activation`, `linalg`, `loss`, `shape`,
+`spatial` and `norm`, each with a header beside it in
+`include/SushiAI/autograd/rules/`. `rules/all.hpp` is the one place that joins
+them.
+
+The property this buys is a rule about *diffs*, and it is the reason the split
+is worth having at all: **adding an operation to an existing domain changes
+only that domain's `.cpp` and `.hpp`. Adding a whole domain is one line in
+`all.hpp`.** Before the split, every new gradient — a pooling rule, a
+normalisation rule, a loss rule — edited the same 600-line file, which is how
+four unrelated reasons to change end up sharing a merge conflict.
+
+A rule sees `GradientTape` and nothing else. `Differentiator`'s definition
+lives in `src/autograd/differentiator.hpp`, outside the public include tree,
+reachable from exactly the two translation units that construct or call back
+into it.
+
+**Nothing self-registers**, and that is not a stylistic preference. `sushiai`
+is a **static** library. A translation unit whose only job is to run a
+registration constructor resolves no symbol, so the linker drops it — the rule
+table comes up short, `differentiate()` reports no rule for an operation that
+plainly has one, and it happens *only in a downstream consumer's build*, not in
+this repository's own tests. So each domain's rules reach the table by being
+named in a file-scope `constexpr` array of `{OpID, function pointer}` that
+`all.hpp` concatenates. Missing one is a compile error in this repository, not
+a link-time absence in somebody else's. `core/ops.hpp`'s identity table and
+`graph/fusion.cpp`'s `CATALOG` are the same shape for the same reason.
+
+### 4.2 Three invariants the IR proves rather than assumes
+
+**`TensorLayout`, proved by `Graph::finalise()` (CV-4).** Every `Value` carries
+a `TensorLayout`, and `LAYOUT_CONVERT` is the only node allowed to have
+operands and results that disagree about it. `finalise()` is the phase that
+closes a graph — it propagates `requires_grad` and then walks every node
+proving layout uniformity — so a graph that mixes NCHW into an NHWC chain fails
+there, naming the node, instead of reaching a kernel that reads the right
+number of elements in the wrong order. `GraphBuilder::declare_like()` is how an
+emitter keeps that true without restating it: a result takes its operand's
+layout by construction, and `declare()` is for the values that genuinely have
+no operand to inherit from.
+
+**The `differentiable` flag is split from its proof.** `core/ops.hpp` carries
+the flag on each `OpName` — the *claim* that an operation has a gradient.
+`autograd/rules/all.hpp` carries the `static_assert` that every operation
+making that claim is in the rule table — the *proof*. They are apart because
+they must be: the assert needs to see the rule table, and `core/` cannot depend
+on `autograd/` without inverting the layering the whole tree is built on. The
+flag stays where the operation is declared; the check lives where the evidence
+is. `BATCHNORM_UPDATE_STATS` claims nothing and has no rule, because CV-7 keeps
+a BatchNorm's running statistics out of the differentiated graph entirely — it
+is recorded into the training step beside the graph, the way `SGD_UPDATE` and
+`ADAMW_UPDATE` are, and it is correspondingly the one declared identity with no
+case in `Lowering::record_node`.
+
+**`graph/rematerialise.hpp` is deliberately not general (CV-10).**
+`rematerialise_im2col()` recomputes exactly one operation: it clones the
+`IM2COL` node in front of the backward consumer that reads its column matrix,
+demotes the stored value to `SCRATCH`, and stops. It is not a cost model, not a
+checkpointing framework, and not parameterised over which operations are cheap
+to recompute. A convolution's column matrix is `kernel_h*kernel_w` times its
+input and is read once in the backward pass, which makes it both the largest
+activation in a CNN and the easiest thing in the graph to rebuild; a general
+pass would need a cost model nobody has measured, to serve cases nobody has.
+The clone copies the original's `Attributes` rather than rederiving them, for
+the reason the next paragraph gives.
+
+**`Attributes::CAPACITY` is 10, and the last two slots are not redundant.**
+Slots 0–7 are a 2-D window's geometry — `kernel_h`, `kernel_w`, `stride_h`,
+`stride_w`, `dilation_h`, `dilation_w`, `pad_top`, `pad_left` — mirroring
+`Graph::ConvGeometry` field for field. Slots 8 and 9 are the output extents
+`out_h` and `out_w`, **stored rather than derived**. That looks like
+duplication and is not: CV-5 gives the geometry no `pad_bottom` or `pad_right`,
+so deriving the extents back from it silently assumes symmetric padding — which
+YOLOv3-tiny's 13→13 pool violates. A wrong derivation there yields a window
+grid that is the *transpose* of the real one, with the same element count, so
+it passes every shape check in the tree and gathers the wrong pixels. Storing
+what the host already computed is the fix, and A-8 ("never re-derive an output
+extent from geometry") is the rule it generalises to.
+
+`CAPACITY` is bounded by nothing outside SushiAI, and deliberately so.
+`Lowering` reads slots with `get()` and hands the values straight to a
+SushiBLAS call, so no attribute is ever copied into SushiRuntime's fixed-width
+`TaskMetadata::params` array and `K_MAX_PARAMS` does not constrain it. The
+capacity is what the operations need, and nothing else.
 
 ---
 
@@ -358,7 +449,7 @@ work follows from that one fact:
 
 Adding a form is four mechanical edits: an identity, a `FusedForm`, a `CATALOG`
 row, and a recorder. Nothing self-registers, for the same reason
-`autograd/backward.cpp`'s rule table does not.
+`autograd/rules/all.hpp`'s rule table does not (§4.1).
 
 ### What is allowed to be fused away, and what is not
 
