@@ -87,7 +87,7 @@ namespace SushiAI
             // Summing over rows broadcasts back over rows; adding the row
             // vector to a zero matrix is exactly that broadcast, and reuses
             // the bias lowering rather than inventing a second one.
-            const Graph::ValueId zeros = tape.builder().zeros(value.shape, value.dtype);
+            const Graph::ValueId zeros = tape.builder().zeros_like(ds, value.shape, value.dtype);
             tape.contribute_input(0, tape.builder().bias_add(zeros, ds));
         }
 

@@ -8,7 +8,10 @@
 // Device-free: the IR and its builder are host-lane, which is the whole point
 // of keeping shape inference out of the lowering.
 
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
@@ -172,6 +175,73 @@ namespace SushiAI
 
             EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::NCHW);
             EXPECT_NO_THROW(c.graph.finalise());
+        }
+
+        TEST(Unit_Layout, TheThreeRulesThatEmitZerosCannotBeReachedWithAnNchwOperand)
+        {
+            // Why the zeros exposure is latent rather than live, checked
+            // rather than asserted in a comment - because it is the premise
+            // the zeros_like() change rests on, and it is a premise about
+            // *other* emitters' guards, which is exactly the kind that stops
+            // being true without anyone editing this file.
+            //
+            // slice_channels_backward and channel_affine_backward are the
+            // rank-4 sites, and CV-3 makes their forward emitters refuse an
+            // NCHW operand outright, so their dy can never carry that tag.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+
+            const ValueId x = builder.input({1, 2, 2, 2}, "x");
+            const ValueId nchw = builder.layout_convert(x, TensorLayout::NCHW);
+
+            EXPECT_THROW((void)builder.slice_channels(nchw, 0, 1), Error);
+            EXPECT_THROW((void)builder.channel_affine(nchw, x, x), Error);
+
+            // sum_rows_backward is the rank-2 site, and reshape carries an
+            // NCHW tag into rank-2 land with no guard at all - so unlike the
+            // two above, the emitters let this chain be built.
+            //
+            // What blocks it is the far end. differentiate() only seeds a loss
+            // produced by NLL_LOSS, whose one-hot operand is a leaf and so
+            // always NHWC, and nothing but LAYOUT_CONVERT may cross back -
+            // which is rank-4 only. finalise() rejects that node before
+            // differentiation ever runs, so the rule is never reached with an
+            // NCHW gradient. Note where the guard actually lives: it is the
+            // pre-existing proof, not a check in any emitter, which is why
+            // this is worth a test rather than a sentence.
+            const ValueId rows = builder.reshape(nchw, Shape{1, 8});
+            EXPECT_EQ(graph.value(rows).layout, TensorLayout::NCHW);
+
+            const ValueId target = builder.input({1, 8}, "target");
+            EXPECT_EQ(graph.value(target).layout, TensorLayout::NHWC);
+
+            const ValueId summed = builder.sum_rows(rows);
+            EXPECT_EQ(graph.value(summed).layout, TensorLayout::NCHW);
+
+            (void)builder.nll_loss(builder.log_softmax(rows), target);
+            EXPECT_THROW(graph.finalise(), Error);
+        }
+
+        TEST(Unit_Layout, ZerosLikeCarriesTheTagAndPlainZerosCannot)
+        {
+            // The contract the three backward rules now depend on. ZERO reads
+            // nothing, so plain zeros() has no operand to inherit from and its
+            // NHWC tag is a default rather than an answer; that is harmless
+            // for the ZERO node itself, which the per-node proof skips for
+            // having no inputs, and it is the consumer reading those zeros
+            // beside a real operand that would see a node crossing layouts.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+
+            const ValueId x = builder.input({1, 2, 2, 2}, "x");
+            const ValueId nchw = builder.layout_convert(x, TensorLayout::NCHW);
+
+            EXPECT_EQ(graph.value(builder.zeros(Shape{1, 2, 2, 2})).layout,
+                      TensorLayout::NHWC);
+            EXPECT_EQ(graph.value(builder.zeros_like(nchw, Shape{1, 2, 2, 2})).layout,
+                      TensorLayout::NCHW);
+            EXPECT_EQ(graph.value(builder.zeros_like(x, Shape{1, 2, 2, 2})).layout,
+                      TensorLayout::NHWC);
         }
 
         TEST(Unit_Layout, FinaliseStillPropagatesRequiresGrad)

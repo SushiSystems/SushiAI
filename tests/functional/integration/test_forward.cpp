@@ -539,6 +539,63 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
     EXPECT_NEAR(result[0], 3.0, 1e-9);
 }
 
+TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
+{
+    // The gap that let the dropped layout tag hide. Every other test here
+    // stops at the tag; the numerical claim behind all of them is that a tag
+    // reaching Lowering::record_layout_convert intact is what makes a
+    // transpose happen, and nothing tested that half.
+    //
+    // A round trip alone would not test it either: two no-ops compose to the
+    // identity and the final assertion passes just as happily. So the
+    // intermediate is read out and asserted to be the permuted buffer, by
+    // value. That assertion is the test; the round trip is the control.
+    //
+    // The passes run before compilation, so this also pins tag survival by
+    // its consequence rather than by inspecting the field.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // N=1, H=2, W=2, C=2, values 1..8 in NHWC order - so index
+    // ((h*2)+w)*2+c. Distinct values, because a tensor of repeats would make
+    // a permutation indistinguishable from a copy.
+    const ValueId x = builder.input(Shape{1, 2, 2, 2}, "x");
+    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+    graph.finalise();
+
+    ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
+    ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
+
+    // [N,H,W,C] seen as [N,C,H,W]: the extents are the same here only because
+    // H, W and C are all 2. The buffer is not.
+    EXPECT_EQ(graph.value(nchw).shape, (Shape{1, 2, 2, 2}));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8});
+
+    run.compile();
+    run.step->run();
+
+    // NCHW index is ((c*2)+h)*2+w, so channel 0 collects the odd values and
+    // channel 1 the even ones. Worked out by hand, not read back from the
+    // implementation.
+    const std::vector<double> permuted = {1, 3, 5, 7, 2, 4, 6, 8};
+    const std::vector<double> middle = read_tensor(run.pool.tensor(nchw));
+    ASSERT_EQ(middle.size(), permuted.size());
+    for (std::size_t i = 0; i < permuted.size(); ++i)
+        EXPECT_NEAR(middle[i], permuted[i], 1e-9)
+            << "at " << i << ": the NCHW intermediate was not permuted. If this reads back "
+               "as 1..8 the convert copied straight through, and the round trip below is "
+               "two no-ops composing to an identity that proves nothing.";
+
+    const std::vector<double> original = {1, 2, 3, 4, 5, 6, 7, 8};
+    const std::vector<double> result = read_tensor(run.pool.tensor(back));
+    ASSERT_EQ(result.size(), original.size());
+    for (std::size_t i = 0; i < original.size(); ++i)
+        EXPECT_NEAR(result[i], original[i], 1e-9) << "at " << i;
+}
+
 TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
 {
     // MAXPOOL2D is the first operation here whose results are not all one

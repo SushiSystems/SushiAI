@@ -229,12 +229,12 @@ namespace SushiAI
 
             std::vector<Graph::ValueId> parts;
             if (offset > 0)
-                parts.push_back(tape.builder().zeros(
-                    Shape({in[0], in[1], in[2], offset}), dtype));
+                parts.push_back(tape.builder().zeros_like(
+                    dy, Shape({in[0], in[1], in[2], offset}), dtype));
             parts.push_back(dy);
             if (offset + taken < in[3])
-                parts.push_back(tape.builder().zeros(
-                    Shape({in[0], in[1], in[2], in[3] - offset - taken}), dtype));
+                parts.push_back(tape.builder().zeros_like(
+                    dy, Shape({in[0], in[1], in[2], in[3] - offset - taken}), dtype));
 
             tape.contribute_input(0, parts.size() == 1
                 ? dy

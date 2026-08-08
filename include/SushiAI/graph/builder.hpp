@@ -277,11 +277,38 @@ namespace SushiAI
 
                 /**
                  * @brief Emits @c ZERO: a fresh all-zero tensor with no operands.
+                 *
+                 * The result is tagged NHWC, because there is no operand to
+                 * inherit a layout from. That is safe for the @c ZERO node
+                 * itself - it reads nothing, so CV-4's per-node proof skips it
+                 * - but not for whoever reads the zeros next: a consumer that
+                 * pairs them with an NCHW operand sees a node reading two
+                 * layouts. Use @ref zeros_like wherever the zeros are about to
+                 * be handed to an operation alongside a real value.
+                 *
                  * @param shape The value's extents.
                  * @param dtype The element type.
                  * @return The new value's id.
                  */
                 ValueId zeros(Shape shape, DType dtype = DType::FLOAT32) const;
+
+                /**
+                 * @brief Emits @c ZERO carrying @p like's layout (CV-4).
+                 *
+                 * The overload the backward rules want. A zero buffer is the
+                 * same bytes under either axis order, so this changes nothing
+                 * about the data - it states which order the *consumer* is
+                 * going to read those bytes in, which is what keeps that
+                 * consumer from appearing to cross layouts.
+                 *
+                 * @param like The value whose layout the zeros adopt; it is
+                 *        read for its tag only, not for its shape or dtype.
+                 * @param shape The value's extents.
+                 * @param dtype The element type.
+                 * @return The new value's id.
+                 */
+                ValueId zeros_like(ValueId like, Shape shape,
+                                   DType dtype = DType::FLOAT32) const;
 
                 // --- Activations ---------------------------------------------------
 
