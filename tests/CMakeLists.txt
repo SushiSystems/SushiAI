@@ -63,6 +63,7 @@ add_executable(sushiai_tests
     functional/integration/test_checkpoint.cpp
     functional/integration/test_rematerialise.cpp
 
+    functional/regression/test_argmax_lifetime.cpp
     functional/regression/test_compile_once.cpp
     functional/regression/test_determinism.cpp
     functional/regression/test_fused_optimizer.cpp
