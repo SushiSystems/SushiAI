@@ -824,6 +824,38 @@ TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel
     expect_gradient_matches(probe, point);
 }
 
+TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOverItsRealWindowGrid)
+{
+    // The gradient over the geometry that a symmetric re-derivation gets
+    // silently wrong. A [1, 4, 5, 1] input with a 3x3 window, pad_top 1 and
+    // pad_left 1, padded 2 below and 0 right, is a 5x4 window grid; deriving
+    // the grid from the geometry alone gives 4x5 - the transpose, with the
+    // same 20 windows, so nothing throws. Both the forward lowering and
+    // im2col_backward read the real grid out of the node's attribute slots
+    // 8 and 9, and this checks the whole path end to end against finite
+    // differences.
+    ValueId weights = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{1, 4, 5, 1}, [&weights](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId cols = builder.im2col_with_extents(x, g, 5, 4);  // [20, 9]
+        weights = builder.parameter(Shape{9, 4}, "w", DType::FLOAT64);
+        return builder.log_softmax(builder.matmul(cols, weights));     // [20, 4]
+    });
+
+    probe.fill_noise(weights, 331, 1.0);
+    probe.fill_one_hot(20, 4);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(332).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
 TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 {
     // COL2IM's own rule (im2col_backward's mirror image), checked without

@@ -174,6 +174,56 @@ least one **single-hop** probe, where the loss genuinely depends on the new elem
 Applies to `LAYOUT_CONVERT`, `IM2COL`/`COL2IM`, `CONCAT_CHANNELS`/`SLICE_CHANNELS` and
 `UPSAMPLE2D`: an `im2col` followed by its own adjoint is the same trap.
 
+**A-8 — `Attributes::CAPACITY` is 10, and Task 1's `static_assert` was proving a constraint that does not exist.**
+
+Task 11's review found that `Lowering::record_im2col` and `record_col2im` re-derive `out_h`
+and `out_w` from the geometry under a symmetric-padding assumption, because the column
+matrix flattens `N*out_h*out_w` into one dimension and only the **product** survives in the
+value shapes. The failure is silent, and the reviewer produced the witness:
+
+```
+x: [1, 4, 5, C], kernel 3x3, stride 1, pad_top = 1, pad_left = 1
+true asymmetric padding: pad_bottom = 2, pad_right = 0  ->  true extents 5x4  (20 windows)
+lowering re-derives                                      ->        extents 4x5  (20 windows)
+```
+
+Same product, so `column_span_for`'s row check passes and the origin checks pass, and the
+kernel gathers a transposed window grid. No exception, wrong numbers. It also made
+`col2im_with_extents` (A-3) cosmetic: the rule states correct extents that the lowering
+then throws away.
+
+The obvious fix — carry the extents in attribute slots — appeared blocked, because CV-5
+says "exactly eight attribute slots" and Task 1 added
+
+```cpp
+static_assert(Attributes::CAPACITY <= SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS, ...)
+```
+
+with the rationale that a ninth slot "would be dropped by graph/lowering.cpp without any
+diagnostic". **That rationale is false.** `grep -rn "TaskMetadata" include/ src/` returns
+exactly two hits, both inside that assertion and its comment. No attribute value reaches a
+`TaskMetadata` param anywhere in SushiAI; `lowering.cpp` reads attributes with `get(i)` and
+passes them straight to SushiBLAS calls. The claim was inherited from a stale doc comment
+at `ir.hpp:149` — "copied into the lowered TaskMetadata, which itself holds only eight
+inline slots" — which was already wrong before this plan, and Task 1 promoted it from a
+comment to a compile-time assertion, which is how a wrong belief becomes load-bearing.
+
+So:
+
+- `Attributes::CAPACITY` becomes **10**: slots 0-7 CV-5's geometry, slot 8 `out_h`, slot 9 `out_w`.
+- The `static_assert` and the `ir.hpp:149` comment are corrected to say what is actually
+  true — the cap is whatever the operations need, and nothing downstream truncates it.
+- `geometry_attributes` gains the two extents; `record_im2col` and `record_col2im` read
+  them instead of re-deriving, and `im2col_backward` / `col2im_backward` do the same.
+
+`out_w` is derivable as `rows / (N * out_h)` and is carried anyway, so that lowering never
+performs a division it cannot validate.
+
+**Blast radius of the original defect:** confined to `IM2COL` and `COL2IM`. `MAXPOOL2D`,
+`AVGPOOL2D` and `UPSAMPLE2D` produce rank-4 `[N, out_h, out_w, C]` outputs, so their
+extents are readable straight off the output shape — which is also why YOLOv3-tiny's
+asymmetric 13→13 pool was never at risk.
+
 ---
 
 ## File structure
