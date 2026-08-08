@@ -697,15 +697,49 @@ TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
     expect_gradient_matches(probe, point);
 }
 
-TEST_F(Integration_Autograd, LayoutConvertsGradientIsTheConverseConversion)
+TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
 {
-    // The adjoint of a permutation is the inverse permutation. Getting it
-    // wrong gives a gradient of exactly the right magnitude in the wrong
-    // place - which no tolerance-based check on the loss would notice.
+    // The load-bearing case: a *single* layout_convert, so the loss genuinely
+    // depends on the permuted element order rather than on a round trip that
+    // any involutive, shape-correct pair of backward hops would also pass -
+    // a rule that mistakenly reshaped dy back to the operand's shape instead
+    // of permuting it (same magnitude, wrong place) would still satisfy
+    // every shape check Differentiator::contribute makes, and a round trip
+    // cannot tell the two apart because both compose back to the identity.
     //
-    // A rank-4 probe needs a reduction down to [N, C] to reach the loss;
-    // spatial_mean's own backward rule is Tasks 11-13' work, not this one's,
-    // so RESHAPE - already proven above - does the flattening instead.
+    // CV-4 forces every non-LEAF, non-LAYOUT_CONVERT node's operand and
+    // result to agree on layout, so a *variable* cannot legally reach
+    // log_softmax by converting one way and stopping - graph::finalise()
+    // would refuse the mismatched log_softmax output before any gradient
+    // ran. What CV-4 exempts is a leaf itself: a LEAF has no operands to
+    // disagree with, so its own layout tag is free. This is also the honest
+    // real-world shape of the op: LAYOUT_CONVERT exists for boundary
+    // interop, e.g. loading an NCHW checkpoint, where the *source* data
+    // (not some mid-graph value) is the thing tagged the other way. Tagging
+    // the variable NCHW before its one LAYOUT_CONVERT node, then reshaping
+    // straight into log_softmax, reaches a CV-4-legal NHWC consumer with no
+    // round trip at all - so the permutation is genuinely load-bearing.
+    Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
+    {
+        builder.graph().value(x).layout = Graph::TensorLayout::NCHW;
+        const ValueId nhwc = builder.layout_convert(x, Graph::TensorLayout::NHWC);
+        return builder.log_softmax(builder.reshape(nhwc, Shape{2, 60}));
+    });
+
+    probe.fill_one_hot(2, 60);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(291).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
+{
+    // The two directions composing back to the identity is a fair thing to
+    // check on its own - but by itself it cannot tell a correct permutation
+    // from a same-shape non-permutation (see the single-hop case above for
+    // why), so it is kept only as a secondary check, not the proof.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
     {
         const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
