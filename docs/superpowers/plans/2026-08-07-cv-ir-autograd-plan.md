@@ -130,6 +130,50 @@ that is already there:
 Applies to every spatial emitter in Tasks 5, 6, 7 and 14 — anything that indexes
 `shape[1]`, `shape[2]` or `shape[3]` as a spatial or channel axis.
 
+**A-5 — every new identity also needs a case in `src/graph/lowering.cpp`. The plan forgot this entirely.**
+Task 10 discovered it the hard way: `Lowering::record_node` had no branch for `RESHAPE` or
+`LAYOUT_CONVERT`, so it fell through to `SA_THROW_IF(true, "No lowering for operation ...")`
+and no graph containing either could execute. That matters because **the gate for every
+rule task in this plan is a numeric gradient check, and a numeric check must execute the
+graph.** Declaring an identity (Task 3), inferring its shape (Tasks 5-7) and writing its
+gradient (Tasks 10-15) leaves it still unrunnable; the lowering is the fourth thing, and
+the tasks below never mention it.
+
+So each of Tasks 11-15 is larger than its text says. Every one must also:
+
+1. Add a `record_<op>` case to `Lowering::record_node` for **both** the forward identity and
+   any `*_BACKWARD` identity its rule emits, dispatching to the SushiBLAS `spatial()` /
+   `reductions()` entry point Plan A already shipped.
+2. Add a hand-computed forward test to `tests/functional/integration/test_forward.cpp`
+   covering each new lowering, separately from the gradient check — a gradcheck passing
+   tells you the derivative is consistent with the forward, not that the forward is right.
+
+The SushiBLAS side is already done and unused: `Engine::spatial()` provides `im2col`,
+`col2im`, `pool_max`, `pool_max_backward`, `pool_avg`, `pool_avg_backward`,
+`upsample_nearest`, `upsample_nearest_backward`, `concat_channels`, `slice_channels`,
+`channel_affine`, `broadcast_spatial` and `layout_convert`, and `Engine::reductions()`
+provides `mean_spatial`. Task 10 found `SpatialOps::layout_convert` had never been called
+from anywhere.
+
+**A-6 — a gradient probe's targets must be one-hot.**
+`Probe`'s loss is a mean negative log-likelihood, and when the model ends in `log_softmax`
+the fused `NLL_LOSS` rule emits the closed form `(exp(L) - Y)/N`. The true derivative of
+what the forward actually computes is `(p*rowsum(Y) - Y)/N`, so with noise-filled targets
+`rowsum(Y) != 1` and the analytic and numeric gradients legitimately disagree — a failure
+that looks exactly like a broken new rule. Use `probe.fill_one_hot(...)`, never
+`fill_noise(probe.targets(), ...)`, for any probe ending in `log_softmax`. The existing
+`fill_noise`-on-targets tests are fine because they do not end in `log_softmax` and take
+the non-fused branch, which is exact for arbitrary targets.
+
+**A-7 — a round-trip probe cannot prove a permutation.**
+Task 10's first `LAYOUT_CONVERT` test converted to NCHW and back, making the forward
+composite the identity — so any involutive, shape-correct backward passed, including a
+plain `reshape`, which is precisely the "right magnitude, wrong place" error the test
+claimed to catch. Every rule whose forward is a permutation or a re-indexing needs at
+least one **single-hop** probe, where the loss genuinely depends on the new element order.
+Applies to `LAYOUT_CONVERT`, `IM2COL`/`COL2IM`, `CONCAT_CHANNELS`/`SLICE_CHANNELS` and
+`UPSAMPLE2D`: an `im2col` followed by its own adjoint is the same trap.
+
 ---
 
 ## File structure
