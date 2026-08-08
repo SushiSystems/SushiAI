@@ -119,7 +119,14 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
         << "the planner declined to overlap anything, so nothing here is under test: "
         << plan.reuse_note();
 
+    // Packed first. overlaps() answers false for an unpacked placement, so an
+    // argmax that had been given its own allocation would satisfy every
+    // assertion below for a reason this test does not document.
+    ASSERT_TRUE(plan.is_packed(pooled.indices))
+        << "the argmax is not in an arena, so the overlap check proves nothing about it";
+
     const Placement& argmax = plan.placement(pooled.indices);
+    ASSERT_NE(argmax.arena, Graph::NO_ARENA);
     ASSERT_NE(argmax.bytes, std::size_t{0});
     ASSERT_EQ(argmax.bytes, std::size_t{2 * 4 * 4 * 4} * sizeof(std::int64_t))
         << "the argmax is not the INT64 buffer this test thinks it is";

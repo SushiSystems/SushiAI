@@ -521,15 +521,17 @@ namespace SushiAI
                 return;
             }
 
-            // BATCHNORM_UPDATE_STATS reaches this throw on purpose, and is the
-            // only declared identity that does. CV-7 keeps a BatchNorm's
-            // running statistics out of the IR: they are recorded into the
-            // training step beside the graph, like SGD_UPDATE and
-            // ADAMW_UPDATE, which src/optim/{sgd,adamw}.cpp emit directly and
-            // which likewise never pass through here. A node carrying it is
-            // therefore a graph that was built wrong, and the throw is the
-            // correct answer rather than a missing case. See
-            // Unit_Lowering.BatchNormUpdateStatsIsNotAnIrOperation.
+            // Three declared identities reach this throw on purpose:
+            // SGD_UPDATE and ADAMW_UPDATE, which src/optim/{sgd,adamw}.cpp
+            // record directly into the step, and BATCHNORM_UPDATE_STATS,
+            // which CV-7 puts in the same class - a BatchNorm's running
+            // statistics are written beside the graph, not through it.
+            //
+            // None of the three is a missing case. A node carrying one is a
+            // graph that was built wrong, and this is the correct answer. See
+            // Integration_Resilience.BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo,
+            // which pins that for the one of the three a graph builder could
+            // plausibly emit by mistake.
             SA_THROW_IF(true,
                         "No lowering for operation {} (node {}). Add it to Lowering::record_node "
                         "or remove it from the graph.",

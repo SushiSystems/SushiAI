@@ -270,8 +270,11 @@ flag stays where the operation is declared; the check lives where the evidence
 is. `BATCHNORM_UPDATE_STATS` claims nothing and has no rule, because CV-7 keeps
 a BatchNorm's running statistics out of the differentiated graph entirely — it
 is recorded into the training step beside the graph, the way `SGD_UPDATE` and
-`ADAMW_UPDATE` are, and it is correspondingly the one declared identity with no
-case in `Lowering::record_node`.
+`ADAMW_UPDATE` are, and it is correspondingly one of the three declared
+identities with no case in `Lowering::record_node` — the other two being
+`SGD_UPDATE` and `ADAMW_UPDATE` themselves, for the same reason. All three
+throw "No lowering for operation" if a node ever carries them, which is the
+correct answer rather than a missing case.
 
 **`graph/rematerialise.hpp` is deliberately not general (CV-10).**
 `rematerialise_im2col()` recomputes exactly one operation: it clones the

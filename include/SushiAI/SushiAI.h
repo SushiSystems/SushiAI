@@ -80,6 +80,13 @@
 #include "autograd/tape.hpp"
 #include "autograd/rule.hpp"
 #include "autograd/rules/all.hpp"
+#include "autograd/rules/elementwise.hpp"
+#include "autograd/rules/linalg.hpp"
+#include "autograd/rules/activation.hpp"
+#include "autograd/rules/loss.hpp"
+#include "autograd/rules/shape.hpp"
+#include "autograd/rules/spatial.hpp"
+#include "autograd/rules/norm.hpp"
 #include "autograd/gradcheck.hpp"
 
 #include "nn/module.hpp"
