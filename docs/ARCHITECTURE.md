@@ -249,16 +249,30 @@ a link-time absence in somebody else's. `core/ops.hpp`'s identity table and
 
 ### 4.2 Three invariants the IR proves rather than assumes
 
-**`TensorLayout`, proved by `Graph::finalise()` (CV-4).** Every `Value` carries
-a `TensorLayout`, and `LAYOUT_CONVERT` is the only node allowed to have
-operands and results that disagree about it. `finalise()` is the phase that
-closes a graph — it propagates `requires_grad` and then walks every node
-proving layout uniformity — so a graph that mixes NCHW into an NHWC chain fails
-there, naming the node, instead of reaching a kernel that reads the right
-number of elements in the wrong order. `GraphBuilder::declare_like()` is how an
-emitter keeps that true without restating it: a result takes its operand's
-layout by construction, and `declare()` is for the values that genuinely have
-no operand to inherit from.
+**`TensorLayout`, proved by `Graph::prove_layout_uniformity()` (CV-4).** Every
+`Value` carries a `TensorLayout`, and `LAYOUT_CONVERT` is the only node allowed
+to have operands and results that disagree about it. `finalise()` closes the
+forward graph — it propagates `requires_grad` and then proves uniformity — so a
+builder-emitted graph that mixes NCHW into an NHWC chain fails there, naming
+the node, instead of reaching a kernel that reads the right number of elements
+in the wrong order.
+
+That is a claim about the graph the builder emits, and it is worth being exact
+about how far it carries. `finalise()` is called once, before differentiation,
+and the stages after it rebuild the graph: `fuse()` and `insert_casts()` both
+copy the value table entry by entry, and `Graph::add_value` defaults the layout
+to NHWC, so a field one of them forgets to copy is not lost but *changed* —
+silently, because the shapes still agree. Both passes therefore re-prove
+uniformity over the graph they produce, which is why the proof is public rather
+than a private step of `finalise()`. Backward-emitted nodes are still only
+covered by whichever pass runs after them; a graph that is differentiated and
+then handed straight to lowering is not re-proved anywhere.
+
+`GraphBuilder::declare_like()` is how an emitter keeps the invariant true
+without restating it: a result takes its operand's layout by construction.
+`declare()` is left for the values that genuinely have no operand to inherit
+from — `zeros()` is the only one, and its node has no inputs, so the per-node
+proof skips it.
 
 **The `differentiable` flag is split from its proof.** `core/ops.hpp` carries
 the flag on each `OpName` — the *claim* that an operation has a gradient.

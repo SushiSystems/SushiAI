@@ -192,7 +192,18 @@ namespace SushiAI
             int64_t offset = 0;
             for (std::size_t i = 0; i < node.inputs.size(); ++i)
             {
-                const int64_t channels = tape.graph().value(node.inputs[i]).shape[3];
+                const Shape& part = tape.graph().value(node.inputs[i]).shape;
+
+                // The forward emitter already refuses anything but rank 4, so
+                // this holds today. It is checked anyway because it is the one
+                // rule that indexes a raw dimension, and reading shape[3] off
+                // a rank-2 operand would not throw - it would read whatever
+                // Shape keeps past its rank and slice the gradient by it.
+                SA_THROW_IF(part.rank() != 4,
+                            "concat_channels_backward reads the channel extent of a rank-4 "
+                            "[N,H,W,C] operand; operand {} is {}", i, part.to_string());
+
+                const int64_t channels = part[3];
                 if (tape.input_requires_grad(i))
                     tape.contribute_input(i, tape.builder().slice_channels(dy, offset, channels));
                 offset += channels;

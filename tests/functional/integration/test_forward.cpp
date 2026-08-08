@@ -16,6 +16,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/graph/fusion.hpp>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -534,6 +537,77 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
     const std::vector<double> result = read_tensor(run.pool.tensor(pooled.output));
     ASSERT_EQ(result.size(), 1u);
     EXPECT_NEAR(result[0], 3.0, 1e-9);
+}
+
+TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
+{
+    // MAXPOOL2D is the first operation here whose results are not all one
+    // element type: beside the pooled tensor it writes an INT64 argmax, and
+    // its backward reads that as a table of offsets. insert_casts() derived
+    // one precision per node from outputs[0] and forced every operand and
+    // result to it, so the argmax read as a value in the wrong type - and was
+    // either retyped to float in place or handed to a cast that refuses
+    // anything but real float to real float.
+    //
+    // Neither half showed up in a shape check, so this runs the passes in the
+    // order Trainer::build runs them and then executes the result. A routing
+    // table that has been through a float is not a routing table; the
+    // gradient is where that becomes visible.
+    //
+    // Assembled by hand rather than through Trainer::build because no NN
+    // layer emits a pool yet, so the trainer cannot reach this op today.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // N=1, H=2, W=2, C=2, values 0..7 in NHWC order, one 2x2 window. Per
+    // channel the maximum is the last row: taps 6 (c=0, value 6) and 7 (c=1,
+    // value 7). Every other tap must come back with no gradient at all.
+    const ValueId x = builder.parameter(Shape{1, 2, 2, 2}, "x");
+    const ValueId target = builder.input(Shape{1, 2}, "target");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+
+    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+    const ValueId logits = builder.spatial_mean(pooled.output);
+    const ValueId loss = builder.nll_loss(builder.log_softmax(logits), target);
+    graph.finalise();
+
+    const std::array<ValueId, 1> wrt = {x};
+    const std::vector<ValueId> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+
+    ASSERT_EQ(gradients.size(), 1u);
+    ASSERT_EQ(graph.value(pooled.indices).dtype, DType::INT64);
+
+    ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
+    ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
+
+    EXPECT_EQ(graph.value(pooled.indices).dtype, DType::INT64)
+        << "the pass retyped the index buffer, so the backward is routing gradients by "
+           "whatever a float reinterpretation of an offset table happens to say";
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7});
+    write_tensor(run.pool.tensor(target), std::vector<double>{1.0, 0.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> pooled_values = read_tensor(run.pool.tensor(pooled.output));
+    ASSERT_EQ(pooled_values.size(), 2u);
+    EXPECT_NEAR(pooled_values[0], 6.0, 1e-9);
+    EXPECT_NEAR(pooled_values[1], 7.0, 1e-9);
+
+    const std::vector<double> dx = read_tensor(run.pool.tensor(gradients[0]));
+    ASSERT_EQ(dx.size(), 8u);
+
+    for (std::size_t i = 0; i < 6; ++i)
+        EXPECT_NEAR(dx[i], 0.0, 1e-9)
+            << "tap " << i << " did not win its window but was given a gradient";
+
+    EXPECT_GT(std::abs(dx[6]), 1e-6) << "the c=0 maximum received no gradient at all";
+    EXPECT_GT(std::abs(dx[7]), 1e-6) << "the c=1 maximum received no gradient at all";
 }
 
 TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)

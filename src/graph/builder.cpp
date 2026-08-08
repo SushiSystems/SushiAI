@@ -98,7 +98,7 @@ namespace SushiAI
         ValueId GraphBuilder::like(ValueId source, std::string_view debug_name) const
         {
             const Value& v = graph_->value(source);
-            return declare(v.shape, v.dtype, v.lifetime, debug_name);
+            return declare_like(source, v.shape, v.dtype, v.lifetime, debug_name);
         }
 
         ValueId GraphBuilder::matmul(ValueId a, ValueId b, bool transpose_a, bool transpose_b) const
@@ -124,7 +124,17 @@ namespace SushiAI
                         ka, kb, va.shape.to_string(), vb.shape.to_string(),
                         transpose_a, transpose_b);
 
-            const ValueId out = declare(shape_of(m, n), va.dtype, Lifetime::ACTIVATION, "matmul");
+            // declare_like on a rank-2 contraction is not a claim that the
+            // result "is" the left operand's layout - at rank 2 the tag names
+            // nothing, since there is no C axis to place. It is propagated
+            // rather than defaulted so that a node can never appear to cross
+            // layouts when it has not moved a byte: CV-4's proof compares a
+            // node's results against its operands, and a defaulted NHWC result
+            // hanging off an NCHW-tagged operand would fail that proof for a
+            // reason that is an artifact of the default. The same reasoning
+            // covers bias_add, sum_rows, log_softmax and nll_loss below.
+            const ValueId out = declare_like(a, shape_of(m, n), va.dtype, Lifetime::ACTIVATION,
+                                             "matmul");
 
             Attributes attributes{};
             attributes.values[0] = transpose_a ? 1.0 : 0.0;
@@ -150,7 +160,8 @@ namespace SushiAI
                         "BIAS_ADD needs operands of one element type; got {} and {}",
                         dtype_name(vx.dtype), dtype_name(vb.dtype));
 
-            const ValueId out = declare(vx.shape, vx.dtype, Lifetime::ACTIVATION, "bias_add");
+            const ValueId out = declare_like(x, vx.shape, vx.dtype, Lifetime::ACTIVATION,
+                                             "bias_add");
             graph_->add_node(Ops::BIAS_ADD.id, {x, bias}, {out});
             return out;
         }
@@ -161,8 +172,8 @@ namespace SushiAI
             SA_THROW_IF(vx.shape.rank() != 2,
                         "SUM_ROWS needs a rank-2 operand; got {}", vx.shape.to_string());
 
-            const ValueId out = declare(shape_of(vx.shape[1]), vx.dtype,
-                                        Lifetime::ACTIVATION, "sum_rows");
+            const ValueId out = declare_like(x, shape_of(vx.shape[1]), vx.dtype,
+                                             Lifetime::ACTIVATION, "sum_rows");
             graph_->add_node(Ops::SUM_ROWS.id, {x}, {out});
             return out;
         }
@@ -172,7 +183,8 @@ namespace SushiAI
             require_same(a, b, what);
 
             const Value& va = graph_->value(a);
-            const ValueId out = declare(va.shape, va.dtype, Lifetime::ACTIVATION, "elementwise");
+            const ValueId out = declare_like(a, va.shape, va.dtype, Lifetime::ACTIVATION,
+                                             "elementwise");
             graph_->add_node(op, {a, b}, {out});
             return out;
         }
@@ -195,7 +207,7 @@ namespace SushiAI
         ValueId GraphBuilder::scale(ValueId x, double alpha) const
         {
             const Value& vx = graph_->value(x);
-            const ValueId out = declare(vx.shape, vx.dtype, Lifetime::ACTIVATION, "scale");
+            const ValueId out = declare_like(x, vx.shape, vx.dtype, Lifetime::ACTIVATION, "scale");
 
             Attributes attributes{};
             attributes.values[0] = alpha;
@@ -219,7 +231,8 @@ namespace SushiAI
                         "widening operand would change the arithmetic without saying so",
                         dtype_name(vx.dtype), dtype_name(vf.dtype));
 
-            const ValueId out = declare(vx.shape, vx.dtype, Lifetime::ACTIVATION, debug_name);
+            const ValueId out = declare_like(x, vx.shape, vx.dtype, Lifetime::ACTIVATION,
+                                             debug_name);
 
             graph_->add_node(Ops::DYNAMIC_SCALE.id, {x, factor}, {out});
             return out;
@@ -228,8 +241,8 @@ namespace SushiAI
         ValueId GraphBuilder::unary(OpID op, ValueId x) const
         {
             const Value& vx = graph_->value(x);
-            const ValueId out = declare(vx.shape, vx.dtype, Lifetime::ACTIVATION,
-                                        Ops::name_of(op));
+            const ValueId out = declare_like(x, vx.shape, vx.dtype, Lifetime::ACTIVATION,
+                                             Ops::name_of(op));
             graph_->add_node(op, {x}, {out});
             return out;
         }
@@ -260,6 +273,13 @@ namespace SushiAI
 
         ValueId GraphBuilder::zeros(Shape shape, DType dtype) const
         {
+            // The one emitter left on plain declare, and it has to be: ZERO
+            // reads nothing, so there is no operand whose layout could be
+            // inherited. That is sound rather than merely unavoidable - the
+            // node has no inputs, so CV-4's per-node proof skips it, and a
+            // buffer of zeros is the same buffer under either axis order.
+            // A caller that needs a zero inside an NCHW region must set the
+            // tag itself; nothing does today.
             const ValueId out = declare(shape, dtype, Lifetime::ACTIVATION, "zeros");
             graph_->add_node(Ops::ZERO.id, {}, {out});
             return out;
@@ -309,7 +329,8 @@ namespace SushiAI
             SA_THROW_IF(vx.shape.rank() != 2,
                         "LOG_SOFTMAX needs a rank-2 operand; got {}", vx.shape.to_string());
 
-            const ValueId out = declare(vx.shape, vx.dtype, Lifetime::ACTIVATION, "log_softmax");
+            const ValueId out = declare_like(x, vx.shape, vx.dtype, Lifetime::ACTIVATION,
+                                             "log_softmax");
             graph_->add_node(Ops::LOG_SOFTMAX.id, {x}, {out});
             return out;
         }
@@ -322,7 +343,8 @@ namespace SushiAI
             SA_THROW_IF(v.shape.rank() != 2,
                         "NLL_LOSS needs rank-2 operands; got {}", v.shape.to_string());
 
-            const ValueId out = declare(shape_of(1), v.dtype, Lifetime::ACTIVATION, "loss");
+            const ValueId out = declare_like(log_probs, shape_of(1), v.dtype, Lifetime::ACTIVATION,
+                                             "loss");
             graph_->add_node(Ops::NLL_LOSS.id, {log_probs, one_hot}, {out});
             return out;
         }
@@ -338,7 +360,7 @@ namespace SushiAI
                         "rounding policy this library is not entitled to choose for a caller.",
                         dtype_name(vx.dtype), dtype_name(dtype));
 
-            const ValueId out = declare(vx.shape, dtype, Lifetime::ACTIVATION, debug_name);
+            const ValueId out = declare_like(x, vx.shape, dtype, Lifetime::ACTIVATION, debug_name);
             graph_->add_node(Ops::CAST.id, {x}, {out});
             return out;
         }
@@ -364,7 +386,7 @@ namespace SushiAI
             require_same(acc, delta, "ACCUMULATE");
 
             const Value& v = graph_->value(acc);
-            const ValueId out = declare(v.shape, v.dtype, v.lifetime, "accumulated_grad");
+            const ValueId out = declare_like(acc, v.shape, v.dtype, v.lifetime, "accumulated_grad");
             graph_->add_node(Ops::ACCUMULATE.id, {acc, delta}, {out});
             return out;
         }
