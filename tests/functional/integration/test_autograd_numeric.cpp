@@ -15,6 +15,7 @@
 // near 2.4e-5 relative accuracy, which is the same order as the error a
 // genuinely wrong rule produces. See gradcheck.hpp.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <memory>
@@ -507,6 +508,28 @@ TEST_F(Integration_Autograd, LeakyReluHasBothOfItsSlopes)
     Autograd::push_off_kinks(point);
 
     expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, LeakyReluBranchSwapIsCaughtByProbePoints)
+{
+    // Pins the negative-side split of the exact point LeakyReluHasBothOfItsSlopes
+    // above uses (same seed, same scale, same push_off_kinks), which is the
+    // property the branch-swap mutation depends on: if a future change to the
+    // seed or the noise generator ever collapsed this to all-positive, the
+    // branch-swap mutation would go undetected without this failing first.
+    std::vector<double> point(4 * 8);
+    SaTest::HostNoise(171).fill(point, 1.5);
+    Autograd::push_off_kinks(point);
+
+    const auto negative = std::count_if(point.begin(), point.end(),
+                                        [](double v) { return v < 0.0; });
+    EXPECT_GE(negative, 10) << "too few negative-side points to exercise the "
+                                "slope branch of leaky_relu's gradient";
+
+    const double min_abs = std::abs(*std::min_element(point.begin(), point.end(),
+        [](double a, double b) { return std::abs(a) < std::abs(b); }));
+    EXPECT_GT(min_abs, 0.05) << "a point too close to zero would sit on the kink "
+                                 "push_off_kinks is supposed to have cleared";
 }
 
 TEST_F(Integration_Autograd, Gelu)

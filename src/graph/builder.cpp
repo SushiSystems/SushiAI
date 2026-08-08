@@ -247,12 +247,28 @@ namespace SushiAI
         }
 
         ValueId GraphBuilder::activation_backward(OpID op, ValueId dy, ValueId primal,
-                                                  Attributes attributes) const
+                                                  const Attributes& attributes) const
         {
             SA_THROW_IF(op != Ops::RELU_BACKWARD.id && op != Ops::GELU_BACKWARD.id
                         && op != Ops::SIGMOID_BACKWARD.id && op != Ops::TANH_BACKWARD.id
                         && op != Ops::LEAKY_RELU_BACKWARD.id,
                         "{} is not an activation gradient", Ops::name_of(op));
+
+            // A default-constructed Attributes reads as slope 0 in slot 0,
+            // which is a legal-looking double but an illegal slope: silently
+            // running LEAKY_RELU_BACKWARD at slope 0 is a plain-ReLU
+            // gradient, not the one the caller asked for. The range mirrors
+            // leaky_relu()'s own guard exactly, so the two cannot disagree
+            // about what a legal slope is.
+            if (op == Ops::LEAKY_RELU_BACKWARD.id)
+            {
+                const double slope = attributes.get(0);
+                SA_THROW_IF(slope <= 0.0 || slope >= 1.0,
+                            "LEAKY_RELU_BACKWARD's slope (attribute slot 0) must be in (0, 1); "
+                            "got {}. An absent or out-of-range slope would silently emit a "
+                            "plain-ReLU gradient instead of the leaky one that was asked for.",
+                            slope);
+            }
 
             require_same(dy, primal, Ops::name_of(op));
 

@@ -213,6 +213,7 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const ValueId r = builder.relu(x);
     const ValueId s = builder.sigmoid(x);
     const ValueId t = builder.tanh(x);
+    const ValueId lr = builder.leaky_relu(x, 0.1);
 
     OneShot run(*engine, graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
@@ -224,17 +225,23 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const std::vector<double> relu = read_tensor(run.pool.tensor(r));
     const std::vector<double> sigmoid = read_tensor(run.pool.tensor(s));
     const std::vector<double> hyperbolic = read_tensor(run.pool.tensor(t));
+    const std::vector<double> leaky = read_tensor(run.pool.tensor(lr));
 
     // Out-of-place semantics matter: the backward rules for relu and gelu read
     // the forward INPUT, so an in-place activation would silently hand them
     // the output instead.
     const std::vector<double> unchanged = read_tensor(run.pool.tensor(x));
 
+    // Hand-computed at slope 0.1, straddling zero so both branches of
+    // leaky_relu run: -2 -> -0.2, -0.5 -> -0.05, 0.5 -> 0.5, 2 -> 2.
+    const std::vector<double> expected_leaky = {-0.2, -0.05, 0.5, 2.0};
+
     for (std::size_t i = 0; i < inputs.size(); ++i)
     {
         EXPECT_NEAR(relu[i], std::max(0.0, inputs[i]), 1e-5) << "relu at " << i;
         EXPECT_NEAR(sigmoid[i], 1.0 / (1.0 + std::exp(-inputs[i])), 1e-5) << "sigmoid at " << i;
         EXPECT_NEAR(hyperbolic[i], std::tanh(inputs[i]), 1e-5) << "tanh at " << i;
+        EXPECT_NEAR(leaky[i], expected_leaky[i], 1e-5) << "leaky_relu at " << i;
         EXPECT_NEAR(unchanged[i], inputs[i], 1e-12) << "input mutated at " << i;
     }
 }

@@ -319,13 +319,18 @@ namespace SushiAI
                  *        output (sigmoid/tanh/leaky_relu) - see ops.hpp.
                  * @param attributes Passed through unchanged; only
                  *        @c LEAKY_RELU_BACKWARD reads from it (the slope, in
-                 *        slot 0).
+                 *        slot 0). There is no default: an absent or
+                 *        out-of-range slope on that op would silently emit a
+                 *        plain-ReLU gradient rather than the requested one,
+                 *        so it is checked against the same (0, 1) range
+                 *        @c leaky_relu() enforces on the way in.
                  * @return The incoming-side gradient's id.
-                 * @throws Error If @p op is not an activation gradient, or the
-                 *         operands disagree in shape or dtype.
+                 * @throws Error If @p op is not an activation gradient, the
+                 *         operands disagree in shape or dtype, or @p op is
+                 *         @c LEAKY_RELU_BACKWARD and slot 0 is outside (0, 1).
                  */
                 ValueId activation_backward(OpID op, ValueId dy, ValueId primal,
-                                            Attributes attributes = {}) const;
+                                            const Attributes& attributes = {}) const;
 
                 // --- Losses ----------------------------------------------------------
 
