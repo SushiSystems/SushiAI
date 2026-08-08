@@ -73,6 +73,14 @@ namespace SushiAI
 
             /** @brief The hash of @c name, as SushiRuntime identifies it. */
             OpID id;
+
+            /**
+             * @brief Whether a backward rule must exist for this operation.
+             *
+             * Proved by @c autograd/rules/all.hpp, which is where the rule
+             * table is visible; this file only declares the claim.
+             */
+            bool differentiable = false;
         };
 
         /**
@@ -85,14 +93,26 @@ namespace SushiAI
          */
         constexpr OpName op(std::string_view n)
         {
-            return OpName{n, OpID(OpID::hash_str(n.data(), n.size()))};
+            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), false};
+        }
+
+        /**
+         * @brief Builds an OpName that declares itself differentiable.
+         *
+         * The claim is checked, not trusted: @c autograd/rules/all.hpp's
+         * static_assert walks @ref ALL and fails the build if any entry built
+         * this way has no matching backward rule.
+         */
+        constexpr OpName differentiable_op(std::string_view n)
+        {
+            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), true};
         }
 
         // --- Structural -----------------------------------------------------
         /** @brief A graph leaf: a parameter or an input, produced by nothing. */
         inline constexpr OpName LEAF = op("sushiai.leaf");
         /** @brief Accumulates a gradient contribution into an existing buffer. */
-        inline constexpr OpName ACCUMULATE = op("sushiai.accumulate");
+        inline constexpr OpName ACCUMULATE = differentiable_op("sushiai.accumulate");
 
         /**
          * @brief Copies a value into another element type, out of place.
@@ -112,19 +132,19 @@ namespace SushiAI
 
         // --- Linear algebra -------------------------------------------------
         /** @brief 2-D matrix product, transposition expressed by flags not views. */
-        inline constexpr OpName MATMUL = op("sushiai.matmul");
+        inline constexpr OpName MATMUL = differentiable_op("sushiai.matmul");
         /** @brief Adds a row vector to every row of a matrix. */
-        inline constexpr OpName BIAS_ADD = op("sushiai.bias_add");
+        inline constexpr OpName BIAS_ADD = differentiable_op("sushiai.bias_add");
 
         // --- Elementwise ----------------------------------------------------
         /** @brief Elementwise sum of two equally shaped tensors. */
-        inline constexpr OpName ADD = op("sushiai.add");
+        inline constexpr OpName ADD = differentiable_op("sushiai.add");
         /** @brief Elementwise difference of two equally shaped tensors. */
-        inline constexpr OpName SUB = op("sushiai.sub");
+        inline constexpr OpName SUB = differentiable_op("sushiai.sub");
         /** @brief Elementwise product of two equally shaped tensors. */
-        inline constexpr OpName MUL = op("sushiai.mul");
+        inline constexpr OpName MUL = differentiable_op("sushiai.mul");
         /** @brief Multiplies every element by a host-side constant. */
-        inline constexpr OpName SCALE = op("sushiai.scale");
+        inline constexpr OpName SCALE = differentiable_op("sushiai.scale");
 
         /**
          * @brief Multiplies every element by a **device-resident** scalar.
@@ -146,19 +166,19 @@ namespace SushiAI
         inline constexpr OpName DYNAMIC_SCALE = op("sushiai.dynamic_scale");
 
         /** @brief Elementwise natural exponential, out of place. */
-        inline constexpr OpName EXP = op("sushiai.exp");
+        inline constexpr OpName EXP = differentiable_op("sushiai.exp");
         /** @brief An all-zero tensor, read by nothing upstream. */
         inline constexpr OpName ZERO = op("sushiai.zero");
 
         // --- Activations ----------------------------------------------------
         /** @brief Rectified linear unit. */
-        inline constexpr OpName RELU = op("sushiai.relu");
+        inline constexpr OpName RELU = differentiable_op("sushiai.relu");
         /** @brief Gaussian error linear unit, tanh approximation. */
-        inline constexpr OpName GELU = op("sushiai.gelu");
+        inline constexpr OpName GELU = differentiable_op("sushiai.gelu");
         /** @brief Logistic sigmoid. */
-        inline constexpr OpName SIGMOID = op("sushiai.sigmoid");
+        inline constexpr OpName SIGMOID = differentiable_op("sushiai.sigmoid");
         /** @brief Hyperbolic tangent. */
-        inline constexpr OpName TANH = op("sushiai.tanh");
+        inline constexpr OpName TANH = differentiable_op("sushiai.tanh");
 
         // --- Activation gradients -------------------------------------------
         // Each takes [dy, primal] and yields [dx]. Which tensor "primal" is
@@ -264,11 +284,11 @@ namespace SushiAI
         /** @brief Row-wise log-softmax, computed max-shifted for stability. */
         inline constexpr OpName LOG_SOFTMAX = op("sushiai.log_softmax");
         /** @brief Mean negative log-likelihood against integer-valued targets. */
-        inline constexpr OpName NLL_LOSS = op("sushiai.nll_loss");
+        inline constexpr OpName NLL_LOSS = differentiable_op("sushiai.nll_loss");
 
         // --- Reductions -----------------------------------------------------
         /** @brief Sums a matrix along its rows, yielding one value per column. */
-        inline constexpr OpName SUM_ROWS = op("sushiai.sum_rows");
+        inline constexpr OpName SUM_ROWS = differentiable_op("sushiai.sum_rows");
 
         // --- Optimizer updates ----------------------------------------------
         // Not IR operations: no node carries these and no backward rule looks

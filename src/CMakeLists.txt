@@ -24,8 +24,15 @@ set(SUSHIAI_SOURCES
     graph/lowering.cpp
     graph/compiled_step.cpp
 
+    autograd/differentiator.cpp
     autograd/tape.cpp
-    autograd/backward.cpp
+    autograd/rules/elementwise.cpp
+    autograd/rules/linalg.cpp
+    autograd/rules/activation.cpp
+    autograd/rules/loss.cpp
+    autograd/rules/shape.cpp
+    autograd/rules/spatial.cpp
+    autograd/rules/norm.cpp
     autograd/gradcheck.cpp
 
     nn/layers.cpp

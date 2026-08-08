@@ -41,6 +41,7 @@ add_executable(sushiai_tests
     functional/unit/test_fusion.cpp
     functional/unit/test_module.cpp
     functional/unit/test_backward.cpp
+    functional/unit/test_rule_table.cpp
     functional/unit/test_gradcheck.cpp
     functional/unit/test_diagnostics.cpp
     functional/unit/test_loss_scaling.cpp
