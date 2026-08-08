@@ -458,8 +458,8 @@ namespace SushiAI
          * @c gradient_source is the load-bearing field, and it decides two
          * things that look unrelated and are the same question:
          *
-         * 1. **What @c autograd/backward.cpp emits.** The gradient operation
-         *    takes @c [dy, primal]; getting @c primal wrong is silent, because
+         * 1. **What @c autograd/rules/activation.cpp emits.** The gradient
+         *    operation takes @c [dy, primal]; getting @c primal wrong is silent, because
          *    both candidates have the same shape, so the graph builds and the
          *    model simply learns the wrong thing. SushiBLAS fixes the
          *    convention per activation and this table mirrors it.

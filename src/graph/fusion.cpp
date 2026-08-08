@@ -131,8 +131,9 @@ namespace SushiAI
              * is a STATIC library, so a translation unit whose only job is to
              * run a registration constructor resolves no symbol and is dropped
              * by the linker - silently, and only in a downstream consumer's
-             * build. Same argument, same shape, as @c autograd/backward.cpp's
-             * rule table and @c core/ops.hpp's identity table.
+             * build. Same argument, same shape, as @c
+             * autograd/rules/all.hpp's rule table and @c core/ops.hpp's
+             * identity table.
              *
              * Order does not matter; the matcher sorts by length itself.
              */

@@ -24,7 +24,8 @@
 #pragma once
 
 // Differentiator's definition, private to the two translation units that need
-// it: backward.cpp, which owns differentiate() and constructs one per run, and
+// it: differentiator.cpp, which owns differentiate() and constructs one per run,
+// and
 // tape.cpp, whose GradientTape methods call back into it through the owner_
 // pointer. It is deliberately not reachable from tape.hpp or rule.hpp - a rule
 // sees only GradientTape, never this class - so this header lives in src/,

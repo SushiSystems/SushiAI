@@ -97,7 +97,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     //
     // "Every operation has a rule" is the easy half. The half that rots is
     // "every rule has been checked against a finite difference" - a rule added
-    // to the table in backward.cpp is picked up automatically by
+    // to a rules/<domain>.cpp table is picked up automatically by
     // differentiate(), so a wrong one produces a model that trains slightly
     // worse and nothing anywhere fails. Listing the proof beside the rule is
     // what makes the omission visible: the second loop below fails when an
@@ -112,11 +112,17 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     };
 
     const std::vector<Proven> ledger = {
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWith*"},
-        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAdd*"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithoutTransposes"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithATransposedRightOperand"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithATransposedLeftOperand"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithBothOperandsTransposed"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulGradientOfTheRightOperand"},
+        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAddPassesTheMatrixGradientThrough"},
+        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAddSumsOverTheBroadcastAxis"},
         {Ops::ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
         {Ops::SUB.id,        "Integration_Autograd.ElementwiseSubtractFromTheRight"},
-        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiply*"},
+        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiply"},
+        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiplyFromTheRight"},
         {Ops::SCALE.id,      "Integration_Autograd.Scale"},
         {Ops::EXP.id,        "Integration_Autograd.Exp"},
         {Ops::RELU.id,       "Integration_Autograd.ReluAwayFromItsKink"},
@@ -145,9 +151,13 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
         {Ops::SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
 
-        {Ops::BATCHNORM2D.id,
-         "Integration_Autograd.BatchNorms{Gradient,Scale,Shift}*"},
-        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffine*"},
+        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsGradientAccountsForTheStatisticsItComputed"},
+        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput"},
+        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsShiftGradientIsThePlainSumOfDy"},
+
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffineDifferentiatesAtItsInput"},
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
     };
 
     for (const Proven& entry : ledger)
