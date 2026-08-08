@@ -47,8 +47,12 @@ namespace SushiAI
                     ? node.outputs.at(0)
                     : node.inputs.at(0);
 
+            // Forwarded unchanged: only LEAKY_RELU_BACKWARD reads from it (the
+            // slope, in slot 0). Restating "which op carries which attribute"
+            // here would be a second place to disagree with ops.hpp.
             tape.contribute_input(
-                0, tape.builder().activation_backward(activation->backward, dy, primal));
+                0, tape.builder().activation_backward(activation->backward, dy, primal,
+                                                       node.attributes));
         }
 
     } // namespace Autograd

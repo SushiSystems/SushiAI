@@ -276,7 +276,7 @@ namespace SushiAI
         // --- Activation -----------------------------------------------------
 
         /** @brief Leaky ReLU; its slope is attribute slot 0. */
-        inline constexpr OpName LEAKY_RELU = op("sushiai.leaky_relu");
+        inline constexpr OpName LEAKY_RELU = differentiable_op("sushiai.leaky_relu");
         /** @brief Gradient of LEAKY_RELU; second operand is the forward output. */
         inline constexpr OpName LEAKY_RELU_BACKWARD = op("sushiai.leaky_relu_backward");
 

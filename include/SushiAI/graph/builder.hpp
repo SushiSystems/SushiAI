@@ -298,18 +298,34 @@ namespace SushiAI
                 ValueId tanh(ValueId x) const;
 
                 /**
+                 * @brief Emits @c LEAKY_RELU.
+                 * @param x The input.
+                 * @param slope The negative-side slope; must lie in (0, 1) -
+                 *        at 0 it is a ReLU and at 1 it is the identity, and
+                 *        both would make the output-reading gradient (see
+                 *        Ops::ACTIVATIONS) unsound.
+                 * @throws Error If @p slope is outside (0, 1).
+                 */
+                ValueId leaky_relu(ValueId x, double slope) const;
+
+                /**
                  * @brief Emits one of the activation-gradient operations.
                  *
                  * @param op @c RELU_BACKWARD, @c GELU_BACKWARD,
-                 *        @c SIGMOID_BACKWARD or @c TANH_BACKWARD.
+                 *        @c SIGMOID_BACKWARD, @c TANH_BACKWARD or
+                 *        @c LEAKY_RELU_BACKWARD.
                  * @param dy The incoming gradient.
                  * @param primal The forward input (relu/gelu) or the forward
-                 *        output (sigmoid/tanh) - see ops.hpp.
+                 *        output (sigmoid/tanh/leaky_relu) - see ops.hpp.
+                 * @param attributes Passed through unchanged; only
+                 *        @c LEAKY_RELU_BACKWARD reads from it (the slope, in
+                 *        slot 0).
                  * @return The incoming-side gradient's id.
                  * @throws Error If @p op is not an activation gradient, or the
                  *         operands disagree in shape or dtype.
                  */
-                ValueId activation_backward(OpID op, ValueId dy, ValueId primal) const;
+                ValueId activation_backward(OpID op, ValueId dy, ValueId primal,
+                                            Attributes attributes = {}) const;
 
                 // --- Losses ----------------------------------------------------------
 

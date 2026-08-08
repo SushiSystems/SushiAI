@@ -483,10 +483,12 @@ namespace SushiAI
                 || node.op == Ops::GELU.id
                 || node.op == Ops::SIGMOID.id
                 || node.op == Ops::TANH.id)                { record_unary_inplace(graph, node); return; }
+            if (node.op == Ops::LEAKY_RELU.id)             { record_leaky_relu(graph, node); return; }
             if (node.op == Ops::RELU_BACKWARD.id
                 || node.op == Ops::GELU_BACKWARD.id
                 || node.op == Ops::SIGMOID_BACKWARD.id
                 || node.op == Ops::TANH_BACKWARD.id)       { record_activation_backward(graph, node); return; }
+            if (node.op == Ops::LEAKY_RELU_BACKWARD.id)    { record_leaky_relu_backward(graph, node); return; }
             if (node.op == Ops::LOG_SOFTMAX.id)            { record_log_softmax(graph, id, node); return; }
             if (node.op == Ops::NLL_LOSS.id)               { record_nll_loss(graph, id, node); return; }
             if (node.op == Ops::SUM_ROWS.id)               { record_sum_rows(graph, node); return; }
@@ -914,6 +916,36 @@ namespace SushiAI
             else if (node.op == Ops::GELU_BACKWARD.id)    engine_->nonlinear().gelu_backward(dy, primal, dx);
             else if (node.op == Ops::SIGMOID_BACKWARD.id) engine_->nonlinear().sigmoid_backward(dy, primal, dx);
             else                                          engine_->nonlinear().tanh_backward(dy, primal, dx);
+
+            ++emitted_;
+        }
+
+        void Lowering::record_leaky_relu(const Graph& graph, const Node& node)
+        {
+            const SushiBLAS::Tensor& x = input(node, 0);
+            SushiBLAS::Tensor& y = output(graph, node, 0);
+
+            // Copy first, same as record_unary_inplace: the forward input
+            // survives for the backward rule, which is what makes this
+            // differentiable without a separate save-for-backward mechanism.
+            engine_->blas().copy(x, y);
+            engine_->nonlinear().leaky_relu(y, static_cast<float>(node.attributes.get(0)));
+
+            emitted_ += 2;
+        }
+
+        void Lowering::record_leaky_relu_backward(const Graph& graph, const Node& node)
+        {
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            const SushiBLAS::Tensor& primal = input(node, 1);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            // The slope isn't carried on this node - it's read out of the
+            // forward LEAKY_RELU node's attribute slot 0 by
+            // GraphBuilder::activation_backward, which forwards the whole
+            // Attributes through unchanged, so it lands here in the same slot.
+            engine_->nonlinear().leaky_relu_backward(dy, primal, dx,
+                static_cast<float>(node.attributes.get(0)));
 
             ++emitted_;
         }
