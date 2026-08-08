@@ -34,6 +34,19 @@ namespace SushiAI
     {
         void batchnorm2d_backward(const GradientTape& tape)
         {
+            // Results 1 and 2 are saved_mean and saved_inv_std: a side channel
+            // this node's own backward reads, which CV-7 keeps out of the
+            // differentiated graph. Nothing differentiable consumes them, so a
+            // gradient arriving on either would be silently dropped by the
+            // early return below. Enforced rather than assumed, because the
+            // day something does consume them the failure is a model that
+            // trains slightly wrong and no test that fails.
+            SA_THROW_IF(tape.output_grad(1) != Graph::NO_VALUE
+                        || tape.output_grad(2) != Graph::NO_VALUE,
+                        "BATCHNORM2D's saved statistics received a gradient. They are a side "
+                        "channel for this node's own backward (CV-7), not a differentiable "
+                        "result, and this rule has no path to propagate one.");
+
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
