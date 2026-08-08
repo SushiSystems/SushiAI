@@ -18,6 +18,7 @@ set(SUSHIAI_SOURCES
     graph/precision.cpp
     graph/cast_insertion.cpp
     graph/fusion.cpp
+    graph/rematerialise.cpp
     graph/memory_plan.cpp
     graph/arena.cpp
     graph/fusion_selector.cpp
