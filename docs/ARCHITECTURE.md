@@ -270,9 +270,18 @@ then handed straight to lowering is not re-proved anywhere.
 
 `GraphBuilder::declare_like()` is how an emitter keeps the invariant true
 without restating it: a result takes its operand's layout by construction.
-`declare()` is left for the values that genuinely have no operand to inherit
-from — `zeros()` is the only one, and its node has no inputs, so the per-node
-proof skips it.
+`declare()` is left for the values that have no operand to inherit from: the
+leaves (`input()`, `parameter()`), `layout_convert()` — which sets the tag
+itself, being the one node allowed to change it — and `zeros()`, whose node has
+no inputs and is therefore skipped by the per-node proof. A backward rule
+emitting zeros beside a real operand calls `zeros_like()` instead, since the
+exposure there is the *consumer*'s node, not `ZERO`'s.
+
+`Lowering::record()` proves it once more before recording anything. That is the
+one gate every path passes through, so the pass-level proofs are
+belt-and-braces rather than load-bearing — and it is where the tag stops being
+bookkeeping, since `record_layout_convert()` reads it to decide whether to
+relabel a side into `[N,H,W,C]`.
 
 **The `differentiable` flag is split from its proof.** `core/ops.hpp` carries
 the flag on each `OpName` — the *claim* that an operation has a gradient.

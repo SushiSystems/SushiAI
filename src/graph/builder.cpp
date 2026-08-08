@@ -126,13 +126,14 @@ namespace SushiAI
 
             // declare_like on a rank-2 contraction is not a claim that the
             // result "is" the left operand's layout - at rank 2 the tag names
-            // nothing, since there is no C axis to place. It is propagated
-            // rather than defaulted so that a node can never appear to cross
-            // layouts when it has not moved a byte: CV-4's proof compares a
-            // node's results against its operands, and a defaulted NHWC result
-            // hanging off an NCHW-tagged operand would fail that proof for a
-            // reason that is an artifact of the default. The same reasoning
-            // covers bias_add, sum_rows, log_softmax and nll_loss below.
+            // nothing, since there is no C axis to place. The choice between
+            // propagating and defaulting is genuinely symmetric: propagating
+            // keeps an NCHW chain alarming through rank-2 land, and defaulting
+            // would let it quietly re-enter NHWC land. Neither is safer in the
+            // abstract; propagating is preferred because an over-eager alarm
+            // is a build-time throw naming the node, and a silent re-entry is
+            // a loss curve. The same reasoning covers bias_add, sum_rows,
+            // log_softmax and nll_loss below.
             const ValueId out = declare_like(a, shape_of(m, n), va.dtype, Lifetime::ACTIVATION,
                                              "matmul");
 
@@ -273,15 +274,23 @@ namespace SushiAI
 
         ValueId GraphBuilder::zeros(Shape shape, DType dtype) const
         {
-            // The one emitter left on plain declare, and it has to be: ZERO
-            // reads nothing, so there is no operand whose layout could be
-            // inherited. That is sound rather than merely unavoidable - the
-            // node has no inputs, so CV-4's per-node proof skips it, and a
-            // buffer of zeros is the same buffer under either axis order.
-            // A caller that needs a zero inside an NCHW region must set the
-            // tag itself; nothing does today.
+            // ZERO reads nothing, so there is no operand whose layout could
+            // be inherited and this is the one emitter that cannot use
+            // declare_like. The resulting NHWC tag is safe for *this* node -
+            // CV-4's per-node proof skips a node with no inputs - and says
+            // nothing at all about the consumer that reads the zeros beside a
+            // real operand. That consumer is the whole exposure, so a caller
+            // in that position calls zeros_like() instead; every backward rule
+            // emitting zeros does.
             const ValueId out = declare(shape, dtype, Lifetime::ACTIVATION, "zeros");
             graph_->add_node(Ops::ZERO.id, {}, {out});
+            return out;
+        }
+
+        ValueId GraphBuilder::zeros_like(ValueId like, Shape shape, DType dtype) const
+        {
+            const ValueId out = zeros(shape, dtype);
+            graph_->value(out).layout = graph_->value(like).layout;
             return out;
         }
 

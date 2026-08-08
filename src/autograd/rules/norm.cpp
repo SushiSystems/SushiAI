@@ -80,8 +80,8 @@ namespace SushiAI
             if (tape.input_requires_grad(0))
                 tape.contribute_input(0, tape.builder().channel_affine(
                     dy, node.inputs[1],
-                    tape.builder().zeros(tape.graph().value(node.inputs[2]).shape,
-                                         tape.graph().value(dy).dtype)));
+                    tape.builder().zeros_like(dy, tape.graph().value(node.inputs[2]).shape,
+                                              tape.graph().value(dy).dtype)));
 
             // dgamma and dbeta are per-channel sums over N, H and W.
             if (tape.input_requires_grad(1))

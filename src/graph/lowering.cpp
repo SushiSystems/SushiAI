@@ -418,6 +418,22 @@ namespace SushiAI
             emitted_ = 0;
             selections_.clear();
 
+            // The last gate, and the only unconditional one. finalise() proves
+            // CV-4 over the forward graph, and fuse() and insert_casts() each
+            // re-prove it over the graph they rebuild - but a caller is free
+            // to differentiate and lower directly, and the nodes autograd
+            // emits would then be proved nowhere. Lowering is the single
+            // funnel every path goes through, so the check belongs here too:
+            // it makes the pass-level proofs belt-and-braces rather than
+            // load-bearing, and it is O(nodes) against a walk already
+            // O(nodes).
+            //
+            // It matters here more than anywhere else, because this is where
+            // the tag stops being bookkeeping: record_layout_convert reads it
+            // on both sides to decide whether to relabel one into [N,H,W,C],
+            // and a wrong tag becomes a transpose that does not happen.
+            graph.prove_layout_uniformity();
+
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
                 record_node(graph, id);
         }
