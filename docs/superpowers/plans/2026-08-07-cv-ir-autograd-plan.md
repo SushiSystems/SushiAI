@@ -2291,7 +2291,7 @@ Spec §6 is explicit: `maxpool2d_backward` and `avgpool2d_backward` are **separa
 
 **Interfaces:**
 - Consumes: Tasks 6, 7, 11.
-- Produces: `SPATIAL_RULES` sized 5.
+- Produces: `SPATIAL_RULES` sized 6.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2455,7 +2455,7 @@ Expected: PASS.
 
 **Interfaces:**
 - Consumes: Tasks 7, 12.
-- Produces: `SPATIAL_RULES` sized 7.
+- Produces: `SPATIAL_RULES` sized 8.
 
 - [ ] **Step 1: Write the failing test**
 
