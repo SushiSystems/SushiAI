@@ -14,6 +14,64 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
 ## [Unreleased]
 
 ### Added
+- **Twenty operation identities, and the vocabulary for a convolutional
+  network.** `IM2COL` / `COL2IM`, `MAXPOOL2D` / `AVGPOOL2D` / `UPSAMPLE2D` /
+  `SPATIAL_MEAN` and their backwards, `CONCAT_CHANNELS` / `SLICE_CHANNELS`,
+  `BATCHNORM2D` / `BATCHNORM2D_BACKWARD` / `CHANNEL_AFFINE`,
+  `BATCHNORM_UPDATE_STATS`, and `LEAKY_RELU` / `LEAKY_RELU_BACKWARD`. Each is
+  in `Ops::ALL`, so the existing `all_ids_unique` collision proof covers it,
+  and fourteen of them carry the `differentiable` flag. The flag is a claim;
+  the `static_assert` in `autograd/rules/all.hpp` is the proof, and it is
+  `all.hpp` rather than `core/ops.hpp` because the check needs to see the rule
+  table and `core/` cannot depend on `autograd/`.
+
+  `BATCHNORM_UPDATE_STATS` is the exception on both counts: no flag, no rule,
+  and no case in `Lowering::record_node`. CV-7 keeps a BatchNorm's running
+  statistics out of the IR — they are recorded into the training step beside
+  the graph, the way `SGD_UPDATE` and `ADAMW_UPDATE` already are. A graph
+  carrying one is a graph built wrong, and it throws saying so;
+  `Integration_Resilience.BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo`
+  pins that, so the gap is a decision rather than something to be discovered
+  and "fixed" later.
+- **`TensorLayout` on every `Value`, and `Graph::finalise()` proves it (CV-4).**
+  `LAYOUT_CONVERT` is the only node allowed operands and results that disagree
+  about layout. `finalise()` closes a graph — it propagates `requires_grad` and
+  then walks every node checking uniformity — so an NCHW value spliced into an
+  NHWC chain fails there, naming the node, rather than reaching a kernel that
+  reads the right number of elements in the wrong order.
+  `GraphBuilder::declare_like()` is how an emitter keeps that true without
+  restating it, and `declare()` is now only for values with no operand to
+  inherit from.
+- **`Attributes::CAPACITY` 4 → 10.** Slots 0–7 are CV-5's window geometry
+  (`kernel_h/w`, `stride_h/w`, `dilation_h/w`, `pad_top`, `pad_left`); slots 8
+  and 9 are `out_h` and `out_w`, **stored rather than derived**. CV-5 provides
+  no `pad_bottom`/`pad_right`, so deriving the extents assumes symmetric
+  padding — and an asymmetrically padded grid can derive to its own transpose:
+  a `[1, 4, 5, C]` input with a 3×3 window padded 1 above / 1 left / 2 below /
+  0 right is 5×4 windows and derives to 4×5. Both are 20 windows, so every
+  shape check agrees and the gather returns the wrong numbers. A-8 ("never
+  re-derive an output extent from geometry") is the rule that generalises.
+- **`graph/rematerialise.hpp` — `rematerialise_im2col()`.** A convolution's
+  column matrix is `kernel_h*kernel_w` times its input, is the largest
+  activation in a CNN, and is read exactly once in the backward pass. The pass
+  clones the `IM2COL` node in front of that consumer and demotes the stored
+  value to `SCRATCH`, taking it out of the activation arena.
+  `Integration_Rematerialise.TheColumnMatrixLeavesTheActivationArena` asserts
+  that against the `MemoryPlan` rather than the lifetime field, and
+  `TheRewrittenGraphComputesTheSameGradient` asserts bit-for-bit equality
+  against the unrewritten graph — a clone that rebuilt its attributes instead
+  of copying them produces a column matrix of exactly the right shape holding
+  the wrong pixels. It recomputes one operation and is not a cost model,
+  deliberately (CV-10).
+- **`Regression_ArgmaxLifetime.ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackward`.**
+  `MAXPOOL2D`'s INT64 argmax has to survive to `MAXPOOL2D_BACKWARD`, and only
+  the gradchecks said so — which is the wrong kind of evidence, because a
+  planner change that handed those bytes to a later activation would route
+  every pooled gradient to a plausible wrong pixel and the gradchecks would go
+  on passing until they didn't. The test asserts on the plan: reuse in a
+  `MemoryPlan` is byte overlap and nothing else, so it checks that no other
+  buffer's interval intersects the argmax's, with a non-vacuity check that the
+  planner did overlap something else in the same graph.
 - **A model's architecture can be a JSON file, and the two drivers that read
   one are written once.** `sushiai train train.json` and
   `sushiai inference model.json model.ckpt eval.json` contain **no layer, loss,
@@ -62,7 +120,72 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   `compiles: 1`, and **86.33% top-1 agreement** on 512 held-out points drawn
   from a different seed.
 
+### Changed
+- **`src/autograd/backward.cpp` is gone, split into one translation unit per
+  domain.** It was 600 lines with four unrelated reasons to change, and the
+  twenty new identities above would all have landed in it. The implementation
+  is now `differentiator.cpp` (the reverse walk and the seed), `tape.cpp`
+  (`GradientTape`) and `rules/<domain>.cpp` for `elementwise`, `activation`,
+  `linalg`, `loss`, `shape`, `spatial` and `norm`, each with a header in
+  `include/SushiAI/autograd/rules/`. `autograd/backward.hpp` survives and
+  shrinks to `differentiate()` and `has_backward_rule()`.
+
+  The property is about diffs: **adding an operation to a domain changes only
+  that domain's two files, and adding a domain is one line in `rules/all.hpp`.**
+  Nothing self-registers, and that is not preference — `sushiai` is a static
+  library, so a translation unit whose only job is a registration constructor
+  resolves no symbol and is dropped by the linker, silently, and only in a
+  downstream consumer's build. Each domain names its rules in a file-scope
+  `constexpr` table that `all.hpp` concatenates, so a missing one is a compile
+  error here rather than a missing gradient in somebody else's build.
+  `Differentiator`'s definition moved to `src/autograd/differentiator.hpp`,
+  outside the public include tree; a rule still sees `GradientTape` and nothing
+  else.
+- **`Graph::propagate_requires_grad()` is now `Graph::finalise()`**, because it
+  gained a second step: CV-4's layout-uniformity proof. The old name described
+  one of the phase's steps rather than the phase, and would have gone stale the
+  moment the second landed; `ir.hpp`'s own doc comment and the spec already
+  said `finalise()`. Three call sites moved with it —
+  `src/autograd/differentiator.cpp:111` (formerly `backward.cpp:511`),
+  `tests/functional/unit/test_ir.cpp:84` and `:102`.
+
 ### Fixed
+- **`Lowering`'s reported operation count matches the calls it makes again.**
+  `record_batchnorm2d` issued 14 SushiBLAS calls and reported 12,
+  `record_batchnorm2d_backward` issued 15 and reported 14, and
+  `record_concat_channels` issued one copy per operand and reported one for the
+  node. `emitted_operations()` feeds `CompiledStep::operations()`, so these are
+  wrong diagnostics rather than wrong results — but the `record_log_softmax`
+  drift recorded further down this file is the argument for fixing them as they
+  appear rather than accumulating them. Every `record_*` case was re-counted,
+  and each of the three now carries the tally in a comment beside it.
+- **`GraphBuilder::activation_backward` declares its result with
+  `declare_like`**, so an activation gradient inherits its `dy`'s layout
+  instead of taking the default. Invisible while every activation in the suite
+  was rank-2; not once a spatial `dy` carries NHWC (A-2).
+- **`record_spatial_mean_backward` checks its result's rank** before reading
+  `dx_shape[1] * dx_shape[2]` for the divisor, matching the operand-count check
+  above it. Reachable only by a hand-built graph that bypasses the emitter.
+- **The LeakyReLU slope predicate has one definition.** `leaky_relu()` and
+  `activation_backward()` both required `slope ∈ (0, 1)` in separately written
+  copies; they now call one helper, so a future change cannot leave a slope
+  the forward accepts and the backward rejects. The two error messages stay
+  separate — they explain different mistakes.
+- **`batchnorm2d_backward` refuses a gradient on its saved statistics** rather
+  than dropping it. CV-7 makes `saved_mean` and `saved_inv_std` a side channel
+  nothing differentiable consumes, so the early return was correct; it was also
+  silent, and the day something does consume them the failure would be a model
+  that trains slightly wrong with no test failing.
+- **Six comments still pointed at the deleted `backward.cpp`**, and
+  `include/SushiAI/graph/ir.hpp` still included
+  `<SushiRuntime/graph/task_types.hpp>` — a leftover from a
+  `TaskMetadata::K_MAX_PARAMS` bound on `Attributes::CAPACITY` that does not
+  exist and cannot: `Lowering` hands attribute values straight to SushiBLAS and
+  copies none of them into a `TaskMetadata`.
+- **`Unit_Backward`'s coverage ledger names literal tests instead of globs.**
+  Rows like `"Integration_Autograd.BatchNorms{Gradient,Scale,Shift}*"` cannot
+  be resolved back to a test after a rename, which is the exact failure the
+  ledger exists to catch.
 - **`Trainer::score_accuracy()` refuses logits it cannot read instead of
   reinterpreting them.** It chose between `double` and `float` with `float` as
   the fallback, which was right while every graph was fp32 or fp64 and became a
