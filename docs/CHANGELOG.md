@@ -173,6 +173,18 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   consumer instead and runs the consumer with that PATH entry removed, so the
   deployment claim is under test rather than shadowed by the developer's
   environment.
+- **`Lowering::record()` now proves layout uniformity on entry, so it rejects
+  graphs it used to record.** This is a deliberate behaviour change at a public
+  entry point. The layout tag is a claim about memory order that only
+  `LAYOUT_CONVERT` may change, and `record_layout_convert` reads it to decide
+  whether to transpose — so a graph whose tags have drifted does not fail, it
+  silently copies transposed data through with every shape check agreeing.
+  Proving at lowering closes that unconditionally: lowering is the single funnel
+  every path reaches, including a graph differentiated and lowered directly
+  without passing through `fuse()` or `insert_casts()`. The two rebuilding
+  passes prove it as well, but as belt-and-braces rather than as the only guard.
+  A graph that was already uniform is unaffected; the walk is O(nodes) against a
+  record that is already O(nodes).
 - **`src/autograd/backward.cpp` is gone, split into one translation unit per
   domain.** It was 600 lines with four unrelated reasons to change, and the
   twenty new identities above would all have landed in it. The implementation
