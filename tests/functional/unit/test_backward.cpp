@@ -117,6 +117,9 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         // LOG_SOFTMAX's "rule" exists only to produce a good error; there is
         // no gradient to verify, so its proof is the message test instead.
         {Ops::LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
+
+        {Ops::RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
+        {Ops::LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsTheConverseConversion"},
     };
 
     for (const Proven& entry : ledger)

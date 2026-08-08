@@ -540,6 +540,8 @@ namespace SushiAI
                 void record_accumulate(const Node& node);
                 void record_zero(const Graph& graph, const Node& node);
                 void record_cast(const Graph& graph, NodeId id, const Node& node);
+                void record_reshape(const Graph& graph, NodeId id, const Node& node);
+                void record_layout_convert(const Graph& graph, NodeId id, const Node& node);
 
                 void record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
                                        FusedForm matched);

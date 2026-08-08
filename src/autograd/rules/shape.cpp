@@ -23,6 +23,33 @@
 
 #include <SushiAI/autograd/rules/shape.hpp>
 
-// Empty until Task 10: SHAPE_RULES is declared entirely in the header. This
-// translation unit exists so the CMake source list and the domain split are
-// already in their final shape before the first shape rule is written.
+namespace SushiAI
+{
+    namespace Autograd
+    {
+        void reshape_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            const Graph::ValueId x = tape.node().inputs[0];
+            tape.contribute_input(0, tape.builder().reshape(dy, tape.graph().values()[x].shape));
+        }
+
+        void layout_convert_backward(const GradientTape& tape)
+        {
+            if (!tape.input_requires_grad(0)) return;
+
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::NO_VALUE) return;
+
+            // The adjoint of a permutation is the inverse permutation, which
+            // here is simply the conversion back to the operand's own layout.
+            const Graph::ValueId x = tape.node().inputs[0];
+            tape.contribute_input(0, tape.builder().layout_convert(
+                dy, tape.graph().values()[x].layout));
+        }
+    }
+}

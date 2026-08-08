@@ -26,6 +26,7 @@
 #include <SushiBLAS/engine/blas/dispatch.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/spatial.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/graph/lowering.hpp>
@@ -491,6 +492,8 @@ namespace SushiAI
             if (node.op == Ops::ACCUMULATE.id)             { record_accumulate(node); return; }
             if (node.op == Ops::ZERO.id)                   { record_zero(graph, node); return; }
             if (node.op == Ops::CAST.id)                   { record_cast(graph, id, node); return; }
+            if (node.op == Ops::RESHAPE.id)                { record_reshape(graph, id, node); return; }
+            if (node.op == Ops::LAYOUT_CONVERT.id)         { record_layout_convert(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -1062,6 +1065,62 @@ namespace SushiAI
             // asks whether every use of the earlier buffer *strictly* reaches
             // the later one's first write, and a node never reaches itself.
             engine_->elementwise().convert(source, destination);
+            ++emitted_;
+        }
+
+        void Lowering::record_reshape(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "RESHAPE (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& source = input(node, 0);
+            SushiBLAS::Tensor& destination = output(graph, node, 0);
+
+            SA_THROW_IF(!source.is_contiguous(),
+                        "RESHAPE (node {}) needs a contiguous operand; the value it reads was "
+                        "produced as a strided view, which reshape's reinterpretation would "
+                        "read wrong", id);
+
+            // A reshape moves no data - it is the same bytes read under
+            // different extents - so the "copy" here is `blas().copy` walking
+            // the same linear order twice, not a permutation of any kind.
+            const Shape& out_shape = graph.value(node.outputs[0]).shape;
+            const SushiBLAS::Tensor reshaped(
+                source.storage,
+                SushiRuntime::span<const int64_t>(out_shape.data(),
+                                                  static_cast<std::size_t>(out_shape.rank())),
+                source.dtype, source.storage_offset, source.layout);
+
+            engine_->blas().copy(reshaped, destination);
+            ++emitted_;
+        }
+
+        void Lowering::record_layout_convert(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "LAYOUT_CONVERT (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& source = input(node, 0);
+            SushiBLAS::Tensor& destination = output(graph, node, 0);
+
+            const TensorLayout source_layout = graph.value(node.inputs[0]).layout;
+            const TensorLayout dest_layout = graph.value(node.outputs[0]).layout;
+
+            // `SpatialOps::layout_convert` reads its direction purely from the
+            // two operands' strides: both must be handed in shaped [N, H, W,
+            // C], so whichever side is physically NCHW ([N, C, H, W]) is
+            // relabelled into that order first. Two transposes rather than one
+            // because NCHW -> NHWC is the 3-cycle (C, H, W) -> (H, W, C), not
+            // a single swap: transpose(1, 2) gives [N, H, C, W], and
+            // transpose(2, 3) on that gives [N, H, W, C] with the strides
+            // carried along at each step, so no data moves until the kernel
+            // itself runs.
+            const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::NCHW)
+                ? source.transpose(1, 2).transpose(2, 3) : source;
+            SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::NCHW)
+                ? destination.transpose(1, 2).transpose(2, 3) : destination;
+
+            engine_->spatial().layout_convert(source_view, dest_view);
             ++emitted_;
         }
 
