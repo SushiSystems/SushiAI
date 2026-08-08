@@ -109,7 +109,8 @@ sa test                          # functional (unit+integration+regression) — 
 sa test --suite unit
 sa test --suite integration
 sa test --suite regression
-sa test --suite all              # every test
+sa test --suite all              # every CTest test
+sa test --suite package          # the out-of-tree package consumer (no CTest)
 ```
 
 ```bash
@@ -127,6 +128,63 @@ with `sa run` and pass flags after `--`.
 
 `sa test` needs a build with `SA_BUILD_TESTS=ON`, which is the default; a tree
 configured with `-D SA_BUILD_TESTS=OFF` has no SushiAI tests registered.
+
+### `--suite package`
+
+Every other suite is a CTest label. This one is not, and runs no CTest at all.
+It installs SushiAI to `build/package/prefix`, configures `tests/package/`
+into `build/package/consumer` against that prefix, builds it and runs it —
+the way a third party consumes the library, through `find_package(SushiAI)`,
+with no access to this source tree. Both intermediates live under `build/`,
+so `sa clean` reclaims them.
+
+This is the only test in the repo that can see what
+`find_package(SushiAI)` actually hands somebody. Every in-tree test includes
+individual headers from the source tree, so a public header that is missing
+from `install(DIRECTORY)`, unreachable from the `SushiAI/SushiAI.h` umbrella,
+or that only compiles because a sibling checkout happened to sit next to it,
+is invisible to all of them. That gap is not hypothetical: four headers were
+missing from the umbrella and no test in the repo could have said so.
+
+It also checks what the exported CMake interface *does not* carry — warnings,
+`-Werror`, sanitizers, `-march=`, the in-tree policy targets, and the config
+layer's private `nlohmann_json`. Those assertions are in
+`tests/package/CMakeLists.txt`, because what a consumer inherits is only
+observable from the consumer side.
+
+Three things the CLI does on the consumer's behalf, all host-environment
+rather than package concerns:
+
+- One install prefix covers all three modules. SushiBLAS and SushiRuntime are
+  `add_subdirectory`'d into this build (see `cmake/BLAS.cmake`), so their
+  install rules run as part of this one and the `find_dependency` calls in
+  `SushiAIConfig.cmake` resolve from the same prefix.
+- The consumer configure reuses the same compiler and host-tool flags as the
+  main configure, from one shared helper (`_toolchain_args`), so the two
+  cannot drift. `CMAKE_PREFIX_PATH` is the deliberate exception — the consumer
+  must also see the install prefix. `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` are
+  excluded too, for a stronger reason: handing the consumer the sibling source
+  trees is the shortcut this suite exists to forbid.
+- On Windows the built binary needs `sushiruntime.dll` beside it or it exits
+  `0xC0000135` before reaching `main`, which looks like a package failure and
+  is not one. In-tree targets get it from a `POST_BUILD` copy; the CLI stands
+  in for the consumer and stages everything in the prefix's `bin/`.
+
+The install prefix is deleted before each run, so a header deleted from the
+tree cannot keep satisfying an include from a stale prefix.
+
+It is **not** part of `--suite all`, which covers only the CTest tests. A full
+install plus a second configure and build costs minutes and is rarely what you
+want mid-loop, so `all` prints a line saying the package suite is not included
+rather than leaving the gap to be discovered. `--filter` and `--repeat` are
+CTest knobs; passing either with `--suite package` exits 2 instead of being
+silently ignored.
+
+The consumer compiles at C++17 — the same standard as the library, and
+deliberately not SushiBLAS's C++20 consumer. `tests/package/CMakeLists.txt`
+records the measured reason (SushiAI exports out-of-line functions whose
+parameter type is `SushiRuntime::span`, so the C++17/C++20 spelling difference
+reaches the mangled name); see also [INTEGRATION.md](INTEGRATION.md) §3.
 
 ## `sa run`
 
