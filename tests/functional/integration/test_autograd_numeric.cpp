@@ -15,6 +15,7 @@
 // near 2.4e-5 relative accuracy, which is the same order as the error a
 // genuinely wrong rule produces. See gradcheck.hpp.
 
+#include <array>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -978,6 +979,48 @@ TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
 
     std::vector<double> point(probe.size());
     SaTest::HostNoise(441).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
+{
+    // The gradient of a concat is a slice per operand, at that operand's
+    // offset. An off-by-one offset gives every operand a gradient of the
+    // right shape belonging to its neighbour - which a round trip through
+    // slice-then-concat cannot detect, so the operands are deliberately
+    // reordered relative to how they were sliced out.
+    Probe probe(*engine, Shape({2, 4, 4, 6}), [](const GraphBuilder& b, ValueId x)
+    {
+        const ValueId left = b.slice_channels(x, 0, 2);
+        const ValueId right = b.slice_channels(x, 2, 4);
+        const std::array<ValueId, 2> parts = {right, left};   // deliberately reordered
+        return b.log_softmax(b.spatial_mean(b.concat_channels(
+            SushiRuntime::span<const ValueId>(parts.data(), parts.size()))));
+    });
+
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(451).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
+{
+    // Channels outside the slice receive exactly zero, not stale memory.
+    // The reordered concat above is what makes a wrong offset visible; this
+    // one makes a missing zero-fill visible.
+    Probe probe(*engine, Shape({1, 3, 3, 8}), [](const GraphBuilder& b, ValueId x)
+    {
+        return b.log_softmax(b.spatial_mean(b.slice_channels(x, 3, 2)));
+    });
+
+    probe.fill_one_hot(1, 2);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(461).fill(point, 1.0);
 
     expect_gradient_matches(probe, point);
 }

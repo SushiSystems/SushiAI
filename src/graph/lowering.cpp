@@ -505,6 +505,8 @@ namespace SushiAI
             if (node.op == Ops::UPSAMPLE2D_BACKWARD.id)    { record_upsample2d_backward(graph, id, node); return; }
             if (node.op == Ops::SPATIAL_MEAN.id)           { record_spatial_mean(graph, id, node); return; }
             if (node.op == Ops::SPATIAL_MEAN_BACKWARD.id)  { record_spatial_mean_backward(graph, id, node); return; }
+            if (node.op == Ops::CONCAT_CHANNELS.id)        { record_concat_channels(graph, id, node); return; }
+            if (node.op == Ops::SLICE_CHANNELS.id)         { record_slice_channels(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -1328,6 +1330,41 @@ namespace SushiAI
             const double scale = 1.0 / static_cast<double>(dx_shape[1] * dx_shape[2]);
 
             engine_->spatial().broadcast_spatial(dy, dx, scale);
+            ++emitted_;
+        }
+
+        void Lowering::record_concat_channels(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.empty() || node.outputs.size() != 1,
+                        "CONCAT_CHANNELS (node {}) takes at least one operand and one result",
+                        id);
+
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            // concat_channels copies one operand at a time; the running offset
+            // is the running channel count of the operands already placed, in
+            // the same order the forward's shape check walked them.
+            int64_t offset = 0;
+            for (std::size_t i = 0; i < node.inputs.size(); ++i)
+            {
+                const SushiBLAS::Tensor& src = input(node, i);
+                engine_->spatial().concat_channels(src, out, offset);
+                offset += shape_of(graph, node.inputs[i])[3];
+            }
+            ++emitted_;
+        }
+
+        void Lowering::record_slice_channels(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "SLICE_CHANNELS (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            const int64_t offset = static_cast<int64_t>(node.attributes.get(0));
+
+            engine_->spatial().slice_channels(in, offset, out);
             ++emitted_;
         }
 

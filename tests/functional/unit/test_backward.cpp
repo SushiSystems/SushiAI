@@ -67,6 +67,8 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::AVGPOOL2D.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::UPSAMPLE2D.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::SPATIAL_MEAN.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::CONCAT_CHANNELS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SLICE_CHANNELS.id));
 
     // LEAF and ZERO produce values from nothing, so there is nothing upstream
     // to hand a gradient to and no rule to write.
@@ -132,6 +134,8 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::AVGPOOL2D.id, "Integration_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
         {Ops::UPSAMPLE2D.id, "Integration_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
         {Ops::SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
+        {Ops::CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
+        {Ops::SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
     };
 
     for (const Proven& entry : ledger)

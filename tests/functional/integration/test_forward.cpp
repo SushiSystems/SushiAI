@@ -10,10 +10,12 @@
 // axis, or a log-softmax whose stabilising shift did not cancel - all of
 // which produce plausible numbers rather than errors.
 
+#include <array>
 #include <cmath>
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -591,6 +593,56 @@ TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
     const std::vector<double> result = read_tensor(run.pool.tensor(mean));
     ASSERT_EQ(result.size(), 1u);
     EXPECT_NEAR(result[0], 1.5, 1e-9);
+}
+
+TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
+{
+    // Two 1x1x1 pixels, one channel each: left [10], right [20]. Concatenated
+    // in order they must land as [10, 20], not [20, 10] or summed together.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId left = builder.input(Shape{1, 1, 1, 1}, "left");
+    const ValueId right = builder.input(Shape{1, 1, 1, 1}, "right");
+    const std::array<ValueId, 2> parts = {left, right};
+    const ValueId cat = builder.concat_channels(
+        SushiRuntime::span<const ValueId>(parts.data(), parts.size()));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(left), std::vector<double>{10.0});
+    write_tensor(run.pool.tensor(right), std::vector<double>{20.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(cat));
+    const std::vector<double> expected = {10.0, 20.0};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
+{
+    // N=1, H=1, W=1, four channels [1,2,3,4]. Slicing [1, 3) must return
+    // [2, 3] exactly, not the whole input and not a shifted range.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 1, 1, 4}, "x");
+    const ValueId sliced = builder.slice_channels(x, 1, 2);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(sliced));
+    const std::vector<double> expected = {2.0, 3.0};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
 TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)

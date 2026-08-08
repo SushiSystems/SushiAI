@@ -75,14 +75,32 @@ namespace SushiAI
          */
         void spatial_mean_backward(const GradientTape& tape);
 
+        /**
+         * @brief CONCAT_CHANNELS's gradient: each operand receives the slice
+         *        of the incoming gradient at that operand's own running
+         *        channel offset.
+         * @param tape The differentiation state for this node.
+         */
+        void concat_channels_backward(const GradientTape& tape);
+
+        /**
+         * @brief SLICE_CHANNELS's gradient: a scatter into zeros, expressed as
+         *        a concat of the zero ranges before and after the slice with
+         *        the incoming gradient itself.
+         * @param tape The differentiation state for this node.
+         */
+        void slice_channels_backward(const GradientTape& tape);
+
         /** @brief Spatial operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 6> SPATIAL_RULES = {{
+        inline constexpr std::array<RuleEntry, 8> SPATIAL_RULES = {{
             {Ops::IM2COL.id, &im2col_backward},
             {Ops::COL2IM.id, &col2im_backward},
             {Ops::MAXPOOL2D.id, &maxpool2d_backward},
             {Ops::AVGPOOL2D.id, &avgpool2d_backward},
             {Ops::UPSAMPLE2D.id, &upsample2d_backward},
             {Ops::SPATIAL_MEAN.id, &spatial_mean_backward},
+            {Ops::CONCAT_CHANNELS.id, &concat_channels_backward},
+            {Ops::SLICE_CHANNELS.id, &slice_channels_backward},
         }};
     }
 }

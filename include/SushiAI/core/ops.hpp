@@ -246,7 +246,7 @@ namespace SushiAI
         // --- Structure ------------------------------------------------------
 
         /** @brief Joins several values along the channel axis. */
-        inline constexpr OpName CONCAT_CHANNELS = op("sushiai.concat_channels");
+        inline constexpr OpName CONCAT_CHANNELS = differentiable_op("sushiai.concat_channels");
         /**
          * @brief Extracts a channel range.
          *
@@ -254,7 +254,7 @@ namespace SushiAI
          * CONCAT_CHANNELS's private backward, because it is independently
          * reachable: Darknet's route layer with a group index is exactly this.
          */
-        inline constexpr OpName SLICE_CHANNELS = op("sushiai.slice_channels");
+        inline constexpr OpName SLICE_CHANNELS = differentiable_op("sushiai.slice_channels");
 
         // --- Normalisation --------------------------------------------------
 
