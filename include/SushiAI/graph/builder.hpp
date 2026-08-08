@@ -528,6 +528,61 @@ namespace SushiAI
                 ValueId spatial_mean(ValueId x) const;
 
                 /**
+                 * @brief Emits @c MAXPOOL2D_BACKWARD: routes each gradient through the argmax.
+                 *
+                 * A backward-only emitter, added beside @c maxpool2d_backward's rule
+                 * rather than with the forward, because nothing else in the graph
+                 * ever has reason to emit it.
+                 *
+                 * @param dy The @c [N,H_o,W_o,C] output gradient.
+                 * @param indices The INT64 argmax @c maxpool2d wrote, same shape as @p dy.
+                 * @param input_shape The @c [N,H,W,C] shape of the pooled input.
+                 * @param g The window geometry the forward used.
+                 * @return The @c [N,H,W,C] input gradient's id.
+                 * @throws Error If @p dy is not rank 4, not NHWC, or @p indices
+                 *         is not INT64 and shaped like @p dy.
+                 */
+                ValueId maxpool2d_backward(ValueId dy, ValueId indices, Shape input_shape,
+                                          const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits @c AVGPOOL2D_BACKWARD: spreads each gradient over its window.
+                 * @param dy The @c [N,H_o,W_o,C] output gradient.
+                 * @param input_shape The @c [N,H,W,C] shape of the pooled input.
+                 * @param g The window geometry the forward used.
+                 * @return The @c [N,H,W,C] input gradient's id.
+                 * @throws Error If @p dy is not rank 4 or not NHWC.
+                 */
+                ValueId avgpool2d_backward(ValueId dy, Shape input_shape,
+                                          const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits @c UPSAMPLE2D_BACKWARD: sums each source pixel's replicas.
+                 * @param dy The @c [N,H*scale_h,W*scale_w,C] output gradient.
+                 * @param input_shape The @c [N,H,W,C] shape of the upsampled input.
+                 * @param scale_h The vertical replication factor the forward used.
+                 * @param scale_w The horizontal replication factor the forward used.
+                 * @return The @c [N,H,W,C] input gradient's id.
+                 * @throws Error If @p dy is not rank 4 or not NHWC.
+                 */
+                ValueId upsample2d_backward(ValueId dy, Shape input_shape,
+                                           int64_t scale_h, int64_t scale_w) const;
+
+                /**
+                 * @brief Emits @c SPATIAL_MEAN_BACKWARD: broadcasts by 1/(H*W).
+                 *
+                 * The divisor is taken from @p input_shape alone, never passed
+                 * separately, so the forward and this backward cannot disagree
+                 * about it.
+                 *
+                 * @param dy The @c [N,C] output gradient.
+                 * @param input_shape The @c [N,H,W,C] shape averaged over.
+                 * @return The @c [N,H,W,C] input gradient's id.
+                 * @throws Error If @p dy is not rank 2 or @p input_shape is not rank 4.
+                 */
+                ValueId spatial_mean_backward(ValueId dy, Shape input_shape) const;
+
+                /**
                  * @brief Emits @c CONCAT_CHANNELS: joins operands along the channel axis.
                  * @param parts The @c [N,H,W,C_i] operands, at least one, sharing
                  *        N, H, W and dtype.

@@ -48,10 +48,41 @@ namespace SushiAI
          */
         void col2im_backward(const GradientTape& tape);
 
+        /**
+         * @brief MAXPOOL2D's gradient: routes each gradient through the
+         *        argmax indices its own forward wrote.
+         * @param tape The differentiation state for this node.
+         */
+        void maxpool2d_backward(const GradientTape& tape);
+
+        /**
+         * @brief AVGPOOL2D's gradient: spreads each gradient evenly over the
+         *        window it came from, dividing by the constant window area.
+         * @param tape The differentiation state for this node.
+         */
+        void avgpool2d_backward(const GradientTape& tape);
+
+        /**
+         * @brief UPSAMPLE2D's gradient: sums each source pixel's replicas.
+         * @param tape The differentiation state for this node.
+         */
+        void upsample2d_backward(const GradientTape& tape);
+
+        /**
+         * @brief SPATIAL_MEAN's gradient: broadcasts the [N,C] gradient back
+         *        over [N,H,W,C], scaled by 1/(H*W).
+         * @param tape The differentiation state for this node.
+         */
+        void spatial_mean_backward(const GradientTape& tape);
+
         /** @brief Spatial operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 2> SPATIAL_RULES = {{
+        inline constexpr std::array<RuleEntry, 6> SPATIAL_RULES = {{
             {Ops::IM2COL.id, &im2col_backward},
             {Ops::COL2IM.id, &col2im_backward},
+            {Ops::MAXPOOL2D.id, &maxpool2d_backward},
+            {Ops::AVGPOOL2D.id, &avgpool2d_backward},
+            {Ops::UPSAMPLE2D.id, &upsample2d_backward},
+            {Ops::SPATIAL_MEAN.id, &spatial_mean_backward},
         }};
     }
 }

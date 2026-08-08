@@ -881,3 +881,103 @@ TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 
     expect_gradient_matches(probe, point);
 }
+
+TEST_F(Integration_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
+{
+    // Sampled with push_off_kinks so no two elements in a window tie: at a tie
+    // the max is not differentiable and a numeric check would be comparing
+    // against a one-sided derivative.
+    Probe probe(*engine, Shape({2, 4, 4, 3}), [](const GraphBuilder& b, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 2; g.kernel_w = 2;
+        g.stride_h = 2; g.stride_w = 2;
+        return b.log_softmax(b.spatial_mean(b.maxpool2d(x, g).output));
+    });
+
+    probe.fill_one_hot(2, 3);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(401).fill(point, 1.0);
+    Autograd::push_off_kinks(point);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel)
+{
+    // Stride 1: a pixel that wins several windows receives all their
+    // gradients. The separate-functions decision earns itself here - a shared
+    // pool_backward would have had to branch on mode inside this loop.
+    Probe probe(*engine, Shape({1, 5, 5, 2}), [](const GraphBuilder& b, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 2; g.kernel_w = 2;
+        return b.log_softmax(b.spatial_mean(b.maxpool2d(x, g).output));
+    });
+
+    probe.fill_one_hot(1, 2);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(411).fill(point, 1.0);
+    Autograd::push_off_kinks(point);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, AvgPoolSpreadsItsGradientOverTheWholeWindow)
+{
+    // The brief's own [2,6,6,3] variable is 216 elements, over
+    // expect_gradient_matches's 200-input full-Jacobian ceiling; shrunk to one
+    // batch row here so the check stays in the mode it asserts on.
+    Probe probe(*engine, Shape({1, 6, 6, 3}), [](const GraphBuilder& b, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.stride_h = 3; g.stride_w = 3;
+        return b.log_softmax(b.spatial_mean(b.avgpool2d(x, g)));
+    });
+
+    probe.fill_one_hot(1, 3);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(421).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, UpsampleSumsEachSourcePixelsReplicas)
+{
+    // Scale 2 replicates every pixel four times, so its gradient is the sum of
+    // four. Forgetting the sum gives a gradient a quarter of the right size,
+    // which trains - just slower, and only in this one layer.
+    Probe probe(*engine, Shape({2, 3, 3, 4}), [](const GraphBuilder& b, ValueId x)
+    {
+        return b.log_softmax(b.spatial_mean(b.upsample2d(x, 2, 2)));
+    });
+
+    probe.fill_one_hot(2, 4);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(431).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
+{
+    // The rule whose absence was a real gap in an earlier draft of the design.
+    // It is a per-(n,c) broadcast: BIAS_ADD's is per-row and CHANNEL_AFFINE's
+    // is per-channel, and neither would have produced this.
+    Probe probe(*engine, Shape({2, 4, 4, 5}), [](const GraphBuilder& b, ValueId x)
+    {
+        return b.log_softmax(b.spatial_mean(x));
+    });
+
+    probe.fill_one_hot(2, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(441).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}

@@ -63,6 +63,10 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::SUM_ROWS.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::ACCUMULATE.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::NLL_LOSS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MAXPOOL2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::AVGPOOL2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::UPSAMPLE2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SPATIAL_MEAN.id));
 
     // LEAF and ZERO produce values from nothing, so there is nothing upstream
     // to hand a gradient to and no rule to write.
@@ -123,6 +127,11 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
 
         {Ops::IM2COL.id, "Integration_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
         {Ops::COL2IM.id, "Integration_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
+
+        {Ops::MAXPOOL2D.id, "Integration_Autograd.MaxPoolRoutesEachGradientToTheElementThatWon"},
+        {Ops::AVGPOOL2D.id, "Integration_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
+        {Ops::UPSAMPLE2D.id, "Integration_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
+        {Ops::SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
     };
 
     for (const Proven& entry : ledger)
