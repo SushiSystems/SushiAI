@@ -26,8 +26,10 @@
 #include <SushiBLAS/engine/blas/dispatch.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/spatial.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
+#include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/lowering.hpp>
 
 namespace SushiAI
@@ -416,6 +418,22 @@ namespace SushiAI
             emitted_ = 0;
             selections_.clear();
 
+            // The last gate, and the only unconditional one. finalise() proves
+            // CV-4 over the forward graph, and fuse() and insert_casts() each
+            // re-prove it over the graph they rebuild - but a caller is free
+            // to differentiate and lower directly, and the nodes autograd
+            // emits would then be proved nowhere. Lowering is the single
+            // funnel every path goes through, so the check belongs here too:
+            // it makes the pass-level proofs belt-and-braces rather than
+            // load-bearing, and it is O(nodes) against a walk already
+            // O(nodes).
+            //
+            // It matters here more than anywhere else, because this is where
+            // the tag stops being bookkeeping: record_layout_convert reads it
+            // on both sides to decide whether to relabel one into [N,H,W,C],
+            // and a wrong tag becomes a transpose that does not happen.
+            graph.prove_layout_uniformity();
+
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
                 record_node(graph, id);
         }
@@ -481,16 +499,35 @@ namespace SushiAI
                 || node.op == Ops::GELU.id
                 || node.op == Ops::SIGMOID.id
                 || node.op == Ops::TANH.id)                { record_unary_inplace(graph, node); return; }
+            if (node.op == Ops::LEAKY_RELU.id)             { record_leaky_relu(graph, node); return; }
             if (node.op == Ops::RELU_BACKWARD.id
                 || node.op == Ops::GELU_BACKWARD.id
                 || node.op == Ops::SIGMOID_BACKWARD.id
                 || node.op == Ops::TANH_BACKWARD.id)       { record_activation_backward(graph, node); return; }
+            if (node.op == Ops::LEAKY_RELU_BACKWARD.id)    { record_leaky_relu_backward(graph, node); return; }
             if (node.op == Ops::LOG_SOFTMAX.id)            { record_log_softmax(graph, id, node); return; }
             if (node.op == Ops::NLL_LOSS.id)               { record_nll_loss(graph, id, node); return; }
             if (node.op == Ops::SUM_ROWS.id)               { record_sum_rows(graph, node); return; }
             if (node.op == Ops::ACCUMULATE.id)             { record_accumulate(node); return; }
             if (node.op == Ops::ZERO.id)                   { record_zero(graph, node); return; }
             if (node.op == Ops::CAST.id)                   { record_cast(graph, id, node); return; }
+            if (node.op == Ops::RESHAPE.id)                { record_reshape(graph, id, node); return; }
+            if (node.op == Ops::LAYOUT_CONVERT.id)         { record_layout_convert(graph, id, node); return; }
+            if (node.op == Ops::IM2COL.id)                 { record_im2col(graph, id, node); return; }
+            if (node.op == Ops::COL2IM.id)                 { record_col2im(graph, id, node); return; }
+            if (node.op == Ops::MAXPOOL2D.id)              { record_maxpool2d(graph, id, node); return; }
+            if (node.op == Ops::MAXPOOL2D_BACKWARD.id)     { record_maxpool2d_backward(graph, id, node); return; }
+            if (node.op == Ops::AVGPOOL2D.id)              { record_avgpool2d(graph, id, node); return; }
+            if (node.op == Ops::AVGPOOL2D_BACKWARD.id)     { record_avgpool2d_backward(graph, id, node); return; }
+            if (node.op == Ops::UPSAMPLE2D.id)             { record_upsample2d(graph, id, node); return; }
+            if (node.op == Ops::UPSAMPLE2D_BACKWARD.id)    { record_upsample2d_backward(graph, id, node); return; }
+            if (node.op == Ops::SPATIAL_MEAN.id)           { record_spatial_mean(graph, id, node); return; }
+            if (node.op == Ops::SPATIAL_MEAN_BACKWARD.id)  { record_spatial_mean_backward(graph, id, node); return; }
+            if (node.op == Ops::CONCAT_CHANNELS.id)        { record_concat_channels(graph, id, node); return; }
+            if (node.op == Ops::SLICE_CHANNELS.id)         { record_slice_channels(graph, id, node); return; }
+            if (node.op == Ops::CHANNEL_AFFINE.id)         { record_channel_affine(graph, id, node); return; }
+            if (node.op == Ops::BATCHNORM2D.id)            { record_batchnorm2d(graph, id, node); return; }
+            if (node.op == Ops::BATCHNORM2D_BACKWARD.id)   { record_batchnorm2d_backward(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
@@ -500,6 +537,17 @@ namespace SushiAI
                 return;
             }
 
+            // Three declared identities reach this throw on purpose:
+            // SGD_UPDATE and ADAMW_UPDATE, which src/optim/{sgd,adamw}.cpp
+            // record directly into the step, and BATCHNORM_UPDATE_STATS,
+            // which CV-7 puts in the same class - a BatchNorm's running
+            // statistics are written beside the graph, not through it.
+            //
+            // None of the three is a missing case. A node carrying one is a
+            // graph that was built wrong, and this is the correct answer. See
+            // Integration_Resilience.BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo,
+            // which pins that for the one of the three a graph builder could
+            // plausibly emit by mistake.
             SA_THROW_IF(true,
                         "No lowering for operation {} (node {}). Add it to Lowering::record_node "
                         "or remove it from the graph.",
@@ -899,6 +947,36 @@ namespace SushiAI
             ++emitted_;
         }
 
+        void Lowering::record_leaky_relu(const Graph& graph, const Node& node)
+        {
+            const SushiBLAS::Tensor& x = input(node, 0);
+            SushiBLAS::Tensor& y = output(graph, node, 0);
+
+            // Copy first, same as record_unary_inplace: the forward input
+            // survives for the backward rule, which is what makes this
+            // differentiable without a separate save-for-backward mechanism.
+            engine_->blas().copy(x, y);
+            engine_->nonlinear().leaky_relu(y, static_cast<float>(node.attributes.get(0)));
+
+            emitted_ += 2;
+        }
+
+        void Lowering::record_leaky_relu_backward(const Graph& graph, const Node& node)
+        {
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            const SushiBLAS::Tensor& primal = input(node, 1);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            // The slope isn't carried on this node - it's read out of the
+            // forward LEAKY_RELU node's attribute slot 0 by
+            // GraphBuilder::activation_backward, which forwards the whole
+            // Attributes through unchanged, so it lands here in the same slot.
+            engine_->nonlinear().leaky_relu_backward(dy, primal, dx,
+                static_cast<float>(node.attributes.get(0)));
+
+            ++emitted_;
+        }
+
         void Lowering::record_log_softmax(const Graph& graph, NodeId id, const Node& node)
         {
             const ValueId in = node.inputs.at(0);
@@ -1063,6 +1141,495 @@ namespace SushiAI
             // the later one's first write, and a node never reaches itself.
             engine_->elementwise().convert(source, destination);
             ++emitted_;
+        }
+
+        void Lowering::record_reshape(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "RESHAPE (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& source = input(node, 0);
+            SushiBLAS::Tensor& destination = output(graph, node, 0);
+
+            SA_THROW_IF(!source.is_contiguous(),
+                        "RESHAPE (node {}) needs a contiguous operand; the value it reads was "
+                        "produced as a strided view, which reshape's reinterpretation would "
+                        "read wrong", id);
+
+            // A reshape moves no data - it is the same bytes read under
+            // different extents - so the "copy" here is `blas().copy` walking
+            // the same linear order twice, not a permutation of any kind.
+            const Shape& out_shape = graph.value(node.outputs[0]).shape;
+            const SushiBLAS::Tensor reshaped(
+                source.storage,
+                SushiRuntime::span<const int64_t>(out_shape.data(),
+                                                  static_cast<std::size_t>(out_shape.rank())),
+                source.dtype, source.storage_offset, source.layout);
+
+            engine_->blas().copy(reshaped, destination);
+            ++emitted_;
+        }
+
+        void Lowering::record_layout_convert(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "LAYOUT_CONVERT (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& source = input(node, 0);
+            SushiBLAS::Tensor& destination = output(graph, node, 0);
+
+            const TensorLayout source_layout = graph.value(node.inputs[0]).layout;
+            const TensorLayout dest_layout = graph.value(node.outputs[0]).layout;
+
+            // `SpatialOps::layout_convert` reads its direction purely from the
+            // two operands' strides: both must be handed in shaped [N, H, W,
+            // C], so whichever side is physically NCHW ([N, C, H, W]) is
+            // relabelled into that order first. Two transposes rather than one
+            // because NCHW -> NHWC is the 3-cycle (C, H, W) -> (H, W, C), not
+            // a single swap: transpose(1, 2) gives [N, H, C, W], and
+            // transpose(2, 3) on that gives [N, H, W, C] with the strides
+            // carried along at each step, so no data moves until the kernel
+            // itself runs.
+            const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::NCHW)
+                ? source.transpose(1, 2).transpose(2, 3) : source;
+            SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::NCHW)
+                ? destination.transpose(1, 2).transpose(2, 3) : destination;
+
+            engine_->spatial().layout_convert(source_view, dest_view);
+            ++emitted_;
+        }
+
+        namespace
+        {
+            /** @brief Reads CV-5's eight slots back into a SushiBLAS geometry. */
+            SushiBLAS::Spatial::ConvGeometry blas_geometry_of(const Node& node) noexcept
+            {
+                SushiBLAS::Spatial::ConvGeometry g;
+                g.kernel_h   = static_cast<int64_t>(node.attributes.get(0));
+                g.kernel_w   = static_cast<int64_t>(node.attributes.get(1));
+                g.stride_h   = static_cast<int64_t>(node.attributes.get(2));
+                g.stride_w   = static_cast<int64_t>(node.attributes.get(3));
+                g.dilation_h = static_cast<int64_t>(node.attributes.get(4));
+                g.dilation_w = static_cast<int64_t>(node.attributes.get(5));
+                g.pad_top    = static_cast<int64_t>(node.attributes.get(6));
+                g.pad_left   = static_cast<int64_t>(node.attributes.get(7));
+                return g;
+            }
+
+            /**
+             * @brief Reads the window grid a windowed node carries in slots 8-9.
+             *
+             * Read, never re-derived. Deriving the extents from the geometry
+             * assumes symmetric padding, and an asymmetric grid can derive to
+             * its own transpose with the same window count - which the row
+             * check and the origin checks both accept, so the gather returns
+             * wrong numbers and nothing throws.
+             */
+            void windowed_extents_of(const Node& node, NodeId id, const char* what,
+                                     int64_t& out_h, int64_t& out_w)
+            {
+                out_h = static_cast<int64_t>(node.attributes.get(8));
+                out_w = static_cast<int64_t>(node.attributes.get(9));
+
+                SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                            "{} (node {}) carries a {}x{} window grid; its emitter did "
+                            "not write the output extents into attribute slots 8 and 9",
+                            what, id, out_h, out_w);
+            }
+        }
+
+        void Lowering::record_im2col(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "IM2COL (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& cols = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            int64_t out_h = 0;
+            int64_t out_w = 0;
+            windowed_extents_of(node, id, "IM2COL", out_h, out_w);
+
+            engine_->spatial().im2col(in, cols, g, out_h, out_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_col2im(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "COL2IM (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& cols = input(node, 0);
+            SushiBLAS::Tensor& image = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            int64_t out_h = 0;
+            int64_t out_w = 0;
+            windowed_extents_of(node, id, "COL2IM", out_h, out_w);
+
+            engine_->spatial().col2im(cols, image, g, out_h, out_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_maxpool2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 2,
+                        "MAXPOOL2D (node {}) takes one operand and two results "
+                        "(the pooled value and its argmax indices)", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+            SushiBLAS::Tensor& indices = output(graph, node, 1);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_max(in, out, indices, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_maxpool2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 2 || node.outputs.size() != 1,
+                        "MAXPOOL2D_BACKWARD (node {}) takes a gradient and the forward's "
+                        "indices, and produces one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            const SushiBLAS::Tensor& indices = input(node, 1);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_max_backward(dy, indices, dx, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_avgpool2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "AVGPOOL2D (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_avg(in, out, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_avgpool2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "AVGPOOL2D_BACKWARD (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(node);
+
+            engine_->spatial().pool_avg_backward(dy, dx, g);
+            ++emitted_;
+        }
+
+        void Lowering::record_upsample2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "UPSAMPLE2D (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            const int64_t scale_h = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t scale_w = static_cast<int64_t>(node.attributes.get(1));
+
+            engine_->spatial().upsample_nearest(in, out, scale_h, scale_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_upsample2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "UPSAMPLE2D_BACKWARD (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            const int64_t scale_h = static_cast<int64_t>(node.attributes.get(0));
+            const int64_t scale_w = static_cast<int64_t>(node.attributes.get(1));
+
+            engine_->spatial().upsample_nearest_backward(dy, dx, scale_h, scale_w);
+            ++emitted_;
+        }
+
+        void Lowering::record_spatial_mean(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "SPATIAL_MEAN (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            engine_->reductions().mean_spatial(in, out);
+            ++emitted_;
+        }
+
+        void Lowering::record_spatial_mean_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "SPATIAL_MEAN_BACKWARD (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+
+            // The divisor is read from dx's own shape - the [N,H,W,C] gradient
+            // this node is about to fill - rather than carried as a separate
+            // attribute, so the forward's mean_spatial and this broadcast can
+            // never disagree about what H*W was.
+            const Shape& dx_shape = shape_of(graph, node.outputs[0]);
+            SA_THROW_IF(dx_shape.rank() != 4,
+                        "SPATIAL_MEAN_BACKWARD (node {}) needs a rank-4 [N,H,W,C] result to read "
+                        "H and W from; got {}", id, dx_shape.to_string());
+
+            const double scale = 1.0 / static_cast<double>(dx_shape[1] * dx_shape[2]);
+
+            engine_->spatial().broadcast_spatial(dy, dx, scale);
+            ++emitted_;
+        }
+
+        void Lowering::record_concat_channels(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.empty() || node.outputs.size() != 1,
+                        "CONCAT_CHANNELS (node {}) takes at least one operand and one result",
+                        id);
+
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            // concat_channels copies one operand at a time; the running offset
+            // is the running channel count of the operands already placed, in
+            // the same order the forward's shape check walked them.
+            int64_t offset = 0;
+            for (std::size_t i = 0; i < node.inputs.size(); ++i)
+            {
+                const SushiBLAS::Tensor& src = input(node, i);
+                engine_->spatial().concat_channels(src, out, offset);
+                offset += shape_of(graph, node.inputs[i])[3];
+            }
+
+            // One copy per operand, not one for the node.
+            emitted_ += node.inputs.size();
+        }
+
+        void Lowering::record_slice_channels(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 1 || node.outputs.size() != 1,
+                        "SLICE_CHANNELS (node {}) takes one operand and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            const int64_t offset = static_cast<int64_t>(node.attributes.get(0));
+
+            engine_->spatial().slice_channels(in, offset, out);
+            ++emitted_;
+        }
+
+        namespace
+        {
+            /**
+             * @brief The zero-copy `[N*H*W, C]` view of an NHWC tensor.
+             *
+             * Channels innermost is what makes this free: the rank-4 and the
+             * rank-2 readings are the same bytes in the same order, so a
+             * per-channel fold is a column sum of this view and needs no new
+             * kernel. Built the way record_reshape builds its own view, from
+             * the storage and offset rather than from a pointer, so an operand
+             * living inside a planned arena is addressed correctly.
+             */
+            SushiBLAS::Tensor channel_rows(const SushiBLAS::Tensor& t, int64_t rows, int64_t cols)
+            {
+                const int64_t extents[2] = {rows, cols};
+                return SushiBLAS::Tensor(
+                    t.storage, SushiRuntime::span<const int64_t>(extents, 2),
+                    t.dtype, t.storage_offset, t.layout);
+            }
+        }
+
+        void Lowering::record_channel_affine(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != 1,
+                        "CHANNEL_AFFINE (node {}) takes three operands and one result", id);
+
+            const SushiBLAS::Tensor& in = input(node, 0);
+            const SushiBLAS::Tensor& gamma = input(node, 1);
+            const SushiBLAS::Tensor& beta = input(node, 2);
+            SushiBLAS::Tensor& out = output(graph, node, 0);
+
+            engine_->spatial().channel_affine(in, gamma, beta, out);
+            ++emitted_;
+        }
+
+        void Lowering::record_batchnorm2d(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 3 || node.outputs.size() != 3,
+                        "BATCHNORM2D (node {}) takes three operands and three results - the "
+                        "normalised value and the two statistics its own backward reads", id);
+
+            const Shape& x_shape = shape_of(graph, node.inputs[0]);
+            SA_THROW_IF(x_shape.rank() != 4,
+                        "BATCHNORM2D (node {}) needs a rank-4 [N,H,W,C] operand; got {}",
+                        id, x_shape.to_string());
+
+            const SushiBLAS::Tensor& x = input(node, 0);
+            SA_THROW_IF(!x.is_contiguous(),
+                        "BATCHNORM2D (node {}) folds its statistics over a rank-2 view of its "
+                        "operand, which a strided view would read wrong", id);
+
+            const SushiBLAS::Tensor& gamma = input(node, 1);
+            const SushiBLAS::Tensor& beta = input(node, 2);
+
+            SushiBLAS::Tensor& y = output(graph, node, 0);
+            SushiBLAS::Tensor& mean = output(graph, node, 1);
+            SushiBLAS::Tensor& inv_std = output(graph, node, 2);
+
+            const DType dtype = dtype_of(graph, node.inputs[0]);
+            const int64_t channels = x_shape[3];
+            const int64_t rows = x_shape[0] * x_shape[1] * x_shape[2];
+            const double inverse_rows = 1.0 / static_cast<double>(rows);
+            const double epsilon = node.attributes.get(0);
+
+            const Shape per_channel({channels});
+            SushiBLAS::Tensor& ones = pool_->ones(per_channel, dtype);
+            SushiBLAS::Tensor& negated_mean = pool_->scratch(id, 0, per_channel, dtype);
+            SushiBLAS::Tensor& centred = pool_->scratch(id, 1, x_shape, dtype);
+            SushiBLAS::Tensor& squared = pool_->scratch(id, 2, x_shape, dtype);
+            SushiBLAS::Tensor& variance = pool_->scratch(id, 3, per_channel, dtype);
+            SushiBLAS::Tensor& scale = pool_->scratch(id, 4, per_channel, dtype);
+
+            // The batch mean: a column sum of the [N*H*W, C] view, which is
+            // the fold the design says NHWC already spells with no new kernel.
+            const SushiBLAS::Tensor x_rows = channel_rows(x, rows, channels);
+            engine_->reductions().sum_along(x_rows, 0, mean);
+            engine_->blas().scal(inverse_rows, mean);
+
+            // Two passes rather than E[x*x] - E[x]*E[x]. The one-pass form is a
+            // subtraction of two numbers that are equal to several digits when
+            // the channel's mean is large next to its spread, and it loses
+            // exactly those digits - which shows up as a variance that is
+            // slightly wrong, or negative, and a normalisation that trains
+            // anyway. The second pass costs one traversal and is exact.
+            engine_->blas().copy(mean, negated_mean);
+            engine_->blas().scal(-1.0, negated_mean);
+            engine_->spatial().channel_affine(x, ones, negated_mean, centred);
+
+            engine_->elementwise().mul(centred, centred, squared);
+            const SushiBLAS::Tensor squared_rows = channel_rows(squared, rows, channels);
+            engine_->reductions().sum_along(squared_rows, 0, variance);
+            engine_->blas().scal(inverse_rows, variance);
+
+            // epsilon added through the shared ones vector rather than a
+            // constant fill, so nothing here allocates a buffer to hold one
+            // repeated number.
+            engine_->blas().axpy(epsilon, ones, variance);
+
+            engine_->blas().copy(variance, inv_std);
+            engine_->elementwise().sqrt(inv_std);
+            engine_->elementwise().reciprocal(inv_std);
+
+            // y = gamma * x_hat + beta, and x_hat = centred * inv_std, so the
+            // whole apply half is one channel_affine over the centred value.
+            engine_->elementwise().mul(gamma, inv_std, scale);
+            engine_->spatial().channel_affine(centred, scale, beta, y);
+
+            // Fourteen: two sum_along, four scal, two copy, two channel_affine,
+            // two mul, one axpy, sqrt and reciprocal. pool_->ones() is not
+            // counted, matching record_bias_add - the vector is shared and its
+            // fill is not this node's work.
+            emitted_ += 14;
+        }
+
+        void Lowering::record_batchnorm2d_backward(const Graph& graph, NodeId id, const Node& node)
+        {
+            SA_THROW_IF(node.inputs.size() != 5 || node.outputs.size() != 3,
+                        "BATCHNORM2D_BACKWARD (node {}) takes the output gradient, the forward's "
+                        "input and gamma, and the two saved statistics, and produces three "
+                        "gradients", id);
+
+            const Shape& x_shape = shape_of(graph, node.inputs[1]);
+            SA_THROW_IF(x_shape.rank() != 4,
+                        "BATCHNORM2D_BACKWARD (node {}) needs a rank-4 [N,H,W,C] input; got {}",
+                        id, x_shape.to_string());
+
+            const SushiBLAS::Tensor& dy = input(node, 0);
+            const SushiBLAS::Tensor& x = input(node, 1);
+            const SushiBLAS::Tensor& gamma = input(node, 2);
+            const SushiBLAS::Tensor& mean = input(node, 3);
+            const SushiBLAS::Tensor& inv_std = input(node, 4);
+
+            SA_THROW_IF(!dy.is_contiguous() || !x.is_contiguous(),
+                        "BATCHNORM2D_BACKWARD (node {}) folds over rank-2 views of its two "
+                        "rank-4 operands, which a strided view would read wrong", id);
+
+            SushiBLAS::Tensor& dx = output(graph, node, 0);
+            SushiBLAS::Tensor& dgamma = output(graph, node, 1);
+            SushiBLAS::Tensor& dbeta = output(graph, node, 2);
+
+            const DType dtype = dtype_of(graph, node.inputs[1]);
+            const int64_t channels = x_shape[3];
+            const int64_t rows = x_shape[0] * x_shape[1] * x_shape[2];
+            const double inverse_rows = 1.0 / static_cast<double>(rows);
+
+            const Shape per_channel({channels});
+            SushiBLAS::Tensor& shift = pool_->scratch(id, 0, per_channel, dtype);
+            SushiBLAS::Tensor& x_hat = pool_->scratch(id, 1, x_shape, dtype);
+            SushiBLAS::Tensor& product = pool_->scratch(id, 2, x_shape, dtype);
+            SushiBLAS::Tensor& direct = pool_->scratch(id, 3, per_channel, dtype);
+            SushiBLAS::Tensor& hat_term = pool_->scratch(id, 4, per_channel, dtype);
+            SushiBLAS::Tensor& mean_term = pool_->scratch(id, 5, per_channel, dtype);
+            SushiBLAS::Tensor& correction = pool_->scratch(id, 6, x_shape, dtype);
+            SushiBLAS::Tensor& zero = pool_->scratch(id, 7, per_channel, dtype);
+
+            // x_hat = (x - mean) * inv_std, rebuilt from the statistics the
+            // forward saved rather than from a fresh reduction over x: the
+            // forward normalised by *these* numbers, and a second reduction
+            // over a buffer a later node may have written would differentiate
+            // a different function.
+            engine_->elementwise().mul(mean, inv_std, shift);
+            engine_->blas().scal(-1.0, shift);
+            engine_->spatial().channel_affine(x, inv_std, shift, x_hat);
+
+            // The two reductions that make this not an elementwise scale.
+            // dbeta is the plain sum of dy; dgamma is the sum of dy * x_hat.
+            const SushiBLAS::Tensor dy_rows = channel_rows(dy, rows, channels);
+            engine_->reductions().sum_along(dy_rows, 0, dbeta);
+
+            engine_->elementwise().mul(dy, x_hat, product);
+            const SushiBLAS::Tensor product_rows = channel_rows(product, rows, channels);
+            engine_->reductions().sum_along(product_rows, 0, dgamma);
+
+            // dx = (gamma * inv_std / M) * (M * dy - dbeta - x_hat * dgamma),
+            // regrouped per channel as
+            //     dx = direct * dy + hat_term * x_hat + mean_term
+            // so that the whole thing is two channel_affine passes and an axpy
+            // rather than a broadcast of each reduction in turn.
+            engine_->elementwise().mul(gamma, inv_std, direct);
+
+            engine_->elementwise().mul(direct, dgamma, hat_term);
+            engine_->blas().scal(-inverse_rows, hat_term);
+
+            engine_->elementwise().mul(direct, dbeta, mean_term);
+            engine_->blas().scal(-inverse_rows, mean_term);
+
+            engine_->random().constant(zero, 0.0);
+            engine_->spatial().channel_affine(dy, direct, zero, dx);
+            engine_->spatial().channel_affine(x_hat, hat_term, mean_term, correction);
+            engine_->blas().axpy(1.0, correction, dx);
+
+            // Fifteen: two sum_along, five mul, three scal, three
+            // channel_affine, one constant fill and one axpy.
+            emitted_ += 15;
         }
 
     } // namespace Graph

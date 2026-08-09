@@ -18,13 +18,22 @@ set(SUSHIAI_SOURCES
     graph/precision.cpp
     graph/cast_insertion.cpp
     graph/fusion.cpp
+    graph/rematerialise.cpp
     graph/memory_plan.cpp
     graph/arena.cpp
     graph/fusion_selector.cpp
     graph/lowering.cpp
     graph/compiled_step.cpp
 
-    autograd/backward.cpp
+    autograd/differentiator.cpp
+    autograd/tape.cpp
+    autograd/rules/elementwise.cpp
+    autograd/rules/linalg.cpp
+    autograd/rules/activation.cpp
+    autograd/rules/loss.cpp
+    autograd/rules/shape.cpp
+    autograd/rules/spatial.cpp
+    autograd/rules/norm.cpp
     autograd/gradcheck.cpp
 
     nn/layers.cpp
@@ -134,6 +143,58 @@ install(TARGETS sushiai
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
+
+# --- The umbrella must name every installed header --------------------------
+#
+# install(DIRECTORY) above ships all of include/, so a header is installed
+# whether or not anybody remembered to add it to SushiAI/SushiAI.h. Those are
+# two different failures and only one of them is loud:
+#
+#   * referenced but not installed - the consumer's compile fails, and
+#     `sa test --suite package` catches it.
+#   * installed but never referenced - nothing fails anywhere. A consumer that
+#     includes the umbrella (the documented entry point) simply never compiles
+#     that header, so it is free to be broken, and no test in this repo or in
+#     the package suite can say so.
+#
+# The second is not hypothetical: autograd/tape.hpp, autograd/rule.hpp,
+# autograd/rules/all.hpp and graph/rematerialise.hpp were all missing from the
+# umbrella and were found by reading, not by a failing test. The package suite
+# cannot close that gap by construction - it can only compile what the umbrella
+# names - so the completeness of the list is checked here instead, at the same
+# place the public surface is declared.
+#
+# Configure time rather than a GTest case because the question is answered by
+# globbing a directory, which CMake can do and a compiled test cannot without
+# having the answer generated for it first. There are no exclusions: every
+# header under include/SushiAI/ is public, and the day one is not, it belongs
+# somewhere other than the installed include tree.
+file(GLOB_RECURSE SUSHIAI_PUBLIC_HEADERS CONFIGURE_DEPENDS
+    RELATIVE "${PROJECT_SOURCE_DIR}/include/SushiAI"
+    "${PROJECT_SOURCE_DIR}/include/SushiAI/*.hpp"
+)
+
+file(READ "${PROJECT_SOURCE_DIR}/include/SushiAI/SushiAI.h" SUSHIAI_UMBRELLA_TEXT)
+
+set(SUSHIAI_UNREFERENCED_HEADERS "")
+foreach(header IN LISTS SUSHIAI_PUBLIC_HEADERS)
+    string(FIND "${SUSHIAI_UMBRELLA_TEXT}" "\"${header}\"" found)
+    if(found EQUAL -1)
+        list(APPEND SUSHIAI_UNREFERENCED_HEADERS "${header}")
+    endif()
+endforeach()
+
+if(SUSHIAI_UNREFERENCED_HEADERS)
+    string(REPLACE ";" "\n    " SUSHIAI_UNREFERENCED_REPORT
+        "${SUSHIAI_UNREFERENCED_HEADERS}")
+    message(FATAL_ERROR
+        "These public headers are installed but not included by "
+        "include/SushiAI/SushiAI.h:\n    ${SUSHIAI_UNREFERENCED_REPORT}\n"
+        "A consumer that includes the umbrella - the documented entry point - "
+        "would never compile them, and nothing else in this repo would notice. "
+        "Add each to the umbrella, or move it out of the installed include "
+        "tree if it is not public.")
+endif()
 
 install(EXPORT SushiAITargets
     FILE SushiAITargets.cmake

@@ -87,6 +87,26 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.fused.gemm_bias_tanh"),
         std::string_view("sushiai.fused.gemm_bias_gelu"),
         std::string_view("sushiai.fused.exp_sub_scale"),
+        std::string_view("sushiai.leaky_relu"),
+        std::string_view("sushiai.leaky_relu_backward"),
+        std::string_view("sushiai.reshape"),
+        std::string_view("sushiai.layout_convert"),
+        std::string_view("sushiai.im2col"),
+        std::string_view("sushiai.col2im"),
+        std::string_view("sushiai.maxpool2d"),
+        std::string_view("sushiai.maxpool2d_backward"),
+        std::string_view("sushiai.avgpool2d"),
+        std::string_view("sushiai.avgpool2d_backward"),
+        std::string_view("sushiai.spatial_mean"),
+        std::string_view("sushiai.spatial_mean_backward"),
+        std::string_view("sushiai.upsample2d"),
+        std::string_view("sushiai.upsample2d_backward"),
+        std::string_view("sushiai.concat_channels"),
+        std::string_view("sushiai.slice_channels"),
+        std::string_view("sushiai.batchnorm2d"),
+        std::string_view("sushiai.batchnorm2d_backward"),
+        std::string_view("sushiai.channel_affine"),
+        std::string_view("sushiai.batchnorm_update_stats"),
     };
 
     EXPECT_EQ(Ops::ALL.size(), expected.size());
@@ -98,4 +118,50 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
             if (entry.name == name) { found = true; break; }
         EXPECT_TRUE(found) << name << " is missing from Ops::ALL";
     }
+}
+
+TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
+{
+    // ALL is what all_ids_unique() proves over and what name_of() searches.
+    // An identity declared but left out of ALL is not covered by the collision
+    // proof and prints as "sushiai.unknown" in every profile - both silent.
+    const std::array<SushiAI::OpID, 20> declared = {
+        Ops::RESHAPE.id, Ops::LAYOUT_CONVERT.id,
+        Ops::IM2COL.id, Ops::COL2IM.id,
+        Ops::MAXPOOL2D.id, Ops::MAXPOOL2D_BACKWARD.id,
+        Ops::AVGPOOL2D.id, Ops::AVGPOOL2D_BACKWARD.id,
+        Ops::SPATIAL_MEAN.id, Ops::SPATIAL_MEAN_BACKWARD.id,
+        Ops::UPSAMPLE2D.id, Ops::UPSAMPLE2D_BACKWARD.id,
+        Ops::CONCAT_CHANNELS.id, Ops::SLICE_CHANNELS.id,
+        Ops::BATCHNORM2D.id, Ops::BATCHNORM2D_BACKWARD.id,
+        Ops::CHANNEL_AFFINE.id,
+        Ops::BATCHNORM_UPDATE_STATS.id,
+        Ops::LEAKY_RELU.id, Ops::LEAKY_RELU_BACKWARD.id,
+    };
+
+    for (SushiAI::OpID id : declared)
+        EXPECT_NE(Ops::name_of(id), "sushiai.unknown")
+            << "an identity was declared but not added to Ops::ALL";
+}
+
+TEST(Unit_Ops, ThereIsNoConv2dIdentity)
+{
+    // CV-1: convolution is IM2COL + MATMUL in the IR. A CONV2D identity would
+    // be a second, opaque spelling of the same thing, and the first person to
+    // add one will do it by analogy rather than by reading the spec.
+    EXPECT_EQ(Ops::name_of(Ops::op("sushiai.conv2d").id), "sushiai.unknown");
+}
+
+TEST(Unit_Ops, LeakyReluDifferentiatesAtItsOutput)
+{
+    // For alpha > 0, leaky_relu(x) > 0 exactly when x > 0, so reading the
+    // output instead of the input is a bit-identical substitution - the same
+    // argument the table already records for RELU, not an approximation.
+    // It is what makes the fold free: an ordinary use count licenses it with
+    // no activation-specific knowledge in the fusion pass.
+    const Ops::Activation* entry = Ops::activation_of(Ops::LEAKY_RELU.id);
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->backward, Ops::LEAKY_RELU_BACKWARD.id);
+    EXPECT_EQ(entry->gradient_source, Ops::GradientSource::OUTPUT);
+    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::LEAKY_RELU.id));
 }

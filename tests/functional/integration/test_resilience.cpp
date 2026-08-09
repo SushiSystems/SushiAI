@@ -776,3 +776,31 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
                 << " allocation(s) behind; a trainer's buffers must all die with it";
     }
 }
+
+TEST_F(Integration_Resilience, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
+{
+    // CV-7 keeps a BatchNorm's running statistics out of the IR: they are
+    // recorded into the training step beside the graph, the same way
+    // SGD_UPDATE and ADAMW_UPDATE are emitted directly by src/optim/. So
+    // BATCHNORM_UPDATE_STATS is the one declared identity with no case in
+    // Lowering::record_node, and that is deliberate rather than an omission.
+    //
+    // The test exists because the two are indistinguishable from the outside.
+    // Pinning the throw is what turns "we forgot" into "we decided": if
+    // somebody later adds a lowering, this fails and asks them to say why.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId running = builder.parameter(Shape{4}, "running_mean");
+    const ValueId batch = builder.input(Shape{4}, "batch_mean");
+    const ValueId out = builder.like(running, "updated_running_mean");
+    graph.add_node(Ops::BATCHNORM_UPDATE_STATS.id, {running, batch}, {out});
+    graph.finalise();
+
+    TensorPool pool(*engine);
+    pool.adopt(Graph::MemoryPlan::build(graph));
+    pool.materialise_leaves(graph);
+
+    SA_EXPECT_ERROR((void)CompiledStep(*engine, graph, pool),
+                    "No lowering for operation", "sushiai.batchnorm_update_stats");
+}

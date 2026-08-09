@@ -106,7 +106,7 @@
  * `m = 1*m + 0*g` writes NaN into the first moment, the optimizer never
  * recovers, nothing throws, and the loss becomes NaN a step later with the
  * cause three layers away. The gate is therefore a real early return, and
- * @c Regression_LossScaling.ASkippedStepLeavesTheMomentsBitIdentical asserts
+ * @c Regression_LossScaling.ASkippedStepLeavesTheParametersAndMomentsBitIdentical asserts
  * the *moments*, not only the parameters, because a test that checked the
  * parameters alone would pass while the moments were quietly NaN.
  *

@@ -15,6 +15,8 @@
 // near 2.4e-5 relative accuracy, which is the same order as the error a
 // genuinely wrong rule produces. See gradcheck.hpp.
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -485,6 +487,51 @@ TEST_F(Integration_Autograd, ReluAwayFromItsKink)
     expect_gradient_matches(probe, point);
 }
 
+TEST_F(Integration_Autograd, LeakyReluHasBothOfItsSlopes)
+{
+    // Sampled off the kink, and deliberately over a range wide enough that
+    // some elements land on each side: a probe that only ever sees positive
+    // inputs would pass with the negative slope hard-coded to zero, i.e.
+    // with a plain ReLU. See LeakyReluBranchSwapIsCaughtByProbePoints below
+    // for the count of negative points this actually samples.
+    Probe probe(*engine, Shape{4, 8}, [](const GraphBuilder& builder, ValueId x)
+    {
+        return builder.log_softmax(builder.leaky_relu(x, 0.1));
+    });
+
+    probe.fill_one_hot(4, 8);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(171).fill(point, 1.5);
+
+    // LEAKY_RELU is not differentiable at zero, same as RELU.
+    Autograd::push_off_kinks(point);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, LeakyReluBranchSwapIsCaughtByProbePoints)
+{
+    // Pins the negative-side split of the exact point LeakyReluHasBothOfItsSlopes
+    // above uses (same seed, same scale, same push_off_kinks), which is the
+    // property the branch-swap mutation depends on: if a future change to the
+    // seed or the noise generator ever collapsed this to all-positive, the
+    // branch-swap mutation would go undetected without this failing first.
+    std::vector<double> point(4 * 8);
+    SaTest::HostNoise(171).fill(point, 1.5);
+    Autograd::push_off_kinks(point);
+
+    const auto negative = std::count_if(point.begin(), point.end(),
+                                        [](double v) { return v < 0.0; });
+    EXPECT_GE(negative, 10) << "too few negative-side points to exercise the "
+                                "slope branch of leaky_relu's gradient";
+
+    const double min_abs = std::abs(*std::min_element(point.begin(), point.end(),
+        [](double a, double b) { return std::abs(a) < std::abs(b); }));
+    EXPECT_GT(min_abs, 0.05) << "a point too close to zero would sit on the kink "
+                                 "push_off_kinks is supposed to have cleared";
+}
+
 TEST_F(Integration_Autograd, Gelu)
 {
     Probe probe(*engine, Shape{4, 3}, [](const GraphBuilder& builder, ValueId x)
@@ -671,4 +718,502 @@ TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
         Autograd::check_directional(probe.value_fn(), probe.grad_fn(), point, 16);
 
     EXPECT_TRUE(result.passed) << result.to_string();
+}
+
+TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
+{
+    // A reshape moves no data, so its gradient is its incoming gradient in the
+    // original shape. Worth a numeric check anyway: "reshape back to the input
+    // shape" and "reshape back to the output shape" are both one line and only
+    // one is right.
+    Probe probe(*engine, Shape{3, 8}, [](const GraphBuilder& builder, ValueId x)
+    {
+        return builder.log_softmax(builder.reshape(builder.reshape(x, Shape{4, 6}), Shape{3, 8}));
+    });
+
+    // The fused LOG_SOFTMAX + NLL_LOSS rule's closed form assumes a one-hot
+    // target row (nll_loss_backward's comment: "valid because the targets are
+    // one-hot"); noise there would make the *analytic* gradient legitimately
+    // disagree with the numeric one for reasons that have nothing to do with
+    // RESHAPE.
+    probe.fill_one_hot(3, 8);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(232).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
+{
+    // The load-bearing case: a *single* layout_convert, so the loss genuinely
+    // depends on the permuted element order rather than on a round trip that
+    // any involutive, shape-correct pair of backward hops would also pass -
+    // a rule that mistakenly reshaped dy back to the operand's shape instead
+    // of permuting it (same magnitude, wrong place) would still satisfy
+    // every shape check Differentiator::contribute makes, and a round trip
+    // cannot tell the two apart because both compose back to the identity.
+    //
+    // CV-4 forces every non-LEAF, non-LAYOUT_CONVERT node's operand and
+    // result to agree on layout, so a *variable* cannot legally reach
+    // log_softmax by converting one way and stopping - graph::finalise()
+    // would refuse the mismatched log_softmax output before any gradient
+    // ran. What CV-4 exempts is a leaf itself: a LEAF has no operands to
+    // disagree with, so its own layout tag is free. This is also the honest
+    // real-world shape of the op: LAYOUT_CONVERT exists for boundary
+    // interop, e.g. loading an NCHW checkpoint, where the *source* data
+    // (not some mid-graph value) is the thing tagged the other way. Tagging
+    // the variable NCHW before its one LAYOUT_CONVERT node, then reshaping
+    // straight into log_softmax, reaches a CV-4-legal NHWC consumer with no
+    // round trip at all - so the permutation is genuinely load-bearing.
+    Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
+    {
+        builder.graph().value(x).layout = Graph::TensorLayout::NCHW;
+        const ValueId nhwc = builder.layout_convert(x, Graph::TensorLayout::NHWC);
+        return builder.log_softmax(builder.reshape(nhwc, Shape{2, 60}));
+    });
+
+    probe.fill_one_hot(2, 60);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(291).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
+{
+    // The two directions composing back to the identity is a fair thing to
+    // check on its own - but by itself it cannot tell a correct permutation
+    // from a same-shape non-permutation (see the single-hop case above for
+    // why), so it is kept only as a secondary check, not the proof.
+    Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
+    {
+        const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+        const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+        return builder.log_softmax(builder.reshape(back, Shape{2, 60}));
+    });
+
+    probe.fill_one_hot(2, 60);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(242).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatmul)
+{
+    // CV-1's claim, checked numerically: with no CONV2D identity, a
+    // convolution's gradient is im2col_backward composed with the matmul
+    // rule that was already there. If this passes, convolution needs no
+    // rule of its own - which is the entire reason there isn't one.
+    //
+    // Single-hop by design (A-7): im2col feeds straight into a matmul, never
+    // into its own col2im. A round trip through col2im would make the
+    // forward composite the identity, and then any involutive, shape-correct
+    // backward - including a plain reshape - would pass for the wrong
+    // reason.
+    // spatial_mean has no gradient rule yet (Task 12), so [N, C] is reached
+    // straight off the matmul: with a 1x1 window grid folded into rows there
+    // would be nothing to average over anyway, and the matmul's own output is
+    // already rank 2 - [N*H_o*W_o, C_out] - so no reshape is needed either.
+    ValueId weights = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{2, 5, 5, 3}, [&weights](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId cols = builder.im2col(x, g);                      // [2*25, 27]
+        weights = builder.parameter(Shape{27, 8}, "w", DType::FLOAT64); // 8 output channels
+        return builder.log_softmax(builder.matmul(cols, weights));      // [2*25, 8]
+    });
+
+    probe.fill_noise(weights, 301, 1.0);
+    // A probe ending in log_softmax must use one-hot targets (A-6): the fused
+    // NLL_LOSS rule's closed form is only the true derivative of this loss
+    // when the target row is one-hot.
+    probe.fill_one_hot(50, 8);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(302).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel)
+{
+    // A stride-1 padded 3x3 has every interior pixel read by nine windows, so
+    // its gradient is a sum of nine terms. A col2im that overwrote instead of
+    // accumulating would give exactly one of them - a gradient that is the
+    // right shape, the right sign, and roughly a ninth of the right size.
+    ValueId weights = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{1, 4, 4, 2}, [&weights](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId cols = builder.im2col(x, g);
+        weights = builder.parameter(Shape{18, 4}, "w", DType::FLOAT64);
+        return builder.log_softmax(builder.matmul(cols, weights)); // [16, 4]
+    });
+
+    probe.fill_noise(weights, 311, 1.0);
+    probe.fill_one_hot(16, 4);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(312).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOverItsRealWindowGrid)
+{
+    // The gradient over the geometry that a symmetric re-derivation gets
+    // silently wrong. A [1, 4, 5, 1] input with a 3x3 window, pad_top 1 and
+    // pad_left 1, padded 2 below and 0 right, is a 5x4 window grid; deriving
+    // the grid from the geometry alone gives 4x5 - the transpose, with the
+    // same 20 windows, so nothing throws. Both the forward lowering and
+    // im2col_backward read the real grid out of the node's attribute slots
+    // 8 and 9, and this checks the whole path end to end against finite
+    // differences.
+    ValueId weights = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{1, 4, 5, 1}, [&weights](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId cols = builder.im2col_with_extents(x, g, 5, 4);  // [20, 9]
+        weights = builder.parameter(Shape{9, 4}, "w", DType::FLOAT64);
+        return builder.log_softmax(builder.matmul(cols, weights));     // [20, 4]
+    });
+
+    probe.fill_noise(weights, 331, 1.0);
+    probe.fill_one_hot(20, 4);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(332).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
+{
+    // COL2IM's own rule (im2col_backward's mirror image), checked without
+    // routing through im2col at all: the variable here *is* the column
+    // matrix, fed straight into col2im and then reshaped into log_softmax.
+    // That keeps this single-hop by construction (A-7) - there is no im2col
+    // on this path for a col2im to be the adjoint of, so nothing here could
+    // be satisfied by an involutive round trip.
+    Probe probe(*engine, Shape{9, 18}, [](const GraphBuilder& builder, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId image = builder.col2im(x, Shape{1, 3, 3, 2}, g); // [1, 3, 3, 2]
+        return builder.log_softmax(builder.reshape(image, Shape{1, 18}));
+    });
+
+    probe.fill_one_hot(1, 18);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(321).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
+{
+    // Sampled with push_off_kinks so no two elements in a window tie: at a tie
+    // the max is not differentiable and a numeric check would be comparing
+    // against a one-sided derivative.
+    Probe probe(*engine, Shape({2, 4, 4, 3}), [](const GraphBuilder& b, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 2; g.kernel_w = 2;
+        g.stride_h = 2; g.stride_w = 2;
+        return b.log_softmax(b.spatial_mean(b.maxpool2d(x, g).output));
+    });
+
+    probe.fill_one_hot(2, 3);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(401).fill(point, 1.0);
+    Autograd::push_off_kinks(point);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel)
+{
+    // Stride 1: a pixel that wins several windows receives all their
+    // gradients. The separate-functions decision earns itself here - a shared
+    // pool_backward would have had to branch on mode inside this loop.
+    Probe probe(*engine, Shape({1, 5, 5, 2}), [](const GraphBuilder& b, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 2; g.kernel_w = 2;
+        return b.log_softmax(b.spatial_mean(b.maxpool2d(x, g).output));
+    });
+
+    probe.fill_one_hot(1, 2);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(411).fill(point, 1.0);
+    Autograd::push_off_kinks(point);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, AvgPoolSpreadsItsGradientOverTheWholeWindow)
+{
+    // The brief's own [2,6,6,3] variable is 216 elements, over
+    // expect_gradient_matches's 200-input full-Jacobian ceiling; shrunk to one
+    // batch row here so the check stays in the mode it asserts on.
+    Probe probe(*engine, Shape({1, 6, 6, 3}), [](const GraphBuilder& b, ValueId x)
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.stride_h = 3; g.stride_w = 3;
+        return b.log_softmax(b.spatial_mean(b.avgpool2d(x, g)));
+    });
+
+    probe.fill_one_hot(1, 3);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(421).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, UpsampleSumsEachSourcePixelsReplicas)
+{
+    // Scale 2 replicates every pixel four times, so its gradient is the sum of
+    // four. Forgetting the sum gives a gradient a quarter of the right size,
+    // which trains - just slower, and only in this one layer.
+    Probe probe(*engine, Shape({2, 3, 3, 4}), [](const GraphBuilder& b, ValueId x)
+    {
+        return b.log_softmax(b.spatial_mean(b.upsample2d(x, 2, 2)));
+    });
+
+    probe.fill_one_hot(2, 4);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(431).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
+{
+    // The rule whose absence was a real gap in an earlier draft of the design.
+    // It is a per-(n,c) broadcast: BIAS_ADD's is per-row and CHANNEL_AFFINE's
+    // is per-channel, and neither would have produced this.
+    Probe probe(*engine, Shape({2, 4, 4, 5}), [](const GraphBuilder& b, ValueId x)
+    {
+        return b.log_softmax(b.spatial_mean(x));
+    });
+
+    probe.fill_one_hot(2, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(441).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
+{
+    // The gradient of a concat is a slice per operand, at that operand's
+    // offset. An off-by-one offset gives every operand a gradient of the
+    // right shape belonging to its neighbour - which a round trip through
+    // slice-then-concat cannot detect, so the operands are deliberately
+    // reordered relative to how they were sliced out.
+    Probe probe(*engine, Shape({2, 4, 4, 6}), [](const GraphBuilder& b, ValueId x)
+    {
+        const ValueId left = b.slice_channels(x, 0, 2);
+        const ValueId right = b.slice_channels(x, 2, 4);
+        const std::array<ValueId, 2> parts = {right, left};   // deliberately reordered
+        return b.log_softmax(b.spatial_mean(b.concat_channels(
+            SushiRuntime::span<const ValueId>(parts.data(), parts.size()))));
+    });
+
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(451).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
+{
+    // Channels outside the slice receive exactly zero, not stale memory.
+    // The reordered concat above is what makes a wrong offset visible; this
+    // one makes a missing zero-fill visible.
+    Probe probe(*engine, Shape({1, 3, 3, 8}), [](const GraphBuilder& b, ValueId x)
+    {
+        return b.log_softmax(b.spatial_mean(b.slice_channels(x, 3, 2)));
+    });
+
+    probe.fill_one_hot(1, 2);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(461).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItComputed)
+{
+    // The rule that is easy to get subtly wrong and hard to notice: the batch
+    // mean and variance are functions of x, so dx has three terms, not one.
+    // Treating them as constants gives a gradient that is right on average
+    // over the batch and wrong per element - the model still trains, slightly
+    // worse, with nothing to point at.
+    ValueId gamma = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape({4, 3, 3, 5}),
+                [&gamma, &beta](const GraphBuilder& b, ValueId x)
+    {
+        gamma = b.parameter(Shape{5}, "gamma", DType::FLOAT64);
+        beta = b.parameter(Shape{5}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+    });
+
+    probe.fill_noise(gamma, 471, 1.0);
+    probe.fill_noise(beta, 472, 1.0);
+    probe.fill_one_hot(4, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(473).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput)
+{
+    // The same node differentiated at gamma instead of x. Separate rather than
+    // folded into the case above because the Probe checks one variable, and
+    // dgamma is the term that would survive unnoticed if it were summed over
+    // the wrong axis - a [C] result of the right shape either way.
+    ValueId x = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{5}, [&x, &beta](const GraphBuilder& b, ValueId gamma)
+    {
+        x = b.input(Shape({4, 3, 3, 5}), "x", DType::FLOAT64);
+        beta = b.parameter(Shape{5}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+    });
+
+    probe.fill_noise(x, 481, 1.0);
+    probe.fill_noise(beta, 482, 1.0);
+    probe.fill_one_hot(4, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(483).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, BatchNormsShiftGradientIsThePlainSumOfDy)
+{
+    ValueId x = Graph::NO_VALUE;
+    ValueId gamma = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{5}, [&x, &gamma](const GraphBuilder& b, ValueId beta)
+    {
+        x = b.input(Shape({4, 3, 3, 5}), "x", DType::FLOAT64);
+        gamma = b.parameter(Shape{5}, "gamma", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+    });
+
+    probe.fill_noise(x, 491, 1.0);
+    probe.fill_noise(gamma, 492, 1.0);
+    probe.fill_one_hot(4, 5);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(493).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ChannelAffineDifferentiatesAtItsInput)
+{
+    ValueId gamma = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape({2, 4, 4, 6}),
+                [&gamma, &beta](const GraphBuilder& b, ValueId x)
+    {
+        gamma = b.parameter(Shape{6}, "gamma", DType::FLOAT64);
+        beta = b.parameter(Shape{6}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
+    });
+
+    probe.fill_noise(gamma, 501, 1.0);
+    probe.fill_noise(beta, 502, 1.0);
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(503).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ChannelAffinesScaleGradientSumsOverNHAndW)
+{
+    // dgamma is a sum over three axes at once. A sum over the wrong ones -
+    // per-sample rather than per-channel - is still a [C]-shaped value when
+    // N happens to equal C, which is why this is checked numerically rather
+    // than by shape.
+    ValueId x = Graph::NO_VALUE;
+    ValueId beta = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{6}, [&x, &beta](const GraphBuilder& b, ValueId gamma)
+    {
+        x = b.input(Shape({2, 4, 4, 6}), "x", DType::FLOAT64);
+        beta = b.parameter(Shape{6}, "beta", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
+    });
+
+    probe.fill_noise(x, 511, 1.0);
+    probe.fill_noise(beta, 512, 1.0);
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(513).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}
+
+TEST_F(Integration_Autograd, ChannelAffinesShiftGradientSumsOverNHAndW)
+{
+    ValueId x = Graph::NO_VALUE;
+    ValueId gamma = Graph::NO_VALUE;
+
+    Probe probe(*engine, Shape{6}, [&x, &gamma](const GraphBuilder& b, ValueId beta)
+    {
+        x = b.input(Shape({2, 4, 4, 6}), "x", DType::FLOAT64);
+        gamma = b.parameter(Shape{6}, "gamma", DType::FLOAT64);
+        return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
+    });
+
+    probe.fill_noise(x, 521, 1.0);
+    probe.fill_noise(gamma, 522, 1.0);
+    probe.fill_one_hot(2, 6);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(523).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
 }

@@ -17,6 +17,7 @@ below.
 from __future__ import annotations
 
 import enum
+import os
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -44,11 +45,17 @@ class Suite(str, enum.Enum):
     functional = "functional"   # umbrella: unit + regression + integration
     all = "all"
 
+    # Not a CTest label, and not part of `all`: an out-of-tree consumer of the
+    # INSTALLED package, which has to be installed and configured on its own
+    # before it can run at all. See :func:`test_package`.
+    package = "package"
+
 
 # Each suite maps to a CTest label-selection regex (`ctest -L`). The umbrella
 # (functional) is an alternation over its sub-labels rather than a label of its
 # own, because a baked-in umbrella label does not survive gtest_discover_tests on
 # current CMake (see tests/CMakeLists.txt). `all` selects everything (no -L).
+# `package` is absent on purpose - it runs no CTest at all.
 _SUITE_LABEL_REGEX = {
     Suite.unit: "^unit$",
     Suite.regression: "^regression$",
@@ -212,20 +219,49 @@ def _resolved_c_compiler(cxx: str) -> str:
     return cxx
 
 
-def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
-                    defines: Sequence[str] | None = None) -> list[str]:
-    runtime = cfg.runtime_dir(root)
-    blas = cfg.blas_dir(root)
-    cxx = cfg.resolved_compiler(root)
-    vcpkg = cfg.resolved_vcpkg(root)
+def _vcpkg_prefix(cfg: Config, root: Path) -> str:
+    """The vcpkg installed-tree prefix for this triplet, or '' when unavailable.
 
+    Only used on Windows, where the bundled vcpkg tree is what find_package
+    uses to locate GoogleTest, nlohmann_json and hwloc. On Linux the vcpkg
+    toolchain file alone puts them in reach, which is why the callers below
+    guard on ``is_windows`` rather than on this returning something.
+
+    @param cfg The resolved configuration.
+    @param root The project root.
+    @return An absolute prefix path, or '' when no vcpkg root is configured.
+    """
+    vcpkg = cfg.resolved_vcpkg(root)
+    return f"{vcpkg}/installed/{cfg.vcpkg_triplet}" if vcpkg else ""
+
+
+def _toolchain_args(cfg: Config, root: Path) -> list[str]:
+    """The compiler and host-tool flags every configure in this tree must share.
+
+    Used by the project's own configure and by the package consumer's (see
+    :func:`test_package`). They are factored out rather than written twice
+    because the consumer configure is precisely where a missing one costs an
+    hour to diagnose: the public headers need the SYCL-aware clang++ to parse
+    at all, clang-cl's CMake platform module insists on a resource compiler,
+    and vcpkg's toolchain file is what puts hwloc where find_package can see
+    it. A copy of this list would drift the moment one of the two configures
+    gained a flag, and the package suite would then start failing for reasons
+    that have nothing to do with packaging.
+
+    CMAKE_PREFIX_PATH is deliberately absent: it is the one setting the two
+    configures legitimately disagree on, since the consumer must also see the
+    install prefix. Each caller sets its own. So are SUSHIRUNTIME_DIR and
+    SUSHIBLAS_DIR, for a stronger reason - pointing the consumer at the sibling
+    source trees is exactly the shortcut the package suite exists to forbid.
+
+    @param cfg The resolved configuration.
+    @param root The project root.
+    @return The shared -D flags, in the order cmake should receive them.
+    """
+    cxx = cfg.resolved_compiler(root)
     args = [
-        _cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
-        f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DCMAKE_CXX_COMPILER={cxx}",
         f"-DCMAKE_C_COMPILER={_resolved_c_compiler(cxx)}",
-        f"-DSUSHIRUNTIME_DIR={runtime}",
-        f"-DSUSHIBLAS_DIR={blas}",
     ]
     if cfg.is_windows:
         if cfg.ninja_exe:
@@ -234,16 +270,30 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
             args.append(f"-DPKG_CONFIG_EXECUTABLE={cfg.expand(cfg.pkgconf_exe)}")
         if cfg.rc_exe:
             args.append(f"-DCMAKE_RC_COMPILER={cfg.expand(cfg.rc_exe)}")
+
+    vcpkg = cfg.resolved_vcpkg(root)
     if vcpkg:
         args += [
             f"-DCMAKE_TOOLCHAIN_FILE={vcpkg}/scripts/buildsystems/vcpkg.cmake",
             f"-DVCPKG_ROOT={vcpkg}",
         ]
         if cfg.is_windows:
-            args += [
-                f"-DVCPKG_TARGET_TRIPLET={cfg.vcpkg_triplet}",
-                f"-DCMAKE_PREFIX_PATH={vcpkg}/installed/{cfg.vcpkg_triplet}",
-            ]
+            args.append(f"-DVCPKG_TARGET_TRIPLET={cfg.vcpkg_triplet}")
+
+    return args
+
+
+def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
+                    defines: Sequence[str] | None = None) -> list[str]:
+    args = [
+        _cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
+        f"-DCMAKE_BUILD_TYPE={build_type}",
+        f"-DSUSHIRUNTIME_DIR={cfg.runtime_dir(root)}",
+        f"-DSUSHIBLAS_DIR={cfg.blas_dir(root)}",
+    ]
+    args += _toolchain_args(cfg, root)
+    if cfg.is_windows and (prefix := _vcpkg_prefix(cfg, root)):
+        args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
 
     # Caller-supplied cache variables are appended last, after every default
     # this function sets, so that an explicit -D is never silently outranked by
@@ -312,6 +362,9 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     the binary directly: sa run sushiai_tests -- --gtest_filter=Version.*
+
+    ``package`` is the one suite that is not a CTest label; it delegates to
+    :func:`test_package`, which builds a separate project.
     """
     console.header("Project Test")
     root = find_project_root()
@@ -322,9 +375,24 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
         return 1
 
     env = load_build_env(cfg, build_dir)
+
+    if suite is Suite.package:
+        if filter or repeat:
+            # Both are ctest knobs, and this suite runs no ctest. Refusing
+            # beats accepting a flag and silently doing nothing with it.
+            console.error("--filter and --repeat do not apply to the package suite.")
+            return 2
+        return test_package(cfg, root, build_dir, env)
+
     cmd = [_ctest(cfg), "--test-dir", str(build_dir), "--output-on-failure"]
     if suite != Suite.all:
         cmd += ["-L", _SUITE_LABEL_REGEX[suite]]
+    else:
+        # `all` means every CTest test, which is not the same as every test this
+        # repo has. Saying so out loud beats a name that quietly under-delivers.
+        console.info(
+            "'all' covers every CTest test. The package suite is not among them "
+            "(it builds a separate project): run `sa test --suite package`.")
     if filter:
         # gtest_discover_tests registers tests as "Suite.Case"; ctest -R filters
         # those names directly (a richer alternative to --gtest_filter).
@@ -333,6 +401,185 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
         cmd += ["--repeat", f"until-fail:{repeat}"]
         console.info(f"Repeating each test up to {repeat}x (stop on first failure).")
     return _run_drained(cmd, env, cwd=build_dir)
+
+
+def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> None:
+    """Put the shared libraries the consumer needs beside its executable.
+
+    In-tree targets get these from a POST_BUILD copy (see tests/CMakeLists.txt
+    and examples/CMakeLists.txt); a real out-of-tree consumer would deploy them
+    itself, and this function is this CLI standing in for that consumer.
+    Without them the binary exits with 0xC0000135 before reaching main, which
+    looks like a package failure and is not one.
+
+    Two sources, and the second one is the easy mistake. Everything in the
+    prefix's bin/ is taken rather than a named list, since the prefix holds
+    exactly what this project installed. hwloc is then taken from the vcpkg
+    tree on top: SushiRuntime links it PRIVATE, so it is absent from the CMake
+    *interface* and a consumer never names it - but PRIVATE is a link-time
+    statement, not a load-time one, and hwloc-15.dll is in sushiruntime.dll's
+    import table all the same. The loader does not read
+    INTERFACE_LINK_LIBRARIES.
+
+    @param cfg The resolved configuration.
+    @param root The project root.
+    @param prefix The install prefix the package was installed to.
+    @param dest The directory holding the consumer executable.
+    """
+    if not cfg.is_windows:
+        return  # ELF consumers resolve via RPATH; nothing to stage.
+
+    sources = list((prefix / "bin").glob("*.dll"))
+    if vcpkg_prefix := _vcpkg_prefix(cfg, root):
+        sources += list(Path(vcpkg_prefix, "bin").glob("hwloc*.dll"))
+
+    for dll in sources:
+        shutil.copy2(dll, dest / dll.name)
+    console.info(f"Deployed {len(sources)} shared libraries beside the consumer.")
+
+
+def _consumer_run_env(cfg: Config, root: Path, env: dict[str, str]) -> dict[str, str]:
+    """The build env with the vcpkg installed bin removed from PATH.
+
+    ``load_build_env`` prepends that directory precisely so sushiruntime.dll
+    can find hwloc (see env.py). That is right for every in-tree binary and
+    wrong for this one: with it on PATH the consumer loads whether or not
+    :func:`_deploy_consumer_dlls` staged anything, so the deployment half of
+    this suite would assert nothing and pass. A third party has no vcpkg tree
+    on PATH, and the point of the package suite is to stop being a third party
+    in name only.
+
+    Only that one entry is dropped. The bundled SYCL toolchain's bin stays -
+    a consumer built with this compiler genuinely needs its redistributables,
+    and removing it would be testing the toolchain's installer, not this
+    package.
+
+    @param cfg The resolved configuration.
+    @param root The project root.
+    @param env The snapshotted build environment.
+    @return A copy of *env* with the vcpkg bin filtered out of PATH.
+    """
+    vcpkg_prefix = _vcpkg_prefix(cfg, root)
+    if not cfg.is_windows or not vcpkg_prefix:
+        return env
+
+    vcpkg_bin = Path(vcpkg_prefix, "bin")
+    stripped = dict(env)
+    for key, value in env.items():
+        if key.upper() != "PATH":
+            continue
+        kept = [
+            entry for entry in value.split(os.pathsep)
+            if not entry or Path(entry) != vcpkg_bin
+        ]
+        stripped[key] = os.pathsep.join(kept)
+    return stripped
+
+
+def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) -> int:
+    """Install the package and build tests/package/ against it, as a consumer would.
+
+    This is the only test in the repo that exercises what ``find_package(SushiAI)``
+    actually hands a third party, and it is the reason it cannot be a CTest label:
+    a package that works only when the source tree happens to be next to it is not
+    a package, so the consumer must configure from an install prefix with no access
+    to this tree. It is also the only thing that would have caught a public header
+    missing from the SushiAI.h umbrella, since every in-tree test includes the
+    individual headers directly.
+
+    One prefix is enough for all three modules: SushiBLAS and SushiRuntime are
+    add_subdirectory'd into this build (see cmake/BLAS.cmake), so their own
+    install rules run as part of this project's install and their config
+    packages land in the same prefix the find_dependency calls in
+    SushiAIConfig.cmake then resolve from.
+
+    Both intermediates live under build/, so `sa clean` reclaims them and nothing
+    lands in the source tree.
+
+    @param cfg The resolved configuration.
+    @param root The project root.
+    @param build_dir The project's own build tree, which must already be built.
+    @param env The snapshotted build environment.
+    @return 0 when the consumer builds and runs, non-zero otherwise.
+    """
+    build_type = _configured_build_type(build_dir) or "Release"
+    prefix = build_dir / "package" / "prefix"
+    consumer = build_dir / "package" / "consumer"
+
+    # Both start from nothing. A stale prefix would let a header deleted since
+    # the last run keep satisfying an include; a stale consumer directory would
+    # let a DLL staged by an earlier run - or by hand - keep satisfying the
+    # loader, which is how a deployment regression hides. Found the hard way:
+    # a hand-copied hwloc-15.dll from a manual run months earlier was still
+    # sitting there, making the run step prove nothing.
+    for stale in (prefix, consumer):
+        if stale.is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
+
+    console.info(f"Installing to {prefix}...")
+    rc = _run([_cmake(cfg), "--install", str(build_dir),
+               "--prefix", str(prefix), "--config", build_type], env, cwd=root)
+    if rc != 0:
+        console.error("Install failed; the package could not be staged.")
+        return rc
+
+    prefix_path = str(prefix)
+    if cfg.is_windows and (vcpkg_prefix := _vcpkg_prefix(cfg, root)):
+        prefix_path = f"{prefix_path};{vcpkg_prefix}"
+
+    console.info("Configuring the out-of-tree consumer...")
+    configure = [
+        _cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
+        "-G", cfg.generator,
+        # The consumer is CXX-only and never invokes vcpkg's own installer, so
+        # a couple of the shared toolchain flags legitimately go unread here.
+        # Silencing exactly that warning keeps a clean run genuinely clean;
+        # anything else cmake has to say still comes through.
+        "--no-warn-unused-cli",
+        f"-DCMAKE_BUILD_TYPE={build_type}",
+        f"-DCMAKE_PREFIX_PATH={prefix_path}",
+    ]
+    configure += _toolchain_args(cfg, root)
+    rc = _run(configure, env, cwd=root)
+    if rc != 0:
+        console.error(
+            "The consumer could not configure against the installed package.\n"
+            "  - a FATAL_ERROR above about leaked flags means the exported "
+            "interface carries development-only options; see "
+            "cmake/SushiAIBuildPolicy.cmake.\n"
+            "  - a failed find_dependency means a sibling's config package did "
+            "not land in the prefix.")
+        return rc
+
+    console.info("Building the consumer...")
+    rc = _run([_cmake(cfg), "--build", str(consumer), "--config", build_type],
+              env, cwd=root)
+    if rc != 0:
+        console.error(
+            "The consumer failed to compile against the installed headers.\n"
+            "  - a missing header means it is either not covered by "
+            "install(DIRECTORY) in src/CMakeLists.txt, or not reachable from "
+            "the include/SushiAI/SushiAI.h umbrella.")
+        return rc
+
+    exe = discovery.match_by_name(consumer, "sushiai_package_consumer")
+    if exe is None:
+        console.error("Built the consumer but could not find its executable.")
+        return 1
+
+    _deploy_consumer_dlls(cfg, root, prefix, exe.parent)
+
+    console.info(f"Executing: {exe.name}")
+    rc = _run([str(exe)], _consumer_run_env(cfg, root, env), cwd=consumer)
+    if rc == 0:
+        console.success("Package consumer built and ran against the install prefix.")
+    else:
+        console.error(
+            "The package consumer failed at runtime.\n"
+            "  - exit code 0xC0000135 (-1073741515) means the loader could not "
+            "find a DLL, not that the package is broken: something in the "
+            "install's import graph is not staged by _deploy_consumer_dlls.")
+    return rc
 
 
 def run(target: str | None = None, sort: bool = False,
