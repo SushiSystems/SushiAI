@@ -534,12 +534,31 @@ namespace SushiAI
                 void record_dynamic_scale(const Graph& graph, NodeId id, const Node& node);
                 void record_unary_inplace(const Graph& graph, const Node& node);
                 void record_activation_backward(const Graph& graph, const Node& node);
+                void record_leaky_relu(const Graph& graph, const Node& node);
+                void record_leaky_relu_backward(const Graph& graph, const Node& node);
                 void record_log_softmax(const Graph& graph, NodeId id, const Node& node);
                 void record_nll_loss(const Graph& graph, NodeId id, const Node& node);
                 void record_sum_rows(const Graph& graph, const Node& node);
                 void record_accumulate(const Node& node);
                 void record_zero(const Graph& graph, const Node& node);
                 void record_cast(const Graph& graph, NodeId id, const Node& node);
+                void record_reshape(const Graph& graph, NodeId id, const Node& node);
+                void record_layout_convert(const Graph& graph, NodeId id, const Node& node);
+                void record_im2col(const Graph& graph, NodeId id, const Node& node);
+                void record_col2im(const Graph& graph, NodeId id, const Node& node);
+                void record_maxpool2d(const Graph& graph, NodeId id, const Node& node);
+                void record_maxpool2d_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_avgpool2d(const Graph& graph, NodeId id, const Node& node);
+                void record_avgpool2d_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_upsample2d(const Graph& graph, NodeId id, const Node& node);
+                void record_upsample2d_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_spatial_mean(const Graph& graph, NodeId id, const Node& node);
+                void record_spatial_mean_backward(const Graph& graph, NodeId id, const Node& node);
+                void record_concat_channels(const Graph& graph, NodeId id, const Node& node);
+                void record_slice_channels(const Graph& graph, NodeId id, const Node& node);
+                void record_channel_affine(const Graph& graph, NodeId id, const Node& node);
+                void record_batchnorm2d(const Graph& graph, NodeId id, const Node& node);
+                void record_batchnorm2d_backward(const Graph& graph, NodeId id, const Node& node);
 
                 void record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
                                        FusedForm matched);

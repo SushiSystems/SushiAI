@@ -144,10 +144,12 @@ namespace SushiAI
          * @struct Attributes
          * @brief An operation's scalar configuration, stored inline.
          *
-         * Deliberately a small fixed array rather than a map: it is copied
-         * into the lowered TaskMetadata, which itself holds only eight inline
-         * slots, and a node with more than a handful of scalar knobs is a
-         * design smell rather than a case to accommodate.
+         * Deliberately a small fixed array rather than a map: a node with more
+         * than a handful of scalar knobs is a design smell rather than a case
+         * to accommodate. Nothing downstream truncates it - `lowering.cpp`
+         * reads slots with @c get() and hands the values straight to
+         * SushiBLAS, so no attribute is ever copied into a fixed-width
+         * metadata array. The capacity is simply what the operations need.
          *
          * @warning Do not put a per-step value here. A learning rate, a loss
          *          scale or an RNG counter baked into an attribute becomes a
@@ -158,11 +160,25 @@ namespace SushiAI
          */
         struct Attributes
         {
-            /** @brief How many slots are meaningful. */
-            static constexpr std::size_t CAPACITY = 4;
+            /**
+             * @brief How many slots are meaningful.
+             *
+             * Ten: CV-5's eight geometry slots - kernel_h, kernel_w, stride_h,
+             * stride_w, dilation_h, dilation_w, pad_top, pad_left - plus the
+             * two output extents, @c out_h in slot 8 and @c out_w in slot 9.
+             *
+             * The extents have to be carried rather than re-derived. Deriving
+             * them from the geometry assumes the padding is symmetric, and an
+             * asymmetrically-padded window grid can derive to its own
+             * transpose: a [1, 4, 5, C] input with a 3x3 window padded 1 above
+             * and 1 left, 2 below and 0 right, is really 5x4 windows but
+             * derives to 4x5. Both are 20 windows, so every shape check
+             * agrees and the gather silently returns the wrong numbers.
+             */
+            static constexpr std::size_t CAPACITY = 10;
 
             /** @brief The scalar values, interpreted per operation. */
-            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0};
+            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
             /** @brief Reads slot @p index, or zero when it is out of range. */
             constexpr double get(std::size_t index) const noexcept
@@ -178,6 +194,25 @@ namespace SushiAI
         };
 
         /**
+         * @enum TensorLayout
+         * @brief Which axis order a rank-4 value's extents are in.
+         *
+         * Deliberately not @c SushiAI::Layout, which aliases SushiBLAS's
+         * @c {ROW_MAJOR, COLUMN_MAJOR} - that is a matrix's storage order and a
+         * different question. Mixed-layout GEMM is a real BLAS use case;
+         * a layout change in the middle of a convolutional network is a bug,
+         * which is why this one is a graph-wide invariant (CV-4) rather than a
+         * per-operand choice.
+         */
+        enum class TensorLayout : std::uint8_t
+        {
+            /** @brief Channels innermost - the single native layout (CV-3). */
+            NHWC,
+            /** @brief Channels before the spatial axes; a boundary only. */
+            NCHW,
+        };
+
+        /**
          * @struct Value
          * @brief One single-assignment tensor-shaped value in the graph.
          */
@@ -188,6 +223,14 @@ namespace SushiAI
 
             /** @brief The value's element type. */
             DType dtype = DType::FLOAT32;
+
+            /**
+             * @brief The axis order this value's extents are in.
+             *
+             * Graph-wide rather than free-floating: see @ref TensorLayout and
+             * @c Graph::finalise(), which proves every node preserves it.
+             */
+            TensorLayout layout = TensorLayout::NHWC;
 
             /** @brief Which arena owns this value's storage. */
             Lifetime lifetime = Lifetime::ACTIVATION;
@@ -254,7 +297,8 @@ namespace SushiAI
                                   Lifetime lifetime,
                                   std::string_view debug_name = {})
                 {
-                    values_.push_back(Value{shape, dtype, lifetime, NO_NODE, false, debug_name});
+                    values_.push_back(Value{shape, dtype, TensorLayout::NHWC, lifetime,
+                                            NO_NODE, false, debug_name});
                     return static_cast<ValueId>(values_.size() - 1);
                 }
 
@@ -301,6 +345,115 @@ namespace SushiAI
 
                     nodes_.push_back(Node{op, std::move(inputs), std::move(outputs), attributes});
                     return id;
+                }
+
+                /**
+                 * @brief Inserts an operation *before* node @p before.
+                 *
+                 * The entry point a graph-to-graph pass needs and @ref add_node
+                 * cannot serve. Appending is enough while a graph is being
+                 * built, because a builder emits producers before consumers by
+                 * construction. A pass that recomputes an already-consumed
+                 * value has the opposite problem: the consumers it is rewiring
+                 * are already in @c nodes_, so an appended producer would sit
+                 * *after* its own readers. That is not a cosmetic ordering
+                 * complaint - @c MemoryPlan::build() rests on "insertion order
+                 * is a topological order" and rejects the graph by name, and a
+                 * lowering that got past it would record a GEMM reading a
+                 * buffer nothing had written yet.
+                 *
+                 * Every value whose producer sits at or after @p before has its
+                 * @c Value::producer bumped, so the ids a caller is holding go
+                 * on naming the same values; node ids do not survive, exactly
+                 * as they do not survive @c insert_casts().
+                 *
+                 * The ordering guard runs in both directions, because a
+                 * one-sided one would let through exactly the arrangement this
+                 * function exists to prevent. Rejecting a result that already
+                 * has a producer is the single-assignment check and is not the
+                 * ordering check: a result with @e no producer can still be
+                 * *read* by a node before @p before, and inserting its producer
+                 * after that reader would build the out-of-order graph
+                 * @c MemoryPlan::build() then refuses - the guard's own contract
+                 * broken by the guard.
+                 *
+                 * @warning Linear in both tables per call: the producer bump
+                 *          sweeps every value and the reader check sweeps every
+                 *          node before @p before. That is nothing at one call
+                 *          per rewritten operation, which is what the one caller
+                 *          does, but it is not the primitive to build a bulk
+                 *          rewrite on - a pass inserting many nodes should
+                 *          rebuild the node vector once instead.
+                 *
+                 * @param before The position to insert at; @c node_count()
+                 *        appends. Every operand must already be produced
+                 *        strictly before it, and no result may already be read
+                 *        before it, or the result would be the out-of-order
+                 *        graph this function exists to avoid.
+                 * @param node The operation, its operands and its results.
+                 * @return The inserted node's id, which is @p before.
+                 * @throws Error If @p before is past the end, an operand or
+                 *         result id is unknown, an operand's producer is not
+                 *         strictly before @p before, a result is already read by
+                 *         a node before @p before, or a result already has a
+                 *         producer.
+                 */
+                NodeId insert_node(NodeId before, Node node)
+                {
+                    SA_THROW_IF(before > nodes_.size(),
+                                "Cannot insert before node {}; the graph has {} nodes",
+                                before, nodes_.size());
+
+                    for (ValueId v : node.inputs)
+                    {
+                        SA_THROW_IF(v >= values_.size(),
+                                    "Operation {} reads value {}, which does not exist",
+                                    Ops::name_of(node.op), v);
+                        SA_THROW_IF(values_[v].producer != NO_NODE
+                                        && values_[v].producer >= before,
+                                    "Operation {} would be inserted at {} but reads value {}, "
+                                    "which node {} writes. Insertion order must stay a "
+                                    "topological order; insert after the operand's producer.",
+                                    Ops::name_of(node.op), before, v, values_[v].producer);
+                    }
+
+                    for (ValueId v : node.outputs)
+                    {
+                        SA_THROW_IF(v >= values_.size(),
+                                    "Operation {} writes value {}, which does not exist",
+                                    Ops::name_of(node.op), v);
+                        SA_THROW_IF(values_[v].producer != NO_NODE,
+                                    "Operation {} writes value {}, which is already written by {}. "
+                                    "The IR is single-assignment; emit a new value instead.",
+                                    Ops::name_of(node.op), v,
+                                    Ops::name_of(nodes_[values_[v].producer].op));
+
+                        // The mirror of the operand check above. A result
+                        // nothing produces yet may still already be read, and
+                        // inserting its producer after that reader is the same
+                        // out-of-order graph from the other side.
+                        for (NodeId reader = 0; reader < before; ++reader)
+                            for (ValueId in : nodes_[reader].inputs)
+                                SA_THROW_IF(in == v,
+                                            "Operation {} would be inserted at {} but writes "
+                                            "value {}, which node {} reads. Insertion order must "
+                                            "stay a topological order; insert before the result's "
+                                            "first reader.",
+                                            Ops::name_of(node.op), before, v, reader);
+                    }
+
+                    // Bump first, then claim: claiming first would bump the
+                    // producer this call is establishing.
+                    for (Value& value : values_)
+                        if (value.producer != NO_NODE && value.producer >= before)
+                            ++value.producer;
+
+                    for (ValueId v : node.outputs)
+                        values_[v].producer = before;
+
+                    nodes_.insert(nodes_.begin() + static_cast<std::ptrdiff_t>(before),
+                                  std::move(node));
+                    return before;
                 }
 
                 /** @brief Read-only access to a value. */
@@ -350,12 +503,76 @@ namespace SushiAI
                 const std::vector<Node>& nodes() const noexcept { return nodes_; }
 
                 /**
+                 * @brief Completes the forward graph: propagation, then proof.
+                 *
+                 * Call once, after the forward graph is complete and before
+                 * differentiating. Named for the phase rather than for one of
+                 * its steps, so that gaining the layout proof did not make the
+                 * name a lie.
+                 *
+                 * @throws Error If any node other than @c LAYOUT_CONVERT
+                 *         produces a result whose layout differs from its
+                 *         operands' (CV-4).
+                 */
+                void finalise()
+                {
+                    propagate_requires_grad();
+                    prove_layout_uniformity();
+                }
+
+                /**
+                 * @brief Proves no node but LAYOUT_CONVERT changes the layout.
+                 *
+                 * Public because @c finalise() is not the only place the
+                 * property can be lost. It holds of the graph the builder
+                 * emits; the passes that rebuild the graph - @c fuse() and
+                 * @c insert_casts() - copy the value table entry by entry, and
+                 * a copy that drops the layout tag resets every value to
+                 * @c add_value's NHWC default. That failure is silent by
+                 * construction: the shapes still line up, every kernel still
+                 * runs, and the model trains on transposed data. So each
+                 * rebuilding pass re-proves what it claims to have preserved.
+                 *
+                 * Checked per node rather than by sweeping every value for a
+                 * single dominant layout, because the sweep could not express
+                 * the one legitimate exemption without also accepting a graph
+                 * that is half converted.
+                 *
+                 * @throws Error If any node other than @c LAYOUT_CONVERT reads
+                 *         operands in two layouts, or produces a result whose
+                 *         layout differs from its operands' (CV-4).
+                 */
+                void prove_layout_uniformity() const
+                {
+                    for (const Node& n : nodes_)
+                    {
+                        if (n.op == Ops::LAYOUT_CONVERT.id || n.inputs.empty())
+                            continue;
+
+                        const TensorLayout expected = values_[n.inputs.front()].layout;
+                        for (ValueId in : n.inputs)
+                            SA_THROW_IF(values_[in].layout != expected,
+                                        "Node '{}' reads operands in two different layouts; "
+                                        "only LAYOUT_CONVERT may cross layouts (CV-4).",
+                                        Ops::name_of(n.op));
+
+                        for (ValueId out : n.outputs)
+                            SA_THROW_IF(values_[out].layout != expected,
+                                        "Node '{}' produces a result whose layout differs "
+                                        "from its operands'. Only LAYOUT_CONVERT may do that "
+                                        "(CV-4); everything else would silently train the "
+                                        "model on transposed data.",
+                                        Ops::name_of(n.op));
+                    }
+                }
+
+            private:
+                /**
                  * @brief Propagates @c requires_grad forward from the leaves.
                  *
                  * A value needs a gradient exactly when some input it descends
                  * from needs one. One forward sweep suffices because insertion
-                 * order is topological. Call once, after the forward graph is
-                 * complete and before differentiating.
+                 * order is topological.
                  */
                 void propagate_requires_grad() noexcept
                 {
@@ -371,7 +588,6 @@ namespace SushiAI
                     }
                 }
 
-            private:
                 std::vector<Value> values_;
                 std::vector<Node> nodes_;
         };

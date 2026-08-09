@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -80,7 +81,7 @@ TEST(Unit_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
     EXPECT_FALSE(graph.value(y).requires_grad);
     EXPECT_FALSE(graph.value(z).requires_grad);
 
-    graph.propagate_requires_grad();
+    graph.finalise();
 
     EXPECT_FALSE(graph.value(x).requires_grad);
     EXPECT_TRUE(graph.value(w).requires_grad);
@@ -98,7 +99,7 @@ TEST(Unit_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
     const ValueId w = builder.parameter(Shape{3, 3}, "w");
     const ValueId live = builder.matmul(x, w, false, false);
 
-    graph.propagate_requires_grad();
+    graph.finalise();
 
     EXPECT_FALSE(graph.value(frozen).requires_grad);
     EXPECT_TRUE(graph.value(live).requires_grad);
@@ -182,4 +183,76 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
             const Graph::NodeId producer = graph.value(in).producer;
             if (producer != NO_NODE) EXPECT_LT(producer, i);
         }
+}
+
+TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
+{
+    // The half of insert_node's ordering guard that single-assignment does not
+    // already cover. A result with no producer passes the single-assignment
+    // check whatever its position, so without this the function would accept a
+    // producer placed after its own reader - exactly the arrangement it exists
+    // to prevent, and one MemoryPlan::build() would then reject on a graph
+    // insert_node had approved.
+    Graph::Graph graph;
+    const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
+    const ValueId orphan = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "orphan");
+    const ValueId y = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "y");
+
+    // Node 0 reads `orphan`, which nothing writes yet.
+    (void)graph.add_node(Ops::ADD.id, {x, orphan}, {y});
+
+    SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}),
+                    "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
+
+    // Rejected rather than half-applied: nothing was inserted and no producer
+    // was claimed.
+    EXPECT_EQ(graph.node_count(), 1u);
+    EXPECT_EQ(graph.value(orphan).producer, NO_NODE);
+
+    // The same node ahead of that reader is fine, which is what makes the
+    // rejection above a statement about position rather than about the node.
+    EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}));
+    EXPECT_EQ(graph.node_count(), 2u);
+    EXPECT_EQ(graph.value(orphan).producer, Graph::NodeId{0});
+    EXPECT_EQ(graph.value(y).producer, Graph::NodeId{1});
+}
+
+TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
+{
+    // The mirror of the case above, and the one that was guarded first.
+    Graph::Graph graph;
+    const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
+    const ValueId y = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "y");
+    const ValueId z = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "z");
+
+    (void)graph.add_node(Ops::RELU.id, {x}, {y});
+
+    SA_EXPECT_ERROR((void)graph.insert_node(0, Graph::Node{Ops::TANH.id, {y}, {z}, {}}),
+                    "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes", "topological");
+
+    EXPECT_EQ(graph.node_count(), 1u);
+    EXPECT_EQ(graph.value(z).producer, NO_NODE);
+}
+
+TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
+{
+    // Ten, not eight. CV-5's eight are the geometry: kernel_h/w, stride_h/w,
+    // dilation_h/w, pad_top, pad_left. Slots 8 and 9 are the output extents
+    // out_h and out_w, and they have to be carried rather than re-derived:
+    // deriving them from the geometry assumes symmetric padding, and an
+    // asymmetric window grid can derive to its own transpose with the same
+    // window count, which every downstream shape check accepts.
+    //
+    // Ten is not capped by anything downstream. Nothing copies an attribute
+    // into a fixed-width metadata array - lowering.cpp reads slots with get()
+    // and passes the values straight to SushiBLAS.
+    EXPECT_EQ(Graph::Attributes::CAPACITY, std::size_t{10});
+
+    Graph::Attributes a;
+    for (std::size_t i = 0; i < Graph::Attributes::CAPACITY; ++i)
+        a.values[i] = static_cast<double>(i + 1);
+
+    EXPECT_EQ(a.get(7), 8.0);
+    EXPECT_EQ(a.get(9), 10.0);
+    EXPECT_EQ(a.get(10), 0.0) << "out-of-range reads must stay defined and yield zero";
 }

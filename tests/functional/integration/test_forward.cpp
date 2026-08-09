@@ -10,10 +10,15 @@
 // axis, or a log-softmax whose stabilising shift did not cancel - all of
 // which produce plausible numbers rather than errors.
 
+#include <array>
 #include <cmath>
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/graph/fusion.hpp>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -110,6 +115,52 @@ TEST_F(Integration_Forward, SumRowsProducesColumnSums)
     EXPECT_NEAR(result[1], 12.0, 1e-5);
 }
 
+TEST_F(Integration_Forward, ReshapeReinterpretsRowMajorLinearOrder)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{3, 4}, "x");
+    const ValueId y = builder.reshape(x, Shape{2, 6});
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(y));
+    ASSERT_EQ(result.size(), 12u);
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], static_cast<double>(i), 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // N=1, H=1, W=2, C=3: small enough to hand-trace every element's move.
+    const ValueId x = builder.input(Shape{1, 1, 2, 3}, "x");
+    const ValueId y = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+
+    OneShot run(*engine, graph);
+
+    // NHWC, channels innermost: (w=0,c=0..2) = 0,1,2; (w=1,c=0..2) = 3,4,5.
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5});
+
+    run.compile();
+    run.step->run();
+
+    // NCHW, channels outermost of the spatial block: for each c, the two W
+    // positions in order - (c=0,w=0..1)=0,3; (c=1,w=0..1)=1,4; (c=2,w=0..1)=2,5.
+    const std::vector<double> expected = {0, 3, 1, 4, 2, 5};
+    const std::vector<double> result = read_tensor(run.pool.tensor(y));
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+}
+
 TEST_F(Integration_Forward, ElementwiseAndScaleMatchTheirDefinitions)
 {
     Graph::Graph graph;
@@ -165,6 +216,7 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const ValueId r = builder.relu(x);
     const ValueId s = builder.sigmoid(x);
     const ValueId t = builder.tanh(x);
+    const ValueId lr = builder.leaky_relu(x, 0.1);
 
     OneShot run(*engine, graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
@@ -176,17 +228,23 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const std::vector<double> relu = read_tensor(run.pool.tensor(r));
     const std::vector<double> sigmoid = read_tensor(run.pool.tensor(s));
     const std::vector<double> hyperbolic = read_tensor(run.pool.tensor(t));
+    const std::vector<double> leaky = read_tensor(run.pool.tensor(lr));
 
     // Out-of-place semantics matter: the backward rules for relu and gelu read
     // the forward INPUT, so an in-place activation would silently hand them
     // the output instead.
     const std::vector<double> unchanged = read_tensor(run.pool.tensor(x));
 
+    // Hand-computed at slope 0.1, straddling zero so both branches of
+    // leaky_relu run: -2 -> -0.2, -0.5 -> -0.05, 0.5 -> 0.5, 2 -> 2.
+    const std::vector<double> expected_leaky = {-0.2, -0.05, 0.5, 2.0};
+
     for (std::size_t i = 0; i < inputs.size(); ++i)
     {
         EXPECT_NEAR(relu[i], std::max(0.0, inputs[i]), 1e-5) << "relu at " << i;
         EXPECT_NEAR(sigmoid[i], 1.0 / (1.0 + std::exp(-inputs[i])), 1e-5) << "sigmoid at " << i;
         EXPECT_NEAR(hyperbolic[i], std::tanh(inputs[i]), 1e-5) << "tanh at " << i;
+        EXPECT_NEAR(leaky[i], expected_leaky[i], 1e-5) << "leaky_relu at " << i;
         EXPECT_NEAR(unchanged[i], inputs[i], 1e-12) << "input mutated at " << i;
     }
 }
@@ -316,6 +374,500 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
     const std::vector<double> expected = {1.0, -2.0, 3.0, 1.0, -2.0, 3.0};
 
     for (std::size_t i = 0; i < expected.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+}
+
+TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
+{
+    // A gradcheck says the backward is consistent with whatever the forward
+    // happens to compute; it says nothing about whether the forward computes
+    // the right thing. This is the forward's own proof, worked out by hand.
+    //
+    // N=1, H=2, W=2, C=1 with a 2x2 kernel and no padding covers the whole
+    // image in exactly one window, so the column matrix's single row is the
+    // input read in tap order (r, s) with channel innermost - which, for one
+    // channel, is simply row-major (h, w).
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const ValueId cols = builder.im2col(x, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(cols));
+    const std::vector<double> expected = {0, 1, 2, 3};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
+{
+    // The claim col2im makes and im2col_backward leans on: a pixel covered by
+    // several windows receives the *sum* of their contributions, not the
+    // last one written. N=1, H=3, W=3, C=1 with a 2x2 kernel and no padding
+    // has four windows (origins (0,0), (0,1), (1,0), (1,1)); the corner
+    // pixels sit under exactly one of them, the edge pixels under two, and
+    // the centre pixel under all four. Feeding every column entry a 1 turns
+    // the expected image into that overlap count, worked out by hand:
+    //
+    //   1 2 1
+    //   2 4 2
+    //   1 2 1
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId cols = builder.input(Shape{4, 4}, "cols");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const ValueId image = builder.col2im(cols, Shape{1, 3, 3, 1}, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(cols), std::vector<double>(16, 1.0));
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(image));
+    const std::vector<double> expected = {1, 2, 1, 2, 4, 2, 1, 2, 1};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
+{
+    // The case a symmetric re-derivation gets wrong *silently*. A [1, 4, 5, 1]
+    // input with a 3x3 window, stride 1, pad_top 1 and pad_left 1, padded
+    // 2 below and 0 on the right, has
+    //
+    //     out_h = (4 + 1 + 2 - 3) + 1 = 5     out_w = (5 + 1 + 0 - 3) + 1 = 4
+    //
+    // Re-deriving those from the geometry alone assumes the padding is
+    // symmetric and yields 4x5 instead - the transpose of the real window
+    // grid. Both are 20 windows, so the row-count check agrees and both
+    // window origins stay inside the padded input: nothing throws, the
+    // numbers are just wrong. That is why the extents travel in the node's
+    // attributes rather than being recomputed.
+    //
+    // The input is 0..19 in row-major (h, w) order, so a window with origin
+    // (oh - 1, ow - 1) reads the pixels h*5 + w it covers and a zero
+    // wherever the window hangs off the image. Row oh*4 + ow of the result
+    // is that window in tap order. Worked out from that rule, the last row
+    // (oh = 4, ow = 3, origin (3, 2)) covers only the input's bottom-right
+    // three pixels, 17 18 19, and is padding everywhere else - whereas the
+    // transposed grid would put 13 14 0 18 19 0 0 0 0 there.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 4, 5, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 3; g.kernel_w = 3;
+    g.pad_top = 1;  g.pad_left = 1;
+    const ValueId cols = builder.im2col_with_extents(x, g, 5, 4);
+
+    OneShot run(*engine, graph);
+    std::vector<double> image(20);
+    for (std::size_t i = 0; i < image.size(); ++i) image[i] = static_cast<double>(i);
+    write_tensor(run.pool.tensor(x), image);
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(cols));
+    const std::vector<double> expected = {
+        0,  0,  0,  0,  0,  1,  0,  5,  6,
+        0,  0,  0,  0,  1,  2,  5,  6,  7,
+        0,  0,  0,  1,  2,  3,  6,  7,  8,
+        0,  0,  0,  2,  3,  4,  7,  8,  9,
+        0,  0,  1,  0,  5,  6,  0, 10, 11,
+        0,  1,  2,  5,  6,  7, 10, 11, 12,
+        1,  2,  3,  6,  7,  8, 11, 12, 13,
+        2,  3,  4,  7,  8,  9, 12, 13, 14,
+        0,  5,  6,  0, 10, 11,  0, 15, 16,
+        5,  6,  7, 10, 11, 12, 15, 16, 17,
+        6,  7,  8, 11, 12, 13, 16, 17, 18,
+        7,  8,  9, 12, 13, 14, 17, 18, 19,
+        0, 10, 11,  0, 15, 16,  0,  0,  0,
+       10, 11, 12, 15, 16, 17,  0,  0,  0,
+       11, 12, 13, 16, 17, 18,  0,  0,  0,
+       12, 13, 14, 17, 18, 19,  0,  0,  0,
+        0, 15, 16,  0,  0,  0,  0,  0,  0,
+       15, 16, 17,  0,  0,  0,  0,  0,  0,
+       16, 17, 18,  0,  0,  0,  0,  0,  0,
+       17, 18, 19,  0,  0,  0,  0,  0,  0,
+    };
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9)
+            << "at row " << (i / 9) << " tap " << (i % 9);
+}
+
+TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
+{
+    // A gradcheck says the backward is consistent with whatever the forward
+    // happens to compute; this is the forward's own proof. N=1, H=2, W=2,
+    // C=1, values 0,1,2,3 in row-major (h,w) order, one 2x2 window covering
+    // the whole image: the maximum is 3.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(pooled.output));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_NEAR(result[0], 3.0, 1e-9);
+}
+
+TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
+{
+    // The gap that let the dropped layout tag hide. Every other test here
+    // stops at the tag; the numerical claim behind all of them is that a tag
+    // reaching Lowering::record_layout_convert intact is what makes a
+    // transpose happen, and nothing tested that half.
+    //
+    // A round trip alone would not test it either: two no-ops compose to the
+    // identity and the final assertion passes just as happily. So the
+    // intermediate is read out and asserted to be the permuted buffer, by
+    // value. That assertion is the test; the round trip is the control.
+    //
+    // The passes run before compilation, so this also pins tag survival by
+    // its consequence rather than by inspecting the field.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // N=1, H=2, W=2, C=2, values 1..8 in NHWC order - so index
+    // ((h*2)+w)*2+c. Distinct values, because a tensor of repeats would make
+    // a permutation indistinguishable from a copy.
+    const ValueId x = builder.input(Shape{1, 2, 2, 2}, "x");
+    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+    graph.finalise();
+
+    ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
+    ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
+
+    // [N,H,W,C] seen as [N,C,H,W]: the extents are the same here only because
+    // H, W and C are all 2. The buffer is not.
+    EXPECT_EQ(graph.value(nchw).shape, (Shape{1, 2, 2, 2}));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8});
+
+    run.compile();
+    run.step->run();
+
+    // NCHW index is ((c*2)+h)*2+w, so channel 0 collects the odd values and
+    // channel 1 the even ones. Worked out by hand, not read back from the
+    // implementation.
+    const std::vector<double> permuted = {1, 3, 5, 7, 2, 4, 6, 8};
+    const std::vector<double> middle = read_tensor(run.pool.tensor(nchw));
+    ASSERT_EQ(middle.size(), permuted.size());
+    for (std::size_t i = 0; i < permuted.size(); ++i)
+        EXPECT_NEAR(middle[i], permuted[i], 1e-9)
+            << "at " << i << ": the NCHW intermediate was not permuted. If this reads back "
+               "as 1..8 the convert copied straight through, and the round trip below is "
+               "two no-ops composing to an identity that proves nothing.";
+
+    const std::vector<double> original = {1, 2, 3, 4, 5, 6, 7, 8};
+    const std::vector<double> result = read_tensor(run.pool.tensor(back));
+    ASSERT_EQ(result.size(), original.size());
+    for (std::size_t i = 0; i < original.size(); ++i)
+        EXPECT_NEAR(result[i], original[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
+{
+    // MAXPOOL2D is the first operation here whose results are not all one
+    // element type: beside the pooled tensor it writes an INT64 argmax, and
+    // its backward reads that as a table of offsets. insert_casts() derived
+    // one precision per node from outputs[0] and forced every operand and
+    // result to it, so the argmax read as a value in the wrong type - and was
+    // either retyped to float in place or handed to a cast that refuses
+    // anything but real float to real float.
+    //
+    // Neither half showed up in a shape check, so this runs the passes in the
+    // order Trainer::build runs them and then executes the result. A routing
+    // table that has been through a float is not a routing table; the
+    // gradient is where that becomes visible.
+    //
+    // Assembled by hand rather than through Trainer::build because no NN
+    // layer emits a pool yet, so the trainer cannot reach this op today.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // N=1, H=2, W=2, C=2, values 0..7 in NHWC order, one 2x2 window. Per
+    // channel the maximum is the last row: taps 6 (c=0, value 6) and 7 (c=1,
+    // value 7). Every other tap must come back with no gradient at all.
+    const ValueId x = builder.parameter(Shape{1, 2, 2, 2}, "x");
+    const ValueId target = builder.input(Shape{1, 2}, "target");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+
+    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+    const ValueId logits = builder.spatial_mean(pooled.output);
+    const ValueId loss = builder.nll_loss(builder.log_softmax(logits), target);
+    graph.finalise();
+
+    const std::array<ValueId, 1> wrt = {x};
+    const std::vector<ValueId> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+
+    ASSERT_EQ(gradients.size(), 1u);
+    ASSERT_EQ(graph.value(pooled.indices).dtype, DType::INT64);
+
+    ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
+    ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
+
+    EXPECT_EQ(graph.value(pooled.indices).dtype, DType::INT64)
+        << "the pass retyped the index buffer, so the backward is routing gradients by "
+           "whatever a float reinterpretation of an offset table happens to say";
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7});
+    write_tensor(run.pool.tensor(target), std::vector<double>{1.0, 0.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> pooled_values = read_tensor(run.pool.tensor(pooled.output));
+    ASSERT_EQ(pooled_values.size(), 2u);
+    EXPECT_NEAR(pooled_values[0], 6.0, 1e-9);
+    EXPECT_NEAR(pooled_values[1], 7.0, 1e-9);
+
+    const std::vector<double> dx = read_tensor(run.pool.tensor(gradients[0]));
+    ASSERT_EQ(dx.size(), 8u);
+
+    for (std::size_t i = 0; i < 6; ++i)
+        EXPECT_NEAR(dx[i], 0.0, 1e-9)
+            << "tap " << i << " did not win its window but was given a gradient";
+
+    EXPECT_GT(std::abs(dx[6]), 1e-6) << "the c=0 maximum received no gradient at all";
+    EXPECT_GT(std::abs(dx[7]), 1e-6) << "the c=1 maximum received no gradient at all";
+}
+
+TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
+{
+    // Same window as the max-pool case above; the average of 0,1,2,3 is 1.5.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = 2; g.kernel_w = 2;
+    const ValueId pooled = builder.avgpool2d(x, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(pooled));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_NEAR(result[0], 1.5, 1e-9);
+}
+
+TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
+{
+    // A single pixel, scale 2x2, replicated into a 2x2 block of the same
+    // value.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 1, 1, 1}, "x");
+    const ValueId up = builder.upsample2d(x, 2, 2);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{5.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(up));
+    const std::vector<double> expected = {5.0, 5.0, 5.0, 5.0};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
+{
+    // N=1, H=2, W=2, C=1, values 0,1,2,3: the mean of the whole plane is 1.5.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueId mean = builder.spatial_mean(x);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(mean));
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_NEAR(result[0], 1.5, 1e-9);
+}
+
+TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
+{
+    // Two 1x1x1 pixels, one channel each: left [10], right [20]. Concatenated
+    // in order they must land as [10, 20], not [20, 10] or summed together.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId left = builder.input(Shape{1, 1, 1, 1}, "left");
+    const ValueId right = builder.input(Shape{1, 1, 1, 1}, "right");
+    const std::array<ValueId, 2> parts = {left, right};
+    const ValueId cat = builder.concat_channels(
+        SushiRuntime::span<const ValueId>(parts.data(), parts.size()));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(left), std::vector<double>{10.0});
+    write_tensor(run.pool.tensor(right), std::vector<double>{20.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(cat));
+    const std::vector<double> expected = {10.0, 20.0};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
+{
+    // N=1, H=1, W=1, four channels [1,2,3,4]. Slicing [1, 3) must return
+    // [2, 3] exactly, not the whole input and not a shifted range.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 1, 1, 4}, "x");
+    const ValueId sliced = builder.slice_channels(x, 1, 2);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(sliced));
+    const std::vector<double> expected = {2.0, 3.0};
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+}
+
+TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
+{
+    // N=1, H=1, W=2, C=2. Two pixels sharing one pair of parameters is what
+    // separates a per-channel broadcast from a per-row one: BIAS_ADD's
+    // broadcast would give the second pixel the second channel's numbers.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 1, 2, 2}, "x");
+    const ValueId gamma = builder.input(Shape{2}, "gamma");
+    const ValueId beta = builder.input(Shape{2}, "beta");
+    const ValueId y = builder.channel_affine(x, gamma, beta);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4});
+    write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 3.0});
+    write_tensor(run.pool.tensor(beta), std::vector<double>{10.0, 20.0});
+
+    run.compile();
+    run.step->run();
+
+    // [1*2+10, 2*3+20, 3*2+10, 4*3+20]
+    const std::vector<double> expected = {12.0, 26.0, 16.0, 32.0};
+    const std::vector<double> result = read_tensor(run.pool.tensor(y));
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
+        EXPECT_NEAR(result[i], expected[i], 1e-6) << "at " << i;
+}
+
+TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
+{
+    // N=2, H=2, W=1, C=2, so each channel is folded over four elements and the
+    // two channels have deliberately different scales - a normalisation that
+    // reduced over the wrong axis would still produce four finite numbers.
+    //
+    // Channel 0 sees 1, 2, 3, 4:    mean 2.5, biased variance 1.25.
+    // Channel 1 sees 10, 20, 30, 40: mean 25, biased variance 125.
+    //
+    // Biased, dividing by N*H*W rather than by N*H*W - 1: that is what the
+    // forward normalises by, and the saved statistics are what the backward
+    // reads, so an unbiased divisor here would be a different function.
+    constexpr double EPSILON = 1e-5;
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{2, 2, 1, 2}, "x");
+    const ValueId gamma = builder.input(Shape{2}, "gamma");
+    const ValueId beta = builder.input(Shape{2}, "beta");
+    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, EPSILON);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{1, 10, 2, 20, 3, 30, 4, 40});
+    write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 1.0});
+    write_tensor(run.pool.tensor(beta), std::vector<double>{0.0, 5.0});
+
+    run.compile();
+    run.step->run();
+
+    const std::vector<double> mean = read_tensor(run.pool.tensor(bn.saved_mean));
+    ASSERT_EQ(mean.size(), 2u);
+    EXPECT_NEAR(mean[0], 2.5, 1e-6);
+    EXPECT_NEAR(mean[1], 25.0, 1e-6);
+
+    const double inv0 = 1.0 / std::sqrt(1.25 + EPSILON);
+    const double inv1 = 1.0 / std::sqrt(125.0 + EPSILON);
+
+    const std::vector<double> inv_std = read_tensor(run.pool.tensor(bn.saved_inv_std));
+    ASSERT_EQ(inv_std.size(), 2u);
+    EXPECT_NEAR(inv_std[0], inv0, 1e-6);
+    EXPECT_NEAR(inv_std[1], inv1, 1e-6);
+
+    const std::array<double, 4> channel0 = {1.0, 2.0, 3.0, 4.0};
+    const std::array<double, 4> channel1 = {10.0, 20.0, 30.0, 40.0};
+
+    std::vector<double> expected(8);
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        expected[i * 2]     = 2.0 * (channel0[i] - 2.5) * inv0 + 0.0;
+        expected[i * 2 + 1] = 1.0 * (channel1[i] - 25.0) * inv1 + 5.0;
+    }
+
+    const std::vector<double> result = read_tensor(run.pool.tensor(bn.output));
+    ASSERT_EQ(result.size(), expected.size());
+    for (std::size_t i = 0; i < result.size(); ++i)
         EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
 }
 

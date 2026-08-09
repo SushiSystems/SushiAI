@@ -35,11 +35,13 @@ add_executable(sushiai_tests
     functional/unit/test_shape.cpp
     functional/unit/test_ops.cpp
     functional/unit/test_ir.cpp
+    functional/unit/test_layout.cpp
     functional/unit/test_memory_plan.cpp
     functional/unit/test_precision.cpp
     functional/unit/test_fusion.cpp
     functional/unit/test_module.cpp
     functional/unit/test_backward.cpp
+    functional/unit/test_rule_table.cpp
     functional/unit/test_gradcheck.cpp
     functional/unit/test_diagnostics.cpp
     functional/unit/test_loss_scaling.cpp
@@ -47,6 +49,8 @@ add_executable(sushiai_tests
     functional/unit/test_layer_stack.cpp
     functional/unit/test_config.cpp
     functional/unit/test_objective.cpp
+    functional/unit/test_spatial_shapes.cpp
+    functional/unit/test_rematerialise.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp
@@ -57,7 +61,9 @@ add_executable(sushiai_tests
     functional/integration/test_resilience.cpp
     functional/integration/test_registries.cpp
     functional/integration/test_checkpoint.cpp
+    functional/integration/test_rematerialise.cpp
 
+    functional/regression/test_argmax_lifetime.cpp
     functional/regression/test_compile_once.cpp
     functional/regression/test_determinism.cpp
     functional/regression/test_fused_optimizer.cpp

@@ -52,7 +52,9 @@ def build(
 def test(
     suite: Suite = typer.Option(
         Suite.functional, "--suite", "-s", case_sensitive=False,
-        help="Which CTest label group to run ('all' runs every test)."),
+        help="Which CTest label group to run ('all' runs every CTest test; "
+             "'package' runs none of them and instead builds tests/package/ "
+             "against a fresh install prefix)."),
     filter: Optional[str] = typer.Option(
         None, "--filter", "-f", help="ctest -R regex over 'Suite.Case' test names."),
     repeat: int = typer.Option(
@@ -64,6 +66,9 @@ def test(
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     the binary directly: sa run sushiai_tests -- --gtest_filter=Version.*
+
+    --suite package is the exception: it runs no CTest at all, so --filter and
+    --repeat are rejected there.
     """
     raise typer.Exit(project_svc.test(suite, filter, repeat))
 

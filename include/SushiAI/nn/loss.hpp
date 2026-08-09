@@ -47,7 +47,7 @@ namespace SushiAI
          * anything that wants them (a perplexity metric, a distillation term)
          * and costs nothing, because the differentiation pass recognises the
          * pair and emits the fused (softmax - target) / N gradient anyway -
-         * see backward.cpp. Fusing in the forward direction would buy the same
+         * see autograd/rules/loss.cpp. Fusing in the forward direction would buy the same
          * gradient and lose the intermediate.
          *
          * Targets are one-hot rows, not integer class indices. The fused

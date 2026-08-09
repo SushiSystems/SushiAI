@@ -63,6 +63,19 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::SUM_ROWS.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::ACCUMULATE.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::NLL_LOSS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MAXPOOL2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::AVGPOOL2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::UPSAMPLE2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SPATIAL_MEAN.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::CONCAT_CHANNELS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SLICE_CHANNELS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::BATCHNORM2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::CHANNEL_AFFINE.id));
+
+    // BATCHNORM_UPDATE_STATS has none, and that is CV-7 rather than an
+    // omission: a running mean is a buffer the training step writes beside
+    // the graph, not a value any gradient flows through.
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_UPDATE_STATS.id));
 
     // LEAF and ZERO produce values from nothing, so there is nothing upstream
     // to hand a gradient to and no rule to write.
@@ -84,7 +97,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     //
     // "Every operation has a rule" is the easy half. The half that rots is
     // "every rule has been checked against a finite difference" - a rule added
-    // to the table in backward.cpp is picked up automatically by
+    // to a rules/<domain>.cpp table is picked up automatically by
     // differentiate(), so a wrong one produces a model that trains slightly
     // worse and nothing anywhere fails. Listing the proof beside the rule is
     // what makes the omission visible: the second loop below fails when an
@@ -99,17 +112,24 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     };
 
     const std::vector<Proven> ledger = {
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWith*"},
-        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAdd*"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithoutTransposes"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithATransposedRightOperand"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithATransposedLeftOperand"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithBothOperandsTransposed"},
+        {Ops::MATMUL.id,     "Integration_Autograd.MatmulGradientOfTheRightOperand"},
+        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAddPassesTheMatrixGradientThrough"},
+        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAddSumsOverTheBroadcastAxis"},
         {Ops::ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
         {Ops::SUB.id,        "Integration_Autograd.ElementwiseSubtractFromTheRight"},
-        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiply*"},
+        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiply"},
+        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiplyFromTheRight"},
         {Ops::SCALE.id,      "Integration_Autograd.Scale"},
         {Ops::EXP.id,        "Integration_Autograd.Exp"},
         {Ops::RELU.id,       "Integration_Autograd.ReluAwayFromItsKink"},
         {Ops::GELU.id,       "Integration_Autograd.Gelu"},
         {Ops::SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
         {Ops::TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
+        {Ops::LEAKY_RELU.id, "Integration_Autograd.LeakyReluHasBothOfItsSlopes"},
         {Ops::SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
         {Ops::ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
         {Ops::NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
@@ -117,6 +137,27 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         // LOG_SOFTMAX's "rule" exists only to produce a good error; there is
         // no gradient to verify, so its proof is the message test instead.
         {Ops::LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
+
+        {Ops::RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
+        {Ops::LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
+
+        {Ops::IM2COL.id, "Integration_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
+        {Ops::COL2IM.id, "Integration_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
+
+        {Ops::MAXPOOL2D.id, "Integration_Autograd.MaxPoolRoutesEachGradientToTheElementThatWon"},
+        {Ops::AVGPOOL2D.id, "Integration_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
+        {Ops::UPSAMPLE2D.id, "Integration_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
+        {Ops::SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
+        {Ops::CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
+        {Ops::SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
+
+        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsGradientAccountsForTheStatisticsItComputed"},
+        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput"},
+        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsShiftGradientIsThePlainSumOfDy"},
+
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffineDifferentiatesAtItsInput"},
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
+        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
     };
 
     for (const Proven& entry : ledger)

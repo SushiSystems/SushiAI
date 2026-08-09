@@ -69,7 +69,7 @@
  *
  * Gradients are written, not accumulated into: every gradient buffer in the
  * step is produced by an operation with beta = 0, and the tiered accumulation
- * in backward.cpp overwrites the first contributor before adding the rest. A
+ * in autograd/tape.cpp overwrites the first contributor before adding the rest. A
  * @c zero_grad() would be a no-op, and a no-op named after a real PyTorch
  * obligation is worse than its absence - it invites the reader to believe
  * something is being cleared.
