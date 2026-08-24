@@ -39,7 +39,7 @@ target_bin = "sushiai_example.exe"
 # sushiblas_dir    = "../sushiblas"
 
 [cli]
-# CLI appearance, resolved by the shared `sushicli` package (same schema for
+# CLI appearance, resolved by the shared `sushicore` package (same schema for
 # sr/se/ss/sb). Override in config.local.toml or with SUSHI_CLI_THEME /
 # SUSHI_CLI_ICONS / SUSHI_CLI_COLOR — no rebuild needed.
 theme = "default"

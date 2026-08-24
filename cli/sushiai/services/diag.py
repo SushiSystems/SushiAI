@@ -16,7 +16,7 @@ from pathlib import Path
 from rich.table import Table
 
 from .. import console
-from sushicli.workspace import merge_platform_table, read_toml
+from sushicore.workspace import merge_platform_table, read_toml
 from ..config import (
     Config,
     _ENV_OVERRIDES,

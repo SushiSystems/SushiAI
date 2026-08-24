@@ -30,9 +30,9 @@ from pathlib import Path
 
 # Domain-agnostic config plumbing shared by every Sushi* CLI. The generic build-
 # tool schema (cmake/ninja/vcpkg paths) and the layered-load skeleton live in
-# sushicli; this repo adds only the SushiAI-specific fields below.
-from sushicli.config_base import ToolConfig, load_tool_config
-from sushicli.workspace import has_marker, resolve_env_path, walk_up
+# sushicore; this repo adds only the SushiAI-specific fields below.
+from sushicore.config_base import ToolConfig, load_tool_config
+from sushicore.workspace import has_marker, resolve_env_path, walk_up
 
 
 def find_project_root(start: Path | None = None) -> Path:

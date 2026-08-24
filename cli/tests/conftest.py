@@ -1,9 +1,9 @@
 """Test fixtures for the SushiAI CLI.
 
-`sushicli` (the shared presentation/config layer) is an unpublished sibling
+`sushicore` (the shared presentation/config layer) is an unpublished sibling
 package that is not available in a clean CI environment, yet `sushiai`
 imports it at module load. To let these tests run standalone we inject a small
-stub for the handful of `sushicli` symbols the package touches. The stubs mirror
+stub for the handful of `sushicore` symbols the package touches. The stubs mirror
 the real contract closely enough for the pure-logic tests below (console
 laziness, project-root resolution) without pulling in Rich or the real config
 plumbing.
@@ -17,12 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-def _install_sushicli_stub() -> None:
-    if "sushicli" in sys.modules:
+def _install_sushicore_stub() -> None:
+    if "sushicore" in sys.modules:
         return
 
-    # --- sushicli (top level): build_console -------------------------------
-    sushicli = types.ModuleType("sushicli")
+    # --- sushicore (top level): build_console -------------------------------
+    sushicore = types.ModuleType("sushicore")
 
     class _FakeConsole:
         """Records that it was built and no-ops every semantic helper."""
@@ -49,10 +49,10 @@ def _install_sushicli_stub() -> None:
     def build_console(sources):
         return _FakeConsole(sources)
 
-    sushicli.build_console = build_console
+    sushicore.build_console = build_console
 
-    # --- sushicli.config_base ----------------------------------------------
-    config_base = types.ModuleType("sushicli.config_base")
+    # --- sushicore.config_base ----------------------------------------------
+    config_base = types.ModuleType("sushicore.config_base")
 
     @dataclass
     class ToolConfig:
@@ -82,8 +82,8 @@ def _install_sushicli_stub() -> None:
     config_base.load_tool_config = load_tool_config
     config_base.write_tool_section = write_tool_section
 
-    # --- sushicli.workspace -------------------------------------------------
-    workspace = types.ModuleType("sushicli.workspace")
+    # --- sushicore.workspace -------------------------------------------------
+    workspace = types.ModuleType("sushicore.workspace")
 
     def has_marker(name):
         return lambda p: (p / name).is_file()
@@ -104,9 +104,9 @@ def _install_sushicli_stub() -> None:
     workspace.resolve_env_path = resolve_env_path
     workspace.walk_up = walk_up
 
-    sys.modules["sushicli"] = sushicli
-    sys.modules["sushicli.config_base"] = config_base
-    sys.modules["sushicli.workspace"] = workspace
+    sys.modules["sushicore"] = sushicore
+    sys.modules["sushicore.config_base"] = config_base
+    sys.modules["sushicore.workspace"] = workspace
 
 
-_install_sushicli_stub()
+_install_sushicore_stub()
