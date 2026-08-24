@@ -168,12 +168,12 @@ jobs:
 
       - name: Import-safety check (no crash outside a checkout)
         working-directory: cli
-        # pyflakes catches undefined names / bad imports without needing sushicli.
+        # pyflakes catches undefined names / bad imports without needing sushicore.
         run: python -m pyflakes sushiai || true
 
       - name: Run CLI unit tests
         working-directory: cli
-        # sushicli is an unpublished sibling package; tests/conftest.py stubs it,
+        # sushicore is an unpublished sibling package; tests/conftest.py stubs it,
         # so the suite runs with only pytest + the standard library.
         run: python -m pytest tests -q
 

@@ -24,7 +24,7 @@ ss install-cli sushiai      # always editable, against this checkout
 ```
 
 This installs through **pipx** on every platform, into an isolated venv, then
-injects the shared `sushicli` package — which is published to no index, so pipx
+injects the shared `sushicore` package — which is published to no index, so pipx
 cannot resolve it as an ordinary dependency. The install is always editable and
 there is no flag to make it otherwise: a frozen copy would stop tracking
 `git pull`s on this checkout without ever saying so.
