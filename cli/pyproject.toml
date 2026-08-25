@@ -18,7 +18,7 @@ dependencies = [
 # intentionally NOT listed above: it isn't published to any index, so a bare
 # "sushicore>=0.1.0" dependency can't be resolved by pip/pipx from a clean
 # environment. `pip install -e cli` expects it already installed once in the
-# same environment (`pip install -e ../sushicore`).
+# same environment (`pip install -e ../../sushistack/sushicore`).
 
 [project.scripts]
 sa = "sushiai.cli:app"
