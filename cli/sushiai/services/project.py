@@ -21,8 +21,8 @@ import os
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
 
+from sushicore.cmake_cache import cached_value, generator_sentinel
 from sushicore.proc import Runner
 
 from .. import console
@@ -108,28 +108,15 @@ def _resolve_exe(name: str, env: dict[str, str]) -> str:
     return _RUNNER.resolve_exe(name, env)
 
 
-def _configured_build_type(build_dir: Path) -> Optional[str]:
-    """The CMAKE_BUILD_TYPE baked into build_dir's cache, or None if unconfigured."""
-    cache = build_dir / "CMakeCache.txt"
-    if not cache.is_file():
-        return None
-    prefix = "CMAKE_BUILD_TYPE:"
-    for line in cache.read_text(encoding="utf-8", errors="ignore").splitlines():
-        if line.startswith(prefix):
-            return line.split("=", 1)[1].strip()
-    return None
-
-
 def _needs_configure(build_dir: Path, generator: str, build_type: str = None) -> bool:
     if not build_dir.is_dir():
         return True
-    sentinel = "build.ninja" if generator == "Ninja" else "Makefile"
-    if not (build_dir / sentinel).is_file():
+    if not (build_dir / generator_sentinel(generator)).is_file():
         return True
     # Single-config generators (Ninja, Make) bake CMAKE_BUILD_TYPE into the
-    # existing cache; `cmake --build --config X` is silently ignored for them,
-    # so a stale tree must be reconfigured rather than reused as-is.
-    if build_type is not None and _configured_build_type(build_dir) != build_type:
+    # cache; `cmake --build --config X` is silently ignored for them, so a tree
+    # configured for another type must be reconfigured rather than reused.
+    if build_type is not None and cached_value(build_dir, "CMAKE_BUILD_TYPE") != build_type:
         return True
     return False
 
@@ -464,7 +451,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     @param env The snapshotted build environment.
     @return 0 when the consumer builds and runs, non-zero otherwise.
     """
-    build_type = _configured_build_type(build_dir) or "Release"
+    build_type = cached_value(build_dir, "CMAKE_BUILD_TYPE") or "Release"
     prefix = build_dir / "package" / "prefix"
     consumer = build_dir / "package" / "consumer"
 
