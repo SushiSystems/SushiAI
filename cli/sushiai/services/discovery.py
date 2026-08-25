@@ -20,6 +20,7 @@ _INDEX = ExecutableIndex(skip_dirs=PROFILE.sibling_skip_dirs())
 
 find_executables = _INDEX.find
 match_by_name = _INDEX.match
+resolve = _INDEX.resolve
 
 
 def select_interactive(build_root: Path) -> Path | None:
