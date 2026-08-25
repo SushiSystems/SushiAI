@@ -1,10 +1,11 @@
 """Project build / test / run / demo / clean / doxygen logic.
 
-The cmake / ctest invocations are issued directly via subprocess with the
-snapshotted build env. SushiAI configures against the SushiRuntime sibling's
-bundled clang++ and vcpkg (via SushiBLAS's own transitive resolution), so the
-configure args resolve those from the sibling checkouts (or the config
-overrides) rather than provisioning anything - mirrors SushiEngine's `se`
+This module holds SushiAI's own build policy — which cache variables it passes, which
+demo targets and test suites it has — and drives cmake and ctest through
+``sushicore.cmake_driver.CMakeDriver`` with the snapshotted build env. SushiAI configures
+against the SushiRuntime sibling's bundled clang++ and vcpkg (via SushiBLAS's own
+transitive resolution), so the configure args resolve those from the sibling checkouts
+(or the config overrides) rather than provisioning anything - mirrors SushiEngine's `se`
 CLI, not SushiBLAS's `sb` (which still models an older, pre-SB-0/SB-2 oneAPI
 build).
 
