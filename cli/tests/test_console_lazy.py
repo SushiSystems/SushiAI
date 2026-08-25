@@ -4,9 +4,13 @@ The bug: console.py used to build the console at import time, which called
 config_dir() -> find_project_root() and raised SystemExit outside a checkout.
 Because cli.py imports console transitively, *every* `sa` invocation —
 including `sa --help`, which Typer can answer with no project — died with
-"Not inside a SushiAI project". These tests pin the fix: importing the
-module does no filesystem work, and producing output outside a project
-degrades to a default console instead of raising.
+"Not inside a SushiAI project".
+
+Four of the five CLIs fixed this independently and sushiengine's copy never
+did, so `se --help` outside a checkout failed for as long as the copies
+existed. The lifecycle now lives in sushicore.cli_console.LazyConsole; these
+tests pin that *this* CLI is wired to it, which is the part a shared
+implementation cannot check on its own.
 """
 
 from __future__ import annotations
@@ -26,14 +30,12 @@ def _fresh_console_module():
 def test_import_does_not_build_console():
     """Importing the module must not materialise the console."""
     console_mod = _fresh_console_module()
-    # The lazy singleton stays unset until an attribute is actually accessed.
-    assert console_mod._console is None
+    assert console_mod._lazy.built is False
 
 
 def test_import_outside_project_does_not_raise(monkeypatch, tmp_path):
     """Simulate running outside a checkout: import + reload must not SystemExit."""
-    monkeypatch.chdir(tmp_path)  # tmp_path has no CMakeLists.txt ancestor
-    # Reloading re-runs module top-level code; the old bug raised here.
+    monkeypatch.chdir(tmp_path)
     _fresh_console_module()
 
 
@@ -42,31 +44,25 @@ def test_output_helper_falls_back_outside_project(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     console_mod = _fresh_console_module()
 
-    # Observe the argument the module passes to sushicore, not some property of
-    # the console it gets back: the fallback *is* "call build_console with no
-    # config sources", and that is what has to hold whatever sushicore returns.
-    seen = []
-    real_build = console_mod.build_console
+    # No project means no config files to layer -- and, crucially, no crash.
+    assert list(console_mod._lazy.sources()) == []
 
-    def spy(sources):
-        seen.append(list(sources))
-        return real_build(sources)
-
-    monkeypatch.setattr(console_mod, "build_console", spy)
-
-    # First real use triggers construction; must not raise SystemExit.
     console_mod.info("hello from outside a checkout")
+    assert console_mod._lazy.built is True
 
-    assert console_mod._console is not None
-    assert seen == [[]], seen
+
+def test_sources_inside_project_are_this_repos_config(monkeypatch):
+    """Inside a checkout the console layers this CLI's own two config files."""
+    console_mod = _fresh_console_module()
+    names = [p.name for p in console_mod._lazy.sources()]
+    assert names == ["config.toml", "config.local.toml"]
 
 
 def test_console_attribute_resolves(monkeypatch, tmp_path):
     """The raw Rich `console` attribute resolves lazily too."""
     monkeypatch.chdir(tmp_path)
     console_mod = _fresh_console_module()
-    raw = console_mod.console
-    assert raw is not None
+    assert console_mod.console is not None
 
 
 def test_unknown_attribute_raises_attribute_error():
