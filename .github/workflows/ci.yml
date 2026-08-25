@@ -163,18 +163,28 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Check out SushiStack, which carries sushicore
+        # sushicore is published to no index, so it cannot be a pip dependency.
+        # The suite used to run against a stub of it; it now runs against the
+        # real package, which means checking out the repository that ships it.
+        uses: actions/checkout@v4
+        with:
+          repository: SushiSystems/SushiStack
+          ref: main
+          path: .sushistack
+
       - name: Install tooling
-        run: python -m pip install --upgrade pip pytest pyflakes
+        run: |
+          python -m pip install --upgrade pip pytest pyflakes
+          python -m pip install -e ./.sushistack/sushicore
 
       - name: Import-safety check (no crash outside a checkout)
         working-directory: cli
-        # pyflakes catches undefined names / bad imports without needing sushicore.
+        # pyflakes catches undefined names / bad imports without running anything.
         run: python -m pyflakes sushiai || true
 
       - name: Run CLI unit tests
         working-directory: cli
-        # sushicore is an unpublished sibling package; tests/conftest.py stubs it,
-        # so the suite runs with only pytest + the standard library.
         run: python -m pytest tests -q
 
 # ---------------------------------------------------------------------------

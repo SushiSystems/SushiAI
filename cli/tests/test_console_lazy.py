@@ -42,12 +42,23 @@ def test_output_helper_falls_back_outside_project(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     console_mod = _fresh_console_module()
 
+    # Observe the argument the module passes to sushicore, not some property of
+    # the console it gets back: the fallback *is* "call build_console with no
+    # config sources", and that is what has to hold whatever sushicore returns.
+    seen = []
+    real_build = console_mod.build_console
+
+    def spy(sources):
+        seen.append(list(sources))
+        return real_build(sources)
+
+    monkeypatch.setattr(console_mod, "build_console", spy)
+
     # First real use triggers construction; must not raise SystemExit.
     console_mod.info("hello from outside a checkout")
 
     assert console_mod._console is not None
-    # Fell back to the config-less source list.
-    assert console_mod._console.sources == []
+    assert seen == [[]], seen
 
 
 def test_console_attribute_resolves(monkeypatch, tmp_path):
