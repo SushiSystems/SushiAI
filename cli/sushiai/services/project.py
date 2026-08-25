@@ -25,6 +25,8 @@ from pathlib import Path
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
+from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
+from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
 
 from .. import console
 from ..config import Config, PROFILE, find_project_root, load_config
@@ -115,46 +117,6 @@ def _check_siblings(cfg: Config, root: Path) -> int:
             f"  - set sushiblas_dir in cli/config.local.toml, or SUSHIBLAS_DIR in the env.")
         return 1
     return 0
-
-
-def _resolved_c_compiler(cxx: str) -> str:
-    """The C compiler to pair with *cxx* for CMake's C-language probe.
-
-    SushiAI's root CMakeLists.txt enables C (transitively - SushiBLAS's own
-    project() call declares LANGUAGES CXX C, and that's inherited the moment
-    it's add_subdirectory'd), so a C compiler must actually work, not just be
-    cached. A "clang++"-named binary hardcodes C++ mode by personality - it
-    fails outright on a .c file ("The CMAKE_C_COMPILER is set to a C++
-    compiler") even though the same toolchain ships a working "clang" sibling
-    in the same directory. A multi-language driver like icx-cl.exe has no such
-    split (it dispatches on file extension correctly), so it's reused as-is.
-    Found by actually running `sa build` fresh - the previous unconditional
-    "reuse cxx for both slots" (copied from se's CLI, itself copied from sb's)
-    was never exercised against a clang++-personality binary before.
-    """
-    path = Path(cxx)
-    stem = path.stem
-    if stem.lower() == "clang++":
-        sibling = path.with_name(stem[:-2] + path.suffix)  # clang++[.exe] -> clang[.exe]
-        if sibling.is_file():
-            return str(sibling)
-    return cxx
-
-
-def _vcpkg_prefix(cfg: Config, root: Path) -> str:
-    """The vcpkg installed-tree prefix for this triplet, or '' when unavailable.
-
-    Only used on Windows, where the bundled vcpkg tree is what find_package
-    uses to locate GoogleTest, nlohmann_json and hwloc. On Linux the vcpkg
-    toolchain file alone puts them in reach, which is why the callers below
-    guard on ``is_windows`` rather than on this returning something.
-
-    @param cfg The resolved configuration.
-    @param root The project root.
-    @return An absolute prefix path, or '' when no vcpkg root is configured.
-    """
-    vcpkg = cfg.resolved_vcpkg(root)
-    return f"{vcpkg}/installed/{cfg.vcpkg_triplet}" if vcpkg else ""
 
 
 def _toolchain_args(cfg: Config, root: Path) -> list[str]:
