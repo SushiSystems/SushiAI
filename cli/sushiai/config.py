@@ -41,6 +41,8 @@ PROFILE = ModuleProfile(
         "sushiruntime_dir": "SUSHIRUNTIME_DIR",
         "sushiblas_dir": "SUSHIBLAS_DIR",
     },
+    # SYCL, MSVC's INCLUDE/LIB, and every SUSHI* checkout override.
+    env_of_interest=("SYCL", "INCLUDE", "LIB", "SUSHI"),
 )
 
 _MODULE = ModuleConfig(PROFILE)
