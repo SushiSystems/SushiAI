@@ -19,13 +19,14 @@ from __future__ import annotations
 import enum
 import os
 import shutil
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
+from sushicore.proc import Runner
+
 from .. import console
-from ..config import Config, find_project_root, load_config
+from ..config import Config, PROFILE, find_project_root, load_config
 from ..env import load_build_env
 from . import discovery
 
@@ -92,58 +93,19 @@ def _ctest(cfg: Config) -> str:
     return cfg.expand(cfg.ctest_exe) if cfg.ctest_exe else "ctest"
 
 
-def _resolve_exe(name: str, env: dict[str, str]) -> str:
-    """Return the full path to *name* from env PATH, or *name* itself as fallback.
-
-    Using the full path sidesteps Windows PATH case-sensitivity bugs when a
-    plain-dict env is passed to subprocess (os.environ uses 'Path', overlays may
-    use 'PATH' — subprocess sees both and picks unpredictably).
-    """
-    env_path = next((v for k, v in env.items() if k.upper() == "PATH"), None)
-    found = shutil.which(name, path=env_path) or shutil.which(name)
-    return found or name
+_RUNNER = Runner(console, PROFILE.program)
 
 
 def _run(cmd: list[str], env: dict[str, str], cwd: Path) -> int:
-    resolved = list(cmd)
-    resolved[0] = _resolve_exe(cmd[0], env)
-    console.command(subprocess.list2cmdline(resolved))
-    try:
-        return subprocess.run(resolved, cwd=str(cwd), env=env).returncode
-    except FileNotFoundError:
-        console.error(
-            f"Executable not found: '{cmd[0]}'.\n"
-            f"  - it is not on PATH and no explicit path is configured.\n"
-            f"  - set its path in config.local.toml (e.g. cmake_exe / ctest_exe / ninja_exe), or\n"
-            f"  - run `sa config` to see what the CLI resolved.")
-        return 1
+    return _RUNNER.run(cmd, cwd, env)
 
 
 def _run_drained(cmd: list[str], env: dict[str, str], cwd: Path) -> int:
-    """Run *cmd* while actively draining its output, echoing it line by line.
+    return _RUNNER.run_drained(cmd, cwd, env)
 
-    Unlike :func:`_run` (which lets the child inherit our stdout), this pipes the
-    child's stdout/stderr and reads them here. That matters for ``ctest`` on
-    Windows: its ``gtest_discover_tests`` step spawns the test binary to enumerate
-    cases, and when ctest's stdout is an inherited, slowly-drained pipe the
-    discovery child intermittently stalls and registers nothing. Draining the
-    pipe ourselves keeps enumeration reliable.
-    """
-    resolved = list(cmd)
-    resolved[0] = _resolve_exe(cmd[0], env)
-    console.command(subprocess.list2cmdline(resolved))
-    try:
-        proc = subprocess.Popen(
-            resolved, cwd=str(cwd), env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1)
-    except FileNotFoundError:
-        console.error(f"Executable not found: '{cmd[0]}'. Run `sa config`.")
-        return 1
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        console.console.print(line.rstrip("\n"), highlight=False, soft_wrap=True)
-    return proc.wait()
+
+def _resolve_exe(name: str, env: dict[str, str]) -> str:
+    return _RUNNER.resolve_exe(name, env)
 
 
 def _configured_build_type(build_dir: Path) -> Optional[str]:
