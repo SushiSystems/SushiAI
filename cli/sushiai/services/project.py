@@ -611,14 +611,5 @@ def doxygen() -> int:
     cfg = load_config()
     env = load_build_env(cfg, _build_dir(root))
     doxyfile = root / "Doxyfile"
-    if not doxyfile.is_file():
-        console.error("Doxyfile not found at repo root.")
-        return 1
-
-    doxy = cfg.expand(cfg.doxygen_exe) if cfg.doxygen_exe else "doxygen"
-    if _RUNNER.resolve_exe(doxy, env) == doxy and not Path(doxy).is_file():
-        console.error("Doxygen is not installed or not on PATH.\n" + _DOXYGEN_HINT)
-        return 1
-
     (root / "docs").mkdir(exist_ok=True)
-    return _RUNNER.run([doxy, "Doxyfile"], root, env)
+    return _DRIVER.doxygen(cfg, doxyfile, root, env, install_hint=_DOXYGEN_HINT)
