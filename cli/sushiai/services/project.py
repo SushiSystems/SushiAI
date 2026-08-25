@@ -207,7 +207,7 @@ def build(build_type: BuildType, clean: bool = False,
 
     env = load_build_env(cfg, build_dir)
 
-    fresh = _DRIVER.needs_configure(build_dir, cfg.generator,
+    fresh = _DRIVER.needs_configure(build_dir, cfg.generator, root=root,
                                     expect={"CMAKE_BUILD_TYPE": cmake_build_type})
     if fresh:
         console.info(f"Configuring CMake... (type={build_type.value})")
