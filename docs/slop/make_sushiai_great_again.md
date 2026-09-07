@@ -9,8 +9,8 @@ sushiai `main@0bc4b04`) and records six owner decisions (D1–D6, §2) made on 2
 **Mandate.** The macro architecture of the stack, stated once:
 
 ```
-                sushistack (ss)  — workspace, provisioning, module registry
-                sushicli         — shared CLI presentation/config library (sr/se/sb/sa/ss)
+                sushistack (hub)  — workspace, provisioning, module registry
+                sushicli         — shared CLI presentation/config library (sr/se/sb/sa/hub)
    ─────────────────────────────────────────────────────────────────────────
                          S U S H I R U N T I M E          ← the backbone
                           ▲         ▲         ▲
@@ -117,19 +117,19 @@ from the runtime's `BB-*`/`WP-*` series.
 
 **SushiStack / sushicli (the wiring layer)**
 
-18. **The registry side is already done**: `ss`'s `MODULES` map contains `sushiblas` and `sushiai`
+18. **The registry side is already done**: `hub`'s `MODULES` map contains `sushiblas` and `sushiai`
     with reserved aliases `sb`/`sa` (`sushistack/cli/sushistack/services/modules.py:42-67`). What
     is missing is entirely module-side: neither repo has a `cli/` package, a
-    `cli/sushistack.deps.toml`, nor an `ss link` entry in this machine's `modules.local.toml`.
+    `cli/sushistack.deps.toml`, nor a `hub link` entry in this machine's `modules.local.toml`.
 19. The module contract (from `modules.py`, `cli_install.py`, `dependency_source.py`):
     `<repo>/cli/pyproject.toml` (`[project.scripts]` short+long names), `<repo>/cli/<pkg>/`
     (Typer app importing `sushicli`), `<repo>/cli/config.toml` + gitignored `config.local.toml`,
-    `<repo>/cli/sushistack.deps.toml` with a `[module] depends_on = [...]` table. `ss install-cli`
+    `<repo>/cli/sushistack.deps.toml` with a `[module] depends_on = [...]` table. `hub install-cli`
     pipx-installs the package editable and injects the unpublished `sushicli` checkout.
 20. `sushicli` is a shared presentation/config **library** (Theme/IconSet/Renderer/Console,
-    `ToolConfig` base, workspace walk-up helpers), not a framework or launcher; `sr`/`se`/`ss` all
+    `ToolConfig` base, workspace walk-up helpers), not a framework or launcher; `sr`/`se`/`hub` all
     import it. `sb`/`sa` plug into the same seams.
-21. Hygiene items: sushistack sits on unmerged `feature/toolchain-refresh` while `ss update`
+21. Hygiene items: sushistack sits on unmerged `feature/toolchain-refresh` while `hub update`
     ff-only-pulls the workspace; sushistack's and sushicli's shared CLAUDE.md both point at a
     `docs/CONTRIBUTING.md` that does not exist in either repo.
 
@@ -165,7 +165,7 @@ from the runtime's `BB-*`/`WP-*` series.
   if the target already exists (superproject case) use it → else try `find_package` (QUIET) → else
   `add_subdirectory` of the `$SUSHISTACK_HOME`/sibling checkout. The link line is always the
   namespaced alias, so all three modes are spelled identically. BB-4 gains its first real
-  consumer; today's `ss`/`sr` workflow keeps working unchanged.
+  consumer; today's `hub`/`sr` workflow keeps working unchanged.
 - **D4 — SushiAI v1 showcase is an MLP training demo** (MNIST-class task): end-to-end training
   with graph-native autograd, validated by `compile_count == 1`, zero steady-state allocations,
   finite-difference gradient checks, and a convergence curve. PINN alignment with the engine's
@@ -176,7 +176,7 @@ from the runtime's `BB-*`/`WP-*` series.
   remains a pre-code step, but the mechanism question is closed.
 - **D6 — sushistack merges to `main` directly.** `feature/toolchain-refresh` is merged straight
   into `main` (executed as part of landing this plan), which also unblocks the ST-1 `sb` CLI
-  work — `ss update`'s ff-only pull of the workspace is coherent again.
+  work — `hub update`'s ff-only pull of the workspace is coherent again.
 - **D7 — sushiblas and sushiai relicense from MIT to Apache-2.0** (2026-08-01). Root `LICENSE` and
   every per-file header signature updated in both repos (sushiblas: 150 source files, short
   ASF-standard header matching sushiruntime/sushiengine's existing convention; sushiai: root
@@ -213,10 +213,10 @@ API that SushiBLAS or SushiAI leans on gets at least one dependent-side TU that 
 and every feature ships with a consumer-shaped example compiled in CI. `-fsyntax-only` blessing is
 not evidence.
 
-**P7 — The CLI is the only door, and `ss` owns provisioning.** Builds/tests/runs go through the
+**P7 — The CLI is the only door, and `hub` owns provisioning.** Builds/tests/runs go through the
 module's own CLI (`sb`, `sa`) exactly as `sr`/`se` mandate in their CLAUDE.md. Module CLIs never
-install dependencies or link modules — that is `ss`'s job (`ss install`, `ss install-cli`,
-`ss link`). Mirrors the deliberate absence of `sr install`/`sr link`.
+install dependencies or link modules — that is `hub`'s job (`hub install`, `hub install-cli`,
+`hub link`). Mirrors the deliberate absence of `sr install`/`sr link`.
 
 **P8 — Honesty about scope.** Explicitly unsolved here: the FFT backend (deferred by D1) and
 value-dependent control flow in autograd (AI-1 non-goal). Named, not hand-waved.
@@ -227,10 +227,10 @@ value-dependent control flow in autograd (AI-1 non-goal). Named, not hand-waved.
 
 | Pkg | Title | Depends on | What it unblocks |
 |---|---|---|---|
-| ST-0 | Workspace registration & stack hygiene | — | `ss link` for both modules; sushistack branch/docs cleanup |
-| ST-1 | `sb` — SushiBLAS CLI package + deps fragment | ST-0 | SushiBLAS becomes a first-class `ss`-managed module |
+| ST-0 | Workspace registration & stack hygiene | — | `hub link` for both modules; sushistack branch/docs cleanup |
+| ST-1 | `sb` — SushiBLAS CLI package + deps fragment | ST-0 | SushiBLAS becomes a first-class `hub`-managed module |
 | ST-2 | `sa` — SushiAI CLI package + deps fragment | ST-0 | Same for SushiAI (repo skeleton lands with AI-0) |
-| ST-3 | CLI install, doctor green, CI lanes | ST-1, ST-2 | `ss install-cli sushiblas sushiai`; pyflakes+pytest lanes |
+| ST-3 | CLI install, doctor green, CI lanes | ST-1, ST-2 | `hub install-cli sushiblas sushiai`; pyflakes+pytest lanes |
 | SB-0 | Live runtime dependency (D3 layered resolution) | ST-0 | Kills the stale fork; first real BB-4 consumer |
 | SB-1 | Dispatch pattern cleanup (`execute_blas_task`, `dispatch_with_mode`) | SB-0 | gemm/syrk/gemv stop duplicating; sets the SB-3 shape |
 | SB-2 | Backend strategy: portBLAS-derived kernels + native RNG; FFT quarantined (D1) | SB-0 | Removes oneMKL as the only path; builds on default toolchain |
@@ -261,11 +261,11 @@ AI-6 is explicitly out of scope for v1.
 
 ## 5. ST-0 — Workspace registration & stack hygiene
 
-- `ss link sushiblas D:\Projects\sushiblas` and `ss link sushiai D:\Projects\sushiai` (registry
-  entries and `sb`/`sa` aliases already exist; only `modules.local.toml` is missing them). `ss`
+- `hub link sushiblas D:\Projects\sushiblas` and `hub link sushiai D:\Projects\sushiai` (registry
+  entries and `sb`/`sa` aliases already exist; only `modules.local.toml` is missing them). `hub`
   will warn about the missing `cli/sushistack.deps.toml` until ST-1/ST-2 land — expected.
 - sushistack's `feature/toolchain-refresh` is merged straight into `main` per D6 (a long-lived
-  feature branch as the de-facto main was a trap, since `ss update` ff-only-pulls the workspace).
+  feature branch as the de-facto main was a trap, since `hub update` ff-only-pulls the workspace).
 - Fix the dangling `docs/CONTRIBUTING.md` reference shared by sushistack's and sushicli's
   CLAUDE.md: either write the file (thin, pointing at the runtime's CONTRIBUTING as the style
   authority) or repoint the reference.
@@ -277,7 +277,7 @@ selects no SYCL toolchain of its own (it builds with the runtime's choice), so t
 `toolchain` command; and per P7 there is no `install`/`link`.
 
 - `sushiblas/cli/pyproject.toml` — dist `sushiblas-cli`, scripts `sb` + `sushiblas`, Typer+Rich,
-  `sushicli` deliberately undeclared (injected by `ss install-cli`), same explanatory comment as
+  `sushicli` deliberately undeclared (injected by `hub install-cli`), same explanatory comment as
   the other three repos.
 - `sushiblas/cli/sushiblas_cli/` (package name must not collide with a future Python binding of
   the library itself — note `sr`/`se` use the bare module name; `sb` should follow suit as
@@ -318,7 +318,7 @@ build tree.
 
 ## 8. ST-3 — Install, doctor, CI
 
-- `ss install-cli sushiblas sushiai`; `ss doctor` shows both modules ready with their deps.
+- `hub install-cli sushiblas sushiai`; `hub doctor` shows both modules ready with their deps.
 - Both repos get the `sr`-style CLI CI lane: pyflakes import-safety + `pytest cli/tests -q`
   standalone (the conftest `sushicli` stub makes this hermetic).
 - C++ CI mirrors the engine's: checkout module + `SushiSystems/SushiRuntime@main` sibling (+
@@ -355,7 +355,7 @@ the first real execution of the runtime's BB-4.6 (`tests/package/` against an in
 run it, and report findings upstream to the runtime rather than working around them (P2 boundary
 rule: what the runtime cannot do yet is runtime work).
 
-Verify: clean `ss status` → `sb build` resolves the runtime from the live checkout in all three
+Verify: clean `hub status` → `sb build` resolves the runtime from the live checkout in all three
 D3 modes (superproject, package, sibling); nothing runtime-shaped remains checked into sushiblas.
 
 ## 10. SB-1 — Dispatch pattern cleanup

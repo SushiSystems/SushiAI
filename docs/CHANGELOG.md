@@ -158,6 +158,7 @@ then, `[Unreleased]` records the prototype-era milestones informally. See
   tree. All 51 headers pass today.
 
 ### Changed
+- 2026-09-07 — Renamed the hub's command from `ss` to `hub` in the manual (`docs/`).
 - The compiler and host-tool flags in `cli/sushiai/services/project.py` moved
   into one shared `_toolchain_args()` helper, used by both the project's own
   configure and the package consumer's. Two copies would drift the first time

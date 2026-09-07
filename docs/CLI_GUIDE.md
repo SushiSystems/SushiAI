@@ -20,7 +20,7 @@ and it puts two commands on your `PATH`:
 They are identical; every example below uses `sa`.
 
 ```bash
-ss install-cli sushiai      # always editable, against this checkout
+hub install-cli sushiai      # always editable, against this checkout
 ```
 
 This installs through **pipx** on every platform, into an isolated venv, then
@@ -43,7 +43,7 @@ and SushiBLAS. The CLI reads all of this from:
 - **`cli/config.local.toml`** — your machine's absolute paths (gitignored).
 
 In the common case — sibling `../sushiruntime` and `../sushiblas` checkouts
-with the bundled toolchain already provisioned by `ss install`, or a
+with the bundled toolchain already provisioned by `hub install`, or a
 SushiStack workspace — no local config is needed at all. Run `sa config` to
 see exactly what the CLI resolved.
 
@@ -432,7 +432,7 @@ surface a consumer writes against.
 Doxygen itself is an external tool, not vendored — install it or point
 `doxygen_exe` in `cli/config.local.toml` at an existing binary; the command
 prints the right install line if it cannot find one. The stack's provisioned
-toolchain ships one, so `ss install` is usually enough.
+toolchain ships one, so `hub install` is usually enough.
 
 ## `sa config` and `sa env` — diagnostics
 
