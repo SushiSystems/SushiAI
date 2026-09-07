@@ -43,8 +43,8 @@ You need the SushiStack toolchain and two sibling checkouts:
 ```
 
 ```bash
-ss install               # provisions the toolchain (compiler, cmake, ninja, doxygen)
-ss install-cli sushiai   # puts `sa` and `sushiai` on your PATH
+hub install               # provisions the toolchain (compiler, cmake, ninja, doxygen)
+hub install-cli sushiai   # puts `sa` and `sushiai` on your PATH
 sa config                # shows what the CLI resolved, and where each value came from
 ```
 

@@ -138,7 +138,7 @@ feature that plan hasn't reached.
   for what it means if you are the consumer.
 
 C++ library dependencies and the SYCL toolchain are provisioned by
-[SushiStack](https://sushisystems.io) (the `ss` CLI), which owns dependency
+[SushiStack](https://sushisystems.io) (the `hub` CLI), which owns dependency
 installation for the whole stack into one shared, workspace-level
 `dependencies/` tree.
 
@@ -153,7 +153,7 @@ irm https://sushisystems.io/install.ps1 | iex
 ```
 
 See the [SushiStack](https://sushisystems.io) docs for linking an existing
-checkout into a workspace (`ss link`) instead of a fresh clone.
+checkout into a workspace (`hub link`) instead of a fresh clone.
 
 ### Using SushiAI from another project
 
@@ -164,7 +164,7 @@ working consumer.
 ## Building
 
 ```bash
-ss install-cli sushiai           # always editable, against this checkout
+hub install-cli sushiai           # always editable, against this checkout
 ```
 
 This gives you two equivalent commands on your PATH: **`sa`** (short) and

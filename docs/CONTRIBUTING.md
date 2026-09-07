@@ -35,7 +35,7 @@ If you already have SushiRuntime and SushiBLAS sibling checkouts and the
 shared bundled SYCL toolchain:
 
 ```bash
-ss install-cli sushiai   # puts `sa` / `sushiai` on PATH
+hub install-cli sushiai   # puts `sa` / `sushiai` on PATH
 sa build                 # Release (default)
 sa test                  # functional suite
 ```
@@ -217,7 +217,7 @@ technical, objective — no marketing language.
 ## 7. Adding a C++ dependency
 
 Dependency provisioning is owned by [SushiStack](https://sushisystems.io)
-(the `ss` CLI). SushiAI's own manifest fragment is
+(the `hub` CLI). SushiAI's own manifest fragment is
 [`cli/sushistack.deps.toml`](../cli/sushistack.deps.toml):
 
 ```toml
@@ -229,8 +229,8 @@ depends_on = ["sushiruntime", "sushiblas"]
 readiness picture. If SushiAI ever needs a library neither sibling already
 provisions, add a top-level TOML table the way SushiRuntime's own fragment
 documents (description/required/linux_apt/windows_vcpkg/check_cmd), then
-update `CMakeLists.txt` to find and link it. Verify with `ss doctor` and
-`ss install`.
+update `CMakeLists.txt` to find and link it. Verify with `hub doctor` and
+`hub install`.
 
 ---
 

@@ -1,11 +1,11 @@
 # SushiAI dependency fragment — the dependencies SushiAI owns on top of what
-# SushiRuntime and SushiBLAS already provide. `ss` aggregates this with the
+# SushiRuntime and SushiBLAS already provide. `hub` aggregates this with the
 # SushiStack base fragment and (transitively) both siblings' own fragments
 # when SushiAI is part of the workspace.
 #
 # SushiAI is orchestrated by SushiRuntime (via SushiBLAS), so it needs every
 # toolchain both siblings need. Rather than repeat those here, the [module]
-# table below declares both dependencies and `ss` folds their requirements
+# table below declares both dependencies and `hub` folds their requirements
 # into SushiAI's readiness picture.
 #
 # One port beyond that, declared below: the config layer's JSON parser.
@@ -21,7 +21,7 @@
 # and into SushiAI. No repository in the stack carries one.
 #
 # Field reference:
-#   description    Human-readable purpose (shown by `ss doctor`).
+#   description    Human-readable purpose (shown by `hub doctor`).
 #   required       false => a missing one warns but does not stop the build.
 #   linux_apt      apt package names; empty list = not an apt/vcpkg package.
 #   windows_vcpkg  vcpkg port names; empty list = not an apt/vcpkg package.
