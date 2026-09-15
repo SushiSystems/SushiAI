@@ -9,7 +9,7 @@ says so rather than guessing. If a command here does not do what this file says
 it does, the file is wrong — please treat it as a bug.
 
 > **Conventions.** `sa` is SushiAI's CLI; never invoke `cmake`, `ninja` or
-> `ctest` directly ([CONTRIBUTING.md](CONTRIBUTING.md)). Code samples use the
+> `ctest` directly ([CONTRIBUTING.md](../CONTRIBUTING.md)). Code samples use the
 > short namespace aliases `sa::`, `sb::`, `sr::` that `<SushiAI/SushiAI.h>`
 > defines.
 
@@ -487,11 +487,11 @@ sa doxygen     # the generated API reference, into docs/api-site/html/
 
 The prose docs, in the order they repay reading:
 
-- [README.md](README.md) — what the library is, and the measured numbers.
-- [ARCHITECTURE.md](ARCHITECTURE.md) — the pipeline stage by stage.
-- [CLI_GUIDE.md](CLI_GUIDE.md) — every `sa` command in detail.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — the rules a change has to satisfy.
-- [CHANGELOG.md](CHANGELOG.md) — *why* the codebase looks like this. Longer than
+- [README.md](../../README.md) — what the library is, and the measured numbers.
+- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) — the pipeline stage by stage.
+- [CLI_GUIDE.md](../guides/CLI_GUIDE.md) — every `sa` command in detail.
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — the rules a change has to satisfy.
+- [CHANGELOG.md](../reference/CHANGELOG.md) — *why* the codebase looks like this. Longer than
   a changelog usually is, on purpose.
 
 And the four headers that carry more reasoning than signature:

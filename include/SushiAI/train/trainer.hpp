@@ -161,7 +161,7 @@ namespace SushiAI
              * feeds exactly that tensor per step. Wiring the trainer to feed
              * arbitrary declared leaves is a separate change with its own
              * argument; this is the shape it will use. Recorded as debt in
-             * docs/ARCHITECTURE.md alongside @c Dataset::num_classes().
+             * docs/architecture/ARCHITECTURE.md alongside @c Dataset::num_classes().
              */
             ObjectiveLeaves leaves;
 

@@ -54,7 +54,7 @@
  * that declared some other leaf has nothing writing it. Wiring the trainer to
  * feed arbitrary declared leaves is a separate change with its own argument;
  * @ref ObjectiveLeaves is the shape it will use. Recorded here rather than
- * quietly carried - see docs/ARCHITECTURE.md, alongside
+ * quietly carried - see docs/architecture/ARCHITECTURE.md, alongside
  * @c Dataset::num_classes().
  *
  * Host lane except for @ref IObjective::score, which reads an output tensor.

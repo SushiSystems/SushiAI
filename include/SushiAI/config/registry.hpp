@@ -41,7 +41,7 @@
  * @c sushiai is a **static** library, so a translation unit whose only job is
  * to run a registration constructor resolves no symbol and is dropped by the
  * linker - silently, and only in a downstream consumer's build. That is the
- * same argument docs/ARCHITECTURE.md §4 gives for the backward-rule table and
+ * same argument docs/architecture/ARCHITECTURE.md §4 gives for the backward-rule table and
  * §5.2 for the fusion catalog. Adding an entry is one table row and one
  * factory function, both visible in a diff.
  *

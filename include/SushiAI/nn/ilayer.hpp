@@ -38,7 +38,7 @@
  * In an eager framework that would mean a virtual call per layer per step, and
  * it would be a real cost. Here it is not. @c forward() runs **once**, at trace
  * time, to emit IR; the graph is then compiled once and replayed
- * (docs/ARCHITECTURE.md §1). A @c std::vector<std::unique_ptr<ILayer>>
+ * (docs/architecture/ARCHITECTURE.md §1). A @c std::vector<std::unique_ptr<ILayer>>
  * therefore costs exactly nothing in the steady state - the graph-native
  * architecture is what pays for this feature, and the same design would be
  * indefensible in an eager one.

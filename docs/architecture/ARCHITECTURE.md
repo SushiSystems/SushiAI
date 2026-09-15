@@ -5,10 +5,10 @@ actually exists under `include/SushiAI/`, `src/`, and `cmake/`. **AI-1** has
 landed: the graph IR, the differentiation transform, the lowering to
 SushiBLAS, the layer/optimizer/data/training layers, and an MLP that trains
 end to end. It will keep growing section by section — see
-[`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
+[`ROADMAP.md`](../design/ROADMAP.md)
 for what's coming and in what order.
 
-> If you only want to *use* the library, the top-level [README.md](../README.md)
+> If you only want to *use* the library, the top-level [README.md](../../README.md)
 > is enough.
 
 ---
@@ -84,7 +84,7 @@ parameter type is a span — `Autograd::differentiate`,
 `Core::allocate_tensor`, `Optim::StepScalars::write`, the `Autograd`
 gradcheck entry points. Those now export the shim's mangling, so a consumer
 must be at C++17 too; `tests/package/` says so in a comment, with the two
-symbols side by side. See [INTEGRATION.md §3](INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply).
+symbols side by side. See [INTEGRATION.md §3](../guides/INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply).
 
 The pieces C++20 had been supplying are C++17 spellings now:
 
@@ -513,7 +513,7 @@ and that is a substitution rather than an approximation: SushiBLAS's
 not a rewrite the fusion pass applies - is what leaves the pre-activation with
 a single consumer in the plain graph too, so an ordinary use count says yes for
 ReLU with no activation-specific code in the matcher at all, and would say no
-for GELU. The three entries in `docs/slop`'s §25 note about GELU/SiLU/sigmoid/
+for GELU. The three entries in `docs/design`'s §25 note about GELU/SiLU/sigmoid/
 tanh being non-recoverable is narrower than it looked: sigmoid and tanh **are**
 exactly recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's rules
 already take the output, so GELU was the only one the use count genuinely
@@ -686,7 +686,7 @@ fp16 matrix unit, so half arithmetic is emulated and `--precision mixed` is
 several times *slower* than fp32. No timing gate exists for it and none should
 until the hardware does. What is real and tested is that the graph carries the
 right types, that the masters stay fp32, and that the model still learns — see
-[README.md § Mixed precision](README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
+[README.md § Mixed precision](../../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
 for the measured loss curves both ways.
 
 **Loss scaling is here too, and it is `optim/loss_scaler.hpp`.** The backward
@@ -945,5 +945,5 @@ ported, at AI-0. See the master plan for the actual sequencing.
 
 ## Project layout
 
-See the top-level [README.md § Project layout](../README.md#project-layout)
+See the top-level [README.md § Project layout](../../README.md#project-layout)
 for the full directory tree.
