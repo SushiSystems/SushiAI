@@ -19,9 +19,8 @@ CTestTestfile.cmake
 _deps/
 
 # Docs
-# Doxyfile itself is COMMITTED - `sa doxygen` reads a repo-root one and fails
-# without it, so ignoring it made the documented command impossible in a fresh
-# checkout. Only its generated output is ignored.
+# Doxyfile is committed at docs/Doxyfile. Generated documentation output is ignored.
+/docs/api-site/
 docs/api-site/html/
 docs/api-site/doxygen-warnings.log
 html/

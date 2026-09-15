@@ -1,0 +1,49 @@
+---
+# The mechanical formatting rules matching the cpp-code-style skill.
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++17
+
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+
+BreakBeforeBraces: Allman
+NamespaceIndentation: All
+IndentAccessModifiers: true
+FixNamespaceComments: true
+IndentCaseLabels: true
+IndentPPDirectives: None
+
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortLambdasOnASingleLine: Empty
+
+AlignAfterOpenBracket: Align
+AlignOperands: Align
+AlignTrailingComments: true
+BinPackArguments: true
+BinPackParameters: true
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+AlwaysBreakTemplateDeclarations: Yes
+
+SortIncludes: false
+IncludeBlocks: Preserve
+
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+SpaceAfterCStyleCast: false
+SpacesBeforeTrailingComments: 1
+ReflowComments: false
+...

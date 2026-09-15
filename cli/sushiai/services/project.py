@@ -555,6 +555,8 @@ def doxygen() -> int:
     root = find_project_root()
     cfg = load_config()
     env = load_build_env(cfg, _build_dir(root))
-    doxyfile = root / "Doxyfile"
+    doxyfile = root / "docs" / "Doxyfile"
+    if not doxyfile.exists():
+        doxyfile = root / "Doxyfile"
     (root / "docs").mkdir(exist_ok=True)
     return _DRIVER.doxygen(cfg, doxyfile, root, env)
