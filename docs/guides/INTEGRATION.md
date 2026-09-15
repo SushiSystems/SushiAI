@@ -31,7 +31,7 @@ message formatter, `SushiRuntime::span` and `OpID`), so a translation unit
 that only builds or inspects a graph can include those headers directly and
 stay off the device compiler. Everything else, `core/allocation.hpp`
 included, is the device lane. See
-[ARCHITECTURE.md §3](ARCHITECTURE.md#3-the-library-target).
+[ARCHITECTURE.md §3](../architecture/ARCHITECTURE.md#3-the-library-target).
 
 ---
 
@@ -65,7 +65,7 @@ exactly this.
 
 `add_subdirectory(path/to/sushiai)` also works and gives you the same
 `SushiAI::sushiai` target — the same
-[D3 layered resolution](ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
+[D3 layered resolution](../architecture/ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
 SushiAI itself uses for its own two siblings applies one level up.
 
 Set `SA_BUILD_TESTS=OFF` before that `add_subdirectory` if you do not want
@@ -105,7 +105,7 @@ You must supply:
 ### Why the standard has to match, and does not just have to be "at least"
 
 SushiAI is built at **C++17**, matching SushiBLAS and SushiRuntime — see
-[ARCHITECTURE.md §1](ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
+[ARCHITECTURE.md §1](../architecture/ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
 for why the three have to agree at all.
 
 The consequence for you is narrow but real. `SushiRuntime::span` is

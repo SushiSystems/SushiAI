@@ -399,7 +399,7 @@ namespace SushiAI
          * it.
          *
          * A variable template rather than a C++20 concept, because the library is
-         * built at C++17 (see docs/ARCHITECTURE.md §1). Every use site is spelled the
+         * built at C++17 (see docs/architecture/ARCHITECTURE.md §1). Every use site is spelled the
          * same either way - @c Module<Linear> - so this is the same contract asked the
          * same way; what it cannot do is constrain a template parameter directly,
          * which is why Sequential carries a static_assert instead.

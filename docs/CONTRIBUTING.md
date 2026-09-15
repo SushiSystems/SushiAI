@@ -12,10 +12,10 @@ project is actually built.
 By contributing you agree that your contributions are licensed under the
 project's **Apache License, Version 2.0** (see [`LICENSE`](../LICENSE)).
 
-> New to the codebase? Start with [`TUTORIAL.md`](TUTORIAL.md) — it walks from
+> New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md) — it walks from
 > an empty checkout to a model that trains, and then explains what the library
-> did with it. Then [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design, and
-> [`docs/slop/make_sushiai_great_again.md`](slop/make_sushiai_great_again.md)
+> did with it. Then [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) for the design, and
+> [`docs/design/ROADMAP.md`](design/ROADMAP.md)
 > for what's actually planned and in what order. `sa demo mlp` is the
 > fastest way to see the whole pipeline do something.
 
@@ -40,7 +40,7 @@ sa build                 # Release (default)
 sa test                  # functional suite
 ```
 
-See [`CLI_GUIDE.md`](CLI_GUIDE.md) for the full command reference.
+See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
 
 ---
 
@@ -135,7 +135,7 @@ Every file starts with this signature (replace `[filename]`):
   on one standard because `SushiRuntime::span` picks between `std::span` and
   SushiRuntime's own shim on `__cplusplus`, and that choice reaches the
   compiled ABI — see
-  [ARCHITECTURE.md §1](ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
+  [ARCHITECTURE.md §1](architecture/ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
   for the full reasoning and the table of C++17 spellings this implies
   (`SushiRuntime::span`, `SushiBLAS::Core::format`, `constexpr bool` traits in
   place of concepts, `constexpr` in place of `consteval`). 4-space indentation.
@@ -164,7 +164,7 @@ This is a **SushiStack-wide convention**: `sushiruntime_`, `sushiblas_`,
 repo's `cmake/` directory on. A name defined twice in one configure (e.g. two
 repos both defining a bare `sushi_apply_build_policy`) is a hard CMake error
 with no scoping to fall back on — see
-[ARCHITECTURE.md §4](ARCHITECTURE.md#4-packaging) for the exact collision this
+[ARCHITECTURE.md §4](architecture/ARCHITECTURE.md#4-packaging) for the exact collision this
 prevents. `Vcpkg.cmake` and `Toolchain.cmake` are the deliberate exception:
 their logic is idempotent regardless of which sibling's copy loads first, so
 they stay unprefixed.
@@ -174,12 +174,12 @@ they stay unprefixed.
 ## 5. Documentation is part of the change
 
 - **Changelog entries start at v1.0.0.** The project is pre-1.0. Until then,
-  [`CHANGELOG.md`](CHANGELOG.md)'s `[Unreleased]` section documents
+  [`CHANGELOG.md`](reference/CHANGELOG.md)'s `[Unreleased]` section documents
   prototype-era milestones informally.
 - **A change to the dependency chain, the library target, or the packaging
-  shape updates [`ARCHITECTURE.md`](ARCHITECTURE.md)** — every class, CMake
+  shape updates [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)** — every class, CMake
   function, and file it names must still exist.
-- **Any CLI change updates [`CLI_GUIDE.md`](CLI_GUIDE.md)**, and the
+- **Any CLI change updates [`CLI_GUIDE.md`](guides/CLI_GUIDE.md)**, and the
   build/test snippets here and in the README that invoke it.
 - **A new dependency updates [`cli/sushistack.deps.toml`](../cli/sushistack.deps.toml)**
   — see [§7](#7-adding-a-c-dependency).
@@ -239,15 +239,15 @@ update `CMakeLists.txt` to find and link it. Verify with `hub doctor` and
 Use the GitHub issue templates. A good bug report includes the platform and
 toolchain, the build type, the exact `sa` command, and the smallest
 reproducer you can manage. For anything that looks like a **security** issue,
-do **not** open a public issue — follow [`SECURITY.md`](SECURITY.md).
+do **not** open a public issue — follow [`SECURITY.md`](reference/SECURITY.md).
 
 ---
 
 ## 9. Questions
 
 Open a GitHub Discussion, join the community Discord (see
-[`SECURITY.md`](SECURITY.md) for the current invite), or email
+[`SECURITY.md`](reference/SECURITY.md) for the current invite), or email
 **mustafagarip@sushisystems.io**.
 
 Please be respectful in all project spaces — see
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+[`CODE_OF_CONDUCT.md`](reference/CODE_OF_CONDUCT.md).

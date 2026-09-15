@@ -121,7 +121,7 @@ sa test --repeat 5            # re-run each test up to 5x, stop on first failure
 The three tiers come from the GTest suite-name prefix (`Unit_*`,
 `Integration_*`, `Regression_*`) and nothing else — see
 `tests/CMakeLists.txt`. `regression` holds the guarantees whose failure is
-silent (see [CONTRIBUTING.md §3](CONTRIBUTING.md#3-building-and-testing-your-change)).
+silent (see [CONTRIBUTING.md §3](../CONTRIBUTING.md#3-building-and-testing-your-change)).
 
 For GoogleTest-level options CTest doesn't expose, run the binary directly
 with `sa run` and pass flags after `--`.
@@ -260,7 +260,7 @@ byte-for-byte parameter comparison rather than as six printed decimals.
 Under `--precision mixed` the GELU layer is **not** folded — the fusion line
 shows `gemm+bias` twice — because the tanh approximation computes `x*x*x`,
 which overflows fp16 at |x| ≈ 40.3. See
-[ARCHITECTURE.md §6.2](ARCHITECTURE.md) for why that is a structural
+[ARCHITECTURE.md §6.2](../architecture/ARCHITECTURE.md#62-the-pass-order-is-load-bearing) for why that is a structural
 consequence of the pass order rather than a special case.
 
 `--precision` is the same idea for mixed precision. `fp32` — the default —
@@ -274,7 +274,7 @@ that cost and in which direction.
 **On this machine `--precision mixed` is a correctness switch, not a speed
 one.** There is no fp16 matrix unit here, so half arithmetic is emulated and
 the mixed run is several times slower — see
-[README.md § Mixed precision](../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
+[README.md § Mixed precision](../../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
 for the measured figures. What the flag is for is running the two arms from
 one binary and comparing the *loss curves*.
 
@@ -299,7 +299,7 @@ root, so a relative data path such as the demo's `data/mnist` default means
 the same thing wherever you invoked `sa` from. It trains an MLP end to end and
 reports the compile count, the per-epoch loss trajectory, the final accuracy
 and the wall clock. See
-[README.md § The demo](../README.md#the-demo-sa-demo-mlp) for real output.
+[README.md § The demo](../../README.md#the-demo-sa-demo-mlp) for real output.
 
 Two deliberate choices:
 
@@ -449,4 +449,4 @@ vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
 ## Building without the CLI
 
 The CLI is a convenience, not a requirement. See **Building with CMake
-directly** in the top-level [README.md](../README.md#building-with-cmake-directly).
+directly** in the top-level [README.md](../../README.md#building-with-cmake-directly).

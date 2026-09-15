@@ -86,7 +86,7 @@
  *   that pointer.
  * - **Choosing the next scale** has until the *next* step's forward pass, so it
  *   is taken on the **host**, in @ref after_replay, from a buffer the device
- *   has already been waited on. @c docs/slop/make_sushiai_great_again.md §21
+ *   has already been waited on. @c docs/design/ROADMAP.md §21
  *   forbids a synchronous host read inside forward/backward; this is the step
  *   boundary, which is outside it and where @c Train::Trainer::run_step already
  *   syncs to read the loss. Keeping the state machine on the host also keeps it
