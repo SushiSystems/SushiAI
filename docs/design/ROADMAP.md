@@ -1,10 +1,6 @@
 # SushiBLAS & SushiAI — SushiStack Construction and AAA-Quality Plan
 
-**Status:** planning document, v2, revised 2026-08-01. Nothing below is implemented yet; this is the
-agreed shape of the work, not a report of work done. v1 of this document was written from a partial
-survey; v2 follows a full four-repo survey (sushiruntime `main@cb894ff`, sushiengine `main`,
-sushistack `feature/toolchain-refresh@448d5a6`, sushicli `main@6e4eb30`, sushiblas `main@7344757`,
-sushiai `main@0bc4b04`) and records six owner decisions (D1–D6, §2) made on 2026-08-01.
+**Status:** Open — phase 2 of 4
 
 **Mandate.** The macro architecture of the stack, stated once:
 
