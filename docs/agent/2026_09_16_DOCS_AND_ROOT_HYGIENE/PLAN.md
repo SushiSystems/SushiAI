@@ -8,7 +8,7 @@
 
 **Tech Stack:** Markdown, Python (Typer CLI), CMake, Doxygen, Clang-Format, Git.
 
-**Spec:** [`docs/superpowers/specs/2026-09-16-docs-and-root-hygiene-design.md`](../specs/2026-09-16-docs-and-root-hygiene-design.md)
+**Spec:** [`docs/agent/2026_09_16_DOCS_AND_ROOT_HYGIENE/SPEC.md`](SPEC.md)
 
 ## Global Constraints
 

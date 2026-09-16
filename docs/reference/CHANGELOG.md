@@ -4,6 +4,8 @@ All notable changes to SushiAI are documented here.
 
 ## Unreleased
 
+- 2026-09-16 — docs: Restructured documentation hierarchy and added repository hygiene tools (`docs/`, `tools/`).
+
 - 2026-09-07 — docs: Renamed the hub CLI command from ss to hub (`docs/`).
 - 2026-08-09 — graph: Validated tensor layout uniformity on entry to graph lowering (`Lowering::record`, `lowering.cpp`).
 - 2026-08-08 — cli: Added out-of-tree package consumer test suite to sa test (`project.py`, `tests/package/`).
