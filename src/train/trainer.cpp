@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file trainer.cpp
+ * @brief Implements training loop driver, step execution, and parameter binding.
+ * @author Mustafa Garip
+ */
+
 #include <chrono>
 #include <vector>
 #include <SushiBLAS/core/format.hpp>
@@ -35,16 +41,10 @@ namespace SushiAI
                                                           Graph::TensorPool& pool,
                                                           Graph::PlanOptions options)
         {
-            // Before anything is materialised: adopt() only reaches values that
-            // do not have a buffer yet, so planning after the fact would plan
-            // nothing and report a saving that never happened.
+            // Memory planning must precede leaf and tensor materialisation.
             if (!pool.has_plan())
             {
-                // The planner reasons about the IR; only the lowering knows
-                // which values an operation cannot address through an arena, so
-                // it gets a veto rather than the planner getting a special case.
-                // Added to the caller's list rather than replacing it: this veto
-                // is a correctness constraint, not a preference.
+                // Lowering constraints determine which values require standalone allocations.
                 std::vector<Graph::ValueId> pinned =
                     Graph::Lowering::values_needing_own_allocation(built.graph);
                 pinned.insert(pinned.end(), options.pinned.begin(), options.pinned.end());
@@ -72,17 +72,7 @@ namespace SushiAI
 
                 SushiBLAS::Tensor& gradient = pool.materialise(binding.gradient, gradient_value);
 
-                // There is no zero_grad() in this library, because every
-                // gradient in a step is written rather than accumulated into -
-                // see optimizer.hpp. That leaves exactly one window in which a
-                // gradient has never been written at all: between here and the
-                // first replay. An optimizer stepping inside it would read a
-                // fresh allocation, which is whatever the pool last had in that
-                // block, and feed it straight into the weights. Nothing
-                // downstream can catch that; the parameters simply become
-                // garbage and the loss never recovers. So the buffer is defined
-                // from the moment anything can see it, and a step taken before
-                // the first backward is a no-op instead of undefined behaviour.
+                // Gradients are initialised to zero before the first backward execution.
                 pool.request_constant(gradient, 0.0);
 
                 slots.push_back(Optim::ParameterSlot{
@@ -90,8 +80,7 @@ namespace SushiAI
                 });
             }
 
-            // Immediately, not at the next CompiledStep: the caller may build
-            // an optimizer over these slots before it builds a trainer.
+            // Constant buffers must be flushed before optimizer initialisation.
             pool.flush_constants();
 
             return slots;
@@ -131,19 +120,10 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief The recorder CompiledStep should fold in, or nothing.
-             *
-             * A free function because the answer is needed inside Trainer's
-             * member-initialiser list, before any member exists to hold it -
-             * and because refusing loudly is the whole point: an optimizer
-             * whose scalars are baked into its recorded tasks would replay step
-             * one's bias corrections for ever, converge anyway, and never say
-             * a word.
-             *
-             * @param optimizer The update rule.
-             * @param options The trainer's options.
-             * @return The optimizer as a recorder, or nullptr for PER_STEP.
-             * @throws Error If IN_PLAN was asked for and cannot be given.
+             * @brief Determines optimizer step recorder to fold into plan.
+             * @param optimizer Update rule; @p options Trainer options.
+             * @return Step recorder pointer, or nullptr for PER_STEP.
+             * @throws Error If IN_PLAN was requested for non-replayable optimizer.
              */
             Graph::IStepRecorder* placement_recorder(Optim::Optimizer& optimizer,
                                                      const TrainerOptions& options)
@@ -162,24 +142,11 @@ namespace SushiAI
             }
 
             /**
-             * @brief Passes @p graph through, refusing one its policy disowns.
-             *
-             * A free function returning its own argument, for the reason
-             * @c placement_recorder is one: the check has to happen *before*
-             * @c step_ is constructed, and @c step_ is constructed in the
-             * member-initialiser list - so a constructor body would be running
-             * after the lowering it was meant to guard.
-             *
-             * And this is the last place a misplaced conversion is still
-             * visible. Past here the graph becomes recorded SushiBLAS work,
-             * where a *missing* cast throws by name - so that half needs no
-             * help - and a cast in the wrong place does not throw at all: the
-             * step runs, the loss falls, and the model simply learns worse.
-             *
+             * @brief Validates graph operand types against the precision policy.
              * @param graph The graph about to be lowered.
-             * @param options The trainer's options.
-             * @return @p graph, unchanged.
-             * @throws Error If any node's operands disagree with its precision.
+             * @param options The trainer configuration options.
+             * @return Unchanged graph reference if validation succeeds.
+             * @throws Error If any node operand disagrees with precision policy.
              */
             const Graph::Graph& verified(const Graph::Graph& graph, const TrainerOptions& options)
             {
@@ -248,15 +215,7 @@ namespace SushiAI
         {
             const SushiBLAS::Tensor& logits = pool_->tensor(spec_.logits);
 
-            // Refused rather than reinterpreted. This used to be a two-way
-            // choice between double and float with float as the else, which was
-            // right while every graph was fp32 or fp64 and became a silent
-            // wrong answer the moment a precision policy could hand this an
-            // fp16 buffer: `data_as<float>()` on half data reads two elements
-            // as one and reports an accuracy nobody could tell was fiction.
-            // Keeping the logits readable is the caller's job, and it is a job
-            // they already have a way to do - naming them to the cast pass as
-            // observed, which build_classifier does for every StepSpec value.
+            // Accuracy evaluation requires readable host float32 or float64 logits.
             SA_THROW_IF(logits.dtype != DType::FLOAT32 && logits.dtype != DType::FLOAT64,
                         "Accuracy needs a host read of the logits and they are {}; only "
                         "float32 and float64 can be read back. Either switch accuracy "
@@ -265,10 +224,7 @@ namespace SushiAI
                         "precision policy cannot narrow them.",
                         dtype_name(logits.dtype));
 
-            // The per-row argmax is done here rather than on the device
-            // because SushiBLAS's argmax is whole-tensor and a diagnostic does
-            // not justify a new reduction kernel. It is one host read of an
-            // [N, C] buffer per step, and it is why accuracy is optional.
+            // Per-row argmax is computed on host to evaluate accuracy per sample.
             const auto at = [&logits](int64_t index) -> double
             {
                 return logits.dtype == DType::FLOAT64
@@ -301,17 +257,13 @@ namespace SushiAI
                         "The batch holds {} target elements but the compiled step expects {}",
                         batch.targets.num_elements, targets.num_elements);
 
-            // The compiled plan reads these two buffers by address, so the batch
-            // is copied into them rather than bound to them. See the header.
+            // Minibatch tensors are copied into fixed address buffers read by the plan.
             engine_->blas().copy(batch.inputs, inputs);
             engine_->blas().copy(batch.targets, targets);
             engine_->execute();
             engine_->get_context().wait_all();
 
-            // With the optimizer in the plan this one call is forward,
-            // backward, the loss and the update. The metrics below are still
-            // this step's: the update writes parameters and its own state, and
-            // touches neither the loss nor the logits.
+            // The compiled step executes forward, backward, loss, and update in-plan.
             step_.run();
 
             StepMetrics metrics;

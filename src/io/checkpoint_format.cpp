@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file checkpoint_format.cpp
+ * @brief Implements binary checkpoint serialization and deserialization helpers.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/io/checkpoint_format.hpp>
 
 #include <array>
@@ -36,14 +42,7 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief Every DType a checkpoint may name.
-             *
-             * A file-declared dtype is an arbitrary 32-bit number until it has
-             * been checked against this list, and casting an unchecked one to
-             * @c DType would put a value into the enum that no switch in the
-             * library handles. Listed rather than range-checked so that adding
-             * a dtype is an edit here beside the edits to @c dtype_size and
-             * @c dtype_name, not a bound that silently widens.
+             * @brief Lists every supported datatype that a checkpoint may encode.
              */
             constexpr std::array<DType, 7> KNOWN_DTYPES = {
                 DType::HALF, DType::FLOAT32, DType::FLOAT64,
@@ -121,8 +120,6 @@ namespace SushiAI
             }
         }
 
-        // --- CheckpointWriter ------------------------------------------------
-
         CheckpointWriter::CheckpointWriter(std::ostream& out, std::uint32_t count)
             : out_(&out), declared_(count)
         {
@@ -170,8 +167,6 @@ namespace SushiAI
                         "this checkpoint declared {} records but {} were written",
                         declared_, written_);
         }
-
-        // --- CheckpointReader ------------------------------------------------
 
         CheckpointReader::CheckpointReader(std::istream& in) : in_(&in)
         {
@@ -221,9 +216,7 @@ namespace SushiAI
                         "'{}' declares rank {}; at most {} is allowed",
                         record.name, rank, MAX_RANK);
 
-            // Collected before the Shape is built, so a non-positive extent is
-            // reported against the record that carries it rather than through
-            // Shape's own constructor, which knows no name.
+            // Extents are validated before Shape construction to provide record context.
             std::array<std::int64_t, static_cast<std::size_t>(MAX_RANK)> dims{};
             for (std::uint32_t i = 0; i < rank; ++i)
             {

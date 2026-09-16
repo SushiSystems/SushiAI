@@ -21,61 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file checkpoint_format.hpp
- * @brief The checkpoint byte stream, and nothing else.
- *
- * @section layout The format
- *
- * @code
- * magic     u32       0x50434153, which is the bytes "SACP"
- * version   u32       1
- * count     u32       tensor count                  (<= MAX_TENSOR_COUNT)
- * --- count times ---
- * name_len  u32                                     (<= MAX_NAME_LENGTH)
- * name      u8 * name_len
- * dtype     u32       SushiAI::DType
- * rank      u32                                     (<= SushiAI::MAX_RANK)
- * dims      i64 * rank                              (each > 0)
- * payload   u8 * (product(dims) * dtype_size(dtype))
- * @endcode
- *
- * @section lane Why this half has no tensors in it
- *
- * Host lane: no SushiBLAS engine, no SYCL, no @c Tensor. It reads and writes
- * @ref TensorRecord headers and opaque payload bytes, which is what lets the
- * whole format be exercised against a @c std::stringstream with no device
- * present - so every malformed-file case is a @c Unit_ test rather than an
- * @c Integration_ one. @c io/checkpoint.hpp is the other half: it walks a
- * module's parameters and binds records to the pool's tensors.
- *
- * @section allocation Why the reader allocates nothing
- *
- * A reader that sized a buffer from a file-declared element count would let a
- * corrupt file ask for 16 GB, and it would ask for it before anything had
- * checked the count against a destination. There is no intermediate buffer
- * here at all: @ref CheckpointReader::next reads a header, the caller checks
- * it against the destination it already owns, and
- * @ref CheckpointReader::read_payload copies into that destination. The
- * file-driven allocation is absent by construction rather than guarded
- * against.
- *
- * @section endianness Little-endian, stated rather than assumed
- *
- * Every scalar is encoded and decoded a byte at a time, so the format does not
- * inherit the host's byte order by accident and a big-endian host reads a file
- * a little-endian host wrote. The cost is a handful of shifts per header
- * field, against a payload that is orders of magnitude larger.
- *
- * @section bounds Why every count is bounded
- *
- * @c name_len, @c rank and @c count each bound a loop or a read, and each is
- * read from the file. An unbounded one turns a corrupt byte into an
- * unbounded read; the bounds are stated here so a violation is a diagnostic
- * naming the field rather than a hang or an allocation failure.
+ * @brief Defines the binary serialization format and streaming reader and writer.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -143,12 +95,7 @@ namespace SushiAI
 
         /**
          * @class CheckpointWriter
-         * @brief Writes the file header, then exactly @c count records.
-         *
-         * The count is declared up front rather than patched in at the end,
-         * because a writer that seeks back to fix a header cannot write to a
-         * non-seekable stream - and because a mismatch between the declared
-         * and the actual count is then a condition @ref finish can name.
+         * @brief Serializes checkpoint headers and tensor records to an output stream.
          */
         class CheckpointWriter
         {
@@ -190,12 +137,7 @@ namespace SushiAI
 
         /**
          * @class CheckpointReader
-         * @brief Reads the file header, then hands out records one at a time.
-         *
-         * @ref next and @ref read_payload are deliberately two calls: between
-         * them is the only place a caller can compare a record against the
-         * destination it owns, which is what lets the payload be read straight
-         * into that destination instead of into a buffer sized from the file.
+         * @brief Deserializes checkpoint headers and records from an input stream.
          */
         class CheckpointReader
         {

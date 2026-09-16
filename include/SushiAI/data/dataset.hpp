@@ -21,40 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file dataset.hpp
- * @brief Where a training loop's batches come from.
- *
- * Batches are materialised on the device once, up front, and handed out by
- * index. That is the right shape for this stage: it keeps the training loop
- * free of host-to-device transfer, keeps a step's cost attributable to the
- * step, and makes a run reproducible without a data-loader thread to
- * synchronise. A streaming loader belongs behind the same @c Dataset seam once
- * there is a dataset that does not fit.
- *
- * Every batch owns its own tensors, each with its own Storage - see
- * lowering.hpp for why an offset view into one big buffer would be silently
- * mis-read by almost every SushiBLAS kernel.
- *
- * @section synthetic Why a synthetic dataset is the test gate
- *
- * @c SyntheticClassification generates a linearly separable multi-class
- * problem from the engine's own seeded Philox stream. It needs no files, no
- * network and no fixture, so "does this library actually train" is a
- * hermetic test rather than a manual check - and its separability means a
- * correct implementation must reach near-perfect accuracy, so the assertion
- * can be tight instead of "the loss went down a bit".
- *
- * @warning Reproducibility is a property of a @e fresh Engine, not of the
- *          seed alone. SushiBLAS's @c Engine::set_seed() sets the seed but
- *          leaves the engine's monotonically increasing RNG offset counter
- *          untouched, and every RNG kernel mixes that counter into the Philox
- *          stream. Two generators built back to back on one engine therefore
- *          produce different data from the same seed. Build a fresh Engine
- *          when you need byte-identical data twice.
+ * @brief Declares dataset interfaces and implementations for model training.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <cstddef>
@@ -161,17 +134,10 @@ namespace SushiAI
 
         /**
          * @class SyntheticClassification
-         * @brief A deterministic, seeded, linearly separable multi-class problem.
+         * @brief Generates deterministic, linearly separable multi-class batches.
          *
-         * Each class gets a random mean vector; a sample is its class mean plus
-         * Gaussian noise. Both come from @c engine.random(), so the data is
-         * generated where it will be consumed and the only host work is the
-         * deterministic one-hot pattern - which is a fixed integer layout, not
-         * randomness, and so needs no device kernel to be reproducible.
-         *
-         * Samples are assigned to classes round-robin, so every batch is
-         * exactly balanced and accuracy needs no class weighting to read
-         * correctly.
+         * Samples are assigned to classes round-robin with Gaussian noise added to
+         * class means.
          */
         class SyntheticClassification final : public Dataset
         {
@@ -226,34 +192,10 @@ namespace SushiAI
 
         /**
          * @class Rings
-         * @brief Concentric rings, labelled by which ring a point falls in.
+         * @brief Generates concentric rings labelled by ring index.
          *
-         * @section why Why this problem and not another synthetic one
-         *
-         * Four concentric rings in a plane, one class per ring. The decision
-         * boundary is a degree-2 polynomial in the inputs - the class is a
-         * function of x² + y² - so **no linear classifier can separate it**: a
-         * single Linear layer tops out near chance accuracy no matter how it is
-         * trained. That is what makes it a gate a shallow model actually fails,
-         * where @ref SyntheticClassification (linearly separable by
-         * construction) is one that any correct implementation passes.
-         *
-         * A handful of purely Gaussian distractor features ride along with
-         * (x, y), so the network also has to learn which inputs are signal.
-         *
-         * @section host Generated on the host, and why that is enough
-         *
-         * Every SushiBLAS tensor here is backed by shared USM - the same idiom
-         * the MNIST loader uses - so writing through @c data_as<float>() is
-         * sufficient and no device kernel is needed. The RNG is a seeded
-         * @c std::mt19937_64 rather than the engine's Philox stream, which
-         * makes reproducibility a property of the seed alone: see this file's
-         * warning about @c Engine::set_seed for why the device stream does not
-         * give that.
-         *
-         * Samples are assigned to classes round-robin, so every batch is
-         * exactly balanced and accuracy needs no class weighting to read
-         * correctly.
+         * Decision boundary is quadratic in inputs, making it linearly non-separable.
+         * Distractor features contain pure Gaussian noise.
          */
         class Rings final : public Dataset
         {
@@ -313,22 +255,14 @@ namespace SushiAI
         std::string mnist_expected_paths(const MnistOptions& options);
 
         /**
-         * @brief Loads MNIST from IDX files, or returns null when they are absent.
-         *
-         * Absence is not an error: MNIST is 11 MB of files this repository does
-         * not ship, so the demo and the tests fall back to the synthetic
-         * dataset and say so. A file that is present but malformed @e is an
-         * error, because that is a broken download rather than an absent one.
-         *
-         * @param engine The engine that allocates and fills the tensors.
-         * @param options Where to look, which split, and how much.
-         * @return The loaded dataset, or nullptr when the files are not there.
-         * @throws Error If a file exists but its IDX header or size is wrong.
+         * @brief Loads MNIST from IDX files, returning nullptr if absent.
+         * @param engine Engine allocating device tensors.
+         * @param options Directory, split, and sample count limits.
+         * @return Loaded dataset or nullptr when files are missing.
+         * @throws Error If an existing IDX file is malformed.
          */
         std::unique_ptr<Dataset> try_load_mnist(SushiBLAS::Engine& engine,
                                                 const MnistOptions& options = {});
-
-        // --- The registry a configuration file selects through -----------------
 
         /**
          * @brief Builds one dataset from its configuration attributes.
@@ -355,13 +289,11 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds a @ref Rings from its configuration attributes.
-         * @param engine The engine that allocates the tensors.
-         * @param attributes batch_size, batches, classes, distractors, ring_width,
-         *        position_noise and seed, all optional.
-         * @param context What to call this dataset in a diagnostic.
-         * @return The dataset.
-         * @throws Error If a key is unknown or a value is out of range.
+         * @brief Builds a @ref Rings dataset from configuration attributes.
+         * @param attributes Dataset parameters dictionary.
+         * @param context Diagnostic context string.
+         * @return Constructed dataset instance.
+         * @throws Error If an attribute key is unknown or value is invalid.
          */
         std::unique_ptr<Dataset> make_rings(SushiBLAS::Engine& engine,
                                             const Config::Value& attributes,
@@ -378,14 +310,11 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds the dataset named @p type.
-         * @param engine The engine that allocates and fills the tensors.
-         * @param type The registry key.
-         * @param attributes The dataset's own keys.
-         * @param context What to call it in a diagnostic.
-         * @return The dataset.
-         * @throws Error If @p type is unknown; the message lists every type
-         *         this build has.
+         * @brief Builds the dataset named @p type from the registry.
+         * @param type Registry key identifying dataset implementation.
+         * @param attributes Dataset configuration attributes.
+         * @return Constructed dataset instance.
+         * @throws Error If @p type is not registered.
          */
         std::unique_ptr<Dataset> make_dataset(SushiBLAS::Engine& engine, std::string_view type,
                                               const Config::Value& attributes,

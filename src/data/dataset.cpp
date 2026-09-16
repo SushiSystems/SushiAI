@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file dataset.cpp
+ * @brief Implements dataset loaders and synthetic batch generators.
+ * @author Mustafa Garip
+ */
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -157,10 +163,6 @@ namespace SushiAI
             };
         }
 
-        // =====================================================================
-        // SyntheticClassification
-        // =====================================================================
-
         SyntheticClassification::SyntheticClassification(SushiBLAS::Engine& engine,
                                                          SyntheticOptions options)
             : options_(options)
@@ -177,9 +179,7 @@ namespace SushiAI
             const int64_t features = options_.features;
             const int64_t classes = options_.classes;
 
-            // One random mean per class, shared by every batch. Drawing it once
-            // is what makes the problem a single consistent classification task
-            // rather than a fresh one per batch.
+            // Class means are shared across all batches to form a consistent task.
             const int64_t mean_dims[2] = {classes, features};
             SushiBLAS::Tensor means = allocate_tensor(engine, SushiRuntime::span<const int64_t>(mean_dims, 2));
             engine.random().normal(means, 0.0, 1.0);
@@ -207,8 +207,7 @@ namespace SushiAI
 
                 write_one_hot(batch.targets, batch.labels, classes);
 
-                // X = Y * M picks each sample's class mean; the one-hot matrix
-                // doubles as the gather SushiBLAS does not have.
+                // Matrix multiplication by one-hot targets gathers each sample's class mean.
                 engine.blas().gemm(batch.targets, means, batch.inputs, false, false, 1.0, 0.0);
                 engine.random().normal(noise, 0.0, options_.noise);
                 engine.blas().axpy(1.0f, noise, batch.inputs);
@@ -226,10 +225,6 @@ namespace SushiAI
                         "Batch {} is out of range; the dataset has {}", index, batches_.size());
             return batches_[index];
         }
-
-        // =====================================================================
-        // MNIST
-        // =====================================================================
 
         bool mnist_available(const MnistOptions& options)
         {
@@ -333,8 +328,6 @@ namespace SushiAI
                                                          classes, "mnist");
         }
 
-        // --- Rings -----------------------------------------------------------
-
         Rings::Rings(SushiBLAS::Engine& engine, RingsOptions options)
             : options_(options)
         {
@@ -358,10 +351,7 @@ namespace SushiAI
 
             constexpr double TWO_PI = 6.283185307179586476925286766559;
 
-            // A host RNG rather than the engine's Philox stream, so
-            // reproducibility is a property of the seed alone - see this
-            // header's warning about Engine::set_seed for why the device
-            // stream does not give that.
+            // Host RNG ensures reproducible sequence generation from the seed alone.
             std::mt19937_64 rng(options_.seed);
             std::uniform_real_distribution<double> theta_dist(0.0, TWO_PI);
             std::uniform_real_distribution<double> band_dist(0.0, options_.ring_width);
@@ -386,9 +376,7 @@ namespace SushiAI
 
                 for (int64_t r = 0; r < rows; ++r)
                 {
-                    // Round-robin over classes, exactly as SyntheticClassification
-                    // does, so every batch is balanced and accuracy needs no class
-                    // weighting to read correctly.
+                    // Round-robin class assignment balances every batch evenly.
                     const int64_t label = (running++) % classes;
                     batch.labels[static_cast<std::size_t>(r)] = static_cast<int32_t>(label);
 
@@ -414,8 +402,6 @@ namespace SushiAI
             return batches_[index];
         }
 
-        // --- The registry ------------------------------------------------------
-
         std::unique_ptr<Dataset> make_rings(SushiBLAS::Engine& engine,
                                             const Config::Value& attributes,
                                             std::string_view context)
@@ -434,9 +420,7 @@ namespace SushiAI
             options.position_noise =
                 read_real(attributes, "position_noise", prefix, options.position_noise);
 
-            // Read as a signed whole number because that is what JSON's grammar
-            // and Config::Value carry; reinterpreted rather than range-checked,
-            // so any 64-bit pattern a file can spell is a usable seed.
+            // Reinterpreting the signed integer preserves arbitrary 64-bit seed patterns.
             options.seed = static_cast<std::uint64_t>(
                 read_int(attributes, "seed", prefix, static_cast<int64_t>(options.seed)));
 

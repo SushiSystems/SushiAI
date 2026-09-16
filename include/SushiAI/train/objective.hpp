@@ -21,44 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file objective.hpp
- * @brief What turns a model's output into the scalar that gets differentiated.
- *
- * @section why Breaking the classifier lock-in, before it costs anything
- *
- * @c build_classifier used to hardcode @c NN::CrossEntropyLoss, and
- * @c Data::Dataset still demands a pure-virtual @c num_classes(). A PINN has
- * no classes; a detector has no [N, C] logits. Without generalising this seam,
- * a config-driven driver would be rewritten at the first model that is not a
- * classifier - which is exactly the outcome the config-driven design exists to
- * prevent.
- *
- * So the loss is a table row like the layers, the datasets and the optimizers,
- * and @c apps/train.cpp names no loss type at all.
- *
- * @section identical Why cross-entropy is reproduced rather than rewritten
- *
- * @ref CrossEntropyObjective emits the same operations in the same order as
- * the code it replaced - @c nll_loss(log_softmax(logits), targets) - so the
- * whole existing suite is the regression test for this change. If any
- * operation moved, @c Regression_LearningCurve, @c Regression_FusionNumerics
- * and @c Regression_Determinism would each say so, rather than the difference
- * being diffuse and unattributable.
- *
- * @section debt What this slice does not yet do
- *
- * @c Train::Trainer still feeds @c StepSpec::targets per step, so an objective
- * that declared some other leaf has nothing writing it. Wiring the trainer to
- * feed arbitrary declared leaves is a separate change with its own argument;
- * @ref ObjectiveLeaves is the shape it will use. Recorded here rather than
- * quietly carried - see docs/architecture/ARCHITECTURE.md, alongside
- * @c Dataset::num_classes().
- *
- * Host lane except for @ref IObjective::score, which reads an output tensor.
+ * @brief Defines training objectives, metrics, and registry interfaces.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -161,13 +130,12 @@ namespace SushiAI
                                      ObjectiveLeaves& leaves) const = 0;
 
                 /**
-                 * @brief Turns the model's output into the scalar that gets differentiated.
+                 * @brief Computes scalar loss from model output.
                  * @param builder Where the nodes go.
-                 * @param graph The graph, for checking the output's shape.
-                 * @param output The model's output value.
-                 * @param leaves What @ref declare recorded.
-                 * @return The 1-element loss.
-                 * @throws Error If @p output is not the shape this objective needs.
+                 * @param graph The graph, for checking shapes.
+                 * @param output The model output value.
+                 * @param leaves Declared auxiliary leaves.
+                 * @return The scalar loss value identifier.
                  */
                 virtual Graph::ValueId loss(const Graph::GraphBuilder& builder,
                                             const Graph::Graph& graph,
@@ -227,8 +195,6 @@ namespace SushiAI
                 DType dtype_ = DType::FLOAT32;
         };
 
-        // --- The registry a configuration file selects through -----------------
-
         /**
          * @brief Builds one objective from its configuration attributes.
          * @param batch Samples per step.
@@ -255,13 +221,12 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds a @ref CrossEntropyObjective; it takes no keys at all.
+         * @brief Builds a cross-entropy objective from attributes.
          * @param batch Samples per step.
-         * @param classes How many classes.
-         * @param attributes The objective's keys; any key whatsoever is an error.
-         * @param context What to call it in a diagnostic.
-         * @return The objective.
-         * @throws Error If any key is present.
+         * @param classes Number of target classes.
+         * @param attributes Objective attribute values.
+         * @param context Diagnostic context string.
+         * @return The constructed objective instance.
          */
         std::unique_ptr<IObjective> make_cross_entropy(int64_t batch, int64_t classes,
                                                        const Config::Value& attributes,
@@ -278,15 +243,11 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds the objective named @p type.
-         * @param type The registry key.
-         * @param batch Samples per step.
-         * @param classes How many classes the dataset spans.
-         * @param attributes The objective's own keys.
-         * @param context What to call it in a diagnostic.
-         * @return The objective.
-         * @throws Error If @p type is unknown; the message lists every type
-         *         this build has.
+         * @brief Builds the objective named by @p type.
+         * @param type Registry key; @p batch Samples per step.
+         * @param classes Target classes; @p attributes Configuration.
+         * @param context Diagnostic context string.
+         * @return The constructed objective instance.
          */
         std::unique_ptr<IObjective> make_objective(std::string_view type,
                                                    int64_t batch, int64_t classes,

@@ -21,35 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file SushiAI.h
- * @brief Master header for the SushiAI library.
- *
- * Includes every public header, so a consumer writes one include and gets the
- * whole library. The ordering below is the dependency order of the layers:
- * vocabulary, the graph IR that autograd and the later passes transform, the
- * lowering that turns that IR into SushiBLAS work, then the layers, losses,
- * optimizers, data and training loop built on top.
- *
- * Two lanes live under this roof, and the split is worth knowing about:
- *
- * - The @b host lane - @c core/common.hpp, @c core/ops.hpp,
- *   @c core/shape.hpp, @c graph/ir.hpp, @c graph/builder.hpp,
- *   @c graph/fusion.hpp, @c graph/memory_plan.hpp, @c graph/precision.hpp,
- *   @c graph/cast_insertion.hpp, @c autograd/, @c nn/module.hpp,
- *   @c nn/layers.hpp, @c nn/loss.hpp - pulls in no SushiBLAS and no SYCL.
- *   Shape inference, graph topology, the differentiation transform, the fusion
- *   pass, the memory planner, the precision policy, the cast pass and the
- *   parameter walk are all testable without a device, and this repository's
- *   unit tests include those headers directly for exactly that reason.
- * - The @b device lane - everything else, including @c core/allocation.hpp -
- *   reaches SushiBLAS and therefore SYCL.
- *
- * Including this master header gets both. Include a host-lane header directly
- * when you want to stay off the device compiler.
+ * @brief Includes the full public interface of the SushiAI library.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include "version.hpp"
 

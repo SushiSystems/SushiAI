@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file version.cpp
+ * @brief Implements runtime version query functions.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/version.hpp>
 
 namespace SushiAI

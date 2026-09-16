@@ -21,18 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file common.hpp
- * @brief Vocabulary shared by every SushiAI subsystem.
- *
- * Deliberately tiny. Anything that lands here is used by more than one
- * subsystem and has nowhere better to live; everything else belongs behind
- * its own boundary. The element-type vocabulary is SushiBLAS's, aliased
- * rather than redefined, because a second dtype enum that must be kept in
- * step with the first is a bug waiting for a deadline.
+ * @brief Declares shared types, constants, and error utilities for SushiAI.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <string>
 #include <cstddef>
@@ -59,12 +54,7 @@ namespace SushiAI
     inline constexpr int32_t MAX_RANK = static_cast<int32_t>(SushiBLAS::Core::MAX_TENSOR_RANK);
 
     /**
-     * @brief Bytes occupied by one element of @p dtype.
-     *
-     * The single source of truth for this mapping inside SushiAI. SushiBLAS
-     * currently repeats the same table in four places; SushiAI states it once
-     * so a new dtype is one edit here rather than a hunt.
-     *
+     * @brief Returns the size in bytes occupied by one element of @p dtype.
      * @param dtype The element type to size.
      * @return The element's size in bytes; never zero.
      */
@@ -104,14 +94,9 @@ namespace SushiAI
     }
 
     /**
-     * @brief Reports whether @p dtype is a real (non-complex) floating type.
-     *
-     * The training path is real-valued throughout; this is the predicate every
-     * op uses to reject a complex tensor at the boundary rather than deep
-     * inside a kernel.
-     *
+     * @brief Reports whether @p dtype is a real floating-point type.
      * @param dtype The element type to test.
-     * @return True for HALF, FLOAT32 and FLOAT64; false otherwise.
+     * @return True for HALF, FLOAT32, and FLOAT64; false otherwise.
      */
     constexpr bool is_real_float(DType dtype) noexcept
     {
@@ -139,22 +124,8 @@ namespace SushiAI
 
 /**
  * @brief Throws SushiAI::Error with a formatted message when @p condition holds.
- *
- * Input validation, not internal-invariant checking: it stays compiled in
- * under NDEBUG on purpose, because the conditions it guards are shape and
- * dtype mismatches supplied by a caller, and a silent wrong answer is worse
- * than a thrown one. Mirrors SushiBLAS's SB_THROW_IF so the two libraries
- * fail the same way - including the formatter, which is literally SushiBLAS's:
- * `SushiBLAS::Core::format` is the whole stack's C++17 stand-in for
- * `std::format`, shared rather than copied a third time. See
- * <SushiBLAS/core/format.hpp> for the grammar it accepts.
- *
- * @warning One guarantee is lost against `std::format`: its `consteval` check
- *          on a literal format string is gone, so a placeholder count that
- *          disagrees with the argument count is no longer a compile error. It
- *          degrades to a best-effort message - a surplus placeholder is
- *          dropped, a surplus argument is unused - because formatting a
- *          diagnostic is never allowed to be the reason a program fails.
+ * @param condition Expression to evaluate.
+ * @param ... Format string and arguments forwarded to SushiBLAS::Core::format.
  */
 #define SA_THROW_IF(condition, ...)                                            \
     do {                                                                       \

@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file allocation.cpp
+ * @brief Implements tensor allocation and arena viewing operations.
+ * @author Mustafa Garip
+ */
+
 #include <exception>
 #include <limits>
 #include <string>
@@ -32,15 +38,7 @@ namespace SushiAI
     namespace
     {
         /**
-         * @brief The element count of @p dims, refusing anything that would wrap.
-         *
-         * The obvious @c elements *= extent is signed overflow - undefined
-         * behaviour, which a compiler is entitled to assume cannot happen and
-         * therefore to delete the @c elements <= 0 check that was meant to
-         * catch it. A shape whose product does not fit is a caller mistake, so
-         * it is detected before the multiply rather than inferred from its
-         * wreckage.
-         *
+         * @brief Returns element count of @p dims, verifying non-overflow.
          * @param dims The extents.
          * @return The product of the extents.
          * @throws Error If an extent is not positive or the product overflows.
@@ -80,20 +78,10 @@ namespace SushiAI
         }
 
         /**
-         * @brief Builds a Storage of @p bytes, naming the tensor if it cannot.
-         *
-         * SushiBLAS already refuses a failed allocation loudly rather than
-         * handing back a null pointer for a kernel to dereference - but its
-         * message knows only a byte count. The shape and element type that
-         * asked for those bytes live here, and a caller looking at "allocation
-         * failed for 4398046511104 bytes" cannot work out which of a model's
-         * hundred tensors it was. So the context is attached where it exists.
-         *
-         * @param engine The engine whose context owns the allocator.
-         * @param bytes How many bytes to allocate.
-         * @param dims The extents, for the diagnostic.
-         * @param dtype The element type, for the diagnostic.
-         * @return The new storage.
+         * @brief Allocates Storage of @p bytes with diagnostic context.
+         * @param engine Engine context owner; @p bytes Byte count.
+         * @param dims Extents; @p dtype Element type for diagnostics.
+         * @return The new storage instance.
          * @throws Error If the underlying allocation fails.
          */
         SushiRuntime::sushi_ptr<SushiBLAS::Storage> make_storage(SushiBLAS::Engine& engine,
@@ -121,9 +109,7 @@ namespace SushiAI
                                       SushiRuntime::span<const int64_t> dims,
                                       DType dtype)
     {
-        // No "did that come out as zero" check: checked_element_count already
-        // refuses a non-positive extent and an overflowing product, so the only
-        // remaining way to be unrepresentable is in bytes rather than elements.
+        // checked_element_count validates positive extents and non-overflowing product.
         const int64_t elements = checked_element_count(dims);
 
         SA_THROW_IF(static_cast<std::uint64_t>(elements)
@@ -149,9 +135,7 @@ namespace SushiAI
     {
         SA_THROW_IF(like.num_elements <= 0, "Cannot allocate a tensor shaped like an empty one");
 
-        // The layout comes from the source rather than the engine: a tensor
-        // that was built column-major must be matched, or gemm would derive a
-        // different leading dimension for the copy than for the original.
+        // Layout matches the source tensor to preserve matrix dimensions.
         const SushiRuntime::span<const int64_t> dims(like.shape.data(),
                                                      static_cast<std::size_t>(like.rank));
         const int64_t elements = checked_element_count(dims);
@@ -166,10 +150,7 @@ namespace SushiAI
     SushiRuntime::sushi_ptr<SushiBLAS::Storage> allocate_arena(SushiBLAS::Engine& engine,
                                                                std::size_t bytes)
     {
-        // SushiBLAS::Storage refuses a zero-byte request, and it is right to:
-        // there is no valid pointer to hand back. An empty arena is a planner
-        // bug rather than a degenerate case to accommodate, so it is named here
-        // instead of surfacing as "Requested size cannot be zero".
+        // Arena requests must allocate at least one byte.
         SA_THROW_IF(bytes == 0,
                     "An arena of zero bytes cannot be allocated; a plan that packs nothing "
                     "should ask for no arena at all");

@@ -21,13 +21,11 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-// THE ONLY FILE IN THIS REPOSITORY THAT NAMES nlohmann::json.
-//
-// That is the whole reason Config::Value exists: the dependency links PRIVATE,
-// SushiAIConfig.cmake.in needs no find_dependency, and the out-of-tree
-// consumer in tests/package/ never sees it. Adding an #include of it anywhere
-// else silently gives that away - the build would still succeed, and the
-// breakage would surface in somebody else's project.
+/**
+ * @file value.cpp
+ * @brief Implements dynamically-typed configuration values and JSON conversion.
+ * @author Mustafa Garip
+ */
 
 #include <SushiAI/config/value.hpp>
 
@@ -44,14 +42,9 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief The document type this file parses into, before conversion.
+             * @brief The document type parsed by this translation unit.
              *
-             * @c ordered_json rather than @c json, because the default keeps an
-             * object's members in a @c std::map and therefore hands them back
-             * in alphabetical order. Config::Value promises the order the file
-             * spelled - a "this object carries 'a', 'b', 'c'" diagnostic should
-             * read the way the file reads - and that promise has to be kept
-             * here, since by the time a Value exists the order is already gone.
+             * Uses ordered_json to preserve key ordering as spelled in source files.
              */
             using Document = nlohmann::ordered_json;
 
@@ -65,10 +58,7 @@ namespace SushiAI
                 if (node.is_null())    return Value{};
                 if (node.is_boolean()) return Value::boolean(node.get<bool>());
 
-                // Integer and real are kept apart, so as_int can refuse 2.5
-                // rather than truncating it. JSON's own grammar makes the
-                // distinction; erasing it here would be this layer's choice and
-                // a silent one.
+                // Integer and floating-point types remain distinct to prevent implicit truncation.
                 if (node.is_number_integer() || node.is_number_unsigned())
                     return Value::integer(node.get<std::int64_t>());
                 if (node.is_number_float()) return Value::real(node.get<double>());
@@ -142,8 +132,6 @@ namespace SushiAI
             return "an unknown kind";
         }
 
-        // --- Construction ----------------------------------------------------
-
         Value Value::boolean(bool value)
         {
             Value node;
@@ -197,8 +185,6 @@ namespace SushiAI
             return node;
         }
 
-        // --- Typed access ----------------------------------------------------
-
         bool Value::as_bool(std::string_view context) const
         {
             SA_THROW_IF(kind_ != Kind::BOOL,
@@ -236,8 +222,6 @@ namespace SushiAI
             return array_;
         }
 
-        // --- Object access ---------------------------------------------------
-
         bool Value::has(std::string_view key) const noexcept
         {
             if (kind_ != Kind::OBJECT) return false;
@@ -273,9 +257,7 @@ namespace SushiAI
         void Value::reject_unknown_keys(std::string_view context,
                                         SushiRuntime::span<const std::string_view> allowed) const
         {
-            // A non-object carries no keys to reject. "This layer has no
-            // attributes at all" is a legitimate shape, and a caller that needs
-            // an object says so itself.
+            // Non-object nodes contain no keys to validate against the allowed list.
             if (kind_ != Kind::OBJECT) return;
 
             for (const std::string& key : keys_)
@@ -331,8 +313,6 @@ namespace SushiAI
                         "'{}' is a {} version {} document; this build reads version {}",
                         origin, key, version, expected);
         }
-
-        // --- Parsing ---------------------------------------------------------
 
         Value parse_json(std::string_view text, std::string_view origin)
         {
