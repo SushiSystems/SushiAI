@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file cast_insertion.cpp
+ * @brief Implements precision cast insertion and graph rewriting passes.
+ * @author Mustafa Garip
+ */
+
 #include <algorithm>
 #include <cstdint>
 #include <unordered_map>
@@ -36,13 +42,9 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief Whether the pass leaves @p op's node entirely alone.
+             * @brief Checks whether the pass leaves the operation unchanged.
              *
-             * A leaf is written from outside the step, so its element type is
-             * the caller's declaration and not a computed one; a cast is the
-             * single node whose operand and result are *meant* to disagree.
-             * These are the same two exemptions @c find_dtype_mismatches makes,
-             * and they are listed once so the pass and the checker cannot drift.
+             * Leaves and cast nodes are structurally exempt from precision modifications.
              */
             bool is_structural(OpID op) noexcept
             {
@@ -50,23 +52,12 @@ namespace SushiAI
             }
 
             /**
-             * @brief Whether @p dtype is something a precision policy may move.
+             * @brief Checks if a data type is eligible for precision narrowing.
              *
-             * MAXPOOL2D writes a pooled tensor and, beside it, an INT64 argmax
-             * its backward reads as a table of offsets. That second result has
-             * no precision to choose: narrowing it is not a cheaper number, it
-             * is a different pixel, and widening it is a rounding policy this
-             * library is not entitled to invent (the same reason
-             * @c GraphBuilder::cast refuses anything but real float to real
-             * float).
+             * Non-floating types such as index masks are excluded from cast policies.
              *
-             * So the pass skips these values everywhere it would otherwise
-             * compare against a node's computed type - which is what makes
-             * "one dtype per node" true of the values that have one, rather
-             * than of every value the node touches. It is deliberately keyed
-             * on the value's element type and not on an op list: any later
-             * operation with an index-shaped result inherits the exemption
-             * without editing this pass.
+             * @param dtype Element data type to inspect.
+             * @return True if real floating type.
              */
             bool has_precision(DType dtype) noexcept
             {
@@ -74,13 +65,12 @@ namespace SushiAI
             }
 
             /**
-             * @brief The element type @p node computes in, per @p policy.
+             * @brief Resolves target computation data type for a node under policy.
              *
-             * A node's declared precision is read from its first result rather
-             * than from its operands, because the result is the value the
-             * builder derived from the operation's own shape and dtype rule -
-             * and because a node whose operands already disagree is exactly the
-             * state this pass exists to fix, so they are not a reliable answer.
+             * @param node The graph node to inspect.
+             * @param declared Table of declared value data types.
+             * @param policy Active precision policy.
+             * @return Target computation data type.
              */
             DType computed_dtype(const Node& node,
                                  const std::vector<DType>& declared,
@@ -97,12 +87,7 @@ namespace SushiAI
 
                 const PrecisionChoice choice = policy.choose(query);
 
-                // A policy that leaves a node where it found it needs no
-                // conversion, so it needs no conversion to be *possible* -
-                // which matters, because "the real floating types only" is a
-                // property of the cast and not of the IR. Checking it
-                // unconditionally would refuse an integer-typed operation that
-                // this pass was never going to touch.
+                // If policy retains declared precision, no conversion check is required.
                 if (choice.dtype == query.declared) return choice.dtype;
 
                 SA_THROW_IF(!is_real_float(choice.dtype) || !is_real_float(query.declared),
@@ -116,13 +101,9 @@ namespace SushiAI
             }
 
             /**
-             * @brief One (value, target dtype) pair, so a conversion is made once.
+             * @brief Deduplication key pairing a source value with target data type.
              *
-             * A parameter read by the forward matmul and again by the backward
-             * one needs the same fp16 copy twice; converting it twice would be
-             * two kernels and two buffers for one number. Reuse is safe because
-             * the IR is single-assignment - the value the second consumer wants
-             * is the value the first one already converted.
+             * Ensures identical conversions are materialized at most once per value.
              */
             struct CastKey
             {
@@ -197,12 +178,7 @@ namespace SushiAI
             const std::size_t node_count = graph.node_count();
             if (value_count == 0) return report;
 
-            // The rewrite emits a cast immediately before the consumer that
-            // needs it, which is only a valid position if a producer is already
-            // ahead of its consumer. Graph documents that and GraphBuilder makes
-            // it true; a hand-assembled graph can break it, and a broken one
-            // would place a conversion after the node that reads it - so it is
-            // checked here exactly as fuse() and MemoryPlan::build() check it.
+            // Verify topological insertion order before emitting preceding cast nodes.
             for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
                 for (ValueId in : graph.node(id).inputs)
                 {
@@ -214,10 +190,7 @@ namespace SushiAI
                                 id, in, producer);
                 }
 
-            // --- What each value is today, and what each node computes in -----
-            // Snapshotted before anything is rewritten: the policy narrows *from*
-            // the graph's own precision, and asking it about a value the pass has
-            // already retyped would be asking a different question.
+            // Snapshot initial declared precision before rewriting graph nodes.
             std::vector<DType> declared(value_count);
             for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
                 declared[id] = graph.value(id).dtype;
@@ -231,11 +204,7 @@ namespace SushiAI
                              : computed_dtype(node, declared, policy);
             }
 
-            // --- Which values may be retyped ----------------------------------
-            // "A value's element type follows its producer, unless something
-            // outside the pass depends on it." See the header; the two ways of
-            // depending on it are a persistent lifetime class and an explicit
-            // mention by the caller.
+            // Retain declared types for persistent or explicitly observed values.
             std::vector<bool> pinned(value_count, false);
             for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
                 pinned[id] = is_persistent(graph.value(id).lifetime);
@@ -260,12 +229,7 @@ namespace SushiAI
                 if (final_dtype[id] != declared[id]) ++report.retyped_;
             }
 
-            // --- Rebuild ------------------------------------------------------
-            // A new node list, for the reason fuse() needs one: the IR is
-            // single-assignment and add_node claims its outputs, so a node
-            // cannot be un-produced in place and a cast cannot be spliced in
-            // ahead of its consumer. Value ids are preserved entry for entry;
-            // the pass's own values are appended after them.
+            // Rebuild nodes into a fresh graph to preserve single-assignment invariants.
             Graph rebuilt;
 
             for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
@@ -280,13 +244,7 @@ namespace SushiAI
 
                 rebuilt.value(fresh).requires_grad = value.requires_grad;
 
-                // add_value defaults the layout to NHWC, so a tag that is not
-                // copied here is not lost but *changed* - and every shape
-                // check downstream agrees with the wrong answer. What it costs
-                // is Lowering::record_layout_convert, which reads these two
-                // tags to decide whether to relabel a side into [N,H,W,C]: a
-                // genuine NCHW -> NHWC convert that reads as NHWC -> NHWC
-                // applies no transpose and copies transposed data through.
+                // Preserving layout tag avoids silent defaults to NHWC across passes.
                 rebuilt.value(fresh).layout = value.layout;
             }
 
@@ -328,9 +286,7 @@ namespace SushiAI
                         InsertedCast{id, node.op, in, narrowed, from, wanted, true});
                 }
 
-                // A result that is pinned keeps its id, its buffer and its
-                // element type; the node writes a fresh low-precision value and
-                // one cast widens it into the buffer the outside world holds.
+                // Pinned results compute in low precision and are widened into external buffers.
                 std::vector<ValueId> outputs;
                 std::vector<std::pair<ValueId, ValueId>> widenings;
                 outputs.reserve(node.outputs.size());
@@ -340,11 +296,7 @@ namespace SushiAI
                     if (rebuilt.value(out).dtype == wanted) { outputs.push_back(out); continue; }
                     if (!has_precision(rebuilt.value(out).dtype)) { outputs.push_back(out); continue; }
 
-                    // By value, every field of it. `add_value` grows the value
-                    // vector, and a reference into a vector that reallocates is
-                    // a use-after-free that only appears once a graph outgrows
-                    // its initial capacity - the same trap autograd's
-                    // Differentiator snapshots its current node to avoid.
+                    // Copy fields by value to avoid dangling references during vector reallocation.
                     const Shape shape = rebuilt.value(out).shape;
                     const DType master = rebuilt.value(out).dtype;
                     const bool needs_grad = rebuilt.value(out).requires_grad;
@@ -371,15 +323,10 @@ namespace SushiAI
             report.after_ = rebuilt.node_count();
             graph = std::move(rebuilt);
 
-            // The same argument the dtype check below makes, for the other
-            // invariant this rebuild has to carry by hand. See fuse().
+            // Re-prove layout uniformity across the rebuilt graph.
             graph.prove_layout_uniformity();
 
-            // The pass's whole contract in one line, checked rather than
-            // asserted in a comment. It is O(nodes) against a rewrite that is
-            // already O(nodes), and every way of getting the placement wrong
-            // produces a graph that still trains - so the alternative to
-            // checking is finding out from a loss curve.
+            // Validate that every operand matches the computed precision of its node.
             const std::vector<DTypeMismatch> mismatches = find_dtype_mismatches(graph, policy);
             SA_THROW_IF(!mismatches.empty(),
                         "The cast pass left {} node(s) whose operands disagree with the "
@@ -406,10 +353,7 @@ namespace SushiAI
 
                 const DType wanted = policy.choose(query).dtype;
 
-                // Same exemption as the pass, and stated here too rather than
-                // shared by accident: a checker that flagged the index buffer
-                // would report insert_casts() as defective for leaving alone
-                // the one value it must leave alone.
+                // Skip non-floating values exempt from precision policies.
                 for (ValueId in : node.inputs)
                     if (has_precision(graph.value(in).dtype) && graph.value(in).dtype != wanted)
                         mismatches.push_back(DTypeMismatch{

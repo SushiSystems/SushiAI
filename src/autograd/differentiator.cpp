@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file differentiator.cpp
+ * @brief Implements reverse-mode automatic differentiation over computational graphs.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rule.hpp>
 #include <SushiAI/autograd/rules/all.hpp>
@@ -51,10 +57,6 @@ namespace SushiAI
             return find_rule(op) != nullptr;
         }
 
-        // =====================================================================
-        // Differentiator
-        // =====================================================================
-
         void Differentiator::contribute(Graph::ValueId primal, Graph::ValueId gradient)
         {
             SA_THROW_IF(resolved_.find(primal) != resolved_.end(),
@@ -83,9 +85,7 @@ namespace SushiAI
 
         Graph::ValueId Differentiator::resolve(Graph::ValueId primal)
         {
-            // The differentiation root's own gradient is the implicit scalar
-            // one; there is no tensor for it and the rule that seeds the sweep
-            // knows not to ask for one.
+            // The differentiation root has an implicit scalar gradient without an explicit tensor.
             if (primal == loss_) return Graph::NO_VALUE;
 
             const auto cached = resolved_.find(primal);
@@ -114,14 +114,7 @@ namespace SushiAI
                         "differentiate() needs a scalar to differentiate; value {} has shape {}",
                         loss_, graph_.value(loss_).shape.to_string());
 
-            // Being one element is necessary and not sufficient. The root's own
-            // gradient is the implicit scalar one, so there is no tensor for
-            // resolve() to hand back, and every rule but nll_loss_backward
-            // reads that NO_VALUE as "nothing flows here" and returns. A [1, 1]
-            // MATMUL therefore differentiates to a complete set of empty
-            // gradients and no error - the caller only finds out one layer
-            // later, from bind_parameters blaming the model for a loss-side
-            // mistake. Reject it here, where the actual cause is still known.
+            // Root differentiation requires NLL_LOSS to establish the implicit scalar gradient seed.
             const Graph::NodeId root_producer = graph_.value(loss_).producer;
             SA_THROW_IF(root_producer == Graph::NO_NODE,
                         "differentiate() cannot seed a gradient for value {}: nothing produces "
@@ -147,8 +140,7 @@ namespace SushiAI
                 for (Graph::ValueId in : current_node_.inputs)
                     if (graph_.value(in).requires_grad) { any_input_needs_grad = true; break; }
 
-                // A leaf has no operands, so this also skips every leaf, and a
-                // frozen subgraph costs nothing at all.
+                // Skip leaves and frozen subgraphs whose operands require no gradient.
                 if (!any_input_needs_grad) continue;
 
                 bool reachable = false;
@@ -185,9 +177,7 @@ namespace SushiAI
                 const Graph::ValueId gradient = differentiator.resolve(value);
                 gradients.push_back(gradient);
 
-                // A parameter's gradient outlives the step exactly as the
-                // parameter does, so it belongs in the gradient arena rather
-                // than being packed against the activations.
+                // Parameter gradients persist across execution and receive Lifetime::GRADIENT.
                 if (gradient != Graph::NO_VALUE
                     && graph.value(value).lifetime == Graph::Lifetime::PARAMETER)
                     graph.value(gradient).lifetime = Graph::Lifetime::GRADIENT;

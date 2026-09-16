@@ -21,13 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
+/**
+ * @file norm.hpp
+ * @brief Declares backward differentiation rules for normalization operations.
+ * @author Mustafa Garip
+ */
 
-// Normalisation operations' backward rules: BATCHNORM2D, CHANNEL_AFFINE.
-//
-// BATCHNORM_UPDATE_STATS is deliberately absent and carries no differentiable
-// flag: CV-7 keeps a BatchNorm's running statistics out of the graph, so there
-// is no gradient path through them to write a rule for.
+#pragma once
 
 #include <array>
 #include <SushiAI/autograd/rule.hpp>
@@ -37,26 +37,18 @@ namespace SushiAI
     namespace Autograd
     {
         /**
-         * @brief BATCHNORM2D's gradient: input, scale and shift from one node.
-         *
-         * The batch mean and variance are functions of the input, so @c dx has
-         * three terms rather than one. Treating the statistics as constants
-         * gives a gradient that is right on average over the batch and wrong
-         * per element - the model still trains, slightly worse, with nothing
-         * to point at.
-         *
-         * @param tape The differentiation state for this node.
+         * @brief Differentiates 2D batch normalization across input, scale, and shift.
+         * @param tape Traversal context providing forward nodes and gradient emitters.
          */
         void batchnorm2d_backward(const GradientTape& tape);
 
         /**
-         * @brief CHANNEL_AFFINE's gradient: the same broadcast for @c dx, and
-         *        a per-channel sum for each parameter.
-         * @param tape The differentiation state for this node.
+         * @brief Differentiates channel affine transformation with per-channel parameter sums.
+         * @param tape Traversal context providing forward nodes and gradient emitters.
          */
         void channel_affine_backward(const GradientTape& tape);
 
-        /** @brief Normalisation operations' backward rules. */
+        /** @brief Holds backward rule entries for normalization operations. */
         inline constexpr std::array<RuleEntry, 2> NORM_RULES = {{
             {Ops::BATCHNORM2D.id, &batchnorm2d_backward},
             {Ops::CHANNEL_AFFINE.id, &channel_affine_backward},

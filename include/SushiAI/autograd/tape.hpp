@@ -21,16 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
+/**
+ * @file tape.hpp
+ * @brief Declares the gradient tape interface exposed to backward rules.
+ * @author Mustafa Garip
+ */
 
-// The only interface a backward rule sees.
-//
-// A rule does not name Differentiator: the dependency is inverted, so the
-// traversal can change without touching a single rule, and a rule cannot reach
-// into the traversal's bookkeeping even by accident. That was already true when
-// this class lived in backward.hpp; giving it its own header is what makes it
-// visible, and what lets a rules/*.cpp include the interface without also
-// including differentiate()'s declaration.
+#pragma once
 
 #include <cstddef>
 #include <SushiAI/core/ops.hpp>
@@ -47,12 +44,7 @@ namespace SushiAI
 
         /**
          * @class GradientTape
-         * @brief The state a backward rule reads and writes.
-         *
-         * One instance exists per @c differentiate() call and is re-pointed at
-         * each node in turn. A rule sees the node it is differentiating, the
-         * gradients already known for that node's results, and one way to
-         * publish a gradient for anything upstream.
+         * @brief Holds traversal state and emitter interfaces for backward rules.
          */
         class GradientTape
         {
@@ -70,13 +62,9 @@ namespace SushiAI
                 Graph::NodeId node_id() const noexcept { return node_; }
 
                 /**
-                 * @brief The gradient of the node's @p index-th result.
-                 *
-                 * @param index Which result.
-                 * @return The gradient's id, or @c Graph::NO_VALUE when that
-                 *         result has no gradient - which includes the
-                 *         differentiation root, whose gradient is the implicit
-                 *         scalar one and has no tensor to name.
+                 * @brief Returns the gradient ValueId of the node's result.
+                 * @param index Output index on the current node.
+                 * @return Gradient ValueId, or Graph::NO_VALUE if unseeded or inactive.
                  */
                 Graph::ValueId output_grad(std::size_t index) const;
 
@@ -91,16 +79,9 @@ namespace SushiAI
                 bool input_requires_grad(std::size_t index) const;
 
                 /**
-                 * @brief Registers @p gradient as a contribution to @p primal's gradient.
-                 *
-                 * Several rules may contribute to the same primal; they are
-                 * summed later, in the order they arrived.
-                 *
-                 * @param primal The forward value whose gradient this is.
-                 * @param gradient The contribution.
-                 * @throws Error If @p primal's gradient has already been read,
-                 *         which would mean a contribution arrived too late to
-                 *         be counted - an ordering bug, not a user error.
+                 * @brief Registers a gradient contribution to a forward primal value.
+                 * @param primal Forward value receiving the gradient.
+                 * @param gradient Contribution value to accumulate.
                  */
                 void contribute(Graph::ValueId primal, Graph::ValueId gradient) const;
 
@@ -108,38 +89,21 @@ namespace SushiAI
                 void contribute_input(std::size_t index, Graph::ValueId gradient) const;
 
                 /**
-                 * @brief Declares another node already handled by this rule.
-                 *
-                 * Used by fusions: the cross-entropy rule differentiates
-                 * @c LOG_SOFTMAX and @c NLL_LOSS as one, then skips the
-                 * log-softmax node it absorbed.
-                 *
-                 * @param node The node the reverse walk should not visit.
+                 * @brief Marks an upstream node as already handled by the current rule.
+                 * @param node Node identifier to skip during reverse traversal.
                  */
                 void skip(Graph::NodeId node) const;
 
                 /**
-                 * @brief The device-resident factor the seeded gradient is multiplied by.
-                 *
-                 * @c Graph::NO_VALUE unless the caller passed one to
-                 * @c differentiate(). A rule that seeds the root gradient - only
-                 * @c NLL_LOSS today - must apply it; every other rule can ignore
-                 * it, because a factor applied once at the seed reaches the whole
-                 * backward pass by linearity.
-                 *
-                 * @return The 1-element value's id, or @c Graph::NO_VALUE.
+                 * @brief Returns the optional device-resident scaling factor for the root gradient.
+                 * @return Single-element ValueId, or Graph::NO_VALUE if unscaled.
                  */
                 Graph::ValueId seed_factor() const noexcept { return seed_factor_; }
 
                 /**
-                 * @brief Applies @ref seed_factor to @p gradient, or returns it unchanged.
-                 *
-                 * The one line a seeding rule writes instead of branching on
-                 * @c seed_factor() itself, so that "no factor" and "a factor of
-                 * one" cannot diverge by a rule forgetting one of the two cases.
-                 *
-                 * @param gradient The seeded gradient.
-                 * @return @p gradient, or a @c DYNAMIC_SCALE of it.
+                 * @brief Multiplies gradient by seed_factor if present, returning the result.
+                 * @param gradient Root gradient to scale.
+                 * @return Scaled gradient ValueId, or gradient unchanged if unscaled.
                  */
                 Graph::ValueId apply_seed_factor(Graph::ValueId gradient) const;
 

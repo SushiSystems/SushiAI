@@ -21,49 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file fusion_selector.hpp
- * @brief The dynamic half of fusion: which matched form to actually spell.
- *
- * @c graph/fusion.hpp decides **what could be fused** - a question about the
- * graph, answerable with no device present, which is why that pass is in the
- * host lane and unit-tested without one. This file decides **which form to
- * use**, which is a question about the machine and cannot be answered until
- * bind time: the device's profile, the engine's execution mode and the operands'
- * actual layout are none of them known while a model is being traced.
- *
- * Keeping the two apart is the point. A device fact inside the static pass
- * would mean a graph that fuses differently on two machines, which makes the
- * IR - the thing every other pass reasons over, and the thing a test compares -
- * depend on where it was built. Here, the IR is the same everywhere and only
- * the spelling of one node changes.
- *
- * @section narrowing Declining is always expressible
- *
- * A selector may narrow a matched form to a shorter one, or refuse it outright,
- * and the lowering can always honour that: a @c GEMM_BIAS_RELU node holds
- * @c [A, B, bias] and writes one result, so "GEMM with a bias epilogue, then a
- * separate in-place ReLU" and "GEMM, then a rank-1 bias update, then a ReLU"
- * are both spellings of the same node with the same operands and no extra
- * buffer. Every spelling is bit-identical to every other - see
- * @c graph/fusion.hpp's note on @c -ffp-contract=off - so a decline costs
- * launches and changes no number.
- *
- * @section rules What the default selector actually decides on today
- *
- * Two rules, both correctness rules, and it is worth saying plainly that there
- * is no *performance* rule here yet. Every entry in today's catalog removes
- * whole passes over the result tensor at every problem size and on both of
- * SushiBLAS's GEMM variants - the local-tiled one and the no-local one apply
- * the epilogue at the same point - so no device fact argues against any of
- * them. Inventing a threshold that cannot be measured on the one device this
- * machine has would be worse than saying so. The seam exists because the next
- * catalog entry may well need it: a GELU epilogue spilling its pre-activation
- * to an auxiliary buffer is exactly a form whose admissibility depends on
- * whether that buffer fits.
+ * @brief Declares the dynamic fusion selector interface and device policy.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <string_view>
@@ -125,12 +89,7 @@ namespace SushiAI
 
         /**
          * @class IFusionSelector
-         * @brief The bind-time choice between catalog entries.
-         *
-         * An interface rather than a free function so a test can drive the
-         * lowering with a device profile this machine does not have. There is
-         * exactly one OpenCL CPU device here; a policy that can only be
-         * exercised on hardware nobody owns is a policy nobody has run.
+         * @brief Defines the interface for bind-time selection of fused forms.
          */
         class IFusionSelector
         {
@@ -147,25 +106,15 @@ namespace SushiAI
 
         /**
          * @class DeviceFusionSelector
-         * @brief The default policy: the device's profile and the engine's mode.
-         *
-         * Holds a @c Device::Profile **by value**. The profile is a small
-         * aggregate of answers SushiBLAS caches per device for the life of the
-         * process, so copying it costs nothing and removes any question about
-         * the reference outliving the selector.
+         * @brief Selects fused forms based on device profile and execution mode.
          */
         class DeviceFusionSelector final : public IFusionSelector
         {
             public:
                 /**
-                 * @brief Builds a selector over an explicit profile and mode.
-                 *
-                 * This is the constructor a test uses: it can describe a GPU
-                 * with dedicated scratchpad memory, or a device with no double
-                 * precision, on a machine that has neither.
-                 *
-                 * @param profile The device's answers.
-                 * @param mode The engine's execution mode.
+                 * @brief Constructs a selector with explicit profile and execution mode.
+                 * @param profile The device profile.
+                 * @param mode The engine execution mode.
                  */
                 DeviceFusionSelector(const SushiBLAS::Device::Profile& profile,
                                      SushiBLAS::ExecutionMode mode) noexcept

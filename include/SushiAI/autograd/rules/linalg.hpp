@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file linalg.hpp
+ * @brief Declares backward differentiation rules for linear algebra operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -30,14 +36,14 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        /** @brief The four-transposition-case gradient of a 2-D matrix product. */
+        /** @brief Differentiates 2D matrix multiplication across transposition configurations. */
         void matmul_backward(const GradientTape& tape);
-        /** @brief Y = X + 1 b^T: identity in X, row-summed in b. */
+        /** @brief Differentiates row-vector bias addition: identity in X, row-summed in bias. */
         void bias_add_backward(const GradientTape& tape);
-        /** @brief The adjoint of summing a matrix's rows: broadcast back over rows. */
+        /** @brief Differentiates matrix row summation by broadcasting incoming gradients. */
         void sum_rows_backward(const GradientTape& tape);
 
-        /** @brief Linear algebra operations' backward rules. */
+        /** @brief Holds backward rule entries for linear algebra operations. */
         inline constexpr std::array<RuleEntry, 3> LINALG_RULES = {{
             {Ops::MATMUL.id,   &matmul_backward},
             {Ops::BIAS_ADD.id, &bias_add_backward},

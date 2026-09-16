@@ -21,12 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#include <SushiAI/autograd/rules/norm.hpp>
+/**
+ * @file norm.cpp
+ * @brief Implements backward differentiation rules for normalization operations.
+ * @author Mustafa Garip
+ */
 
-// The two normalisation gradients. BATCHNORM2D's is the one rule in this plan
-// whose backward is not a rearrangement of its forward: the statistics depend
-// on every element of the batch, so differentiating it produces two reductions
-// that no elementwise reading of the forward would suggest.
+#include <SushiAI/autograd/rules/norm.hpp>
 
 namespace SushiAI
 {
@@ -34,13 +35,7 @@ namespace SushiAI
     {
         void batchnorm2d_backward(const GradientTape& tape)
         {
-            // Results 1 and 2 are saved_mean and saved_inv_std: a side channel
-            // this node's own backward reads, which CV-7 keeps out of the
-            // differentiated graph. Nothing differentiable consumes them, so a
-            // gradient arriving on either would be silently dropped by the
-            // early return below. Enforced rather than assumed, because the
-            // day something does consume them the failure is a model that
-            // trains slightly wrong and no test that fails.
+            // Saved mean and inverse standard deviation are non-differentiable side channels.
             SA_THROW_IF(tape.output_grad(1) != Graph::NO_VALUE
                         || tape.output_grad(2) != Graph::NO_VALUE,
                         "BATCHNORM2D's saved statistics received a gradient. They are a side "
@@ -50,14 +45,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // One node producing all three gradients, because all three share
-            // the two reductions over the batch: splitting them would compute
-            // the same sums three times, and adding it to activation_backward
-            // (which is [dy, primal] -> [dx]) would break that rule's shape.
-            //
-            // The saved statistics come from this node's own results, so the
-            // gradient can only ever be paired with the normalisation that
-            // produced them.
+            // Batch normalization gradients share batch reductions across input, scale, and bias.
             const Graph::Node& node = tape.node();
             const Graph::BatchNormGrads g = tape.builder().batchnorm2d_backward(
                 dy, node.inputs[0], node.inputs[1], node.outputs[1], node.outputs[2]);
@@ -74,9 +62,7 @@ namespace SushiAI
 
             const Graph::Node& node = tape.node();
 
-            // dx = dy * gamma, broadcast per channel - the same shape of
-            // operation as the forward, so it is the forward's own emitter
-            // with beta set to zero rather than a new identity.
+            // Affine input gradient broadcasts channel scaling with zero bias.
             if (tape.input_requires_grad(0))
                 tape.contribute_input(0, tape.builder().channel_affine(
                     dy, node.inputs[1],

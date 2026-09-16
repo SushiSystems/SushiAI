@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file precision.cpp
+ * @brief Implements precision policies and mixed-precision narrowing decisions.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/graph/precision.hpp>
 
 namespace SushiAI
@@ -30,13 +36,7 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief The reason strings, once, so the two policies cannot drift.
-             *
-             * Static storage of literals rather than formatted text: a
-             * @c PrecisionChoice carries a @c string_view it does not own, and
-             * a choice is made once per node per pass, so allocating a sentence
-             * for each would be both a lifetime question and a cost for
-             * something nobody reads unless a report is printed.
+             * @brief Reason string literals preserved for diagnostic reports.
              */
             constexpr std::string_view REASON_DECLARED =
                 "stays in the graph's own precision";
@@ -51,14 +51,7 @@ namespace SushiAI
 
         bool narrows_under_mixed_precision(OpID op) noexcept
         {
-            // Rule 1: the matrix product and every spelling of it this policy
-            // is willing to produce. GEMM_BIAS_GELU is deliberately absent -
-            // narrowing it would put the tanh approximation's `x*x*x` into
-            // fp16, and rule 5 argues that at length. Nothing is lost by the
-            // omission: under this policy a GELU layer never fuses into that
-            // form in the first place, so the answer here only has to be the
-            // one find_dtype_mismatches would agree with if it ever met one,
-            // and "the graph's own precision" is that answer.
+            // Matrix products and their narrowing epilogue forms compute in lower precision.
             if (op == Ops::MATMUL.id
                 || op == Ops::GEMM_BIAS.id
                 || op == Ops::GEMM_BIAS_RELU.id
@@ -66,25 +59,11 @@ namespace SushiAI
                 || op == Ops::GEMM_BIAS_TANH.id)
                 return true;
 
-            // Rule 2: what a narrowed GEMM epilogue folds in. BIAS_ADD is in
-            // every one of the catalog's GEMM entries, so it has to agree with
-            // them. The activations are the ones whose gradient reads their
-            // output - which is *not* the same set as "the ones the catalog can
-            // fold" any more, because GEMM_BIAS_GELU folds GELU by spilling the
-            // pre-activation. The two sets are allowed to differ, and rule 5
-            // says why they must here: an activation this policy keeps wide
-            // gets a CAST between it and the GEMM, which stops the chain
-            // matching, so the fold this rule would have had to agree with
-            // never occurs.
+            // Fused bias addition and surviving activations match GEMM precision.
             if (op == Ops::BIAS_ADD.id) return true;
             if (Ops::activation_survives_fusion(op)) return true;
 
-            // An activation's gradient follows its forward. Not because a
-            // kernel folds it - none does - but because its primal operand *is*
-            // that forward's result: differentiating a low-precision activation
-            // in high precision would cast the primal back up on every step and
-            // then cast the result back down for the matrix product below it,
-            // for no gain in a rule that computes one multiply per element.
+            // Activation backward operations follow the precision of their forward pass.
             for (const Ops::Activation& activation : Ops::ACTIVATIONS)
                 if (activation.backward == op)
                     return Ops::activation_survives_fusion(activation.forward);
@@ -112,11 +91,7 @@ namespace SushiAI
             if (!narrows_under_mixed_precision(query.op))
                 return PrecisionChoice{query.declared, REASON_DECLARED};
 
-            // Narrow only downwards, and only between real floats. This is also
-            // what makes choose() idempotent - see the header: asked again about
-            // a node already at low_, the guard below answers low_ unchanged, so
-            // running the pass twice inserts nothing the second time and the
-            // invariant can be re-checked after fusion has rewritten the graph.
+            // Narrowing applies strictly downward to real floats preserving idempotence.
             if (!is_real_float(query.declared) || dtype_size(query.declared) <= dtype_size(low_))
                 return PrecisionChoice{query.declared, REASON_ALREADY_NARROW};
 

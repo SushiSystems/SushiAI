@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file gradcheck.cpp
+ * @brief Implements finite-difference gradient verification utilities.
+ * @author Mustafa Garip
+ */
+
 #include <cmath>
 #include <random>
 #include <vector>
@@ -154,10 +160,7 @@ namespace SushiAI
 
             for (std::size_t d = 0; d < directions; ++d)
             {
-                // A Gaussian vector normalised to unit length is uniform on the
-                // sphere, which is what makes "survived k directions" a real
-                // statement about the whole gradient rather than about the
-                // coordinate axes a wrong transpose might happen to respect.
+                // Normalized Gaussian vectors sample uniformly on the unit sphere.
                 double norm = 0.0;
                 for (double& component : direction)
                 {

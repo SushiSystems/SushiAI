@@ -21,27 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file optimizer_registry.hpp
- * @brief Which optimizers a configuration file may name, and what builds each.
- *
- * A file of its own rather than a section of optimizer.hpp, because the table
- * has to name the concrete rules and both @c adamw.hpp and @c sgd.hpp already
- * include @c optimizer.hpp - putting the table there would close the cycle.
- * This header sits above all three and nothing in the library includes it.
- *
- * @c UpdateKernel is deliberately **not** a configurable key. It selects the
- * reference spelling a byte-for-byte regression test compares the fused kernel
- * against, not a hyperparameter, and @c SEPARATE additionally cannot join the
- * compiled plan - so a configuration file that reached it could silently
- * change what a run is, or be refused for a reason its author never asked
- * about.
- *
- * Nothing self-registers; see config/registry.hpp for why that is forced
- * rather than preferred in a static library.
+ * @brief Declares registry entries and factory functions for optimizer instantiation.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <memory>
@@ -85,13 +71,12 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds an @ref AdamW from its configuration attributes.
-         * @param engine The engine its moments are allocated from.
-         * @param parameters The parameter/gradient pairs; moved in.
-         * @param attributes learning_rate, beta1, beta2, eps and weight_decay, all optional.
-         * @param context What to call this optimizer in a diagnostic.
-         * @return The optimizer.
-         * @throws Error If a key is unknown or a value is out of range.
+         * @brief Builds an AdamW optimizer from configuration attributes.
+         * @param engine Engine used to allocate optimizer moment buffers.
+         * @param parameters Parameter and gradient slots moved into optimizer.
+         * @param attributes Optional hyperparameters (learning_rate, beta1, beta2, etc.).
+         * @param context Descriptive string for diagnostic error messages.
+         * @return Constructed AdamW optimizer instance.
          */
         std::unique_ptr<Optimizer> make_adamw(SushiBLAS::Engine& engine,
                                               std::vector<ParameterSlot> parameters,
@@ -99,14 +84,12 @@ namespace SushiAI
                                               std::string_view context);
 
         /**
-         * @brief Builds an @ref SGD from its configuration attributes.
-         * @param engine The engine its momentum buffers are allocated from.
-         * @param parameters The parameter/gradient pairs; moved in.
-         * @param attributes learning_rate, momentum, dampening, weight_decay and
-         *        nesterov, all optional.
-         * @param context What to call this optimizer in a diagnostic.
-         * @return The optimizer.
-         * @throws Error If a key is unknown or a value is out of range.
+         * @brief Builds an SGD optimizer from configuration attributes.
+         * @param engine Engine used to allocate optimizer momentum buffers.
+         * @param parameters Parameter and gradient slots moved into optimizer.
+         * @param attributes Optional hyperparameters (learning_rate, momentum, etc.).
+         * @param context Descriptive string for diagnostic error messages.
+         * @return Constructed SGD optimizer instance.
          */
         std::unique_ptr<Optimizer> make_sgd(SushiBLAS::Engine& engine,
                                             std::vector<ParameterSlot> parameters,
@@ -120,15 +103,12 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds the optimizer named @p type.
-         * @param engine The engine its state is allocated from.
-         * @param type The registry key.
-         * @param parameters The parameter/gradient pairs; moved in.
-         * @param attributes The optimizer's own keys.
-         * @param context What to call it in a diagnostic.
-         * @return The optimizer.
-         * @throws Error If @p type is unknown; the message lists every type
-         *         this build has.
+         * @brief Builds the optimizer corresponding to the specified type key.
+         * @param engine Engine used to allocate optimizer state.
+         * @param type Registry key identifying optimizer type.
+         * @param parameters Parameter and gradient slots moved into optimizer.
+         * @param attributes Optimizer configuration attributes.
+         * @return Constructed optimizer instance.
          */
         std::unique_ptr<Optimizer> make_optimizer(SushiBLAS::Engine& engine,
                                                   std::string_view type,

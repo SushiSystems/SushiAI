@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file optimizer.cpp
+ * @brief Implements abstract base optimizer methods and parameter slot bindings.
+ * @author Mustafa Garip
+ */
+
 #include <utility>
 #include <vector>
 #include <SushiAI/core/allocation.hpp>
@@ -93,11 +99,7 @@ namespace SushiAI
             {
                 scaler_->after_replay();
 
-                // The counter stays where it is on a thrown-away step. See the
-                // header: SGD's momentum buffer is initialised by the
-                // FIRST_STEP flag this derives, and advancing past a step that
-                // never wrote it would blend uninitialised memory into the
-                // momentum on the step after.
+                // Retain step counter without advancing when current step was skipped.
                 if (scaler_->last_step_skipped()) return;
             }
 
@@ -106,12 +108,7 @@ namespace SushiAI
 
         std::size_t Optimizer::record_all()
         {
-            // The screens first, always. The write-after-read hazard on the
-            // gradient is what orders each update after its own screen, and a
-            // hazard orders the *later* task after the earlier one - so
-            // recording these afterwards would order them after the updates and
-            // every gate would read the previous step's verdict, silently, while
-            // the loop went on converging. See optim/loss_scaler.hpp.
+            // Record loss scaler gradient screens before recording parameter updates.
             std::size_t recorded = 0;
 
             if (scaler_ != nullptr)
@@ -128,9 +125,7 @@ namespace SushiAI
 
         std::size_t Optimizer::record_into_step()
         {
-            // Reached from Graph::CompiledStep and never from step(), which
-            // calls the hook below directly. That is what makes the flag a fact
-            // about ownership rather than a guess about intent.
+            // Mark step recording as owned by compiled step execution graph.
             in_compiled_step_ = true;
             return record_all();
         }
@@ -144,10 +139,7 @@ namespace SushiAI
                         "rate and report nothing wrong. Let the step drive it, or build the "
                         "trainer with OptimizerPlacement::PER_STEP.");
 
-            // The same three phases IStepRecorder names, in the same order, so
-            // a standalone step() and a step folded into a compiled plan run
-            // identical arithmetic from identical state. The only difference is
-            // who owns the execute: here, or the plan's replay.
+            // Execute three-phase update sequence matching compiled plan replay order.
             before_replay();
             (void)record_all();
             flush();
@@ -162,8 +154,7 @@ namespace SushiAI
 
         SushiBLAS::Tensor Optimizer::allocate_state(const SushiBLAS::Tensor& like) const
         {
-            // Its own Storage, and matching the parameter's dtype and layout
-            // exactly - see core/allocation.hpp for both reasons.
+            // Allocate distinct tensor storage matching target dtype and shape layout.
             return allocate_like(*engine_, like);
         }
 

@@ -140,18 +140,18 @@
 - Modify: `src/optim/loss_scaler.cpp`
 
 **Steps:**
-- [ ] **Step 1: Check baseline violations**
+- [x] **Step 1: Check baseline violations**
   Run: `python tools/documentation/check_source_comments.py include/SushiAI/nn src/nn include/SushiAI/optim src/optim`
   Expected: 120 violations reported.
-- [ ] **Step 2: Clean comments in nn and optim**
+- [x] **Step 2: Clean comments in nn and optim**
   - Fix `@file` blocks and `#pragma once` positioning.
   - Reduce long doc comments to max 8 lines.
   - Eliminate multi-line `//` blocks in kernel/optimization logic.
   - Remove separators and TODO markers.
-- [ ] **Step 3: Verify clean check**
+- [x] **Step 3: Verify clean check**
   Run: `python tools/documentation/check_source_comments.py include/SushiAI/nn src/nn include/SushiAI/optim src/optim`
   Expected: 0 findings, exit code 0.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git commit -m "docs(nn): align nn and optim source comments to standards"
   ```
@@ -161,33 +161,42 @@
 ### Task 5: Autograd Module
 
 **Files:**
-- Modify: `include/SushiAI/autograd/autograd.hpp`
 - Modify: `include/SushiAI/autograd/backward.hpp`
 - Modify: `include/SushiAI/autograd/gradcheck.hpp`
 - Modify: `include/SushiAI/autograd/rule.hpp`
-- Modify: `src/autograd/autograd.cpp`
-- Modify: `src/autograd/backward.cpp`
+- Modify: `include/SushiAI/autograd/tape.hpp`
+- Modify: `include/SushiAI/autograd/rules/activation.hpp`
+- Modify: `include/SushiAI/autograd/rules/all.hpp`
+- Modify: `include/SushiAI/autograd/rules/elementwise.hpp`
+- Modify: `include/SushiAI/autograd/rules/linalg.hpp`
+- Modify: `include/SushiAI/autograd/rules/loss.hpp`
+- Modify: `include/SushiAI/autograd/rules/norm.hpp`
+- Modify: `include/SushiAI/autograd/rules/shape.hpp`
+- Modify: `include/SushiAI/autograd/rules/spatial.hpp`
+- Modify: `src/autograd/differentiator.cpp`
+- Modify: `src/autograd/differentiator.hpp`
 - Modify: `src/autograd/gradcheck.cpp`
+- Modify: `src/autograd/tape.cpp`
 - Modify: `src/autograd/rules/activation.cpp`
-- Modify: `src/autograd/rules/basic.cpp`
-- Modify: `src/autograd/rules/conv.cpp`
+- Modify: `src/autograd/rules/elementwise.cpp`
+- Modify: `src/autograd/rules/linalg.cpp`
 - Modify: `src/autograd/rules/loss.cpp`
 - Modify: `src/autograd/rules/norm.cpp`
 - Modify: `src/autograd/rules/shape.cpp`
 - Modify: `src/autograd/rules/spatial.cpp`
 
 **Steps:**
-- [ ] **Step 1: Check baseline violations**
+- [x] **Step 1: Check baseline violations**
   Run: `python tools/documentation/check_source_comments.py include/SushiAI/autograd src/autograd`
   Expected: 72 violations reported.
-- [ ] **Step 2: Clean autograd headers and rule implementations**
+- [x] **Step 2: Clean autograd headers and rule implementations**
   - Standardize `@file` blocks across all rule translation units.
   - Convert multi-line `//` comments into single-line invariants.
   - Remove separators and clip docblocks to 8 lines.
-- [ ] **Step 3: Verify clean check**
+- [x] **Step 3: Verify clean check**
   Run: `python tools/documentation/check_source_comments.py include/SushiAI/autograd src/autograd`
   Expected: 0 findings, exit code 0.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git commit -m "docs(autograd): align autograd rules and headers to comment standards"
   ```
@@ -197,43 +206,43 @@
 ### Task 6: Graph Module
 
 **Files:**
-- Modify: `include/SushiAI/graph/ir.hpp`
-- Modify: `include/SushiAI/graph/builder.hpp`
-- Modify: `include/SushiAI/graph/lowering.hpp`
-- Modify: `include/SushiAI/graph/compiled_step.hpp`
-- Modify: `include/SushiAI/graph/memory_plan.hpp`
 - Modify: `include/SushiAI/graph/arena.hpp`
-- Modify: `include/SushiAI/graph/fusion.hpp`
-- Modify: `include/SushiAI/graph/precision.hpp`
+- Modify: `include/SushiAI/graph/builder.hpp`
 - Modify: `include/SushiAI/graph/cast_insertion.hpp`
-- Modify: `include/SushiAI/graph/tensor_pool.hpp`
+- Modify: `include/SushiAI/graph/compiled_step.hpp`
+- Modify: `include/SushiAI/graph/fusion.hpp`
+- Modify: `include/SushiAI/graph/fusion_selector.hpp`
+- Modify: `include/SushiAI/graph/ir.hpp`
+- Modify: `include/SushiAI/graph/lowering.hpp`
+- Modify: `include/SushiAI/graph/memory_plan.hpp`
+- Modify: `include/SushiAI/graph/precision.hpp`
 - Modify: `include/SushiAI/graph/rematerialise.hpp`
-- Modify: `src/graph/ir.cpp`
-- Modify: `src/graph/builder.cpp`
-- Modify: `src/graph/lowering.cpp`
-- Modify: `src/graph/compiled_step.cpp`
-- Modify: `src/graph/memory_plan.cpp`
+- Modify: `include/SushiAI/graph/step_recorder.hpp`
 - Modify: `src/graph/arena.cpp`
-- Modify: `src/graph/fusion.cpp`
-- Modify: `src/graph/precision.cpp`
+- Modify: `src/graph/builder.cpp`
 - Modify: `src/graph/cast_insertion.cpp`
-- Modify: `src/graph/tensor_pool.cpp`
+- Modify: `src/graph/compiled_step.cpp`
+- Modify: `src/graph/fusion.cpp`
+- Modify: `src/graph/fusion_selector.cpp`
+- Modify: `src/graph/lowering.cpp`
+- Modify: `src/graph/memory_plan.cpp`
+- Modify: `src/graph/precision.cpp`
 - Modify: `src/graph/rematerialise.cpp`
 
 **Steps:**
-- [ ] **Step 1: Check baseline violations**
+- [x] **Step 1: Check baseline violations**
   Run: `python tools/documentation/check_source_comments.py include/SushiAI/graph src/graph`
   Expected: 288 violations reported.
-- [ ] **Step 2: Standardize headers, docblocks, and body comments**
+- [x] **Step 2: Standardize headers, docblocks, and body comments**
   - Standardize file opening blocks across all IR, lowering, memory planning, and fusion files.
   - Clamp docblocks exceeding 8 lines.
   - Replace runs of `//` lines with single-line invariants.
   - Remove all ASCII separator bars.
   - Relocate any remaining `TODO` or `FIXME` notes to `docs/design/REMAINING_WORK.md`.
-- [ ] **Step 3: Verify clean check**
+- [x] **Step 3: Verify clean check**
   Run: `python tools/documentation/check_source_comments.py include/SushiAI/graph src/graph`
   Expected: 0 findings, exit code 0.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git commit -m "docs(graph): align graph IR, passes, and lowering to comment standards"
   ```
@@ -247,17 +256,17 @@
 - Create: `docs/agent/2026_09_16_CODE_STYLE_AND_COMMENTS/REPORT.md`
 
 **Steps:**
-- [ ] **Step 1: Run full source comments check across include and src**
+- [x] **Step 1: Run full source comments check across include and src**
   Run: `python tools/documentation/check_source_comments.py include src --report`
   Expected: 0 total findings across all rules.
-- [ ] **Step 2: Run docs layout and changelog checkers**
+- [x] **Step 2: Run docs layout and changelog checkers**
   Run: `python tools/documentation/check_docs_layout.py . --report`
   Run: `python tools/documentation/check_changelog.py . --report`
   Expected: 0 findings for each.
-- [ ] **Step 3: Update CHANGELOG.md and create REPORT.md**
+- [x] **Step 3: Update CHANGELOG.md and create REPORT.md**
   - Add standard changelog entry under `## Unreleased`.
   - Write factual completion report into `REPORT.md`.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git commit -m "docs(comments): complete source comments standardization across core and src"
   ```

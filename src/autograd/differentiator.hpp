@@ -21,15 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
+/**
+ * @file differentiator.hpp
+ * @brief Declares internal bookkeeping for reverse-mode differentiation runs.
+ * @author Mustafa Garip
+ */
 
-// Differentiator's definition, private to the two translation units that need
-// it: differentiator.cpp, which owns differentiate() and constructs one per run,
-// and
-// tape.cpp, whose GradientTape methods call back into it through the owner_
-// pointer. It is deliberately not reachable from tape.hpp or rule.hpp - a rule
-// sees only GradientTape, never this class - so this header lives in src/,
-// outside the public include tree, included by exactly those two .cpp files.
+#pragma once
 
 #include <unordered_map>
 #include <vector>
@@ -77,15 +75,8 @@ namespace SushiAI
                 bool is_root(Graph::ValueId value) const noexcept { return value == loss_; }
 
                 /**
-                 * @brief The node the tape currently points at.
-                 *
-                 * A snapshot, not a reference into the graph. Every rule emits
-                 * while it is running, and emitting grows the node vector,
-                 * which reallocates and would leave a rule holding a dangling
-                 * reference to the very node it is differentiating. Copying one
-                 * node per differentiated node is unmeasurable; the alternative
-                 * is a use-after-free that only appears once a graph outgrows
-                 * its initial capacity.
+                 * @brief Returns a snapshot copy of the node currently being differentiated.
+                 * @return Copied Node snapshot to prevent invalidation during graph growth.
                  */
                 const Graph::Node& current_node() const noexcept { return current_node_; }
 

@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file adamw.cpp
+ * @brief Implements AdamW parameter updates for fused and unfused kernels.
+ * @author Mustafa Garip
+ */
+
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -98,9 +104,7 @@ namespace SushiAI
                 engine.random().constant(state.first, 0.0);
                 engine.random().constant(state.second, 0.0);
 
-                // The fused kernel keeps g^2, the denominator and m/denom in
-                // registers, so these three exist only to carry a temporary
-                // between two separate launches.
+                // Scratch buffers are allocated only when separate kernels execute.
                 if (separate)
                 {
                     state.denom = allocate_state(slot.parameter);
@@ -112,10 +116,7 @@ namespace SushiAI
                 state_.push_back(std::move(state));
             }
 
-            // The moments must be zero before the first step reads them, and
-            // the ones buffer must be ones before it is used to add eps, so
-            // these fills are run and waited on here rather than folded into
-            // the first update.
+            // Invariant: Moments and constant buffers are initialized eagerly before first step.
             flush();
         }
 
@@ -125,9 +126,7 @@ namespace SushiAI
             const double bias_correction1 = 1.0 - std::pow(options_.beta1, t);
             const double bias_correction2 = 1.0 - std::pow(options_.beta2, t);
 
-            // Narrowed to float here, once, exactly as the separate path
-            // narrows them before handing them to SushiBLAS - so the two paths
-            // start from bit-identical constants and can be compared with ==.
+            // Invariant: Floats match separate path precision for bit-identical comparison.
             std::array<float, SCALAR_COUNT> values{};
             values[DECAY_FACTOR] =
                 static_cast<float>(1.0 - options_.learning_rate * options_.weight_decay);
@@ -140,10 +139,7 @@ namespace SushiAI
             values[STEP_SIZE] =
                 static_cast<float>(-options_.learning_rate / bias_correction1);
 
-            // A power of two, or exactly 1 when nothing is scaling. Both are
-            // exact multipliers, so an unscaled run is bit-for-bit what it was
-            // before loss scaling existed and a scaled one recovers the
-            // gradient with no rounding at all - see optim/loss_scaler.hpp.
+            // Invariant: Inverse loss scale is an exact power of two or unit identity.
             values[INVERSE_LOSS_SCALE] = inverse_loss_scale();
 
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
@@ -173,15 +169,10 @@ namespace SushiAI
 
         std::size_t AdamW::record_fused()
         {
-            // Captured by value into the kernel: a device pointer is the one
-            // thing that can carry a number which changes between replays into
-            // a task that is only ever recorded once. See step_scalars.hpp.
+            // Device pointer captures step scalars by reference across replays.
             const float* const s = scalars_.device_pointer();
 
-            // Null unless a loss scaler is attached, which is how "there is
-            // nothing to skip for" is spelled; the test is uniform across the
-            // whole launch either way. See optim/loss_scaler.hpp for why the
-            // skip has to be this branch and cannot be a zeroed step size.
+            // Gate pointer evaluates gradient overflow flags uniformly for step skip.
             const std::int64_t* const gate = gradient_gate();
 
             for (std::size_t i = 0; i < slots().size(); ++i)
@@ -199,25 +190,13 @@ namespace SushiAI
                     {
                         using T = std::decay_t<decltype(theta)>;
 
-                        // 0. The whole step, thrown away. Before anything is
-                        //    read or written, so theta, m and v come out of an
-                        //    overflowed step bit-identical to what they went in
-                        //    as. Neutralising the coefficients instead would
-                        //    set m to NaN, because 0 * inf is NaN and the
-                        //    gradient here is an infinity by definition.
+                        // Invariant: Early exit preserves theta, m, and v exactly when gradients overflow.
                         if (gate != nullptr && gate[i] != 0) return;
 
-                        // 0b. Undo the loss scale, before the decay and before
-                        //     the moments. A moment built from a scaled
-                        //     gradient is a scaled moment, and v would have the
-                        //     scale squared into it - dividing afterwards could
-                        //     not take either back out.
+                        // Invariant: Unscaling occurs prior to moment and decay updates.
                         const T g = g_scaled * static_cast<T>(s[INVERSE_LOSS_SCALE]);
 
-                        // 1. Decoupled decay, on theta_{t-1}, before anything
-                        //    else. Guarded rather than always multiplied, so
-                        //    this is the same operation the separate path does
-                        //    and not merely an equivalent one.
+                        // Invariant: Decoupled weight decay applies to previous theta value.
                         const T decay = static_cast<T>(s[DECAY_FACTOR]);
                         if (decay != static_cast<T>(1)) theta = theta * decay;
 
@@ -229,10 +208,7 @@ namespace SushiAI
                         v = v * static_cast<T>(s[BETA2])
                           + static_cast<T>(s[ONE_MINUS_BETA2]) * (g * g);
 
-                        // 4. denom <- sqrt(v / bc2) + eps. The correction is
-                        //    applied to v BEFORE the square root, and eps is
-                        //    added AFTER - see the header: folding eps inside
-                        //    inflates it 31.6x on step one.
+                        // Invariant: Bias correction scales v before square root and epsilon addition.
                         T denom = v * static_cast<T>(s[INVERSE_BC2]);
                         denom = SushiBLAS::Dispatch::safe_sqrt(denom);
                         denom = denom + static_cast<T>(s[EPSILON]);
@@ -247,11 +223,7 @@ namespace SushiAI
 
         std::size_t AdamW::record_separate()
         {
-            // The reference spelling, kept reachable and kept honest: this is
-            // the sequence the fused kernel above is compared against byte for
-            // byte. Every scalar is read back out of the same device buffer the
-            // kernel reads, so neither path can drift from the other by picking
-            // up a differently rounded constant.
+            // Invariant: Separate reference path reads identical device scalar constants.
             const float* const s = scalars_.device_pointer();
 
             const float decay_factor = s[DECAY_FACTOR];
@@ -286,9 +258,7 @@ namespace SushiAI
                 engine().blas().scal(beta2, state.second);
                 engine().blas().axpy(one_minus_beta2, state.denom, state.second);
 
-                // 4. denom <- sqrt(v / bc2) + eps. The correction is applied to
-                //    v BEFORE the square root, and eps is added AFTER - see the
-                //    header: folding eps inside inflates it 31.6x on step one.
+                // Invariant: Bias correction scales v before square root and epsilon addition.
                 engine().blas().copy(state.second, state.denom);
                 engine().blas().scal(inverse_correction2, state.denom);
                 engine().elementwise().sqrt(state.denom);

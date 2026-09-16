@@ -21,23 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file arena.hpp
- * @brief The memory a MemoryPlan asked for, allocated once and carved on demand.
- *
- * The device-lane counterpart of the host-lane planner: @c MemoryPlan decides
- * *where* every value's bytes go, @c ArenaSet is *the bytes*. Keeping the two
- * apart is what lets the planner be unit-tested over synthetic graphs with no
- * engine present, and it puts the whole "allocate once, reuse for ever"
- * property in one small class rather than spread through the pool.
- *
- * Every arena is allocated in the constructor and never again. That is the
- * headline property of the pass - after the first step a training loop
- * allocates nothing - and it is a structural guarantee here rather than a
- * discipline: there is no method on this class that allocates.
+ * @brief Declares the ArenaSet class for managing planned memory arenas.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <vector>
@@ -60,13 +50,9 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Allocates every arena @p plan asks for, once.
-                 *
-                 * @param engine The engine whose context owns the allocator; must
-                 *        outlive this object and every view taken from it.
-                 * @param plan The plan to realise; copied, because the views this
-                 *        object hands out have to keep matching it for its whole
-                 *        life and a caller's plan is free to go out of scope.
+                 * @brief Allocates every arena requested by @p plan.
+                 * @param engine The engine whose context owns the allocator.
+                 * @param plan The memory plan to realise.
                  * @throws Error If an arena allocation fails.
                  */
                 ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan);
@@ -78,15 +64,12 @@ namespace SushiAI
                 bool holds(ValueId id) const noexcept { return plan_.is_packed(id); }
 
                 /**
-                 * @brief The view of @p id's slot.
-                 *
+                 * @brief Returns a tensor view of the slot reserved for @p id.
                  * @param id The value to address.
-                 * @param shape Its extents.
-                 * @param dtype Its element type.
-                 * @return A tensor sharing the arena's Storage at the planned offset.
-                 * @throws Error If @p id is not packed, or the view does not fit
-                 *         the slot the plan reserved for it - which means the
-                 *         shape or dtype being asked for is not the one planned.
+                 * @param shape The value extents.
+                 * @param dtype The element data type.
+                 * @return A tensor sharing the arena storage at the planned offset.
+                 * @throws Error If @p id is not packed or size mismatches the slot.
                  */
                 SushiBLAS::Tensor view(ValueId id, const Shape& shape, DType dtype) const;
 

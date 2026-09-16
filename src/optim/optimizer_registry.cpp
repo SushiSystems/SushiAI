@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file optimizer_registry.cpp
+ * @brief Implements registry entries and factory functions for optimizer instantiation.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/optim/optimizer_registry.hpp>
 
 #include <string>

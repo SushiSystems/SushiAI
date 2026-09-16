@@ -21,11 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
+/**
+ * @file spatial.hpp
+ * @brief Declares backward differentiation rules for spatial and pooling operations.
+ * @author Mustafa Garip
+ */
 
-// Convolutional and pooling operations' backward rules: IM2COL, COL2IM,
-// MAXPOOL2D, AVGPOOL2D, SPATIAL_MEAN, UPSAMPLE2D and the channel-structural
-// ops. Empty until Tasks 11-13.
+#pragma once
 
 #include <array>
 #include <SushiAI/autograd/rule.hpp>

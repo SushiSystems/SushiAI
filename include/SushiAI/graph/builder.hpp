@@ -21,26 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file builder.hpp
- * @brief The one place that knows an operation's output shape.
- *
- * Graph::add_node takes ids and asks no questions: it enforces
- * single-assignment and nothing else, because it is the substrate every pass
- * rewrites and a pass that already knows its own shapes should not pay for a
- * re-derivation. That leaves shape inference homeless, and shape inference is
- * exactly the rule that must be stated once - a layer, a backward rule and a
- * fusion pass all emit MATMUL, and three copies of "the output is [m, n]"
- * would be three chances to disagree.
- *
- * So every emitter lives here, each one validating its operands and declaring
- * its result. Nothing in the library calls @c Graph::add_node directly with a
- * hand-computed shape.
- *
- * Host lane: this header pulls in no SushiBLAS and no SYCL.
+ * @brief Declares the GraphBuilder class and shape-inferring node emitters.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <string_view>
@@ -56,13 +43,7 @@ namespace SushiAI
     {
         /**
          * @struct ConvGeometry
-         * @brief A 2-D window's shape and placement, in CV-5's eight slots.
-         *
-         * Mirrors SushiBLAS's @c Spatial::ConvGeometry field for field, and for
-         * the same reason it carries no @c pad_bottom or @c pad_right: those
-         * only ever decide the output extent, which the host computes and
-         * states outright. Deriving them back from an extent would assume
-         * symmetric padding, which YOLOv3-tiny's 13->13 pool violates.
+         * @brief Defines a 2-D window geometry in eight configuration slots.
          */
         struct ConvGeometry
         {
@@ -77,17 +58,10 @@ namespace SushiAI
         };
 
         /**
-         * @brief The number of windows one axis yields.
-         *
-         * The one formula for this in SushiAI, so that a layer's shape
-         * inference and the geometry it hands SushiBLAS cannot disagree.
-         *
-         * @param in The input extent.
-         * @param pad_before Padding before the first element.
-         * @param pad_after Padding after the last.
-         * @param dilation The spacing between taps.
-         * @param kernel The number of taps.
-         * @param stride The step between windows.
+         * @brief Computes the output extent along one convolution axis.
+         * @param stride Step between windows; must be positive.
+         * @param kernel Number of taps; must be positive.
+         * @param dilation Spacing between taps; must be positive.
          * @return The output extent, or 0 when the window does not fit.
          */
         constexpr int64_t output_extent(int64_t in, int64_t pad_before, int64_t pad_after,
@@ -103,12 +77,7 @@ namespace SushiAI
 
         /**
          * @struct PoolResult
-         * @brief A max-pool's two results, returned together.
-         *
-         * Returned as a pair rather than left to two calls because the backward
-         * rule must route through exactly the indices *this* forward wrote.
-         * Two independent values could be mismatched, and the mismatch would
-         * not throw - it would route every gradient to a plausible wrong pixel.
+         * @brief Holds pooled tensor output and argmax indices.
          */
         struct PoolResult
         {
@@ -118,17 +87,7 @@ namespace SushiAI
 
         /**
          * @struct BatchNormResult
-         * @brief A batch normalisation's output and the statistics it computed.
-         *
-         * The two statistics are returned rather than recomputed for the same
-         * reason @ref PoolResult returns its indices: the backward pass needs
-         * exactly the numbers *this* forward normalised by. Recomputing them
-         * from an input a later node may have overwritten is how a
-         * normalisation drifts without anything failing.
-         *
-         * Plan C's @c BatchNorm2d layer reads @c saved_mean and
-         * @c saved_inv_std to update its running statistics, which CV-7 keeps
-         * out of the graph entirely.
+         * @brief Holds normalised output tensor and saved batch statistics.
          */
         struct BatchNormResult
         {
@@ -139,11 +98,7 @@ namespace SushiAI
 
         /**
          * @struct BatchNormGrads
-         * @brief A batch normalisation's three gradients, produced together.
-         *
-         * One node rather than three, because all three share the two
-         * reductions over the batch: splitting them would compute the same
-         * sums three times.
+         * @brief Holds the three gradients produced by batch normalisation backward.
          */
         struct BatchNormGrads
         {
@@ -155,9 +110,6 @@ namespace SushiAI
         /**
          * @class GraphBuilder
          * @brief Emits shape-checked IR nodes into a Graph.
-         *
-         * A non-owning view over a Graph. Copyable and cheap; hold one for as
-         * long as you are appending, and never past the graph's lifetime.
          */
         class GraphBuilder
         {
@@ -170,8 +122,6 @@ namespace SushiAI
 
                 /** @brief The graph being built. */
                 Graph& graph() const noexcept { return *graph_; }
-
-                // --- Leaves -----------------------------------------------------
 
                 /**
                  * @brief Declares a minibatch input: a leaf rewritten every step.
@@ -193,24 +143,13 @@ namespace SushiAI
                 ValueId parameter(Shape shape, std::string_view debug_name,
                                   DType dtype = DType::FLOAT32) const;
 
-                // --- Linear algebra ---------------------------------------------
-
                 /**
-                 * @brief Emits @c MATMUL: C = op(A) * op(B).
-                 *
-                 * Transposition is a flag, never a view: SushiBLAS derives a
-                 * matrix's leading dimension from its @c shape rather than its
-                 * @c strides, so a transposed Tensor view is silently
-                 * mis-indexed. The flag reaches gemm's own @c transA / @c transB,
-                 * which is the only correct route.
-                 *
-                 * @param a Left operand.
-                 * @param b Right operand.
+                 * @brief Emits MATMUL: C = op(A) * op(B).
+                 * @param a Left operand matrix.
+                 * @param b Right operand matrix.
                  * @param transpose_a Whether to transpose @p a.
                  * @param transpose_b Whether to transpose @p b.
-                 * @return The product's id.
-                 * @throws Error If either operand is not rank 2, the dtypes
-                 *         differ, or the contracted extents disagree.
+                 * @return The product value id.
                  */
                 ValueId matmul(ValueId a, ValueId b,
                                bool transpose_a = false, bool transpose_b = false) const;
@@ -232,8 +171,6 @@ namespace SushiAI
                  */
                 ValueId sum_rows(ValueId x) const;
 
-                // --- Elementwise -------------------------------------------------
-
                 /** @brief Emits @c ADD: elementwise A + B. @throws Error on mismatch. */
                 ValueId add(ValueId a, ValueId b) const;
 
@@ -252,22 +189,12 @@ namespace SushiAI
                 ValueId scale(ValueId x, double alpha) const;
 
                 /**
-                 * @brief Emits @c DYNAMIC_SCALE: Y = X * S[0], with S in device memory.
-                 *
-                 * The one emitter in this builder whose two operands are
-                 * deliberately *not* @c require_same: @p factor is a 1-element
-                 * value and @p x is whatever shape it is. They must still agree
-                 * on element type, because the kernel multiplies in one type and
-                 * a widening operand would be a silent precision change.
-                 *
+                 * @brief Emits DYNAMIC_SCALE: Y = X * S[0] with S in device memory.
                  * @param x The tensor to scale.
-                 * @param factor A 1-element value holding the factor; the host
-                 *        is free to rewrite it between replays, which is the
-                 *        entire reason this operation exists.
-                 * @param debug_name A label for diagnostics; must outlive the graph.
-                 * @return The scaled value's id.
-                 * @throws Error If @p factor is not a single element, or the two
-                 *         operands disagree on element type.
+                 * @param factor A 1-element value holding the factor.
+                 * @param debug_name Diagnostic label for the operation.
+                 * @return The scaled value id.
+                 * @throws Error If factor is not 1 element or dtypes mismatch.
                  */
                 ValueId dynamic_scale(ValueId x, ValueId factor,
                                       std::string_view debug_name = "dynamic_scale") const;
@@ -276,41 +203,22 @@ namespace SushiAI
                 ValueId exp(ValueId x) const;
 
                 /**
-                 * @brief Emits @c ZERO: a fresh all-zero tensor with no operands.
-                 *
-                 * The result is tagged NHWC, because there is no operand to
-                 * inherit a layout from. That is safe for the @c ZERO node
-                 * itself - it reads nothing, so CV-4's per-node proof skips it
-                 * - but not for whoever reads the zeros next: a consumer that
-                 * pairs them with an NCHW operand sees a node reading two
-                 * layouts. Use @ref zeros_like wherever the zeros are about to
-                 * be handed to an operation alongside a real value.
-                 *
-                 * @param shape The value's extents.
-                 * @param dtype The element type.
-                 * @return The new value's id.
+                 * @brief Emits ZERO: a fresh all-zero tensor with no operands.
+                 * @param shape The tensor extents.
+                 * @param dtype The element data type.
+                 * @return The new value id.
                  */
                 ValueId zeros(Shape shape, DType dtype = DType::FLOAT32) const;
 
                 /**
-                 * @brief Emits @c ZERO carrying @p like's layout (CV-4).
-                 *
-                 * The overload the backward rules want. A zero buffer is the
-                 * same bytes under either axis order, so this changes nothing
-                 * about the data - it states which order the *consumer* is
-                 * going to read those bytes in, which is what keeps that
-                 * consumer from appearing to cross layouts.
-                 *
-                 * @param like The value whose layout the zeros adopt; it is
-                 *        read for its tag only, not for its shape or dtype.
-                 * @param shape The value's extents.
-                 * @param dtype The element type.
-                 * @return The new value's id.
+                 * @brief Emits ZERO adopting the layout of @p like.
+                 * @param like Value whose layout the zeros adopt.
+                 * @param shape The tensor extents.
+                 * @param dtype The element data type.
+                 * @return The new value id.
                  */
                 ValueId zeros_like(ValueId like, Shape shape,
                                    DType dtype = DType::FLOAT32) const;
-
-                // --- Activations ---------------------------------------------------
 
                 /** @brief Emits @c RELU. */
                 ValueId relu(ValueId x) const;
@@ -325,41 +233,24 @@ namespace SushiAI
                 ValueId tanh(ValueId x) const;
 
                 /**
-                 * @brief Emits @c LEAKY_RELU.
-                 * @param x The input.
-                 * @param slope The negative-side slope; must lie in (0, 1) -
-                 *        at 0 it is a ReLU and at 1 it is the identity, and
-                 *        both would make the output-reading gradient (see
-                 *        Ops::ACTIVATIONS) unsound.
+                 * @brief Emits LEAKY_RELU with the given negative slope.
+                 * @param x The input tensor.
+                 * @param slope The negative-side slope; must lie in (0, 1).
+                 * @return The activated value id.
                  * @throws Error If @p slope is outside (0, 1).
                  */
                 ValueId leaky_relu(ValueId x, double slope) const;
 
                 /**
-                 * @brief Emits one of the activation-gradient operations.
-                 *
-                 * @param op @c RELU_BACKWARD, @c GELU_BACKWARD,
-                 *        @c SIGMOID_BACKWARD, @c TANH_BACKWARD or
-                 *        @c LEAKY_RELU_BACKWARD.
-                 * @param dy The incoming gradient.
-                 * @param primal The forward input (relu/gelu) or the forward
-                 *        output (sigmoid/tanh/leaky_relu) - see ops.hpp.
-                 * @param attributes Passed through unchanged; only
-                 *        @c LEAKY_RELU_BACKWARD reads from it (the slope, in
-                 *        slot 0). There is no default: an absent or
-                 *        out-of-range slope on that op would silently emit a
-                 *        plain-ReLU gradient rather than the requested one,
-                 *        so it is checked against the same (0, 1) range
-                 *        @c leaky_relu() enforces on the way in.
-                 * @return The incoming-side gradient's id.
-                 * @throws Error If @p op is not an activation gradient, the
-                 *         operands disagree in shape or dtype, or @p op is
-                 *         @c LEAKY_RELU_BACKWARD and slot 0 is outside (0, 1).
+                 * @brief Emits an activation gradient operation.
+                 * @param op The activation backward OpID.
+                 * @param dy The incoming gradient tensor.
+                 * @param primal The forward input or forward output tensor.
+                 * @param attributes Optional attributes such as leaky ReLU slope.
+                 * @return The gradient value id.
                  */
                 ValueId activation_backward(OpID op, ValueId dy, ValueId primal,
                                             const Attributes& attributes = {}) const;
-
-                // --- Losses ----------------------------------------------------------
 
                 /**
                  * @brief Emits @c LOG_SOFTMAX over the rows of an [N, C] matrix.
@@ -379,76 +270,39 @@ namespace SushiAI
                  */
                 ValueId nll_loss(ValueId log_probs, ValueId one_hot) const;
 
-                // --- Structural --------------------------------------------------------
-
                 /**
-                 * @brief Emits @c ACCUMULATE: acc_out = acc + delta, in @p acc's buffer.
-                 *
-                 * The output aliases @p acc at lowering time, so this is the
-                 * ordered, allocation-free way to sum gradient contributions at
-                 * a fan-out. It is ordered by the graph's own edges rather than
-                 * by atomics, which is what keeps replay byte-identical under
-                 * SushiRuntime's @c sushiruntime_deterministic_fp contract.
-                 *
+                 * @brief Emits ACCUMULATE: acc_out = acc + delta into buffer of @p acc.
                  * @param acc The buffer accumulated into.
                  * @param delta The contribution added.
-                 * @return The accumulated value's id.
-                 * @throws Error If the operands disagree in shape or dtype.
+                 * @return The accumulated value id.
+                 * @throws Error If operands disagree in shape or dtype.
                  */
                 ValueId accumulate(ValueId acc, ValueId delta) const;
 
                 /**
-                 * @brief Emits @c LAYOUT_CONVERT: the one node CV-4 exempts from
-                 *        preserving a value's TensorLayout.
-                 *
-                 * Permutes a rank-4 value's extents to match @p layout - NHWC's
-                 * [N,H,W,C] becomes NCHW's [N,C,H,W] and back - and stamps the
-                 * result with the requested layout.
-                 *
+                 * @brief Emits LAYOUT_CONVERT to permute between NHWC and NCHW layouts.
                  * @param x The rank-4 value to convert.
-                 * @param layout The result's layout.
-                 * @return The converted value's id.
+                 * @param layout The target tensor layout.
+                 * @return The converted value id.
                  * @throws Error If @p x is not rank 4.
                  */
                 ValueId layout_convert(ValueId x, TensorLayout layout) const;
 
                 /**
-                 * @brief Emits @c CAST: a copy of @p x in a different element type.
-                 *
-                 * The one emitter here whose result deliberately does *not*
-                 * share its operand's dtype, which is why it is the only route
-                 * to one - every other entry point runs @c require_same or an
-                 * equivalent check, and that stays true now that casts exist
-                 * (see @c graph/cast_insertion.hpp). A conversion that is not
-                 * spelled as a node is a conversion the memory planner cannot
-                 * size, the dependency tracker cannot order and a reader of the
-                 * IR cannot see.
-                 *
+                 * @brief Emits CAST: a copy of @p x converted to @p dtype.
                  * @param x The value to convert.
-                 * @param dtype The result's element type; may equal @p x's, in
-                 *        which case this is an ordinary copy.
-                 * @param debug_name A label for diagnostics; must outlive the graph.
-                 * @return The converted value's id, with an activation lifetime.
-                 * @throws Error If either element type is not a real float -
-                 *         SushiBLAS's converting copy is bounded to HALF,
-                 *         FLOAT32 and FLOAT64, and refuses the rest by name.
+                 * @param dtype The target element type.
+                 * @param debug_name Diagnostic label for the operation.
+                 * @return The converted value id.
+                 * @throws Error If either element type is not a real float.
                  */
                 ValueId cast(ValueId x, DType dtype, std::string_view debug_name = "cast") const;
 
                 /**
-                 * @brief Emits @c CAST writing an *existing* value.
-                 *
-                 * The result-side half of a cast. @ref cast declares its own
-                 * result, which is what an operand conversion needs; widening a
-                 * low-precision result into a buffer that already exists - a
-                 * gradient the optimizer reads, a logit the training loop reads
-                 * - has to write the value the caller already holds the id of,
-                 * or the id would stop naming the number.
-                 *
+                 * @brief Emits CAST writing directly into an existing value buffer.
                  * @param source The value to read.
                  * @param destination The value to write; must have no producer yet.
-                 * @throws Error If the shapes disagree, either element type is
-                 *         not a real float, or @p destination is already written.
+                 * @throws Error If shapes disagree, non-float dtype, or destination exists.
                  */
                 void cast_into(ValueId source, ValueId destination) const;
 
@@ -461,99 +315,52 @@ namespace SushiAI
                 ValueId like(ValueId like, std::string_view debug_name = {}) const;
 
                 /**
-                 * @brief Declares a value that inherits @p like's layout.
-                 *
-                 * The layout is a graph-wide invariant (CV-4), so an emitter that
-                 * forgot to carry it forward would not fail where it was written -
-                 * it would fail in `finalise()`, on a graph that is correct, naming
-                 * an operation that did nothing wrong. Carrying it here means no
-                 * emitter can forget.
-                 *
-                 * @param like The value whose layout the result adopts.
-                 * @param shape The result's extents.
-                 * @param dtype The result's element type.
-                 * @param lifetime Which arena owns the result.
-                 * @param debug_name The profiling label.
-                 * @return The new value's id.
+                 * @brief Declares a value inheriting the layout of @p like.
+                 * @param like Value whose layout the result adopts.
+                 * @param shape Result extents.
+                 * @param dtype Result element type.
+                 * @param lifetime Storage arena lifetime.
+                 * @return The new value id.
                  */
                 ValueId declare_like(ValueId like, Shape shape, DType dtype,
                                      Lifetime lifetime, std::string_view debug_name) const;
 
-                // --- Spatial -----------------------------------------------------
-
                 /**
-                 * @brief Emits @c IM2COL: each window becomes one row of a matrix.
-                 *
-                 * The result is @c [N*H_o*W_o, kernel_h*kernel_w*C], which is
-                 * exactly the left operand of the GEMM a convolution is (CV-1).
-                 * This overload derives the output extents assuming symmetric
-                 * padding; a caller that needs otherwise states its own
-                 * extents through @ref im2col_with_extents.
-                 *
-                 * @param x The @c [N,H,W,C] input.
+                 * @brief Emits IM2COL: expands convolution windows into matrix rows.
+                 * @param x The [N,H,W,C] input tensor.
                  * @param g The window geometry.
-                 * @return The column matrix's id.
-                 * @throws Error If @p x is not rank 4, not NHWC, or the
-                 *         window does not fit the padded input.
+                 * @return The column matrix value id.
+                 * @throws Error If @p x is not rank 4 NHWC or window does not fit.
                  */
                 ValueId im2col(ValueId x, const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c IM2COL with the output extents stated outright.
-                 *
-                 * The overload an asymmetrically-padded layer uses.
-                 *
-                 * @param x The @c [N,H,W,C] input.
+                 * @brief Emits IM2COL with explicit output extents.
+                 * @param x The [N,H,W,C] input tensor.
                  * @param g The window geometry.
-                 * @param out_h The number of window rows.
-                 * @param out_w The number of window columns.
-                 * @return The column matrix's id.
-                 * @throws Error If @p x is not rank 4, not NHWC, or either
-                 *         extent is not positive.
+                 * @param out_h Number of window rows; @p out_w Number of window columns.
+                 * @return The column matrix value id.
                  */
                 ValueId im2col_with_extents(ValueId x, const ConvGeometry& g,
                                             int64_t out_h, int64_t out_w) const;
 
                 /**
-                 * @brief Emits @c COL2IM: the adjoint of @ref im2col.
-                 *
-                 * A gather over the input pixels, never an atomic scatter
-                 * (CV-6), which is what makes it bit-reproducible. This
-                 * overload re-derives @p cols's expected row count from @p g
-                 * assuming symmetric padding, which is wrong whenever the
-                 * forward pass padded asymmetrically (bottom/right only, as
-                 * @c ConvGeometry's own doc warns). A caller that knows the
-                 * forward's actual window counts - which a backward rule
-                 * always does, because the forward already wrote them into
-                 * the graph - states them through @ref col2im_with_extents
-                 * instead.
-                 *
+                 * @brief Emits COL2IM: the adjoint operation of IM2COL.
                  * @param cols The column matrix.
-                 * @param image_shape The @c [N,H,W,C] shape to return to.
-                 * @param g The window geometry @p cols was produced with.
-                 * @return The image's id.
-                 * @throws Error If @p image_shape is not rank 4, @p cols is
-                 *         not rank 2 or not NHWC, or @p cols does not have
-                 *         the row and column counts that geometry implies
-                 *         under symmetric padding.
+                 * @param image_shape The [N,H,W,C] image shape to reconstruct.
+                 * @param g The window geometry used during production.
+                 * @return The image value id.
+                 * @throws Error If shapes, ranks, or implied dimensions mismatch.
                  */
                 ValueId col2im(ValueId cols, Shape image_shape, const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c COL2IM with the window counts stated outright.
-                 *
-                 * The overload a backward rule uses, because the forward's extents
-                 * are already written down in the graph and need not be re-derived.
-                 *
+                 * @brief Emits COL2IM with explicit window counts.
                  * @param cols The column matrix.
-                 * @param image_shape The @c [N,H,W,C] shape to return to.
-                 * @param g The window geometry @p cols was produced with.
-                 * @param out_h The number of window rows @p cols holds.
-                 * @param out_w The number of window columns @p cols holds.
-                 * @return The image's id.
-                 * @throws Error If @p image_shape is not rank 4, @p cols is
-                 *         not rank 2 or not NHWC, or @p cols does not have
-                 *         `N*out_h*out_w` rows and `kernel_h*kernel_w*C` columns.
+                 * @param image_shape Reconstructed [N,H,W,C] image shape.
+                 * @param g Window geometry.
+                 * @param out_h Window rows; @p out_w Window columns.
+                 * @return The reconstructed image value id.
                  */
                 ValueId col2im_with_extents(ValueId cols, Shape image_shape,
                                             const ConvGeometry& g,
@@ -570,14 +377,11 @@ namespace SushiAI
                 PoolResult maxpool2d(ValueId x, const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c MAXPOOL2D with the output extents stated outright.
-                 * @param x The @c [N,H,W,C] input.
+                 * @brief Emits MAXPOOL2D with explicit output extents.
+                 * @param x The [N,H,W,C] input tensor.
                  * @param g The window geometry.
-                 * @param out_h The pooled height.
-                 * @param out_w The pooled width.
-                 * @return The pooled value and its argmax indices.
-                 * @throws Error If @p x is not rank 4, not NHWC, or either
-                 *         extent is not positive.
+                 * @param out_h Pooled height; @p out_w Pooled width.
+                 * @return The pooled value and argmax indices.
                  */
                 PoolResult maxpool2d_with_extents(ValueId x, const ConvGeometry& g,
                                                   int64_t out_h, int64_t out_w) const;
@@ -593,13 +397,12 @@ namespace SushiAI
                 ValueId avgpool2d(ValueId x, const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c UPSAMPLE2D: nearest-neighbour, integer scale.
-                 * @param x The @c [N,H,W,C] input.
-                 * @param scale_h The vertical replication factor.
-                 * @param scale_w The horizontal replication factor.
-                 * @return The upsampled value's id.
-                 * @throws Error If @p x is not rank 4, not NHWC, or either
-                 *         scale is below one.
+                 * @brief Emits UPSAMPLE2D using nearest-neighbour integer scaling.
+                 * @param x The [N,H,W,C] input tensor.
+                 * @param scale_h Vertical replication factor; must be positive.
+                 * @param scale_w Horizontal replication factor; must be positive.
+                 * @return The upsampled value id.
+                 * @throws Error If @p x is not rank 4 NHWC or scales are below 1.
                  */
                 ValueId upsample2d(ValueId x, int64_t scale_h, int64_t scale_w) const;
 
@@ -612,19 +415,12 @@ namespace SushiAI
                 ValueId spatial_mean(ValueId x) const;
 
                 /**
-                 * @brief Emits @c MAXPOOL2D_BACKWARD: routes each gradient through the argmax.
-                 *
-                 * A backward-only emitter, added beside @c maxpool2d_backward's rule
-                 * rather than with the forward, because nothing else in the graph
-                 * ever has reason to emit it.
-                 *
-                 * @param dy The @c [N,H_o,W_o,C] output gradient.
-                 * @param indices The INT64 argmax @c maxpool2d wrote, same shape as @p dy.
-                 * @param input_shape The @c [N,H,W,C] shape of the pooled input.
-                 * @param g The window geometry the forward used.
-                 * @return The @c [N,H,W,C] input gradient's id.
-                 * @throws Error If @p dy is not rank 4, not NHWC, or @p indices
-                 *         is not INT64 and shaped like @p dy.
+                 * @brief Emits MAXPOOL2D_BACKWARD routing gradients through argmax indices.
+                 * @param dy The [N,H_o,W_o,C] output gradient.
+                 * @param indices The INT64 argmax indices tensor.
+                 * @param input_shape The [N,H,W,C] shape of the pooled input.
+                 * @param g The window geometry.
+                 * @return The input gradient value id.
                  */
                 ValueId maxpool2d_backward(ValueId dy, ValueId indices, Shape input_shape,
                                           const ConvGeometry& g) const;
@@ -641,28 +437,21 @@ namespace SushiAI
                                           const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c UPSAMPLE2D_BACKWARD: sums each source pixel's replicas.
-                 * @param dy The @c [N,H*scale_h,W*scale_w,C] output gradient.
-                 * @param input_shape The @c [N,H,W,C] shape of the upsampled input.
-                 * @param scale_h The vertical replication factor the forward used.
-                 * @param scale_w The horizontal replication factor the forward used.
-                 * @return The @c [N,H,W,C] input gradient's id.
-                 * @throws Error If @p dy is not rank 4 or not NHWC.
+                 * @brief Emits UPSAMPLE2D_BACKWARD summing replicas into source pixels.
+                 * @param dy The output gradient tensor.
+                 * @param input_shape The input tensor shape.
+                 * @param scale_h Vertical factor; @p scale_w Horizontal factor.
+                 * @return The input gradient value id.
                  */
                 ValueId upsample2d_backward(ValueId dy, Shape input_shape,
                                            int64_t scale_h, int64_t scale_w) const;
 
                 /**
-                 * @brief Emits @c SPATIAL_MEAN_BACKWARD: broadcasts by 1/(H*W).
-                 *
-                 * The divisor is taken from @p input_shape alone, never passed
-                 * separately, so the forward and this backward cannot disagree
-                 * about it.
-                 *
-                 * @param dy The @c [N,C] output gradient.
-                 * @param input_shape The @c [N,H,W,C] shape averaged over.
-                 * @return The @c [N,H,W,C] input gradient's id.
-                 * @throws Error If @p dy is not rank 2 or @p input_shape is not rank 4.
+                 * @brief Emits SPATIAL_MEAN_BACKWARD broadcasting by 1/(H*W).
+                 * @param dy The [N,C] output gradient.
+                 * @param input_shape The [N,H,W,C] shape averaged over.
+                 * @return The [N,H,W,C] input gradient value id.
+                 * @throws Error If @p dy is not rank 2 or input_shape is not rank 4.
                  */
                 ValueId spatial_mean_backward(ValueId dy, Shape input_shape) const;
 
@@ -677,83 +466,50 @@ namespace SushiAI
                 ValueId concat_channels(SushiRuntime::span<const ValueId> parts) const;
 
                 /**
-                 * @brief Emits @c SLICE_CHANNELS: a contiguous channel range.
-                 * @param x The @c [N,H,W,C] input.
-                 * @param offset The first channel taken.
-                 * @param count The number of channels taken.
-                 * @return The @c [N,H,W,count] result's id.
-                 * @throws Error If @p x is not rank 4, not NHWC, or the range
-                 *         @c [offset, offset+count) does not fit @p x's channels.
+                 * @brief Emits SLICE_CHANNELS extracting a contiguous channel slice.
+                 * @param x The [N,H,W,C] input tensor.
+                 * @param offset The starting channel index.
+                 * @param count The number of channels to extract.
+                 * @return The [N,H,W,count] sliced tensor id.
+                 * @throws Error If range exceeds channels or @p x is not rank 4 NHWC.
                  */
                 ValueId slice_channels(ValueId x, int64_t offset, int64_t count) const;
 
                 /**
-                 * @brief Emits @c CHANNEL_AFFINE: per-channel Y = gamma * X + beta.
-                 * @param x The @c [N,H,W,C] input.
-                 * @param gamma The @c [C] per-channel scale.
-                 * @param beta The @c [C] per-channel shift.
-                 * @return The @c [N,H,W,C] result's id.
-                 * @throws Error If @p x is not rank 4, not NHWC, or either
-                 *         parameter is not a rank-1 @c [C] value.
+                 * @brief Emits CHANNEL_AFFINE: per-channel Y = gamma * X + beta.
+                 * @param x The [N,H,W,C] input tensor.
+                 * @param gamma The [C] per-channel scale parameter.
+                 * @param beta The [C] per-channel shift parameter.
+                 * @return The [N,H,W,C] affine result id.
+                 * @throws Error If shapes or parameter dimensions mismatch.
                  */
                 ValueId channel_affine(ValueId x, ValueId gamma, ValueId beta) const;
 
                 /**
-                 * @brief Sums an @c [N,H,W,C] value down to @c [C].
-                 *
-                 * @c CHANNEL_AFFINE's parameter gradients, and nothing else so
-                 * far. Deliberately *not* a new identity: in NHWC the fold is
-                 * over axis 0 of the zero-copy rank-2 @c [N*H*W, C] view, which
-                 * is the case the design says "needs nothing new" - so this is
-                 * the two identities that already spell it, @c RESHAPE followed
-                 * by @c SUM_ROWS. A third op for a composition that already has
-                 * a lowering would be one more thing to keep in step with the
-                 * precision policy and the identity table for no new capability.
-                 *
-                 * Not @c SPATIAL_MEAN's sibling either, despite the shape
-                 * similarity: @c SPATIAL_MEAN's surviving position is the pair
-                 * @c (n,c) and needs the second segment axis; this one's is
-                 * @c c alone.
-                 *
-                 * @param x The @c [N,H,W,C] input.
-                 * @return The @c [C] per-channel sum's id.
+                 * @brief Sums an [N,H,W,C] tensor down to [C] per-channel sums.
+                 * @param x The [N,H,W,C] input tensor.
+                 * @return The [C] per-channel sum value id.
                  * @throws Error If @p x is not rank 4 or not NHWC.
                  */
                 ValueId sum_channels(ValueId x) const;
 
                 /**
-                 * @brief Emits @c BATCHNORM2D: normalise over N, H and W, then scale and shift.
-                 *
-                 * @param x The @c [N,H,W,C] input.
-                 * @param gamma The @c [C] per-channel scale.
-                 * @param beta The @c [C] per-channel shift.
-                 * @param epsilon Added to the variance before the square root;
-                 *        must be positive.
-                 * @return The normalised value and the two saved statistics.
-                 * @throws Error If @p x is not rank 4, not NHWC, either
-                 *         parameter is not a rank-1 @c [C] value, or @p epsilon
-                 *         is not positive.
+                 * @brief Emits BATCHNORM2D normalising across N, H, and W dimensions.
+                 * @param x The [N,H,W,C] input tensor.
+                 * @param gamma The [C] scale; @p beta The [C] shift.
+                 * @param epsilon Small constant added to variance; must be positive.
+                 * @return The normalised value and saved batch statistics.
                  */
                 BatchNormResult batchnorm2d(ValueId x, ValueId gamma, ValueId beta,
                                             double epsilon) const;
 
                 /**
-                 * @brief Emits @c BATCHNORM2D_BACKWARD: all three gradients at once.
-                 *
-                 * The statistics come in as values rather than being recomputed,
-                 * so this node differentiates the normalisation the forward
-                 * actually performed. @p gamma is read because @c dx is scaled
-                 * by it; the running statistics are not operands at all (CV-7).
-                 *
-                 * @param dy The @c [N,H,W,C] output gradient.
-                 * @param x The forward's input.
-                 * @param gamma The @c [C] scale the forward applied.
-                 * @param saved_mean The @c [C] batch mean the forward computed.
-                 * @param saved_inv_std The @c [C] inverse standard deviation it computed.
-                 * @return The input, scale and shift gradients.
-                 * @throws Error If @p dy or @p x is not rank 4 or not NHWC, they
-                 *         disagree in shape or dtype, or any of the three
-                 *         per-channel operands is not a rank-1 @c [C] value.
+                 * @brief Emits BATCHNORM2D_BACKWARD producing dx, dgamma, and dbeta.
+                 * @param dy Output gradient; @p x Forward input tensor.
+                 * @param gamma The [C] scale parameter.
+                 * @param saved_mean The [C] batch mean computed during forward.
+                 * @param saved_inv_std The [C] inverse standard deviation.
+                 * @return The input, scale, and shift gradient value ids.
                  */
                 BatchNormGrads batchnorm2d_backward(ValueId dy, ValueId x, ValueId gamma,
                                                     ValueId saved_mean,

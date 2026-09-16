@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file lowering.cpp
+ * @brief Implements graph execution lowering and kernel dispatch recording.
+ * @author Mustafa Garip
+ */
+
 #include <array>
 #include <type_traits>
 #include <SushiBLAS/engine/blas/dispatch.hpp>
@@ -36,10 +42,6 @@ namespace SushiAI
 {
     namespace Graph
     {
-        // =====================================================================
-        // TensorPool
-        // =====================================================================
-
         SushiBLAS::Tensor TensorPool::create(const Shape& shape, DType dtype) const
         {
             return allocate_tensor(*engine_, shape, dtype);
@@ -100,11 +102,7 @@ namespace SushiAI
 
             if (arenas_.has_value())
             {
-                // An alias chain is one buffer under several names, and the plan
-                // says which value owns it. Materialising through the owner is
-                // what keeps the planner's liveness reasoning and the lowering's
-                // aliasing from drifting apart - the second name costs nothing,
-                // packed or not, so it is not counted either way.
+                // Materialises alias chains through buffer owner to align with planner liveness.
                 const ValueId owner = arenas_->plan().buffer_of(id);
                 if (owner != id)
                 {
@@ -114,8 +112,7 @@ namespace SushiAI
 
                 if (arenas_->holds(id))
                 {
-                    // Counted against the counterfactual only: the bytes are
-                    // already inside an arena that adopt() paid for.
+                    // Tracks counterfactual unpacked byte totals without reallocating arena storage.
                     unpacked_bytes_ += static_cast<std::size_t>(value.shape.num_elements())
                                      * dtype_size(value.dtype);
                     return tensors_.emplace(id, arenas_->view(id, value.shape, value.dtype))
@@ -146,9 +143,7 @@ namespace SushiAI
             const auto existing = tensors_.find(target);
             if (existing != tensors_.end())
             {
-                // Already aliased - by an adopted memory plan, which resolves
-                // the same chain to the same buffer, or by a second lowering of
-                // the same graph. Only a *different* buffer is a mistake.
+                // Validates that existing alias points to the same storage and offset.
                 SA_THROW_IF(existing->second.storage != it->second.storage
                             || existing->second.storage_offset != it->second.storage_offset,
                             "Value {} is already bound to a different buffer; it cannot also "
@@ -209,10 +204,6 @@ namespace SushiAI
             return tensors_.size() + ones_.size() + scratch_.size();
         }
 
-        // =====================================================================
-        // Lowering
-        // =====================================================================
-
         namespace
         {
             /** @brief Reads a node's operand shape straight off the graph. */
@@ -227,36 +218,12 @@ namespace SushiAI
                 return graph.value(id).dtype;
             }
 
-            // =============================================================
-            // The GEMM epilogues
-            // =============================================================
-            //
-            // One functor per catalog entry, because that is what a catalog
-            // entry *is* on this stack: `sycl_ext_codeplay_kernel_fusion` is
-            // gone from intel-llvm, so a composition exists only if some
-            // template was instantiated with it, and these five instantiations
-            // are the set. See graph/fusion.hpp.
-            //
-            // WHY THE BIAS IS A `const void*`
-            //
-            // `Dispatch::execute_gemm` instantiates the epilogue for every real
-            // element type in its Domain - half, float and double - and picks
-            // the arm matching the tensor's runtime dtype. A functor holding a
-            // `const float*` therefore compiles into the double arm too and
-            // would read the bias at the wrong stride if a double graph ever
-            // reached it. Carrying the untyped pointer and casting inside the
-            // call operator makes the arm that runs the one that is right, and
-            // costs nothing: the cast disappears at compile time.
-            //
-            // WHY THESE ARE BIT-IDENTICAL TO THE OPERATIONS THEY REPLACE
-            //
-            // `BIAS_ADD` lowers to `copy(x, y)` then `ger(ones, bias, y, 1.0f)`,
-            // whose kernel is `y += alpha * ones[row] * bias[col]`. With alpha
-            // and ones[row] both exactly 1, that is `y + bias[col]` with no
-            // rounding of its own, which is what `operator()` below computes -
-            // and `-ffp-contract=off` means neither spelling can contract the
-            // multiply-add. The activations are SushiBLAS's own expressions,
-            // copied rather than paraphrased, for the same reason.
+            /**
+             * @brief GEMM epilogue functors for fused catalog kernels.
+             *
+             * Evaluates bias addition and activation in-place during GEMM dispatch;
+             * carries untyped pointers to allow runtime dtype specialization.
+             */
 
             /** @brief Adds a per-column bias to the GEMM's result. */
             struct BiasEpilogue
@@ -310,42 +277,9 @@ namespace SushiAI
             };
 
             /**
-             * @brief Adds a per-column bias, **spills it**, then SushiBLAS's GELU.
+             * @brief Adds a per-column bias, spills intermediate pre-activation, and applies GELU.
              *
-             * cuBLASLt calls this @c GELU_AUX_BIAS, and the auxiliary store is
-             * not an optimisation - it is the only reason this composition is
-             * allowed to exist. @c gelu_backward differentiates at the GELU's
-             * *input*; the other three epilogues may throw that tensor away
-             * because their gradients read the output instead. This one writes
-             * it out on the way past, so the value the backward rule reads is
-             * the value the unfused @c BIAS_ADD would have left there - the same
-             * graph value, under the same id. See graph/fusion.hpp's `spill`
-             * section and @c Ops::GEMM_BIAS_GELU.
-             *
-             * WHY INDEXING OFF row AND col IS EXACTLY-ONCE AND IN RANGE
-             *
-             * Both SYCL variants of @c Kernels::SYCL::gemm skip an out-of-range
-             * element *before* calling the epilogue
-             * (`if (global_row >= m) continue;` and the same for the column),
-             * and @c Kernels::Reference::gemm walks `i < m, j < n` directly. So
-             * the functor is invoked once per element of C and never outside
-             * it, and the store below lands on each element of the spill
-             * exactly once.
-             *
-             * The one thing @c row and @c col do *not* carry is a batch index -
-             * the reference kernel's own documentation says so, and the SYCL
-             * side does not supply one either, so every matrix of a batch would
-             * be spilled on top of the last. That is safe here because
-             * @c record_fused_gemm refuses a result that is not rank 2, which
-             * makes @c execute_gemm's `batch_size` exactly 1. The refusal is
-             * what this comment depends on; do not relax one without the other.
-             *
-             * The strides come from the aux tensor rather than being assumed,
-             * because the spill may be a view into a planned arena and may be
-             * column-major: @c Tensor::strides is what @c Tensor lays a shape
-             * out with, so `row * strides[0] + col * strides[1]` is the element
-             * under either layout, and @c Tensor::data() has already folded in
-             * @c storage_offset.
+             * Preserves pre-activation values in auxiliary buffer for backward differentiation.
              */
             struct BiasGeluSpillEpilogue
             {
@@ -361,11 +295,7 @@ namespace SushiAI
 
                     static_cast<T*>(aux)[row * aux_row_stride + col * aux_col_stride] = y;
 
-                    // SushiBLAS's own gelu expression, copied rather than
-                    // paraphrased - the same reason the three above are. A
-                    // re-derivation that groups the terms differently would be
-                    // correct mathematics and a different float, and fusion
-                    // promises to move no bits.
+                    // Applies exact GELU polynomial approximation matching SushiBLAS kernel.
                     const T y3 = y * y * y;
                     const T inner = T(0.7978845608028654) * (y + T(0.044715) * y3);
                     return T(0.5) * y * (T(1) + SushiBLAS::Dispatch::safe_tanh(inner));
@@ -397,12 +327,7 @@ namespace SushiAI
 
             for (const Node& node : graph.nodes())
             {
-                // Both entries below are operands of SushiBLAS's whole-tensor
-                // reductions - see the header for why an arena view breaks
-                // them. Delete this whole function the day
-                // Dispatch::execute_reduction builds its ResourceRegions from
-                // Tensor::region() like every other op family already does;
-                // nothing else here depends on it.
+                // Pins reduction operands requiring contiguous standalone allocation.
                 if (node.op == Ops::LOG_SOFTMAX.id && !node.inputs.empty())
                     pinned.push_back(node.inputs[0]);   // reductions().max reads it
 
@@ -418,20 +343,7 @@ namespace SushiAI
             emitted_ = 0;
             selections_.clear();
 
-            // The last gate, and the only unconditional one. finalise() proves
-            // CV-4 over the forward graph, and fuse() and insert_casts() each
-            // re-prove it over the graph they rebuild - but a caller is free
-            // to differentiate and lower directly, and the nodes autograd
-            // emits would then be proved nowhere. Lowering is the single
-            // funnel every path goes through, so the check belongs here too:
-            // it makes the pass-level proofs belt-and-braces rather than
-            // load-bearing, and it is O(nodes) against a walk already
-            // O(nodes).
-            //
-            // It matters here more than anywhere else, because this is where
-            // the tag stops being bookkeeping: record_layout_convert reads it
-            // on both sides to decide whether to relabel one into [N,H,W,C],
-            // and a wrong tag becomes a transpose that does not happen.
+            // Verifies layout uniformity across all graph values prior to lowering.
             graph.prove_layout_uniformity();
 
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
@@ -440,22 +352,13 @@ namespace SushiAI
 
         FusionChoice Lowering::select(const FusionQuery& query)
         {
-            // Built here rather than held as a member so a Lowering costs
-            // nothing on a graph with no fused nodes, and so the profile is
-            // read from the engine this record() is actually recording on.
+            // Queries engine-specific fusion selector to evaluate kernel viability.
             const FusionChoice choice =
                 selector_ != nullptr
                     ? selector_->choose(query)
                     : DeviceFusionSelector::for_engine(*engine_).choose(query);
 
-            // "A shorter entry of the same family" is exactly one entry -
-            // GEMM_BIAS, the only one that folds no activation - and it is
-            // spelled out rather than approximated by "both are GEMM
-            // epilogues". That looser test let a selector answer
-            // gemm+bias+tanh to a gemm+bias+relu match, which passes every
-            // shape check and applies the wrong activation, and once a form
-            // could spill it also let one answer gemm+bias+gelu to a node with
-            // no auxiliary output for the epilogue to write.
+            // Allows narrowing from extended epilogues to GEMM_BIAS within the same family.
             const bool narrowed_within_family =
                 is_gemm_epilogue(query.matched) && choice.form == FusedForm::GEMM_BIAS;
 
@@ -476,9 +379,7 @@ namespace SushiAI
 
             if (node.op == Ops::LEAF.id)
             {
-                // A leaf is written from outside the step. Refusing an unbound
-                // one is the difference between a clear failure here and a run
-                // that trains on whatever the allocator happened to return.
+                // Validates that leaf output values are explicitly bound before execution.
                 for (ValueId out : node.outputs)
                     SA_THROW_IF(!pool_->is_bound(out),
                                 "Leaf value {} ('{}') has no tensor bound. Bind it, or call "
@@ -537,17 +438,7 @@ namespace SushiAI
                 return;
             }
 
-            // Three declared identities reach this throw on purpose:
-            // SGD_UPDATE and ADAMW_UPDATE, which src/optim/{sgd,adamw}.cpp
-            // record directly into the step, and BATCHNORM_UPDATE_STATS,
-            // which CV-7 puts in the same class - a BatchNorm's running
-            // statistics are written beside the graph, not through it.
-            //
-            // None of the three is a missing case. A node carrying one is a
-            // graph that was built wrong, and this is the correct answer. See
-            // Integration_Resilience.BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo,
-            // which pins that for the one of the three a graph builder could
-            // plausibly emit by mistake.
+            // Rejects undeclared ops or operations managed outside IR lowering.
             SA_THROW_IF(true,
                         "No lowering for operation {} (node {}). Add it to Lowering::record_node "
                         "or remove it from the graph.",
@@ -584,9 +475,7 @@ namespace SushiAI
 
             SushiBLAS::Tensor& rows = pool_->ones(Shape{x_shape[0]}, dtype_of(graph, node.inputs[0]));
 
-            // Y = X, then a rank-1 update adds the bias row to every row. The
-            // copy and the update are both writes to Y, so the runtime's
-            // write-after-write edge orders them without an explicit barrier.
+            // Copies input to destination before accumulating outer product bias in-place.
             engine_->blas().copy(x, y);
             engine_->blas().ger(rows, bias, y, 1.0f);
             emitted_ += 2;
@@ -595,11 +484,7 @@ namespace SushiAI
         void Lowering::record_fused_gemm(const Graph& graph, NodeId id, const Node& node,
                                          FusedForm matched)
         {
-            // Two results for the one entry that spills its pre-activation, one
-            // for the rest. Checked against the catalog rather than merely
-            // "one or two", because a node arriving with the wrong number is a
-            // fusion-pass defect and the message should say which shape was
-            // expected.
+            // Validates operand and result counts against catalog spill specification.
             const bool spills = fused_form_spills(matched);
             const std::size_t results = spills ? 2u : 1u;
 
@@ -609,12 +494,7 @@ namespace SushiAI
 
             const Shape& out_shape = shape_of(graph, node.outputs[0]);
 
-            // Rank 2 is a correctness constraint and not tidiness for the
-            // spilling arm: execute_gemm derives `batch_size` from every
-            // dimension of C before the trailing two, and the epilogue is
-            // handed a (row, col) inside one matrix with no batch index - so a
-            // batched spill would write every matrix over the last one. See
-            // BiasGeluSpillEpilogue.
+            // Enforces rank-2 result to ensure unbatched epilogue element indexing.
             SA_THROW_IF(out_shape.rank() != 2,
                         "{} (node {}) needs a rank-2 result; got {}",
                         Ops::name_of(node.op), id, out_shape.to_string());
@@ -624,9 +504,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& bias = input(node, 2);
             SushiBLAS::Tensor& c = output(graph, node, 0);
 
-            // Materialised before the switch, because both the fused arm and
-            // every declining one have to write it - a spill the selector
-            // talked us out of is still a spill the backward pass reads.
+            // Materialises auxiliary output buffer required by fused or fallback arms.
             SushiBLAS::Tensor* const aux = spills ? &output(graph, node, 1) : nullptr;
 
             if (spills)
@@ -661,11 +539,7 @@ namespace SushiAI
 
             if (choice.form == FusedForm::NONE)
             {
-                // The unfused spelling, and still cheaper than the IR it came
-                // from: the fused node names A, B and the bias directly, so the
-                // rank-1 update and the activation both run in place on C and
-                // neither needs the copy the out-of-place IR made them pay.
-                // Same operations in the same order, so the same bytes.
+                // Executes unfused GEMM and bias rank-1 update in-place on result buffer.
                 engine_->blas().gemm(a, b, c, transpose_a, transpose_b, 1.0, 0.0);
 
                 SushiBLAS::Tensor& rows = pool_->ones(Shape{out_shape[0]}, dtype);
@@ -676,26 +550,7 @@ namespace SushiAI
             {
                 const void* const values = bias.data();
 
-                // `.reads(bias)` is the whole of what used to be a separate
-                // host-side ordering node. SushiBLAS declares A, B and C and
-                // cannot see inside the functor, so the bias the epilogue
-                // dereferences has to be declared by whoever built the functor
-                // around it - which is here. It is not optional bookkeeping:
-                // the bias is a parameter the optimizer rewrites inside this
-                // same compiled plan, so without the declaration the update is
-                // free to land before the forward pass has read the old value,
-                // and the run still trains.
-                //
-                // Declared per arm rather than once above the switch on
-                // purpose: the access set belongs to the spelling. An arm that
-                // spilled a pre-activation would declare a *write* the others
-                // do not, and hoisting the declaration out of the arm that
-                // knows it is how the two drift apart.
-                //
-                // One arm per catalog entry. This switch is the point at which
-                // "which compositions exist" stops being a runtime question:
-                // each arm instantiates a different template, and a composition
-                // with no arm here does not exist in the binary at all.
+                // Dispatches fused epilogue with declared operand dependencies per catalog arm.
                 switch (choice.form)
                 {
                     case FusedForm::GEMM_BIAS_RELU:
@@ -723,11 +578,7 @@ namespace SushiAI
                         break;
 
                     case FusedForm::GEMM_BIAS_GELU:
-                        // The arm the paragraph above is about: `.writes(aux)`
-                        // is the declaration no other arm makes, and without it
-                        // the backward pass that reads the spill races the GEMM
-                        // that fills it - which resolves the right way often
-                        // enough to look like training.
+                        // Declares auxiliary buffer write dependency for backward graph ordering.
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
                             Ops::GEMM_BIAS_GELU.name.data(), Ops::GEMM_BIAS_GELU.id,
@@ -749,24 +600,14 @@ namespace SushiAI
                 ++emitted_;
             }
 
-            // A spelling that did not fold the activation left the
-            // pre-activation sitting in C, which is precisely what the spill is
-            // supposed to contain - so one copy is the whole of it, and it has
-            // to happen here, before the trailing activation overwrites C in
-            // place. This is what makes a selector refusal cost launches and
-            // change no number: the aux buffer holds the same bytes either way.
+            // Copies pre-activation result to auxiliary buffer prior to in-place activation.
             if (spills && !fused_form_spills(choice.form))
             {
                 engine_->blas().copy(c, *aux);
                 ++emitted_;
             }
 
-            // Whatever activation the chosen spelling did not fold in still has
-            // to run, in place on the result. Correct for every activation in
-            // Ops::ACTIVATIONS, fused or not: for the three whose gradient
-            // reads their output the fused node's result *is* the activation's
-            // output value, and for GELU the pre-activation the gradient wants
-            // has just been spilled above.
+            // Executes trailing activation in-place when excluded from fused epilogue.
             const OpID activation = fused_form_activation(matched);
             if (activation != Ops::LEAF.id && fused_form_activation(choice.form) != activation)
             {
@@ -789,17 +630,12 @@ namespace SushiAI
 
             const Shape& out_shape = shape_of(graph, node.outputs[0]);
 
-            // Non-const, and from the pool rather than through input(), because
-            // the zip seam takes every operand as a writable slot; see below.
+            // Acquires writable tensor references from pool for zip in-place binding.
             SushiBLAS::Tensor& a = pool_->tensor(node.inputs[0]);
             SushiBLAS::Tensor& b = pool_->tensor(node.inputs[1]);
             SushiBLAS::Tensor& out = output(graph, node, 0);
 
-            // Through float on both paths: the unfused spelling ends in
-            // blas().scal, whose alpha is a float, so a double graph would
-            // otherwise pick up a differently rounded constant on the two
-            // paths and break the byte-for-byte comparison for a reason that
-            // has nothing to do with fusion.
+            // Casts scaling factor to float to maintain numerical symmetry with blas::scal.
             const float alpha = static_cast<float>(node.attributes.get(0));
 
             FusionQuery query;
@@ -813,8 +649,7 @@ namespace SushiAI
 
             if (choice.form == FusedForm::NONE)
             {
-                // Out is its own scratch: it has the operands' shape, so the
-                // whole recipe runs through it and no temporary is allocated.
+                // Reuses output tensor as scratch across sequential elementwise stages.
                 engine_->blas().copy(a, out);
                 engine_->elementwise().exp(out);
                 engine_->elementwise().sub(out, b, out);
@@ -823,12 +658,7 @@ namespace SushiAI
             }
             else
             {
-                // Every slot of a zip is declared to the tracker as both read
-                // and written, and every slot is staged and written back - so
-                // `a` and `b` are rewritten with the bytes they already held.
-                // That is a real write and it is why they are named here rather
-                // than passed as const: it is what makes the ordering against
-                // whoever else reads them explicit instead of accidental.
+                // Dispatches fused elementwise zip with explicit read-write slot declarations.
                 std::array<SushiBLAS::Tensor*, 3> operands{&out, &a, &b};
 
                 SushiBLAS::Dispatch::execute_zip_inplace(*engine_, operands,
@@ -881,23 +711,10 @@ namespace SushiAI
                         "DYNAMIC_SCALE (node {}) was given a {}-element factor; it must be one",
                         id, factor.num_elements);
 
-            // Copy first, then multiply in place, which is exactly the shape
-            // record_scale() uses - so the two spellings differ in one thing
-            // only, where the factor comes from.
+            // Copies operand to destination before scaling in-place.
             engine_->blas().copy(x, y);
 
-            // The factor's *address* is captured, never its value. That is the
-            // whole point of this operation: a captured float would be frozen
-            // into the recorded task and changing it would force a recompile,
-            // which is what Attributes' warning is about and what
-            // CompiledStep::compile_count() == 1 is asserted against.
-            //
-            // The buffer is not declared as a read of this task, and that is
-            // sound for exactly the access pattern optim/step_scalars.hpp
-            // argues for and no other: it is written only from the host,
-            // between replays, at a point where the previous replay has been
-            // waited on and the next has not been dispatched. A *device* writer
-            // would race, because there is no edge to order it.
+            // Captures factor buffer pointer to allow host updates without recompilation.
             constexpr const char* TASK_NAME = "sushiai.dynamic_scale";
             static_assert(Ops::DYNAMIC_SCALE.name == std::string_view(TASK_NAME),
                           "the task name must be the string its OpID hashes");
@@ -918,10 +735,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& x = input(node, 0);
             SushiBLAS::Tensor& y = output(graph, node, 0);
 
-            // Copy first so the operation stays out of place at the IR level:
-            // the forward input survives for whichever backward rule needs it,
-            // which is exactly what makes activations differentiable without a
-            // separate save-for-backward mechanism.
+            // Copies input to output before in-place evaluation to preserve primal tensor.
             engine_->blas().copy(x, y);
 
             if (node.op == Ops::EXP.id)          engine_->elementwise().exp(y);
@@ -952,9 +766,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& x = input(node, 0);
             SushiBLAS::Tensor& y = output(graph, node, 0);
 
-            // Copy first, same as record_unary_inplace: the forward input
-            // survives for the backward rule, which is what makes this
-            // differentiable without a separate save-for-backward mechanism.
+            // Copies input to output to preserve primal values for backward pass.
             engine_->blas().copy(x, y);
             engine_->nonlinear().leaky_relu(y, static_cast<float>(node.attributes.get(0)));
 
@@ -967,10 +779,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& primal = input(node, 1);
             SushiBLAS::Tensor& dx = output(graph, node, 0);
 
-            // The slope isn't carried on this node - it's read out of the
-            // forward LEAKY_RELU node's attribute slot 0 by
-            // GraphBuilder::activation_backward, which forwards the whole
-            // Attributes through unchanged, so it lands here in the same slot.
+            // Reads negative slope attribute forwarded from primal operation.
             engine_->nonlinear().leaky_relu_backward(dy, primal, dx,
                 static_cast<float>(node.attributes.get(0)));
 
@@ -999,42 +808,14 @@ namespace SushiAI
 
             SushiBLAS::Tensor& ones_cols = pool_->ones(Shape{cols}, dtype);
 
-            // 1. Each row's OWN maximum, not the batch's.
-            //
-            //    This used to be a whole-tensor `reductions().max`, broadcast to
-            //    every row, on the argument that log-softmax is invariant to
-            //    subtracting any single scalar from a row. The argument is sound
-            //    in real arithmetic and false in binary32, because what destroys
-            //    the invariance is not the subtraction but the exponential below
-            //    it: a row sitting far under the batch maximum has every
-            //    `exp(x - batch_max)` collapse through the subnormals to zero, so
-            //    its row sum is exactly zero, `log(0)` is `-inf`, and step 4
-            //    returns `+inf` for the whole row. Measured on this project's
-            //    OpenCL CPU device over a row whose true log-probabilities are
-            //    around -0.41 to -2.41, as the worst absolute deviation from the
-            //    answer the same code gives at a gap of zero: 2.15e-06 at a gap
-            //    of 90, 2.70e-02 at 100, and `+inf` from 104 - which then makes
-            //    the loss NaN and the gradient non-finite, so the run trains on
-            //    NaN and reports success. Shifting by the row's own maximum takes
-            //    the gap out of the arithmetic entirely rather than moving the
-            //    threshold, so that deviation is exactly zero at every gap.
-            //    tests/functional/regression/test_log_softmax_stability.cpp pins
-            //    every one of those numbers.
-            //
-            //    It also costs one recorded call less than the global shift did,
-            //    because a per-row vector needs no broadcast back out to a row.
+            // Computes per-row maximum for numerically stable log-softmax normalization.
             engine_->reductions().max_along(x, 1, row_max);
 
-            // 2. shifted = X - (row_max) 1^T; every exponent is now at most zero,
-            //    and every row has at least one exponent that is exactly zero.
+            // Subtracts row maximum via outer product to bound exponents non-positive.
             engine_->blas().copy(x, shifted);
             engine_->blas().ger(row_max, ones_cols, shifted, -1.0f);
 
-            // 3. row_sums = rowwise sum of exp(shifted). Still a gemv against a
-            //    ones vector rather than the new `sum_along`: both are correct
-            //    here - every summand is in (0, 1] after step 2, so there is
-            //    nothing for a compensated fold to recover - and leaving it alone
-            //    keeps this change to the one line that was wrong.
+            // Evaluates row-wise sum of exponents using matrix-vector product.
             engine_->blas().copy(shifted, exponents);
             engine_->elementwise().exp(exponents);
             engine_->blas().gemv(exponents, ones_cols, row_sums, false, 1.0f, 0.0f);
@@ -1079,9 +860,7 @@ namespace SushiAI
             SushiBLAS::Tensor& sums = output(graph, node, 0);
             SushiBLAS::Tensor& ones_rows = pool_->ones(Shape{shape[0]}, dtype_of(graph, node.inputs[0]));
 
-            // Column sums are X^T * 1, expressed with the transpose FLAG rather
-            // than a transposed view - a view would report the wrong leading
-            // dimension and read the matrix in the wrong order.
+            // Computes column sums via matrix-vector multiplication with transpose flag.
             engine_->blas().gemv(x, ones_rows, sums, true, 1.0f, 0.0f);
             ++emitted_;
         }
@@ -1091,9 +870,7 @@ namespace SushiAI
             SA_THROW_IF(node.inputs.size() != 2 || node.outputs.size() != 1,
                         "ACCUMULATE takes two operands and one result");
 
-            // The result IS the accumulator's buffer. Aliasing before the axpy
-            // keeps the pool from ever allocating a third buffer for a sum that
-            // has a perfectly good one already.
+            // Aliases accumulator output directly onto input buffer prior to axpy.
             pool_->alias(node.outputs[0], node.inputs[0]);
 
             SushiBLAS::Tensor& accumulator = pool_->tensor(node.inputs[0]);
@@ -1105,13 +882,7 @@ namespace SushiAI
 
         void Lowering::record_zero(const Graph& graph, const Node& node)
         {
-            // Recorded into the step, not queued as a one-time constant, even
-            // though nothing else ever writes this buffer. The memory planner
-            // hands a dead value's bytes to a later one, so a buffer filled
-            // once outside the step would hold zeros for exactly one replay and
-            // then whatever overwrote it - and nothing downstream could tell,
-            // because a gradient that is subtly wrong still trains. One tiny
-            // fill per step is the price of the buffer being packable at all.
+            // Emits constant zero initialization step to support packable buffer reuse.
             SushiBLAS::Tensor& zeros = output(graph, node, 0);
             engine_->random().constant(zeros, 0.0);
             ++emitted_;
@@ -1125,20 +896,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& source = input(node, 0);
             SushiBLAS::Tensor& destination = output(graph, node, 0);
 
-            // `elementwise().convert`, which is the one SushiBLAS operation
-            // whose two operands may disagree on dtype - `blas().copy` refuses
-            // a mismatch, and every other family dispatches on a single shared
-            // element type. It declares `src.region()` and `dst.region()` to the
-            // dependency tracker rather than bare pointers, which is what makes
-            // this correct for two arena views: the fp16 copy of a parameter is
-            // read by a GEMM and the parameter itself is rewritten by the
-            // optimizer inside the same compiled plan, so both edges have to
-            // land or the update could overtake the conversion and still train.
-            //
-            // The planner cannot overlap these two buffers even though the
-            // source dies exactly where the destination is born: `precedes()`
-            // asks whether every use of the earlier buffer *strictly* reaches
-            // the later one's first write, and a node never reaches itself.
+            // Dispatches precision conversion with explicit region dependency tracking.
             engine_->elementwise().convert(source, destination);
             ++emitted_;
         }
@@ -1156,9 +914,7 @@ namespace SushiAI
                         "produced as a strided view, which reshape's reinterpretation would "
                         "read wrong", id);
 
-            // A reshape moves no data - it is the same bytes read under
-            // different extents - so the "copy" here is `blas().copy` walking
-            // the same linear order twice, not a permutation of any kind.
+            // Copies contiguous storage into destination under reinterpreted shape extents.
             const Shape& out_shape = graph.value(node.outputs[0]).shape;
             const SushiBLAS::Tensor reshaped(
                 source.storage,
@@ -1181,15 +937,7 @@ namespace SushiAI
             const TensorLayout source_layout = graph.value(node.inputs[0]).layout;
             const TensorLayout dest_layout = graph.value(node.outputs[0]).layout;
 
-            // `SpatialOps::layout_convert` reads its direction purely from the
-            // two operands' strides: both must be handed in shaped [N, H, W,
-            // C], so whichever side is physically NCHW ([N, C, H, W]) is
-            // relabelled into that order first. Two transposes rather than one
-            // because NCHW -> NHWC is the 3-cycle (C, H, W) -> (H, W, C), not
-            // a single swap: transpose(1, 2) gives [N, H, C, W], and
-            // transpose(2, 3) on that gives [N, H, W, C] with the strides
-            // carried along at each step, so no data moves until the kernel
-            // itself runs.
+            // Converts spatial channel layouts between NCHW and NHWC representations.
             const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::NCHW)
                 ? source.transpose(1, 2).transpose(2, 3) : source;
             SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::NCHW)
@@ -1217,13 +965,12 @@ namespace SushiAI
             }
 
             /**
-             * @brief Reads the window grid a windowed node carries in slots 8-9.
-             *
-             * Read, never re-derived. Deriving the extents from the geometry
-             * assumes symmetric padding, and an asymmetric grid can derive to
-             * its own transpose with the same window count - which the row
-             * check and the origin checks both accept, so the gather returns
-             * wrong numbers and nothing throws.
+             * @brief Extracts output window grid extents from attribute slots 8 and 9.
+             * @param node Graph node carrying spatial attributes.
+             * @param id Node identifier for error reporting.
+             * @param what Operation name string.
+             * @param out_h Output height extent.
+             * @param out_w Output width extent.
              */
             void windowed_extents_of(const Node& node, NodeId id, const char* what,
                                      int64_t& out_h, int64_t& out_w)
@@ -1384,10 +1131,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& dy = input(node, 0);
             SushiBLAS::Tensor& dx = output(graph, node, 0);
 
-            // The divisor is read from dx's own shape - the [N,H,W,C] gradient
-            // this node is about to fill - rather than carried as a separate
-            // attribute, so the forward's mean_spatial and this broadcast can
-            // never disagree about what H*W was.
+            // Derives spatial normalization factor from destination gradient dimensions.
             const Shape& dx_shape = shape_of(graph, node.outputs[0]);
             SA_THROW_IF(dx_shape.rank() != 4,
                         "SPATIAL_MEAN_BACKWARD (node {}) needs a rank-4 [N,H,W,C] result to read "
@@ -1407,9 +1151,7 @@ namespace SushiAI
 
             SushiBLAS::Tensor& out = output(graph, node, 0);
 
-            // concat_channels copies one operand at a time; the running offset
-            // is the running channel count of the operands already placed, in
-            // the same order the forward's shape check walked them.
+            // Appends channel slices sequentially while tracking cumulative offset.
             int64_t offset = 0;
             for (std::size_t i = 0; i < node.inputs.size(); ++i)
             {
@@ -1439,14 +1181,11 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief The zero-copy `[N*H*W, C]` view of an NHWC tensor.
-             *
-             * Channels innermost is what makes this free: the rank-4 and the
-             * rank-2 readings are the same bytes in the same order, so a
-             * per-channel fold is a column sum of this view and needs no new
-             * kernel. Built the way record_reshape builds its own view, from
-             * the storage and offset rather than from a pointer, so an operand
-             * living inside a planned arena is addressed correctly.
+             * @brief Creates zero-copy `[N*H*W, C]` rank-2 view of an NHWC tensor.
+             * @param t Source NHWC tensor.
+             * @param rows Flattened spatial-batch dimension.
+             * @param cols Channel dimension.
+             * @return Rank-2 tensor sharing underlying storage.
              */
             SushiBLAS::Tensor channel_rows(const SushiBLAS::Tensor& t, int64_t rows, int64_t cols)
             {
@@ -1508,18 +1247,12 @@ namespace SushiAI
             SushiBLAS::Tensor& variance = pool_->scratch(id, 3, per_channel, dtype);
             SushiBLAS::Tensor& scale = pool_->scratch(id, 4, per_channel, dtype);
 
-            // The batch mean: a column sum of the [N*H*W, C] view, which is
-            // the fold the design says NHWC already spells with no new kernel.
+            // Computes batch channel mean via column reduction over flattened spatial view.
             const SushiBLAS::Tensor x_rows = channel_rows(x, rows, channels);
             engine_->reductions().sum_along(x_rows, 0, mean);
             engine_->blas().scal(inverse_rows, mean);
 
-            // Two passes rather than E[x*x] - E[x]*E[x]. The one-pass form is a
-            // subtraction of two numbers that are equal to several digits when
-            // the channel's mean is large next to its spread, and it loses
-            // exactly those digits - which shows up as a variance that is
-            // slightly wrong, or negative, and a normalisation that trains
-            // anyway. The second pass costs one traversal and is exact.
+            // Computes channel variance using two-pass numerically stable formulation.
             engine_->blas().copy(mean, negated_mean);
             engine_->blas().scal(-1.0, negated_mean);
             engine_->spatial().channel_affine(x, ones, negated_mean, centred);
@@ -1529,24 +1262,18 @@ namespace SushiAI
             engine_->reductions().sum_along(squared_rows, 0, variance);
             engine_->blas().scal(inverse_rows, variance);
 
-            // epsilon added through the shared ones vector rather than a
-            // constant fill, so nothing here allocates a buffer to hold one
-            // repeated number.
+            // Adds variance epsilon via axpy with shared ones vector.
             engine_->blas().axpy(epsilon, ones, variance);
 
             engine_->blas().copy(variance, inv_std);
             engine_->elementwise().sqrt(inv_std);
             engine_->elementwise().reciprocal(inv_std);
 
-            // y = gamma * x_hat + beta, and x_hat = centred * inv_std, so the
-            // whole apply half is one channel_affine over the centred value.
+            // Scales normalized activations with learnable affine parameters.
             engine_->elementwise().mul(gamma, inv_std, scale);
             engine_->spatial().channel_affine(centred, scale, beta, y);
 
-            // Fourteen: two sum_along, four scal, two copy, two channel_affine,
-            // two mul, one axpy, sqrt and reciprocal. pool_->ones() is not
-            // counted, matching record_bias_add - the vector is shared and its
-            // fill is not this node's work.
+            // Dispatches composite forward batch-normalization operations.
             emitted_ += 14;
         }
 
@@ -1591,17 +1318,12 @@ namespace SushiAI
             SushiBLAS::Tensor& correction = pool_->scratch(id, 6, x_shape, dtype);
             SushiBLAS::Tensor& zero = pool_->scratch(id, 7, per_channel, dtype);
 
-            // x_hat = (x - mean) * inv_std, rebuilt from the statistics the
-            // forward saved rather than from a fresh reduction over x: the
-            // forward normalised by *these* numbers, and a second reduction
-            // over a buffer a later node may have written would differentiate
-            // a different function.
+            // Reconstructs normalized activations using saved forward statistics.
             engine_->elementwise().mul(mean, inv_std, shift);
             engine_->blas().scal(-1.0, shift);
             engine_->spatial().channel_affine(x, inv_std, shift, x_hat);
 
-            // The two reductions that make this not an elementwise scale.
-            // dbeta is the plain sum of dy; dgamma is the sum of dy * x_hat.
+            // Computes parameter gradients through column reductions.
             const SushiBLAS::Tensor dy_rows = channel_rows(dy, rows, channels);
             engine_->reductions().sum_along(dy_rows, 0, dbeta);
 
@@ -1609,11 +1331,7 @@ namespace SushiAI
             const SushiBLAS::Tensor product_rows = channel_rows(product, rows, channels);
             engine_->reductions().sum_along(product_rows, 0, dgamma);
 
-            // dx = (gamma * inv_std / M) * (M * dy - dbeta - x_hat * dgamma),
-            // regrouped per channel as
-            //     dx = direct * dy + hat_term * x_hat + mean_term
-            // so that the whole thing is two channel_affine passes and an axpy
-            // rather than a broadcast of each reduction in turn.
+            // Formulates input gradient evaluation via affine channel combination.
             engine_->elementwise().mul(gamma, inv_std, direct);
 
             engine_->elementwise().mul(direct, dgamma, hat_term);
@@ -1627,8 +1345,7 @@ namespace SushiAI
             engine_->spatial().channel_affine(x_hat, hat_term, mean_term, correction);
             engine_->blas().axpy(1.0, correction, dx);
 
-            // Fifteen: two sum_along, five mul, three scal, three
-            // channel_affine, one constant fill and one axpy.
+            // Dispatches composite backward batch-normalization operations.
             emitted_ += 15;
         }
 

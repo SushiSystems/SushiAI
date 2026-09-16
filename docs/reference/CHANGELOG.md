@@ -4,6 +4,7 @@ All notable changes to SushiAI are documented here.
 
 ## Unreleased
 
+- 2026-09-16 — docs: Standardized source comments and file headers across core and source trees (`include/`, `src/`).
 - 2026-09-16 — docs: Restructured documentation hierarchy and added repository hygiene tools (`docs/`, `tools/`).
 
 - 2026-09-07 — docs: Renamed the hub CLI command from ss to hub (`docs/`).

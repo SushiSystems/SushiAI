@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file loss.cpp
+ * @brief Implements backward differentiation rules for loss functions.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/autograd/rules/loss.hpp>
 
 namespace SushiAI
@@ -29,20 +35,7 @@ namespace SushiAI
     {
         void log_softmax_backward(const GradientTape&)
         {
-            // Reachable only when a LOG_SOFTMAX result is consumed by
-            // something other than NLL_LOSS. The standalone rule is
-            // `dx = dy - exp(L) * rowsum(dy)`, so it needs a row-wise sum of
-            // the incoming gradient - and a backward rule writes IR, never
-            // SushiBLAS calls, so what it is missing is an IR *node* for that
-            // sum, not the kernel underneath it.
-            //
-            // The kernel exists now: SushiBLAS grew `sum_along` alongside the
-            // `max_along` that fixed log-softmax's own stabilising shift. What
-            // is still absent here is an op identity, a builder entry point, a
-            // shape rule and a lowering for a row-wise sum, plus this rule
-            // written against them. Named rather than left implied, because
-            // the honest blocker moved and a stale message would send the next
-            // reader to the wrong repository.
+            // Standalone log-softmax differentiation requires a row-reduction IR node.
             SA_THROW_IF(true,
                         "LOG_SOFTMAX can only be differentiated as part of the fused "
                         "LOG_SOFTMAX + NLL_LOSS pair in this release: the standalone rule "
@@ -81,15 +74,7 @@ namespace SushiAI
                 return;
             }
 
-            // Fused: differentiate log-softmax and the loss together. The
-            // composite gradient with respect to the logits is
-            // (softmax(X) - Y) / N, which is both far cheaper than chaining
-            // through the seven-op log-softmax recipe and far better
-            // conditioned - the p and (1-p) factors that cancel analytically
-            // would otherwise be computed and subtracted numerically.
-            //
-            // Valid because the targets are one-hot: the general form is
-            // (p * rowsum(Y) - Y) / N, and rowsum(Y) is 1.
+            // Fused cross-entropy analytic gradient with one-hot targets simplifies to (softmax(X) - Y) / N.
             tape.skip(producer);
 
             const Graph::ValueId logits = tape.graph().node(producer).inputs.at(0);
@@ -97,16 +82,7 @@ namespace SushiAI
 
             const Graph::ValueId probabilities = builder.exp(log_probs);
             const Graph::ValueId difference = builder.sub(probabilities, targets);
-            // The loss scale multiplies *here*, on the seeded gradient and
-            // before anything narrows. Two reasons it is this value and not
-            // another. It is the last point at which one multiply covers the
-            // whole backward pass - every gradient below it is linear in it -
-            // so one node buys the scaling of the entire graph. And the
-            // cross-entropy tail is kept in fp32 by the precision policy
-            // (graph/precision.hpp rule 4), so the factor is applied while
-            // there is still exponent range to apply it in; a scale inserted
-            // after the first cast to fp16 would overflow the very value it
-            // exists to keep out of the subnormals.
+            // Seed loss scale factor at the root gradient before downstream precision casts.
             tape.contribute(logits, tape.apply_seed_factor(
                 builder.scale(difference, 1.0 / batch)));
         }

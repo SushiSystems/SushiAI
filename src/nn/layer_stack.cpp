@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file layer_stack.cpp
+ * @brief Implements runtime sequential layer container execution and parameter walks.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/nn/layer_stack.hpp>
 
 #include <utility>
@@ -50,9 +56,7 @@ namespace SushiAI
 
         void LayerStack::walk_parameters(std::string_view prefix, const ParameterVisitor& visitor)
         {
-            // The index is the layer's position, gaps and all - which is what
-            // Sequential's visit_children hands for_each_parameter, so the two
-            // produce the same names for the same architecture.
+            // Invariant: Traverses parameters by index matching Sequential naming.
             for (std::size_t i = 0; i < layers_.size(); ++i)
                 layers_[i]->walk_parameters(Detail::join(prefix, std::to_string(i)), visitor);
         }

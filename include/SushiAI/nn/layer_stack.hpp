@@ -21,28 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file layer_stack.hpp
- * @brief Sequential's runtime twin: a layer list that came from data.
- *
- * @section parity Naming parity with Sequential is the whole point
- *
- * @c Sequential names its children by index **including the gaps a
- * parameterless activation leaves**, so a three-layer MLP is "0.weight",
- * "0.bias", "2.weight". @c LayerStack applies the same rule, and it does so by
- * going through the same @c for_each_parameter walk rather than by
- * reimplementing the join.
- *
- * That is not cosmetic. It means a checkpoint written by a hand-written
- * @c Sequential loads into a @c LayerStack built from the equivalent
- * model.json, and the reverse - so the equivalence of the compile-time and
- * runtime paths is provable *by the checkpoint itself* rather than by a second
- * mechanism whose own correctness would then be the open question.
- *
- * Host lane: no SushiBLAS, no SYCL.
+ * @brief Declares runtime sequential layer container executing ILayer instances.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -62,16 +47,7 @@ namespace SushiAI
     {
         /**
          * @class LayerStack
-         * @brief Applies a runtime list of layers in order, naming them by index.
-         *
-         * Satisfies @ref Module, so everything written as
-         * @c template<typename @c M> over the parameter walk - @c NN::initialize,
-         * @c Train::build_graph, @c NN::parameter_elements, the checkpoint I/O -
-         * consumes it with no change at all. That is what the walk's third arm
-         * bought (see module.hpp's @c runtime section).
-         *
-         * Non-copyable, because it owns its layers through @c unique_ptr;
-         * movable, because a factory has to return one.
+         * @brief Holds a runtime sequential list of polymorphic layers.
          */
         class LayerStack
         {
@@ -104,14 +80,9 @@ namespace SushiAI
                 Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x);
 
                 /**
-                 * @brief Applies @p visitor to every declared parameter, index-prefixed.
-                 *
-                 * The index is the layer's position in the stack, gaps and all,
-                 * which is exactly what @c Sequential's @c visit_children
-                 * produces.
-                 *
-                 * @param prefix The name prefix; empty at the root.
-                 * @param visitor Called once per declared parameter.
+                 * @brief Applies visitor to every declared parameter with index prefix.
+                 * @param prefix Parameter name prefix for hierarchy traversal.
+                 * @param visitor Callback invoked once per declared parameter.
                  */
                 void walk_parameters(std::string_view prefix, const ParameterVisitor& visitor);
 
@@ -140,8 +111,7 @@ namespace SushiAI
                 std::vector<std::unique_ptr<ILayer>> layers_;
         };
 
-        // Checked here, where a mistake names LayerStack, rather than at the
-        // first template that tried to walk one.
+        // Invariant: Verifies LayerStack module and parameter walk contracts at declaration scope.
         static_assert(Module<LayerStack>,
                       "LayerStack must satisfy the Module contract so every "
                       "template written over the parameter walk accepts it");

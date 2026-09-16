@@ -21,151 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file lowering.hpp
- * @brief Turns SushiAI IR into recorded SushiBLAS work.
- *
- * This is the only file in the library that calls @c SushiBLAS::Engine. Every
- * other layer - autograd, the layer library, the optimizers' *shapes* - deals
- * in IR, so the mapping from "what the model means" to "which kernels run"
- * lives in exactly one place and can be re-read against the BLAS surface in
- * one sitting.
- *
- * @section pool One Storage per value, except where the planner says otherwise
- *
- * @c TensorPool used to give every @c ValueId its own @c SushiBLAS::Storage,
- * and the reason was a correctness requirement rather than a missed
- * optimisation: almost every SushiBLAS kernel captured
- * @c tensor.storage->data_ptr and ignored @c tensor.storage_offset (only the
- * reductions, @c logic().all/any, @c random().constant and @c io() honoured
- * it), so an offset view handed to gemm, axpy or an elementwise op read from
- * element zero of the whole arena and produced a silently wrong answer.
- *
- * **That reason no longer holds.** Every SushiBLAS op family honours
- * @c storage_offset, and @c Tensor::region() reports a view's own byte
- * interval rather than the allocation base, so two disjoint tensors packed
- * into one arena are correctly seen as not conflicting instead of falsely
- * serialising. The pool therefore asks a @c MemoryPlan where each value goes:
- * a packed value becomes a view into an arena allocated once at bind time, and
- * everything else - leaves, the persistent lifetime classes, the shared
- * constants and the per-node scratch below - still gets its own Storage.
- * *Which* values are packed, and why the arenas are split by lifetime rather
- * than merged into one, is memory_plan.hpp's business and is argued there.
- *
- * @section rewritten What the planner assumes about this file
- *
- * **Every node writes all of its outputs on every replay.** The planner hands
- * a dead value's bytes to a later one, so a buffer that is filled once and
- * then only ever read cannot live in an arena: it would survive exactly one
- * step and then be quietly overwritten. That is why @c ZERO records its fill
- * into the step instead of into the one-time constant queue below, and why
- * that queue is only ever used for buffers the planner does not place.
- *
- * @section constants Constant operands are filled once, not every step
- *
- * Several lowerings need an all-ones vector (bias broadcast, row sums) or an
- * all-zero buffer. The pool owns one per distinct shape and dtype and records
- * the fill into a @e pending list rather than into the step being recorded;
- * @c TensorPool::flush_constants() runs them after the step has been compiled
- * and drained. Recording them inline would re-fill an unchanging buffer on
- * every replay, and filling them eagerly mid-recording would call
- * @c Engine::execute(), which compiles and drains the half-built step.
- *
- * @section logsoftmax Why log-softmax shifts by a device-side per-row maximum
- *
- * The stable recipe subtracts a maximum before exponentiating, and the maximum
- * has to be each row's own: @c SushiBLAS::ReductionOps::max_along over axis 1.
- *
- * It used to be the tensor's @e global maximum, because SushiBLAS had no axis
- * reduction to build a per-row one from, and the justification was that in
- * exact arithmetic the two agree - log-softmax is invariant to subtracting any
- * single scalar from a row, so any shift that drives every exponent to at most
- * zero is as good as any other. That is true of the subtraction and false of
- * the whole recipe, because what destroys the invariance is the @e exponential
- * underneath it.
- *
- * @warning This is the shape of the bug that argument produced, kept because it
- *          is the kind that comes back. A row whose own maximum sat far @e below
- *          the batch maximum had every one of its exponentials rounded to zero,
- *          so its row sum was exactly zero, @c log() of it was @c -inf, and the
- *          row's log-probabilities came back @c +inf - which made the loss
- *          @c NaN and every gradient under it non-finite, so a run trained on
- *          @c NaN and reported success. Measured in binary32 on a [2, 3] input,
- *          as the worst absolute deviation from the answer the same code gives
- *          at a gap of zero: 2.15e-06 at a gap of 90, 2.70e-02 at 100 (the row
- *          sum is subnormal by then), and @c +inf from 104. The per-row shift
- *          does not move that boundary, it removes it: the gap never enters the
- *          arithmetic, so that deviation is exactly zero at every gap.
- *          @c Regression_LogSoftmaxStability pins those numbers, and asserts the
- *          gap-independence specifically as an equality rather than a tolerance
- *          (its correctness cases are the usual @c EXPECT_NEAR at 1e-4).
- *
- * The maximum stays on the device. Reading it back to the host and passing it
- * as an @c axpy alpha would be simpler to write, and it is what a first draft
- * does - but the alpha would be captured when the step is @e recorded, so a
- * compiled-once, replayed-many step would keep shifting by the first step's
- * maximum forever. A per-row maximum is a vector, so it broadcasts back over
- * the columns with the @c ger the recipe already performs, and needs no
- * broadcast kernel of its own - which is why the row-wise spelling is one
- * recorded call @e cheaper than the global one it replaced, not dearer. A
- * future fused SushiBLAS @c log_softmax_rows would replace the whole recipe.
- *
- * @section fused Where the fused forms turn back into kernels
- *
- * @c graph/fusion.hpp rewrites matched subtrees into single nodes; this file
- * holds the functors those nodes name, because a functor inlined into a
- * SushiBLAS kernel is device code and device code lives on this side of the
- * host/device line. Each fused node asks @c IFusionSelector which spelling to
- * use and then records it - one call, or the unfused sequence, or something in
- * between. Every spelling of a given node produces the same bytes; see
- * graph/fusion.hpp on @c -ffp-contract=off.
- *
- * @warning **A fused GEMM's epilogue reads memory the runtime cannot see by
- *          itself.** @c Dispatch::execute_gemm declares A, B and C to the
- *          dependency tracker and nothing more, because the epilogue is an
- *          opaque callable to that layer - which is exactly what lets this file
- *          write one in plain C++. Here the epilogue dereferences a bias, and
- *          that bias is a parameter the optimizer rewrites inside the same
- *          compiled plan, so an undeclared read is a write-after-read hazard
- *          nothing would order: the update could land before the forward pass
- *          had read the old value, and it would still train. The declaration is
- *          therefore load-bearing, and it is made where the functor is built -
- *          @c SushiBLAS::Dispatch::gemm_epilogue(f).reads(bias) in
- *          @c record_fused_gemm, one per catalog arm.
- *
- *          This used to cost a host-side node per fused GEMM that submitted no
- *          work and existed only to carry those edges
- *          (@c Lowering::declare_epilogue_operand, and @c ordering_nodes()
- *          alongside it). Both are gone: SushiBLAS's seam now takes the
- *          epilogue's own access set, so the edges land on the GEMM task itself
- *          and the plan holds one node per fused GEMM instead of two.
- *
- * @warning **The spilling arm also writes.** @c FusedForm::GEMM_BIAS_GELU's
- *          epilogue stores the pre-activation to a second buffer before it
- *          returns, so its access set carries a @c writes(aux) no other arm
- *          has - and the backward rule that reads that buffer is in the same
- *          compiled plan. Without the declaration it races the GEMM that fills
- *          it, and a race that usually resolves the right way is
- *          indistinguishable from training. The access set is declared inside
- *          the arm that knows it, which is the whole reason
- *          @c SushiBLAS::Dispatch::gemm_epilogue bundles the two rather than
- *          taking the regions beside the functor.
- *
- * @section auxspill A fused node with two outputs
- *
- * @c FusedForm::GEMM_BIAS_GELU is the one catalog entry whose IR node writes
- * two values: its result, and the pre-activation the GELU's gradient
- * differentiates at. @c Graph::Node::outputs has always been a vector, so the
- * IR needed no change - but the recorder does, in two places. It materialises
- * @c outputs[1] before the selector is asked, and it writes that buffer on
- * *every* spelling: the fused arm from inside the epilogue, and every declining
- * arm with one @c blas().copy of C taken after the bias has landed and before
- * the trailing activation overwrites it in place. A spelling that skipped the
- * spill would be a spelling whose gradients differ, which is the one thing
- * graph/fusion.hpp promises no spelling does.
+ * @brief Translates SushiAI IR graphs into executable SushiBLAS task streams.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -189,13 +51,9 @@ namespace SushiAI
     {
         /**
          * @class TensorPool
-         * @brief Owns the real memory behind a graph's values, across steps.
+         * @brief Owns device memory buffers backing graph values across steps.
          *
-         * One @c SushiBLAS::Tensor per @c ValueId, drawn either from its own
-         * Storage or from a planned arena (see the file comment). The pool
-         * outlives any single step, so a compiled step that replays finds the
-         * same buffers every time and a steady-state training loop allocates
-         * nothing.
+         * Maintains persistent tensor storages and arena slices across replays.
          */
         class TensorPool
         {
@@ -207,17 +65,12 @@ namespace SushiAI
                 explicit TensorPool(SushiBLAS::Engine& engine) noexcept : engine_(&engine) {}
 
                 /**
-                 * @brief Allocates @p plan's arenas and packs future values into them.
+                 * @brief Allocates arenas from the specified memory plan.
                  *
-                 * This is "bind time": every arena the plan asks for is
-                 * allocated here, once, and nothing allocates one again for the
-                 * pool's whole life. Call it before any planned value has been
-                 * materialised - a value that already has its own Storage keeps
-                 * it, so adopting late silently plans nothing.
+                 * Must be called before any planned value is materialised.
                  *
-                 * @param plan Where each value's bytes go; moved in.
-                 * @throws Error If a plan has already been adopted, or an arena
-                 *         allocation fails.
+                 * @param plan Arena placement plan to adopt.
+                 * @throws Error If a plan was already adopted or allocation fails.
                  */
                 void adopt(MemoryPlan plan);
 
@@ -232,27 +85,20 @@ namespace SushiAI
                 const ArenaSet& arenas() const;
 
                 /**
-                 * @brief Allocates a standalone tensor of @p shape and @p dtype.
+                 * @brief Allocates an unmanaged standalone tensor.
                  *
-                 * Its own Storage, zero offset, the engine's default layout.
-                 * Used for values, helper constants and any caller-side buffer
-                 * that must be safe to hand to a SushiBLAS kernel.
-                 *
-                 * @param shape The extents.
-                 * @param dtype The element type.
-                 * @return The new tensor; the pool does not retain it.
+                 * @param shape Extents of the tensor.
+                 * @param dtype Element data type.
+                 * @return Newly allocated tensor instance.
                  */
                 SushiBLAS::Tensor create(const Shape& shape, DType dtype) const;
 
                 /**
-                 * @brief Binds an externally owned tensor to @p id.
+                 * @brief Binds an externally owned tensor to the given value id.
                  *
-                 * For a leaf whose memory the caller already has - a dataset
-                 * batch, a parameter shared with an optimizer.
-                 *
-                 * @param id The value to bind.
-                 * @param tensor The tensor to bind it to; shares its Storage.
-                 * @throws Error If @p id is already bound.
+                 * @param id Value identifier to bind.
+                 * @param tensor External tensor to associate.
+                 * @throws Error If the value is already bound.
                  */
                 void bind(ValueId id, SushiBLAS::Tensor tensor);
 
@@ -279,61 +125,36 @@ namespace SushiAI
                 SushiBLAS::Tensor& materialise(ValueId id, const Value& value);
 
                 /**
-                 * @brief Allocates every leaf of @p graph that is not bound yet.
+                 * @brief Allocates uninitialised storage for unbound graph leaves.
                  *
-                 * Lowering refuses to record an unbound leaf, because a leaf is
-                 * by definition written from outside the step and fresh
-                 * uninitialised storage would train on garbage rather than
-                 * fail. Call this once the leaves you do want to supply
-                 * yourself are bound.
-                 *
-                 * @param graph The graph whose leaves to allocate.
+                 * @param graph Graph whose unbound input leaves are allocated.
                  */
                 void materialise_leaves(const Graph& graph);
 
                 /**
-                 * @brief Points @p target at the same tensor as @p source.
+                 * @brief Aliases target value storage to an existing source tensor.
                  *
-                 * How @c ACCUMULATE avoids a buffer: its output is its first
-                 * input's storage, updated in place.
-                 *
-                 * Idempotent when @p target already names those exact bytes,
-                 * because the planner reaches the same conclusion independently
-                 * - it has to, or it would think the accumulator died at the
-                 * @c ACCUMULATE node and hand its bytes away while the result
-                 * is still being read.
-                 *
-                 * @param target The value to bind.
-                 * @param source The already-bound value to share with.
-                 * @throws Error If @p source is unbound, or @p target is already
-                 *         bound to a different buffer.
+                 * @param target Value identifier to alias.
+                 * @param source Already-bound source value identifier.
+                 * @throws Error If source is unbound or target is already bound elsewhere.
                  */
                 void alias(ValueId target, ValueId source);
 
                 /**
-                 * @brief The shared all-ones tensor of this shape and dtype.
+                 * @brief Retrieves or creates a shared constant all-ones tensor.
                  *
-                 * Created on first request and queued for a one-time fill; see
-                 * flush_constants().
-                 *
-                 * @param shape The extents.
-                 * @param dtype The element type.
-                 * @return A reference stable for the pool's lifetime.
+                 * @param shape Extents of the tensor.
+                 * @param dtype Element data type.
+                 * @return Stable reference to the allocated all-ones tensor.
                  */
                 SushiBLAS::Tensor& ones(const Shape& shape, DType dtype);
 
                 /**
-                 * @brief A per-node scratch buffer, reused across replays.
+                 * @brief Retrieves or creates a per-node scratch buffer.
                  *
-                 * Keyed by node and slot rather than pooled by shape, so two
-                 * nodes never share a temporary and the recorded dependency
-                 * edges stay exactly the IR's dataflow.
+                 * Keyed by node and slot, reused across replays.
                  *
-                 * @param node The owning node.
-                 * @param slot The node's index for this temporary.
-                 * @param shape The extents.
-                 * @param dtype The element type.
-                 * @return A reference stable for the pool's lifetime.
+                 * @return Stable reference to scratch tensor.
                  */
                 SushiBLAS::Tensor& scratch(NodeId node, int slot, const Shape& shape, DType dtype);
 
@@ -438,86 +259,51 @@ namespace SushiAI
 
         /**
          * @class Lowering
-         * @brief Records a whole graph as SushiBLAS work, in node order.
+         * @brief Translates IR graph operations into recorded SushiBLAS work.
          *
-         * Stateless between calls apart from the pool it writes through, so a
-         * caller may lower the same graph into a fresh engine graph again -
-         * which is what makes the "compile once" claim testable rather than
-         * structural.
+         * Records device execution tasks in topological node order.
          */
         class Lowering
         {
             public:
                 /**
-                 * @brief Binds a lowering to an engine and a pool.
+                 * @brief Constructs a lowering coordinator bound to engine and pool.
                  *
-                 * @param engine Where the work is recorded; must outlive this object.
-                 * @param pool Where the memory comes from; must outlive this object.
-                 * @param selector Which spelling to use for each fused node, or
-                 *        null for @c DeviceFusionSelector over @p engine's own
-                 *        device. Must outlive this object when given. Injectable
-                 *        because a policy that can only be exercised on hardware
-                 *        nobody owns is a policy nobody has run.
+                 * @param engine Target SushiBLAS engine for recorded work.
+                 * @param pool Memory pool supplying buffer allocations.
+                 * @param selector Optional fused kernel selection strategy.
                  */
                 Lowering(SushiBLAS::Engine& engine, TensorPool& pool,
                          const IFusionSelector* selector = nullptr) noexcept
                     : engine_(&engine), pool_(&pool), selector_(selector) {}
 
                 /**
-                 * @brief The values this lowering cannot address inside an arena.
+                 * @brief Identifies values that cannot be safely packed into arenas.
                  *
-                 * Feed the result to @c PlanOptions::pinned. Every entry is a
-                 * workaround for a defect elsewhere rather than a property of
-                 * the IR, so each one is named in the implementation with the
-                 * fix that retires it - the list is meant to shrink to empty.
-                 *
-                 * As of today it holds the operands of SushiBLAS's whole-tensor
-                 * reductions. @c Dispatch::execute_reduction describes them to
-                 * the dependency tracker as bare @c data() pointers instead of
-                 * @c Tensor::region(): identical for a tensor at offset zero, a
-                 * different resource entirely for a view inside an arena. The
-                 * tracker then files the access under a resource nothing else
-                 * touches and emits no edge at all, so the reduction races its
-                 * own producer - a wrong number, never an error.
-                 *
-                 * @param graph The graph about to be lowered.
-                 * @return The value ids that must keep their own allocation.
+                 * @param graph Graph to inspect for unpinnable values.
+                 * @return Vector of value ids requiring standalone allocations.
                  */
                 static std::vector<ValueId> values_needing_own_allocation(const Graph& graph);
 
                 /**
-                 * @brief Records every node of @p graph into the engine's task graph.
+                 * @brief Records graph operations into the engine task graph.
                  *
-                 * Nothing is executed and nothing is compiled: on return the
-                 * engine's builder holds the whole step, ready for exactly one
-                 * @c compile().
-                 *
-                 * @param graph The graph to lower.
-                 * @throws Error If a leaf is unbound, an operand's shape is
-                 *         wrong for its operation, or the graph contains an
-                 *         operation this lowering does not implement.
+                 * @param graph IR graph to lower.
+                 * @throws Error If an operand shape is invalid or leaf is unbound.
                  */
                 void record(const Graph& graph);
 
                 /**
-                 * @brief How many SushiBLAS calls the last record() emitted.
+                 * @brief Returns the count of SushiBLAS operations recorded.
                  *
-                 * Also the plan's node count: every node this lowering adds is
-                 * a recorded operation. It was not always - a fused GEMM used
-                 * to need a host-side ordering node beside it, counted apart by
-                 * an @c ordering_nodes() that no longer exists because nothing
-                 * produces one (see the file comment).
+                 * @return Number of operations emitted during the last lowering.
                  */
                 std::size_t emitted_operations() const noexcept { return emitted_; }
 
                 /**
-                 * @brief What the selector chose for each fused node, in order.
+                 * @brief Returns fusion selector decisions recorded during lowering.
                  *
-                 * The other half of @c FusionReport: that one says what could be
-                 * fused, this one says what was, on this device. A run in which
-                 * every match was taken and a run in which the selector refused
-                 * them all both compile and both train, so the difference has to
-                 * be readable somewhere.
+                 * @return Span of chosen fusion configurations in execution order.
                  */
                 SushiRuntime::span<const FusionSelection> selections() const noexcept
                 {

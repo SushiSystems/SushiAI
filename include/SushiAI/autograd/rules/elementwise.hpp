@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file elementwise.hpp
+ * @brief Declares backward differentiation rules for elementwise operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -30,20 +36,20 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        /** @brief d(a+b) = [dy, dy]. */
+        /** @brief Differentiates binary addition: d(a+b) = [dy, dy]. */
         void add_backward(const GradientTape& tape);
-        /** @brief d(a-b) = [dy, -dy]. */
+        /** @brief Differentiates binary subtraction: d(a-b) = [dy, -dy]. */
         void sub_backward(const GradientTape& tape);
-        /** @brief d(a*b) = [dy*b, dy*a]. */
+        /** @brief Differentiates binary multiplication: d(a*b) = [dy*b, dy*a]. */
         void mul_backward(const GradientTape& tape);
-        /** @brief d(alpha*x) = alpha*dy. */
+        /** @brief Differentiates scalar scaling: d(alpha*x) = alpha*dy. */
         void scale_backward(const GradientTape& tape);
-        /** @brief d(exp x) = dy * exp(x), reading the forward output. */
+        /** @brief Differentiates elementwise exponential: d(exp x) = dy * exp(x). */
         void exp_backward(const GradientTape& tape);
-        /** @brief An in-graph accumulation passes its gradient to both operands. */
+        /** @brief Propagates accumulation gradients to both operands. */
         void accumulate_backward(const GradientTape& tape);
 
-        /** @brief Elementwise operations' backward rules. */
+        /** @brief Holds backward rule entries for elementwise operations. */
         inline constexpr std::array<RuleEntry, 6> ELEMENTWISE_RULES = {{
             {Ops::ADD.id,        &add_backward},
             {Ops::SUB.id,        &sub_backward},

@@ -21,70 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file memory_plan.hpp
- * @brief Where every non-persistent value's bytes live, decided once, before
- *        anything is lowered.
- *
- * A pure function of the IR. No engine, no allocator, no SYCL - the planner
- * reads a @c Graph and returns a table of (arena, byte offset) assignments,
- * which is exactly why the IR is a host-lane structure and why the whole pass
- * is unit-testable over synthetic graphs with no device present.
- *
- * @section arenas One arena per lifetime class, never one global arena
- *
- * Two independent reasons, and both of them produce code that is *correct and
- * quietly slow* rather than code that fails, which is why they are written
- * down instead of rediscovered:
- *
- * 1. SushiRuntime's dependency tracker shards its access history on the
- *    allocation's base pointer. One arena for everything collapses every shard
- *    into a single chain and makes hazard resolution quadratic in the number
- *    of tensors.
- * 2. Memory reuse *injects* WAR and WAW anti-dependencies. Bytes shared across
- *    two branches that could have run in parallel serialise those branches -
- *    still correct, measurably slower, and with nothing anywhere reporting it.
- *
- * Only the non-persistent classes are packed (see @c Graph::is_persistent).
- * Parameters, gradients, optimizer state and inputs live for the whole run, so
- * packing them would save nothing at all while merging the tracker shards of
- * precisely the tensors that are touched most - the forward pass, the backward
- * pass and the optimizer's update all reach them, and since the update joined
- * the compiled step they are all in one plan, where a collapsed shard costs
- * the most.
- *
- * @section liveness Liveness is a reachability partial order, not an interval
- *
- * Value @c b1 may hand its bytes to @c b2 only when **every** use of @c b1 is
- * a strict ancestor of the node that first writes @c b2. That is a partial
- * order over the DAG, not an interval overlap test on a linearised schedule.
- *
- * The linear version - sort nodes into one order, overlap disjoint
- * @c [first_use, last_use] intervals - passes every test one would think to
- * write and quietly halves the achievable parallelism, because it assumes an
- * execution order the runtime is free not to take. The reachability version
- * has the property that makes reuse free: if every use of @c b1 already
- * precedes @c b2's producer along the dataflow, the anti-dependency that reuse
- * injects is implied by an edge that was there anyway, so no ordering is added
- * and no parallelism is lost.
- *
- * Transitive reachability costs O(V*E/64) time and O(V^2/64) memory. Above
- * @c PlanOptions::reuse_node_limit nodes the planner **declines to overlap
- * anything** and says so through @c reuse_enabled() / @c reuse_note(), rather
- * than silently substituting the linear approximation. The resulting plan is
- * still a valid plan; it just saves nothing.
- *
- * @section plan_offsets Offsets are elements downstream, bytes here
- *
- * @c SushiBLAS::Tensor::storage_offset counts **elements**, which is what
- * makes a single-dtype view safe by construction. A planner mixing dtypes in
- * one arena does not get that for free: it has to round each value's start up
- * to its own element width itself, because by the time a @c Tensor exists the
- * offset has already been chosen. That rounding is done here - see
- * @c PlanOptions::alignment.
+ * @brief Declares the MemoryPlan class and arena placement structures.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -128,12 +71,8 @@ namespace SushiAI
          * @struct Placement
          * @brief Where one value's elements live.
          *
-         * @c buffer is the value that owns the bytes. It differs from the value
-         * being looked up exactly when the IR aliases two values onto one
-         * buffer - @c ACCUMULATE, whose result *is* its accumulator's storage.
-         * Every value in such a chain shares one placement, and the chain's
-         * live range is the union of its members', because the bytes are live
-         * for as long as any name for them is.
+         * The buffer field identifies the owning value, allowing aliased chains
+         * such as ACCUMULATE to share storage placements and live ranges.
          */
         struct Placement
         {
@@ -157,19 +96,9 @@ namespace SushiAI
         struct PlanOptions
         {
             /**
-             * @brief The granularity every packed value's start is rounded to.
+             * @brief Granularity each packed value start offset is rounded to.
              *
-             * Correctness needs only the value's own element width, and the
-             * planner enforces that floor whatever this says - a byte offset
-             * that is not a whole number of elements cannot be expressed as a
-             * @c storage_offset at all.
-             *
-             * The default is the allocator's own alignment because that is what
-             * a standalone @c Storage would have given the same tensor. Packing
-             * therefore changes nothing a kernel can observe about alignment,
-             * which keeps vectorised paths - and with them bit-for-bit
-             * reproducibility - exactly as they were, and stops two tensors
-             * written by concurrent kernels from sharing a cache line.
+             * Defaults to allocator alignment to preserve vectorization and reproducibility.
              */
             std::size_t alignment = SushiRuntime::Core::DEFAULT_ALIGNMENT;
 
@@ -185,19 +114,9 @@ namespace SushiAI
             bool reuse = true;
 
             /**
-             * @brief Values that must keep their own allocation, whatever their
-             *        lifetime says.
+             * @brief Values that must keep their own allocation regardless of lifetime.
              *
-             * The planner knows what a value *is* - its shape, its dtype, its
-             * class, who reads it - and nothing about what will be *done* with
-             * it. A caller that does know, and that knows some operation cannot
-             * address the value through an arena, vetoes it here rather than
-             * teaching the planner about operations.
-             *
-             * @c Lowering::values_needing_own_allocation() is the one such
-             * caller today, and it names its reason.
-             *
-             * Read only during @c MemoryPlan::build; it need not outlive the call.
+             * Read only during build; permits callers to veto arena packing.
              */
             SushiRuntime::span<const ValueId> pinned{};
         };
@@ -223,15 +142,12 @@ namespace SushiAI
                 MemoryPlan() = default;
 
                 /**
-                 * @brief Plans @p graph.
+                 * @brief Generates an arena memory plan for the given graph.
                  *
-                 * @param graph The graph to plan; only read.
-                 * @param options How to pack.
-                 * @return The plan, covering every value of @p graph.
-                 * @throws Error If @p options.alignment is zero, or @p graph is
-                 *         not in topological insertion order - a node that reads
-                 *         a value written by a later node has no position in the
-                 *         partial order the whole pass is built on.
+                 * @param graph The graph to plan.
+                 * @param options Packing and alignment options.
+                 * @return The computed memory plan.
+                 * @throws Error If alignment is zero or graph topological order is broken.
                  */
                 static MemoryPlan build(const Graph& graph, const PlanOptions& options = {});
 
@@ -253,14 +169,12 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Which value owns @p id's bytes.
+                 * @brief Resolves which value owns the specified value's bytes.
                  *
-                 * The total, non-throwing form of @c placement().buffer, so a
-                 * caller can resolve an alias chain against a plan that does not
-                 * cover the value at all - which is what the empty plan is.
+                 * Non-throwing lookup to resolve alias chains even in an empty plan.
                  *
                  * @param id The value to resolve.
-                 * @return The owning value, or @p id when this plan says nothing about it.
+                 * @return Owning value id, or id itself if unmapped.
                  */
                 ValueId buffer_of(ValueId id) const noexcept
                 {

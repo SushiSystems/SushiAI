@@ -21,24 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file layer_registry.hpp
- * @brief Which layer types a model.json may name, and what builds each one.
- *
- * @section growth How this grows
- *
- * Adding a layer type is **one table row and one factory function**. No driver
- * changes, no parser changes, and no schema changes outside the factory - which
- * is the only thing that knows which keys its layer accepts, and rejects any it
- * does not. A schema change therefore stays local to the layer that caused it.
- *
- * Nothing self-registers; see config/registry.hpp for why that is forced rather
- * than preferred in a static library.
- *
- * Host lane: no SushiBLAS engine, no SYCL.
+ * @brief Declares layer registry entries and factory functions for model building.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <cstdint>
@@ -113,16 +102,10 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds the whole stack, chaining each layer's input width.
-         *
-         * @c units is an output width only: @c ModelSpec::input_features seeds
-         * the chain and each layer's input is its predecessor's output, so a
-         * dimension mismatch between adjacent layers is not expressible.
-         *
-         * @param model The parsed architecture.
-         * @return The stack.
-         * @throws Error If a type is unknown - the message lists every type
-         *         this build has - or a factory rejects its attributes.
+         * @brief Builds the whole layer stack, chaining each layer's input width.
+         * @param model Parsed model architecture specification.
+         * @return Constructed layer stack ready for tracing.
+         * @throws Error If a layer type is unknown or attributes are invalid.
          */
         LayerStack build_layer_stack(const Config::ModelSpec& model);
 

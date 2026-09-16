@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file arena.cpp
+ * @brief Implements ArenaSet storage allocations and view projections.
+ * @author Mustafa Garip
+ */
+
 #include <utility>
 #include <SushiAI/graph/arena.hpp>
 
@@ -46,10 +52,7 @@ namespace SushiAI
             const std::size_t bytes = static_cast<std::size_t>(shape.num_elements())
                                     * dtype_size(dtype);
 
-            // The plan sized this slot from the value's own shape and dtype, so
-            // a mismatch here means the caller is materialising a value against
-            // a description the planner never saw - which would silently spill
-            // into the neighbouring tensor's bytes.
+            // Requested view byte size must not exceed the planned arena slot allocation.
             SA_THROW_IF(bytes > placement.bytes,
                         "Value {} was planned {} bytes but a {} {} view needs {}; the shape or "
                         "element type being materialised is not the one that was planned",

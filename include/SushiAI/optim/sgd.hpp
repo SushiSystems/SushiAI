@@ -21,58 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file sgd.hpp
- * @brief Stochastic gradient descent, in PyTorch's formulation.
- *
- * @section formulation The formulation, stated because they differ
- *
- * "SGD with momentum" names at least three different update rules in common
- * use. This is PyTorch's, chosen so a learning rate transfers between the two
- * without a conversion:
- *
- * @code
- * g_t = grad + weight_decay * theta_{t-1}
- * b_t = g_t                              (t = 1)
- * b_t = momentum * b_{t-1} + (1 - dampening) * g_t   (t > 1)
- * g_t = g_t + momentum * b_t             (nesterov)
- * g_t = b_t                              (otherwise)
- * theta_t = theta_{t-1} - lr * g_t
- * @endcode
- *
- * Two details are easy to get wrong and both change the trajectory rather than
- * breaking anything:
- *
- * - The first step is @c b_1 = g_1, with no dampening applied. Applying it
- *   uniformly makes the first update (1 - dampening) times too small, which
- *   looks like a slightly slow start and nothing more.
- * - The decay is @e coupled: it is added to the gradient, so momentum carries
- *   it. That is what distinguishes this from AdamW's decoupled decay, and it
- *   is why the two need different weight-decay values for comparable
- *   regularisation.
- *
- * @section sgd_fusion One kernel, and where g_t went
- *
- * The default @c UpdateKernel::FUSED runs the whole recipe above as one
- * @c execute_zip_inplace per parameter over (theta, g) or (theta, g, b). The
- * staging buffer is gone from that path: @c g_t only ever exists between the
- * first line and the last, so it is a register, not an allocation.
- *
- * The two per-step decisions - whether this is step 1, and whether Nesterov is
- * on - are read from the device scalar buffer rather than branched on the host,
- * because a compiled task is recorded once and cannot be re-recorded with a
- * different shape. They are uniform across every work-item, so the branch is
- * free, and it is a branch rather than arithmetic on purpose: `b = 0*b + 1*g`
- * would turn a `-0.0` gradient into `+0.0` and a poisoned buffer into a NaN,
- * where `b = g` is exactly what the separate path's `copy` does.
- *
- * Whether momentum is used at all is structural, not per-step: it decides
- * whether the momentum buffer exists, and therefore how many operands the
- * kernel has. Turning it on after construction is refused rather than silently
- * ignored.
+ * @brief Declares the stochastic gradient descent optimizer with momentum.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <vector>
 #include <SushiBLAS/engine.hpp>
@@ -121,16 +76,10 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Binds SGD to @p parameters and allocates its state.
-                 *
-                 * The momentum buffer is allocated once here, not lazily on the
-                 * first step, so the steady state allocates nothing and a
-                 * failure to allocate happens at construction where it can be
-                 * handled.
-                 *
-                 * @param engine The engine the update is recorded on.
-                 * @param parameters The parameters to update.
-                 * @param options The hyperparameters.
+                 * @brief Binds SGD to parameters and allocates momentum state buffers.
+                 * @param engine Engine used to record update kernels.
+                 * @param parameters Parameter and gradient slots to update.
+                 * @param options Hyperparameters configuring learning rate and momentum.
                  * @throws Error If nesterov is set without momentum, or with dampening.
                  */
                 SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
@@ -157,13 +106,7 @@ namespace SushiAI
 
                 /**
                  * @brief Recomputes this step's scalars into the device buffer.
-                 *
-                 * Called by @c Optimizer::before_replay(), which is @c final so
-                 * that the loss scaler's own publication cannot be dropped by an
-                 * override here.
-                 *
-                 * @throws Error If momentum was switched on after construction,
-                 *         when there is no momentum buffer to switch it on for.
+                 * @throws Error If momentum is enabled without allocated buffer.
                  */
                 void write_step_scalars() override;
 

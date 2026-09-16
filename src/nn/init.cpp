@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file init.cpp
+ * @brief Implements neural network parameter initializers and gain calculations.
+ * @author Mustafa Garip
+ */
+
 #include <cmath>
 #include <SushiAI/nn/init.hpp>
 
@@ -53,9 +59,7 @@ namespace SushiAI
         {
             SA_THROW_IF(fan_in <= 0, "Kaiming initialisation needs a positive fan-in; got {}", fan_in);
 
-            // A uniform on [-b, b] has variance b^2 / 3, so matching the normal
-            // form's standard deviation of gain / sqrt(fan_in) means
-            // b = gain * sqrt(3 / fan_in).
+            // Bound matches normal standard deviation: b = gain * sqrt(3 / fan_in).
             const double bound = gain * std::sqrt(3.0 / static_cast<double>(fan_in));
             engine.random().uniform(tensor, -bound, bound);
         }
@@ -94,9 +98,7 @@ namespace SushiAI
                                    const InitPolicy& policy,
                                    bool is_final_layer)
             {
-                // Biases start at zero, always. A non-zero bias biases the
-                // initial predictions towards nothing in particular and only
-                // adds variance to the first few steps.
+                // Invariant: Biases and final classifier layers initialize to zero.
                 if (is_final_layer || parameter.role() == ParameterRole::BIAS)
                 {
                     zeros(engine, tensor);

@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file tape.cpp
+ * @brief Implements gradient tape operations querying and extending backward graphs.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/autograd/tape.hpp>
 #include "differentiator.hpp"
 
@@ -28,10 +34,6 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        // =====================================================================
-        // GradientTape
-        // =====================================================================
-
         const Graph::Node& GradientTape::node() const
         {
             return owner_->current_node();
