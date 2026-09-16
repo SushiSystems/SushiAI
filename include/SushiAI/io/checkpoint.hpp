@@ -21,45 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file checkpoint.hpp
- * @brief Binding a checkpoint's records to a module's parameters.
- *
- * Device lane: this half knows about @c TensorPool and @c SushiBLAS::Tensor.
- * @c io/checkpoint_format.hpp is the other half - the byte stream alone, with
- * no tensors in it, which is what lets the whole malformed-file surface be a
- * device-free unit test.
- *
- * @section walk One walk, so nothing can disagree
- *
- * Both directions go through @c NN::for_each_parameter, which is the same walk
- * the optimizer and the initializer use. So a checkpoint cannot contain a
- * different set of tensors from the one being trained, and - because the walk
- * has a runtime arm - a @c LayerStack built from a model.json is saved and
- * loaded by this code with no change at all.
- *
- * @section defects What a naive loader gets wrong
- *
- * Each of these is closed by making the wrong state unrepresentable rather
- * than by adding a check beside it:
- *
- * - **Counting records instead of filled parameters.** A file with one
- *   duplicated name and one missing name has the right count. The parameter
- *   nothing filled then reads uninitialised device memory, because
- *   @c allocate_tensor does not zero - and a forward pass over it produces
- *   numbers, not a crash. A @c std::vector<bool> of filled slots is what makes
- *   the count meaningless.
- * - **Comparing element counts instead of shapes.** [256, 6] loads happily
- *   into [6, 256]; the model still runs and is wrong. The format records a
- *   @c Shape and both are compared.
- * - **Assuming FLOAT32.** @c data_as<float>() over half data reads two
- *   elements as one. The dtype is recorded and checked.
- * - **Sizing a buffer from the file.** There is no intermediate buffer: the
- *   payload is read straight into the destination tensor once its record has
- *   been checked against it. See checkpoint_format.hpp.
+ * @brief Binds checkpoint records to module parameters for save and load.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -94,13 +62,10 @@ namespace SushiAI
             };
 
             /**
-             * @brief Collects @p module's parameters and their tensors, in walk order.
-             * @param module The model; must already have been traced.
-             * @param pool Where the parameters' tensors live.
-             * @return One entry per declared parameter.
-             * @throws Error If a parameter has no tensor bound, or its tensor is
-             *         not contiguous - a checkpoint records elements in layout
-             *         order and a strided view would be written with gaps.
+             * @brief Collects module parameters and bound tensors in walk order.
+             * @param module Traced model whose parameters are traversed.
+             * @param pool Tensor pool storing parameter storage.
+             * @return Vector of bound parameter records.
              */
             template<typename M>
             std::vector<BoundParameter> bind(M& module, Graph::TensorPool& pool)
@@ -137,17 +102,11 @@ namespace SushiAI
         }
 
         /**
-         * @brief Writes every declared parameter of @p module, by name.
-         *
-         * Waits for the device first, so what reaches the file is what the last
-         * step produced rather than whatever had been flushed by chance.
-         *
-         * @param path Where to write.
-         * @param module The trained model; must already have been traced.
-         * @param pool Where the parameters' tensors live.
-         * @param engine The engine to flush before reading the parameters.
-         * @throws Error If the file cannot be opened, a parameter has no tensor,
-         *         or the write fails.
+         * @brief Writes every declared parameter of the module to disk.
+         * @param path Target filesystem path for the checkpoint.
+         * @param module Traced model providing declared parameters.
+         * @param pool Storage pool containing parameter tensors.
+         * @param engine Engine flushed prior to reading tensor memory.
          */
         template<typename M>
         void save_checkpoint(const std::filesystem::path& path, M& module,
@@ -171,18 +130,10 @@ namespace SushiAI
         }
 
         /**
-         * @brief Loads @p path into @p module's already-materialised parameters.
-         *
-         * Every parameter the walk yields must be supplied exactly once. A name
-         * the model does not have, a name supplied twice, a parameter the file
-         * does not supply, and a dtype or Shape that disagrees are each an
-         * error naming what is wrong - see this file's header for why each of
-         * them would otherwise be silent.
-         *
-         * @param path The checkpoint.
-         * @param module A traced model of the same architecture.
-         * @param pool Where the parameters' tensors were materialised.
-         * @throws Error On any of the conditions above, or an I/O failure.
+         * @brief Loads parameter tensors from a checkpoint file into a module.
+         * @param path Checkpoint path to read from disk.
+         * @param module Traced model matching the checkpoint structure.
+         * @param pool Storage pool where parameters are materialized.
          */
         template<typename M>
         void load_checkpoint(const std::filesystem::path& path, M& module,
@@ -193,10 +144,7 @@ namespace SushiAI
             std::ifstream in(path, std::ios::binary);
             SA_THROW_IF(!in, "could not open '{}' for reading", path.string());
 
-            // Filled slots rather than a record count: a file with one
-            // duplicated name and one missing one has the right count, and the
-            // parameter nothing filled would then read uninitialised device
-            // memory.
+            // Tracking filled slots prevents duplicate or missing parameter bindings.
             std::vector<bool> filled(bound.size(), false);
 
             CheckpointReader reader(in);
@@ -226,8 +174,7 @@ namespace SushiAI
                             path.string(), record.name,
                             record.shape.to_string(), expected.shape.to_string());
 
-                // Straight into the destination, which is why nothing here is
-                // sized from the file.
+                // Payloads are streamed directly into allocated destination memory.
                 reader.read_payload(record, bound[index].tensor->data());
                 filled[index] = true;
             }

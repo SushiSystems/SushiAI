@@ -21,50 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file trainer.hpp
- * @brief The loop: build once, compile once, replay per batch.
- *
- * @section shape What a step actually costs
- *
- * The forward pass, the backward pass, the loss **and the optimizer's update**
- * are one compiled plan, and that plan is compiled exactly once for the life of
- * the trainer - @c compile_count() reports it and the test suite asserts it.
- *
- * The update joined the plan when it became replay-invariant: fused into one
- * kernel per parameter whose per-step numbers are read from a device buffer
- * rather than captured by value (optimizer.hpp and optim/step_scalars.hpp
- * argue it in full). @c TrainerOptions::optimizer_placement decides, and
- * @c IN_PLAN is refused loudly rather than silently downgraded if the optimizer
- * cannot promise replay-invariance.
- *
- * One thing still sits outside the plan, and it is visible rather than hidden:
- *
- * - **Feeding the batch.** The compiled plan reads two fixed tensors, because a
- *   recorded SushiBLAS call captures raw pointers and there is no way to
- *   re-point one between replays. So each step copies the batch into those
- *   tensors with two @c blas().copy() calls and one flush. SushiRuntime's
- *   @c LateBindings does not fix this: it re-points a node's iteration count,
- *   base index and enabled flag between replays, not the addresses its kernel
- *   captured. Fusing does not help either - the two copies read a *different
- *   source buffer* every step, which is a pointer, not a scalar, and a pointer
- *   is exactly what cannot change. What would fix it is a late binding for an
- *   operand address, or a dataset that stages every batch through the two
- *   buffers the plan already owns.
- *
- * Accuracy costs one host read of the logits per step, and is optional for
- * that reason. It needs a per-row argmax; SushiBLAS's argmax is whole-tensor,
- * and a metric does not justify a new device reduction.
- *
- * @section profiling Profiling
- *
- * Per-node timings come from the runtime's own profiler, which only records
- * anything when the @c RuntimeContext was built with @c RuntimeSettings::profiling
- * set. With it off the report carries no rows and says so, rather than
- * printing a table of zeroes that reads like the work took no time.
+ * @brief Drives model training loops and compiled execution plans.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -145,23 +108,11 @@ namespace SushiAI
 
             /**
              * @brief The 1-element leaf the backward seed is multiplied by.
-             *
-             * @c Graph::NO_VALUE unless @c build_classifier was asked for loss
-             * scaling. When it is set, the tensor behind it is what
-             * @c Optim::LossScaler is constructed over - the pool materialises
-             * it like any other input leaf, and the scaler rewrites it from the
-             * host between replays.
              */
             Graph::ValueId loss_scale = Graph::NO_VALUE;
 
             /**
-             * @brief The leaves the objective declared, by role.
-             *
-             * @c StepSpec still names @c targets, because @c Train::Trainer
-             * feeds exactly that tensor per step. Wiring the trainer to feed
-             * arbitrary declared leaves is a separate change with its own
-             * argument; this is the shape it will use. Recorded as debt in
-             * docs/architecture/ARCHITECTURE.md alongside @c Dataset::num_classes().
+             * @brief Holds leaves declared by the objective, indexed by role.
              */
             ObjectiveLeaves leaves;
 
@@ -174,66 +125,11 @@ namespace SushiAI
 
         /**
          * @brief Traces @p module into a full training graph and differentiates it.
-         *
-         * Declares the input leaf, lets @p objective declare whatever leaves it
-         * needs, runs the model, asks @p objective for the scalar to
-         * differentiate, then differentiates with respect to every parameter
-         * the generic walk yields - so a parameter cannot be left out of the
-         * backward pass by forgetting to mention it.
-         *
-         * The objective is a parameter rather than a hardcoded loss because a
-         * driver written against a hardcoded one is rewritten at the first
-         * model that is not a classifier. See train/objective.hpp.
-         *
-         * Then the two IR-to-IR passes, in this order and not the other one:
-         *
-         * 1. **Cast insertion**, so that every node's operands carry the
-         *    element type that node computes in. After differentiation, because
-         *    a backward node needs casting as much as a forward one and there
-         *    are none to cast before the transform runs; before fusion, because
-         *    a conversion dropped into the middle of a fusable chain would
-         *    break it. @c graph/cast_insertion.hpp argues both.
-         * 2. **Fusion**, on the joint forward-and-backward graph, because a
-         *    forward node is only fusable if the backward pass no longer needs
-         *    what the fused form would stop writing - a question that cannot be
-         *    asked before the backward pass exists.
-         *
-         * The four values @c StepSpec names are handed to *both* passes as
-         * observed, so an activation the training loop reads by id is neither
-         * fused away underneath it nor quietly retyped under it; parameters and
-         * gradients are protected by their lifetime class and need no listing.
-         * Value ids survive both passes, so everything already recorded above -
-         * including the ids inside the model's own @c NN::Parameter members -
-         * keeps meaning what it meant.
-         *
-         * @param module The model to trace; its parameters are declared here.
-         * @param objective What the model is being trained to minimise; read
-         *        only during this call.
+         * @param module The model to trace.
+         * @param objective Training loss and metric objective.
          * @param batch Samples per step.
          * @param features Input features per sample.
-         * @param dtype The element type for the whole graph. Under a mixed
-         *        policy this is the *master* type: parameters, gradients and
-         *        optimizer state keep it, and only derived values narrow.
-         * @param fusion What the fusion pass is allowed to do; @c enabled=false
-         *        gives the unfused graph, which is the reference a byte-for-byte
-         *        comparison needs. @c FusionOptions::observed is filled in here
-         *        and any value the caller listed is added to it.
-         * @param precision Which element type each operation computes in, or
-         *        null for @c Graph::UniformPrecisionPolicy - the default, under
-         *        which the cast pass inserts nothing and the graph is exactly
-         *        what it was before mixed precision existed. Read only during
-         *        this call.
-         * @param loss_scaling Whether to give the backward seed a device-resident
-         *        factor. False leaves the graph byte-identical to one built
-         *        before loss scaling existed - not merely equivalent: no node is
-         *        emitted, so nothing about the plan changes. True declares one
-         *        1-element input leaf, reports it as
-         *        @c TrainingGraph::loss_scale, and multiplies the seeded
-         *        gradient by it; see @c optim/loss_scaler.hpp for what then
-         *        writes it and why it cannot be a constant.
-         * @return The graph, the value ids, the declared leaves, the
-         *         parameter/gradient pairs and both passes' reports.
-         * @throws Error If the model's output is not the shape @p objective needs.
+         * @return The constructed training graph.
          */
         template<typename M>
         TrainingGraph build_graph(M& module, const IObjective& objective,
@@ -248,26 +144,16 @@ namespace SushiAI
 
             built.spec.inputs = builder.input(Shape{batch, features}, "inputs", dtype);
 
-            // Declared here, between the input leaf and the model's own trace,
-            // because that is exactly where the target leaf used to be
-            // declared. Value ids are positions, so moving this call would
-            // renumber the whole graph - and every regression test that pins a
-            // node count or a byte-for-byte result would then be comparing two
-            // different graphs while appearing to compare one.
+            // Objective leaves are declared before model trace to fix value IDs.
             objective.declare(builder, built.leaves);
 
             built.spec.logits = module.forward(builder, built.spec.inputs);
 
-            // The objective checks the output's shape, because what shape an
-            // output must be is the objective's question: a detector's is not
-            // a classifier's.
+            // The objective verifies output shape compatibility.
             built.spec.loss = objective.loss(builder, built.graph, built.spec.logits,
                                              built.leaves);
 
-            // StepSpec still names the target leaf, because Trainer feeds
-            // exactly that tensor per step. An objective that declares no such
-            // role leaves it NO_VALUE, and such an objective cannot yet be
-            // driven by Trainer - see TrainingGraph::leaves.
+            // Targets leaf binds to StepSpec when present in declared leaves.
             if (built.leaves.has("targets")) built.spec.targets = built.leaves.at("targets");
 
             std::vector<Graph::ValueId> wrt;
@@ -277,10 +163,7 @@ namespace SushiAI
                 wrt.push_back(parameter.id());
             });
 
-            // Declared before differentiation because the seed rule multiplies
-            // by it, and always FLOAT32: it lands in the cross-entropy tail,
-            // which the precision policy keeps in the master type precisely so
-            // there is exponent range left to scale into.
+            // Loss scale input is declared before differentiation in master precision.
             if (loss_scaling)
                 built.loss_scale = builder.input(Shape{1}, "loss_scale", DType::FLOAT32);
 
@@ -310,27 +193,12 @@ namespace SushiAI
         }
 
         /**
-         * @brief Traces @p module into a cross-entropy classifier's training graph.
-         *
-         * A thin wrapper over @ref build_graph supplying
-         * @ref CrossEntropyObjective, kept because every existing caller and
-         * test names it and because a classifier is still the common case.
-         * The graph it produces is @ref build_graph's, node for node.
-         *
-         * @param module The model to trace; its parameters are declared here.
+         * @brief Traces @p module into a cross-entropy classifier training graph.
+         * @param module The model to trace.
          * @param batch Samples per step.
          * @param features Input features per sample.
-         * @param classes How many classes.
-         * @param dtype The element type for the whole graph; under a mixed
-         *        policy this is the master type.
-         * @param fusion What the fusion pass is allowed to do.
-         * @param precision Which element type each operation computes in, or
-         *        null for the uniform policy.
-         * @param loss_scaling Whether to give the backward seed a
-         *        device-resident factor.
-         * @return The graph, the value ids, the parameter/gradient pairs and
-         *         both passes' reports.
-         * @throws Error If the model's output is not [batch, classes].
+         * @param classes Target class count.
+         * @return The constructed training graph.
          */
         template<typename M>
         TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
@@ -345,26 +213,11 @@ namespace SushiAI
         }
 
         /**
-         * @brief Plans the graph's memory, allocates its leaves, and pairs
-         *        parameters with gradients.
-         *
-         * This is bind time, so this is where the memory planner runs: the
-         * graph is final by now (traced, differentiated, nothing left to
-         * append) and nothing has been lowered yet, which is the one window in
-         * which arena offsets can be decided at all. Every arena the plan asks
-         * for is allocated here, once, and reused by every replay afterwards.
-         *
-         * A pool that has already adopted a plan keeps it, so a caller who
-         * wants different @c PlanOptions - or no packing at all - can adopt
-         * their own first.
-         *
+         * @brief Plans memory, allocates leaves, and pairs parameters with gradients.
          * @param built The traced graph.
-         * @param pool Where the tensors are allocated.
-         * @param options How to pack; see Graph::PlanOptions.
-         * @return One slot per parameter that actually receives a gradient.
-         * @throws Error If a parameter received no gradient at all, which
-         *         means it is disconnected from the loss and no optimizer
-         *         could ever move it.
+         * @param pool Destination tensor pool.
+         * @param options Memory packing options.
+         * @return Parameter slots paired with gradients.
          */
         std::vector<Optim::ParameterSlot> bind_parameters(const TrainingGraph& built,
                                                           Graph::TensorPool& pool,
@@ -412,36 +265,12 @@ namespace SushiAI
             OptimizerPlacement optimizer_placement = OptimizerPlacement::IN_PLAN;
 
             /**
-             * @brief Which spelling to use for each fused node, or null for this
-             *        engine's own device.
-             *
-             * Read once, in the constructor, and must outlive that call. It is
-             * here rather than as another constructor parameter because it is a
-             * policy knob and not a collaborator: a caller who does not care
-             * about fusion never has to name it, and a test that wants to drive
-             * the lowering with a device profile this machine does not have
-             * sets one field. See graph/fusion_selector.hpp.
+             * @brief Specifies the fusion selector for device-specific kernel variants.
              */
             const Graph::IFusionSelector* fusion_selector = nullptr;
 
             /**
-             * @brief The precision policy the graph was built under, for checking.
-             *
-             * Set it to the same policy handed to @c build_classifier and the
-             * trainer walks the finished graph before lowering anything,
-             * refusing one whose operands do not agree with the precision each
-             * node computes in. Null skips the check.
-             *
-             * It is a *check* and not the knob that applies mixed precision,
-             * and that is forced rather than stylistic: casts have to be
-             * inserted between differentiation and fusion, and by the time a
-             * @c Trainer exists both have already run. What is left for this
-             * layer to do is the one thing worth doing here - being the last
-             * place that can refuse, before the graph turns into recorded
-             * device work where a misplaced conversion stops being visible and
-             * becomes a model that trains slightly worse.
-             *
-             * Read once, in the constructor, and must outlive that call.
+             * @brief Precision policy used to validate operand types before lowering.
              */
             const Graph::IPrecisionPolicy* precision = nullptr;
         };
@@ -472,13 +301,7 @@ namespace SushiAI
             std::size_t steps = 0;
 
             /**
-             * @brief How many SushiBLAS calls the compiled step is made of.
-             *
-             * Also its node count. A fused GEMM used to add a host-side
-             * ordering node beside its kernel, reported apart from this by an
-             * @c ordering_nodes_per_step that no longer exists - SushiBLAS's
-             * GEMM seam takes the epilogue's own access set now, so there is
-             * nothing left to count.
+             * @brief Total number of operations comprising the compiled step.
              */
             std::size_t operations_per_step = 0;
 
@@ -512,17 +335,10 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Lowers and compiles the step; nothing else compiles after this.
-                 *
-                 * @param engine The engine everything runs on; must outlive the trainer.
-                 * @param graph The traced, differentiated graph.
-                 * @param pool The memory behind it, with parameters already initialised.
-                 * @param spec The values the loop reads and writes.
-                 * @param optimizer The update rule; must outlive the trainer.
-                 * @param options How the loop behaves.
-                 * @throws Error If @p spec is incomplete, lowering fails, or
-                 *         @p options asks for @c IN_PLAN placement of an
-                 *         optimizer that is not replay-invariant.
+                 * @brief Lowers and compiles the execution step.
+                 * @param engine Execution engine; @p graph Traced graph.
+                 * @param pool Tensor pool; @p spec Step boundary values.
+                 * @param optimizer Parameter optimizer; @p options Configuration.
                  */
                 Trainer(SushiBLAS::Engine& engine,
                         const Graph::Graph& graph,

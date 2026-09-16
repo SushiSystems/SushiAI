@@ -21,18 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file shape.hpp
- * @brief A tensor's extents as a comparable, hashable value type.
- *
- * SushiBLAS's Tensor stores shape as a zero-padded fixed array alongside
- * strides, an offset and a storage handle — the right shape for a memory
- * view, the wrong one for a graph key. SushiAI reasons about extents long
- * before any memory exists (shape inference at trace time, cache keys for a
- * compiled step), so extents get their own type with value semantics.
+ * @brief Defines the tensor shape value type and hashing utilities.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <string>
@@ -45,12 +40,7 @@ namespace SushiAI
 {
     /**
      * @class Shape
-     * @brief The extents of a tensor, independent of any storage.
-     *
-     * Fixed capacity (MAX_RANK), so it is trivially copyable and can live in a
-     * cache key or a hash map without allocating. Dimensions are always
-     * positive; a zero or negative extent is rejected at construction rather
-     * than producing a tensor nothing can be done with.
+     * @brief Represents tensor extents as a fixed-capacity value type.
      */
     class Shape
     {
@@ -76,18 +66,7 @@ namespace SushiAI
             }
 
             /**
-             * @brief Constructs from extents that are only known at run time.
-             *
-             * The initializer-list constructor above cannot serve a caller
-             * whose rank comes from a file or from another library's tensor:
-             * an initializer list is a compile-time construct, so a reader
-             * holding @c rank extents in a buffer had no way to build a Shape
-             * short of a switch over every rank. Validation is identical - the
-             * two constructors reject the same shapes with the same messages.
-             *
-             * Explicit, because a span silently becoming a Shape would let an
-             * extent buffer be passed where a shape was meant.
-             *
+             * @brief Constructs extents from a runtime span.
              * @param dims The extent of each dimension, outermost first.
              * @throws Error If the rank exceeds MAX_RANK or any extent is not positive.
              */
@@ -166,12 +145,8 @@ namespace SushiAI
             }
 
             /**
-             * @brief A hash suitable for keying a compiled-step cache on shape.
-             *
-             * FNV-1a over the rank and extents. Not cryptographic; it only has
-             * to spread well enough for an unordered_map of a few dozen entries.
-             *
-             * @return The hash value.
+             * @brief Computes an FNV-1a hash over rank and extents.
+             * @return The 64-bit hash value.
              */
             constexpr std::uint64_t hash() const noexcept
             {

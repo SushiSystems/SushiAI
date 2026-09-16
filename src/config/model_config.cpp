@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file model_config.cpp
+ * @brief Implements model configuration parsing and validation.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/config/model_config.hpp>
 
 #include <utility>
@@ -71,8 +77,7 @@ namespace SushiAI
             model.layers.reserve(layers.size());
             for (std::size_t i = 0; i < layers.size(); ++i)
             {
-                // Named by position, because the type is what a reader looks
-                // for and it may itself be the thing that is wrong.
+                // Positional naming ensures error messages remain clear if type is missing.
                 const std::string context = "layer " + std::to_string(i) + " of '"
                                           + std::string(origin) + "'";
 
@@ -83,10 +88,7 @@ namespace SushiAI
                 LayerSpec layer;
                 layer.type = layers[i].at("type", context).as_string(context + " 'type'");
 
-                // Everything except the discriminator, so a layer's factory
-                // never has to allow the key that selected it. Which of the
-                // remaining keys are legal is the factory's question, not this
-                // parser's - see the header's validation section.
+                // Stripping the type discriminator isolates layer attributes for factory parsing.
                 layer.attributes = layers[i].without("type");
 
                 model.layers.push_back(std::move(layer));

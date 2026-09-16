@@ -21,47 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file value.hpp
- * @brief A small typed tree, and the only thing the config layer parses into.
- *
- * @section containment Why the JSON library is not in this file
- *
- * The parser converts its own document type into @ref Value inside
- * @c src/config/value.cpp, and the name of the library that does it appears in
- * no public header. Three things follow: the dependency links @c PRIVATE, so
- * @c cmake/SushiAIConfig.cmake.in needs no @c find_dependency and the
- * out-of-tree consumer in @c tests/package/ never sees it; and replacing the
- * parser later changes no public header at all. This is the same containment
- * @c SushiRuntime::span and @c SushiBLAS::Core::format apply to @c std::span
- * and @c std::format.
- *
- * @section representation Why this is not a std::variant
- *
- * A variant over @c std::vector<Value> needs @c Value complete at the point
- * the member is declared, and what C++17 actually guarantees is that
- * @c std::vector tolerates an incomplete element type. So each alternative is
- * its own member behind a @ref Kind tag. An object's entries are two parallel
- * vectors rather than a @c vector<pair<string, Value>>, for the same
- * completeness reason and for a second one worth having: the key order is the
- * order the file spelled them, so a diagnostic listing an object's keys reads
- * the way the file does.
- *
- * A config tree is a few dozen nodes, so the members an instance is not using
- * cost nothing worth a more delicate representation.
- *
- * @section diagnostics Every accessor takes a context
- *
- * A typed accessor that throws "expected an integer" names nothing the reader
- * can act on. Each one here takes a @p context - "layer 3 'units'",
- * "optimizer 'learning_rate'" - and puts it in the message alongside the kind
- * that was actually found. The caller knows where in the file it is; the
- * @c Value does not.
- *
- * Host lane: no SushiBLAS engine, no SYCL.
+ * @brief Declares dynamically-typed configuration values and JSON parsers.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <filesystem>
@@ -158,15 +124,10 @@ namespace SushiAI
                 std::int64_t as_int(std::string_view context) const;
 
                 /**
-                 * @brief Reads this value as a real.
-                 *
-                 * A whole number is accepted and widened, so "learning_rate": 1
-                 * means what a reader expects rather than failing on a
-                 * distinction JSON does not make in the file's own syntax.
-                 *
-                 * @param context What this value is, for the diagnostic.
-                 * @return The number.
-                 * @throws Error If this is neither a real nor a whole number.
+                 * @brief Reads this value as a real number, widening integers.
+                 * @param context Context string for error diagnostics.
+                 * @return Floating-point numeric value.
+                 * @throws Error If value is neither real nor integer.
                  */
                 double as_real(std::string_view context) const;
 
@@ -194,14 +155,11 @@ namespace SushiAI
                 bool has(std::string_view key) const noexcept;
 
                 /**
-                 * @brief This object's value for @p key.
-                 * @param key The key to look up.
-                 * @param context What this object is, for the diagnostic.
-                 * @return The value.
-                 * @throws Error If this is not an object, or @p key is absent.
-                 *         The message names @p context, @p key and every key
-                 *         that IS present, so a typo is visible beside what was
-                 *         meant.
+                 * @brief Accesses child value associated with @p key.
+                 * @param key Property key to look up.
+                 * @param context Context string for error diagnostics.
+                 * @return Const reference to value mapped to @p key.
+                 * @throws Error If node is not an object or key is absent.
                  */
                 const Value& at(std::string_view key, std::string_view context) const;
 
@@ -217,34 +175,18 @@ namespace SushiAI
                 const std::vector<std::string>& keys() const noexcept { return keys_; }
 
                 /**
-                 * @brief Refuses any key of this object that is not in @p allowed.
-                 *
-                 * A typed "unitss": 256 must not train silently against a
-                 * default. This is the silent-wrong-answer class the rest of
-                 * the codebase is built to refuse, and it is why a config key
-                 * is never merely ignored.
-                 *
-                 * A non-object is accepted without complaint, because "this
-                 * layer carries no attributes at all" is a legitimate shape and
-                 * the caller that cares states its own requirement.
-                 *
-                 * @param context What this object is, for the diagnostic.
-                 * @param allowed Every key this object may carry.
-                 * @throws Error Naming the offending key and listing @p allowed.
+                 * @brief Rejects any key of this object absent from @p allowed.
+                 * @param context Context string for error diagnostics.
+                 * @param allowed Permitted property key names.
+                 * @throws Error If an unrecognized key is present.
                  */
                 void reject_unknown_keys(std::string_view context,
                                          SushiRuntime::span<const std::string_view> allowed) const;
 
                 /**
-                 * @brief A copy of this object with @p key removed.
-                 *
-                 * What separates a discriminator from the attributes it selects:
-                 * a layer's factory is handed everything except "type", so the
-                 * key that chose the factory is not also a key the factory has
-                 * to allow.
-                 *
-                 * @param key The key to drop; its absence is not an error.
-                 * @return The reduced object, or a copy of this value when it is not one.
+                 * @brief Returns a copy of this object with @p key removed.
+                 * @param key Property key to omit.
+                 * @return New value copy omitting specified key.
                  */
                 Value without(std::string_view key) const;
 
@@ -260,20 +202,12 @@ namespace SushiAI
         };
 
         /**
-         * @brief Checks @p root's version field, which must be present and exact.
-         *
-         * Every configuration document this library reads leads with one, for
-         * the same reason the checkpoint does: the format's next change must be
-         * an error rather than a misread. It is stated once here because three
-         * document kinds need it and a version check written three times is a
-         * version check that will eventually disagree with itself.
-         *
-         * @param root The document's root object.
-         * @param key The version field's name, e.g. "sushiai_model".
-         * @param expected The version this build reads.
-         * @param origin What to call the document in a diagnostic.
-         * @throws Error If @p root is not an object, @p key is absent, it is
-         *         not a whole number, or it is not @p expected.
+         * @brief Validates document version field against expected version.
+         * @param root Document root configuration object.
+         * @param key Version property key name.
+         * @param expected Expected integer version identifier.
+         * @param origin Origin context description for diagnostics.
+         * @throws Error If version property is missing or mismatched.
          */
         void require_version(const Value& root, std::string_view key,
                              std::int64_t expected, std::string_view origin);

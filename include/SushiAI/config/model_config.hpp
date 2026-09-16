@@ -21,52 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file model_config.hpp
- * @brief An architecture, and nothing about how it is trained.
- *
- * @section schema What a model.json says
- *
- * @code
- * {
- *   "sushiai_model": 1,
- *   "input": { "features": 6 },
- *   "layers": [
- *     { "type": "linear", "units": 256 },
- *     { "type": "gelu" },
- *     { "type": "linear", "units": 4 }
- *   ]
- * }
- * @endcode
- *
- * Three properties, each of which closes a class of silent mistake:
- *
- * - **@c sushiai_model is a version.** Same reason the checkpoint carries one:
- *   a format change must be an error, not a misread.
- * - **@c units is the output width only, and the input width is chained.**
- *   @c input.features seeds the chain and each layer's input is its
- *   predecessor's output, so a dimension mismatch between adjacent layers is
- *   not expressible in the file at all.
- * - **An unknown key is an error, not an ignored one.** A typed
- *   @c "unitss": 256 must not train silently against a default.
- *
- * @section validation Who validates what
- *
- * This parser validates the document's own shape - the version, the top-level
- * keys, that @c layers is a non-empty array of objects each carrying a
- * @c "type". It does **not** know which keys a layer accepts; a @ref LayerSpec
- * carries them through untouched and the layer's own factory rejects what it
- * does not recognise.
- *
- * That is the schema-side expression of "the driver knows no types": if this
- * file validated layer fields, adding @c "conv2d" would mean editing this
- * file, and a schema change would stop being local to the layer that caused
- * it.
- *
- * Host lane: no SushiBLAS engine, no SYCL.
+ * @brief Declares model architecture configuration parsers and specifications.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <filesystem>
@@ -115,14 +76,11 @@ namespace SushiAI
         };
 
         /**
-         * @brief Turns a parsed model document into a @ref ModelSpec.
-         * @param root The parsed document.
-         * @param origin What to call it in a diagnostic, usually a path.
-         * @return The spec.
-         * @throws Error If the version is absent or wrong, a top-level key is
-         *         unknown, @c input.features is not positive, @c layers is
-         *         empty, or a layer entry is not an object carrying a string
-         *         @c "type".
+         * @brief Parses a model configuration value into a @ref ModelSpec.
+         * @param root Parsed configuration value tree.
+         * @param origin Context description for diagnostics.
+         * @return Parsed model specification.
+         * @throws Error If schema constraints or version requirements fail.
          */
         ModelSpec parse_model(const Value& root, std::string_view origin);
 

@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file objective.cpp
+ * @brief Implements training objective functions and objective registry lookups.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/train/objective.hpp>
 
 #include <SushiRuntime/core/span.hpp>
@@ -31,8 +37,6 @@ namespace SushiAI
 {
     namespace Train
     {
-        // --- ObjectiveLeaves ---------------------------------------------------
-
         void ObjectiveLeaves::add(std::string_view role, Graph::ValueId id)
         {
             SA_THROW_IF(has(role),
@@ -66,15 +70,10 @@ namespace SushiAI
             return Graph::NO_VALUE;   // unreachable: SA_THROW_IF(true) always throws
         }
 
-        // --- CrossEntropyObjective ---------------------------------------------
-
         void CrossEntropyObjective::declare(const Graph::GraphBuilder& builder,
                                             ObjectiveLeaves& leaves) const
         {
-            // The same leaf, with the same shape, name and dtype, that
-            // build_classifier used to declare inline - so a graph built
-            // through this objective is the graph that was built before it
-            // existed, value id for value id.
+            // Leaf matches the expected targets shape and element type.
             leaves.add("targets", builder.input(Shape{batch_, classes_}, "targets", dtype_));
         }
 
@@ -96,19 +95,12 @@ namespace SushiAI
         std::optional<Metric> CrossEntropyObjective::score(const Data::Batch& batch,
                                                            const SushiBLAS::Tensor& output) const
         {
-            // Refused rather than reinterpreted, for the reason Trainer's own
-            // accuracy path records: data_as<float>() on half data reads two
-            // elements as one and reports a number nobody could tell was
-            // fiction. Keeping the output readable is the caller's job, and
-            // build_graph already lists it as observed so a precision policy
-            // cannot narrow it.
+            // Accuracy evaluation requires readable host float32 or float64 logits.
             SA_THROW_IF(output.dtype != DType::FLOAT32 && output.dtype != DType::FLOAT64,
                         "Accuracy needs a host read of the logits and they are {}; only "
                         "float32 and float64 can be read back.", dtype_name(output.dtype));
 
-            // The per-row argmax is done here rather than on the device because
-            // SushiBLAS's argmax is whole-tensor and a diagnostic does not
-            // justify a new reduction kernel.
+            // Per-row argmax is performed on host to avoid whole-tensor reduction.
             const auto at = [&output](int64_t index) -> double
             {
                 return output.dtype == DType::FLOAT64
@@ -131,14 +123,11 @@ namespace SushiAI
                           true};
         }
 
-        // --- The registry ------------------------------------------------------
-
         std::unique_ptr<IObjective> make_cross_entropy(int64_t batch, int64_t classes,
                                                        const Config::Value& attributes,
                                                        std::string_view context)
         {
-            // An empty allowed list: cross-entropy has no hyperparameters, so
-            // any key at all is an error rather than one quietly dropped.
+            // Cross-entropy takes no configuration attributes.
             static constexpr std::string_view NONE[] = {""};
             attributes.reject_unknown_keys(
                 context, SushiRuntime::span<const std::string_view>(NONE,

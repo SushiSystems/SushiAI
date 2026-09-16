@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file train_config.cpp
+ * @brief Implements training and data configuration parsing.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/config/train_config.hpp>
 
 #include <utility>
@@ -49,15 +55,10 @@ namespace SushiAI
             }
 
             /**
-             * @brief Joins @p text onto @p base unless it is already absolute.
-             *
-             * Lexical rather than canonical, because a checkpoint names a file
-             * that does not exist yet and weakly_canonical would be resolving
-             * a path against a directory that may not exist either.
-             *
-             * @param base The config file's own directory.
-             * @param text The path as the file spelled it.
-             * @return The resolved path.
+             * @brief Resolves @p text against @p base path lexically.
+             * @param base Configuration directory path.
+             * @param text Relative or absolute target path.
+             * @return Resolved filesystem path.
              */
             std::filesystem::path resolve(const std::filesystem::path& base,
                                           const std::string& text)
@@ -89,8 +90,7 @@ namespace SushiAI
 
                 type = block.at("type", context).as_string(context + " 'type'");
 
-                // Everything except the discriminator, so the factory this
-                // selects never has to allow the key that selected it.
+                // Stripping the type discriminator isolates component-specific attributes.
                 attributes = block.without("type");
             }
         }
@@ -118,8 +118,7 @@ namespace SushiAI
             SA_THROW_IF(spec.epochs <= 0,
                         "'{}'s 'epochs' must be positive, but it is {}", origin, spec.epochs);
 
-            // Optional: a run that writes no checkpoint is legitimate - a smoke
-            // test, or a sweep whose only output is the printed loss.
+            // Checkpoint path is optional; training can run without writing snapshots.
             if (root.has("checkpoint"))
                 spec.checkpoint = resolve(
                     base, root.at("checkpoint", origin)
@@ -130,10 +129,7 @@ namespace SushiAI
 
         TrainSpec load_train(const std::filesystem::path& path)
         {
-            // The config file's own directory, not the process working
-            // directory - so `sushiai train examples/heavy_mlp/train.json`
-            // works from the repository root and a configuration directory can
-            // be moved without editing what is inside it.
+            // Relative paths resolve against the configuration file's parent directory.
             std::filesystem::path base = path.parent_path();
             if (base.empty()) base = ".";
 

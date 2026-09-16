@@ -21,53 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file train_config.hpp
- * @brief One training run, and one evaluation set, as documents.
- *
- * @section train What a train.json says
- *
- * @code
- * {
- *   "sushiai_train": 1,
- *   "model": "model.json",
- *   "objective": { "type": "cross_entropy" },
- *   "data":      { "type": "rings", "batch_size": 64, "batches": 64,
- *                  "classes": 4, "seed": 3735928559 },
- *   "optimizer": { "type": "adamw", "learning_rate": 3e-3, "weight_decay": 0.01 },
- *   "epochs": 50,
- *   "checkpoint": "heavy_mlp.ckpt"
- * }
- * @endcode
- *
- * **The architecture is referenced rather than embedded**, because inference
- * reads the same model.json and two copies of one architecture are two things
- * that drift apart silently.
- *
- * @section paths Relative paths resolve against the config file's directory
- *
- * Not the process working directory. So
- * @c "sushiai train examples/heavy_mlp/train.json" works from the repository
- * root, and a configuration directory can be moved without editing what is
- * inside it. A path is joined lexically rather than canonicalised, because
- * @c checkpoint names a file that does not exist yet.
- *
- * @section eval What an eval.json says
- *
- * @code
- * { "sushiai_data": 1,
- *   "data": { "type": "rings", "batch_size": 512, "batches": 1,
- *             "classes": 4, "seed": 3735928575 } }
- * @endcode
- *
- * Inference takes its data as a separate document because the architecture
- * file carries no data block - it describes a model - and an optional flag
- * that always errors when omitted would be a lie about optionality.
- *
- * Host lane: no SushiBLAS engine, no SYCL.
+ * @brief Declares training and evaluation configuration loaders and specifications.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <filesystem>
@@ -131,26 +91,21 @@ namespace SushiAI
         };
 
         /**
-         * @brief Turns a parsed train document into a @ref TrainSpec.
-         * @param root The parsed document.
-         * @param origin What to call it in a diagnostic, usually a path.
-         * @param base The directory relative paths resolve against.
-         * @return The spec.
-         * @throws Error If the version is absent or wrong, a key is unknown, a
-         *         required key is absent, or @c epochs is not positive.
+         * @brief Parses a train document into a @ref TrainSpec.
+         * @param root Parsed document value tree.
+         * @param origin Context description for diagnostics.
+         * @param base Directory relative paths resolve against.
+         * @return Parsed training specification.
+         * @throws Error If required keys are missing or values invalid.
          */
         TrainSpec parse_train(const Value& root, std::string_view origin,
                               const std::filesystem::path& base);
 
         /**
-         * @brief Reads, parses and validates the train file at @p path.
-         *
-         * Relative paths inside it resolve against @c path's own directory.
-         *
-         * @param path The file to read.
-         * @return The spec.
-         * @throws Error If the file cannot be read, is not valid JSON, or is
-         *         not a valid train document.
+         * @brief Reads, parses, and validates the train configuration file.
+         * @param path Path to train configuration file.
+         * @return Parsed training specification.
+         * @throws Error If the file cannot be read or parsed.
          */
         TrainSpec load_train(const std::filesystem::path& path);
 

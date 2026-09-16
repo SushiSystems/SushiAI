@@ -21,41 +21,31 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file version.hpp
- * @brief The library's version.
- *
- * SushiAI is STATIC, like SushiBLAS: there is no separate loaded artifact
- * whose version could drift from these macros at runtime, so a single
- * compile-time version is the whole story here.
- *
- * The literals here are checked against the project's CMake version at
- * configure time (see the root CMakeLists.txt), so this header and the build
- * cannot drift apart.
+ * @brief Defines compile-time version macros and declarations for SushiAI.
+ * @author Mustafa Garip
  */
 
-/** @brief Major version. */
+#pragma once
+
+/** @brief Holds the major version component. */
 #define SUSHIAI_VERSION_MAJOR 0
-/** @brief Minor version. */
+/** @brief Holds the minor version component. */
 #define SUSHIAI_VERSION_MINOR 1
-/** @brief Patch version. */
+/** @brief Holds the patch version component. */
 #define SUSHIAI_VERSION_PATCH 0
 
-/** @brief Dotted version, as a literal. */
+/** @brief Holds the dotted version literal. */
 #define SUSHIAI_VERSION_STRING "0.1.0"
 
 /**
- * @brief The version as one comparable integer.
- *
- * Encoded so ordinary integer comparison orders releases:
- * `#if SUSHIAI_VERSION >= SUSHIAI_VERSION_ENCODE(0, 2, 0)`.
+ * @brief Encodes the version components into a single comparable integer.
  */
 #define SUSHIAI_VERSION_ENCODE(major, minor, patch) \
     ((major) * 10000 + (minor) * 100 + (patch))
 
-/** @brief The version, encoded by SUSHIAI_VERSION_ENCODE. */
+/** @brief Encodes current version components using SUSHIAI_VERSION_ENCODE. */
 #define SUSHIAI_VERSION                              \
     SUSHIAI_VERSION_ENCODE(SUSHIAI_VERSION_MAJOR,    \
                            SUSHIAI_VERSION_MINOR,    \
@@ -64,7 +54,7 @@
 namespace SushiAI
 {
     /**
-     * @brief The library's version, dotted (e.g. "0.1.0").
+     * @brief Returns the library version string.
      * @return A null-terminated literal owned by the library; never null.
      */
     const char* version_string() noexcept;

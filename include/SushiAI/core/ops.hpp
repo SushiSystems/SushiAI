@@ -21,27 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file ops.hpp
- * @brief The identity of every SushiAI operation, as compile-time constants.
- *
- * SushiRuntime identifies an operation by @c OpID, a 32-bit FNV-1a hash of a
- * name, and offers no registry to register into outside the distributed build.
- * So the compiler is the registry: every identity is a @c constexpr constant
- * declared here, and a @c static_assert at the bottom of this file proves the
- * whole set is collision-free. Thirty-two bits is not many — an accidental
- * collision between two ops would silently route one to the other's profiling
- * row, so it is checked rather than hoped for.
- *
- * Every name carries the @c sushiai. prefix so it cannot collide with
- * SushiBLAS's own identities (@c blas.lvl3.gemm and friends) or a future
- * sibling's.
- *
- * This header is part of the host lane: it pulls in no SYCL and can be
- * included by a device-free unit test.
+ * @brief Defines compile-time operation identities and metadata for SushiAI.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <array>
 #include <cstddef>
@@ -108,7 +94,6 @@ namespace SushiAI
             return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), true};
         }
 
-        // --- Structural -----------------------------------------------------
         /** @brief A graph leaf: a parameter or an input, produced by nothing. */
         inline constexpr OpName LEAF = op("sushiai.leaf");
         /** @brief Accumulates a gradient contribution into an existing buffer. */
@@ -116,27 +101,14 @@ namespace SushiAI
 
         /**
          * @brief Copies a value into another element type, out of place.
-         *
-         * The only operation in this library whose operand and result are
-         * *allowed* to disagree on dtype - every other one is checked against
-         * a single element type by @c GraphBuilder, and SushiBLAS throws on a
-         * mismatch below that. It is emitted by exactly one place,
-         * @c graph/cast_insertion.hpp, and it is what makes mixed precision a
-         * property of the graph rather than a runtime reinterpretation: a
-         * value computed in fp16 and a value stored in fp32 are two values
-         * with two buffers and a node between them, so the memory planner, the
-         * dependency tracker and any reader of the IR all see the conversion
-         * instead of having to infer it.
          */
         inline constexpr OpName CAST = op("sushiai.cast");
 
-        // --- Linear algebra -------------------------------------------------
         /** @brief 2-D matrix product, transposition expressed by flags not views. */
         inline constexpr OpName MATMUL = differentiable_op("sushiai.matmul");
         /** @brief Adds a row vector to every row of a matrix. */
         inline constexpr OpName BIAS_ADD = differentiable_op("sushiai.bias_add");
 
-        // --- Elementwise ----------------------------------------------------
         /** @brief Elementwise sum of two equally shaped tensors. */
         inline constexpr OpName ADD = differentiable_op("sushiai.add");
         /** @brief Elementwise difference of two equally shaped tensors. */
@@ -147,21 +119,7 @@ namespace SushiAI
         inline constexpr OpName SCALE = differentiable_op("sushiai.scale");
 
         /**
-         * @brief Multiplies every element by a **device-resident** scalar.
-         *
-         * @c SCALE's factor is an @c Attributes slot, which is a compile-time
-         * constant baked into the recorded task - see the warning on
-         * @c Graph::Attributes. That is right for `1/N` and wrong for anything
-         * that changes between replays, because changing it forces a recompile
-         * and @c CompiledStep::compile_count() is a pinned guarantee. This
-         * operation takes its factor as a **second operand**: a 1-element
-         * value the host rewrites between replays, exactly as
-         * @c Optim::StepScalars does for the optimizer's per-step numbers.
-         *
-         * Its one caller today is gradient loss scaling
-         * (@c optim/loss_scaler.hpp), which needs both directions - scaling the
-         * loss gradient up before it narrows to fp16, and dividing each
-         * parameter gradient back down before the update.
+         * @brief Multiplies every element by a device-resident scalar.
          */
         inline constexpr OpName DYNAMIC_SCALE = op("sushiai.dynamic_scale");
 
@@ -170,7 +128,6 @@ namespace SushiAI
         /** @brief An all-zero tensor, read by nothing upstream. */
         inline constexpr OpName ZERO = op("sushiai.zero");
 
-        // --- Activations ----------------------------------------------------
         /** @brief Rectified linear unit. */
         inline constexpr OpName RELU = differentiable_op("sushiai.relu");
         /** @brief Gaussian error linear unit, tanh approximation. */
@@ -180,14 +137,7 @@ namespace SushiAI
         /** @brief Hyperbolic tangent. */
         inline constexpr OpName TANH = differentiable_op("sushiai.tanh");
 
-        // --- Activation gradients -------------------------------------------
-        // Each takes [dy, primal] and yields [dx]. Which tensor "primal" is
-        // differs by activation and is not a detail a caller may guess; the
-        // ACTIVATIONS table below is the one place that says which, and
-        // @ref Activation explains why that one fact decides both how the
-        // backward pass is emitted and which activations may be folded into
-        // the kernel that produced their input.
-
+        // Each activation gradient takes [dy, primal] and yields [dx].
         /** @brief Gradient of RELU; second operand is the forward output. */
         inline constexpr OpName RELU_BACKWARD = op("sushiai.relu_backward");
         /** @brief Gradient of GELU; second operand is the forward input. */
@@ -197,25 +147,16 @@ namespace SushiAI
         /** @brief Gradient of TANH; second operand is the forward output. */
         inline constexpr OpName TANH_BACKWARD = op("sushiai.tanh_backward");
 
-        // --- Structural -----------------------------------------------------
-
         /** @brief Reinterprets extents without moving data. */
         inline constexpr OpName RESHAPE = differentiable_op("sushiai.reshape");
         /** @brief The only node permitted to change a value's TensorLayout (CV-4). */
         inline constexpr OpName LAYOUT_CONVERT = differentiable_op("sushiai.layout_convert");
 
-        // --- Convolution, as CV-1 spells it ---------------------------------
-        //
-        // There is deliberately no CONV2D. A convolution is IM2COL followed by
-        // MATMUL, which is why its weight gradient needs no rule of its own -
-        // matmul_backward already produces it.
-
+        // A convolution is IM2COL followed by MATMUL.
         /** @brief Gathers each window into a row of a column matrix. */
         inline constexpr OpName IM2COL = differentiable_op("sushiai.im2col");
         /** @brief The adjoint of IM2COL; a gather, never an atomic scatter (CV-6). */
         inline constexpr OpName COL2IM = differentiable_op("sushiai.col2im");
-
-        // --- Pooling --------------------------------------------------------
 
         /** @brief Windowed maximum; also writes the argmax indices. */
         inline constexpr OpName MAXPOOL2D = differentiable_op("sushiai.maxpool2d");
@@ -226,37 +167,19 @@ namespace SushiAI
         /** @brief Spreads each gradient evenly over the window it came from. */
         inline constexpr OpName AVGPOOL2D_BACKWARD = op("sushiai.avgpool2d_backward");
 
-        // --- Whole-plane spatial --------------------------------------------
-
         /** @brief Global average over H and W: [N,H,W,C] -> [N,C]. */
         inline constexpr OpName SPATIAL_MEAN = differentiable_op("sushiai.spatial_mean");
-        /**
-         * @brief Broadcasts an [N,C] gradient over [N,H,W,C], scaled by 1/(H*W).
-         *
-         * A distinct operation rather than a reuse of BIAS_ADD's or
-         * CHANNEL_AFFINE's broadcast: this one is per-(n,c), those are per-row
-         * and per-channel. Its absence was a real gap in an earlier draft.
-         */
+        /** @brief Broadcasts an [N,C] gradient over [N,H,W,C], scaled by 1/(H*W). */
         inline constexpr OpName SPATIAL_MEAN_BACKWARD = op("sushiai.spatial_mean_backward");
         /** @brief Nearest-neighbour upsample by an integer scale. */
         inline constexpr OpName UPSAMPLE2D = differentiable_op("sushiai.upsample2d");
         /** @brief Sums each source pixel's replicas back together. */
         inline constexpr OpName UPSAMPLE2D_BACKWARD = op("sushiai.upsample2d_backward");
 
-        // --- Structure ------------------------------------------------------
-
         /** @brief Joins several values along the channel axis. */
         inline constexpr OpName CONCAT_CHANNELS = differentiable_op("sushiai.concat_channels");
-        /**
-         * @brief Extracts a channel range.
-         *
-         * Declared as an operation in its own right rather than as
-         * CONCAT_CHANNELS's private backward, because it is independently
-         * reachable: Darknet's route layer with a group index is exactly this.
-         */
+        /** @brief Extracts a channel range. */
         inline constexpr OpName SLICE_CHANNELS = differentiable_op("sushiai.slice_channels");
-
-        // --- Normalisation --------------------------------------------------
 
         /** @brief Batch normalisation's forward pass over an NHWC value. */
         inline constexpr OpName BATCHNORM2D = differentiable_op("sushiai.batchnorm2d");
@@ -265,60 +188,30 @@ namespace SushiAI
         /** @brief Per-channel scale and shift: y = gamma * x + beta. */
         inline constexpr OpName CHANNEL_AFFINE = differentiable_op("sushiai.channel_affine");
         /**
-         * @brief Updates a BatchNorm's running statistics.
-         *
-         * Not part of the differentiated graph (CV-7): it reads batch
-         * statistics and writes buffers no gradient flows through, so it is
-         * emitted into the training step beside the graph rather than into it.
+         * @brief Updates running statistics for batch normalisation.
          */
         inline constexpr OpName BATCHNORM_UPDATE_STATS = op("sushiai.batchnorm_update_stats");
-
-        // --- Activation -----------------------------------------------------
 
         /** @brief Leaky ReLU; its slope is attribute slot 0. */
         inline constexpr OpName LEAKY_RELU = differentiable_op("sushiai.leaky_relu");
         /** @brief Gradient of LEAKY_RELU; second operand is the forward output. */
         inline constexpr OpName LEAKY_RELU_BACKWARD = op("sushiai.leaky_relu_backward");
 
-        // --- Losses and normalisation ---------------------------------------
         /** @brief Row-wise log-softmax, computed max-shifted for stability. */
         inline constexpr OpName LOG_SOFTMAX = op("sushiai.log_softmax");
         /** @brief Mean negative log-likelihood against integer-valued targets. */
         inline constexpr OpName NLL_LOSS = differentiable_op("sushiai.nll_loss");
 
-        // --- Reductions -----------------------------------------------------
         /** @brief Sums a matrix along its rows, yielding one value per column. */
         inline constexpr OpName SUM_ROWS = differentiable_op("sushiai.sum_rows");
 
-        // --- Optimizer updates ----------------------------------------------
-        // Not IR operations: no node carries these and no backward rule looks
-        // them up. They are here because this file is the registry of every
-        // identity SushiAI puts into a SushiRuntime task, and the collision
-        // proof below is only worth anything if it covers all of them - a fused
-        // update that happened to hash onto MATMUL would silently take over its
-        // profiling row.
-
+        // Optimizer updates are tracked in tasks for collision avoidance and profiling.
         /** @brief One parameter's whole AdamW update, fused into one kernel. */
         inline constexpr OpName ADAMW_UPDATE = op("sushiai.optim.adamw");
         /** @brief One parameter's whole SGD update, fused into one kernel. */
         inline constexpr OpName SGD_UPDATE = op("sushiai.optim.sgd");
 
-        // --- Fused forms ------------------------------------------------------
-        // These *are* IR operations: the fusion pass rewrites a matched subtree
-        // into one node carrying one of these identities, and the lowering has a
-        // recorder for each.
-        //
-        // Each name is a distinct kernel instantiation rather than a flag on a
-        // generic one, and that is forced rather than chosen.
-        // @c sycl_ext_codeplay_kernel_fusion has been removed from intel-llvm, so
-        // there is no runtime IR-level fusion anywhere in this stack: a functor
-        // composition is a C++ template instantiation, and which compositions
-        // exist is decided when *this library* is compiled. The set below is
-        // therefore a **catalog**, and a pass running at graph-build time can only
-        // choose among its entries - it cannot synthesise a new one. See
-        // graph/fusion.hpp for the matcher and graph/fusion_selector.hpp for the
-        // bind-time choice between entries.
-
+        // Fused operation identities represent compiled kernel compositions.
         /** @brief GEMM with a bias broadcast folded into its store. */
         inline constexpr OpName GEMM_BIAS = op("sushiai.fused.gemm_bias");
         /** @brief GEMM with a bias broadcast and a ReLU folded into its store. */
@@ -329,22 +222,7 @@ namespace SushiAI
         inline constexpr OpName GEMM_BIAS_TANH = op("sushiai.fused.gemm_bias_tanh");
 
         /**
-         * @brief GEMM with a bias broadcast and a GELU, **spilling the pre-activation**.
-         *
-         * The one fused form that writes two values, and the only reason it is
-         * allowed to exist at all. GELU's gradient differentiates at its
-         * *input* (see @ref Activation), so the other three epilogues' argument
-         * - "the fused kernel destroyed nothing the backward pass wanted" -
-         * does not apply to it. This form makes it apply: the epilogue stores
-         * @c value+bias[col] to a second buffer on its way past and then
-         * returns @c gelu of it, so the tensor the backward rule reads is
-         * written after all. It is cuBLASLt's @c GELU_AUX_BIAS, and the second
-         * output *is* the value the unfused @c BIAS_ADD would have produced -
-         * same id, same bytes - which is why no backward rule changes.
-         *
-         * @c graph/fusion.cpp's @c every_fused_activation_survives() is what
-         * ties the two halves together: an entry folding an @c INPUT-gradient
-         * activation without declaring that spill fails the build.
+         * @brief Fused GEMM with bias broadcast and GELU, spilling pre-activation.
          */
         inline constexpr OpName GEMM_BIAS_GELU = op("sushiai.fused.gemm_bias_gelu");
 
@@ -356,15 +234,6 @@ namespace SushiAI
          * one, with both temporaries living in registers.
          */
         inline constexpr OpName EXP_SUB_SCALE = op("sushiai.fused.exp_sub_scale");
-
-        // There was an EPILOGUE_OPERANDS identity here, naming a host-side node
-        // that submitted no work and carried the dependency edges a fused GEMM's
-        // epilogue could not declare for itself. SushiBLAS's seam takes the
-        // epilogue's access set now
-        // (`Dispatch::gemm_epilogue(f).reads(t).writes(t)`), so the edges land on
-        // the GEMM task and the node has no producer. Removed rather than left as
-        // an unused constant: an operation identity nothing emits is a name a
-        // reader has to chase before finding out it means nothing.
 
         /**
          * @brief Every identity declared above, in one enumerable table.
@@ -394,18 +263,6 @@ namespace SushiAI
 
         /**
          * @brief Reports whether every identity in @p table hashes distinctly.
-         *
-         * Quadratic, but it runs at compile time over a table of a few dozen
-         * entries, so the simple form is the right one.
-         *
-         * @c constexpr rather than @c consteval (C++20), and taking
-         * @c SushiRuntime::span rather than @c std::span (also C++20) - the shim
-         * behind that name marks its constructors, @c size() and @c operator[]
-         * @c constexpr, so the whole walk is still a constant expression. The proof
-         * has not degraded to a run-time check: its only caller is the static_assert
-         * below, and a static_assert forces constant evaluation, so a collision is
-         * still a compile error rather than something nobody runs.
-         *
          * @param table The identities to check.
          * @return True when no two entries share an OpID.
          */
@@ -435,10 +292,6 @@ namespace SushiAI
             return "sushiai.unknown";
         }
 
-        // =====================================================================
-        // Activations: the one fact that decides both differentiation and fusion
-        // =====================================================================
-
         /**
          * @enum GradientSource
          * @brief Which tensor an activation's gradient rule differentiates at.
@@ -453,41 +306,7 @@ namespace SushiAI
 
         /**
          * @struct Activation
-         * @brief One activation, its gradient, and where that gradient reads.
-         *
-         * @c gradient_source is the load-bearing field, and it decides two
-         * things that look unrelated and are the same question:
-         *
-         * 1. **What @c autograd/rules/activation.cpp emits.** The gradient
-         *    operation takes @c [dy, primal]; getting @c primal wrong is silent, because
-         *    both candidates have the same shape, so the graph builds and the
-         *    model simply learns the wrong thing. SushiBLAS fixes the
-         *    convention per activation and this table mirrors it.
-         *
-         * 2. **What a fused form has to do to be allowed to fold the
-         *    activation.** A fused form writes only its final result unless it
-         *    is built to do otherwise. If the gradient reads the *output*,
-         *    nothing was destroyed and folding is exact and free. If it reads
-         *    the *input*, a form that writes only its result would train
-         *    towards the wrong place - nothing throws, nothing goes NaN, the
-         *    loss still falls. The fix is not to forbid the fold but to make
-         *    the fused kernel spill the pre-activation to a second buffer,
-         *    which is what cuBLASLt's @c GELU_AUX_BIAS does and what
-         *    @c Ops::GEMM_BIAS_GELU does here. So this field does not decide
-         *    "foldable or not" on its own; it decides **which of the two kinds
-         *    of catalog entry** the activation needs, and
-         *    @c graph/fusion.cpp's @c every_fused_activation_survives()
-         *    static_asserts that an @c INPUT-gradient activation only ever
-         *    appears in an entry that declares the spill.
-         *
-         * @c RELU reads the output rather than the input, which is a
-         * substitution and not an approximation: SushiBLAS's @c relu_backward
-         * is @c dy*(primal>0?1:0), and @c relu(x)>0 exactly when @c x>0, so the
-         * two spellings are **bit-identical**. Making that the unconditional
-         * rule - not a special case the fusion pass applies - is what leaves the
-         * pre-activation with a single consumer in the plain graph too, so the
-         * fusion pass needs no activation-specific knowledge to license the
-         * fold: an ordinary use count already says yes for ReLU and no for GELU.
+         * @brief Describes an activation, its gradient operation, and gradient source.
          */
         struct Activation
         {
@@ -524,22 +343,9 @@ namespace SushiAI
         }
 
         /**
-         * @brief Whether folding @p forward needs **no** auxiliary spill.
-         *
-         * True exactly when the gradient differentiates at the output, because
-         * then the pre-activation a result-only fused form never writes was not
-         * needed in the first place.
-         *
-         * False is not "unfusable": it is "unfusable *for free*". An
-         * @c INPUT-gradient activation is still foldable by a form that spills
-         * the pre-activation to a second buffer - see @c Ops::GEMM_BIAS_GELU -
-         * and @c graph/fusion.hpp's catalog is what says which entries do. Read
-         * this predicate as a question about the *entry* an activation needs,
-         * not about whether one can exist; @ref Activation argues both halves.
-         *
-         * @param forward The forward activation's identity.
-         * @return True when folding @p forward destroys nothing the backward
-         *         pass reads, so no spill is required.
+         * @brief Reports whether folding @p forward needs no auxiliary spill.
+         * @param forward The forward activation identity.
+         * @return True when folding @p forward requires no auxiliary spill.
          */
         constexpr bool activation_survives_fusion(OpID forward) noexcept
         {
