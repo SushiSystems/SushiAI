@@ -537,9 +537,32 @@ tests/
   package/                    Out-of-tree find_package(SushiAI) consumer
 cli/                     Python `sa` / `sushiai` CLI package (Typer + rich)
 docs/
-  design/ROADMAP.md      The live roadmap (AI-0 through AI-N)
+  README.md                  Documentation manual index
+  CONTRIBUTING.md            Contribution guidelines and coding standards
+  DOCUMENTATION_STYLE_GUIDE.md  Documentation style and placement rules
+  getting_started/           Tutorials and onboarding guides
+  architecture/              System architecture and compilation pipeline
+  guides/                    CLI guide and downstream integration guide
+  reference/                 API reference, glossary, known issues, changelog
+  design/                    Active design documents, roadmaps, single backlog
 ```
+
+## Documentation
+
+- [Getting Started Tutorial](docs/getting_started/TUTORIAL.md)
+- [Architecture Overview](docs/architecture/ARCHITECTURE.md)
+- [CLI Guide](docs/guides/CLI_GUIDE.md)
+- [Integration Guide](docs/guides/INTEGRATION.md)
+- [API Reference](docs/reference/API_REFERENCE.md)
+- [Glossary](docs/reference/GLOSSARY.md)
+- [Known Issues](docs/reference/KNOWN_ISSUES.md)
+- [Changelog](docs/reference/CHANGELOG.md)
+- [Design & Roadmap](docs/design/ROADMAP.md)
+- [Remaining Work Backlog](docs/design/REMAINING_WORK.md)
+- [Contributing](docs/CONTRIBUTING.md)
+- [Documentation Style Guide](docs/DOCUMENTATION_STYLE_GUIDE.md)
 
 ## License
 
 This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](LICENSE) file for details.
+

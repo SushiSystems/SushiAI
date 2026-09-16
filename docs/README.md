@@ -17,7 +17,10 @@ This directory contains the technical documentation, design specifications, and 
 
 ## Reference
 
-- [Changelog](reference/CHANGELOG.md): History of notable changes, feature additions, and fixes across releases and prototype iterations.
+- [API Reference](reference/API_REFERENCE.md): Overview of primary namespaces, core classes, tensor abstractions, and operator entry points.
+- [Glossary](reference/GLOSSARY.md): Definitions of core terms, intermediate representation concepts, and pipeline abbreviations.
+- [Known Issues](reference/KNOWN_ISSUES.md): Measured runtime limitations, architectural debt, and hardware compatibility details.
+- [Changelog](reference/CHANGELOG.md): History of notable changes, feature additions, and fixes across releases and iterations.
 - [Code of Conduct](reference/CODE_OF_CONDUCT.md): Community guidelines and expectations.
 - [Security Policy](reference/SECURITY.md): Vulnerability reporting procedures and disclosure processes.
 
@@ -27,6 +30,7 @@ This directory contains the technical documentation, design specifications, and 
 - [SushiStack Construction & Roadmap](design/ROADMAP.md): Multi-phase implementation roadmap across SushiBLAS and SushiAI.
 - [Remaining Work](design/REMAINING_WORK.md): Single backlog tracking open technical debt, planned kernel fusions, and subsystem extensions.
 
-## Contributing
+## Contributing and Standards
 
 - [Contributing Guide](CONTRIBUTING.md): Workflow instructions for coding standards, quality checks, test coverage, and pull requests.
+- [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md): Structural conventions, naming rules, and prose requirements for all repository documentation.
