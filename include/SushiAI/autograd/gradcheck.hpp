@@ -21,71 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file gradcheck.hpp
- * @brief Finite-difference verification of an analytic gradient.
- *
- * A backward rule that is subtly wrong - a transpose the wrong way round on a
- * square matrix, a factor of N, the forward output where the forward input
- * belonged - produces a model that still trains, just worse. Nothing throws
- * and no test fails unless something compares the analytic gradient against
- * one derived from the function's own values. That is what this does.
- *
- * @section fp64 Double precision is required, not preferred
- *
- * A central difference has two error terms: truncation, which falls as h^2,
- * and cancellation, which rises as eps/h. Minimising their sum puts the best
- * achievable relative accuracy at roughly eps^(2/3). In binary32 that is about
- * 2.4e-5 - the same order as the discrepancy a genuinely wrong gradient
- * produces, so an fp32 check cannot distinguish "correct" from "wrong by a
- * little". In binary64 the floor is about 4e-11, five orders of magnitude
- * below the 1e-5 tolerance used here, so a failure means a real disagreement.
- * Every function passed in must therefore evaluate in FLOAT64 end to end -
- * including the device work behind it.
- *
- * @section mixed This checker and mixed precision are incompatible, and that is fine
- *
- * Stated plainly rather than left as a gap somebody trips over. A graph built
- * under @c Graph::MixedPrecisionPolicy evaluates its matrix products in fp16,
- * whose eps is 9.8e-4; the same derivation puts the best achievable relative
- * accuracy of a difference quotient there at about eps^(2/3) = 1e-2, which is
- * three orders of magnitude *worse* than the disagreement a wrong backward
- * rule produces. A gradcheck over such a graph would not be a weak test, it
- * would be noise - and every way of "fixing" it lowers the bar until the check
- * stops being able to fail for the right reason.
- *
- * The right response is not to weaken this file. What a gradient rule states
- * is a fact about the *mathematics*, and mixed precision is a fact about the
- * arithmetic underneath it: the rule for @c MATMUL is the same rule whichever
- * element type evaluates it, so checking it once in fp64 checks it for every
- * precision. What mixed precision can then get wrong is not the rule but the
- * plumbing - which operand carries which type, and where the conversions sit -
- * and that is a graph-shape question, answered by
- * @c Graph::find_dtype_mismatches and the tests around it rather than by a
- * finite difference.
- *
- * @section kinks Kinks
- *
- * ReLU-family activations are not differentiable at zero, and a difference
- * quotient straddling the kink reports the average of the two one-sided
- * derivatives, which no correct backward rule will ever match. Sample away
- * from it: push_off_kinks() moves any coordinate closer to zero than a few
- * step sizes out of the way before the check runs.
- *
- * @section modes Two modes
- *
- * The full Jacobian probes every coordinate, which is 2n function evaluations
- * and is the right thing for a single operation with a handful of inputs. For
- * a whole model it is not affordable, so the directional mode instead compares
- * u^T g against the difference quotient along a random unit direction u - two
- * evaluations per direction, independent of n, and a wrong gradient survives k
- * random directions with vanishing probability.
- *
- * Host lane: no SushiBLAS, no SYCL. The caller supplies the evaluations, so
- * the same checker serves a device model and a closed-form host function.
+ * @brief Declares finite-difference verification of analytic gradients.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -189,17 +131,9 @@ namespace SushiAI
 
         /**
          * @brief Compares every coordinate of the gradient against a central difference.
-         *
-         * 2n evaluations of @p value plus one of @p gradient. Intended for a
-         * single operation; the directional mode is the one to reach for above
-         * a couple of hundred inputs.
-         *
-         * @param value The scalar under test.
-         * @param gradient Its analytic gradient.
-         * @param inputs The point to check at; restored on return.
-         * @param options The tolerances and step sizes.
-         * @return The comparison's outcome.
-         * @throws Error If @p inputs is empty.
+         * @param inputs Coordinates to evaluate at; restored on return.
+         * @param options Numerical step sizes and comparison tolerance.
+         * @return Comparison result across all input coordinates.
          */
         GradCheckResult check_full_jacobian(const ScalarFunction& value,
                                             const GradientFunction& gradient,
@@ -208,18 +142,10 @@ namespace SushiAI
 
         /**
          * @brief Compares the gradient against central differences along random directions.
-         *
-         * 2k evaluations of @p value plus one of @p gradient, whatever n is.
-         * Each direction is a unit vector drawn from a fixed, seeded stream, so
-         * a failure reproduces exactly.
-         *
-         * @param value The scalar under test.
-         * @param gradient Its analytic gradient.
-         * @param inputs The point to check at; restored on return.
-         * @param directions How many random directions to probe.
-         * @param options The tolerances and step sizes.
-         * @return The comparison's outcome.
-         * @throws Error If @p inputs is empty or @p directions is zero.
+         * @param inputs Coordinates to evaluate at; restored on return.
+         * @param directions Number of random unit directions to probe.
+         * @param options Numerical step sizes and comparison tolerance.
+         * @return Comparison result across all sampled directions.
          */
         GradCheckResult check_directional(const ScalarFunction& value,
                                           const GradientFunction& gradient,

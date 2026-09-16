@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file layer_registry.cpp
+ * @brief Implements layer registry factories and layer stack builder.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/nn/layer_registry.hpp>
 
 #include <string>
@@ -81,13 +87,10 @@ namespace SushiAI
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
-            // An empty allowed list, so "units" on an activation is an error
-            // rather than something quietly dropped - which is what a reader
-            // who wrote it would have been relying on.
+            // Invariant: Activation layers forbid attributes; unknown keys trigger rejection.
             attributes.reject_unknown_keys(context, no_keys());
 
-            // An activation preserves its input width, which is why nothing in
-            // the file states one.
+            // Invariant: Activations preserve input width for output dimension.
             return std::make_unique<LayerAdapter<GELU>>(GELU{}, in_features);
         }
 
@@ -107,9 +110,7 @@ namespace SushiAI
 
                 std::unique_ptr<ILayer> layer = entry.make(width, spec.attributes, context);
 
-                // The chain: the next layer's input is this one's output, so
-                // the file never states an input width and cannot state a
-                // wrong one.
+                // Invariant: Chains layer dimensions by setting next input width to current output.
                 width = layer->output_features();
                 stack.push(std::move(layer));
             }

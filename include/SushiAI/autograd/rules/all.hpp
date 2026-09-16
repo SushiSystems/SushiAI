@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file all.hpp
+ * @brief Combines all domain backward rule tables into a single lookup table.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <SushiRuntime/core/span.hpp>
@@ -61,15 +67,9 @@ namespace SushiAI
         }
 
         /**
-         * @brief CV-9: every operation declaring itself differentiable has a rule.
-         *
-         * The flag lives in @c core/ops.hpp, where the spec puts it; the proof
-         * lives here, because here is the only place both the flag and the rule
-         * table are visible. Splitting them that way is not a compromise - it
-         * is what keeps @c core/ from depending on @c autograd/.
-         *
-         * @param table The identities to check.
-         * @return True when every differentiable entry has a rule.
+         * @brief Verifies that every differentiable operation possesses a backward rule.
+         * @param table Operation metadata table to inspect.
+         * @return True when all differentiable operations have registered rules.
          */
         constexpr bool every_differentiable_op_has_a_rule(
             SushiRuntime::span<const Ops::OpName> table) noexcept

@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file loss.hpp
+ * @brief Declares backward differentiation rules for loss and softmax operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -31,23 +37,18 @@ namespace SushiAI
     namespace Autograd
     {
         /**
-         * @brief LOG_SOFTMAX's standalone gradient: not yet implemented.
-         *
-         * Reachable only when a LOG_SOFTMAX result is consumed by something
-         * other than NLL_LOSS. Declared here and wired into @c find_rule as
-         * the extra entry that only exists to produce a good error - see
-         * @c differentiator.cpp - rather than placed in @ref LOSS_RULES,
-         * because it does not differentiate anything and has no business
-         * being counted as though it did.
+         * @brief Differentiates standalone log-softmax operations.
+         * @param tape Traversal context providing forward nodes and gradient emitters.
          */
         void log_softmax_backward(const GradientTape& tape);
 
         /**
-         * @brief NLL_LOSS's gradient, fused with LOG_SOFTMAX's when adjacent.
+         * @brief Differentiates negative log-likelihood loss, fusing adjacent log-softmax if present.
+         * @param tape Traversal context providing forward nodes and gradient emitters.
          */
         void nll_loss_backward(const GradientTape& tape);
 
-        /** @brief Loss operations' backward rules. */
+        /** @brief Holds backward rule entries for loss operations. */
         inline constexpr std::array<RuleEntry, 1> LOSS_RULES = {{
             {Ops::NLL_LOSS.id, &nll_loss_backward},
         }};

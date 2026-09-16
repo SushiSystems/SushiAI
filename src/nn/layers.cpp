@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file layers.cpp
+ * @brief Implements forward tracing logic for core neural network layers.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/nn/layers.hpp>
 
 namespace SushiAI

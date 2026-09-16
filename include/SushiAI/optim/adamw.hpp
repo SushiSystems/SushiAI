@@ -21,81 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file adamw.hpp
- * @brief AdamW, with the two details that are usually wrong spelled out.
- *
- * @section rule The update
- *
- * With t counting from 1 on the first step:
- *
- * @code
- * theta <- theta * (1 - lr * weight_decay)          // decoupled, and FIRST
- * m     <- beta1 * m + (1 - beta1) * g
- * v     <- beta2 * v + (1 - beta2) * g^2
- * bc1   =  1 - beta1^t
- * bc2   =  1 - beta2^t
- * theta <- theta - (lr / bc1) * m / (sqrt(v / bc2) + eps)
- * @endcode
- *
- * @section trap1 The decay comes first, and it decays theta_{t-1}
- *
- * "Decoupled" means the penalty never enters the gradient and therefore never
- * enters m or v. Applying it after the gradient step decays theta_t instead of
- * theta_{t-1}, which is a different (and lr-dependent) regulariser. Ordering
- * it first is not a preference; it is what the AdamW paper specifies and what
- * makes the decay behave like the multiplicative shrinkage it is meant to be.
- *
- * @section trap2 eps is added AFTER dividing by sqrt(bc2)
- *
- * The denominator is @c sqrt(v / bc2) + eps, not @c sqrt(v + eps) / sqrt(bc2)
- * and not @c sqrt(v) / sqrt(bc2) + eps applied to an uncorrected v. Folding
- * eps inside the correction scales it by 1 / sqrt(bc2), and on step 1
- * bc2 = 1 - 0.999 = 1e-3, so sqrt(bc2) is about 0.0316 and the effective
- * epsilon is 31.6x too large. The first few updates are then damped by a
- * factor nobody asked for. It converges anyway, which is exactly why the bug
- * survives in real codebases - so the ordering is written out here and
- * asserted in the test suite rather than left to a reader's care.
- *
- * @section state State buffers
- *
- * m and v are allocated once, at construction, each with its own Storage - see
- * optimizer.cpp for why an arena would be silently wrong today. Their element
- * type follows the parameter's, which on the training path is FLOAT32
- * throughout; a mixed-type axpy is rejected by SushiBLAS, so matching is the
- * only option that type-checks, and half precision is refused outright by the
- * base class.
- *
- * The fused kernel needs nothing else: g^2, the denominator and m/denom exist
- * only inside one element's arithmetic and stay in registers.
- * @c UpdateKernel::SEPARATE spells the same recipe as twelve SushiBLAS calls
- * that have to hand those temporaries to each other through memory, so it -
- * and only it - also allocates the three scratch buffers, including a buffer of
- * ones whose sole purpose is to let an @c axpy add a constant.
- *
- * @section fusion The fused form, expression by expression
- *
- * The fused functor is written to reproduce the separate path's rounding
- * exactly, not merely its algebra:
- *
- * @code
- * theta = theta * decay                        // scal
- * m     = m * b1 + (1 - b1) * g                // scal then axpy
- * v     = v * b2 + (1 - b2) * (g * g)          // mul, scal, axpy
- * d     = sqrt(v * (1 / bc2)) + eps            // copy, scal, sqrt, axpy
- * theta = theta + (-lr / bc1) * (m / d)        // div then axpy
- * @endcode
- *
- * Each line's operand order matches the kernel it replaces (`x *= alpha` is
- * `x * alpha`, `y += alpha * x` is `y + (alpha * x)`), and the whole stack
- * builds with `-ffp-contract=off` through SushiRuntime's determinism contract,
- * so no `a * b + c` collapses into an FMA on one side of the comparison and not
- * the other. The `theta * decay` multiply is guarded by `decay != 1` for the
- * same reason the separate path guards it: to be the same operation, not an
- * equivalent one.
+ * @brief Declares the AdamW optimizer with decoupled weight decay.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <vector>
 #include <SushiBLAS/engine.hpp>
@@ -175,31 +107,15 @@ namespace SushiAI
 
                 /**
                  * @brief Recomputes this step's scalars into the device buffer.
-                 *
-                 * The bias corrections are a function of the step counter, and
-                 * everything else is a function of @c options(), so this also
-                 * picks up a learning-rate schedule between replays without any
-                 * recompilation. Called by @c Optimizer::before_replay(), which
-                 * is @c final so that the loss scaler's own publication cannot
-                 * be dropped by an override here.
                  */
                 void write_step_scalars() override;
 
             public:
                 /**
-                 * @brief Parameter @p index's first moment, m.
-                 *
-                 * Exposed for one reason, and it is worth stating because
-                 * exposing optimizer state is otherwise a smell: the failure
-                 * mode a skipped loss-scaled step has is a NaN written into the
-                 * *moments* while the parameters stay clean, and there is no
-                 * other way for a test to see that. A test that could only read
-                 * the parameters would pass on exactly the bug the gate exists
-                 * to prevent - see optim/loss_scaler.hpp.
-                 *
-                 * @param index Which parameter, in slot order.
-                 * @return Its first moment.
-                 * @throws Error If @p index is out of range.
+                 * @brief Returns parameter's first moment tensor for inspection.
+                 * @param index Parameter slot index in registration order.
+                 * @return First moment tensor reference.
+                 * @throws Error If index is out of range.
                  */
                 const SushiBLAS::Tensor& first_moment(std::size_t index) const;
 

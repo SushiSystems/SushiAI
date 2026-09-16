@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file step_scalars.cpp
+ * @brief Implements device-resident scalar buffer management for optimizer kernels.
+ * @author Mustafa Garip
+ */
+
 #include <cstdint>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/shape.hpp>
@@ -39,9 +45,7 @@ namespace SushiAI
                                       DType::FLOAT32);
             data_ = buffer_.data_as<float>();
 
-            // Shared USM, so this is a plain host store - no queue, no flush.
-            // Defined before anything can read it; see the header on why the
-            // buffer is never filled by a device task.
+            // Zero initialize shared USM buffer via host write before execution.
             for (std::size_t i = 0; i < count_; ++i) data_[i] = 0.0f;
         }
 

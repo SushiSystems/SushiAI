@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file sgd.cpp
+ * @brief Implements stochastic gradient descent parameter updates with momentum.
+ * @author Mustafa Garip
+ */
+
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -39,13 +45,7 @@ namespace SushiAI
         {
             /**
              * @enum Scalar
-             * @brief Where each per-step number lives in the device buffer.
-             *
-             * The last two are conditions rather than coefficients. They live
-             * here rather than in the functor's captures because a task
-             * recorded into a compiled step is recorded once, and "is this step
-             * one" is exactly the kind of thing that must not be frozen at
-             * record time.
+             * @brief Defines device buffer scalar layout for per-step parameters.
              */
             enum Scalar : std::size_t
             {
@@ -86,8 +86,7 @@ namespace SushiAI
             {
                 State state;
 
-                // g_t is a register in the fused kernel; only the separate
-                // spelling has to hand it between launches through memory.
+                // Allocate staging buffer for separate kernel launches.
                 if (separate) state.staged = allocate_state(slot.parameter);
                 if (has_momentum_) state.buffer = allocate_state(slot.parameter);
 
@@ -97,11 +96,7 @@ namespace SushiAI
 
         void SGD::write_step_scalars()
         {
-            // Momentum decides how many operands the recorded kernel has, so it
-            // is structural rather than per-step. Turning it on afterwards used
-            // to dereference a momentum buffer that was never allocated; saying
-            // so is better than either crashing or - in the fused path, which
-            // simply would not have the operand - quietly training without it.
+            // Validate momentum buffer configuration is structural at initialization.
             SA_THROW_IF(!has_momentum_ && options_.momentum != 0.0,
                         "SGD was constructed with momentum 0, so it has no momentum buffer; "
                         "setting momentum to {} afterwards cannot take effect. Construct the "
@@ -121,8 +116,7 @@ namespace SushiAI
             values[FIRST_STEP] = step_count() == 0 ? 1.0f : 0.0f;
             values[NESTEROV] = options_.nesterov ? 1.0f : 0.0f;
 
-            // A power of two, or exactly 1 when nothing is scaling; both are
-            // exact multipliers. See optim/loss_scaler.hpp.
+            // Write inverse loss scale factor for exact gradient descaling.
             values[INVERSE_LOSS_SCALE] = inverse_loss_scale();
 
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
@@ -138,8 +132,7 @@ namespace SushiAI
         {
             const float* const s = scalars_.device_pointer();
 
-            // Null unless a loss scaler is attached; see optim/loss_scaler.hpp
-            // for why an overflowed step has to be skipped by a branch.
+            // Retrieve gradient gate pointer for branching on overflowed steps.
             const std::int64_t* const gate = gradient_gate();
 
             for (std::size_t i = 0; i < slots().size(); ++i)
@@ -157,15 +150,10 @@ namespace SushiAI
                         {
                             using T = std::decay_t<decltype(theta)>;
 
-                            // The whole step, thrown away, before anything is
-                            // read or written.
+                            // Skip parameter update if gradient gate signaled overflow.
                             if (gate != nullptr && gate[i] != 0) return;
 
-                            // The gradient buffer belongs to the compiled step
-                            // and is rewritten by the next forward pass, so the
-                            // decay term goes into a register instead of it -
-                            // and so does the unscale, which has to come before
-                            // the decay and before the momentum blend.
+                            // Compute unscaled gradient into register to preserve gradient buffer.
                             T staged = g * static_cast<T>(s[INVERSE_LOSS_SCALE]);
 
                             const T decay = static_cast<T>(s[WEIGHT_DECAY]);
@@ -195,10 +183,7 @@ namespace SushiAI
 
                         const T momentum = static_cast<T>(s[MOMENTUM]);
 
-                        // b_1 = g_1: no dampening on the first step, matching
-                        // PyTorch. Damping it here makes the first update
-                        // quietly too small. An assignment rather than a
-                        // 0*b + 1*staged blend, so a -0.0 gradient stays -0.0.
+                        // Assign staged gradient directly on first step to omit dampening.
                         if (static_cast<T>(s[FIRST_STEP]) != static_cast<T>(0))
                             b = staged;
                         else
@@ -218,9 +203,7 @@ namespace SushiAI
 
         std::size_t SGD::record_separate()
         {
-            // The reference spelling. Every scalar is read back out of the same
-            // device buffer the fused kernel reads, so neither path can drift
-            // from the other by picking up a differently rounded constant.
+            // Read scalar parameters from common device buffer for separate kernel launches.
             const float* const s = scalars_.device_pointer();
 
             const float neg_learning_rate = s[NEG_LEARNING_RATE];
@@ -237,9 +220,7 @@ namespace SushiAI
                 ParameterSlot& slot = slots()[i];
                 State& state = state_[i];
 
-                // The gradient buffer belongs to the compiled step and is
-                // rewritten by the next forward pass; staging keeps the decay
-                // term out of it.
+                // Copy gradient into staging buffer to avoid modifying forward graph memory.
                 engine().blas().copy(slot.gradient, state.staged);
                 ++recorded;
 
@@ -253,9 +234,7 @@ namespace SushiAI
                 {
                     if (first)
                     {
-                        // b_1 = g_1: no dampening on the first step, matching
-                        // PyTorch. Damping it here makes the first update
-                        // quietly too small.
+                        // Initialize momentum buffer directly on first step to omit dampening.
                         engine().blas().copy(state.staged, state.buffer);
                         ++recorded;
                     }

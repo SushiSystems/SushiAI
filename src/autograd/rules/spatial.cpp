@@ -21,15 +21,15 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file spatial.cpp
+ * @brief Implements backward differentiation rules for spatial and pooling operations.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/rules/spatial.hpp>
-
-// IM2COL and COL2IM are each other's adjoint (CV-1): a convolution is IM2COL
-// followed by MATMUL, matmul_backward already produces the weight gradient,
-// and col2im *is* im2col's transpose - which is why this is the only rule
-// convolution needs. Tasks 12-13 extend this table with pooling and the
-// channel-structural ops.
 
 namespace SushiAI
 {
@@ -73,20 +73,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // col2im *is* im2col's adjoint: a pixel read by several windows
-            // gets the sum of their gradients, which is what makes this one
-            // call rather than a scatter loop. SushiBLAS writes it as a
-            // gather, so the sum's order is fixed and the result is
-            // bit-reproducible (CV-6).
-            //
-            // col2im_with_extents, not the derived-extent col2im, and the
-            // extents are read out of the forward node's slots 8 and 9 rather
-            // than recomputed. Recomputing them means assuming the padding was
-            // symmetric, and an asymmetric window grid can derive to its own
-            // transpose with the same window count - which every shape check
-            // downstream accepts, so the gradient would come back wrong rather
-            // than throwing. The forward wrote its real grid into the node;
-            // this reads it.
+            // Col2im adjoint accumulates window gradients using recorded forward window extents.
             const Graph::Node& node = tape.node();
             const Graph::ValueId x = node.inputs[0];
             const Graph::ConvGeometry g = geometry_of(node);
@@ -107,11 +94,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // The adjoint of the adjoint, over the same window grid the
-            // forward used - read from slots 8 and 9 for the same reason
-            // im2col_backward reads them: the column matrix this node consumed
-            // may have come from an asymmetrically padded im2col, whose grid
-            // the geometry cannot reproduce and can silently transpose.
+            // Reconstruct im2col adjoint using recorded forward window grid extents.
             const Graph::Node& node = tape.node();
             const Graph::ConvGeometry g = geometry_of(node);
 
@@ -129,9 +112,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // The indices are this node's second *result*, so the rule reads
-            // exactly what its own forward wrote - there is no way to pair a
-            // gradient with another pool's argmax.
+            // Maxpool backward routes gradients through argmax indices from the forward node output.
             const Graph::Node& node = tape.node();
             tape.contribute_input(0, tape.builder().maxpool2d_backward(
                 dy, node.outputs[1], tape.graph().value(node.inputs[0]).shape,
@@ -145,10 +126,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // No index and no saved forward: every element of a window gets
-            // the same share, so the divisor is the window area alone. This is
-            // why it is a separate function from the max rule rather than the
-            // same one with a flag.
+            // Avgpool backward distributes incoming gradients uniformly across the window area.
             const Graph::Node& node = tape.node();
             tape.contribute_input(0, tape.builder().avgpool2d_backward(
                 dy, tape.graph().value(node.inputs[0]).shape, geometry_of(node)));
@@ -185,20 +163,14 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // One slice per operand, at that operand's running offset. Walked
-            // in operand order rather than looked up anywhere, because the
-            // offset is defined only by the order the forward concatenated in.
+            // Channel concatenation backward extracts operand slices along cumulative channel offsets.
             const Graph::Node& node = tape.node();
             int64_t offset = 0;
             for (std::size_t i = 0; i < node.inputs.size(); ++i)
             {
                 const Shape& part = tape.graph().value(node.inputs[i]).shape;
 
-                // The forward emitter already refuses anything but rank 4, so
-                // this holds today. It is checked anyway because it is the one
-                // rule that indexes a raw dimension, and reading shape[3] off
-                // a rank-2 operand would not throw - it would read whatever
-                // Shape keeps past its rank and slice the gradient by it.
+                // Enforce rank-4 NHWC shape before indexing channel dimension.
                 SA_THROW_IF(part.rank() != 4,
                             "concat_channels_backward reads the channel extent of a rank-4 "
                             "[N,H,W,C] operand; operand {} is {}", i, part.to_string());
@@ -217,10 +189,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // The adjoint of a slice is a scatter into zeros. Expressed as a
-            // concat of up to three parts rather than as a new identity: the
-            // ranges before and after the slice are zeros, and CONCAT_CHANNELS
-            // already knows how to place a run of channels at an offset.
+            // Slice adjoint pads zeros around the active channel range via channel concatenation.
             const Graph::Node& node = tape.node();
             const Shape in = tape.graph().value(node.inputs[0]).shape;
             const int64_t offset = static_cast<int64_t>(node.attributes.get(0));

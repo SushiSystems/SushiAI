@@ -21,19 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file layers.hpp
- * @brief The layers themselves: aggregates that trace into IR.
- *
- * Every layer here is an aggregate, so it is written the way it reads -
- * @c Linear{784, 128} - and it declares its own parameters the first time it
- * traces. Nothing registers, nothing inherits, and each layer's whole contract
- * is the two members below its data: @c fields() and @c forward().
- *
- * Host lane: no SushiBLAS, no SYCL.
+ * @brief Declares core neural network layers that trace into graph IR.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -51,14 +45,7 @@ namespace SushiAI
     {
         /**
          * @struct Linear
-         * @brief An affine map: Y = X * W^T + b.
-         *
-         * The weight is stored [out_features, in_features], matching PyTorch,
-         * so a checkpoint moves between the two without a transpose. The
-         * product is expressed with @c MATMUL's transpose @e flag rather than a
-         * transposed view - SushiBLAS derives a leading dimension from a
-         * tensor's shape, so a view would be read with the wrong stride and
-         * produce a plausible-looking wrong answer.
+         * @brief Represents an affine transformation: Y = X * W^T + b.
          */
         struct Linear
         {
@@ -162,32 +149,14 @@ namespace SushiAI
 
         /**
          * @class Sequential
-         * @brief Applies its layers in order, and names their parameters by index.
-         *
-         * Deduces its own type, so the model reads as a list:
-         * @code
-         * Sequential model{Linear{784, 128}, ReLU{}, Linear{128, 10}};
-         * @endcode
-         *
-         * Its children are visited by index, which is what produces the
-         * "0.weight" / "2.bias" naming PyTorch uses - including the gaps where
-         * a parameterless activation sits, so the indices keep matching the
-         * layer positions rather than the parameter positions.
-         *
-         * @tparam Ls The layer types, in application order.
+         * @brief Applies layers in sequence and indexes parameter paths.
+         * @tparam Ls Layer types in forward application order.
          */
         template<typename... Ls>
         class Sequential
         {
             public:
-                // The pack is checked here rather than spelled `template<Module... Ls>`,
-                // which is a C++20 constraint and this library is C++17. The contract is
-                // the same and it is still stated at the top of the class, so a malformed
-                // layer is reported against Sequential's own instantiation - naming the
-                // pack - rather than 200 lines down inside std::apply. What is lost is
-                // that Sequential<Bad> is now a *valid* specialization that fails when
-                // instantiated, instead of one that never matched: it cannot be SFINAE'd
-                // away by an overload set. Nothing in this library overloads on it.
+                // Enforces Module concept constraints across parameter pack in C++17.
                 static_assert((Module<Ls> && ...),
                               "Every type in a Sequential must satisfy the Module contract: "
                               "a static fields() listing its parameters, and a "
@@ -248,8 +217,7 @@ namespace SushiAI
         template<typename... Ls>
         Sequential(Ls...) -> Sequential<Ls...>;
 
-        // The contract is checked here, where a mistake names the layer, rather
-        // than at the first use, where it would name a template instantiation.
+        // Invariant: Module contracts are verified eagerly at declaration scope.
         static_assert(Module<Linear>, "Linear must satisfy the Module contract");
         static_assert(Module<ReLU>, "ReLU must satisfy the Module contract");
         static_assert(Module<GELU>, "GELU must satisfy the Module contract");
@@ -262,11 +230,7 @@ namespace SushiAI
         static_assert(!ModuleContainer<Linear>,
                       "A leaf layer must not look like a container");
 
-        // The runtime-walk arm for_each_parameter gained for LayerStack is
-        // strictly additive, and these two assertions are what say so: neither
-        // a compile-time leaf nor a compile-time container may start taking it,
-        // because doing so would silently change which walk enumerates them
-        // while every existing test kept passing.
+        // Invariant: Compile-time layers use fields() or container visits rather than runtime walks.
         static_assert(!Detail::HasParameterWalk<Linear>::value,
                       "A compile-time leaf must be enumerated by its fields(), "
                       "not by a runtime walk");

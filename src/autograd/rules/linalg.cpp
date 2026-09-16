@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file linalg.cpp
+ * @brief Implements backward differentiation rules for linear algebra operations.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/autograd/rules/linalg.hpp>
 
 namespace SushiAI
@@ -39,9 +45,7 @@ namespace SushiAI
             const bool ta = node.attributes.flag(0);
             const bool tb = node.attributes.flag(1);
 
-            // Four transposition cases, each derived by treating the product
-            // as U*V with U = op(A), V = op(B): dU = dC V^T, dV = U^T dC, and
-            // then transposing back through whichever operand was flagged.
+            // Matrix multiplication gradients derive from dU = dC V^T and dV = U^T dC.
             if (tape.input_requires_grad(0))
             {
                 Graph::ValueId da;
@@ -68,9 +72,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // Y = X + 1 b^T is the identity in X, so the gradient passes
-            // straight through with nothing emitted, and it sums over the
-            // broadcast axis in b.
+            // Bias addition passes gradient directly to input and sums across rows for bias.
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dy);
             if (tape.input_requires_grad(1)) tape.contribute_input(1, tape.builder().sum_rows(dy));
         }
@@ -84,9 +86,7 @@ namespace SushiAI
             const Graph::ValueId x = tape.node().inputs.at(0);
             const Graph::Value& value = tape.graph().value(x);
 
-            // Summing over rows broadcasts back over rows; adding the row
-            // vector to a zero matrix is exactly that broadcast, and reuses
-            // the bias lowering rather than inventing a second one.
+            // Sum-rows adjoint broadcasts row gradients back over matrix shape via bias addition on zeros.
             const Graph::ValueId zeros = tape.builder().zeros_like(ds, value.shape, value.dtype);
             tape.contribute_input(0, tape.builder().bias_add(zeros, ds));
         }

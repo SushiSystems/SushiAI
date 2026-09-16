@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file activation.hpp
+ * @brief Declares backward differentiation rules for activation operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -31,18 +37,8 @@ namespace SushiAI
     namespace Autograd
     {
         /**
-         * @brief The rule for every activation, read out of Ops::ACTIVATIONS.
-         *
-         * One function rather than four, because the only thing that
-         * differs between them is which gradient operation to emit and
-         * which tensor to differentiate at - and both of those are already
-         * stated in @c Ops::ACTIVATIONS, which is also what decides whether
-         * a fused form may fold the activation away. Restating either here
-         * would be a second place for the two to disagree, and a
-         * disagreement is silent: the two candidate primals have the same
-         * shape, so the graph builds and the model learns the wrong thing.
-         *
-         * @param tape The rule's context.
+         * @brief Differentiates activation operations using metadata in Ops::ACTIVATIONS.
+         * @param tape Traversal context providing forward nodes and gradient emitters.
          */
         void activation_backward(const GradientTape& tape);
 

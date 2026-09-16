@@ -21,15 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
+/**
+ * @file rule.hpp
+ * @brief Declares backward rule definitions and compile-time table concatenation.
+ * @author Mustafa Garip
+ */
 
-// The vocabulary every domain's backward rules and rule table are written in.
-//
-// A rules/*.cpp includes only this header (plus tape.hpp, which it drags in):
-// it never needs differentiate() or has_backward_rule(), so it never needs
-// backward.hpp. That keeps a rule file's dependency surface to exactly what a
-// rule is - a function of a GradientTape - and the array type that domain
-// rule tables are built from.
+#pragma once
 
 #include <array>
 #include <cstddef>
@@ -55,21 +53,9 @@ namespace SushiAI
 
         /**
          * @brief Concatenates two rule tables at compile time.
-         *
-         * The mechanism behind @c rules/all.hpp. Nothing self-registers:
-         * @c sushiai is a static library, so a translation unit whose only job
-         * is to run a registration constructor resolves no symbol and the
-         * linker drops it - silently, and only in a downstream consumer's
-         * build, which is the worst possible place to discover a missing
-         * gradient. Taking the address of a function declared in a domain
-         * header is an address constant expression, so the concatenated table
-         * stays @c constexpr and lookup stays a compile-time walk.
-         *
-         * @tparam N The left table's size.
-         * @tparam M The right table's size.
-         * @param a The left table.
-         * @param b The right table.
-         * @return Their concatenation.
+         * @param a The left rule table.
+         * @param b The right rule table.
+         * @return Combined array of rule entries.
          */
         template<std::size_t N, std::size_t M>
         constexpr std::array<RuleEntry, N + M> concat_rules(

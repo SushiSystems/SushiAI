@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file builder.cpp
+ * @brief Implements GraphBuilder construction methods for SushiAI IR nodes.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/graph/builder.hpp>
 
 namespace SushiAI
@@ -34,18 +40,10 @@ namespace SushiAI
             Shape shape_of(int64_t rows, int64_t cols) { return Shape{rows, cols}; }
 
             /**
-             * @brief The one definition of a legal LeakyReLU slope.
+             * @brief Validates that a LeakyReLU slope lies strictly within (0, 1).
              *
-             * Asked for by both leaky_relu() and activation_backward(), which
-             * must agree: a slope the forward emitter accepts and the backward
-             * one rejects is a graph that builds and cannot be differentiated,
-             * and the reverse is a plain-ReLU gradient emitted silently. Two
-             * copies of the predicate is how that disagreement arrives, so
-             * there is one. The messages stay separate - they explain
-             * different mistakes - but the rule does not.
-             *
-             * At 0 it is a ReLU and at 1 the identity, and both make the
-             * output-reading gradient (ops.hpp's ACTIVATIONS) unsound.
+             * @param slope The slope value to validate.
+             * @return True if valid for forward and backward emission.
              */
             bool is_legal_leaky_relu_slope(double slope)
             {
@@ -124,16 +122,7 @@ namespace SushiAI
                         ka, kb, va.shape.to_string(), vb.shape.to_string(),
                         transpose_a, transpose_b);
 
-            // declare_like on a rank-2 contraction is not a claim that the
-            // result "is" the left operand's layout - at rank 2 the tag names
-            // nothing, since there is no C axis to place. The choice between
-            // propagating and defaulting is genuinely symmetric: propagating
-            // keeps an NCHW chain alarming through rank-2 land, and defaulting
-            // would let it quietly re-enter NHWC land. Neither is safer in the
-            // abstract; propagating is preferred because an over-eager alarm
-            // is a build-time throw naming the node, and a silent re-entry is
-            // a loss curve. The same reasoning covers bias_add, sum_rows,
-            // log_softmax and nll_loss below.
+            // Propagate layout from operand to trigger build-time checks across contractions.
             const ValueId out = declare_like(a, shape_of(m, n), va.dtype, Lifetime::ACTIVATION,
                                              "matmul");
 
@@ -274,14 +263,7 @@ namespace SushiAI
 
         ValueId GraphBuilder::zeros(Shape shape, DType dtype) const
         {
-            // ZERO reads nothing, so there is no operand whose layout could
-            // be inherited and this is the one emitter that cannot use
-            // declare_like. The resulting NHWC tag is safe for *this* node -
-            // CV-4's per-node proof skips a node with no inputs - and says
-            // nothing at all about the consumer that reads the zeros beside a
-            // real operand. That consumer is the whole exposure, so a caller
-            // in that position calls zeros_like() instead; every backward rule
-            // emitting zeros does.
+            // Zero emitter has no inputs to inherit layout from; consumers use zeros_like.
             const ValueId out = declare(shape, dtype, Lifetime::ACTIVATION, "zeros");
             graph_->add_node(Ops::ZERO.id, {}, {out});
             return out;
@@ -302,12 +284,7 @@ namespace SushiAI
                         && op != Ops::LEAKY_RELU_BACKWARD.id,
                         "{} is not an activation gradient", Ops::name_of(op));
 
-            // A default-constructed Attributes reads as slope 0 in slot 0,
-            // which is a legal-looking double but an illegal slope: silently
-            // running LEAKY_RELU_BACKWARD at slope 0 is a plain-ReLU
-            // gradient, not the one the caller asked for. The predicate is
-            // shared with leaky_relu()'s own guard, so the two cannot
-            // disagree about what a legal slope is.
+            // Verify slope explicitly to prevent silent emission of standard ReLU gradients.
             if (op == Ops::LEAKY_RELU_BACKWARD.id)
             {
                 const double slope = attributes.get(0);
@@ -320,11 +297,7 @@ namespace SushiAI
 
             require_same(dy, primal, Ops::name_of(op));
 
-            // declare_like, not declare: a gradient has its primal's layout.
-            // Rank-2 activations make the two indistinguishable today, but a
-            // spatial dy carries NHWC and a default-layout dx would make
-            // finalise()'s uniformity proof fail - or worse, pass while the
-            // consumer reads the wrong axis order (A-2).
+            // Gradients inherit primal layout to ensure layout uniformity across backward nodes.
             const Value& v = graph_->value(dy);
             const ValueId out = declare_like(dy, v.shape, v.dtype, Lifetime::ACTIVATION,
                                              Ops::name_of(op));
@@ -406,9 +379,7 @@ namespace SushiAI
             SA_THROW_IF(vx.shape.rank() != 4,
                         "LAYOUT_CONVERT needs a rank-4 operand; got {}", vx.shape.to_string());
 
-            // NHWC's [N,H,W,C] is NCHW's [N,C,H,W]; permute whichever direction
-            // this conversion actually crosses, based on the operand's own
-            // layout rather than the target alone.
+            // Permute dimensions based on source operand layout and requested target layout.
             const Shape converted = (vx.layout == TensorLayout::NHWC && layout == TensorLayout::NCHW)
                 ? Shape{vx.shape[0], vx.shape[3], vx.shape[1], vx.shape[2]}
                 : (vx.layout == TensorLayout::NCHW && layout == TensorLayout::NHWC)
@@ -439,13 +410,9 @@ namespace SushiAI
             }
 
             /**
-             * @brief CV-5's eight slots plus the output extents in slots 8-9.
+             * @brief Writes convolution geometry and output extents into attribute slots.
              *
-             * IM2COL and COL2IM carry their window grid rather than letting
-             * the lowering re-derive it, because a re-derivation has to assume
-             * symmetric padding and an asymmetric grid can derive to its own
-             * transpose with the same window count - which every shape check
-             * accepts.
+             * Preserves explicit window grid dimensions for lowering passes.
              */
             Attributes windowed_attributes(const ConvGeometry& g,
                                            int64_t out_h, int64_t out_w) noexcept
@@ -463,8 +430,7 @@ namespace SushiAI
             SA_THROW_IF(in.shape.rank() != 4,
                         "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
 
-            // Symmetric padding is assumed here and stated in the header. A
-            // layer that pads asymmetrically calls im2col_with_extents.
+            // Default im2col assumes symmetric padding; asymmetric cases use im2col_with_extents.
             const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
                                                 g.dilation_h, g.kernel_h, g.stride_h);
             const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
@@ -503,10 +469,7 @@ namespace SushiAI
         ValueId GraphBuilder::col2im(ValueId cols, Shape image_shape,
                                      const ConvGeometry& g) const
         {
-            // Symmetric padding is assumed here and stated in the header. A
-            // backward rule that knows the forward's actual window counts -
-            // which it always does, because the forward wrote them into the
-            // graph - calls col2im_with_extents instead.
+            // Default col2im assumes symmetric padding; backward passes use col2im_with_extents.
             const int64_t out_h = output_extent(image_shape[1], g.pad_top, g.pad_top,
                                                 g.dilation_h, g.kernel_h, g.stride_h);
             const int64_t out_w = output_extent(image_shape[2], g.pad_left, g.pad_left,
@@ -551,8 +514,7 @@ namespace SushiAI
                         "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
                         in.shape.rank());
 
-            // Symmetric padding is assumed here and stated in the header. A
-            // layer that pads asymmetrically calls maxpool2d_with_extents.
+            // Default maxpool2d assumes symmetric padding; asymmetric cases use with_extents.
             const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
                                                 g.dilation_h, g.kernel_h, g.stride_h);
             const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
@@ -842,10 +804,7 @@ namespace SushiAI
                         "sum_channels reads NHWC; this value is NCHW. Cross with "
                         "layout_convert first (CV-3).");
 
-            // Channels innermost is what makes this two existing nodes rather
-            // than a new one: [N,H,W,C] and [N*H*W, C] are the same bytes in
-            // the same order, so the per-channel sum is a column sum of that
-            // view and SUM_ROWS already is one.
+            // In NHWC layout, channel sums reduce across rows of a reshaped matrix.
             const int64_t rows = in.shape[0] * in.shape[1] * in.shape[2];
             return sum_rows(reshape(x, Shape({rows, in.shape[3]})));
         }
@@ -878,10 +837,7 @@ namespace SushiAI
             const Shape per_channel({in.shape[3]});
             const ValueId y = declare_like(x, in.shape, in.dtype, Lifetime::ACTIVATION, "bn");
 
-            // Saved rather than recomputed: the backward needs exactly the
-            // statistics the forward used, and recomputing them from a value
-            // some later node may have overwritten is how a normalisation
-            // silently drifts.
+            // Normalization statistics are preserved directly to avoid numerical drift.
             const ValueId mean = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
                                               "bn_saved_mean");
             const ValueId inv_std = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,

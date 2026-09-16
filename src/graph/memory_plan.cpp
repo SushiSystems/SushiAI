@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file memory_plan.cpp
+ * @brief Implements MemoryPlan allocation layout and transitive reachability analysis.
+ * @author Mustafa Garip
+ */
+
 #include <algorithm>
 #include <numeric>
 #include <optional>
@@ -50,19 +56,9 @@ namespace SushiAI
 
             /**
              * @class Aliases
-             * @brief Disjoint sets over ValueIds, for values that share a buffer.
+             * @brief Disjoint sets over ValueIds for tracking shared buffer aliases.
              *
-             * @c ACCUMULATE's result *is* its accumulator's storage, so the two
-             * values are two names for one buffer. Planning them separately
-             * would be silently wrong rather than merely wasteful: the planner
-             * would think the accumulator died at the @c ACCUMULATE node and
-             * hand its bytes to something else while the result is still being
-             * read under the other name.
-             *
-             * The lower id always wins the union, so a chain's representative is
-             * the value declared first - which, because insertion order is
-             * topological, is also the one whose producer writes the buffer
-             * first.
+             * Resolves alias chains like ACCUMULATE to a single representative value.
              */
             class Aliases
             {
@@ -101,18 +97,9 @@ namespace SushiAI
 
             /**
              * @class Reachability
-             * @brief "Can node A's work be finished before node B's begins?"
+             * @brief Transitive closure bitset representing node execution precedence.
              *
-             * The transitive closure of the dataflow DAG, one bitset row per
-             * node. This is the whole reason the planner is not an interval
-             * overlap test: two nodes with no path between them are unordered,
-             * the runtime may run them concurrently, and bytes must not be
-             * shared across that boundary - see the header.
-             *
-             * Built in one reverse sweep because a graph's insertion order is a
-             * valid topological order (Graph::nodes()), so a node's successors
-             * are all complete by the time it is visited. O(V*E/64) time,
-             * O(V^2/64) memory.
+             * Computed in a single reverse sweep over topological insertion order.
              */
             class Reachability
             {
@@ -148,14 +135,11 @@ namespace SushiAI
                     }
 
                     /**
-                     * @brief Whether @p to is strictly downstream of @p from.
+                     * @brief Checks whether a directed path exists between nodes.
                      *
-                     * Strict by construction: a DAG has no path from a node to
-                     * itself, so a node's own bit is never set in its own row.
-                     *
-                     * @param from The upstream node.
-                     * @param to The node to reach.
-                     * @return True when some directed path runs from @p from to @p to.
+                     * @param from Upstream source node.
+                     * @param to Downstream destination node.
+                     * @return True if to is strictly downstream of from.
                      */
                     bool reaches(NodeId from, NodeId to) const noexcept
                     {
@@ -199,32 +183,20 @@ namespace SushiAI
                 std::vector<ValueId> members;
 
                 /**
-                 * @brief Whether the planner may overlap it with anything.
+                 * @brief Whether the planner may overlap this buffer with others.
                  *
-                 * False for a persistent class, and false for a buffer nothing
-                 * in the graph writes. The second case matters as much as the
-                 * first: a buffer with no producer is written from outside the
-                 * step and is *not* rewritten on the next replay, so handing its
-                 * bytes away survives exactly one step and then trains on
-                 * whatever overwrote it.
+                 * False for persistent classes or buffers unwritten by the graph.
                  */
                 bool packable = false;
             };
 
             /**
-             * @brief Whether @p earlier's bytes may be handed to @p later.
+             * @brief Checks if all uses of earlier precede first write of later.
              *
-             * The contract of the whole pass, in one predicate: every use of
-             * @p earlier must be a strict ancestor of the node that first
-             * writes @p later. Not "the last use" - checking all of them is
-             * equivalent (precedence is transitive, so if the maximal uses
-             * precede the write, so do the rest) and needs no separate pass to
-             * find which uses are maximal.
-             *
-             * @param earlier The buffer whose bytes would be reused.
-             * @param later The buffer that would receive them.
-             * @param reach The graph's transitive closure.
-             * @return True when the reuse adds no ordering that was not already implied.
+             * @param earlier Buffer whose storage is candidate for reuse.
+             * @param later Candidate consumer buffer.
+             * @param reach Transitive reachability closure.
+             * @return True if reuse introduces no anti-dependencies.
              */
             bool precedes(const Buffer& earlier, const Buffer& later, const Reachability& reach)
             {
@@ -298,12 +270,7 @@ namespace SushiAI
 
             if (value_count == 0) return plan;
 
-            // --- Who reads what, and is the graph actually topological? -------
-            // The whole pass rests on "insertion order is a valid topological
-            // order", which Graph documents and add_node makes true for anything
-            // built through GraphBuilder. A hand-assembled graph can still break
-            // it, and a broken one would produce a closure that silently misses
-            // edges, so it is checked rather than assumed.
+            // Verifies topological ordering to ensure downstream reachability closure validity.
             std::vector<std::vector<NodeId>> consumers(value_count);
 
             for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
@@ -318,7 +285,7 @@ namespace SushiAI
                     consumers[in].push_back(id);
                 }
 
-            // --- Group values that share one buffer ---------------------------
+            // Groups values that share a common backing buffer.
             Aliases aliases(value_count);
             for (const Node& node : graph.nodes())
                 if (node.op == Ops::ACCUMULATE.id && !node.inputs.empty() && !node.outputs.empty())
@@ -354,8 +321,7 @@ namespace SushiAI
 
                 if (value.producer == NO_NODE)
                 {
-                    // Written from outside the step, so never rewritten on a
-                    // replay. Its bytes belong to it for the whole run.
+                    // External inputs persist across step replays and are marked unpackable.
                     buffer.packable = false;
                 }
                 else
@@ -367,8 +333,7 @@ namespace SushiAI
                 for (NodeId consumer : consumers[id]) buffer.uses.push_back(consumer);
             }
 
-            // A caller's veto beats every other consideration, including a
-            // lifetime that says the value is packable.
+            // Caller-pinned buffers bypass packing regardless of lifetime class.
             for (ValueId pinned : options.pinned)
             {
                 SA_THROW_IF(pinned >= value_count,
@@ -377,7 +342,7 @@ namespace SushiAI
                 buffers[buffer_of_owner.at(aliases.find(pinned))].packable = false;
             }
 
-            // --- Reachability, or an honest refusal to compute it -------------
+            // Evaluates reachability matrix when node limit allows reuse.
             const bool overlap = options.reuse && node_count <= options.reuse_node_limit;
             if (options.reuse && !overlap)
             {
@@ -389,14 +354,11 @@ namespace SushiAI
                     "against a linear schedule the runtime is free not to follow";
             }
 
-            // Built only when it will be used: the refusal above exists
-            // precisely because this object is the expensive part.
+            // Computes reachability closure only when reuse is active.
             std::optional<Reachability> reach;
             if (overlap) reach.emplace(graph, consumers);
 
-            // --- One arena per non-persistent lifetime class ------------------
-            // Enum order, so the arena ids a graph produces do not depend on the
-            // order its values happened to be declared in.
+            // Allocates arenas per packable lifetime class in fixed enumeration order.
             constexpr Lifetime PACKABLE[] = {Lifetime::ACTIVATION, Lifetime::SCRATCH};
 
             for (Lifetime lifetime : PACKABLE)
@@ -408,9 +370,7 @@ namespace SushiAI
 
                 if (candidates.empty()) continue;
 
-                // Largest first, then by owner: the classic greedy-by-size
-                // packing, made deterministic so two runs of the same graph
-                // produce byte-identical offsets.
+                // Sorts greedy-by-size descending and by owner for determinism.
                 std::sort(candidates.begin(), candidates.end(),
                           [&buffers](std::size_t a, std::size_t b)
                           {
@@ -430,9 +390,7 @@ namespace SushiAI
                 {
                     const Buffer& buffer = buffers[index];
 
-                    // Walk the already-placed slots in address order and slide
-                    // past every one that is live at the same time as this
-                    // buffer. The first aligned gap that fits wins.
+                    // Finds the first aligned non-conflicting slot in address order.
                     std::size_t offset = 0;
                     for (const Slot& slot : placed)
                     {
@@ -467,8 +425,7 @@ namespace SushiAI
                 plan.arenas_.push_back(arena);
             }
 
-            // Everything else keeps its own allocation, but still records which
-            // value owns the bytes so an alias chain resolves to one buffer.
+            // Unpacked buffers retain dedicated allocations while recording owner aliases.
             for (const Buffer& buffer : buffers)
                 if (!buffer.packable)
                     for (ValueId member : buffer.members)

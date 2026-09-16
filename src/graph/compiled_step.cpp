@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file compiled_step.cpp
+ * @brief Implements CompiledStep lowerings, graph compilation, and replays.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/graph/compiled_step.hpp>
 
 namespace SushiAI
@@ -39,16 +45,10 @@ namespace SushiAI
             const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
             selections_.assign(chosen.begin(), chosen.end());
 
-            // After the lowering and before the compile, so the trailing work
-            // joins this plan rather than a second one. Its ordering against
-            // the graph comes from the byte ranges each task declares, not from
-            // the order it was recorded in.
+            // Trailing device work is recorded into this plan before compilation.
             if (trailing_) operations_ += trailing_->record_into_step();
 
-            // The one and only compile. It drains the engine's builder, which
-            // is what makes the constant flush below safe to run afterwards -
-            // the fills land in a fresh, empty builder rather than being tacked
-            // onto the step that was about to be compiled.
+            // Single step compilation drains the builder before constant fills are flushed.
             plan_ = engine.get_graph().compile();
             ++compile_count_;
 
@@ -56,9 +56,7 @@ namespace SushiAI
 
             pool.flush_constants();
 
-            // Never before the capture: an empty base_in_degree leaves the
-            // sentinel armed at zero, so the very first run reports complete
-            // before any node has been dispatched. See the header.
+            // Base state capture must follow graph compilation to arm in-degree sentinels.
             plan_.capture_base_state();
         }
 
@@ -66,9 +64,7 @@ namespace SushiAI
         {
             if (empty_) return;
 
-            // Between the last wait_all() and this dispatch, so a recorder may
-            // write into memory its own kernels read without a race and without
-            // a dependency edge to express - see step_recorder.hpp.
+            // Host state refresh executes between device synchronization and dispatch.
             if (trailing_) trailing_->before_replay();
 
             plan_.rearm();

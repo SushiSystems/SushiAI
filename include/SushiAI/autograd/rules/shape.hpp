@@ -21,10 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
+/**
+ * @file shape.hpp
+ * @brief Declares backward differentiation rules for tensor shape and layout operations.
+ * @author Mustafa Garip
+ */
 
-// Shape and layout operations' backward rules: RESHAPE, LAYOUT_CONVERT and
-// friends.
+#pragma once
 
 #include <array>
 #include <SushiAI/autograd/rule.hpp>
@@ -33,12 +36,12 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        /** @brief Reshapes the incoming gradient back to the operand's shape. */
+        /** @brief Differentiates reshape operations by restoring operand shape on incoming gradients. */
         void reshape_backward(const GradientTape& tape);
-        /** @brief Converts the incoming gradient back to the operand's layout. */
+        /** @brief Differentiates layout conversions by restoring operand layout on incoming gradients. */
         void layout_convert_backward(const GradientTape& tape);
 
-        /** @brief Structural operations' backward rules. */
+        /** @brief Holds backward rule entries for structural shape and layout operations. */
         inline constexpr std::array<RuleEntry, 2> SHAPE_RULES = {{
             {Ops::RESHAPE.id,        &reshape_backward},
             {Ops::LAYOUT_CONVERT.id, &layout_convert_backward},

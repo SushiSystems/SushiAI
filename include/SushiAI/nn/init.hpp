@@ -21,53 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file init.hpp
- * @brief Where a model's weights start, and why.
- *
- * @section gains The gain table
- *
- * Both families below scale a zero-mean distribution so the variance of a
- * layer's output matches the variance of its input. The scale depends on the
- * nonlinearity that follows, because an activation that discards half its
- * input halves the variance:
- *
- * | nonlinearity | gain                |
- * |--------------|---------------------|
- * | linear       | 1                   |
- * | sigmoid      | 1                   |
- * | tanh         | 5/3                 |
- * | relu         | sqrt(2)             |
- * | leaky relu   | sqrt(2 / (1 + a^2)) |
- *
- * Kaiming scales by fan-in alone (right for a rectifier, where only the
- * forward variance is preserved anyway); Xavier scales by both fans (right for
- * a symmetric activation, where the backward variance matters equally).
- *
- * @section pytorch A deliberate divergence from PyTorch's default
- *
- * @c torch.nn.Linear does not use any of the above. Its default is
- * @c kaiming_uniform_(a=sqrt(5)), which yields gain = sqrt(2/(1+5)) = 1/sqrt(3)
- * and therefore a variance 6x smaller than He initialisation for the ReLU
- * networks it is usually paired with. It is a historical accident of the Torch7
- * port, documented as such in PyTorch's own issue tracker, and it makes deep
- * ReLU stacks start with activations that shrink layer over layer. SushiAI
- * uses the gain the nonlinearity actually calls for. A model ported from
- * PyTorch will therefore not match its reference initialisation bit for bit -
- * that is intended, and it is stated here so nobody spends an afternoon
- * hunting for the difference.
- *
- * @section final Zero-initialised classifier
- *
- * The last weight matrix (and its bias) start at exactly zero. Every logit is
- * then zero, every class is equally likely, and the initial cross-entropy is
- * exactly ln(C) - a number that can be asserted rather than eyeballed. It also
- * removes the initial random logit spread, which is pure noise in the first
- * few steps. The layer leaves zero immediately: its gradient is
- * (softmax - target) / N, which is non-zero from the first step.
+ * @brief Declares parameter initialization schemes and fan-in calculation helpers.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -188,16 +148,12 @@ namespace SushiAI
         namespace Detail
         {
             /**
-             * @brief Applies @p policy to one parameter's tensor.
-             *
-             * Split out of the template below so the arithmetic lives in one
-             * translation unit rather than in every consumer's.
-             *
-             * @param engine The engine to record fills on.
-             * @param tensor The parameter's tensor.
-             * @param parameter The parameter's description.
-             * @param policy The initialisation policy.
-             * @param is_final_layer Whether this belongs to the zeroed classifier.
+             * @brief Applies policy initialization to one parameter tensor.
+             * @param engine Engine used to execute tensor fill operations.
+             * @param tensor Destination parameter tensor to fill.
+             * @param parameter Parameter metadata containing shape and role.
+             * @param policy Initialization policy configuration.
+             * @param is_final_layer True if parameter belongs to final classifier layer.
              */
             void apply_initializer(SushiBLAS::Engine& engine,
                                    SushiBLAS::Tensor& tensor,
@@ -207,23 +163,12 @@ namespace SushiAI
         }
 
         /**
-         * @brief Initialises every parameter of @p module and waits for the device.
-         *
-         * Seeds the engine's Philox stream from @p policy so a run is
-         * reproducible, walks the parameters through the one generic walk (so
-         * a layer cannot be skipped - see module.hpp), and flushes.
-         *
-         * The "final layer" is the last @c WEIGHT the walk yields, together
-         * with everything after it. That is a heuristic, and a deliberate one:
-         * it is exactly right for a feed-forward classifier, which is what
-         * @c zero_final_layer exists for, and it is stated here rather than
-         * inferred from a layer type the walk cannot see.
-         *
-         * @param engine The engine that owns the parameter tensors' memory.
-         * @param module The model to initialise; must already have been traced.
-         * @param pool Where the parameters' tensors live.
-         * @param policy The initialisation policy.
-         * @throws Error If a parameter has no tensor bound in @p pool.
+         * @brief Initializes every parameter of module and flushes the device.
+         * @param engine Engine managing parameter tensor memory.
+         * @param module Model to initialize whose parameters were declared during trace.
+         * @param pool Tensor pool binding parameter values.
+         * @param policy Initialization policy configuration.
+         * @throws Error If a parameter tensor is not bound in pool.
          */
         template<typename M>
         void initialize(SushiBLAS::Engine& engine, M& module, Graph::TensorPool& pool,

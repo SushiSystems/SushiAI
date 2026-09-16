@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file elementwise.cpp
+ * @brief Implements backward differentiation rules for elementwise operations.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/autograd/rules/elementwise.hpp>
 
 namespace SushiAI

@@ -21,6 +21,12 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+/**
+ * @file shape.cpp
+ * @brief Implements backward differentiation rules for shape and layout operations.
+ * @author Mustafa Garip
+ */
+
 #include <SushiAI/autograd/rules/shape.hpp>
 
 namespace SushiAI
@@ -45,8 +51,7 @@ namespace SushiAI
             const Graph::ValueId dy = tape.output_grad(0);
             if (dy == Graph::NO_VALUE) return;
 
-            // The adjoint of a permutation is the inverse permutation, which
-            // here is simply the conversion back to the operand's own layout.
+            // Permutation adjoint inverts by converting back to the operand layout.
             const Graph::ValueId x = tape.node().inputs[0];
             tape.contribute_input(0, tape.builder().layout_convert(
                 dy, tape.graph().value(x).layout));

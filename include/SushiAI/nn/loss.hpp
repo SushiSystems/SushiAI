@@ -21,14 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#pragma once
-
 /**
  * @file loss.hpp
- * @brief Objectives, expressed in the same IR as the model.
- *
- * Host lane: no SushiBLAS, no SYCL.
+ * @brief Declares loss functions and loss calculation modules for training.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -40,20 +39,7 @@ namespace SushiAI
     {
         /**
          * @struct CrossEntropyLoss
-         * @brief Mean cross-entropy over a batch, from raw logits.
-         *
-         * Emits @c LOG_SOFTMAX followed by @c NLL_LOSS as two nodes rather than
-         * one. Keeping them separate leaves the log-probabilities available to
-         * anything that wants them (a perplexity metric, a distillation term)
-         * and costs nothing, because the differentiation pass recognises the
-         * pair and emits the fused (softmax - target) / N gradient anyway -
-         * see autograd/rules/loss.cpp. Fusing in the forward direction would buy the same
-         * gradient and lose the intermediate.
-         *
-         * Targets are one-hot rows, not integer class indices. The fused
-         * gradient identity depends on each row summing to one; SushiBLAS has
-         * no gather, so a one-hot matrix is also the only shape the forward
-         * pass can evaluate without one.
+         * @brief Computes mean cross-entropy over a batch from raw logits.
          */
         struct CrossEntropyLoss
         {
