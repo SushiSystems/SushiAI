@@ -223,6 +223,12 @@ sa doxygen        # build the Doxygen API reference into docs/api-site/html/
 sa demo mlp       # train an MLP end to end (see below)
 ```
 
+`sa --help` groups the commands under Project, Models and Diagnostics, and each command's own help
+ends with examples. `sa train`, `sa inference` and `sa demo mlp` pass `--help` on to the program
+they run, so their flag lists come from that program. On a colour terminal the root screen shows
+the logo. On a dark terminal add `[cli]` and `background = "dark"` to `cli/config.local.toml` to
+give it a glow; `COLORFGBG` is read when the terminal sets it, and Windows Terminal does not.
+
 ## The demo (`sa demo mlp`)
 
 ```bash

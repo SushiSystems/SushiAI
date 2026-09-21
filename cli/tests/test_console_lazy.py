@@ -69,3 +69,11 @@ def test_unknown_attribute_raises_attribute_error():
     console_mod = _fresh_console_module()
     with pytest.raises(AttributeError):
         _ = console_mod.does_not_exist
+
+
+def test_current_returns_the_console_the_lazy_holder_builds(monkeypatch, tmp_path):
+    """current() hands the help group the same sushicore Console the output helpers use."""
+    monkeypatch.chdir(tmp_path)
+    console_mod = _fresh_console_module()
+    assert console_mod.current() is console_mod._lazy.get()
+    assert console_mod._lazy.built is True
