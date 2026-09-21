@@ -19,6 +19,12 @@ from .config import config_dir
 
 _lazy = LazyConsole(config_dir)
 
+
+def current():
+    """Return the sushicore Console this run prints through, building it on first use."""
+    return _lazy.get()
+
+
 # PEP 562: attributes resolve on first access, so importing this module never
 # touches the filesystem or the project layout.
 __getattr__ = _lazy.attribute

@@ -471,7 +471,7 @@ def run(target: str | None = None, sort: bool = False,
         return 1
 
     console.info(f"Executing: {exe.name}")
-    console.console.print(f"[dim]{exe}[/dim]")
+    console.console.print(f"[muted]{exe}[/muted]")
     return _RUNNER.run([str(exe), *(app_args or [])], root, env)
 
 
@@ -507,7 +507,7 @@ def demo(name: str, app_args: Sequence[str] | None = None) -> int:
 
     env = load_build_env(cfg, build_dir)
     console.info(f"Executing: {exe.name}")
-    console.console.print(f"[dim]{exe}[/dim]")
+    console.console.print(f"[muted]{exe}[/muted]")
     return _RUNNER.run([str(exe), *(app_args or [])], root, env)
 
 
@@ -540,7 +540,7 @@ def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
 
     env = load_build_env(cfg, build_dir)
     console.info(f"Executing: {exe.name}")
-    console.console.print(f"[dim]{exe}[/dim]")
+    console.console.print(f"[muted]{exe}[/muted]")
     return _RUNNER.run([str(exe), *app_args], root, env)
 
 

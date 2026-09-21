@@ -4,6 +4,8 @@ All notable changes to SushiAI are documented here.
 
 ## Unreleased
 
+- 2026-09-22 — cli: Grouped `sa --help` under Project, Models and Diagnostics and added examples to each command (`cli.py`, `console.py`).
+- 2026-09-22 — cli: Replaced raw Rich colour names with theme styles and raised the `sushicore` floor to 0.4.0 (`project.py`, `pyproject.toml`).
 - 2026-09-22 — build: Described this module in its own `sushi-module.toml`, so `hub` knows it from the checkout (`sushi-module.toml`).
 - 2026-09-22 — build: Took `sushicore` from PyPI instead of a sibling checkout (`cli/pyproject.toml`).
 - 2026-09-16 — docs: Standardized source comments and file headers across core and source trees (`include/`, `src/`).
