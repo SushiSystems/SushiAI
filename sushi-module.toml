@@ -1,0 +1,12 @@
+# What this module is. `hub` reads this when the checkout is in a workspace; when it is
+# absent, `hub` falls back to its own catalog entry for a module it already knows.
+# The format: docs/reference/MODULE_MANIFEST.md in the SushiStack repository.
+#
+# `fragment` is omitted: cli/sushistack.deps.toml is the default and where this module
+# keeps it.
+
+[module]
+name = "sushiai"
+alias = "sa"
+distribution = "source"
+repo = "https://github.com/sushisystems/sushiai.git"
