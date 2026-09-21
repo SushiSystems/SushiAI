@@ -4,6 +4,7 @@ All notable changes to SushiAI are documented here.
 
 ## Unreleased
 
+- 2026-09-22 — build: Took `sushicore` from PyPI instead of a sibling checkout (`cli/pyproject.toml`).
 - 2026-09-16 — docs: Standardized source comments and file headers across core and source trees (`include/`, `src/`).
 - 2026-09-16 — docs: Restructured documentation hierarchy and added repository hygiene tools (`docs/`, `tools/`).
 
