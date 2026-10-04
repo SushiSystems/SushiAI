@@ -15,7 +15,7 @@ from sushiai.cli import app
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean", "doxygen"],
     "Models": ["train", "inference", "demo"],
-    "Diagnostics": ["config", "env"],
+    "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
 
 # Commands whose --help is forwarded to the program they run, so no page is drawn for them.

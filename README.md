@@ -137,10 +137,10 @@ feature that plan hasn't reached.
   for why, and [INTEGRATION.md §3](docs/guides/INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply)
   for what it means if you are the consumer.
 
-C++ library dependencies and the SYCL toolchain are provisioned by
-[SushiStack](https://sushisystems.io) (the `hub` CLI), which owns dependency
-installation for the whole stack into one shared, workspace-level
-`dependencies/` tree.
+`sa setup` provisions the C++ library dependencies and the SYCL toolchain into
+the shared root, `~/.sushisystems` (or `SUSHISYSTEMS_HOME`).
+[SushiStack](https://sushisystems.io) (the `hub` CLI) provisions several
+checkouts at once.
 
 ## Quick start (one script)
 
@@ -217,6 +217,10 @@ packages.
 ### Other CLI commands
 
 ```bash
+sa setup          # provision the dependencies and write cli/config.local.toml
+sa doctor         # report whether this machine can build SushiAI
+sa link           # record this checkout in a workspace's module registry
+sa unlink         # remove it from that registry
 sa config         # print resolved config with per-field source annotation
 sa env            # print the environment cmake/ctest/run subprocesses see
 sa doxygen        # build the Doxygen API reference into docs/api-site/html/

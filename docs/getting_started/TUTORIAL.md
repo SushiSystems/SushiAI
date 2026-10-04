@@ -43,10 +43,12 @@ You need the SushiStack toolchain and two sibling checkouts:
 ```
 
 ```bash
-hub install               # provisions the toolchain (compiler, cmake, ninja, doxygen)
 hub install-cli sushiai   # puts `sa` and `sushiai` on your PATH
+sa setup                 # provisions the toolchain (compiler, cmake, ninja, doxygen)
 sa config                # shows what the CLI resolved, and where each value came from
 ```
+
+`hub install` provisions several checkouts at once; `sa setup` covers this one.
 
 If a sibling cannot be found, `sa build` fails immediately and names which one
 and where it looked — it does not let CMake's `add_subdirectory` error surface
