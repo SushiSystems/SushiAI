@@ -96,16 +96,6 @@ class Config(StackConfig):
         return self.sibling_dir(root, "sushiblas", self.sushiblas_dir)
 
 
-    def standalone_deps_dir(self, root: Path) -> Path:
-        """Outside a workspace, fall back to the runtime sibling's own bundle.
-
-        SushiRuntime is the ultimate owner of the toolchain bundle, so a
-        standalone checkout borrows it from the runtime it builds against
-        rather than provisioning a second copy.
-        """
-        return self.runtime_dir(root) / "dependencies"
-
-
 def load_config() -> Config:
     """Load and resolve the layered configuration for the current platform."""
     return _MODULE.load(Config)

@@ -42,10 +42,10 @@ and SushiBLAS. The CLI reads all of this from:
 - **`cli/config.toml`** — committed, shared defaults.
 - **`cli/config.local.toml`** — your machine's absolute paths (gitignored).
 
-In the common case — sibling `../sushiruntime` and `../sushiblas` checkouts
-with the bundled toolchain already provisioned by `hub install`, or a
-SushiStack workspace — no local config is needed at all. Run `sa config` to
-see exactly what the CLI resolved.
+With sibling `../sushiruntime` and `../sushiblas` checkouts, or inside a
+SushiStack workspace, run `sa setup` once: it provisions the toolchain and
+writes `cli/config.local.toml` for you. `hub install` does the same for
+several checkouts at once. Run `sa config` to see what the CLI resolved.
 
 ## Command overview
 
@@ -58,6 +58,9 @@ see exactly what the CLI resolved.
 | `sushiai inference` | Evaluate a trained checkpoint over a dataset |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
+| `sa setup` | Provision the dependencies and write the tool paths |
+| `sa doctor` | Report whether this machine can build SushiAI |
+| `sa link` / `unlink` | Add this checkout to a workspace's module registry, or remove it |
 
 Run any command with `--help` to see its options.
 
@@ -431,8 +434,8 @@ surface a consumer writes against.
 
 Doxygen itself is an external tool, not vendored — install it or point
 `doxygen_exe` in `cli/config.local.toml` at an existing binary; the command
-prints the right install line if it cannot find one. The stack's provisioned
-toolchain ships one, so `hub install` is usually enough.
+prints the right install line if it cannot find one. `sa setup` installs one
+with the rest of the shared tools.
 
 ## `sa config` and `sa env` — diagnostics
 
@@ -445,6 +448,41 @@ sa env --all      # show every variable, not just the build-relevant ones
 `sa config` prints both resolved sibling directories, the compiler, and the
 vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
 / an `SA_*` environment variable) supplied each field.
+
+## `sa setup`
+
+```bash
+sa setup --dry-run   # report what is missing and what would be written
+sa setup             # provision it
+```
+
+Provisions what `cli/sushistack.deps.toml` lists, and what the fragments of
+SushiRuntime and SushiBLAS list, into the shared root, `~/.sushisystems` (or
+`SUSHISYSTEMS_HOME`). It then writes the tool paths it found to
+`cli/config.local.toml` and prints the doctor report. It exits 2 and names the
+module when SushiRuntime or SushiBLAS has no checkout.
+
+- `--dry-run` reports what is missing and what would be written, and changes nothing.
+- `--yes` skips the confirmation prompt before the intel/llvm download.
+- `--toolchain <name>` also installs that toolchain. Repeatable.
+- `--no-gpu` skips the GPU toolkit.
+
+`hub install` provisions several checkouts at once; `sa setup` covers this one
+and the two it builds on.
+
+## `sa doctor`
+
+Reports whether this machine can build SushiAI, one row per check, and exits
+non-zero when a required check fails.
+
+- `--for GROUP` runs only that group's checks and counts its optional checks as required.
+
+## `sa link` and `sa unlink`
+
+`sa link` records this checkout in a SushiStack workspace's module registry;
+`sa unlink` removes it.
+
+- `--workspace <path>` names the workspace root.
 
 ## Building without the CLI
 
