@@ -112,14 +112,14 @@ namespace
 }
 
 /**
- * @brief Tests that twelve steps after the first leave the allocator's reference count unchanged.
+ * @brief Tests that twelve steps after the first leave the context's live allocation count unchanged.
  * @see tests/functional/regression/README.md
  */
 TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
     const auto live_allocations = [this]
     {
-        return engine->get_context().get_allocator()->get_ref_count();
+        return static_cast<std::int32_t>(engine->get_context().live_usm_count());
     };
 
     Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});

@@ -902,8 +902,8 @@ The file tests four guarantees of the static memory planner whose failure would 
 still converges, the run still reports success, and nobody notices.
 
 1. A training loop allocates nothing after the first step. The test counts this. Every Storage
-   holds a counted reference to the context's allocator, so the allocator's reference count is the
-   live-allocation count plus a constant, and one extra buffer moves it by exactly one.
+   allocates through the runtime context, so `RuntimeContext::live_usm_count()` is the
+   live-allocation count, and one extra buffer moves it by exactly one.
 2. Packing shrinks the footprint. A pass that quietly stopped packing would leave every other test
    in the suite green. The footprint is measured on the unfused graph, because fusion reaches the
    same bytes by a different route: it deletes the intermediates where packing overlaps them. A
