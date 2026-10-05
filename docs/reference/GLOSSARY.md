@@ -1,41 +1,62 @@
 # Glossary
 
-This document defines core terminology and abbreviations used across SushiAI and the wider SushiStack ecosystem.
+The words this repository's documents use, each with the header or file that defines it. Header
+paths are relative to `include/SushiAI/`.
 
-## Core Concepts
+## The graph
 
-### IR (Intermediate Representation)
-The declarative, graph-based representation of neural network computation in SushiAI. The IR separates high-level model semantics from low-level execution hardware. Graph structures reside under the `SushiAI::ir` namespace (`ir::Graph`, `ir::Node`, `ir::Value`).
+| Word | Meaning |
+| --- | --- |
+| IR | SushiAI's own graph: a single-assignment DAG of tensor operations, built on the host and touching no device. Namespace `SushiAI::Graph` (`graph/ir.hpp`) |
+| Node | One operation in the IR: an identity, its operands and its results (`Graph::Node`) |
+| Value | One single-assignment, tensor-shaped result in the IR (`Graph::Value`) |
+| Op identity | The name an operation carries, such as `sushiai.log_softmax`; all of them are declared in `core/ops.hpp` |
+| Lifetime | The class a value belongs to: `PARAMETER`, `GRADIENT`, `OPTIMIZER_STATE`, `INPUT`, `ACTIVATION` or `SCRATCH`. Only values of one class share an arena |
+| Layout | Where the channel axis sits. `NHWC` is the native layout; `NCHW` appears at a boundary only (`Graph::TensorLayout`) |
+| Backward rule | A function that writes the IR for one operation's gradient. Autograd is an IR-to-IR transform (`autograd/backward.hpp`, `src/autograd/rules/`) |
+| gradcheck | The finite-difference check of a backward rule, run in FLOAT64 (`autograd/gradcheck.hpp`) |
 
-### Node
-A discrete operation in the IR graph representing computation (e.g. `MatMulNode`, `ReluNode`, `CrossEntropyLossNode`). Nodes take zero or more input `Value` instances and yield one or more output `Value` instances.
+## From graph to device
 
-### Value
-A typed, shaped Static Single Assignment (SSA) handle flowing between IR nodes. Each `Value` tracks its producing node, data type (`float32`, `float16`), and multidimensional tensor shape.
+| Word | Meaning |
+| --- | --- |
+| Lowering | Translating IR operations into recorded SushiBLAS work (`Graph::Lowering`, `graph/lowering.hpp`) |
+| Compiled step | A graph lowered, compiled once and re-armed for every batch (`Graph::CompiledStep`) |
+| Compile once | The guarantee that `compile_count()` stays 1 however many batches run; a regression test pins it |
+| Replay | Running the compiled step again for the next batch without tracing or compiling |
+| Memory plan | One placement per value plus the arena sizes, computed from value lifetimes before any allocation (`Graph::MemoryPlan`, `graph/memory_plan.hpp`) |
+| Arena | One allocation that holds several values whose live ranges do not overlap (`Graph::Arena`, `Graph::ArenaSet`) |
+| Tensor pool | The owner of the device buffers behind graph values across steps, including per-node scratch and shared all-ones constants (`Graph::TensorPool`) |
+| Fusion catalog | The closed list of fused kernels this build contains (`Graph::FusedForm`, `graph/fusion.hpp`) |
+| Epilogue | Work folded into the end of a GEMM: the bias add and, for some entries, the activation |
+| Spill | The second value a fused GELU node writes, holding the pre-activation its gradient reads |
+| Rematerialisation | The pass that recomputes a stored `IM2COL` result at its later consumers (`graph/rematerialise.hpp`) |
+| Step scalars | A small device-resident float vector the host rewrites each step, for numbers that change between replays (`Optim::StepScalars`) |
 
-### CompiledStep
-An immutable, lowered execution plan produced by the compilation pipeline (`Compiler::compile`). It packages low-level kernel dispatch sequences, buffer address bindings, and device command queue captures. Repeated training or inference steps dispatch the `CompiledStep` directly without graph traversal overhead.
+## Training
 
-### Memory Arena / Scratch Arena
-A contiguous region of device memory allocated upfront and managed by SushiAI's linear or lifetime-aware allocator. Intermediate activation buffers and gradient workspaces borrow memory from this arena, eliminating dynamic runtime allocations during the training loop.
+| Word | Meaning |
+| --- | --- |
+| Mixed precision | Running products in fp16 while the weights the optimizer updates stay in fp32 (`--precision mixed`) |
+| Master weights | The fp32 copy of each parameter in a mixed-precision run |
+| Precision policy | The object that picks each operation's element type (`Graph::IPrecisionPolicy`, `graph/precision.hpp`) |
+| Cast insertion | The pass that adds type conversions where a policy changes the element type (`graph/cast_insertion.hpp`) |
+| Loss scale | The factor the loss is multiplied by before the backward pass, so fp16 gradients do not underflow (`--loss-scale`) |
+| Loss scaler | The state machine that holds the scale, screens gradients for overflow and backs the scale off (`Optim::LossScaler`) |
+| Objective | What a model is trained to minimise (`Train::IObjective`) |
+| Objective leaves | The graph values an objective declared, by role (`Train::ObjectiveLeaves`) |
+| Layer stack | A sequential list of layers chosen at run time; it enumerates parameters as `Sequential` does (`NN::LayerStack`) |
+| SACP | The first four bytes of every checkpoint file, ASCII "SACP", and the name of the format; version 1 (`io/checkpoint_format.hpp`) |
 
-### Loss Scaler
-A numerical stabilization mechanism used during mixed-precision training. Because gradient values in FP16 often underflow to zero, the loss scaler multiplies the forward loss by a scale factor $S$ before backward autograd. After backward propagation, gradients are scaled down by $1/S$ prior to optimizer weight updates.
+## Stack and tools
 
-### Dynamic Loss Scaling
-An adaptive loss scaling technique that monitors gradient values for `inf` or `nan` occurrences. If an overflow occurs, the optimizer skips the weight update, reduces the scale factor by a configured backoff factor, and resets the growth counter. If steps complete cleanly for a configured window, the scale factor doubles.
-
-### Epilogue
-An operation fused directly onto the output phase of a matrix multiplication or convolution kernel. Common epilogues include bias addition, scaling, and activation functions (e.g. ReLU, GELU). Epilogue fusion eliminates an extra global memory round-trip.
-
-### SACP (Sushi Autograd & Compilation Pipeline)
-The multi-pass compiler subsystem that ingests eager model definitions, generates reverse-mode autograd nodes, executes graph optimization passes (constant folding, dead-code elimination, kernel fusion), and lowers the resulting graph to hardware dispatchables.
-
-### D3 Layered Resolution
-The dependency lookup strategy enforced across all SushiStack repositories:
-1. First, check for an in-tree CMake target (used when built within a monorepo or superproject).
-2. Second, search for an installed package via CMake's `find_package()`.
-3. Third, search for sibling checkout directories (`../sushiruntime`, `../sushiblas`).
-
-### OpenCL / SPIR-V
-The standard cross-platform compute backend and intermediate bytecode format utilized by SushiAI's hardware runtime layer. Compute kernels are ingested as SPIR-V or compiled at runtime via OpenCL drivers across Intel, NVIDIA, and AMD hardware.
+| Word | Meaning |
+| --- | --- |
+| SushiStack | The set of repositories: SushiRuntime, SushiBLAS, SushiEngine, SushiAI and the hub |
+| Sibling | A checkout that sits beside this one, such as `../sushiruntime` or `../sushiblas` |
+| D3 | The order a dependency is resolved in: an in-tree CMake target, then an installed package through `find_package`, then a sibling checkout |
+| `sa` | This repository's CLI, also installed as `sushiai` (`cli/`) |
+| `hub` | The SushiStack workspace CLI, which installs module CLIs and provisions several checkouts |
+| ST, SB, AI | The three tracks of the roadmap: stack and CLI wiring, SushiBLAS repair, SushiAI construction. `AI-0` to `AI-7` are the steps of the third |
+| Checker | A script under `tools/` that reads the repository and reports where it breaks a skill |
+| Work folder | `docs/agent/<YYYY_MM_DD>_<WORK_NAME>/`, holding the `SPEC.md`, `PLAN.md` and `REPORT.md` of one piece of agent work |

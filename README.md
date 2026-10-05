@@ -15,8 +15,8 @@ landed since, and so has **mixed precision** — fp16 products with fp32
 master weights (`--precision mixed`) and gradient loss scaling with overflow
 backoff (`--loss-scale S`) — see
 [`docs/design/ROADMAP.md`](docs/design/ROADMAP.md)
-for the roadmap and [ARCHITECTURE.md §7](docs/architecture/ARCHITECTURE.md#7-whats-not-here-yet)
-for an honest list of what this tree does not do yet, including the limits the
+for the roadmap and [`REMAINING_WORK.md`](docs/design/REMAINING_WORK.md)
+for the list of what this tree does not do yet, including the limits the
 planner and the fusion catalog still have. Nothing in this document promises a
 feature that plan hasn't reached.
 
@@ -558,6 +558,8 @@ docs/
   guides/                    CLI guide and downstream integration guide
   reference/                 API reference, glossary, known issues, changelog
   design/                    Active design documents, roadmaps, single backlog
+  agent/                     One dated folder per piece of agent work
+  archive/                   Finished material, frozen
 ```
 
 ## Documentation

@@ -1,36 +1,28 @@
-# SushiAI Documentation Manual
+# SushiAI manual
 
-This directory contains the technical documentation, design specifications, and guides for SushiAI.
+What the library is and how to run it is in the root [`README.md`](../README.md). This tree is
+the manual.
 
-## Getting Started
+| Document | Holds |
+| --- | --- |
+| [Tutorial](getting_started/TUTORIAL.md) | An empty checkout to a trained model, then what each pipeline stage did with it |
+| [Architecture](architecture/ARCHITECTURE.md) | The IR, autograd, memory planning, fusion, mixed precision, lowering and packaging |
+| [CLI guide](guides/CLI_GUIDE.md) | Every `sa` command and its options |
+| [Integration guide](guides/INTEGRATION.md) | Consuming SushiAI from another CMake project |
+| [API reference](reference/API_REFERENCE.md) | The main page of the generated Doxygen site |
+| [Glossary](reference/GLOSSARY.md) | The words these documents use |
+| [Known issues](reference/KNOWN_ISSUES.md) | Defects that are recorded and not yet fixed |
+| [Changelog](reference/CHANGELOG.md) | What changed, by release |
+| [Code of conduct](reference/CODE_OF_CONDUCT.md) | What is expected in project spaces |
+| [Security policy](reference/SECURITY.md) | How to report a vulnerability |
+| [Design map](design/README.md) | Which design document covers which topic |
+| [Roadmap](design/ROADMAP.md) | The plan that builds SushiBLAS and SushiAI, by track |
+| [Remaining work](design/REMAINING_WORK.md) | The backlog |
+| [Contributing](CONTRIBUTING.md) | How a change is built, tested, documented and committed |
+| [Documentation style guide](DOCUMENTATION_STYLE_GUIDE.md) | Where a document goes and how it is written |
 
-- [Tutorial](getting_started/TUTORIAL.md): Walkthrough from an empty checkout to a trained model, explaining execution through each pipeline stage.
+READMEs beside the code: [`tools/README.md`](../tools/README.md) for the checkers and
+[`examples/heavy_mlp/README.md`](../examples/heavy_mlp/README.md) for the JSON-configured
+example.
 
-## Architecture
-
-- [Architecture Overview](architecture/ARCHITECTURE.md): System architecture, execution models, computational graph representation, static memory planning, operator fusion, and D3 dependency layering.
-
-## Guides
-
-- [CLI Guide](guides/CLI_GUIDE.md): Developer command line interface (`sa`) reference for building, testing, profiling, and running models.
-- [Integration Guide](guides/INTEGRATION.md): Integration instructions for downstream consumers using CMake and dynamic linking with SushiStack libraries.
-
-## Reference
-
-- [API Reference](reference/API_REFERENCE.md): Overview of primary namespaces, core classes, tensor abstractions, and operator entry points.
-- [Glossary](reference/GLOSSARY.md): Definitions of core terms, intermediate representation concepts, and pipeline abbreviations.
-- [Known Issues](reference/KNOWN_ISSUES.md): Measured runtime limitations, architectural debt, and hardware compatibility details.
-- [Changelog](reference/CHANGELOG.md): History of notable changes, feature additions, and fixes across releases and iterations.
-- [Code of Conduct](reference/CODE_OF_CONDUCT.md): Community guidelines and expectations.
-- [Security Policy](reference/SECURITY.md): Vulnerability reporting procedures and disclosure processes.
-
-## Design and Roadmaps
-
-- [Design Map](design/README.md): Topic mapping to active architectural design documents.
-- [SushiStack Construction & Roadmap](design/ROADMAP.md): Multi-phase implementation roadmap across SushiBLAS and SushiAI.
-- [Remaining Work](design/REMAINING_WORK.md): Single backlog tracking open technical debt, planned kernel fusions, and subsystem extensions.
-
-## Contributing and Standards
-
-- [Contributing Guide](CONTRIBUTING.md): Workflow instructions for coding standards, quality checks, test coverage, and pull requests.
-- [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md): Structural conventions, naming rules, and prose requirements for all repository documentation.
+Agent work folders are under `agent/`. Finished material is under `archive/` and is not edited.

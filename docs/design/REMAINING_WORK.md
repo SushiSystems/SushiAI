@@ -1,29 +1,107 @@
-# Remaining Work
+# Remaining work
 
-This document tracks all open technical debt, unfinished features, and planned architectural extensions across SushiAI.
+The single backlog of this repository. Work and decisions that are still open are listed here;
+a defect that exists today is in [`KNOWN_ISSUES.md`](../reference/KNOWN_ISSUES.md). The design
+behind the library items is in [`ROADMAP.md`](ROADMAP.md) and
+[`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md).
 
-## Memory Planning and Allocation
+## Memory planning
 
-- **Scratch memory arena packing:** `MemoryPlanner` packs graph IR values into activation arenas, but lowering-stage temporaries (`TensorPool::scratch()`) and shared constants (`ones()`) receive individual `Storage` allocations. Unifying these allocations requires an explicit host-lane scratch specification shared between `MemoryPlanner` and `Lowering` (`src/graph/memory_planner.cpp`, `src/graph/lowering.cpp`).
-- **Batch feeding without staging copies:** Feeding an input batch issues two `blas().copy()` calls per step because each batch presents new buffer addresses to recorded tasks. Removing these copies requires either runtime address late-binding or datasets that materialize directly into plan-allocated input buffers (`src/train/trainer.cpp`).
+- **Pack the lowering's scratch.** `MemoryPlan::build` packs graph IR values into arenas.
+  `TensorPool::scratch()` and `TensorPool::ones()` are not IR values, so each still gets one
+  `Storage`; on the demo that is about 2 KiB of 130 KiB. Packing them needs a host-lane
+  description of each operation's scratch, shared by the plan and `Lowering`. Today those shapes
+  are written inline in `record_log_softmax()` and `record_nll_loss()`
+  (`src/graph/memory_plan.cpp`, `src/graph/lowering.cpp`).
+- **Feed a batch without two copies.** A step issues two `blas().copy()` calls to move the batch
+  into the plan's input buffers, because a recorded SushiBLAS call captures its operand addresses
+  by value and every batch is a different source tensor. It needs either an operand-address late
+  binding that device tasks can use, or a `Dataset` that writes each batch into the two buffers
+  the plan owns. SushiRuntime's `LateBindings` re-points a node's iteration count, base index
+  and enabled flag, not the addresses its kernel captured, and
+  `TaskGraph::add_offload_dynamic()` carries re-pointable lists only for offloadable tasks with
+  a host fallback (`src/train/trainer.cpp`).
 
-## Operator Fusion and IR
+## Fusion and the IR
 
-- **Row-wise log-softmax kernel fusion:** `LOG_SOFTMAX` lowers to nine SushiBLAS calls. Folding these calls into a single fused operation requires adding an entry to the fusion catalog that uses `SushiBLAS::ReductionOps::max_along` and `sum_along` (`src/graph/fusion.cpp`, `src/graph/lowering.cpp`).
-- **Fused NLL loss with transform functor:** `NLL_LOSS` lowers to three calls because SushiBLAS whole-tensor reductions lack a transform functor for elementwise multiplication (`src/graph/lowering.cpp`).
-- **Standalone `LOG_SOFTMAX` backward IR node:** `LOG_SOFTMAX` autodiff currently functions only when fused with `NLL_LOSS`. Supporting standalone differentiation requires an explicit IR operation identity, builder method, shape inference rule, and lowering rule for row-wise sum reductions (`include/SushiAI/core/ops.hpp`, `src/autograd/rules/activation.cpp`).
+- **Fuse row-wise log-softmax.** `LOG_SOFTMAX` lowers to nine SushiBLAS calls, the largest term
+  in a step. `max_along` and `sum_along` exist in SushiBLAS, so what is missing is a fusion
+  catalog entry (`include/SushiAI/graph/fusion.hpp`, `src/graph/lowering.cpp`).
+- **Fuse `NLL_LOSS`.** It lowers to three calls because the SushiBLAS whole-tensor reduction
+  takes no transform functor, so the elementwise multiply cannot ride into the sum
+  (`src/graph/lowering.cpp`).
+- **Differentiate standalone `LOG_SOFTMAX`.** The rule is `dx = dy - exp(L) * rowsum(dy)` and a
+  backward rule writes IR, so it needs an IR node for a row-wise sum: an op identity, a builder
+  entry, a shape rule, a lowering and the rule (`include/SushiAI/core/ops.hpp`,
+  `src/autograd/rules/loss.cpp`).
 
-## Training and Precision
+## Training and precision
 
-- **Whole-step loss scaling skip:** In mixed precision, `LossScaler` evaluates overflow per parameter tensor. PyTorch's `GradScaler` behavior freezes all model parameters when any gradient overflows. Adding global step skipping requires expressing step-level dependency branches across `execute_zip_inplace` calls (`include/SushiAI/train/loss_scaler.hpp`).
-- **bfloat16 data type support:** `MixedPrecisionPolicy` accepts narrow data types via constructor arguments, but `SushiBLAS::Core::DataType` does not yet define bfloat16 (`include/SushiAI/graph/precision.hpp`).
+- **Skip the whole step on overflow.** `LossScaler` screens each parameter's gradient and skips
+  that parameter's update. Freezing every parameter when any gradient overflows needs a
+  dependency edge `execute_zip_inplace` cannot declare: one hand-written task that reads the
+  count buffer and writes a gradient (`include/SushiAI/optim/loss_scaler.hpp`).
+- **bfloat16.** `MixedPrecisionPolicy` takes its narrow type as a constructor argument, and
+  `SushiBLAS::Core::DataType` has no bfloat16 entry (`include/SushiAI/graph/precision.hpp`).
 
-## Dataset and Objective Generalization
+## Data and objectives
 
-- **Dataset contract generalization beyond classification:** `Data::Dataset::num_classes()` is pure virtual and `Data::Batch` assumes classification targets. Non-classification workloads (regression, object detection, physics-informed neural networks) require decoupling dataset interfaces from label-based classification (`include/SushiAI/data/dataset.hpp`).
-- **Arbitrary objective leaves in Trainer:** `Train::Trainer` explicitly feeds `StepSpec::targets`. Objectives with arbitrary input leaves require general leaf binding in `Trainer::step` (`src/train/trainer.cpp`, `include/SushiAI/train/objective.hpp`).
+- **Widen `Dataset` beyond classification.** `Data::Dataset::num_classes()` is pure virtual and
+  `Data::Batch` carries classification targets; a regression task or a detector has no answer
+  for either (`include/SushiAI/data/dataset.hpp`).
+- **Feed arbitrary objective leaves.** `Train::Trainer` writes `StepSpec::targets` each step. An
+  objective that declares another leaf in `ObjectiveLeaves` has nothing writing it
+  (`include/SushiAI/train/trainer.hpp`, `include/SushiAI/train/objective.hpp`).
 
-## Diagnostics and Verification
+## Diagnostics
 
-- **Reference loss curve tracking:** `sa demo mlp` verifies compilation count and steady-state allocations, but does not pin regression loss trajectories against golden runs (`cli/sushiai/commands/demo.py`).
-- **Per-node profiling output:** Emitting detailed per-node execution timings requires plumbing `SushiRuntime::RuntimeSettings::profiling` into CLI demo runners (`cli/sushiai/commands/demo.py`).
+- **Pin a reference loss curve.** `sa demo mlp` reports the compile count and the steady-state
+  allocations; no test compares a run's loss with a recorded one (`examples/demo_mlp.cpp`).
+- **Print per-node timings in the demo.** The table needs a `RuntimeSettings::profiling`
+  context, which the demo does not build (`examples/demo_mlp.cpp`, `src/train/trainer.cpp`).
+
+## Open questions from the roadmap
+
+[`ROADMAP.md`](ROADMAP.md) section 24 holds the wording. FFT backend for SushiBLAS: own SYCL
+FFT, optional oneMKL DFT, or none. Value-dependent control flow in autograd: out of scope for
+v1, to revisit for PINN and GNN work.
+
+## Documentation
+
+- **Make the root README a front door.** It is 584 lines and holds the demo transcript, the
+  fusion and mixed-precision measurements and the directory tree. The measurements belong in
+  the manual; the owner decides what stays (`README.md`).
+- **Module READMEs.** No folder beside the code has one except `tools/` and
+  `examples/heavy_mlp/`. The owner decides which folders are modules: the nine areas under
+  `include/SushiAI/`, `cli/`, `tests/`, `apps/`.
+- **Decide who owns the roadmap.** `ROADMAP.md` plans SushiBLAS and SushiAI together; sections 5
+  to 15 are about other repositories.
+- **Re-home the archived August plans.** `docs/archive/superpowers/` holds five files named in
+  lower-kebab; the archive shape for agent work is `docs/archive/agent/`.
+- **Humanizer pass** over `README.md`, `docs/guides/CLI_GUIDE.md`,
+  `docs/architecture/ARCHITECTURE.md` and `docs/design/ROADMAP.md`, which run 11 to 16 em dashes
+  per thousand words.
+- **Compare the manual with the code.** The audit did not check the numbers in `TUTORIAL.md`,
+  the prose of `ARCHITECTURE.md` sections 1 to 6, or the flag tables of `CLI_GUIDE.md`.
+
+## Layout, tools and release
+
+- **Declare the tiers.** `K_TIER_ORDER` in `tools/layering/check_layering.py` is empty, and the
+  checker looks for `modules/<tier>/` and `source/`, which this tree does not have.
+- **Folder names.** `src/`, `apps/`, `examples/`, `tests/functional/` and the root `Doxyfile`
+  depart from the `repository-layout` skill, as they do in SushiRuntime and SushiBLAS. One
+  decision covers the three repositories.
+- **Run the checkers in CI**, add a Windows lane and a release workflow
+  (`.github/workflows/ci.yml`).
+- **Tag a first release.** Every changelog entry sits under `## Unreleased` and the repository
+  has no tag; the declared version is 0.1.0.
+- **Tie the CLI version to the library version**, or state that they move apart
+  (`CMakeLists.txt`, `cli/pyproject.toml`).
+- **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
+
+## Estate programmes
+
+The estate audit of 2026-10-05 is in
+[`docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`](../agent/2026_10_05_ESTATE_AUDIT/REPORT.md).
+Its "Code shape" section, 22 findings from the lowering's dispatch chain to the error model, is
+the input of the code programme and is not restated here.

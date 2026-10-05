@@ -4,10 +4,7 @@ SushiAI ships with a small command-line tool that drives everything you do
 day to day: building the C++ library, running its tests, running the demo and
 the example, and generating documentation. It is a thin wrapper around CMake
 and CTest that reads your machine-specific toolchain paths from a config file
-so you don't have to retype long compiler flags. It's modeled directly on
-[SushiEngine](https://github.com/SushiSystems/SushiEngine)'s `se` CLI, not
-SushiBLAS's `sb` (which still models an older, pre-toolchain-refresh build) —
-except for `build -D`, which is `sb`'s and is mirrored here flag for flag.
+so you don't have to retype long compiler flags.
 
 ## Installing the CLI
 
@@ -23,11 +20,11 @@ They are identical; every example below uses `sa`.
 hub install-cli sushiai      # always editable, against this checkout
 ```
 
-This installs through **pipx** on every platform, into an isolated venv, then
-injects the shared `sushicore` package — which is published to no index, so pipx
-cannot resolve it as an ordinary dependency. The install is always editable and
-there is no flag to make it otherwise: a frozen copy would stop tracking
-`git pull`s on this checkout without ever saying so.
+This installs through **pipx** on every platform, into an isolated venv.
+`sushicore`, the package the stack's CLIs share, is a PyPI dependency declared
+in `cli/pyproject.toml`, so pipx resolves it with the rest. The install is
+always editable and there is no flag to make it otherwise: a frozen copy would
+stop tracking `git pull`s on this checkout without ever saying so.
 
 ```bash
 pipx uninstall sushiai-cli   # to remove it later

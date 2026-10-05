@@ -98,4 +98,4 @@ Two rules are worth knowing, because each closes a way of being quietly wrong:
   against a default.
 
 `sushiai train --help` and `sushiai inference --help` print their usage;
-[`docs/CLI_GUIDE.md`](../../docs/CLI_GUIDE.md) documents the schema in full.
+[`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) documents the schema in full.

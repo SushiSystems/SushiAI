@@ -1,6 +1,6 @@
 # SushiBLAS & SushiAI — SushiStack Construction and AAA-Quality Plan
 
-**Status:** Open — phase 2 of 4
+**Status:** Open — AI-0 to AI-4 landed and AI-7's gates are partly met; each section carries its own status
 
 **Mandate.** The macro architecture of the stack, stated once:
 
