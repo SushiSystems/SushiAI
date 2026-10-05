@@ -6,19 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// `sushiai inference <model.json> <model.ckpt> <eval.json>`
-//
-// Three positional arguments, and the data is one of them. The architecture
-// file carries no data block - it describes a model - so without it there
-// would be nothing to run on, and an optional flag that always errors when
-// omitted would be a lie about optionality.
-//
-// This traces the FORWARD PASS ONLY: no loss, no backward, no optimizer. There
-// is no objective here at all, and that is not an omission - inference does not
-// minimise anything, and asking a config for a loss it will not use would be
-// asking for a value with no meaning.
-//
-// Like apps/train.cpp, it names no layer type and no dataset type.
+/**
+ * @file inference.cpp
+ * @brief Runs `sushiai inference`: evaluates a trained checkpoint over a dataset, forward pass only.
+ * @author Mustafa Garip
+ * @see apps/README.md, "inference.cpp".
+ */
 
 #include <algorithm>
 #include <cstdlib>
@@ -34,6 +27,7 @@
 
 namespace
 {
+    /** @brief Holds the text `--help` prints. */
     constexpr std::string_view USAGE =
         "sushiai inference - evaluate a trained checkpoint over a dataset.\n"
         "\n"
@@ -43,7 +37,7 @@ namespace
         "  model.ckpt  the checkpoint `sushiai train` wrote\n"
         "  eval.json   the data to evaluate on; the architecture file carries none\n";
 
-    /** @brief The index of the largest of @p count values. */
+    /** @brief Returns the index of the largest of @p count values. */
     int64_t argmax_row(const float* row, int64_t count)
     {
         int64_t best = 0;
@@ -53,6 +47,7 @@ namespace
     }
 }
 
+/** @brief Runs the inference driver and returns its exit code. */
 int main(int argc, char** argv)
 {
     try
@@ -85,7 +80,7 @@ int main(int argc, char** argv)
                     model_path.string(), model_spec.input_features,
                     dataset->name(), dataset->input_dim());
 
-        // --- Trace the forward pass only ---------------------------------
+        // Only the forward pass is traced: no loss, no backward pass, no optimizer; see apps/README.md.
         sa::NN::LayerStack model = sa::NN::build_layer_stack(model_spec);
         const int64_t rows = dataset->batch_size();
         const int64_t outputs = model.output_features();
@@ -110,18 +105,7 @@ int main(int argc, char** argv)
                   << SushiBLAS::Core::format("Data       : {} ({} x {})\n\n",
                                              dataset->name(), dataset->batch_count(), rows);
 
-        // Two summaries, and the second is the one that means anything.
-        //
-        // The predicted-class distribution alone cannot distinguish a perfect
-        // model from a random one on class-balanced data - both give a uniform
-        // spread - so it is reported beside top-1 agreement with the labels
-        // the dataset supplies, not instead of it.
-        //
-        // Reading Batch::labels names no loss and no objective: labels are part
-        // of the Dataset seam, and top-1 agreement is a property of the data
-        // and the output, not of what the model was trained to minimise. It is
-        // reported only when the output width matches the class count, because
-        // otherwise the two are not comparable and a number would be fiction.
+        // Top-1 agreement is reported only when the output width equals the class count; see apps/README.md.
         const bool labelled = model.output_features() == dataset->num_classes();
 
         std::vector<std::size_t> predicted_counts(static_cast<std::size_t>(outputs), 0);

@@ -6,27 +6,14 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file test_throws.hpp
- * @brief Asserting that a failure is loud @e and says what is wrong.
- *
- * @c EXPECT_THROW proves only that something went wrong, which is the weaker
- * half of the contract. Every @c SA_THROW_IF in this library names the actual
- * problem - the two shapes that disagree, the operation with no rule, the
- * parameter nothing can move - and that naming is the part a reader depends on
- * at three in the morning. It is also the part a refactor silently destroys:
- * collapsing five specific diagnostics into one generic "invalid argument"
- * keeps every @c EXPECT_THROW passing.
- *
- * So the assertions below take the substrings the message must contain. A
- * diagnostic that stops naming the offending value fails the test that covers
- * it, rather than being noticed a year later by whoever hits it.
- *
- * Host lane: no SushiBLAS, no SYCL, so the device-free unit tier can use it
- * too.
+ * @brief Declares assertions that check an Error's message names what went wrong.
+ * @author Mustafa Garip
+ * @see tests/common/README.md, "test_throws.hpp".
  */
+
+#pragma once
 
 #include <exception>
 #include <initializer_list>
@@ -39,34 +26,25 @@ namespace SushiAI
 {
     namespace Test
     {
-        /**
-         * @struct ThrowOutcome
-         * @brief What running a statement actually did.
-         */
+        /** @brief Holds what running a statement did. */
         struct ThrowOutcome
         {
-            /** @brief It threw @c SushiAI::Error. */
+            /** @brief Holds whether it threw @c SushiAI::Error. */
             bool threw_error = false;
 
-            /** @brief It threw something that is not @c SushiAI::Error. */
+            /** @brief Holds whether it threw something that is not @c SushiAI::Error. */
             bool threw_other = false;
 
-            /** @brief The Error's message, when @c threw_error. */
+            /** @brief Holds the Error's message, when @c threw_error. */
             std::string message;
 
-            /** @brief The foreign exception's text, when @c threw_other. */
+            /** @brief Holds the foreign exception's text, when @c threw_other. */
             std::string other_what;
         };
 
         /**
          * @brief Runs @p action and reports how it failed, if it did.
-         *
-         * A foreign exception is recorded rather than propagated so the
-         * assertion can say "threw std::bad_alloc instead of SushiAI::Error",
-         * which is a far more useful failure than an aborted test.
-         *
-         * @param action The statement to run.
-         * @return What happened.
+         * @see tests/common/README.md, "test_throws.hpp".
          */
         template<typename Fn>
         ThrowOutcome capture_error(Fn&& action)
@@ -121,13 +99,9 @@ namespace SushiAI
 } // namespace SushiAI
 
 /**
- * @brief Asserts @p statement throws SushiAI::Error whose message names each
- *        of the remaining arguments.
- *
- * Parenthesise @p statement when it contains a top-level comma - the
- * preprocessor honours parentheses but not braces, so
- * @c SA_EXPECT_ERROR((Shape{1, 2}), "...") is required where
- * @c SA_EXPECT_ERROR(Shape{1, 2}, "...") would split into three arguments.
+ * @brief Asserts @p statement throws SushiAI::Error whose message names each remaining argument.
+ * @pre @p statement is parenthesised when it contains a top-level comma.
+ * @see tests/common/README.md, "test_throws.hpp".
  */
 #define SA_EXPECT_ERROR(statement, ...)                                        \
     EXPECT_TRUE(::SushiAI::Test::error_names(                                  \

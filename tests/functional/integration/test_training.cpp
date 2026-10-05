@@ -6,8 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The end-to-end gate: a real MLP, real data, real convergence - and the
-// compile-once guarantee held to account across every step of it.
+/**
+ * @file test_training.cpp
+ * @brief Tests that an MLP converges on the synthetic dataset and compiles its step once.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <memory>
@@ -18,8 +21,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 using Graph::ValueId;
@@ -39,9 +41,7 @@ namespace
 
 TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
 {
-    // Zeroing the last layer makes every logit zero, so every class is equally
-    // likely and the initial cross-entropy is ln(C) to the last digit. A
-    // number that can be asserted beats a number that has to be eyeballed.
+    // Zero logits make the first loss exactly ln(C); see tests/functional/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 6;
     const int64_t classes = 5;
@@ -71,9 +71,7 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
 
 TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
 {
-    // The AI-1 headline gate. A loop that recompiles per step still converges,
-    // it just pays graph analysis every step - a regression that hides for
-    // months unless something counts.
+    // The step must compile once over many steps; see tests/functional/integration/README.md.
     const int64_t batch = 16;
     const int64_t features = 8;
     const int64_t classes = 4;
@@ -112,8 +110,7 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
 
 TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
 {
-    // Compile-once is only half the claim; the other half is that replaying
-    // reuses the same buffers, so a long run does not creep.
+    // Replays must reuse the same buffers; see tests/functional/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 6;
     const int64_t classes = 3;
@@ -219,11 +216,7 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
 
 TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate)
 {
-    // The property the "eps after the bias correction" ordering exists to
-    // preserve. On step one, m / (sqrt(v / bc2) + eps) is g / (|g| + eps), so
-    // every coordinate moves by almost exactly the learning rate. Fold eps
-    // inside the correction and it becomes 31.6x larger, visibly damping this
-    // first step - which is the only place the bug is easy to see.
+    // Step one moves each coordinate by about lr; see tests/functional/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 4;
     const int64_t classes = 3;
@@ -265,8 +258,7 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
     std::size_t checked = 0;
     for (std::size_t i = 0; i < before.size(); ++i)
     {
-        // Skip coordinates whose gradient is small enough that eps genuinely
-        // matters; the claim is about the ordinary case.
+        // Coordinates where eps matters are skipped; see tests/functional/integration/README.md.
         if (std::abs(gradient[i]) < 1e-4) continue;
 
         const double moved = (after[i] - before[i]) / -adam.learning_rate;
@@ -320,9 +312,7 @@ TEST_F(Integration_Training, SgdWithoutMomentumIsExactlyMinusLearningRateTimesTh
 
 TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherThanZeroes)
 {
-    // The shared test context is built without RuntimeSettings::profiling, so
-    // the runtime records no timing. The report has to say that, not print a
-    // table of zeroes that reads like the work took no time.
+    // The shared context records no timing; see tests/functional/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 4;
     const int64_t classes = 3;
@@ -364,8 +354,7 @@ TEST_F(Integration_Training, ADisconnectedParameterIsRejectedRatherThanSilentlyS
     NN::Linear layer{features, classes};
     Train::TrainingGraph built = Train::build_classifier(layer, batch, features, classes);
 
-    // Fake a parameter that no gradient reaches, standing in for a layer wired
-    // into the model list but not into the forward pass.
+    // "ghost" is a parameter no gradient reaches; see tests/functional/integration/README.md.
     built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id(),
                                                        Graph::NO_VALUE});
 
@@ -382,11 +371,7 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
     options.classes = 4;
     options.seed = 4242;
 
-    // A fresh Engine per dataset, deliberately. SushiBLAS's Engine::set_seed()
-    // sets the seed but leaves the monotonic RNG offset counter alone, so a
-    // second generator built on an engine that has already drawn gets a
-    // different stream from the same seed. Reproducibility is therefore a
-    // property of a fresh engine, which is exactly how the trainer uses it.
+    // Each dataset gets a fresh Engine; see tests/functional/integration/README.md.
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::context());
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::context());
 
@@ -405,8 +390,7 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
         for (std::size_t i = 0; i < a.size(); ++i)
             EXPECT_DOUBLE_EQ(a[i], c[i]) << "batch " << b << " element " << i;
 
-        // Round-robin labels make every batch exactly balanced, so accuracy
-        // reads correctly without class weighting.
+        // Round-robin labels balance every batch; see tests/functional/integration/README.md.
         std::vector<int> histogram(4, 0);
         for (int32_t label : first.batch(b).labels) ++histogram[static_cast<std::size_t>(label)];
         for (int count : histogram) EXPECT_EQ(count, 2);

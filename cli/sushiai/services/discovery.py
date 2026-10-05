@@ -3,13 +3,9 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Locate built executables under SushiAI's build tree.
+"""Locates built executables under SushiAI's build tree.
 
-The walk itself is shared -- see :class:`sushicore.discovery.ExecutableIndex`.
-The only thing this module contributes is which directories to prune, and it
-does not spell them out either: they are the sibling checkouts PROFILE already
-names, because a module that builds a dependency in-tree must not offer that
-dependency's executables as its own.
+The reasoning is in cli/README.md under "services/discovery.py".
 """
 
 from __future__ import annotations

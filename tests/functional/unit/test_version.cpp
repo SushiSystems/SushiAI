@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_version.cpp
+ * @brief Tests that the runtime version agrees with the compile-time macros.
+ * @author Mustafa Garip
+ */
+
 #include <cstring>
 #include <gtest/gtest.h>
 #include <SushiAI/version.hpp>

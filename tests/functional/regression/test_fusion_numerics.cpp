@@ -6,62 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The gate on collapsing the forward and backward graph into fewer kernels.
-//
-// Fusion is a pure performance change over the only arithmetic in the library
-// nothing downstream validates, and every way it can be wrong is silent:
-//
-//  - an epilogue that adds the bias at the wrong coordinate still produces a
-//    loss that falls, because the model just learns a different bias;
-//  - an activation folded into a GEMM whose gradient needed the pre-activation
-//    trains towards the wrong place and reports nothing at all;
-//  - a fused kernel reading memory the dependency tracker cannot see races its
-//    own producer, and a race that usually resolves the right way looks exactly
-//    like training.
-//
-// So the fused graph is not tested against a tolerance. It is tested against
-// the unfused graph it replaced, byte for byte, from identical state.
-//
-// WHY BYTE FOR BYTE IS THE RIGHT BAR
-//
-// The same argument test_fused_optimizer.cpp makes for the optimizer. Every
-// element is computed by the same operations in the same order; the one
-// plausible source of a moved bit - a compiler contracting `a * b + c` into an
-// FMA inside one kernel where it could not across two - is ruled out by
-// `-ffp-contract=off`, which the whole stack inherits through SushiRuntime's
-// `sushiruntime_deterministic_fp` contract. Each fused functor is written in
-// the operand order of the calls it replaces, and where a constant reached a
-// kernel through a `float` parameter it still does.
-//
-// If this fails, the answer is to find which expression moved. Not to widen it.
-//
-// THE SECOND HALF: THE ACTIVATION THAT NEEDS A SPILL TO BE FUSED
-//
-// GELU's gradient differentiates at its input, so the epilogue that folds it
-// has to write that input to an auxiliary buffer on its way past -
-// cuBLASLt's GELU_AUX_BIAS, FusedForm::GEMM_BIAS_GELU here. Every way of
-// getting that wrong is silent, and worse than the others: a forward pass that
-// matches perfectly while the gradients are taken at the wrong point still
-// converges, just somewhere else.
-//
-// So a forward comparison is not the test and is not treated as one. The test
-// is that a GELU model trained end to end reaches byte-identical *parameters*
-// after 24 optimizer steps - which is a statement about the gradients, since
-// nothing else moves a weight - and it is taken three ways, against three
-// different fillings of the same buffer:
-//
-//   - AGeluMlpTrainsIdenticallyFusedAndUnfused, against the graph with no
-//     fusion pass at all;
-//   - DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt, against the same
-//     graph with only this catalog row switched off, so the difference is the
-//     entry and nothing else;
-//   - ASelectorRefusalStillFillsTheSpillAndMovesNoBit, against a selector that
-//     declines the fused arm, so the aux buffer is filled by a separate copy in
-//     the lowering rather than from inside the epilogue.
-//
-// TheSpillHoldsThePreActivationItself then reads the buffer directly and
-// compares it with a host-computed pre-activation, because three spellings can
-// agree while all three hold the wrong tensor.
+/**
+ * @file test_fusion_numerics.cpp
+ * @brief Tests that the fused graph trains byte for byte like the unfused graph it replaces.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cstddef>
 #include <cstdint>
@@ -73,8 +23,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/functional/regression/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::FusedForm;
 using Graph::FusionOptions;
@@ -122,18 +71,8 @@ namespace
 
     /**
      * @brief Trains one model end to end and reports everything comparable.
-     *
-     * A fresh Engine, because reproducibility is a property of one - see
-     * dataset.hpp on the RNG offset counter. AdamW rather than plain SGD
-     * because its division by an accumulated square root is where a one-ULP
-     * difference stops staying one ULP.
-     *
-     * @tparam M The model type.
-     * @param model The model to train; its parameters are declared by the trace.
-     * @param fusion What the fusion pass is allowed to do.
-     * @param selector Which spelling the lowering should use, or null for this
-     *        machine's own device.
-     * @return The trajectory, the final parameters and the plan's shape.
+     * @param selector Null selects this machine's own device.
+     * @see tests/functional/regression/README.md
      */
     template<typename M>
     TrainedRun train(M& model, FusionOptions fusion,
@@ -219,15 +158,8 @@ namespace
     }
 
     /**
-     * @brief A device profile that is not this machine's.
-     *
-     * The one device here is an OpenCL CPU with no dedicated scratchpad and, as
-     * it happens, doubles. A selector rule that can only be exercised on
-     * hardware nobody owns is a rule nobody has run, so the declining branches
-     * are driven from a described device instead.
-     *
-     * @param fp64 Whether the pretend device supports double precision.
-     * @return A plausible profile.
+     * @brief Returns a device profile that is not this machine's.
+     * @see tests/functional/regression/README.md
      */
     SushiBLAS::Device::Profile pretend_device(bool fp64)
     {
@@ -244,16 +176,12 @@ namespace
     }
 }
 
-// =========================================================================
-// 1. Fusing changes no number
-// =========================================================================
-
+/**
+ * @brief Tests that a ReLU MLP trains to identical bytes with fusion on and off.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, AReluMlpTrainsIdenticallyFusedAndUnfused)
 {
-    // The demo's own model. Both linear layers fuse - the first with its ReLU,
-    // the second without one - and so does the cross-entropy gradient's
-    // elementwise tail, which is three separate collapses reaching the same
-    // arithmetic in one run.
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     Mlp fused_model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
@@ -268,11 +196,12 @@ TEST_F(Regression_Fusion, AReluMlpTrainsIdenticallyFusedAndUnfused)
     expect_runs_agree(fused, plain, "fusing the forward and backward graph");
 }
 
+/**
+ * @brief Tests that a tanh MLP trains to identical bytes with fusion on and off.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, ATanhMlpTrainsIdenticallyFusedAndUnfused)
 {
-    // tanh's gradient reads its own output, so the pre-activation is dead and
-    // the whole layer folds. Its epilogue is a different template instantiation
-    // from ReLU's and gets its own comparison for that reason.
     using Mlp = NN::Sequential<NN::Linear, NN::Tanh, NN::Linear>;
 
     Mlp fused_model(NN::Linear{FEATURES, HIDDEN}, NN::Tanh{}, NN::Linear{HIDDEN, CLASSES});
@@ -299,19 +228,12 @@ TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
     expect_runs_agree(fused, plain, "a fused sigmoid epilogue");
 }
 
-// =========================================================================
-// 2. The activation that must NOT be fused
-// =========================================================================
-
+/**
+ * @brief Tests that a GELU MLP trains to identical bytes with fusion on and off.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
 {
-    // The trap, end to end, and the claim that matters is about the *gradients*
-    // rather than the forward pass. A GEMM_BIAS_GELU that computed the right
-    // activation and spilled nothing would match the unfused forward exactly
-    // and still differentiate at the wrong tensor - nothing would throw, no
-    // value would go non-finite, and the loss would still fall. What it could
-    // not do is land the parameters on the same bits after 24 AdamW steps,
-    // because a weight only moves by its gradient.
     using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     Mlp fused_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
@@ -320,16 +242,14 @@ TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
 
-    // Two linear layers - the first folding its GELU, the second with no
-    // activation to fold - and the cross-entropy gradient tail.
+    // Two layers and the gradient tail fuse; see tests/functional/regression/README.md.
     EXPECT_EQ(fused.fused_subtrees, 3u)
         << "expected gemm+bias+gelu, gemm+bias and the cross-entropy gradient tail";
     ASSERT_EQ(plain.fused_subtrees, 0u);
 
     expect_runs_agree(fused, plain, "a GELU epilogue spilling its pre-activation");
 
-    // And it really did learn something, so "identical" is not two identically
-    // broken runs.
+    // The loss fell, so both runs really trained; see tests/functional/regression/README.md.
     ASSERT_GE(fused.losses.size(), 2u);
     EXPECT_LT(fused.losses.back(), fused.losses.front())
         << "the GELU model did not train at all, so agreeing with the control proves nothing";
@@ -349,9 +269,7 @@ TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
         EXPECT_NE(decline.reason, Graph::FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION)
             << built.fusion.to_string();
 
-    // The spilled value is the one the backward rule reads. Checked on the IR
-    // rather than through a loss, because "the gradient is taken at the right
-    // tensor" has no numerical symptom when it is wrong.
+    // gelu_backward must read the spilled value; see tests/functional/regression/README.md.
     const Graph::FusedSubtree* gelu = nullptr;
     for (const Graph::FusedSubtree& subtree : built.fusion.fused())
         if (subtree.form == FusedForm::GEMM_BIAS_GELU) gelu = &subtree;
@@ -373,11 +291,12 @@ TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
            "buying nothing and the fold is the silently wrong one";
 }
 
+/**
+ * @brief Tests that the spill buffer holds the host-computed pre-activation.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
 {
-    // Read directly, not inferred from a downstream consequence. Everything
-    // else about this entry is checked through gradients that agree, and two
-    // spellings can agree while both hold the wrong tensor.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     constexpr int64_t ROWS = 4;
@@ -393,8 +312,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
     const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
     const Graph::ValueId out = builder.gelu(pre);
 
-    // `pre` is deliberately NOT observed: the fold has to survive on the spill
-    // and not on a pin, or this test would be pinning the wrong thing.
+    // `pre` is unobserved; the fold rests on the spill; see tests/functional/regression/README.md.
     const std::vector<Graph::ValueId> observed{out};
     FusionOptions options;
     options.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
@@ -434,9 +352,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
 
     ASSERT_EQ(spilled.size(), static_cast<std::size_t>(ROWS * OUT_DIM));
 
-    // The reference the spill is compared against is computed here, on the
-    // host, from the inputs - not read out of some other tensor the same kernel
-    // wrote.
+    // The reference is computed on the host; see tests/functional/regression/README.md.
     std::size_t separated = 0;
 
     for (int64_t row = 0; row < ROWS; ++row)
@@ -451,13 +367,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
             EXPECT_NEAR(spilled[index], expected, 1e-5)
                 << "the spill at (" << row << ", " << col << ") is not the pre-activation";
 
-            // And it is emphatically not the *post*-activation, which is the
-            // value a spill-less fold would leave for the backward pass. Where
-            // that check is made matters: gelu(x) tends to x for large positive
-            // x, so the two agree there to within a rounding error and an
-            // assertion taken on |x| large would be satisfied by either tensor.
-            // On the negative side gelu tends to zero instead, so a
-            // sufficiently negative element separates them by about |x|.
+            // Only a negative element separates them; see tests/functional/regression/README.md.
             if (expected < -0.5)
             {
                 ++separated;
@@ -472,13 +382,12 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
            "above never distinguished the spill from the result";
 }
 
+/**
+ * @brief Tests that a refused GELU epilogue still fills the spill and trains to identical bytes.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
 {
-    // The control that makes the case above a test rather than a description.
-    // With the fused arm declined, the aux buffer is filled by a separate copy
-    // in Lowering::record_fused_gemm instead of by the epilogue - a completely
-    // different code path to the same buffer - and the gradients have to come
-    // out identical. Delete either write and this comparison fails.
     class RefuseEverything final : public Graph::IFusionSelector
     {
         public:
@@ -504,14 +413,12 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
     expect_runs_agree(taken, refused, "a declined GELU epilogue that still spills");
 }
 
+/**
+ * @brief Tests that disabling the GELU form trains to the same bytes as folding it.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
 {
-    // The A/B the brief for this entry is really about: the same model with the
-    // catalog row on and off. Off, the GELU is an ordinary IR node and the
-    // pre-activation is an ordinary value; on, it is a second output of a
-    // fused GEMM written from inside a device kernel. The parameters after 24
-    // steps have to be the same bits, and they are only the same bits if the
-    // gradients were.
     using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     Mlp folded_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
@@ -527,29 +434,18 @@ TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
     EXPECT_EQ(folded.fused_subtrees, separate.fused_subtrees)
         << "switching the three-node form off must fall back to gemm+bias, not to nothing";
 
-    // Two kernels more, exactly as switching the ReLU form off costs two: the
-    // activation becomes an out-of-place IR node again, which is a copy and a
-    // gelu. The spill costs nothing on this side, because the value the fused
-    // node spilled is the value BIAS_ADD writes anyway.
+    // Disabling the form costs exactly two kernels; see tests/functional/regression/README.md.
     EXPECT_EQ(separate.operations_per_step, folded.operations_per_step + 2u);
 
     expect_runs_agree(folded, separate, "switching the fused GELU epilogue off");
 }
 
-// =========================================================================
-// 3. What it actually cost, counted
-// =========================================================================
-
+/**
+ * @brief Tests that the fused ReLU MLP step issues ten fewer operations than the unfused one.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 {
-    // The headline claim, counted rather than timed - a wall clock says
-    // different things on a loaded machine, and this is the number the change
-    // actually controls.
-    //
-    // Ten, for this model: the first layer's gemm+bias+relu replaces five calls
-    // (gemm; copy and ger for the bias; copy and relu) with one, the second
-    // layer's gemm+bias replaces three with one, and the cross-entropy
-    // gradient's exp/sub/scale replaces five with one.
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     Mlp fused_model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
@@ -560,31 +456,17 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 
     EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 10u);
 
-    // And no price beside it. Each fused GEMM used to need a host-side ordering
-    // node carrying the dependency edges execute_gemm could not declare for a
-    // bias its functor dereferences - two layers, two extra nodes. SushiBLAS's
-    // seam takes the epilogue's own access set now, so `operations_per_step` is
-    // the whole plan again and the two counts cannot drift apart.
+    // Fusing adds no ordering node and no compile; see tests/functional/regression/README.md.
     EXPECT_EQ(fused.compiles, 1u);
     EXPECT_EQ(plain.compiles, 1u);
 }
 
+/**
+ * @brief Tests that a fused GEMM depends on the task that writes the bias its epilogue reads.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
 {
-    // The hazard the fused spelling carries and the unfused one does not: the
-    // epilogue dereferences the bias from inside the GEMM kernel, and the
-    // optimizer rewrites that same bias inside this same compiled plan.
-    // SushiBLAS cannot see into the functor, so the declaration is this
-    // library's to make - `gemm_epilogue(f).reads(bias)` in
-    // Lowering::record_fused_gemm.
-    //
-    // Asserted on `in_degree`, never on a loss. With no edge the two tasks may
-    // still come out in the right order on any given run, so a loss that falls
-    // proves nothing at all about ordering - which is exactly why this failure
-    // mode survives an otherwise green suite. The node count is asserted for
-    // the same reason it is worth stating: this used to be three nodes, the
-    // third being a host-side ordering node that ran nothing and existed only
-    // to carry this edge.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Graph::Graph graph;
@@ -600,9 +482,7 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
     TensorPool pool(engine);
     pool.materialise_leaves(graph);
 
-    // Stands in for the optimizer's update: a task in this same plan that
-    // writes the very bias the epilogue reads. Recorded first, so an edge can
-    // only run from it to the GEMM.
+    // Recorded first: the edge can only run to the GEMM; see tests/functional/regression/README.md.
     SushiBLAS::Tensor& bias = pool.tensor(b);
     engine.elementwise().mul(bias, bias, bias);
 
@@ -621,15 +501,12 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
            "pass has read the old value - which still trains, and still reports success.";
 }
 
+/**
+ * @brief Tests that the reader of the spill depends on the fused GEMM that fills it.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt)
 {
-    // The other half of the epilogue's access set, and the half only the
-    // spilling arm has. `.reads(bias)` orders the GEMM behind whoever writes
-    // the bias; `.writes(aux)` orders whoever reads the spill behind the GEMM.
-    // Without it the backward pass that differentiates at the pre-activation
-    // races the kernel that produced it - and a race that usually resolves the
-    // right way is indistinguishable from training, which is why this is
-    // asserted on in_degree and never on a loss.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Graph::Graph graph;
@@ -640,8 +517,7 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt
     const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
     const Graph::ValueId out = builder.gelu(pre);
 
-    // A reader of the pre-activation, emitted after the GELU exactly as the
-    // differentiation pass emits gelu_backward.
+    // Emitted after the GELU, as gelu_backward is; see tests/functional/regression/README.md.
     const Graph::ValueId dy = builder.input(Shape{BATCH, HIDDEN}, "dy");
     (void)builder.activation_backward(Ops::GELU_BACKWARD.id, dy, pre);
 
@@ -671,11 +547,12 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt
            "while the run still trains and still reports success.";
 }
 
+/**
+ * @brief Tests that disabling GEMM_BIAS_RELU falls back to GEMM_BIAS and moves no byte.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
 {
-    // The A/B knob the measurement above needs, and the escape hatch a caller
-    // who has measured otherwise on their model needs. Switching the three-op
-    // GEMM form off must fall back to the two-op one rather than to nothing.
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     Mlp whole_model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
@@ -688,27 +565,17 @@ TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
     const TrainedRun whole = train(whole_model, FusionOptions{});
     const TrainedRun some = train(narrowed_model, narrowed);
 
-    // Two kernels more, not one, and the difference between the two ways of
-    // declining is worth knowing. Refused *here*, at the catalog, the ReLU
-    // stays an ordinary IR node - and an IR activation is out of place, so it
-    // lowers to a copy and a ReLU. Refused by the *selector* instead (the test
-    // below), the node is already fused and its output tensor is the
-    // activation's own result, so the trailing ReLU runs in place and costs
-    // one. Same numbers either way; different launch counts.
+    // A catalog refusal costs two kernels, not one; see tests/functional/regression/README.md.
     EXPECT_EQ(some.operations_per_step, whole.operations_per_step + 2u);
     expect_runs_agree(whole, some, "switching the fused ReLU epilogue off");
 }
 
-// =========================================================================
-// 4. The dynamic selector
-// =========================================================================
-
+/**
+ * @brief Tests that a selector refusing every form yields an unfused plan with identical bytes.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
 {
-    // The seam's whole promise: the static pass decides what *could* be fused
-    // and the selector decides what is, so a device that wants none of it gets
-    // an unfused plan out of a fused graph - with the same numbers, because
-    // every spelling of a fused node is the same arithmetic.
     class RefuseEverything final : public Graph::IFusionSelector
     {
         public:
@@ -759,12 +626,12 @@ TEST_F(Regression_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKe
     EXPECT_EQ(without.choose(query).form, FusedForm::GEMM_BIAS_RELU);
 }
 
+/**
+ * @brief Tests that host-executing modes are refused a GEMM epilogue and keep the zip form.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
 {
-    // Under FORCE_REFERENCE and VERIFY the epilogue is invoked on the host by
-    // Kernels::Reference::gemm, so any pointer it carries must be host-readable
-    // there. SushiAI's own allocations are shared USM and would be; a bound
-    // one need not be, and nothing here can ask which it got.
     Graph::FusionQuery gemm;
     gemm.matched = FusedForm::GEMM_BIAS;
     gemm.rows = 32;
@@ -777,8 +644,7 @@ TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferences
         EXPECT_EQ(selector.choose(gemm).form, FusedForm::NONE)
             << "mode " << static_cast<int>(mode);
 
-        // The zip-based form runs no host arm, so it is unaffected - a blanket
-        // refusal here would be a different bug from the one being prevented.
+        // The zip form runs no host arm; see tests/functional/regression/README.md.
         Graph::FusionQuery zip;
         zip.matched = FusedForm::EXP_SUB_SCALE;
         zip.rows = 32;
@@ -801,11 +667,12 @@ TEST_F(Regression_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirect
     EXPECT_EQ(selector.choose(query).form, FusedForm::NONE);
 }
 
+/**
+ * @brief Tests that every selector choice carries a non-empty reason.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Fusion, EveryChoiceCarriesAReasonSomebodyCanRead)
 {
-    // A selector nobody can interrogate is a selector nobody will trust, for
-    // the same reason the static pass carries a report: both of its answers
-    // produce a plan that trains.
     const Graph::DeviceFusionSelector selector(pretend_device(true),
                                                SushiBLAS::ExecutionMode::AUTO);
 

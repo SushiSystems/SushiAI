@@ -6,8 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: the IR and its builder are host-lane, which is the whole point
-// of keeping shape inference out of the lowering.
+/**
+ * @file test_ir.cpp
+ * @brief Tests the IR's single-assignment and ordering rules and the builder's shape inference.
+ * @author Mustafa Garip
+ */
 
 #include <gtest/gtest.h>
 #include <SushiAI/graph/ir.hpp>
@@ -49,8 +52,7 @@ TEST(Unit_Ir, AddNodeClaimsItsOutputs)
 
 TEST(Unit_Ir, ASecondProducerForOneValueThrows)
 {
-    // Single assignment is the property that lets differentiation skip alias
-    // analysis entirely, so a double write is rejected rather than tolerated.
+    // A value has exactly one producer; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const ValueId a = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
     const ValueId b = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
@@ -168,8 +170,7 @@ TEST(Unit_Ir, BuilderRejectsMixedElementTypes)
 
 TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
 {
-    // Insertion order is relied on as a topological order by the lowering and
-    // (reversed) by differentiation, so it is asserted rather than assumed.
+    // Insertion order is a topological order; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -188,12 +189,7 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
 
 TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
 {
-    // The half of insert_node's ordering guard that single-assignment does not
-    // already cover. A result with no producer passes the single-assignment
-    // check whatever its position, so without this the function would accept a
-    // producer placed after its own reader - exactly the arrangement it exists
-    // to prevent, and one MemoryPlan::build() would then reject on a graph
-    // insert_node had approved.
+    // insert_node refuses a producer placed after its reader; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
     const ValueId orphan = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "orphan");
@@ -205,13 +201,11 @@ TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
     SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}),
                     "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
 
-    // Rejected rather than half-applied: nothing was inserted and no producer
-    // was claimed.
+    // A rejected insert leaves the graph unchanged; see tests/functional/unit/README.md.
     EXPECT_EQ(graph.node_count(), 1u);
     EXPECT_EQ(graph.value(orphan).producer, NO_NODE);
 
-    // The same node ahead of that reader is fine, which is what makes the
-    // rejection above a statement about position rather than about the node.
+    // The same node ahead of the reader is accepted; see tests/functional/unit/README.md.
     EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}));
     EXPECT_EQ(graph.node_count(), 2u);
     EXPECT_EQ(graph.value(orphan).producer, Graph::NodeId{0});
@@ -237,16 +231,7 @@ TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
 
 TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 {
-    // Ten, not eight. CV-5's eight are the geometry: kernel_h/w, stride_h/w,
-    // dilation_h/w, pad_top, pad_left. Slots 8 and 9 are the output extents
-    // out_h and out_w, and they have to be carried rather than re-derived:
-    // deriving them from the geometry assumes symmetric padding, and an
-    // asymmetric window grid can derive to its own transpose with the same
-    // window count, which every downstream shape check accepts.
-    //
-    // Ten is not capped by anything downstream. Nothing copies an attribute
-    // into a fixed-width metadata array - lowering.cpp reads slots with get()
-    // and passes the values straight to SushiBLAS.
+    // Slots 8 and 9 carry the output extents out_h and out_w; see tests/functional/unit/README.md.
     EXPECT_EQ(Graph::Attributes::CAPACITY, std::size_t{10});
 
     Graph::Attributes a;

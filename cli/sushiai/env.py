@@ -3,17 +3,9 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Build-environment snapshotting for the SushiAI CLI.
+"""Loads the environment that build, test and run subprocesses inherit.
 
-A parent process cannot ``call vcvars64.bat`` and inherit the result, so the
-shell is run as a child and its environment dumped -- see
-:mod:`sushicore.build_env` for the mechanism and the cache.
-
-SushiAI selects no SYCL toolchain of its own: it builds with the intel/llvm
-clang++ in the shared SushiStack dependency tree. That makes its environment
-work exactly :class:`sushicore.build_env.StackBuildEnv` -- load MSVC on Windows,
-put the shared toolchain's bin/lib on PATH -- with the sibling checkouts in the
-cache key coming from PROFILE rather than being listed here again.
+The reasoning is in cli/README.md under "env.py".
 """
 
 from __future__ import annotations

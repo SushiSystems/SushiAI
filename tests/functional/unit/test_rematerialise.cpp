@@ -6,28 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free. The IM2COL rematerialisation pass is an IR-to-IR rewrite, so
-// what it produces is a graph that can be inspected node by node.
-//
-// This tier proves the *structure*: that a clone appears, that it reads the
-// same operands and carries the same attributes as the node it copies, that it
-// is inserted ahead of its consumers rather than after them, and that an
-// inference graph is left alone. It cannot prove the numbers are unchanged -
-// that is Integration_Rematerialise, which runs the same graph twice.
-//
-// The brief's three cases are all here, with two deviations forced by the
-// library rather than chosen:
-//
-//   1. Autograd::differentiate() refuses any root that is not a scalar
-//      produced by NLL_LOSS (see differentiator.cpp, which explains why every
-//      other root would silently return empty gradients). The brief's graphs
-//      stopped at a MATMUL, so each is carried on to a loss here. The shapes,
-//      geometry and expectations are the brief's.
-//   2. A "backward consumer" cannot be identified by node index, because the
-//      pass runs when the backward nodes are already in the graph and there is
-//      no marker separating the phases. The rule the pass actually applies is
-//      "every consumer after the first", which is the same set for every graph
-//      differentiation produces and is well-defined for one it did not.
+/**
+ * @file test_rematerialise.cpp
+ * @brief Tests the structure of the graph that the IM2COL rematerialisation pass rewrites.
+ * @author Mustafa Garip
+ */
 
 #include <array>
 #include <cstddef>
@@ -106,10 +89,7 @@ namespace
 
 TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 {
-    // The number CV-10 is about: ResNet-18's first block at batch 128 holds
-    // 128*32*32*64*9*4 bytes = ~302 MB in this one buffer, and there are twenty
-    // convolutions. Cloning the gather next to its backward consumer drops the
-    // lifetime to SCRATCH, so one is live at a time instead of twenty.
+    // The column buffer's lifetime drops to SCRATCH; see tests/functional/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{2, 5, 5, 3}, Shape{27, 8});
 
@@ -128,10 +108,7 @@ TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 
 TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 {
-    // A clone that read a different operand or carried different attributes
-    // would produce a plausible column matrix and a wrong weight gradient. Both
-    // are checked because the geometry lives in the attributes and is easy to
-    // drop when copying a node.
+    // The clone reads the same operands and attributes; see tests/functional/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
 
@@ -157,9 +134,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
             EXPECT_EQ(n.attributes.get(slot), original.attributes.get(slot))
                 << "the clone lost attribute slot " << slot;
 
-        // Same description, and the same layout: the layout is a graph-wide
-        // invariant, and a clone that dropped it would fail finalise() on a
-        // graph that is numerically correct.
+        // The clone keeps the description and the layout; see tests/functional/unit/README.md.
         const Graph::Value& copy = c.graph.value(n.outputs.front());
         const Graph::Value& stored = c.graph.value(c.cols);
         EXPECT_EQ(copy.shape, stored.shape);
@@ -172,11 +147,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 
 TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 {
-    // The failure this catches is not a wrong number, it is a graph whose
-    // insertion order stopped being a topological order - a recomputation
-    // appended after the GEMM that reads it. MemoryPlan::build() rests on that
-    // order and says so by name, and a lowering that got past it would record a
-    // GEMM against a buffer nothing had written yet.
+    // A clone precedes every consumer it serves; see tests/functional/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
     Graph::rematerialise_im2col(c.graph);
@@ -199,8 +170,7 @@ TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 
 TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 {
-    // Inference: nothing was differentiated, so there is no second consumer and
-    // cloning would be a free slowdown.
+    // An inference graph has no second consumer; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
@@ -220,9 +190,7 @@ TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 
 TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 {
-    // The other half of the inference case, and the one that would break if the
-    // pass cloned for *every* consumer rather than every consumer after the
-    // first: here the column matrix has exactly one reader, the GEMM.
+    // A column matrix with one reader is not cloned; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
@@ -245,9 +213,7 @@ TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 
 TEST(Unit_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
 {
-    // The clone has one consumer of its own once the rewiring is done, so the
-    // pass has no reason to rematerialise its own output. If it did, the pass
-    // would not terminate on a graph with three consumers.
+    // The clone has one consumer, so a second run adds none; see tests/functional/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
 

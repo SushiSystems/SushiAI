@@ -3,15 +3,9 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Diagnostic commands: inspect the resolved config and the build environment.
+"""Wires SushiAI's profile, config module and build environment into the shared diagnostics.
 
-Read-only troubleshooting. When a build picks the "wrong" compiler or a path
-looks off, `sa config` answers *what* the CLI resolved and *where each value
-came from*, and `sa env` answers *which environment* cmake/ctest run under.
-
-Both are :class:`sushicore.diag.Diagnostics`; what this file supplies is the
-three things that are actually SushiAI's -- its profile, its config module, and
-how it finds its build directory.
+The reasoning is in cli/README.md under "services/diag.py".
 """
 
 from __future__ import annotations

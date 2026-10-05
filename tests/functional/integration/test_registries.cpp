@@ -6,14 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The two registries that need an Engine to exercise: datasets allocate device
-// tensors, and optimizers allocate their state buffers. The layer and
-// objective registries are host-lane and live in the unit tier.
-//
-// Rings gets a real test of its defining property - that it is NOT linearly
-// separable - rather than only a shape check. A dataset whose whole reason to
-// exist is "a single Linear layer cannot solve this" should fail if it ever
-// quietly becomes solvable.
+/**
+ * @file test_registries.cpp
+ * @brief Tests the dataset and optimizer registries, which need an Engine.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <memory>
@@ -50,8 +47,7 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
     EXPECT_EQ(dataset.num_classes(), 4);
     EXPECT_EQ(dataset.batch_count(), 4u);
 
-    // Round-robin assignment, so every batch is exactly balanced and accuracy
-    // needs no class weighting to read correctly.
+    // Round-robin labels balance every batch; see tests/functional/integration/README.md.
     std::vector<int> counts(4, 0);
     for (int32_t label : dataset.batch(0).labels) ++counts[static_cast<std::size_t>(label)];
     EXPECT_EQ(counts, (std::vector<int>{8, 8, 8, 8}));
@@ -59,11 +55,7 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
 
 TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
 {
-    // This is the property the whole problem rests on: the class is a function
-    // of x^2 + y^2, which is degree 2 in the inputs and therefore not a
-    // half-space. If a change ever made the radius bands overlap or the labels
-    // track something linear, this fails rather than the accuracy quietly
-    // rising in some other test.
+    // The class is a function of x^2 + y^2; see tests/functional/integration/README.md.
     Data::RingsOptions options;
     options.batch_size = 64;
     options.batches = 1;
@@ -102,9 +94,7 @@ TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 
 TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
 {
-    // A host RNG rather than the engine's Philox stream, so reproducibility is
-    // a property of the seed alone - the device stream mixes in a monotonic
-    // offset counter, which is why dataset.hpp warns about set_seed.
+    // Data comes from a host RNG, not Philox; see tests/functional/integration/README.md.
     const auto build = [this]
     {
         return Data::make_dataset(*engine, "rings",
@@ -146,8 +136,7 @@ TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
 
 TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
 {
-    // One real parameter/gradient pair, so the optimizers allocate their state
-    // against something rather than against an empty list.
+    // One real slot backs the optimizer state; see tests/functional/integration/README.md.
     const int64_t dims[1] = {4};
     Optim::ParameterSlot slot;
     slot.name = "0.weight";
@@ -175,8 +164,7 @@ TEST_F(Integration_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 
 TEST_F(Integration_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 {
-    // "momentum" is SGD's, not AdamW's, and asking AdamW for it must not be a
-    // line that quietly does nothing.
+    // "momentum" is SGD's key, not AdamW's; see tests/functional/integration/README.md.
     SA_EXPECT_ERROR(
         (void)Optim::make_optimizer(*engine, "adamw", {},
                                     attributes_from(R"({"momentum": 0.9})"), "optimizer"),
@@ -185,10 +173,7 @@ TEST_F(Integration_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 
 TEST_F(Integration_Registries, AConfigurationCannotReachTheReferenceUpdateKernel)
 {
-    // UpdateKernel selects the spelling a byte-for-byte regression test
-    // compares the fused kernel against; SEPARATE additionally cannot join the
-    // compiled plan. A config file that could set it would be able to change
-    // what a run IS, so "kernel" is not an accepted key.
+    // "kernel" is not an accepted config key; see tests/functional/integration/README.md.
     SA_EXPECT_ERROR(
         (void)Optim::make_optimizer(*engine, "adamw", {},
                                     attributes_from(R"({"kernel": "separate"})"), "optimizer"),

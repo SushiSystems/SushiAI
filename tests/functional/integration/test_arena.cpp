@@ -6,22 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The three device-side claims the memory planner rests on, each checked
-// rather than assumed:
-//
-//  1. Two values packed into one arena report NON-OVERLAPPING ResourceRegions
-//     over the SAME allocation base. This is the whole reason packing is safe:
-//     SushiRuntime's dependency tracker orders two accesses iff their regions
-//     overlap, so a region that still named the bare allocation base - which is
-//     what every driver used to pass - would make every tensor in an arena
-//     alias every other one and serialise the lot.
-//  2. A view addresses its own elements. storage_offset counts elements, so an
-//     offset that is not a whole number of them is refused rather than
-//     truncated into a tensor that quietly starts in the wrong place.
-//  3. Mixed dtypes in one arena each start correctly aligned for their own
-//     element width - the one part of the offset arithmetic Tensor cannot do
-//     for the planner, because by the time a Tensor exists the offset has
-//     already been chosen.
+/**
+ * @file test_arena.cpp
+ * @brief Tests arena packing: region precision, element offsets, dtype alignment, the pool.
+ * @author Mustafa Garip
+ */
 
 #include <cstddef>
 #include <cstdint>
@@ -62,10 +51,6 @@ namespace
     };
 }
 
-// =========================================================================
-// 1. Region precision - the property the whole design depends on
-// =========================================================================
-
 TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
 {
     const Chain chain;
@@ -100,8 +85,7 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
 
 TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
 {
-    // The functional half of the claim above: real SushiBLAS work on two views
-    // of one arena, run in one step, each landing only in its own bytes.
+    // Each view writes only its own bytes; see tests/functional/integration/README.md.
     const Chain chain;
     const ArenaSet arenas(*engine, MemoryPlan::build(chain.graph));
 
@@ -120,10 +104,6 @@ TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     for (double value : SaTest::read_tensor(first)) EXPECT_DOUBLE_EQ(value, 3.0);
     for (double value : SaTest::read_tensor(second)) EXPECT_DOUBLE_EQ(value, 10.0);
 }
-
-// =========================================================================
-// 2. Element-counted offsets
-// =========================================================================
 
 TEST_F(Integration_Arena, AViewAddressesItsOwnElements)
 {
@@ -144,9 +124,7 @@ TEST_F(Integration_Arena, AnOffsetThatIsNotAWholeNumberOfElementsIsRefused)
 {
     const auto arena = allocate_arena(*engine, 256);
 
-    // Four bytes into a float64 view: representable in bytes, not in the
-    // element count Tensor actually stores. Truncating it would put the tensor
-    // somewhere the planner never reserved.
+    // A float64 view needs a whole-element offset; see tests/functional/integration/README.md.
     SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 4, Shape{2}, DType::FLOAT64),
                     "counts elements");
 
@@ -161,15 +139,9 @@ TEST_F(Integration_Arena, AViewThatWouldRunPastTheArenaIsRefused)
                     "run past the end");
 }
 
-// =========================================================================
-// 3. Mixed dtypes in one arena
-// =========================================================================
-
 TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
 {
-    // Alignment turned down to 1 so nothing but the element-width floor is
-    // holding these apart. With the default alignment the property is true for
-    // an uninteresting reason; here it is true only because the planner rounds.
+    // Alignment 1 leaves only the element-width floor; see tests/functional/integration/README.md.
     Graph::Graph graph;
 
     const ValueId narrow_leaf =
@@ -211,19 +183,13 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     EXPECT_EQ(as_float.storage->allocation_base(), as_double.storage->allocation_base());
     EXPECT_FALSE(as_float.region().overlaps(as_double.region()));
 
-    // A round trip through each proves the addresses are usable, not merely
-    // aligned: a float64 read through a mis-rounded start would come back as
-    // two halves of neighbouring values rather than as the number written.
+    // A round trip proves each address is usable; see tests/functional/integration/README.md.
     SaTest::write_tensor(as_float, std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0});
     SaTest::write_tensor(as_double, std::vector<double>{-1.5, -2.5, -3.5});
 
     EXPECT_EQ(SaTest::read_tensor(as_float), (std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0}));
     EXPECT_EQ(SaTest::read_tensor(as_double), (std::vector<double>{-1.5, -2.5, -3.5}));
 }
-
-// =========================================================================
-// 4. The pool's side of the contract
-// =========================================================================
 
 TEST_F(Integration_Arena, AdoptingASecondPlanIsRefused)
 {
@@ -236,8 +202,7 @@ TEST_F(Integration_Arena, AdoptingASecondPlanIsRefused)
 
 TEST_F(Integration_Arena, TheEmptyPlanPacksNothing)
 {
-    // The control an A/B measurement of the whole pass needs, and the escape
-    // hatch a caller who wants the old behaviour uses.
+    // The empty plan is the unpacked control; see tests/functional/integration/README.md.
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
@@ -268,8 +233,5 @@ TEST_F(Integration_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
         << "two packed values must come out of the same allocation";
     EXPECT_EQ(pool.arenas().arena_count(), 1u);
 
-    // No byte comparison here on purpose: these tensors are 64 bytes each and
-    // the arena aligns every slot to 128, so packing them *costs* memory. The
-    // saving is a property of realistic tensor sizes, and it is measured where
-    // that holds - see Regression_StaticMemory.
+    // Bytes are not compared at this tensor size; see tests/functional/integration/README.md.
 }

@@ -6,21 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The device half of AI-4. tests/functional/unit/test_precision.cpp pins the
-// graph shape with no hardware anywhere; what is left for this file is the
-// part that only a real Engine can answer:
-//
-//   - that `sycl::half` actually executes here, so the fp16 path is a computed
-//     answer and not a plausible-looking graph nobody ran,
-//   - that the *tensors* behind the graph carry the types the IR claims - a
-//     master weight really is a 4-byte buffer and the copy a GEMM reads really
-//     is a 2-byte one,
-//   - and that the trainer refuses, before recording anything, a graph whose
-//     dtypes disagree with the policy it was handed.
-//
-// Speed is deliberately not asserted anywhere. There is no low-precision
-// matrix unit on this machine; a timing gate here would be pinning an artifact
-// of emulation.
+/**
+ * @file test_mixed_precision.cpp
+ * @brief Tests the device half of mixed precision: execution, tensor dtypes and the policy check.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <string>
@@ -65,13 +55,8 @@ namespace
     }
 
     /**
-     * @brief AdamW at the rate `sa demo mlp` uses, not the library default.
-     *
-     * 1e-3 is the reference AdamW default and is right as a default; it is not
-     * enough to move a hidden layer this small far in the couple of hundred
-     * steps a test can afford, and a test whose "did it learn" threshold has
-     * to be relaxed until it passes is not asserting anything. 3e-3 is the
-     * demo's rate, so the two answer the same question at the same setting.
+     * @brief Returns AdamW options at the 3e-3 rate `sa demo mlp` uses; see
+     *        tests/functional/integration/README.md.
      */
     Optim::AdamWOptions optimizer_options()
     {
@@ -83,8 +68,7 @@ namespace
 
 TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 {
-    // The claim this whole change is allowed to make on this hardware:
-    // correctness. Not that it is faster - it is not, and cannot be here.
+    // Correctness is asserted; speed is not; see tests/functional/integration/README.md.
     Mlp model = make_model(FEATURES, HIDDEN, CLASSES);
 
     const MixedPrecisionPolicy precision;
@@ -111,8 +95,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     EXPECT_TRUE(std::isfinite(report.first_loss));
     EXPECT_TRUE(std::isfinite(report.last_loss));
 
-    // ln(4) is where a zeroed classifier starts; anything below half of it is
-    // a model that has learned something rather than one that merely ran.
+    // ln(4) is where a zeroed classifier starts; see tests/functional/integration/README.md.
     EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(CLASSES)), 1e-4);
     EXPECT_LT(report.last_loss, 0.5 * report.first_loss);
     EXPECT_GT(report.last_accuracy, 0.75);
@@ -120,10 +103,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 
 TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 {
-    // The IR says FLOAT32 and HALF; this checks the tensors underneath say the
-    // same, because the two could disagree - the pool materialises from the
-    // value's description, and a planner that sized a slot from the wrong one
-    // would hand out a view that overruns its neighbour.
+    // Tensors must carry the dtypes the IR claims; see tests/functional/integration/README.md.
     Mlp model = make_model(FEATURES, HIDDEN, CLASSES);
 
     const MixedPrecisionPolicy precision;
@@ -160,8 +140,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
     EXPECT_GT(half_buffers, 0u);
 
-    // The step ran at all, which is the loud half: SushiBLAS refuses a
-    // mixed-dtype gemm by name, so a missing conversion could not get here.
+    // SushiBLAS refuses a mixed-dtype gemm by name; see tests/functional/integration/README.md.
     const Data::SyntheticClassification dataset(*engine, data_options());
     const Train::StepMetrics metrics = trainer.run_step(dataset.batch(0));
     EXPECT_TRUE(std::isfinite(metrics.loss));
@@ -169,10 +148,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
 TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
-    // The knob doing its job. A graph built without the cast pass and handed to
-    // a trainer that was told it is mixed is exactly the mistake a caller makes
-    // when they set one of the two knobs and forget the other - and without
-    // this it is not an error, it is an fp32 run reported as a mixed one.
+    // The graph skipped the cast pass on purpose; see tests/functional/integration/README.md.
     Mlp model = make_model(FEATURES, HIDDEN, CLASSES);
     Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
 
@@ -200,14 +176,7 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 
 TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
-    // A defect this change would otherwise have introduced. score_accuracy()
-    // reads the logits on the host and used to fall back to `data_as<float>()`
-    // for anything that was not FLOAT64 - which on a half buffer reads two
-    // elements as one and reports an accuracy that is fiction. Nothing throws,
-    // nothing is NaN, and the run says 100%.
-    //
-    // build_classifier lists the logits as observed, so the shipped path cannot
-    // reach this; a caller running the pass themselves can, and now finds out.
+    // A half buffer must not be read as float; see tests/functional/integration/README.md.
     Mlp model = make_model(FEATURES, HIDDEN, CLASSES);
     Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
 

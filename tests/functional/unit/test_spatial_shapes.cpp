@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_shapes.cpp
+ * @brief Tests the shapes the builder infers for spatial operations and the layouts it refuses.
+ * @author Mustafa Garip
+ */
+
 #include <array>
 #include <gtest/gtest.h>
 #include <SushiAI/graph/builder.hpp>
@@ -22,10 +28,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColProducesTheColumnMatrixAGemmExpects)
         {
-            // [N,H,W,C] with a 3x3 stride-1 pad-1 window over 5x5 gives 5x5
-            // windows per image, and each row is one window's kernel_h *
-            // kernel_w * C taps - channels innermost, so a sub-group reads a
-            // contiguous run (CV-3).
+            // A row is one window, channels innermost (CV-3); see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 5, 5, 3}, "x");
@@ -41,9 +44,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColHonoursStrideAndDilation)
         {
-            // A dilated 3x3 covers 5 pixels, so an unpadded 7 yields 3 windows;
-            // stride 2 over the same input yields 2. Both numbers are wrong
-            // under the naive (H - K)/S + 1 that forgets dilation.
+            // A dilated 3x3 covers 5 pixels; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 7, 7, 2}, "x");
@@ -63,9 +64,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColRejectsAWindowLargerThanThePaddedInput)
         {
-            // Produces a zero extent, which Shape refuses anyway - but the
-            // message a caller gets should name the geometry, not the Shape
-            // invariant it happened to trip.
+            // The message names the geometry, not the Shape; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 2, 2, 1}, "x");
@@ -90,11 +89,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Col2ImReturnsToTheImageItWasAskedFor)
         {
-            // col2im cannot derive its output extents: ConvGeometry carries
-            // pad_top and pad_left but no pad_bottom or pad_right, so an
-            // asymmetric padding would be silently mis-shaped. The caller
-            // states the image shape instead - it always has it, because it
-            // held the value im2col consumed.
+            // The caller states the image shape; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId cols = builder.input({2 * 5 * 5, 3 * 3 * 3}, "cols");
@@ -123,20 +118,14 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward)
         {
-            // A 3x3 stride-1 window with padding only on the bottom/right of a
-            // 13x13 input still yields 13x13 windows, but that is NOT what the
-            // symmetric formula (13-3)/1+1 = 11 would say. The forward pass
-            // (im2col_with_extents) states 13x13 outright; the backward rule
-            // must be able to state the same numbers back, because it is the
-            // one holding them, not re-deriving them from ConvGeometry alone.
+            // The backward rule states the 13x13 extents back; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 13, 13, 3}, "x");
 
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
-            // pad_top = pad_left = 0: padding was applied bottom/right only,
-            // which ConvGeometry cannot express and does not need to.
+            // Padding is applied bottom and right only; see tests/functional/unit/README.md.
 
             const ValueId cols = builder.im2col_with_extents(x, g, 13, 13);
             EXPECT_EQ(graph.values()[cols].shape, Shape({1 * 13 * 13, 3 * 3 * 3}));
@@ -148,11 +137,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Col2ImDerivingStillRejectsThatSameAsymmetricPair)
         {
-            // The point of the twin above: the deriving col2im assumes
-            // symmetric padding and is NOT a substitute for it. Feeding it the
-            // exact cols/image pair that col2im_with_extents accepted above
-            // must still throw, proving the twin is load-bearing rather than
-            // decorative.
+            // The deriving col2im assumes symmetric padding; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 13, 13, 3}, "x");
@@ -167,9 +152,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColRejectsAnNchwInput)
         {
-            // im2col reads extents off axes 1,2,3 assuming NHWC. Handed an
-            // NCHW value it would read channels as height and produce a
-            // plausible but silently wrong shape instead of throwing.
+            // im2col reads axes 1, 2, 3 as NHWC; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 32, 32}, "x");
@@ -184,10 +167,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, MaxPoolProducesAValueAndItsArgmaxTogether)
         {
-            // The indices are a second *result*, not a second output tensor the
-            // caller allocates: the backward rule needs exactly the indices
-            // this forward produced, and a pair returned together cannot be
-            // mismatched the way two separate calls could.
+            // The indices are a second result of the node; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 4, 4, 3}, "x");
@@ -207,11 +187,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, MaxPoolHandlesYoloTinysAsymmetricThirteenToThirteen)
         {
-            // YOLOv3-tiny's last pool: 2x2 stride 1 over 13x13, padded only on
-            // the bottom and right, staying 13x13. ConvGeometry cannot express
-            // that padding, so the caller states the extents - and this is the
-            // case that proves the explicit overload is load-bearing rather
-            // than decorative.
+            // The caller states what ConvGeometry cannot; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 13, 13, 256}, "x");
@@ -229,8 +205,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, AvgPoolProducesOnlyAValue)
         {
-            // No indices: its backward divides by a constant window area and
-            // needs nothing the forward recorded (CV-6).
+            // avgpool2d records no indices (CV-6); see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 6, 6, 3}, "x");
@@ -262,8 +237,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, MaxPoolRejectsAnNchwInput)
         {
-            // maxpool2d reads extents off axes 1,2,3 assuming NHWC; handed an
-            // NCHW value it must throw rather than pool the channel axis.
+            // maxpool2d reads axes 1, 2, 3 as NHWC; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
@@ -302,8 +276,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, SpatialMeanReducesToNAndC)
         {
-            // The [N,C] the numeric Probe's loss needs, which is why every
-            // convolutional gradient test in this plan ends with this call.
+            // The numeric probe's loss needs [N, C]; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({4, 7, 7, 512}, "x");
@@ -424,15 +397,13 @@ namespace SushiAI
             const ValueId wrong = builder.parameter({8}, "wrong");
             EXPECT_THROW((void)builder.batchnorm2d(x, wrong, beta, 1e-5), Error);
 
-            // A non-positive epsilon is a division by the standard deviation
-            // itself, which is exactly zero for a constant channel.
+            // Epsilon must be positive; see tests/functional/unit/README.md.
             EXPECT_THROW((void)builder.batchnorm2d(x, gamma, beta, 0.0), Error);
         }
 
         TEST(Unit_SpatialShapes, BatchNorm2dRejectsAnNchwInput)
         {
-            // The layout check runs before any extent is read, so the operand
-            // that is wrong is the one the message names.
+            // The layout check runs before any extent is read; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
@@ -457,8 +428,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
         {
-            // The one failure mode a reshape has: it moves no data, so a
-            // mismatched count is not a resize, it is reading past the end.
+            // A reshape moves no data; see tests/functional/unit/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 3, 4}, "x");

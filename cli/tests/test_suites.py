@@ -3,16 +3,9 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests for the Suite enum and the one suite that is not a CTest label.
+"""Tests the Suite enum and the two suites that are not CTest labels.
 
-`sa test` maps every suite to a `ctest -L` regex through _SUITE_LABEL_REGEX,
-with two deliberate exceptions - `all` (no label selection at all) and
-`package` (no ctest at all). Both are absent from the mapping, so both depend
-on `test()` branching before it indexes it. A missing branch is a KeyError at
-the moment the user runs the command, which these tests exist to prevent.
-
-Mirrors sushiblas/cli/tests/test_suites.py, for the same reason `sa test
---suite package` mirrors `sb test --suite package`.
+The reasoning is in cli/tests/README.md under "test_suites.py".
 """
 
 from __future__ import annotations
@@ -65,8 +58,7 @@ def test_toolchain_args_exclude_the_prefix_path_and_the_source_siblings():
 
     from sushiai.services.project import _toolchain_args
 
-    # A stand-in for a fully-populated Windows config: every optional host tool
-    # set, so the assertion sees the largest flag list the helper can emit.
+    # Every optional host tool is set, so the helper emits its largest flag list.
     cfg = SimpleNamespace(
         is_windows=True,
         ninja_exe="ninja.exe", pkgconf_exe="pkgconf.exe", rc_exe="rc.exe",

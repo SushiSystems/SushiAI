@@ -6,19 +6,14 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file test_environment.hpp
- * @brief The one RuntimeContext the whole test binary shares.
- *
- * A RuntimeContext starts a worker pool, probes the topology and builds SYCL
- * queues. Doing that per test would dominate the suite's runtime and, worse,
- * would repeatedly tear down and restart the thread pool while other work is
- * settling. One process-global context in a GTest Environment, and a fresh
- * Engine per test so no test inherits another's task graph or RNG offset -
- * exactly the split SushiBLAS's own suite uses.
+ * @brief Declares the GTest environment that owns the one RuntimeContext a test binary shares.
+ * @author Mustafa Garip
+ * @see tests/common/README.md, "test_environment.hpp".
  */
+
+#pragma once
 
 #include <memory>
 #include <gtest/gtest.h>
@@ -29,10 +24,7 @@ namespace SushiAI
 {
     namespace Test
     {
-        /**
-         * @class TestEnvironment
-         * @brief Owns the process-global RuntimeContext for the whole binary.
-         */
+        /** @brief Owns the process-global RuntimeContext for the whole binary. */
         class TestEnvironment : public ::testing::Environment
         {
             public:
@@ -48,16 +40,14 @@ namespace SushiAI
                     context_.reset();
                 }
 
-                /**
-                 * @brief The shared context.
-                 * @return A reference valid for the whole run.
-                 */
+                /** @brief Returns the shared context, valid for the whole run. */
                 static SushiRuntime::Execution::RuntimeContext& context()
                 {
                     return *context_;
                 }
 
             private:
+                /** @brief Holds the context between SetUp() and TearDown(). */
                 static inline std::unique_ptr<SushiRuntime::Execution::RuntimeContext> context_;
         };
 

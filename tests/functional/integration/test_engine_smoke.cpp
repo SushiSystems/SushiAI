@@ -6,15 +6,18 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_engine_smoke.cpp
+ * @brief Tests that an axpy runs through SushiBLAS when linked through SushiAI.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
-// The real P6 "consumer-shaped example" for AI-0: proves the two-sibling D3
-// dependency chain (SushiRuntime + SushiBLAS, both linked through SushiAI)
-// actually compiles, links, and runs a real op end to end - not a stand-in
-// for AI-1's eventual autograd op coverage.
+// SushiAI links and runs one SushiBLAS op end to end; see tests/functional/integration/README.md.
 TEST(Integration_EngineSmoke, AxpyThroughSushiBLAS)
 {
     sr::Execution::RuntimeContext ctx;

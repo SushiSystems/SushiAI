@@ -6,34 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The test that catches "everything passes and the model stops training".
-//
-// Every other test here checks a property: this gradient matches a finite
-// difference, that step compiled once, this loss is finite. A model can
-// satisfy all of them and still learn measurably worse than it did last month
-// - a gradient scaled by the wrong constant, a momentum buffer applied a step
-// late, an initialisation gain quietly changed. Each of those leaves the loss
-// going down, just not the same way, and no property test has an opinion about
-// "the same way".
-//
-// So this one pins the trajectory itself against a reference recorded from a
-// real run of this code. The tolerance is the whole design of the test:
-//
-//  - Too tight and it fails on every legitimate kernel change. Reassociating a
-//    gemm's inner sum moves an fp32 result by an ULP or two, and twelve steps
-//    of momentum amplify that; a tolerance below about 1e-3 would be noise.
-//  - Too loose and it stops distinguishing training from not-training. A
-//    gradient wrong by a constant factor, or a backward rule reading the
-//    forward output where it needed the input, moves this trajectory by
-//    tenths.
-//
-// LOSS_TOLERANCE sits two orders of magnitude between those, and the shape
-// assertions below it - the exact ln(C) start, the monotone-enough descent,
-// the final value - hold even if a future toolchain widens the noise floor.
-//
-// Re-recording the reference is legitimate ONLY when the change that moved it
-// is understood and intended. If it moved and nobody knows why, that is the
-// finding, not the tolerance.
+/**
+ * @file test_learning_curve.cpp
+ * @brief Tests that the per-step loss trajectory matches a recorded reference and keeps its shape.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cmath>
 #include <cstddef>
@@ -47,8 +25,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/functional/regression/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 
@@ -174,12 +151,12 @@ TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
                       << as_initialiser(losses);
 }
 
+/**
+ * @brief Tests that the trajectory starts at ln(C), stays finite and improves every epoch.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
 {
-    // The shape assertions, stated independently of the recorded numbers so
-    // they survive a legitimate re-record. Together they say: it starts where
-    // a zeroed classifier must start, it goes down, and it gets most of the
-    // way there.
     const std::vector<double> losses = recorded_trajectory();
     ASSERT_FALSE(losses.empty());
 
@@ -192,8 +169,7 @@ TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
     EXPECT_LT(losses.back(), losses.front() * 0.25)
         << "the loss barely moved over " << losses.size() << " steps";
 
-    // Not monotone step by step - each step sees a different batch - but each
-    // epoch's mean must beat the one before it.
+    // Each epoch's mean must beat the one before it; see tests/functional/regression/README.md.
     double previous_epoch = 0.0;
     for (int64_t epoch = 0; epoch < EPOCHS; ++epoch)
     {

@@ -6,17 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free. Every host-lane precondition, held to the message it promises.
-//
-// The tier above already proves these throw. What it does not prove is that
-// they still SAY anything: a refactor that funnels five specific diagnostics
-// into one generic "invalid argument" leaves every EXPECT_THROW green while
-// destroying the only thing that makes a shape mismatch debuggable. So each
-// case below names the values the message must still carry - the two extents
-// that disagree, the operation that has no rule, the dtype that cannot be
-// served - and fails when one of them goes missing.
-//
-// See tests/common/test_throws.hpp for SA_EXPECT_ERROR.
+/**
+ * @file test_diagnostics.cpp
+ * @brief Tests that each host-lane precondition raises a message carrying the values that disagree.
+ * @author Mustafa Garip
+ */
 
 #include <cstdint>
 #include <string>
@@ -47,22 +41,16 @@ namespace
     }
 }
 
-// =========================================================================
-// Shape
-// =========================================================================
-
 TEST(Unit_Diagnostics, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
 {
-    // MAX_RANK is SushiBLAS's, so the number in the message is the one a
-    // reader has to reconcile against the tensor they were trying to build.
+    // The limit in the message is SushiBLAS's MAX_RANK; see tests/functional/unit/README.md.
     SA_EXPECT_ERROR((void)Shape({1, 1, 1, 1, 1, 1, 1}),
                     "Shape rank 7", "exceeds the maximum of 6");
 }
 
 TEST(Unit_Diagnostics, ShapeNonPositiveExtentNamesTheOffendingExtent)
 {
-    // A zero-element tensor is refused at the type that describes extents,
-    // which is why nothing further down ever has to handle one.
+    // Shape itself refuses a zero-element tensor; see tests/functional/unit/README.md.
     SA_EXPECT_ERROR((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
     SA_EXPECT_ERROR((void)Shape({-3}), "Shape extents must be positive", "got -3");
 }
@@ -74,10 +62,6 @@ TEST(Unit_Diagnostics, ShapeDimensionOutOfRangeNamesTheIndexAndTheRank)
     SA_EXPECT_ERROR((void)shape.dim(2), "Dimension 2", "rank-2 shape");
     SA_EXPECT_ERROR((void)shape.dim(-3), "Dimension -3", "rank-2 shape");
 }
-
-// =========================================================================
-// GraphBuilder - the shape-inference boundary
-// =========================================================================
 
 TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
 {
@@ -93,9 +77,7 @@ TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
 
 TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
 {
-    // Rank 1 where rank 2 belongs is the commonest way a bias or a flattened
-    // sample reaches a gemm, and the message has to show both shapes or the
-    // reader cannot tell which side was wrong.
+    // The message shows both operand shapes; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -193,10 +175,6 @@ TEST(Unit_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
                     "sushiai.relu", "is not an activation gradient");
 }
 
-// =========================================================================
-// Graph - single assignment and operand existence
-// =========================================================================
-
 TEST(Unit_Diagnostics, ASecondProducerNamesBothOperationsAndTheRule)
 {
     Graph::Graph graph;
@@ -207,8 +185,7 @@ TEST(Unit_Diagnostics, ASecondProducerNamesBothOperationsAndTheRule)
                                         Graph::Lifetime::ACTIVATION, "out");
     graph.add_node(Ops::RELU.id, {x}, {out});
 
-    // The second write is what would make a differentiated graph silently
-    // wrong, so the message has to say which two operations collided.
+    // The message names both colliding operations; see tests/functional/unit/README.md.
     SA_EXPECT_ERROR((void)graph.add_node(Ops::TANH.id, {x}, {out}),
                     "sushiai.tanh", "sushiai.relu", "single-assignment");
 }
@@ -227,10 +204,6 @@ TEST(Unit_Diagnostics, AnUnknownOperandNamesTheOperationThatAskedForIt)
     SA_EXPECT_ERROR((void)graph.add_node(Ops::RELU.id, {x}, {9999u}),
                     "sushiai.relu", "writes value 9999", "does not exist");
 }
-
-// =========================================================================
-// Layers
-// =========================================================================
 
 TEST(Unit_Diagnostics, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
 {
@@ -253,10 +226,6 @@ TEST(Unit_Diagnostics, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
                     "Linear needs positive feature counts", "in=0", "out=4");
 }
 
-// =========================================================================
-// Differentiation
-// =========================================================================
-
 TEST(Unit_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
 {
     Graph::Graph graph;
@@ -271,12 +240,7 @@ TEST(Unit_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
 
 TEST(Unit_Diagnostics, ALossThatNoRuleCanSeedIsRejectedRatherThanReturningNothing)
 {
-    // A 1-element MATMUL result passes the "is it a scalar" check, and every
-    // rule then declines to act because the root's own gradient is implicit
-    // and only NLL_LOSS knows to start from it. Before this diagnostic existed
-    // the caller got a full set of NO_VALUE gradients and no error at all -
-    // and then a misleading "parameter receives no gradient" from
-    // bind_parameters, blaming the model rather than the loss.
+    // A scalar loss no rule can seed is an error; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -293,8 +257,7 @@ TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // Declared but never written: there is not even an operation to blame, so
-    // the message has to say that rather than name one.
+    // A loss with no producer has no operation to name; see tests/functional/unit/README.md.
     const ValueId orphan = graph.add_value(Shape{1}, DType::FLOAT32,
                                            Graph::Lifetime::ACTIVATION, "orphan");
     SA_EXPECT_ERROR(differentiate_wrt(graph, orphan, orphan), "nothing produces it", "NLL_LOSS");
@@ -318,8 +281,7 @@ TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
 
     const ValueId loss = builder.nll_loss(mystery, targets);
 
-    // "sushiai.unknown" is what name_of() reports for a foreign identity, and
-    // the node index is what turns that into something findable.
+    // A foreign identity prints as sushiai.unknown; see tests/functional/unit/README.md.
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "No backward rule for", "sushiai.unknown", "node 2");
 }
@@ -334,18 +296,14 @@ TEST(Unit_Diagnostics, LogSoftmaxOutsideTheFusedPairExplainsTheRestriction)
     const ValueId detoured = builder.relu(builder.log_softmax(x));
     const ValueId loss = builder.nll_loss(detoured, targets);
 
-    // Naming the way out matters more than naming the failure: the caller has
-    // to be told to route through NLL_LOSS, not merely that log-softmax said no.
+    // The message tells the caller to route through NLL_LOSS; see tests/functional/unit/README.md.
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "LOG_SOFTMAX", "row-wise reduction", "CrossEntropyLoss");
 }
 
 TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
 {
-    // Reachable only from inside a backward rule, so it is provoked here the
-    // way a buggy rule would: a hand-built graph whose SUB claims a result of
-    // a different shape from its operands, so the rule contributes a [4, 3]
-    // gradient to a [2, 6] value.
+    // A SUB with a mis-shaped result provokes the error; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

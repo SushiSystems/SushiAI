@@ -6,22 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// MAXPOOL2D's argmax buffer has to survive from the forward node all the way
-// to MAXPOOL2D_BACKWARD, and nothing pinned that.
-//
-// The gradchecks are evidence, but they are the wrong kind. If the planner
-// handed the argmax's bytes to some later activation, the backward would read
-// whatever that activation wrote and route every gradient to a plausible wrong
-// pixel - and the gradchecks would keep passing right up until the planner
-// changed, then fail somewhere else entirely with no mention of pooling.
-//
-// So this asserts on the plan, not on a number. Reuse in a MemoryPlan is byte
-// overlap and nothing else: two values share storage exactly when their
-// intervals in one arena intersect. An argmax whose interval intersects no
-// other buffer's therefore owns its bytes for the whole step, which is the
-// property "spans forward to backward" actually means. The check is written
-// against the plan's own arena/placement tables rather than a lifetime enum,
-// because the enum is the input to the decision and this is about the output.
+/**
+ * @file test_argmax_lifetime.cpp
+ * @brief Tests that the memory planner gives MAXPOOL2D's argmax bytes no other buffer overlaps.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <array>
 #include <cstddef>
@@ -56,15 +46,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // A pool feeding a chain long enough that the planner has real candidates
-    // to reuse the argmax's bytes for. On a two-node graph the assertion below
-    // would hold because there was nothing to overlap with, which proves
-    // nothing; the non-vacuity check at the end is what makes it mean
-    // something.
-    // x is a parameter, not an input: the pool's backward is only emitted
-    // when something upstream of it requires a gradient, and an input does
-    // not. Differentiating with respect to x is what puts MAXPOOL2D_BACKWARD
-    // in the graph at all.
+    // x is a parameter so MAXPOOL2D_BACKWARD is emitted; see tests/functional/regression/README.md.
     const ValueId x = builder.parameter(Shape{2, 8, 8, 4}, "x", DType::FLOAT64);
     const ValueId w = builder.parameter(Shape{4, 4}, "w", DType::FLOAT64);
 
@@ -74,9 +56,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
 
     const Graph::PoolResult pooled = builder.maxpool2d(x, g);
 
-    // Between the pool and its backward: a spatial mean down to [2,1,1,4], a
-    // reshape to a matrix and a small model, so several activations are born
-    // and die while the argmax is waiting to be read.
+    // Activations live and die while the argmax waits; see tests/functional/regression/README.md.
     const ValueId mean = builder.spatial_mean(pooled.output);
     const ValueId rows = builder.reshape(mean, Shape{2, 4});
     const ValueId hidden = builder.relu(builder.matmul(rows, w));
@@ -88,8 +68,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     (void)Autograd::differentiate(graph, loss,
         SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    // The premise: differentiation really did emit a consumer for the indices.
-    // Without this the rest is a statement about a value nobody reads.
+    // Differentiation emitted a reader of the indices; see tests/functional/regression/README.md.
     bool backward_reads_the_indices = false;
     for (const Graph::Node& node : graph.nodes())
         if (node.op == Ops::MAXPOOL2D_BACKWARD.id)
@@ -104,9 +83,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
         << "the planner declined to overlap anything, so nothing here is under test: "
         << plan.reuse_note();
 
-    // Packed first. overlaps() answers false for an unpacked placement, so an
-    // argmax that had been given its own allocation would satisfy every
-    // assertion below for a reason this test does not document.
+    // An unpacked argmax would pass every check below; see tests/functional/regression/README.md.
     ASSERT_TRUE(plan.is_packed(pooled.indices))
         << "the argmax is not in an arena, so the overlap check proves nothing about it";
 
@@ -116,9 +93,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     ASSERT_EQ(argmax.bytes, std::size_t{2 * 4 * 4 * 4} * sizeof(std::int64_t))
         << "the argmax is not the INT64 buffer this test thinks it is";
 
-    // The assertion. Every other buffer in the plan must miss it entirely.
-    // Aliased names for the same bytes (ACCUMULATE) are not reuse, so they are
-    // compared by owning buffer rather than by value id.
+    // No other buffer may overlap the argmax; see tests/functional/regression/README.md.
     std::size_t overlapping_neighbours = 0;
     for (std::size_t i = 0; i < plan.value_count(); ++i)
     {
@@ -138,9 +113,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     }
     EXPECT_EQ(overlapping_neighbours, std::size_t{0});
 
-    // Non-vacuity: the planner did overlap *something* in this graph, so the
-    // result above is a decision it made rather than an opportunity it never
-    // had.
+    // The planner overlapped something in this graph; see tests/functional/regression/README.md.
     bool the_planner_reused_anything = false;
     for (const Graph::Arena& arena : plan.arenas())
         if (arena.unpacked_bytes > arena.bytes) the_planner_reused_anything = true;

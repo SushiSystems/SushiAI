@@ -6,10 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free. The gradient checker is the instrument the integration tier
-// measures with, so it is calibrated here against closed-form functions where
-// the right answer is known - including a deliberately wrong gradient, to
-// prove the check can actually fail.
+/**
+ * @file test_gradcheck.cpp
+ * @brief Tests the gradient checker against closed-form functions and a wrong gradient.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <vector>
@@ -67,9 +68,7 @@ TEST(Unit_GradCheck, AcceptsAnExactGradient)
 
 TEST(Unit_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
 {
-    // The point of insisting on FLOAT64: a 1e-3 relative error is far above
-    // the 1e-9-ish noise floor here, but it would sit inside the ~2.4e-5 floor
-    // an fp32 difference quotient bottoms out at, and would pass unnoticed.
+    // A 1e-3 relative error is above the FLOAT64 noise floor; see tests/functional/unit/README.md.
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6};
     const GradCheckResult result = check_full_jacobian(cubic, slightly_wrong_gradient, x);
 
@@ -142,16 +141,13 @@ TEST(Unit_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
 
 TEST(Unit_GradCheck, AReluFamilyFunctionNeedsToBeSampledOffTheKink)
 {
-    // A step size large enough that the difference survives the cancellation
-    // of summing it against the O(1) terms; 1e-4 keeps the pushed coordinates
-    // at 1e-3, where a central difference of x^2 is still exact to 1e-9.
+    // The step keeps the pushed coordinates at 1e-3; see tests/functional/unit/README.md.
     GradCheckOptions options;
     options.min_step = 1e-4;
 
     const std::vector<double> at_the_kink = {0.0, 1e-14, -1e-14, 0.8, -1.4, 2.2};
 
-    // Straddling the kink, the quotient reports the average of the two
-    // one-sided derivatives, which no correct rule can match.
+    // A quotient across the kink averages both derivatives; see tests/functional/unit/README.md.
     std::vector<double> unshifted = at_the_kink;
     const GradCheckResult straddling =
         check_full_jacobian(rectified, rectified_gradient, unshifted, options);

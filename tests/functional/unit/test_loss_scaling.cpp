@@ -6,17 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The dynamic-scaling rule, with no device in the measurement.
-//
-// LossScaleState is split out of LossScaler precisely so this file can exist:
-// "the scale doubles after exactly N clean steps" is a property of the rule,
-// not of a kernel, and asserting it through a training run would make every
-// one of these cases cost a compile and a replay while proving less.
-//
-// The control matters as much as the case. A growth test that only ran N clean
-// steps and saw a doubling would pass just as happily against an
-// implementation that doubled after *every* step, so each growth assertion
-// here is paired with the N-1 run that must not double.
+/**
+ * @file test_loss_scaling.cpp
+ * @brief Tests the dynamic loss-scaling rule on LossScaleState, with no device involved.
+ * @author Mustafa Garip
+ */
 
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -82,8 +76,7 @@ TEST_F(Unit_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
     EXPECT_FALSE(state.last_step_skipped());
 }
 
-// The control for the case above. Without it, "the scale doubled after four
-// clean steps" is equally true of an implementation that doubles after one.
+// Controls the case above with one clean step fewer; see tests/functional/unit/README.md.
 TEST_F(Unit_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
 {
     LossScaleState state{with_interval(4)};
@@ -103,8 +96,7 @@ TEST_F(Unit_LossScaling, AnOverflowRestartsTheRunOfCleanSteps)
     state.observe(true);   // 1024 -> 512, and the three clean steps are spent
     run_clean(state, 3);
 
-    // Three clean steps since the overflow is one short of the interval, so
-    // nothing has grown back: the scale is still the backed-off one.
+    // Three clean steps are one short of the interval; see tests/functional/unit/README.md.
     EXPECT_EQ(state.scale(), 512.0);
     EXPECT_EQ(state.growths(), 0u);
 
@@ -136,9 +128,7 @@ TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
     state.observe(true);
     EXPECT_EQ(state.scale(), 1.0);
 
-    // At the floor the scale cannot go lower - but the step is still garbage
-    // and must still be thrown away, or an overflowed gradient reaches the
-    // weights the moment the backoff bottoms out.
+    // At the floor the step is still skipped; see tests/functional/unit/README.md.
     state.observe(true);
     EXPECT_EQ(state.scale(), 1.0);
     EXPECT_TRUE(state.last_step_skipped());
@@ -146,10 +136,7 @@ TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
     EXPECT_EQ(state.backoffs(), 1u);
 }
 
-// Every constant is a power of two so that scaling and unscaling change only
-// the exponent field. A scale of 3 would work and would quietly make every
-// gradient in the model carry a rounding error, so it is refused rather than
-// accepted.
+// A constant that is not a power of two is refused; see tests/functional/unit/README.md.
 TEST_F(Unit_LossScaling, ANonDyadicConstantIsRefusedByName)
 {
     LossScaleOptions options;
@@ -177,10 +164,7 @@ TEST_F(Unit_LossScaling, IncoherentBoundsAreRefused)
     SA_EXPECT_ERROR((LossScaleState{options}), "growth interval must be positive");
 }
 
-// The property the whole design is arranged around, asserted on the rule
-// itself: whatever sequence of backoffs and growths the machine takes, the
-// scale is a power of two, so the reciprocal is exact and the round trip is
-// lossless.
+// Every reachable scale is a power of two; see tests/functional/unit/README.md.
 TEST_F(Unit_LossScaling, EveryReachableScaleHasAnExactReciprocal)
 {
     LossScaleState state{with_interval(2, 1024.0)};

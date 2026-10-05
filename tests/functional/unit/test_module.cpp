@@ -6,9 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: the layer library is host-lane, so the parameter walk - the
-// thing that decides whether the optimizer sees a layer at all - is testable
-// without hardware.
+/**
+ * @file test_module.cpp
+ * @brief Tests the parameter walk over layers, containers and a layer enumerated at run time.
+ * @author Mustafa Garip
+ */
 
 #include <cstddef>
 #include <string>
@@ -44,8 +46,7 @@ namespace
 
 TEST(Unit_Module, AnUntracedLayerYieldsNoParameters)
 {
-    // Parameters gain a shape and an id when forward() first runs, so the walk
-    // over an untraced model is legitimately empty rather than full of blanks.
+    // An untraced layer has no parameters to walk; see tests/functional/unit/README.md.
     Linear layer{4, 3};
     EXPECT_TRUE(walk(layer).empty());
     EXPECT_EQ(NN::parameter_count(layer), 0u);
@@ -78,9 +79,7 @@ TEST(Unit_Module, ABiasFreeLayerSimplyHasNoBiasEntry)
 
 TEST(Unit_Module, SequentialNamesParametersByLayerIndex)
 {
-    // PyTorch's convention: the index is the layer's position, so a
-    // parameterless activation leaves a gap and "2.weight" still names the
-    // third layer. A checkpoint diff against a reference stays a diff.
+    // The index is the layer's position, as in PyTorch; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
@@ -126,8 +125,7 @@ TEST(Unit_Module, TracingTwiceDoesNotDuplicateParameters)
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.id(), first_weight);
-    // The second trace emits nodes but declares no new parameters, so the
-    // value count grows by exactly the two intermediates.
+    // The second trace declares no new parameter; see tests/functional/unit/README.md.
     EXPECT_EQ(graph.value_count(), values_after_first + 2);
     EXPECT_EQ(NN::parameter_count(layer), 2u);
 }
@@ -173,21 +171,11 @@ TEST(Unit_Module, LinearRejectsAnInputWhoseInnerExtentIsWrong)
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }
 
-// =============================================================================
-// docs/TUTORIAL.md §6's custom layer, compiled
-// =============================================================================
-//
-// A tutorial whose code sample does not compile is worse than no tutorial, and
-// prose cannot be made to fail a build. So the sample lives here as well, and
-// the two must be kept identical: if you edit one, edit the other.
-//
-// The cases below also pin the two claims §6 makes *about* the sample - that
-// bias_add is required rather than a stylistic choice, and that the two ways of
-// getting fields() wrong fail differently.
+// Matches docs/getting_started/TUTORIAL.md §6 verbatim; see tests/functional/unit/README.md.
 
 namespace
 {
-    /** @brief docs/TUTORIAL.md §6, verbatim. A learnable per-feature offset. */
+    /** @brief Holds docs/getting_started/TUTORIAL.md §6's learnable per-feature offset. */
     struct MyOffset
     {
         int64_t width = 0;
@@ -220,8 +208,7 @@ TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"offset:[4]"}));
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
 
-    // The role the tutorial gives it, because it is what decides the
-    // initialiser: a BIAS starts at zero, a WEIGHT gets a fan-scaled draw.
+    // The role decides the initialiser; see tests/functional/unit/README.md.
     EXPECT_EQ(layer.offset.role(), NN::ParameterRole::BIAS);
 
     // It satisfies the Module contract, so it composes.
@@ -230,10 +217,7 @@ TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
 
 TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
 {
-    // §6 says bias_add is required rather than preferred, because mul goes
-    // through require_same and there is no implicit broadcast anywhere in this
-    // builder. That is the whole reason the sample reads the way it does, so it
-    // is asserted rather than left as a remark.
+    // mul goes through require_same and never broadcasts; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
@@ -244,15 +228,7 @@ TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
     EXPECT_NO_THROW((void)builder.bias_add(x, b));
 }
 
-// ---------------------------------------------------------------------------
-// The third arm: a layer whose parameters are enumerated at run time.
-//
-// The stub below is deliberately not a LayerStack. This file tests the walk,
-// and the walk's contract is `walk_parameters(prefix, ParameterVisitor)` -
-// anything satisfying it is enumerated through it, whether or not it is one of
-// the library's own types. Testing it against LayerStack would tie the walk's
-// test to a type that arrived two commits later.
-// ---------------------------------------------------------------------------
+// WalkableStub is deliberately not a LayerStack; see tests/functional/unit/README.md.
 
 namespace
 {
@@ -309,17 +285,14 @@ TEST(Unit_Module, AWalkableLeafIsEnumeratedByItsOwnWalk)
 
 TEST(Unit_Module, AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther)
 {
-    // The two arms compose: the container supplies "0.", the walkable child
-    // supplies the leaf names, and nothing about the join changed.
+    // The container supplies "0.", the child the leaf names; see tests/functional/unit/README.md.
     StubHolder holder;
     EXPECT_EQ(walk(holder), (std::vector<std::string>{"0.weight:[2, 3]", "0.bias:[2]"}));
 }
 
 TEST(Unit_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
 {
-    // layers.hpp asserts this for Linear and Sequential at build time; restated
-    // here so the property is visible in the test that covers the walk, and so
-    // it names the detector rather than the arm's consequences.
+    // layers.hpp asserts the same at build time; see tests/functional/unit/README.md.
     static_assert(NN::Detail::HasParameterWalk<WalkableStub>::value,
                   "the stub must be detected as walking itself");
     static_assert(!NN::Detail::HasParameterWalk<Linear>::value,

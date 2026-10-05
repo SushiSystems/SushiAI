@@ -6,15 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The device half of checkpointing: binding records to the pool's tensors.
-// The byte format's own malformed-file surface is device-free and lives in
-// tests/functional/unit/test_checkpoint_format.cpp.
-//
-// The point of this file is the last test in it. A Sequential and a LayerStack
-// built from the equivalent model.json are two spellings of one model, and the
-// claim that they ARE one model is proved by a checkpoint written by either
-// loading into the other - not by a separate mechanism whose own correctness
-// would then be the open question.
+/**
+ * @file test_checkpoint.cpp
+ * @brief Tests checkpoint binding to pool tensors and the Sequential and LayerStack exchange.
+ * @author Mustafa Garip
+ */
 
 #include <cstdint>
 #include <cstring>
@@ -75,10 +71,7 @@ namespace
                 const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
                 (void)model_.forward(builder, x);
 
-                // Parameters are leaves, so one call allocates every one of
-                // them - and the input leaf besides, which costs a [4, 6]
-                // buffer and keeps this fixture from having to know which
-                // leaves are which.
+                // One call allocates every leaf; see tests/functional/integration/README.md.
                 pool_.materialise_leaves(graph_);
 
                 NN::InitPolicy policy;
@@ -174,19 +167,14 @@ TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
 
 TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack)
 {
-    // THE equivalence test. Two spellings of one model prove they describe the
-    // same thing by exchanging a checkpoint - so the compile-time and runtime
-    // paths need no separate mechanism to be kept in step, and cannot drift
-    // without this failing.
+    // Both spellings of the model swap a checkpoint; see tests/functional/integration/README.md.
     const ScratchFile from_sequential("sushiai_equivalence_a.ckpt");
     const ScratchFile from_stack("sushiai_equivalence_b.ckpt");
 
     Materialised<Mlp> compile_time(*engine, make_sequential(), 7);
     Materialised<NN::LayerStack> run_time(*engine, make_stack(), 99);
 
-    // The names must match first; the checkpoint is matched by name, so a
-    // naming difference would surface as "does not supply" rather than as the
-    // clearer statement that the two disagree about what they hold.
+    // Names must match before any load is compared; see tests/functional/integration/README.md.
     ASSERT_EQ(compile_time.names(), run_time.names());
     ASSERT_EQ(compile_time.names(),
               (std::vector<std::string>{"0.weight", "0.bias", "2.weight", "2.bias"}));
@@ -200,8 +188,7 @@ TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerSt
     IO::load_checkpoint(from_sequential.path(), run_time.model(), run_time.pool());
     EXPECT_EQ(run_time.bits(), sequential_bits);
 
-    // ... and LayerStack -> Sequential, over a third model so the return trip
-    // is a real load rather than a comparison against what was already there.
+    // The return trip loads into a third model; see tests/functional/integration/README.md.
     Materialised<Mlp> third(*engine, make_sequential(), 123);
     ASSERT_NE(third.bits(), sequential_bits);
 
@@ -214,8 +201,7 @@ TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyThrowsAndNamesIt)
 {
     const ScratchFile file("sushiai_missing.ckpt");
 
-    // A checkpoint of a DIFFERENT architecture, so "2.weight" and "2.bias" are
-    // absent from it entirely.
+    // A different architecture, so the file lacks 2.weight and 2.bias.
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 5);
     IO::save_checkpoint(file.path(), shallow.model(), shallow.pool(), *engine);
@@ -242,8 +228,7 @@ TEST_F(Integration_Checkpoint, AShapeMismatchThrowsWithBothShapes)
 {
     const ScratchFile file("sushiai_shape.ckpt");
 
-    // Same names, different widths - which an element-count comparison would
-    // catch here but not for a transpose. The shape is what is compared.
+    // Shapes are compared, not element counts; see tests/functional/integration/README.md.
     using OneLayer = NN::Sequential<NN::Linear>;
     Materialised<OneLayer> wide(*engine, OneLayer(NN::Linear{6, 8}), 5);
     IO::save_checkpoint(file.path(), wide.model(), wide.pool(), *engine);
@@ -257,9 +242,7 @@ TEST_F(Integration_Checkpoint, ADuplicatedNameThrowsAndNamesTheDuplicate)
 {
     const ScratchFile file("sushiai_duplicate.ckpt");
 
-    // Hand-built, because save_checkpoint cannot produce one: the walk yields
-    // each name once. This is exactly the file a counter-based loader would
-    // accept while leaving a parameter reading uninitialised device memory.
+    // save_checkpoint cannot write a duplicated name; see tests/functional/integration/README.md.
     Materialised<Mlp> model(*engine, make_sequential(), 5);
 
     {

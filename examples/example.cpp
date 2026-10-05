@@ -6,12 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// A whole training run, end to end: declare a model, trace it into IR,
-// differentiate the IR, compile the result exactly once, replay it per batch.
-//
-// Uses MNIST when the IDX files happen to be sitting in data/mnist, and a
-// seeded synthetic problem otherwise - so the example runs anywhere, with no
-// download and no fixture, and says which one it picked.
+/**
+ * @file example.cpp
+ * @brief Runs one training run end to end: trace, differentiate, compile once, replay per batch.
+ * @author Mustafa Garip
+ * @see examples/README.md, "example.cpp".
+ */
 
 #include <cstdlib>
 #include <iostream>
@@ -20,6 +20,7 @@
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
+/** @brief Runs the example and returns its exit code. */
 int main()
 {
     try
@@ -27,7 +28,6 @@ int main()
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
 
-        // --- Data -----------------------------------------------------------
         const int64_t batch = 32;
 
         sa::Data::MnistOptions mnist;
@@ -56,22 +56,17 @@ int main()
         const int64_t features = dataset->input_dim();
         const int64_t classes = dataset->num_classes();
 
-        // --- Model ------------------------------------------------------------
-        // An aggregate list, not a registration ritual: a parameter is
-        // discoverable because it is declared, not because something remembered
-        // to register it.
+        // A parameter is discoverable because the aggregate declares it.
         sa::NN::Sequential model{
             sa::NN::Linear{features, 128},
             sa::NN::ReLU{},
             sa::NN::Linear{128, classes},
         };
 
-        // Trace the forward pass, add cross-entropy, differentiate. All of it is
-        // an IR-to-IR transform; no device work happens yet.
+        // Tracing, the loss and differentiation are IR-to-IR; no device work happens yet.
         sa::Train::TrainingGraph built =
             sa::Train::build_classifier(model, batch, features, classes);
 
-        // --- Memory and initialisation ------------------------------------------
         sa::Graph::TensorPool pool(engine);
         std::vector<sa::Optim::ParameterSlot> parameters = sa::Train::bind_parameters(built, pool);
         sa::NN::initialize(engine, model, pool);
@@ -80,9 +75,7 @@ int main()
         adam.learning_rate = 3e-3;
         sa::Optim::AdamW optimizer(engine, parameters, adam);
 
-        // --- Train ----------------------------------------------------------------
-        // The trainer's constructor lowers and compiles the step. That is the
-        // only compile of the whole run, and the report below has to agree.
+        // The Trainer's constructor performs the only compile of the run.
         sa::Train::TrainerOptions options;
         options.epochs = 8;
         sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);

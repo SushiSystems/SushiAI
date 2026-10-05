@@ -6,21 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: the memory planner is a pure function of the IR, which is the
-// whole reason the IR is a host-lane structure. No engine, no allocator, no
-// SYCL - every case below is a synthetic graph and a table of offsets.
-//
-// The contract being pinned is one sentence: **two values whose live ranges
-// intersect never share a byte, and two whose live ranges do not are free to.**
-// The first half is checked exhaustively over every pair, against a liveness
-// computed here by an obviously-correct breadth-first search rather than by
-// asking the planner what it thinks - a planner checked against its own
-// reachability code would agree with itself no matter what it did.
-//
-// The second half is what the individual cases below are for, and the diamond
-// is the one that matters: it is the shape where a planner that overlaps
-// disjoint [first_use, last_use] intervals on a linearised schedule gets a
-// *wrong* answer that no test written from the linear model would catch.
+/**
+ * @file test_memory_plan.cpp
+ * @brief Tests that the memory planner never shares a byte between two values live together.
+ * @author Mustafa Garip
+ */
 
 #include <algorithm>
 #include <cstddef>
@@ -134,10 +124,6 @@ namespace
     }
 }
 
-// =========================================================================
-// 1. Degenerate graphs
-// =========================================================================
-
 TEST(Unit_MemoryPlan, AnEmptyGraphAsksForNothing)
 {
     const Graph::Graph graph;
@@ -183,15 +169,9 @@ TEST(Unit_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
     EXPECT_EQ(plan.arena_bytes(), 0u);
 }
 
-// =========================================================================
-// 2. The two shapes that decide whether the pass is right
-// =========================================================================
-
 TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 {
-    // x -> a -> b -> c -> d. Nothing branches, so `a` is finished before `c`
-    // starts and `b` before `d`: four activations need exactly two buffers,
-    // which is the most any planner can do with a chain.
+    // Four chained activations need exactly two buffers; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -216,12 +196,7 @@ TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 
 TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 {
-    // THE case. Linearised, the two branches have disjoint [first, last]
-    // intervals - a1 dies at node 2, b1 is born at node 3 - so an interval
-    // planner overlaps them and is wrong: nothing in the graph orders node 2
-    // before node 3, the runtime may run the branches concurrently, and the
-    // sharing would both corrupt the result and serialise the parallelism it
-    // was meant to be free of.
+    // Nothing orders node 2 before node 3; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -252,16 +227,9 @@ TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
     expect_no_live_overlap(graph, plan);
 }
 
-// =========================================================================
-// 3. Lifetimes
-// =========================================================================
-
 TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
 {
-    // All six lifetimes in one graph. The four persistent ones live for the
-    // whole run, so packing them would save nothing while merging exactly the
-    // dependency-tracker shards that matter most; only ACTIVATION and SCRATCH
-    // reach an arena, and they reach different ones.
+    // Only ACTIVATION and SCRATCH reach an arena; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
     const ValueId parameter = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::PARAMETER, "w");
@@ -301,9 +269,7 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
 
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
-    // An ACTIVATION with no producer is written from outside the step and never
-    // rewritten, so its bytes are live for the whole run whatever its class
-    // says. Handing them away would survive exactly one replay.
+    // An ACTIVATION with no producer lives the whole run; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
     const ValueId orphan = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "?");
@@ -316,16 +282,9 @@ TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
     EXPECT_TRUE(plan.is_packed(out));
 }
 
-// =========================================================================
-// 4. Aliasing
-// =========================================================================
-
 TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
 {
-    // ACCUMULATE's result IS its accumulator's storage. Planning the two
-    // separately would be silently wrong rather than merely wasteful: the
-    // planner would think the accumulator died at the ACCUMULATE node and hand
-    // its bytes to `sink`, which is produced by the node still reading them.
+    // ACCUMULATE's result is its accumulator's storage; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -349,17 +308,9 @@ TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
     EXPECT_EQ(plan.arenas()[0].buffers, 3u);
 }
 
-// =========================================================================
-// 5. Mixed dtypes
-// =========================================================================
-
 TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
 {
-    // Alignment turned down to 1 so the element-width floor is the only thing
-    // left doing the work. A 20-byte float32 buffer at offset 0 leaves the next
-    // free byte at 20, which is not a whole number of float64 elements; the
-    // float64 buffer therefore has to start at 24, or its storage_offset would
-    // not be representable at all.
+    // The float64 buffer starts at 24, not at 20; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
     const ValueId narrow_leaf = graph.add_value(Shape{5}, DType::FLOAT32, Lifetime::INPUT, "x");
@@ -387,10 +338,6 @@ TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
         << "20 bytes of float32 rounded up to the next whole float64";
 }
 
-// =========================================================================
-// 6. Knobs, refusals and malformed input
-// =========================================================================
-
 TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
 {
     Graph::Graph graph;
@@ -414,9 +361,7 @@ TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
 
 TEST(Unit_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
 {
-    // The refusal is the point. A planner that quietly fell back to overlapping
-    // linear intervals here would produce a plan that is wrong in exactly the
-    // way the diamond case above describes, and would report a saving for it.
+    // Over the node limit the planner declines to overlap; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -480,10 +425,7 @@ TEST(Unit_MemoryPlan, ZeroAlignmentThrows)
 
 TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 {
-    // Not reachable through GraphBuilder, which always emits a producer before
-    // anything can read it - but the whole pass rests on the property, so it is
-    // checked rather than assumed. A closure built over a back edge would
-    // silently miss ordering and the plan would overlap things it must not.
+    // The pass relies on topological order; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
     const ValueId a = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "a");
@@ -497,9 +439,7 @@ TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 
 TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 {
-    // Byte-identical offsets across two builds, because a plan that shuffled
-    // would move every tensor and take the library's bit-for-bit replay
-    // guarantee with it.
+    // Two builds give byte-identical offsets; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -523,19 +463,7 @@ TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 
 TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
 {
-    // FusedForm::GEMM_BIAS_GELU writes two values from one node: its result and
-    // the pre-activation its epilogue spills. They are the same shape, they are
-    // born at the same instant, and the planner packs by liveness - so "one
-    // died before the other was written" is exactly the mistake available here,
-    // and taking it would have the GELU computed from its own output with
-    // nothing to show for it.
-    //
-    // Nothing special is needed to prevent it, which is why it is worth
-    // pinning: `precedes()` asks whether every use of the earlier buffer
-    // *strictly* reaches the later one's first write, and a node does not reach
-    // itself. The planner therefore refuses both directions and the two
-    // conflict. That is an inference from an existing rule rather than a rule
-    // of its own, so a future rewrite of `precedes` could take it away silently.
+    // A node does not reach itself, so its results conflict; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
     const ValueId input = graph.add_value(Shape{8, 4}, DType::FLOAT32, Lifetime::ACTIVATION, "x");

@@ -6,10 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Every lowered operation, against values worked out by hand. This is the
-// tier that would catch a transposed gemm, a bias broadcast down the wrong
-// axis, or a log-softmax whose stabilising shift did not cancel - all of
-// which produce plausible numbers rather than errors.
+/**
+ * @file test_forward.cpp
+ * @brief Tests every lowered operation against values worked out by hand.
+ * @author Mustafa Garip
+ */
 
 #include <array>
 #include <cmath>
@@ -24,8 +25,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
@@ -153,8 +153,7 @@ TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
     run.compile();
     run.step->run();
 
-    // NCHW, channels outermost of the spatial block: for each c, the two W
-    // positions in order - (c=0,w=0..1)=0,3; (c=1,w=0..1)=1,4; (c=2,w=0..1)=2,5.
+    // For each c, the two W positions in order; see tests/functional/integration/README.md.
     const std::vector<double> expected = {0, 3, 1, 4, 2, 5};
     const std::vector<double> result = read_tensor(run.pool.tensor(y));
     ASSERT_EQ(result.size(), expected.size());
@@ -231,13 +230,10 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const std::vector<double> hyperbolic = read_tensor(run.pool.tensor(t));
     const std::vector<double> leaky = read_tensor(run.pool.tensor(lr));
 
-    // Out-of-place semantics matter: the backward rules for relu and gelu read
-    // the forward INPUT, so an in-place activation would silently hand them
-    // the output instead.
+    // relu and gelu backward read the forward input; see tests/functional/integration/README.md.
     const std::vector<double> unchanged = read_tensor(run.pool.tensor(x));
 
-    // Hand-computed at slope 0.1, straddling zero so both branches of
-    // leaky_relu run: -2 -> -0.2, -0.5 -> -0.05, 0.5 -> 0.5, 2 -> 2.
+    // Slope 0.1, inputs on both sides of zero; see tests/functional/integration/README.md.
     const std::vector<double> expected_leaky = {-0.2, -0.05, 0.5, 2.0};
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -259,8 +255,7 @@ TEST_F(Integration_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     const ValueId l = builder.log_softmax(x);
 
     OneShot run(*engine, graph);
-    // The second row is offset by a large constant; log-softmax must be
-    // invariant to it, which is what the max shift buys.
+    // Row two is row one shifted by a constant; see tests/functional/integration/README.md.
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 51, 52, 53});
 
     run.compile();
@@ -369,8 +364,7 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
     run.step->run();
     run.step->run();
 
-    // Replaying must not accumulate: the bias broadcast writes rather than
-    // adds into its result, and the zero buffer is not re-filled per step.
+    // A replay must not accumulate into the result; see tests/functional/integration/README.md.
     const std::vector<double> result = read_tensor(run.pool.tensor(broadcast));
     const std::vector<double> expected = {1.0, -2.0, 3.0, 1.0, -2.0, 3.0};
 
@@ -380,14 +374,7 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
 
 TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 {
-    // A gradcheck says the backward is consistent with whatever the forward
-    // happens to compute; it says nothing about whether the forward computes
-    // the right thing. This is the forward's own proof, worked out by hand.
-    //
-    // N=1, H=2, W=2, C=1 with a 2x2 kernel and no padding covers the whole
-    // image in exactly one window, so the column matrix's single row is the
-    // input read in tap order (r, s) with channel innermost - which, for one
-    // channel, is simply row-major (h, w).
+    // One 2x2 window covers the whole image; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -412,17 +399,7 @@ TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 
 TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 {
-    // The claim col2im makes and im2col_backward leans on: a pixel covered by
-    // several windows receives the *sum* of their contributions, not the
-    // last one written. N=1, H=3, W=3, C=1 with a 2x2 kernel and no padding
-    // has four windows (origins (0,0), (0,1), (1,0), (1,1)); the corner
-    // pixels sit under exactly one of them, the edge pixels under two, and
-    // the centre pixel under all four. Feeding every column entry a 1 turns
-    // the expected image into that overlap count, worked out by hand:
-    //
-    //   1 2 1
-    //   2 4 2
-    //   1 2 1
+    // A pixel receives the sum of its windows; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -447,26 +424,7 @@ TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 
 TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
 {
-    // The case a symmetric re-derivation gets wrong *silently*. A [1, 4, 5, 1]
-    // input with a 3x3 window, stride 1, pad_top 1 and pad_left 1, padded
-    // 2 below and 0 on the right, has
-    //
-    //     out_h = (4 + 1 + 2 - 3) + 1 = 5     out_w = (5 + 1 + 0 - 3) + 1 = 4
-    //
-    // Re-deriving those from the geometry alone assumes the padding is
-    // symmetric and yields 4x5 instead - the transpose of the real window
-    // grid. Both are 20 windows, so the row-count check agrees and both
-    // window origins stay inside the padded input: nothing throws, the
-    // numbers are just wrong. That is why the extents travel in the node's
-    // attributes rather than being recomputed.
-    //
-    // The input is 0..19 in row-major (h, w) order, so a window with origin
-    // (oh - 1, ow - 1) reads the pixels h*5 + w it covers and a zero
-    // wherever the window hangs off the image. Row oh*4 + ow of the result
-    // is that window in tap order. Worked out from that rule, the last row
-    // (oh = 4, ow = 3, origin (3, 2)) covers only the input's bottom-right
-    // three pixels, 17 18 19, and is padding everywhere else - whereas the
-    // transposed grid would put 13 14 0 18 19 0 0 0 0 there.
+    // out_h is 5 and out_w is 4, not the transpose; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -516,10 +474,7 @@ TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGiven
 
 TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
 {
-    // A gradcheck says the backward is consistent with whatever the forward
-    // happens to compute; this is the forward's own proof. N=1, H=2, W=2,
-    // C=1, values 0,1,2,3 in row-major (h,w) order, one 2x2 window covering
-    // the whole image: the maximum is 3.
+    // One 2x2 window over 0..3 has maximum 3; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -542,24 +497,11 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
 
 TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 {
-    // The gap that let the dropped layout tag hide. Every other test here
-    // stops at the tag; the numerical claim behind all of them is that a tag
-    // reaching Lowering::record_layout_convert intact is what makes a
-    // transpose happen, and nothing tested that half.
-    //
-    // A round trip alone would not test it either: two no-ops compose to the
-    // identity and the final assertion passes just as happily. So the
-    // intermediate is read out and asserted to be the permuted buffer, by
-    // value. That assertion is the test; the round trip is the control.
-    //
-    // The passes run before compilation, so this also pins tag survival by
-    // its consequence rather than by inspecting the field.
+    // The permuted intermediate is the real test; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // N=1, H=2, W=2, C=2, values 1..8 in NHWC order - so index
-    // ((h*2)+w)*2+c. Distinct values, because a tensor of repeats would make
-    // a permutation indistinguishable from a copy.
+    // Values 1..8 are distinct, in NHWC order; see tests/functional/integration/README.md.
     const ValueId x = builder.input(Shape{1, 2, 2, 2}, "x");
     const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
     const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
@@ -568,8 +510,7 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
     ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
 
-    // [N,H,W,C] seen as [N,C,H,W]: the extents are the same here only because
-    // H, W and C are all 2. The buffer is not.
+    // Extents match only because H, W and C are 2; see tests/functional/integration/README.md.
     EXPECT_EQ(graph.value(nchw).shape, (Shape{1, 2, 2, 2}));
 
     OneShot run(*engine, graph);
@@ -578,9 +519,7 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     run.compile();
     run.step->run();
 
-    // NCHW index is ((c*2)+h)*2+w, so channel 0 collects the odd values and
-    // channel 1 the even ones. Worked out by hand, not read back from the
-    // implementation.
+    // NCHW index is ((c*2)+h)*2+w; see tests/functional/integration/README.md.
     const std::vector<double> permuted = {1, 3, 5, 7, 2, 4, 6, 8};
     const std::vector<double> middle = read_tensor(run.pool.tensor(nchw));
     ASSERT_EQ(middle.size(), permuted.size());
@@ -599,27 +538,11 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 
 TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
 {
-    // MAXPOOL2D is the first operation here whose results are not all one
-    // element type: beside the pooled tensor it writes an INT64 argmax, and
-    // its backward reads that as a table of offsets. insert_casts() derived
-    // one precision per node from outputs[0] and forced every operand and
-    // result to it, so the argmax read as a value in the wrong type - and was
-    // either retyped to float in place or handed to a cast that refuses
-    // anything but real float to real float.
-    //
-    // Neither half showed up in a shape check, so this runs the passes in the
-    // order Trainer::build runs them and then executes the result. A routing
-    // table that has been through a float is not a routing table; the
-    // gradient is where that becomes visible.
-    //
-    // Assembled by hand rather than through Trainer::build because no NN
-    // layer emits a pool yet, so the trainer cannot reach this op today.
+    // Passes run in Trainer::build order; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // N=1, H=2, W=2, C=2, values 0..7 in NHWC order, one 2x2 window. Per
-    // channel the maximum is the last row: taps 6 (c=0, value 6) and 7 (c=1,
-    // value 7). Every other tap must come back with no gradient at all.
+    // Only taps 6 and 7 receive a gradient; see tests/functional/integration/README.md.
     const ValueId x = builder.parameter(Shape{1, 2, 2, 2}, "x");
     const ValueId target = builder.input(Shape{1, 2}, "target");
 
@@ -693,8 +616,7 @@ TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
 
 TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
 {
-    // A single pixel, scale 2x2, replicated into a 2x2 block of the same
-    // value.
+    // One pixel at scale 2x2 becomes a 2x2 block of the same value.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -736,8 +658,7 @@ TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
 
 TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
 {
-    // Two 1x1x1 pixels, one channel each: left [10], right [20]. Concatenated
-    // in order they must land as [10, 20], not [20, 10] or summed together.
+    // Left [10] and right [20] must land as [10, 20].
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -763,8 +684,7 @@ TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
 
 TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
 {
-    // N=1, H=1, W=1, four channels [1,2,3,4]. Slicing [1, 3) must return
-    // [2, 3] exactly, not the whole input and not a shifted range.
+    // Slicing [1, 3) of [1, 2, 3, 4] must return [2, 3].
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -786,9 +706,7 @@ TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
 
 TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 {
-    // N=1, H=1, W=2, C=2. Two pixels sharing one pair of parameters is what
-    // separates a per-channel broadcast from a per-row one: BIAS_ADD's
-    // broadcast would give the second pixel the second channel's numbers.
+    // Two pixels share one pair of parameters; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -815,16 +733,7 @@ TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 
 TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
 {
-    // N=2, H=2, W=1, C=2, so each channel is folded over four elements and the
-    // two channels have deliberately different scales - a normalisation that
-    // reduced over the wrong axis would still produce four finite numbers.
-    //
-    // Channel 0 sees 1, 2, 3, 4:    mean 2.5, biased variance 1.25.
-    // Channel 1 sees 10, 20, 30, 40: mean 25, biased variance 125.
-    //
-    // Biased, dividing by N*H*W rather than by N*H*W - 1: that is what the
-    // forward normalises by, and the saved statistics are what the backward
-    // reads, so an unbiased divisor here would be a different function.
+    // Variance is biased, divided by N*H*W; see tests/functional/integration/README.md.
     constexpr double EPSILON = 1e-5;
 
     Graph::Graph graph;
