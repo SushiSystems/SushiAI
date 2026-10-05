@@ -574,12 +574,19 @@ namespace SushiAI
                                 .writes(*aux));
                         break;
 
-                    default:
+                    case FusedForm::GEMM_BIAS:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
                             Ops::GEMM_BIAS.name.data(), Ops::GEMM_BIAS.id,
                             SushiBLAS::Dispatch::gemm_epilogue(
                                 BiasEpilogue{values}).reads(bias));
+                        break;
+
+                    default:
+                        SA_THROW_IF(true,
+                                    "No GEMM epilogue for fused form {} ({}, node {}). Add it to "
+                                    "Lowering::record_fused_gemm or stop the selector choosing it.",
+                                    fused_form_name(choice.form), Ops::name_of(node.op), id);
                         break;
                 }
                 ++emitted_;
@@ -599,7 +606,13 @@ namespace SushiAI
                 if (activation == Ops::RELU.id)         engine_->nonlinear().relu(c);
                 else if (activation == Ops::SIGMOID.id) engine_->nonlinear().sigmoid(c);
                 else if (activation == Ops::GELU.id)    engine_->nonlinear().gelu(c);
-                else                                    engine_->nonlinear().tanh(c);
+                else if (activation == Ops::TANH.id)    engine_->nonlinear().tanh(c);
+                else
+                    SA_THROW_IF(true,
+                                "No activation kernel for operation {}, the tail of {} (node {}). "
+                                "Add it to Lowering::record_fused_gemm or remove it from the "
+                                "fusion catalog.",
+                                Ops::name_of(activation), Ops::name_of(node.op), id);
                 ++emitted_;
             }
 
@@ -668,7 +681,12 @@ namespace SushiAI
 
             if (node.op == Ops::ADD.id)      engine_->elementwise().add(a, b, c);
             else if (node.op == Ops::SUB.id) engine_->elementwise().sub(a, b, c);
-            else                             engine_->elementwise().mul(a, b, c);
+            else if (node.op == Ops::MUL.id) engine_->elementwise().mul(a, b, c);
+            else
+                SA_THROW_IF(true,
+                            "No elementwise kernel for operation {}. Add it to "
+                            "Lowering::record_binary or stop routing it there.",
+                            Ops::name_of(node.op));
 
             ++emitted_;
         }
@@ -727,7 +745,12 @@ namespace SushiAI
             else if (node.op == Ops::RELU.id)    engine_->nonlinear().relu(y);
             else if (node.op == Ops::GELU.id)    engine_->nonlinear().gelu(y);
             else if (node.op == Ops::SIGMOID.id) engine_->nonlinear().sigmoid(y);
-            else                                 engine_->nonlinear().tanh(y);
+            else if (node.op == Ops::TANH.id)    engine_->nonlinear().tanh(y);
+            else
+                SA_THROW_IF(true,
+                            "No in-place kernel for operation {}. Add it to "
+                            "Lowering::record_unary_inplace or stop routing it there.",
+                            Ops::name_of(node.op));
 
             emitted_ += 2;
         }
@@ -741,7 +764,12 @@ namespace SushiAI
             if (node.op == Ops::RELU_BACKWARD.id)         engine_->nonlinear().relu_backward(dy, primal, dx);
             else if (node.op == Ops::GELU_BACKWARD.id)    engine_->nonlinear().gelu_backward(dy, primal, dx);
             else if (node.op == Ops::SIGMOID_BACKWARD.id) engine_->nonlinear().sigmoid_backward(dy, primal, dx);
-            else                                          engine_->nonlinear().tanh_backward(dy, primal, dx);
+            else if (node.op == Ops::TANH_BACKWARD.id)    engine_->nonlinear().tanh_backward(dy, primal, dx);
+            else
+                SA_THROW_IF(true,
+                            "No backward kernel for operation {}. Add it to "
+                            "Lowering::record_activation_backward or stop routing it there.",
+                            Ops::name_of(node.op));
 
             ++emitted_;
         }
