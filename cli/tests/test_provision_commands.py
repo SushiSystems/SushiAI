@@ -1,3 +1,8 @@
+# test_provision_commands.py
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
 """Tests that sa carries the shared provision commands."""
 
 from __future__ import annotations

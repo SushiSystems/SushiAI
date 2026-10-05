@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_checkpoint.cpp                                                    */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_checkpoint.cpp                                          */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // The device half of checkpointing: binding records to the pool's tensors.
 // The byte format's own malformed-file surface is device-free and lives in

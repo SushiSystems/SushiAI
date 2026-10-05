@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_fusion.cpp                                                        */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_fusion.cpp                                              */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Device-free: the static fusion pass is a pure function of the IR, exactly as
 // the memory planner is, so every case here is a synthetic graph and a table of

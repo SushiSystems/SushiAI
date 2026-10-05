@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_arena.cpp                                                         */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_arena.cpp                                               */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // The three device-side claims the memory planner rests on, each checked
 // rather than assumed:

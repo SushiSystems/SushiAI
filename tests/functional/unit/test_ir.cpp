@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_ir.cpp                                                            */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_ir.cpp                                                  */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Device-free: the IR and its builder are host-lane, which is the whole point
 // of keeping shape inference out of the lowering.

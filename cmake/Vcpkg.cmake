@@ -1,3 +1,9 @@
+# Vcpkg.cmake
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # Vcpkg — (Windows) locate the vcpkg root and point CMAKE_TOOLCHAIN_FILE at it,
 # before project(). SushiAI is the top-level project, so it reaches project()
 # first; the siblings it pulls in (SushiRuntime, transitively hwloc; SushiBLAS)

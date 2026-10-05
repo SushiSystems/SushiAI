@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_training.cpp                                                      */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_training.cpp                                            */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // The end-to-end gate: a real MLP, real data, real convergence - and the
 // compile-once guarantee held to account across every step of it.

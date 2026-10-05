@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_resilience.cpp                                                    */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_resilience.cpp                                          */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // What the library does when it is handed something it cannot serve, and what
 // it does at the edges of what it can.

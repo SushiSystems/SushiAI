@@ -1,3 +1,9 @@
+# CMakeLists.txt
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # Two executables, two different jobs. `sushiai_example` is the teaching file
 # (`sa run sushiai_example`); `sushiai_demo_mlp` is the program behind the
 # supported `sa demo mlp` command, whose flags and printed lines are a

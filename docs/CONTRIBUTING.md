@@ -9,8 +9,10 @@ pull requests are not being accepted at this stage** — but bug reports and
 design discussion are welcome, and this document is the reference for how the
 project is actually built.
 
-By contributing you agree that your contributions are licensed under the
-project's **Apache License, Version 2.0** (see [`LICENSE`](../LICENSE)).
+Contributions from outside Sushi Systems are not accepted yet. SushiAI is
+source-available, free for non-commercial use under the PolyForm Noncommercial
+License 1.0.0 (see [`LICENSE`](../LICENSE)); commercial use needs a licence from
+Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 
 > New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md) — it walks from
 > an empty checkout to a model that trains, and then explains what the library
@@ -102,32 +104,10 @@ SushiBLAS) — match the file you're editing.
 
 ### License header
 
-Every file starts with this signature (replace `[filename]`):
-
-```cpp
-/**************************************************************************/
-/* [filename]                                                             */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/*                https://github.com/SushiSystems/SushiAI                 */
-/*                         https://sushisystems.io                        */
-/**************************************************************************/
-/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
-/*                                                                        */
-/* Licensed under the Apache License, Version 2.0 (the "License");        */
-/* you may not use this file except in compliance with the License.       */
-/* You may obtain a copy of the License at                                */
-/*                                                                        */
-/*     http://www.apache.org/licenses/LICENSE-2.0                         */
-/*                                                                        */
-/* Unless required by applicable law or agreed to in writing, software    */
-/* distributed under the License is distributed on an "AS IS" BASIS,      */
-/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
-/* implied. See the License for the specific language governing           */
-/* permissions and limitations under the License.                         */
-/**************************************************************************/
-```
+Every source file opens with the license block of the `source-comments` skill: the file
+name, the project line `SushiAI - https://github.com/SushiSystems/SushiAI`, the copyright
+line and the two licence lines. `tools/licensing/write_license_block.py` in SushiSkills
+writes it; nobody types it by hand.
 
 ### C++ standard, naming, braces
 

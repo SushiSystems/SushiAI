@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_forward.cpp                                                       */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_forward.cpp                                             */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Every lowered operation, against values worked out by hand. This is the
 // tier that would catch a transposed gemm, a bias broadcast down the wrong
