@@ -11,8 +11,10 @@ Usage: python tools/documentation/check_source_comments.py [paths...] [--report]
 from __future__ import annotations
 
 import ast
+import io
 import re
 import sys
+import tokenize
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,12 +120,26 @@ def _comment_lines_c(source: SourceFile) -> Iterator[CommentLine]:
             yield CommentLine(index + 1, stripped[stripped.index("//"):])
 
 
+def _python_comment_indexes(source: SourceFile) -> frozenset[int]:
+    """Returns the indexes of the lines that hold a `#` comment and nothing else.
+
+    A line inside a string literal is not one. A file that does not tokenize is read line by line.
+    """
+    by_line = frozenset(
+        index for index, line in enumerate(source.lines) if line.strip().startswith("#"))
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO("\n".join(source.lines) + "\n").readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return by_line
+    comments = frozenset(token.start[0] - 1 for token in tokens if token.type == tokenize.COMMENT)
+    return by_line & comments
+
+
 def _comment_lines_python(source: SourceFile) -> Iterator[CommentLine]:
     """Yields the lines after the license that are `#` comments."""
-    for index in range(source.body_start, len(source.lines)):
-        stripped = source.lines[index].strip()
-        if stripped.startswith("#"):
-            yield CommentLine(index + 1, stripped)
+    for index in sorted(_python_comment_indexes(source)):
+        if index >= source.body_start:
+            yield CommentLine(index + 1, source.lines[index].strip())
 
 
 def _comment_lines(source: SourceFile) -> Iterator[CommentLine]:
@@ -145,11 +161,19 @@ def _doc_blocks_c(source: SourceFile) -> Iterator[tuple[int, int]]:
 
 def _slash_runs(source: SourceFile, marker: str) -> Iterator[tuple[int, int]]:
     """Yields the first line index and length of every run of lines starting with a marker."""
+    comments = _python_comment_indexes(source) if source.is_python else None
+
+    def starts(at: int) -> bool:
+        """Returns whether the line at an index opens with the marker as a comment."""
+        if comments is not None:
+            return at in comments
+        return source.lines[at].strip().startswith(marker)
+
     index = source.body_start
     while index < len(source.lines):
-        if source.lines[index].strip().startswith(marker):
+        if starts(index):
             first = index
-            while index < len(source.lines) and source.lines[index].strip().startswith(marker):
+            while index < len(source.lines) and starts(index):
                 index += 1
             yield first, index - first
         else:

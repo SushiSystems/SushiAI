@@ -18,6 +18,7 @@ from documentation.check_source_comments import (  # noqa: E402
     K_CHECKER,
     K_LICENSE_LINES,
     collect,
+    rule_comment_runs,
     rule_license_block,
 )
 
@@ -126,6 +127,36 @@ class LicenseBlockTest(unittest.TestCase):
         other = "All rights reserved. Nothing is granted to anyone."
         text = _boxed("graph.hpp", (*K_SUSHI_LINES, other))
         self.assertEqual(_messages("graph.hpp", text), [_foreign(other)])
+
+
+class PythonCommentTest(unittest.TestCase):
+    """Checks which Python lines the comment rules read as comments."""
+
+    def _runs(self, body: str) -> list[int]:
+        """Returns the line numbers the comment-run rule reports for a Python file body."""
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "sample.py"
+            path.write_text(_hashed("sample.py").rstrip("\n") + "\n" + body, encoding="utf-8")
+            return [issue.line for source in collect([path]) for issue in rule_comment_runs(source)]
+
+    def _head_lines(self) -> int:
+        """Returns how many lines the license block and the docstring take."""
+        return len(_hashed("sample.py").splitlines())
+
+    def test_hash_lines_inside_a_string_are_not_comments(self) -> None:
+        """Reports nothing for lines that start with # inside a string literal."""
+        body = 'K_EXAMPLE = """\n#include <stdio.h>\n#include "api.h"\nint main(void);\n"""\n'
+        self.assertEqual(self._runs(body), [])
+
+    def test_a_real_run_of_comments_is_still_reported(self) -> None:
+        """Reports two comment lines in a row, on the line of the first."""
+        body = "x = 1\n# first reason\n# second reason\ny = 2\n"
+        self.assertEqual(self._runs(body), [self._head_lines() + 2])
+
+    def test_a_file_that_does_not_tokenize_falls_back_to_the_line_test(self) -> None:
+        """Still reports a comment run in a file with an unclosed bracket."""
+        body = "# first reason\n# second reason\nx = (1,\n"
+        self.assertEqual(self._runs(body), [self._head_lines() + 1])
 
 
 if __name__ == "__main__":
