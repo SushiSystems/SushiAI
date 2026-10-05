@@ -77,9 +77,9 @@ namespace SushiAI
             try
             {
                 return SushiRuntime::make_sushi<SushiBLAS::Storage>(
-                    engine.get_context().get_allocator(),
+                    engine.get_context(),
                     bytes,
-                    SushiRuntime::Memory::Strategies::Shared::instance());
+                    SushiRuntime::API::Residency::Shared);
             }
             catch (const std::exception& failure)
             {
@@ -143,9 +143,9 @@ namespace SushiAI
         try
         {
             return SushiRuntime::make_sushi<SushiBLAS::Storage>(
-                engine.get_context().get_allocator(),
+                engine.get_context(),
                 bytes,
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
         }
         catch (const std::exception& failure)
         {
