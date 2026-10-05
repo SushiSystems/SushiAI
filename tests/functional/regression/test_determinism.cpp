@@ -6,27 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Bit-for-bit reproducibility, end to end.
-//
-// This is the guarantee the whole stack is arranged around and the one nothing
-// proved. SushiRuntime promises sushiruntime_deterministic_fp; autograd/tape.cpp
-// sums a fan-out through an ordered ACCUMULATE chain rather than float
-// atomics, and says in its own header that an atomic sum "would break that
-// quietly, showing up as a training run that cannot be reproduced rather than
-// as a test failure". A claim whose failure mode is explicitly "not a test
-// failure" needs a test, and it has to compare bits: EXPECT_NEAR passes
-// happily on a run that reorders a reduction, which is exactly the change the
-// claim forbids.
-//
-// Regression tier, because every failure here is silent. A model that trains
-// to a slightly different place each run still converges, still reports good
-// accuracy, and still looks completely healthy - right up to the day someone
-// needs to reproduce a result.
-//
-// A fresh Engine per run is part of the contract, not a workaround: SushiBLAS's
-// set_seed() leaves the engine's monotonic RNG offset counter alone, so two
-// generators built on one engine draw different streams from one seed. That is
-// documented in dataset.hpp and is why every comparison below builds its own.
+/**
+ * @file test_determinism.cpp
+ * @brief Tests that training, initialisation, the dataset and a replayed step repeat bit for bit.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cstddef>
 #include <cstdint>
@@ -38,8 +23,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/functional/regression/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 
@@ -86,15 +70,7 @@ namespace
 
     /**
      * @brief Trains an MLP from scratch on a fresh Engine and reports the result.
-     *
-     * Everything the run depends on is either fixed here or seeded: the model
-     * shape, the initialisation seed (InitPolicy's default), the data seed and
-     * the optimizer. Two calls therefore differ in nothing at all, which is
-     * what makes a difference in the output a real finding.
-     *
-     * @param epochs How many passes to make.
-     * @param use_adam Whether to use AdamW rather than SGD with momentum.
-     * @return The parameters and the loss trajectory.
+     * @see tests/functional/regression/README.md
      */
     RunResult train_once(int64_t epochs, bool use_adam)
     {
@@ -150,9 +126,7 @@ namespace
 
         for (std::size_t step = 0; step < first.losses.size(); ++step)
         {
-            // The loss is read out of device memory as a float; two identical
-            // runs must produce the same float, so == is the right comparison
-            // and EXPECT_NEAR would be an admission that they might not.
+            // Identical runs produce the same float; see tests/functional/regression/README.md.
             EXPECT_EQ(first.losses[step], second.losses[step])
                 << "the runs diverged at step " << step << " (" << first.losses[step]
                 << " vs " << second.losses[step] << ")";
@@ -169,11 +143,12 @@ namespace
     }
 }
 
+/**
+ * @brief Tests that two SGD-with-momentum runs of two epochs agree byte for byte.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
 {
-    // Two epochs with momentum: enough steps for a reordered reduction to
-    // accumulate a visible difference, and momentum means step N depends on
-    // every step before it, so a single divergent bit cannot cancel out.
     const RunResult first = train_once(2, false);
     const RunResult second = train_once(2, false);
 
@@ -181,21 +156,24 @@ TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
     expect_identical(first, second);
 }
 
+/**
+ * @brief Tests that two AdamW runs of two epochs agree byte for byte.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
 {
-    // AdamW divides by a square root of an accumulated second moment, which is
-    // where a one-ULP difference in the gradient stops staying one ULP.
     const RunResult first = train_once(2, true);
     const RunResult second = train_once(2, true);
 
     expect_identical(first, second);
 }
 
+/**
+ * @brief Tests that two initialisations from one seed produce identical parameter bytes.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 {
-    // The starting point has to be identical before anything downstream can
-    // be, and this is the only part of the run that goes through the device
-    // RNG rather than through arithmetic.
     const auto initialise = []()
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
@@ -222,11 +200,12 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
             << "parameter " << i << " initialised differently from the same seed";
 }
 
+/**
+ * @brief Tests that two synthetic datasets built from one seed hold identical bytes.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 {
-    // The existing coverage compares through EXPECT_DOUBLE_EQ, which tolerates
-    // four ULP and cannot see a sign difference on a zero. A dataset is either
-    // reproducible or it is not, so this compares the bytes.
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::context());
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::context());
 
@@ -249,13 +228,12 @@ TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
     }
 }
 
+/**
+ * @brief Tests that replaying one compiled step on fixed inputs yields identical gradient bytes.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
 {
-    // The narrowest form of the claim, with the optimizer and the RNG removed:
-    // the same compiled plan, the same buffers, run twice. Anything the
-    // runtime does non-deterministically - a work-stealing reduction, an
-    // atomic accumulation, a scheduler-dependent order - shows up here with
-    // nothing else to blame it on.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
@@ -275,8 +253,7 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
     options.track_accuracy = false;
     Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
 
-    // A zero learning rate keeps the parameters fixed, so every replay sees
-    // exactly the state the one before it did.
+    // A zero learning rate keeps the parameters fixed; see tests/functional/regression/README.md.
     trainer.run_step(dataset.batch(0));
 
     std::vector<std::vector<unsigned char>> reference;

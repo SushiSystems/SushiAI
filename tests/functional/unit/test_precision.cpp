@@ -6,23 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: the precision policy is a table of judgements and the cast pass
-// is a pure function of the IR, exactly as the fusion pass and the memory
-// planner are.
-//
-// What is being pinned here is *placement*, not survival. A mixed-precision
-// graph that runs proves almost nothing: a missing cast throws in SushiBLAS,
-// so "it ran" only rules out the loud half of the failure space. The quiet
-// half - a cast in the wrong place - leaves a graph that trains and merely
-// learns worse, so every case below is either
-//
-//   - the whole-graph invariant (every node's operands agree with the type it
-//     computes in), asserted by walking the graph rather than by spot checks,
-//   - a control (the same graph under the fp32 policy must get *zero* casts,
-//     computed rather than short-circuited), or
-//   - one of the two places the master-weight arrangement can silently break:
-//     a parameter retyped in place, or a gradient that reaches its fp32 buffer
-//     without being widened.
+/**
+ * @file test_precision.cpp
+ * @brief Tests the mixed-precision policy and where the cast insertion pass places its casts.
+ * @author Mustafa Garip
+ */
 
 #include <algorithm>
 #include <cstddef>
@@ -63,12 +51,8 @@ namespace
 
     /**
      * @struct Traced
-     * @brief A one-hidden-layer classifier, differentiated, with the ids named.
-     *
-     * Built by hand rather than through NN::Sequential so the test can name
-     * every value it wants to assert about, and so the graph is the smallest
-     * one that still contains all four interesting shapes: a parameter read by
-     * both passes, a reduction, a loss, and a gradient buffer.
+     * @brief Holds a one-hidden-layer classifier, differentiated, with the ids named.
+     * @see tests/functional/unit/README.md
      */
     struct Traced
     {
@@ -136,10 +120,6 @@ namespace
     }
 }
 
-// =========================================================================
-// 1. The policy itself
-// =========================================================================
-
 TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 {
     const UniformPrecisionPolicy policy;
@@ -154,10 +134,7 @@ TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 
 TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
 {
-    // The rule set, stated as a table so that adding an operation to the
-    // narrowing set is a visible edit here and not a silent behaviour change.
-    // Everything absent from the true list stays in the graph's own precision,
-    // which is the safe answer for an operation nobody has thought about yet.
+    // Every narrowing operation is listed here; see tests/functional/unit/README.md.
     const OpID narrows[] = {
         Ops::MATMUL.id,
         Ops::GEMM_BIAS.id, Ops::GEMM_BIAS_RELU.id,
@@ -165,8 +142,7 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::BIAS_ADD.id,
         Ops::RELU.id, Ops::SIGMOID.id, Ops::TANH.id,
         Ops::RELU_BACKWARD.id, Ops::SIGMOID_BACKWARD.id, Ops::TANH_BACKWARD.id,
-        // LEAKY_RELU joined Ops::ACTIVATIONS with GradientSource::OUTPUT, so
-        // it genuinely narrows now - the same substitution argument as RELU.
+        // LEAKY_RELU narrows, as RELU does; see tests/functional/unit/README.md.
         Ops::LEAKY_RELU.id, Ops::LEAKY_RELU_BACKWARD.id,
     };
 
@@ -174,30 +150,18 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         EXPECT_TRUE(Graph::narrows_under_mixed_precision(op))
             << Ops::name_of(op) << " should compute low";
 
-    // The reductions and anything that sums many terms. fp16 carries ~11 bits
-    // of significand and SushiBLAS's own reduction header documents a 2048
-    // ceiling for HALF, so these are the ones that go quietly wrong.
+    // Reductions stay wide; fp16 has ~11 significand bits; see tests/functional/unit/README.md.
     const OpID stays[] = {
         Ops::SUM_ROWS.id, Ops::LOG_SOFTMAX.id, Ops::NLL_LOSS.id, Ops::ACCUMULATE.id,
         Ops::EXP.id, Ops::SUB.id, Ops::SCALE.id, Ops::EXP_SUB_SCALE.id,
-        // DYNAMIC_SCALE carries the gradient loss scale, which is the one
-        // number in the graph that exists to keep values *out* of fp16's
-        // subnormals. Narrowing the node that applies it would overflow the
-        // very quantity it is protecting - see optim/loss_scaler.hpp.
+        // DYNAMIC_SCALE applies the loss scale and stays wide; see tests/functional/unit/README.md.
         Ops::DYNAMIC_SCALE.id,
         Ops::ADD.id, Ops::MUL.id, Ops::ZERO.id,
-        // GELU and the one fused form that folds it. The form is a GEMM and
-        // rule 1 would otherwise take it; it is here because narrowing it puts
-        // the tanh approximation's `x*x*x` into fp16, which overflows at
-        // |x| ~ 40.3 - see graph/precision.hpp rule 5, which also explains why
-        // that leaves rules 2 and 5 consistent rather than merely quiet.
+        // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/functional/unit/README.md.
         Ops::GELU.id, Ops::GELU_BACKWARD.id, Ops::GEMM_BIAS_GELU.id,
         Ops::LEAF.id, Ops::CAST.id,
         Ops::ADAMW_UPDATE.id, Ops::SGD_UPDATE.id,
-        // The twenty spatial/CV identities: none of them is a GEMM epilogue or
-        // an activation this policy folds, so each gets the same safe default
-        // as everything else nobody has special-cased - stay at the graph's
-        // own precision.
+        // The twenty spatial identities keep the default; see tests/functional/unit/README.md.
         Ops::RESHAPE.id, Ops::LAYOUT_CONVERT.id,
         Ops::IM2COL.id, Ops::COL2IM.id,
         Ops::MAXPOOL2D.id, Ops::MAXPOOL2D_BACKWARD.id,
@@ -213,32 +177,21 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
             << Ops::name_of(op) << " should stay in the graph's own precision";
 
-    // Every identity is accounted for by one of the two lists above, so a new
-    // operation cannot join the enum without someone deciding which it is.
+    // The two lists account for every identity; see tests/functional/unit/README.md.
     EXPECT_EQ(sizeof(narrows) / sizeof(narrows[0]) + sizeof(stays) / sizeof(stays[0]),
               Ops::ALL.size());
 }
 
 TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
-    // This rule used to rest on two arguments. One of them is gone:
-    // FusedForm::GEMM_BIAS_GELU folds GELU by spilling the pre-activation, so
-    // "nothing folds it, therefore nothing forces its precision" is no longer a
-    // reason for anything. The surviving argument is the arithmetic - the tanh
-    // approximation computes x*x*x, which overflows fp16 at |x| about 40.3 -
-    // and that is not something a unit test can assert without a device.
-    //
-    // What *is* checkable is that the conclusion did not quietly follow the
-    // dead premise: the catalog can fold GELU and the policy still keeps it
-    // wide, which is the pair of facts graph/precision.hpp rule 5 now asserts.
+    // The catalog folds GELU and the policy keeps it wide; see tests/functional/unit/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::GELU.id))
         << "the catalog no longer folds GELU, so rule 5's first reason is back and this "
            "test is guarding nothing";
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::GELU.id));
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::GELU.id));
 
-    // And the fused form goes with it, or the cast pass would narrow a node
-    // whose epilogue is the very expression rule 5 refuses to put in fp16.
+    // The fused GELU form stays wide with it; see tests/functional/unit/README.md.
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::GEMM_BIAS_GELU.id));
     EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::GEMM_BIAS_RELU.id));
 
@@ -248,10 +201,7 @@ TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
 
 TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
 {
-    // The contract graph/precision.hpp states, and the one that makes the
-    // invariant checkable after the fact instead of only while the pass runs.
-    // Without it, find_dtype_mismatches would report a graph the pass had just
-    // finished making correct.
+    // choose() is idempotent for every operation; see tests/functional/unit/README.md.
     const MixedPrecisionPolicy policy;
 
     for (const Ops::OpName& entry : Ops::ALL)
@@ -267,9 +217,7 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
 {
     const MixedPrecisionPolicy policy;
 
-    // An fp64 graph keeps fp64 masters and still gets fp16 products; an fp16
-    // graph is already at the floor and is left alone rather than "narrowed"
-    // to something wider.
+    // An fp16 graph is already at the floor; see tests/functional/unit/README.md.
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::MATMUL.id, DType::FLOAT64}).dtype,
               DType::HALF);
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::SUM_ROWS.id, DType::FLOAT64}).dtype,
@@ -279,8 +227,7 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::SUM_ROWS.id, DType::HALF}).dtype,
               DType::HALF);
 
-    // A policy narrowing to fp32 is a legal thing to ask for, and is what an
-    // fp64 model would use.
+    // A policy may narrow to fp32; see tests/functional/unit/README.md.
     const MixedPrecisionPolicy to_single(DType::FLOAT32);
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::MATMUL.id, DType::FLOAT64}).dtype,
               DType::FLOAT32);
@@ -304,15 +251,9 @@ TEST(Unit_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
             << entry.name << " was decided without a reason";
 }
 
-// =========================================================================
-// 2. The control: the fp32 policy changes nothing
-// =========================================================================
-
 TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
 {
-    // The control the mixed cases are read against. If this ever shows casts,
-    // the pass is inserting them unconditionally and every "the mixed policy
-    // inserted N casts" assertion below is measuring nothing.
+    // The fp32 policy inserts zero casts; see tests/functional/unit/README.md.
     Traced traced = trace();
 
     const std::size_t nodes_before = traced.graph.node_count();
@@ -348,14 +289,9 @@ TEST(Unit_CastInsertion, NoPolicyMeansTheUniformPolicy)
     EXPECT_EQ(traced.graph.node_count(), nodes_before);
 }
 
-// =========================================================================
-// 3. The invariant
-// =========================================================================
-
 TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 {
-    // The assertion worth more than a dozen spot checks: it walks the whole
-    // graph and states the rule, so it keeps holding as operations are added.
+    // Every operand agrees with its node's computing type; see tests/functional/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -376,10 +312,7 @@ TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 
 TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 {
-    // Fusion rewrites nodes and re-pairs operands, so it is exactly where a
-    // correctly cast graph could stop being one - and where a master weight
-    // could get swallowed. graph/cast_insertion.hpp argues the ordering; this
-    // is the assertion behind the argument.
+    // Fusion runs after the casts and keeps the invariant; see tests/functional/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -419,9 +352,7 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 
 TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 {
-    // find_dtype_mismatches is the test's own instrument, so it has to be shown
-    // to fail on a graph that is wrong - otherwise every "no mismatches" above
-    // could be a checker that never looks.
+    // The checker reports a graph that is wrong; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -432,8 +363,7 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     const MixedPrecisionPolicy policy;
     const std::vector<DTypeMismatch> mismatches = Graph::find_dtype_mismatches(graph, policy);
 
-    // An uncast fp32 matmul under a mixed policy: two operands and one result,
-    // all three of them float32 where the policy says half.
+    // Two operands and one result are float32, not half; see tests/functional/unit/README.md.
     ASSERT_EQ(mismatches.size(), 3u);
     for (const DTypeMismatch& mismatch : mismatches)
     {
@@ -444,10 +374,6 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 
     EXPECT_NE(Graph::describe(mismatches.front()).find("sushiai.matmul"), std::string::npos);
 }
-
-// =========================================================================
-// 4. Master weights, and the direction that goes silently wrong
-// =========================================================================
 
 TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 {
@@ -468,8 +394,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
             << "a master weight was retyped in place";
         EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::PARAMETER);
 
-        // The fp16 the GEMM reads is a *different* value, produced by a cast
-        // and living with the step's scratch rather than for the whole run.
+        // The GEMM reads a derived fp16 copy of the parameter; see tests/functional/unit/README.md.
         const auto casts = report.casts();
         const auto found = std::find_if(casts.begin(), casts.end(),
             [parameter](const InsertedCast& cast) { return cast.source == parameter; });
@@ -485,11 +410,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 
 TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 {
-    // The backward direction. A matmul computing in fp16 produces an fp16
-    // gradient, and if that reached the fp32 gradient buffer uncast, SushiBLAS
-    // would throw - but if the *buffer* had been retyped to fp16 instead,
-    // nothing would throw and the optimizer would accumulate in fp16, which is
-    // the whole failure master weights exist to prevent.
+    // An fp16 gradient is widened into its fp32 buffer; see tests/functional/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -501,8 +422,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
-    // w1 and w2 are produced by a backward MATMUL, which computes low; b1 and
-    // b2 come from SUM_ROWS, which does not, so only the weights need widening.
+    // Only the weight gradients come from a low MATMUL; see tests/functional/unit/README.md.
     for (ValueId weight_gradient : {traced.gradients[0], traced.gradients[2]})
     {
         ASSERT_NE(weight_gradient, NO_VALUE);
@@ -518,8 +438,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
         EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::MATMUL.id);
     }
 
-    // The bias gradients come out of a reduction that stayed wide, so nothing
-    // was widened into them and nothing needed to be.
+    // The bias gradients come from a wide reduction; see tests/functional/unit/README.md.
     for (ValueId bias_gradient : {traced.gradients[1], traced.gradients[3]})
     {
         EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::FLOAT32);
@@ -532,11 +451,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 
 TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
 {
-    // A parameter read twice gets two gradient contributions and an ACCUMULATE
-    // to sum them. Two things have to hold at once: the sum runs in the wide
-    // type (it is a sum), and its result and its first operand agree - because
-    // the lowering makes the result *alias the accumulator's buffer*, so a
-    // disagreement there is a wrong-width write and not merely a wrong number.
+    // ACCUMULATE's result aliases its accumulator's buffer; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -577,16 +492,9 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
         }
 }
 
-// =========================================================================
-// 5. What the pass promises about ids, reuse and repetition
-// =========================================================================
-
 TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 {
-    // The half of the pinning rule that is *not* covered by a lifetime class.
-    // The logits are an ordinary activation; the training loop reads them back
-    // by id for accuracy, and a caller who forgets to say so gets an fp16
-    // buffer where their host-side argmax expects floats.
+    // An observed activation keeps its dtype; see tests/functional/unit/README.md.
     Traced pinned = trace();
     Traced loose = trace();
 
@@ -616,9 +524,7 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 
 TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
 {
-    // w2 is read by the forward matmul and again by the backward one. Two
-    // conversions would be two kernels and two buffers for one number, and the
-    // reuse is safe precisely because the IR is single-assignment.
+    // w2 has two readers and one conversion; see tests/functional/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -742,9 +648,7 @@ TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
 
 TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
 {
-    // The same guard fuse() and MemoryPlan::build() carry, for the same reason:
-    // the pass emits a conversion immediately before its consumer, which is
-    // only a valid position if producers already come first.
+    // A conversion sits immediately before its consumer; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
     const ValueId a = graph.add_value(Shape{ROWS}, DType::FLOAT32, Lifetime::ACTIVATION, "a");
@@ -764,17 +668,8 @@ namespace
 {
     /**
      * @struct Pooled
-     * @brief A maxpool graph, differentiated, with the index buffer named.
-     *
-     * MAXPOOL2D is the first operation in this IR whose results are not all
-     * one element type: it writes the pooled tensor and, beside it, the INT64
-     * argmax its backward reads. The cast pass derives one precision per node
-     * from `outputs[0]`, which makes the argmax look like a value in the wrong
-     * type rather than a value with no precision to choose.
-     *
-     * x is a parameter rather than an input for the reason
-     * test_argmax_lifetime.cpp gives: MAXPOOL2D_BACKWARD is only emitted when
-     * something upstream of the pool needs a gradient.
+     * @brief Holds a maxpool graph, differentiated, with the index buffer named.
+     * @see tests/functional/unit/README.md
      */
     struct Pooled
     {
@@ -828,14 +723,7 @@ namespace
 
 TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
 {
-    // The pass forced every operand and every result of a node to one dtype,
-    // derived from the node's first result. For MAXPOOL2D that is FLOAT32 from
-    // the pooled tensor, so the INT64 argmax read as a mismatch and the pass
-    // tried to convert it - and GraphBuilder::cast refuses anything but
-    // real-float to real-float by design, so the whole build threw.
-    //
-    // Policy-independent by construction: `wanted` comes from outputs[0], not
-    // from the policy's choose(), so the uniform policy reaches it too.
+    // The INT64 argmax is not converted; see tests/functional/unit/README.md.
     Pooled p = trace_pool();
 
     ASSERT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
@@ -869,10 +757,7 @@ TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
 
 TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 {
-    // The loud half of the same defect. An unpinned argmax is retyped in
-    // place and the mismatch disappears silently; a pinned one keeps its id
-    // and its INT64 buffer, so the pass reaches for the widening cast - and
-    // CAST is real-float to real-float by design.
+    // A pinned argmax keeps its id and its INT64 buffer; see tests/functional/unit/README.md.
     Pooled p = trace_pool();
 
     const std::vector<ValueId> observed{p.indices};

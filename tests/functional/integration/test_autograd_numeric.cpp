@@ -6,15 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Finite-difference verification of every backward rule, in FLOAT64.
-//
-// The whole graph - forward, loss and backward - runs on the device in double
-// precision, and the analytic gradient it produces is compared against a
-// central difference of the loss the same graph computes. That is the only
-// check that can distinguish a correct backward rule from one that is merely
-// plausible, and it must be fp64: an fp32 difference quotient bottoms out
-// near 2.4e-5 relative accuracy, which is the same order as the error a
-// genuinely wrong rule produces. See gradcheck.hpp.
+/**
+ * @file test_autograd_numeric.cpp
+ * @brief Tests every backward rule against a central difference of the loss, in FLOAT64.
+ * @author Mustafa Garip
+ */
 
 #include <algorithm>
 #include <array>
@@ -28,8 +24,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
@@ -41,14 +36,9 @@ namespace
     class Integration_Autograd : public SaTest::EngineTest {};
 
     /**
-     * @brief A FLOAT64 graph whose loss and gradient can both be evaluated at a point.
-     *
-     * The variable under test is declared as the only gradient-requiring leaf;
-     * everything the build callback declares alongside it is a constant the
-     * test fills. The loss is always the mean negative log-likelihood against
-     * a target matrix, which is a perfectly good scalar functional of anything
-     * shaped [N, C] - and, when the model ends in a log-softmax, exercises the
-     * fused cross-entropy rule as well.
+     * @brief Holds a FLOAT64 graph whose loss and gradient can both be evaluated at a point.
+     * @pre The variable under test is the only gradient-requiring leaf; see
+     *      tests/functional/integration/README.md.
      */
     class Probe
     {
@@ -75,12 +65,7 @@ namespace
                 gradient_ = grads.at(0);
                 EXPECT_NE(gradient_, Graph::NO_VALUE);
 
-                // Off by default, because every case below this one is checking
-                // a backward *rule* and fusion is not allowed to change one. It
-                // is switchable because one case is checking the opposite
-                // direction: that a fused form which rewrites what the backward
-                // pass reads still leaves the same derivative behind. Ids
-                // survive the pass, so nothing recorded above needs remapping.
+                // Fusion is off unless a case asks; see tests/functional/integration/README.md.
                 if (fuse)
                 {
                     const ValueId observed[] = {loss_, targets_};
@@ -270,8 +255,7 @@ TEST_F(Integration_Autograd, MatmulWithBothOperandsTransposed)
 
 TEST_F(Integration_Autograd, MatmulGradientOfTheRightOperand)
 {
-    // The same node from the other side: the variable is now the weight, so
-    // this covers the dB half of the rule rather than the dA half.
+    // The weight is the variable, covering dB; see tests/functional/integration/README.md.
     ValueId activations = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{3, 5}, [&activations](const GraphBuilder& builder, ValueId w)
@@ -390,9 +374,7 @@ TEST_F(Integration_Autograd, ElementwiseMultiply)
 
 TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
 {
-    // dB = dC * A, the half the left-hand check cannot reach. The rule is
-    // written symmetrically, which is exactly why a copy-paste slip in it -
-    // reading inputs[1] on both sides - would leave the left-hand test green.
+    // Covers dB = dC * A, the right-hand half; see tests/functional/integration/README.md.
     ValueId other = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
@@ -412,15 +394,7 @@ TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
 
 TEST_F(Integration_Autograd, AccumulateInTheForwardGraph)
 {
-    // ACCUMULATE has a backward rule and, until this test, nothing exercised
-    // it. The two fan-out tests above build an ACCUMULATE chain in the
-    // BACKWARD graph, and differentiate() only walks the forward nodes - so
-    // those chains are never themselves differentiated. Reaching the rule at
-    // all needs an ACCUMULATE the caller put in the forward pass.
-    //
-    // Its lowering aliases the result onto the accumulator's own buffer, so
-    // running the step leaves the variable holding x + other; every probe
-    // rewrites the whole variable first, which is what keeps that harmless.
+    // Every probe rewrites the whole variable first; see tests/functional/integration/README.md.
     ValueId other = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
@@ -480,9 +454,7 @@ TEST_F(Integration_Autograd, ReluAwayFromItsKink)
     std::vector<double> point(probe.size());
     SaTest::HostNoise(152).fill(point, 1.0);
 
-    // ReLU is not differentiable at zero, and a difference quotient that
-    // straddles the kink reports the average of the two one-sided slopes,
-    // which no correct rule can match. Sample clear of it.
+    // ReLU is sampled clear of its kink at zero; see tests/functional/integration/README.md.
     Autograd::push_off_kinks(point);
 
     expect_gradient_matches(probe, point);
@@ -490,11 +462,7 @@ TEST_F(Integration_Autograd, ReluAwayFromItsKink)
 
 TEST_F(Integration_Autograd, LeakyReluHasBothOfItsSlopes)
 {
-    // Sampled off the kink, and deliberately over a range wide enough that
-    // some elements land on each side: a probe that only ever sees positive
-    // inputs would pass with the negative slope hard-coded to zero, i.e.
-    // with a plain ReLU. See LeakyReluBranchSwapIsCaughtByProbePoints below
-    // for the count of negative points this actually samples.
+    // The sample range puts elements on both slopes; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{4, 8}, [](const GraphBuilder& builder, ValueId x)
     {
         return builder.log_softmax(builder.leaky_relu(x, 0.1));
@@ -513,11 +481,7 @@ TEST_F(Integration_Autograd, LeakyReluHasBothOfItsSlopes)
 
 TEST_F(Integration_Autograd, LeakyReluBranchSwapIsCaughtByProbePoints)
 {
-    // Pins the negative-side split of the exact point LeakyReluHasBothOfItsSlopes
-    // above uses (same seed, same scale, same push_off_kinks), which is the
-    // property the branch-swap mutation depends on: if a future change to the
-    // seed or the noise generator ever collapsed this to all-positive, the
-    // branch-swap mutation would go undetected without this failing first.
+    // Pins the sign split of the sample used above; see tests/functional/integration/README.md.
     std::vector<double> point(4 * 8);
     SaTest::HostNoise(171).fill(point, 1.5);
     Autograd::push_off_kinks(point);
@@ -550,27 +514,14 @@ TEST_F(Integration_Autograd, Gelu)
 
 TEST_F(Integration_Autograd, AFusedGeluEpilogueHasTheSameDerivativeAsAnUnfusedOne)
 {
-    // The strongest oracle in the repository, pointed at the one fused form
-    // whose correctness is not a matter of "the same operations in the same
-    // order". GEMM_BIAS_GELU *rewrites what the backward pass reads*: the
-    // pre-activation now arrives from a store inside a GEMM kernel rather than
-    // from the ger that used to write it. A central difference does not care
-    // where it came from - it asks the graph what its own loss does when the
-    // variable moves, and compares that with what the graph says its gradient
-    // is. A spill holding the wrong tensor cannot survive that, and would
-    // survive any amount of "it trained and the loss fell".
-    //
-    // FLOAT64 throughout, as gradcheck.hpp requires; the whole epilogue is
-    // instantiated for double by execute_gemm's REAL domain.
+    // The fused epilogue is checked in FLOAT64; see tests/functional/integration/README.md.
     ValueId weight = Graph::NO_VALUE;
     ValueId bias = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{4, 5},
                 [&](const GraphBuilder& builder, ValueId x)
                 {
-                    // x is the variable: [4, 5] activations into a [3, 5]^T
-                    // weight, so the chain is matmul -> bias_add -> gelu and the
-                    // logits are [4, 3].
+                    // x is the variable: matmul -> bias_add -> gelu gives [4, 3] logits.
                     weight = builder.input(Shape{3, 5}, "w", DType::FLOAT64);
                     bias = builder.input(Shape{3}, "b", DType::FLOAT64);
                     return builder.gelu(
@@ -578,10 +529,7 @@ TEST_F(Integration_Autograd, AFusedGeluEpilogueHasTheSameDerivativeAsAnUnfusedOn
                 },
                 /*fuse=*/true);
 
-    // The test is only a test if the fused arm actually ran. Both halves are
-    // checked: the static pass matched, and the selector did not hand the
-    // lowering back the unfused spelling - which it would on a device without
-    // double precision, leaving this case quietly measuring the old path.
+    // The fused arm must really have run; see tests/functional/integration/README.md.
     ASSERT_EQ(probe.fusion().count(Graph::FusedForm::GEMM_BIAS_GELU), 1u)
         << probe.fusion().to_string();
 
@@ -652,9 +600,7 @@ TEST_F(Integration_Autograd, SumRowsBroadcastsItsGradientBack)
 
 TEST_F(Integration_Autograd, FusedCrossEntropyAgainstOneHotTargets)
 {
-    // The headline gradient: d/dlogits of the mean NLL is (softmax - Y) / N.
-    // It is emitted as one fused rule rather than by differentiating the
-    // seven-op log-softmax recipe, so it needs its own numeric proof.
+    // The fused rule gives (softmax - Y) / N; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{4, 5}, [](const GraphBuilder& builder, ValueId x)
     {
         return builder.log_softmax(x);
@@ -670,8 +616,7 @@ TEST_F(Integration_Autograd, FusedCrossEntropyAgainstOneHotTargets)
 
 TEST_F(Integration_Autograd, GradientAccumulationAtAFanOut)
 {
-    // Two branches over one variable, so the gradient is an ACCUMULATE chain
-    // rather than a single contribution.
+    // Two branches over one variable make the gradient an ACCUMULATE chain.
     Probe probe(*engine, Shape{4, 3}, [](const GraphBuilder& builder, ValueId x)
     {
         return builder.add(builder.tanh(x), builder.sigmoid(x));
@@ -687,9 +632,7 @@ TEST_F(Integration_Autograd, GradientAccumulationAtAFanOut)
 
 TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
 {
-    // The end-to-end check. A full Jacobian over every weight would be 2n
-    // device runs; k random unit directions is 2k, independent of n, and a
-    // wrong gradient survives sixteen of them with vanishing probability.
+    // Sixteen random directions cost 2k runs, not 2n; see tests/functional/integration/README.md.
     ValueId hidden_weight = Graph::NO_VALUE;
     ValueId output_weight = Graph::NO_VALUE;
     ValueId inputs = Graph::NO_VALUE;
@@ -723,20 +666,13 @@ TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
 
 TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
 {
-    // A reshape moves no data, so its gradient is its incoming gradient in the
-    // original shape. Worth a numeric check anyway: "reshape back to the input
-    // shape" and "reshape back to the output shape" are both one line and only
-    // one is right.
+    // The gradient returns in the input shape; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{3, 8}, [](const GraphBuilder& builder, ValueId x)
     {
         return builder.log_softmax(builder.reshape(builder.reshape(x, Shape{4, 6}), Shape{3, 8}));
     });
 
-    // The fused LOG_SOFTMAX + NLL_LOSS rule's closed form assumes a one-hot
-    // target row (nll_loss_backward's comment: "valid because the targets are
-    // one-hot"); noise there would make the *analytic* gradient legitimately
-    // disagree with the numeric one for reasons that have nothing to do with
-    // RESHAPE.
+    // The fused NLL rule needs one-hot targets; see tests/functional/integration/README.md.
     probe.fill_one_hot(3, 8);
 
     std::vector<double> point(probe.size());
@@ -747,26 +683,7 @@ TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
 
 TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
 {
-    // The load-bearing case: a *single* layout_convert, so the loss genuinely
-    // depends on the permuted element order rather than on a round trip that
-    // any involutive, shape-correct pair of backward hops would also pass -
-    // a rule that mistakenly reshaped dy back to the operand's shape instead
-    // of permuting it (same magnitude, wrong place) would still satisfy
-    // every shape check Differentiator::contribute makes, and a round trip
-    // cannot tell the two apart because both compose back to the identity.
-    //
-    // CV-4 forces every non-LEAF, non-LAYOUT_CONVERT node's operand and
-    // result to agree on layout, so a *variable* cannot legally reach
-    // log_softmax by converting one way and stopping - graph::finalise()
-    // would refuse the mismatched log_softmax output before any gradient
-    // ran. What CV-4 exempts is a leaf itself: a LEAF has no operands to
-    // disagree with, so its own layout tag is free. This is also the honest
-    // real-world shape of the op: LAYOUT_CONVERT exists for boundary
-    // interop, e.g. loading an NCHW checkpoint, where the *source* data
-    // (not some mid-graph value) is the thing tagged the other way. Tagging
-    // the variable NCHW before its one LAYOUT_CONVERT node, then reshaping
-    // straight into log_softmax, reaches a CV-4-legal NHWC consumer with no
-    // round trip at all - so the permutation is genuinely load-bearing.
+    // A single layout_convert, so the order matters; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
     {
         builder.graph().value(x).layout = Graph::TensorLayout::NCHW;
@@ -784,10 +701,7 @@ TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
 
 TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
 {
-    // The two directions composing back to the identity is a fair thing to
-    // check on its own - but by itself it cannot tell a correct permutation
-    // from a same-shape non-permutation (see the single-hop case above for
-    // why), so it is kept only as a secondary check, not the proof.
+    // The round trip is a secondary check only; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
     {
         const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
@@ -805,20 +719,7 @@ TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
 
 TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatmul)
 {
-    // CV-1's claim, checked numerically: with no CONV2D identity, a
-    // convolution's gradient is im2col_backward composed with the matmul
-    // rule that was already there. If this passes, convolution needs no
-    // rule of its own - which is the entire reason there isn't one.
-    //
-    // Single-hop by design (A-7): im2col feeds straight into a matmul, never
-    // into its own col2im. A round trip through col2im would make the
-    // forward composite the identity, and then any involutive, shape-correct
-    // backward - including a plain reshape - would pass for the wrong
-    // reason.
-    // spatial_mean has no gradient rule yet (Task 12), so [N, C] is reached
-    // straight off the matmul: with a 1x1 window grid folded into rows there
-    // would be nothing to average over anyway, and the matmul's own output is
-    // already rank 2 - [N*H_o*W_o, C_out] - so no reshape is needed either.
+    // Single hop: im2col feeds matmul, never col2im; see tests/functional/integration/README.md.
     ValueId weights = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{2, 5, 5, 3}, [&weights](const GraphBuilder& builder, ValueId x)
@@ -833,9 +734,7 @@ TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatm
     });
 
     probe.fill_noise(weights, 301, 1.0);
-    // A probe ending in log_softmax must use one-hot targets (A-6): the fused
-    // NLL_LOSS rule's closed form is only the true derivative of this loss
-    // when the target row is one-hot.
+    // A log_softmax probe needs one-hot targets; see tests/functional/integration/README.md.
     probe.fill_one_hot(50, 8);
 
     std::vector<double> point(probe.size());
@@ -846,10 +745,7 @@ TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatm
 
 TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel)
 {
-    // A stride-1 padded 3x3 has every interior pixel read by nine windows, so
-    // its gradient is a sum of nine terms. A col2im that overwrote instead of
-    // accumulating would give exactly one of them - a gradient that is the
-    // right shape, the right sign, and roughly a ninth of the right size.
+    // Nine windows read each interior pixel; see tests/functional/integration/README.md.
     ValueId weights = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{1, 4, 4, 2}, [&weights](const GraphBuilder& builder, ValueId x)
@@ -874,14 +770,7 @@ TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel
 
 TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOverItsRealWindowGrid)
 {
-    // The gradient over the geometry that a symmetric re-derivation gets
-    // silently wrong. A [1, 4, 5, 1] input with a 3x3 window, pad_top 1 and
-    // pad_left 1, padded 2 below and 0 right, is a 5x4 window grid; deriving
-    // the grid from the geometry alone gives 4x5 - the transpose, with the
-    // same 20 windows, so nothing throws. Both the forward lowering and
-    // im2col_backward read the real grid out of the node's attribute slots
-    // 8 and 9, and this checks the whole path end to end against finite
-    // differences.
+    // The real grid is 5x4; a symmetric guess is 4x5; see tests/functional/integration/README.md.
     ValueId weights = Graph::NO_VALUE;
 
     Probe probe(*engine, Shape{1, 4, 5, 1}, [&weights](const GraphBuilder& builder, ValueId x)
@@ -906,12 +795,7 @@ TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOver
 
 TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 {
-    // COL2IM's own rule (im2col_backward's mirror image), checked without
-    // routing through im2col at all: the variable here *is* the column
-    // matrix, fed straight into col2im and then reshaped into log_softmax.
-    // That keeps this single-hop by construction (A-7) - there is no im2col
-    // on this path for a col2im to be the adjoint of, so nothing here could
-    // be satisfied by an involutive round trip.
+    // The variable is the column matrix itself; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{9, 18}, [](const GraphBuilder& builder, ValueId x)
     {
         Graph::ConvGeometry g;
@@ -932,9 +816,7 @@ TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 
 TEST_F(Integration_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
 {
-    // Sampled with push_off_kinks so no two elements in a window tie: at a tie
-    // the max is not differentiable and a numeric check would be comparing
-    // against a one-sided derivative.
+    // push_off_kinks leaves no ties in a window; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({2, 4, 4, 3}), [](const GraphBuilder& b, ValueId x)
     {
         Graph::ConvGeometry g;
@@ -954,9 +836,7 @@ TEST_F(Integration_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
 
 TEST_F(Integration_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel)
 {
-    // Stride 1: a pixel that wins several windows receives all their
-    // gradients. The separate-functions decision earns itself here - a shared
-    // pool_backward would have had to branch on mode inside this loop.
+    // At stride 1 a pixel can win several windows; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({1, 5, 5, 2}), [](const GraphBuilder& b, ValueId x)
     {
         Graph::ConvGeometry g;
@@ -975,9 +855,7 @@ TEST_F(Integration_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel
 
 TEST_F(Integration_Autograd, AvgPoolSpreadsItsGradientOverTheWholeWindow)
 {
-    // The brief's own [2,6,6,3] variable is 216 elements, over
-    // expect_gradient_matches's 200-input full-Jacobian ceiling; shrunk to one
-    // batch row here so the check stays in the mode it asserts on.
+    // One batch row keeps this under 200 inputs; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({1, 6, 6, 3}), [](const GraphBuilder& b, ValueId x)
     {
         Graph::ConvGeometry g;
@@ -996,9 +874,7 @@ TEST_F(Integration_Autograd, AvgPoolSpreadsItsGradientOverTheWholeWindow)
 
 TEST_F(Integration_Autograd, UpsampleSumsEachSourcePixelsReplicas)
 {
-    // Scale 2 replicates every pixel four times, so its gradient is the sum of
-    // four. Forgetting the sum gives a gradient a quarter of the right size,
-    // which trains - just slower, and only in this one layer.
+    // Scale 2 makes each gradient a sum of four; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({2, 3, 3, 4}), [](const GraphBuilder& b, ValueId x)
     {
         return b.log_softmax(b.spatial_mean(b.upsample2d(x, 2, 2)));
@@ -1014,9 +890,7 @@ TEST_F(Integration_Autograd, UpsampleSumsEachSourcePixelsReplicas)
 
 TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
 {
-    // The rule whose absence was a real gap in an earlier draft of the design.
-    // It is a per-(n,c) broadcast: BIAS_ADD's is per-row and CHANNEL_AFFINE's
-    // is per-channel, and neither would have produced this.
+    // The broadcast is per (n, c); see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({2, 4, 4, 5}), [](const GraphBuilder& b, ValueId x)
     {
         return b.log_softmax(b.spatial_mean(x));
@@ -1032,11 +906,7 @@ TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
 
 TEST_F(Integration_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
 {
-    // The gradient of a concat is a slice per operand, at that operand's
-    // offset. An off-by-one offset gives every operand a gradient of the
-    // right shape belonging to its neighbour - which a round trip through
-    // slice-then-concat cannot detect, so the operands are deliberately
-    // reordered relative to how they were sliced out.
+    // Operands are reordered against their slices; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({2, 4, 4, 6}), [](const GraphBuilder& b, ValueId x)
     {
         const ValueId left = b.slice_channels(x, 0, 2);
@@ -1056,9 +926,7 @@ TEST_F(Integration_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
 
 TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
 {
-    // Channels outside the slice receive exactly zero, not stale memory.
-    // The reordered concat above is what makes a wrong offset visible; this
-    // one makes a missing zero-fill visible.
+    // Channels outside the slice receive zero; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape({1, 3, 3, 8}), [](const GraphBuilder& b, ValueId x)
     {
         return b.log_softmax(b.spatial_mean(b.slice_channels(x, 3, 2)));
@@ -1074,11 +942,7 @@ TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
 
 TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItComputed)
 {
-    // The rule that is easy to get subtly wrong and hard to notice: the batch
-    // mean and variance are functions of x, so dx has three terms, not one.
-    // Treating them as constants gives a gradient that is right on average
-    // over the batch and wrong per element - the model still trains, slightly
-    // worse, with nothing to point at.
+    // dx has three terms, not one; see tests/functional/integration/README.md.
     ValueId gamma = Graph::NO_VALUE;
     ValueId beta = Graph::NO_VALUE;
 
@@ -1102,10 +966,7 @@ TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItCompute
 
 TEST_F(Integration_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput)
 {
-    // The same node differentiated at gamma instead of x. Separate rather than
-    // folded into the case above because the Probe checks one variable, and
-    // dgamma is the term that would survive unnoticed if it were summed over
-    // the wrong axis - a [C] result of the right shape either way.
+    // The same node, differentiated at gamma; see tests/functional/integration/README.md.
     ValueId x = Graph::NO_VALUE;
     ValueId beta = Graph::NO_VALUE;
 
@@ -1173,10 +1034,7 @@ TEST_F(Integration_Autograd, ChannelAffineDifferentiatesAtItsInput)
 
 TEST_F(Integration_Autograd, ChannelAffinesScaleGradientSumsOverNHAndW)
 {
-    // dgamma is a sum over three axes at once. A sum over the wrong ones -
-    // per-sample rather than per-channel - is still a [C]-shaped value when
-    // N happens to equal C, which is why this is checked numerically rather
-    // than by shape.
+    // dgamma sums over N, H and W at once; see tests/functional/integration/README.md.
     ValueId x = Graph::NO_VALUE;
     ValueId beta = Graph::NO_VALUE;
 

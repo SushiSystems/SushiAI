@@ -6,8 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: Shape is host-lane vocabulary and must stay testable without a
-// RuntimeContext, which is what keeps the unit tier fast.
+/**
+ * @file test_shape.cpp
+ * @brief Tests Shape's extents, indexing, validation, equality and hash.
+ * @author Mustafa Garip
+ */
 
 #include <unordered_map>
 #include <vector>
@@ -101,9 +104,7 @@ TEST(Unit_Shape, EqualityComparesRankAndEveryExtent)
 
 TEST(Unit_Shape, HashSeparatesShapesThatDifferOnlyByRank)
 {
-    // [4, 1] and [4] hold the same element count and the same leading extent;
-    // a hash that folded only the extents would collide them, and the tensor
-    // pool keys its constant operands on exactly this hash.
+    // The tensor pool keys constant operands on this hash; see tests/functional/unit/README.md.
     EXPECT_NE(Shape({4, 1}).hash(), Shape({4}).hash());
     EXPECT_EQ(Shape({4, 1}).hash(), Shape({4, 1}).hash());
 }

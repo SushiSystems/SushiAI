@@ -6,15 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: declaring leaves and emitting a loss are IR-to-IR, so the whole
-// objective seam is testable without an Engine. Only score() needs a tensor,
-// and that is covered by the integration tier through the trainer.
-//
-// The load-bearing test here is BuildGraphAndBuildClassifierProduceTheSameIr.
-// The objective seam's whole promise is that it changed no numbers, and the
-// way to check that is not "the loss still falls" - it is that the two entry
-// points emit the same graph, node for node, in the same order. A graph
-// comparison fails on a reordering that a loss comparison would absorb.
+/**
+ * @file test_objective.cpp
+ * @brief Tests the objective seam: the leaves it declares, the loss it emits and the resulting IR.
+ * @author Mustafa Garip
+ */
 
 #include <cstddef>
 #include <memory>
@@ -89,11 +85,7 @@ TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIr)
 
 TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 {
-    // Between the input leaf and the model's own trace. Value ids are
-    // positions, so declaring it anywhere else renumbers the whole graph -
-    // and every regression test pinning a node count or a byte-for-byte
-    // result would then compare two different graphs while appearing to
-    // compare one.
+    // The target leaf sits between the input and the model; see tests/functional/unit/README.md.
     Mlp model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
     Train::TrainingGraph built = Train::build_graph(model, objective, 4, 6);
@@ -106,9 +98,7 @@ TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 
 TEST(Unit_Objective, TheObjectiveOwnsTheOutputShapeCheck)
 {
-    // What shape an output must be is the objective's question - a detector's
-    // is not a classifier's - so the message comes from the objective and not
-    // from the graph builder.
+    // The objective owns the output shape message; see tests/functional/unit/README.md.
     Mlp model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 5);   // asks for 5 classes, model gives 3
 
@@ -153,8 +143,7 @@ TEST(Unit_Objective, TheRegistryBuildsCrossEntropyAndListsWhatItHas)
 
 TEST(Unit_Objective, CrossEntropyTakesNoKeysAtAll)
 {
-    // It has no hyperparameters, so a key written onto it is an error rather
-    // than a line whose author believed it did something.
+    // Cross-entropy accepts no key; see tests/functional/unit/README.md.
     const Config::Value stray = Config::parse_json(R"({"label_smoothing": 0.1})", "<test>");
     SA_EXPECT_ERROR((void)Train::make_objective("cross_entropy", 4, 3, stray, "objective"),
                     "objective", "'label_smoothing'");

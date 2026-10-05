@@ -6,10 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free. Differentiation is an IR-to-IR transform, so what it produces
-// is a graph that can be inspected node by node with no hardware involved -
-// which is exactly why ir.hpp insists a backward rule emits IR rather than
-// device work.
+/**
+ * @file test_backward.cpp
+ * @brief Tests the graph that differentiation emits and the coverage of the backward rule table.
+ * @author Mustafa Garip
+ */
 
 #include <algorithm>
 #include <string>
@@ -73,39 +74,20 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::BATCHNORM2D.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::CHANNEL_AFFINE.id));
 
-    // BATCHNORM_UPDATE_STATS has none, and that is CV-7 rather than an
-    // omission: a running mean is a buffer the training step writes beside
-    // the graph, not a value any gradient flows through.
+    // Running statistics are a buffer, not a gradient path; see tests/functional/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_UPDATE_STATS.id));
 
-    // LEAF and ZERO produce values from nothing, so there is nothing upstream
-    // to hand a gradient to and no rule to write.
+    // LEAF and ZERO have no operand to hand a gradient to; see tests/functional/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::LEAF.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::ZERO.id));
 
-    // CAST has none either, and that is a pipeline-ordering statement rather
-    // than an omission: casts are inserted *after* differentiation
-    // (graph/cast_insertion.hpp says why), so no graph this transform sees can
-    // contain one. A graph that somehow did would fail loudly, naming the
-    // operation, rather than differentiating a conversion the pass had not
-    // established the precision of yet.
+    // Casts are inserted after differentiation; see tests/functional/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::CAST.id));
 }
 
 TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
 {
-    // A coverage ledger rather than a tautology.
-    //
-    // "Every operation has a rule" is the easy half. The half that rots is
-    // "every rule has been checked against a finite difference" - a rule added
-    // to a rules/<domain>.cpp table is picked up automatically by
-    // differentiate(), so a wrong one produces a model that trains slightly
-    // worse and nothing anywhere fails. Listing the proof beside the rule is
-    // what makes the omission visible: the second loop below fails when an
-    // operation gains a rule that nobody added a line for.
-    //
-    // The named tests live in functional/integration/test_autograd_numeric.cpp
-    // and all run in FLOAT64, for the reason gradcheck.hpp derives.
+    // Every rule names the numeric test that proves it; see tests/functional/unit/README.md.
     struct Proven
     {
         OpID op;
@@ -135,8 +117,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
         {Ops::NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
 
-        // LOG_SOFTMAX's "rule" exists only to produce a good error; there is
-        // no gradient to verify, so its proof is the message test instead.
+        // LOG_SOFTMAX's rule only raises its diagnostic; see tests/functional/unit/README.md.
         {Ops::LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
 
         {Ops::RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
@@ -207,10 +188,7 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     const std::vector<ValueId> grads =
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    // The cross-entropy pair is differentiated as one fused rule: exp of the
-    // log-probabilities, minus the one-hot targets, scaled by 1/N. Then the
-    // chain walks back through the second linear layer, the activation and the
-    // first linear layer.
+    // Cross-entropy differentiates as one fused rule; see tests/functional/unit/README.md.
     EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
         "sushiai.exp",
         "sushiai.sub",
@@ -226,8 +204,7 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     // No LOG_SOFTMAX gradient: the fused rule absorbed that node.
     EXPECT_EQ(count_op(graph, Ops::LOG_SOFTMAX.id), 1u);
 
-    // Every value has exactly one contributor in a plain feed-forward stack,
-    // so the tiered accumulation emits nothing at all.
+    // One contributor per value emits no ACCUMULATE; see tests/functional/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::ACCUMULATE.id), 0u);
 
     ASSERT_EQ(grads.size(), 4u);
@@ -254,9 +231,7 @@ TEST(Unit_Backward, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     const std::vector<ValueId> wrt = {layer.weight.id()};
     (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    // Only one MATMUL in the backward pass: the weight gradient. The input
-    // gradient would have been a second one, and it is skipped rather than
-    // computed and discarded.
+    // The input gradient's MATMUL is skipped; see tests/functional/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 2u);
 }
 
@@ -268,8 +243,7 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    // x feeds two branches, so its gradient has two contributors and the
-    // tiered accumulation drops to its ordered ACCUMULATE form.
+    // x has two contributors, so ACCUMULATE is emitted; see tests/functional/unit/README.md.
     const ValueId left = builder.relu(x);
     const ValueId right = builder.tanh(x);
     const ValueId sum = builder.add(left, right);
@@ -324,18 +298,14 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
     EXPECT_EQ(grads[0], NO_VALUE) << "a disconnected parameter has no gradient value at all";
     EXPECT_NE(grads[1], NO_VALUE);
 
-    // A zero gradient must cost nothing: no ZERO node, no allocation, no
-    // wasted kernel. Only the live path emitted anything, and that is exactly
-    // the loss gradient and the activation gradient.
+    // A zero gradient emits no ZERO node; see tests/functional/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::ZERO.id), 0u);
     EXPECT_EQ(graph.node_count(), before + 2);
 }
 
 TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
 {
-    // Nothing in this graph requires a gradient, so the reverse walk visits
-    // every node and writes none of them. A frozen model costs zero nodes,
-    // not a set of nodes computing gradients nobody reads.
+    // A graph with no gradient request emits no node; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -362,8 +332,7 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    // A synthetic identity that no rule covers, standing in for a future op
-    // added to the lowering but not to the rule table.
+    // An identity that no rule covers stands in for a new op; see tests/functional/unit/README.md.
     const ValueId mystery = graph.add_value(Shape{4, 3}, DType::FLOAT32,
                                             Graph::Lifetime::ACTIVATION, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
@@ -398,8 +367,7 @@ TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairSaysSoClearly)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    // The log-softmax result is consumed by a RELU, so the cross-entropy
-    // fusion does not apply and the standalone rule has to refuse.
+    // A RELU consumer keeps the cross-entropy fusion away; see tests/functional/unit/README.md.
     const ValueId detoured = builder.relu(builder.log_softmax(x));
     const ValueId loss = builder.nll_loss(detoured, targets);
 

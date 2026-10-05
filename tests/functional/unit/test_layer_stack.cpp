@@ -6,14 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: a LayerStack is host-lane, and the property this file exists to
-// pin - that it names its parameters exactly as Sequential does - is a
-// property of the walk, not of any memory.
-//
-// The comparison is written as "trace both, walk both, compare the two lists"
-// rather than as "check LayerStack produces these literal names", so it fails
-// if EITHER path changes its naming. A test against literals would let both
-// drift together and still pass.
+/**
+ * @file test_layer_stack.cpp
+ * @brief Tests that a LayerStack names and declares its parameters exactly as Sequential does.
+ * @author Mustafa Garip
+ */
 
 #include <cstdint>
 #include <memory>
@@ -73,17 +70,14 @@ TEST(Unit_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
     const std::vector<std::string> expected = traced_names(compile_time, 4, 6);
     EXPECT_EQ(traced_names(run_time, 4, 6), expected);
 
-    // Stated once as literals too, so the shared list above cannot become
-    // trivially equal by both paths going empty.
+    // Literals keep both paths from going empty together; see tests/functional/unit/README.md.
     EXPECT_EQ(expected, (std::vector<std::string>{
         "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]", "2.bias:[4]"}));
 }
 
 TEST(Unit_LayerStack, KeepsTheIndexGapAParameterlessActivationLeaves)
 {
-    // The gap is the whole reason the naming matches: indices track layer
-    // positions, not parameter positions. A stack that renumbered would
-    // produce "1.weight" for the second Linear and load nothing.
+    // Indices track layer positions, not parameter positions; see tests/functional/unit/README.md.
     LayerStack stack = make_stack();
     const std::vector<std::string> names = traced_names(stack, 4, 6);
 
@@ -142,11 +136,7 @@ TEST(Unit_LayerStack, ReportsAnOutOfRangeLayerIndex)
 
 TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 {
-    // Parameter::declare is idempotent, and the runtime path must inherit that
-    // rather than reintroducing the duplicate-on-retrace bug at this layer.
-    // Both traces go into ONE graph, because a parameter's id names a value in
-    // the graph that declared it - retracing into a second graph would be
-    // reusing an index that means something else there.
+    // Both traces go into one graph; see tests/functional/unit/README.md.
     LayerStack stack = make_stack();
 
     Graph::Graph graph;

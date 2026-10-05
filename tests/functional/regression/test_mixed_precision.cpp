@@ -6,21 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Every guarantee here fails *silently*. That is what puts them in this tier
-// rather than beside the integration tests: none of them can be caught by a
-// run that reports success.
-//
-//   - A master weight retyped to fp16 does not throw. The optimizer keeps
-//     working, the loss keeps falling, and updates smaller than the weight's
-//     own fp16 spacing are simply discarded - which is the failure master
-//     weights exist to prevent and looks exactly like a learning rate that
-//     wants tuning.
-//   - A conversion placed on the wrong side of a reduction does not throw
-//     either; the model just learns worse.
-//   - And the control matters as much as the case: if the fp32 policy also
-//     inserted casts, every "mixed inserted N casts" assertion anywhere in
-//     this repository would be measuring the pass's unconditional behaviour
-//     rather than the policy's decision.
+/**
+ * @file test_mixed_precision.cpp
+ * @brief Tests that mixed precision keeps master weights in float32 and adds only conversions.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cmath>
 #include <string>
@@ -50,13 +41,8 @@ namespace
     constexpr int64_t EPOCHS = 25;
 
     /**
-     * @brief AdamW at the rate `sa demo mlp` uses, not the library default.
-     *
-     * 1e-3 is the reference AdamW default; it is not enough to move a model
-     * this small far in the couple of hundred steps a test can afford, and a
-     * comparison between two runs that both barely moved would agree for the
-     * wrong reason. 3e-3 is the demo's rate, so the numbers here and the ones
-     * in docs/README.md come from the same setting.
+     * @brief Returns AdamW options at the rate `sa demo mlp` uses, 3e-3.
+     * @see tests/functional/regression/README.md
      */
     Optim::AdamWOptions optimizer_options()
     {
@@ -81,12 +67,7 @@ namespace
 
     /**
      * @brief Trains the same model, data and seed under @p precision.
-     *
-     * Everything except the policy is fixed, so a difference between two runs
-     * is the policy and nothing else: the initialiser and the dataset are both
-     * seeded, and the seeds are the library defaults rather than a value this
-     * file picked, so a change to either shows up as a changed trajectory in
-     * both arms rather than as a silent divergence in one.
+     * @see tests/functional/regression/README.md
      */
     TrainingRun train(SushiBLAS::Engine& engine, const Graph::IPrecisionPolicy* precision)
     {
@@ -124,9 +105,7 @@ namespace
                 result.accuracy = metrics.accuracy;
             }
 
-        // Read *after* the run, not before: fusion and the cast pass both
-        // rewrite nodes, and a master weight that survived the passes could
-        // still have been swapped for a narrow copy by the optimizer wiring.
+        // Dtypes are read after the run, not before; see tests/functional/regression/README.md.
         for (const Optim::ParameterSlot& slot : slots)
         {
             result.master_dtypes.push_back(slot.parameter.dtype);
@@ -155,13 +134,12 @@ TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
             << "a gradient reached the optimizer in low precision";
 }
 
+/**
+ * @brief Tests that the fp32 policy adds no cast and matches no policy bit for bit.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_MixedPrecision, TheFp32PolicyIsIndistinguishableFromNoPolicyAtAll)
 {
-    // The control, and the strongest form of it available: not just "zero
-    // casts" but the same recorded operation count and the same losses to the
-    // bit. If the pass ever starts inserting a conversion unconditionally,
-    // this fails before any mixed-precision test gets the chance to look
-    // correct for the wrong reason.
     const UniformPrecisionPolicy single;
 
     const TrainingRun none = train(*engine, nullptr);
@@ -176,13 +154,12 @@ TEST_F(Regression_MixedPrecision, TheFp32PolicyIsIndistinguishableFromNoPolicyAt
         EXPECT_EQ(none.losses[step], explicit_fp32.losses[step]) << "step " << step;
 }
 
+/**
+ * @brief Tests that mixed precision adds exactly as many operations as casts.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructural)
 {
-    // Casts are nodes, so they show up as recorded operations - and the count
-    // has to be exactly the casts, not more. More would mean a conversion
-    // landed inside a fusable chain and cost the fusion as well, which is the
-    // failure graph/cast_insertion.hpp's ordering argument exists to avoid and
-    // which nothing else here would notice.
     const MixedPrecisionPolicy precision;
 
     const TrainingRun fp32 = train(*engine, nullptr);
@@ -192,20 +169,12 @@ TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructu
         << "mixed precision changed the plan by more than the conversions it added";
 }
 
+/**
+ * @brief Tests that mixed and single precision losses stay within 2e-2 relative at every step.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
 {
-    // The numeric claim, and the tolerance is stated rather than tuned until
-    // green. fp16 carries 11 bits of significand, so one rounded value is
-    // accurate to about 2^-11 = 4.9e-4 relative; a step's loss passes through
-    // a handful of them, so a few times that is the honest expectation.
-    //
-    // The measured figure on `sa demo mlp --epochs 8 --batches 16` (a wider
-    // model than this one, 128 steps) was 9.5e-4 relative, at the end of the
-    // first epoch - the largest loss whose six printed decimals still carry
-    // enough digits to divide. The bound below is 2e-2, about twenty times
-    // that, and it is a *bound* rather than a measurement: it is chosen so the
-    // test survives a change of seed or schedule, and passing it says the
-    // deviation is under 2e-2 and nothing more precise than that.
     const MixedPrecisionPolicy precision;
 
     const TrainingRun fp32 = train(*engine, nullptr);
@@ -214,8 +183,7 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
     ASSERT_EQ(fp32.losses.size(), mixed.losses.size());
     ASSERT_GT(mixed.casts, 0u);
 
-    // Both actually learned; comparing two runs that both diverged would agree
-    // beautifully and mean nothing.
+    // Both runs learned before they are compared; see tests/functional/regression/README.md.
     EXPECT_LT(fp32.losses.back(), 0.5 * fp32.losses.front());
     EXPECT_LT(mixed.losses.back(), 0.5 * mixed.losses.front());
     EXPECT_GT(mixed.accuracy, 0.75);
@@ -231,27 +199,12 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
     }
 }
 
+/**
+ * @brief Tests that a narrowing policy leaves GELU unfolded and in float32.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
 {
-    // graph/precision.hpp's rules 2 and 5 meet here, and this is the assertion
-    // that they meet consistently rather than merely quietly.
-    //
-    // Rule 2 says a fused epilogue runs inside the GEMM's kernel in the GEMM's
-    // element type, so an activation the catalog folds has to compute in the
-    // GEMM's type or fusion would change the numbers. Rule 5 says GELU stays
-    // wide - the tanh approximation computes x*x*x, which overflows fp16 at
-    // |x| about 40.3. Since FusedForm::GEMM_BIAS_GELU exists, those two would
-    // contradict each other if nothing kept them apart.
-    //
-    // What keeps them apart is the pass order, and it is structural rather than
-    // lucky: the cast pass runs *before* fusion, so an activation the policy
-    // keeps wide gets a CAST between it and the narrowed BIAS_ADD, and a chain
-    // with a conversion in the middle matches no catalog entry. Under fp32 the
-    // layer folds whole; under a narrowing policy it falls back to gemm+bias
-    // and the GELU runs on its own, exactly as it did before the entry existed.
-    //
-    // If this ever starts producing a gemm+bias+gelu node, an fp16 x*x*x is
-    // being computed and nothing else in the suite would say so.
     using GeluMlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     GeluMlp wide_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
@@ -274,14 +227,12 @@ TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
            "approximation's x*x*x into fp16 - see graph/precision.hpp rule 5\n"
         << narrow.fusion.to_string();
 
-    // And it did not simply stop fusing: the bias still folds on both layers,
-    // so the fallback is the shorter entry rather than nothing.
+    // The bias still folds on both layers; see tests/functional/regression/README.md.
     EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMM_BIAS), 2u)
         << narrow.fusion.to_string();
     EXPECT_GT(narrow.casts.count(), 0u) << "this arm narrowed nothing, so it proves nothing";
 
-    // The GELU itself is still in the graph, and still in the master type -
-    // which is the other half of rule 5 and the reason the fold is refused.
+    // The GELU stays in the graph, in the master type; see tests/functional/regression/README.md.
     for (const Graph::Node& node : narrow.graph.nodes())
         if (node.op == Ops::GELU.id)
             EXPECT_EQ(narrow.graph.value(node.outputs[0]).dtype, DType::FLOAT32);

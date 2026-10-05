@@ -6,14 +6,18 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The smallest thing that proves the package works: a real op through both
-// transitively-resolved siblings, run against an installed SushiAI, from a
-// project with no access to this source tree.
+/**
+ * @file main.cpp
+ * @brief Runs one SushiBLAS operation against an installed SushiAI package, out of tree.
+ * @author Mustafa Garip
+ * @see tests/package/README.md, "main.cpp".
+ */
 
 #include <cstdio>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
+/** @brief Runs one axpy through the installed package and prints a confirmation. */
 int main()
 {
     sr::Execution::RuntimeContext ctx;

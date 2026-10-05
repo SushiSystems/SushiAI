@@ -6,30 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The program behind `sa demo mlp`: a configurable MLP classifier trained end
-// to end, reporting the one number the whole architecture rests on.
-//
-// WHY THIS IS NOT examples/example.cpp
-//
-// The two programs look alike and are deliberately not the same binary:
-//
-//  - example.cpp is a teaching file. It is meant to be read top to bottom and
-//    edited by whoever is learning the API. Its output has no contract, and
-//    hardcoding its shape is the point - there is nothing to configure and
-//    nothing to distract from the six steps of a training run.
-//  - this file is a product surface. `sa demo mlp` is a supported command:
-//    its flags and its printed lines are a contract, tests/CMakeLists.txt
-//    pins the compile-count line so the demo cannot rot unnoticed, and
-//    docs/README.md quotes its real output.
-//
-// Pointing the CLI at the example binary would make every edit to a teaching
-// file a change to a shipped command, and would leave the demo with no flags
-// at all. One extra 200-line translation unit is a cheap price for keeping
-// those two lifecycles apart.
-//
-// Data: MNIST when the IDX files happen to be present, and the seeded
-// synthetic problem otherwise. Both paths come from data/dataset.hpp; this
-// file only picks between them and says out loud which one it got.
+/**
+ * @file demo_mlp.cpp
+ * @brief Runs `sa demo mlp`: trains a configurable MLP classifier and reports its compile count.
+ * @author Mustafa Garip
+ * @see examples/README.md, "demo_mlp.cpp".
+ */
 
 #include <cstdint>
 #include <cstdlib>
@@ -49,7 +31,7 @@
 
 namespace
 {
-    /** @brief Which update rule the demo trains with. */
+    /** @brief Selects the update rule the demo trains with. */
     enum class OptimizerKind
     {
         ADAMW, /**< AdamW, the default; converges on this problem without tuning. */
@@ -57,19 +39,8 @@ namespace
     };
 
     /**
-     * @enum ActivationKind
-     * @brief Which hidden activation the demo's one hidden layer uses.
-     *
-     * Two entries rather than every activation the library has, because these
-     * two are the two *kinds*: ReLU's gradient reads its own output, so it
-     * folds into the GEMM epilogue for free, and GELU's reads its input, so it
-     * folds only because @c FusedForm::GEMM_BIAS_GELU spills that input to a
-     * second buffer. Being able to run both from one binary is what makes the
-     * cost of that spill a measurement rather than a claim: the fusion report,
-     * `ops per step` and the `Buffers` line are all printed for whichever was
-     * asked for, and comparing `--activation gelu` against
-     * `--activation gelu --no-fuse gemm+bias+gelu` is the A/B that says what
-     * the entry actually buys.
+     * @brief Selects the activation of the demo's one hidden layer.
+     * @see examples/README.md, "The two activations".
      */
     enum class ActivationKind
     {
@@ -78,11 +49,8 @@ namespace
     };
 
     /**
-     * @struct Settings
-     * @brief Everything the demo takes from the command line.
-     *
-     * Defaults reproduce the run quoted in docs/README.md, so `sa demo mlp`
-     * with no flags is the run the documentation describes.
+     * @brief Holds everything the demo takes from the command line.
+     * @see examples/README.md, "Settings and their defaults".
      */
     struct Settings
     {
@@ -93,76 +61,31 @@ namespace
         int64_t features = 32;          /**< Input features (synthetic fallback only). */
         int64_t classes = 6;            /**< Classes (synthetic fallback only). */
 
-        /**
-         * @brief The learning rate, or nothing for the optimizer's own default.
-         *
-         * Optional rather than a 0 sentinel, so `--lr 0` is a rejected value
-         * rather than a silent request for the default.
-         */
+        /** @brief Holds the learning rate, or nothing for the optimizer's own default. */
         std::optional<double> learning_rate;
 
         std::uint64_t seed = 0x0D15EA5E'0BADF00Dull; /**< Seeds both the data and the weights. */
+        /** @brief Holds the update rule the run trains with. */
         OptimizerKind optimizer = OptimizerKind::ADAMW;
+        /** @brief Holds the activation of the hidden layer. */
         ActivationKind activation = ActivationKind::RELU;
+        /** @brief Holds the directory the MNIST IDX files are looked for in. */
         std::filesystem::path mnist_directory = "data/mnist";
 
-        /**
-         * @brief Whether the fusion pass runs; on by default, as the library is.
-         *
-         * A flag rather than a rebuild because the two paths are supposed to
-         * produce the *same numbers* and differ only in launch count, and the
-         * only honest way to show that is to run both from one binary against
-         * one SushiBLAS. It is also the measurement anyone reproducing the
-         * figures in docs/README.md has to be able to take.
-         */
+        /** @brief Holds whether the fusion pass runs; on by default, as in the library. */
         bool fusion = true;
 
-        /**
-         * @brief Catalog entries to leave unmatched, by name.
-         *
-         * The per-form half of `--fusion`. Fusion's whole payoff is a launch
-         * count, and a launch count is only worth something if the wall clock
-         * agrees - so the ability to switch one form off and re-measure is not
-         * a debugging aid, it is how anyone finds out which entry is actually
-         * paying on their model and their device.
-         */
+        /** @brief Lists the catalog entries the fusion pass leaves unmatched. */
         std::vector<sa::Graph::FusedForm> without;
 
-        /**
-         * @brief Whether the compute-bound operations run in fp16.
-         *
-         * Off by default, and that default is load-bearing rather than
-         * cautious: every number this demo prints - and the ones quoted in
-         * docs/README.md - is an fp32 number, and mixed precision must not
-         * move them by existing.
-         *
-         * A flag rather than a rebuild for the same reason `--fusion` is one:
-         * the interesting question is what the *difference* is on one machine,
-         * one dataset and one seed, and there is no honest way to answer it
-         * except by running both from the same binary. On this box there is no
-         * low-precision matrix unit, so what the difference is worth measuring
-         * for is the loss curve, never the wall clock - see the master plan's
-         * ground truth #23.
-         */
+        /** @brief Holds whether the compute-bound operations run in fp16; off by default. */
         bool mixed_precision = false;
 
-        /**
-         * @brief The gradient loss scale, or 0 for no scaling at all.
-         *
-         * Off by default, and the default is a claim rather than caution: with
-         * it off no node is emitted, so the graph, the operation count and
-         * every number this demo prints are exactly what they were before loss
-         * scaling existed.
-         *
-         * It is also worth being blunt about what turning it on buys *here*.
-         * On this workload fp16 without loss scaling neither stalls nor
-         * diverges - both arms converge to the same loss - so the flag exists
-         * to make the machinery runnable and inspectable, not because the demo
-         * needs it. See optim/loss_scaler.hpp.
-         */
+        /** @brief Holds the gradient loss scale, or 0 for no scaling. */
         double loss_scale = 0.0;
     };
 
+    /** @brief Holds the text `--help` prints. */
     constexpr std::string_view USAGE = R"(sa demo mlp - train an MLP classifier end to end.
 
 Usage: sushiai_demo_mlp [options]
@@ -227,8 +150,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         }
         catch (const std::logic_error&)
         {
-            // Both "not a number" and "out of range" fall through to the one
-            // message below: the distinction means nothing to whoever typed it.
+            // Malformed and out-of-range input share the one message below.
         }
         SA_THROW_IF(true, "{} expects a whole number, got '{}'", flag, text);
         return 0;
@@ -282,12 +204,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
     /**
      * @brief Rejects a setting that cannot describe a training run.
-     *
-     * Checked here rather than deep inside the library so the message names
-     * the flag the user typed instead of an internal extent.
-     *
-     * @param settings The parsed settings.
      * @throws SushiAI::Error If any extent is not positive.
+     * @see examples/README.md, "Command line parsing".
      */
     void validate(const Settings& settings)
     {
@@ -305,16 +223,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
     /**
      * @brief Turns the command line into @c Settings.
-     *
-     * A hand-written loop rather than a parsing library: the whole grammar is
-     * "--flag value", every flag takes exactly one value, and a dependency
-     * for that would cost more than it saves.
-     *
-     * @param argc Argument count, as handed to main().
-     * @param argv Argument vector, as handed to main().
      * @param wants_help Set when --help was asked for; nothing else is filled in.
-     * @return The parsed settings.
      * @throws SushiAI::Error On an unknown flag, a missing value, or a bad value.
+     * @see examples/README.md, "Command line parsing".
      */
     Settings parse_command_line(int argc, char** argv, bool& wants_help)
     {
@@ -331,8 +242,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                 return settings;
             }
 
-            // Every flag below takes exactly one value, so the "you forgot the
-            // value" check is written once here instead of at each branch.
+            // Every flag below takes exactly one value; this lambda checks that it is there.
             const auto value = [&]() -> std::string
             {
                 SA_THROW_IF(i + 1 >= argc, "{} needs a value", flag);
@@ -366,9 +276,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             }
             else if (flag == "--loss-scale")
             {
-                // Only positivity is checked here; that the value is a power of
-                // two is LossScaleState's rule and it says so far better than a
-                // duplicate here could - see optim/loss_scaler.hpp.
+                // Only positivity is checked here; LossScaleState owns the power-of-two rule.
                 settings.loss_scale = parse_real(flag, value());
                 SA_THROW_IF(settings.loss_scale <= 0.0,
                             "--loss-scale takes a positive power of two, or omit it for none; "
@@ -402,21 +310,14 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         return settings;
     }
 
-    /** @brief The momentum SGD runs with; stated in the report rather than hidden. */
+    /** @brief Holds the momentum SGD runs with, which the report prints. */
     constexpr double SGD_MOMENTUM = 0.9;
 
     /**
      * @brief Builds the requested optimizer over @p parameters.
-     *
-     * The learning-rate default is per-optimizer, because 3e-3 is a sensible
-     * AdamW step and a uselessly small SGD one - a shared default would make
-     * `--optimizer sgd` look broken rather than merely different.
-     *
-     * @param engine The engine the update is recorded on.
-     * @param parameters The slots to update.
-     * @param settings The parsed settings.
      * @param learning_rate Receives the rate actually used, for the report.
      * @return The optimizer, owned by the caller.
+     * @see examples/README.md, "Learning-rate defaults".
      */
     std::unique_ptr<sa::Optim::Optimizer> make_optimizer(
         sb::Engine& engine,
@@ -440,13 +341,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
-     * @struct DataChoice
-     * @brief Which dataset the run got, and how to say so out loud.
-     *
-     * The provenance travels with the dataset rather than being recomputed by
-     * whoever prints: "which data did this run actually see" is the first
-     * question anyone asks of a training number, and it must not be possible
-     * to answer it from a different code path than the one that chose.
+     * @brief Holds the dataset the run got and the note that names it.
+     * @see examples/README.md, "Data source".
      */
     struct DataChoice
     {
@@ -456,15 +352,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     };
 
     /**
-     * @brief Loads MNIST when its files are there, else the synthetic problem.
-     *
-     * The fallback itself lives in data/dataset.hpp - absence of the IDX files
-     * is not an error there, and this only chooses between the two and records
-     * which it got.
-     *
-     * @param engine The engine that allocates and fills the batches.
-     * @param settings The parsed settings.
+     * @brief Loads MNIST when its files are present, else the synthetic problem.
      * @return The dataset and its provenance.
+     * @see examples/README.md, "Data source".
      */
     DataChoice load_dataset(sb::Engine& engine, const Settings& settings)
     {
@@ -499,14 +389,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
-     * @brief A byte count a reader can take in at a glance.
-     *
-     * Integer KiB alone reads as "0 KiB instead of 0 KiB" on the two-step run
-     * the CTest smoke test uses, which makes the planner look broken when it is
-     * merely working on a tiny model.
-     *
-     * @param bytes The count to render.
-     * @return "N B" below a kibibyte, "N.N KiB" above it.
+     * @brief Renders a byte count as "N B" below a kibibyte and "N.N KiB" above it.
+     * @see examples/README.md, "The configuration report".
      */
     std::string human_bytes(std::size_t bytes)
     {
@@ -515,16 +399,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
-     * @brief The fusion pass's lines of the configuration report.
-     *
-     * Shown rather than asserted, and shown *including the refusals*, because
-     * every way this pass can be wrong produces a run that still converges. A
-     * reader who can see "gemm+bias+relu x1, gemm+bias x1" next to "declined
-     * sushiai.gelu: its gradient differentiates at its input" can tell at a
-     * glance whether the model in front of them got what it should have.
-     *
-     * @param report What the pass did.
+     * @brief Renders the fusion pass's lines of the configuration report.
      * @return One line plus one per decision; always newline-terminated.
+     * @see examples/README.md, "The configuration report".
      */
     std::string describe_fusion(const sa::Graph::FusionReport& report)
     {
@@ -542,9 +419,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             text += SushiBLAS::Core::format("           fused    {} -> value {}",
                                             sa::Graph::fused_form_name(subtree.form), subtree.result);
 
-            // The one form that writes two values says so here. Without the
-            // line a reader has no way to tell the safe fold from the silently
-            // wrong one, which look identical in every other number printed.
+            // The one form that writes two values names the spilled value here.
             if (subtree.spilled != sa::Graph::NO_VALUE)
                 text += SushiBLAS::Core::format(" (+ pre-activation spilled to value {})",
                                                 subtree.spilled);
@@ -562,14 +437,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
-     * @brief The cast pass's lines of the configuration report.
-     *
-     * Shown, like the fusion report and for the same reason: a conversion in
-     * the wrong place is a run that still converges. Under fp32 this is one
-     * line saying so, which keeps the banner's shape the same either way.
-     *
-     * @param report What the pass did.
-     * @return One line plus a count; always newline-terminated.
+     * @brief Renders the cast pass's line of the configuration report.
+     * @return One newline-terminated line.
+     * @see examples/README.md, "The configuration report".
      */
     std::string describe_precision(const sa::Graph::CastReport& report)
     {
@@ -586,17 +456,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /**
-     * @brief The memory planner's line of the configuration report.
-     *
-     * The saving is shown rather than asserted: the "Buffers" line above prints
-     * what was actually allocated next to what one allocation per tensor would
-     * have cost, and this says which arenas account for the difference. A run
-     * in which the planner declined to overlap live ranges - a graph too large
-     * for the reachability closure, say - prints that reason instead of a
-     * silent 0%.
-     *
-     * @param pool The pool whose plan to describe.
+     * @brief Renders the memory planner's line of the configuration report.
      * @return One line, or two when reuse was declined; always newline-terminated.
+     * @see examples/README.md, "The configuration report".
      */
     std::string describe_arenas(const sa::Graph::TensorPool& pool)
     {
@@ -637,42 +499,23 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
     /**
      * @brief Trains @p model end to end and prints the demo's whole contract.
-     *
-     * A template because the model's type is its structure: NN::Sequential is
-     * a variadic aggregate, so "the same MLP with GELU instead of ReLU" is a
-     * different type rather than a different value, and --activation therefore
-     * picks between two instantiations rather than setting a field. Everything
-     * from the trace to the final compile-count line lives here, so the two
-     * arms cannot print different things by drifting apart.
-     *
      * @tparam M The model type; must satisfy NN::Module.
-     * @param engine The engine everything is recorded on.
      * @param model The model to train; its parameters are declared by the trace.
-     * @param data The dataset and its provenance, for the banner.
-     * @param dataset The dataset itself.
-     * @param settings The parsed command line.
-     * @param features Input features per sample.
-     * @param classes How many classes.
      * @return EXIT_SUCCESS, or EXIT_FAILURE if the step was compiled more than once.
+     * @see examples/README.md, "One template, two models".
      */
     template<typename M>
     int train_and_report(sb::Engine& engine, M& model, const DataChoice& data,
                          const sa::Data::Dataset& dataset, const Settings& settings,
                          int64_t features, int64_t classes)
     {
-        // Trace, add cross-entropy, differentiate, insert casts, fuse. All
-        // IR-to-IR: no device work has happened yet, and nothing has been
-        // compiled.
+        // Tracing, differentiation, casts and fusion are IR-to-IR; nothing is compiled yet.
         sa::Graph::FusionOptions fusion;
         fusion.enabled = settings.fusion;
         fusion.disabled = SushiRuntime::span<const sa::Graph::FusedForm>(settings.without.data(),
                                                                          settings.without.size());
 
-        // Both policies are constructed, and the pointer chooses. A policy
-        // object is a handful of bytes with no device behind it, and holding
-        // one of each keeps the lifetime question trivial - it has to outlive
-        // build_classifier and the Trainer's constructor, both of which are
-        // below it in this scope.
+        // Both policies outlive build_classifier and the Trainer's constructor below.
         const sa::Graph::UniformPrecisionPolicy single_precision;
         const sa::Graph::MixedPrecisionPolicy mixed_precision;
 
@@ -687,7 +530,6 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion,
             precision, scaling);
 
-        // --- Memory and initialisation --------------------------------------
         sa::Graph::TensorPool pool(engine);
         std::vector<sa::Optim::ParameterSlot> parameters = sa::Train::bind_parameters(built, pool);
 
@@ -701,9 +543,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         const std::unique_ptr<sa::Optim::Optimizer> optimizer =
             make_optimizer(engine, std::move(parameters), settings, learning_rate);
 
-        // Constructed here rather than inside the `if` so it outlives the
-        // trainer, which records the optimizer's update - and therefore the
-        // scaler's screens - into the compiled plan.
+        // The scaler outlives the trainer, whose compiled plan records its screens.
         std::unique_ptr<sa::Optim::LossScaler> scaler;
 
         if (scaling)
@@ -717,25 +557,16 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             optimizer->set_loss_scaler(scaler.get());
         }
 
-        // --- The one compile ------------------------------------------------
-        // Trainer's constructor lowers and compiles the step. Epochs are driven
-        // from this file, one fit() call each, so the per-epoch trajectory is a
-        // real measurement rather than a summary - and so the compile count
-        // below is counted across every one of those calls.
+        // The Trainer's constructor lowers and compiles the step, the one compile of the run.
         sa::Train::TrainerOptions options;
         options.epochs = 1;
 
-        // The last refusal before the graph becomes device work: the trainer
-        // walks it against the same policy it was built with. Under fp32 the
-        // check is the pre-existing "one element type everywhere" rule, so it
-        // costs a walk and asserts something that was already true.
+        // The trainer checks the graph against the policy it was built with.
         options.precision = precision;
 
         sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, *optimizer, options);
 
-        // From the dataset, not from --batches: the MNIST path caps itself at
-        // whatever the files actually hold, so the two can differ and the
-        // reported schedule has to be the one that will run.
+        // The step count comes from the dataset, which the MNIST path may cap below --batches.
         const int64_t total_steps =
             settings.epochs * static_cast<int64_t>(dataset.batch_count());
 
@@ -775,12 +606,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             << SushiBLAS::Core::format("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
                                        settings.epochs, dataset.batch_count(), total_steps, settings.seed);
 
-        // --- Train ------------------------------------------------------------
-        // The trajectory is collected rather than printed as it happens.
-        // SushiRuntime logs at INFO to stdout in a Release build (its level is
-        // a compile-time constant, so a consumer cannot turn it down), and a
-        // report emitted line by line comes out shredded through it. Held back
-        // and printed as one block, the result survives intact.
+        // The trajectory is collected and printed as one block; see examples/README.md.
         std::string trajectory;
         sa::Train::RunReport run;
 
@@ -802,9 +628,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         }
         run.compile_count = trainer.compile_count();
 
-        // The last thing printed, in one write, ending on the load-bearing
-        // claim of the whole design: every step above replayed one compiled
-        // plan, and the number that says so is the last thing on screen.
+        // The compile count is the last line printed, in one write.
         std::cout
             << "\n================================================================\n"
             << " SushiAI MLP demo - result\n"
@@ -833,6 +657,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
 } // namespace
 
+/** @brief Runs the demo and returns its exit code. */
 int main(int argc, char** argv)
 {
     try
@@ -848,16 +673,13 @@ int main(int argc, char** argv)
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
 
-        // --- Data ---------------------------------------------------------
         const DataChoice data = load_dataset(engine, settings);
         const sa::Data::Dataset& dataset = *data.dataset;
 
         const int64_t features = dataset.input_dim();
         const int64_t classes = dataset.num_classes();
 
-        // --- Model --------------------------------------------------------
-        // The activation is a type, not a field, so the choice is made here
-        // and everything after it is the same code either way.
+        // The activation is a type, so the choice is made here and nowhere after it.
         if (settings.activation == ActivationKind::GELU)
         {
             sa::NN::Sequential model{

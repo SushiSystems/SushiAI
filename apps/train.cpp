@@ -6,24 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// `sushiai train <train.json>` - the driver that is written once and never
-// edited again as the library grows.
-//
-// THE PROPERTY THIS FILE EXISTS TO HAVE
-//
-// It names no layer type, no loss, no dataset and no optimizer. Every one of
-// those arrives through a registry lookup keyed by a string out of a JSON
-// file, so adding a convolution, a detection loss or a COCO reader is a table
-// row and a factory function in the library - and this file does not change.
-//
-// That is checkable rather than aspirational: grep this file for Linear, GELU,
-// CrossEntropy, AdamW, SGD, Rings or Sequential and there is nothing to find.
-// If a future edit adds one, the driver has stopped being the thing the
-// config-driven design set out to build.
-//
-// It is deliberately not a flag-driven program. demo_mlp.cpp is that, and its
-// flags are a contract the test suite pins; here every knob lives in the
-// configuration file, because a knob that exists in two places drifts.
+/**
+ * @file train.cpp
+ * @brief Runs `sushiai train`: trains the model a JSON configuration describes, by registry lookup.
+ * @author Mustafa Garip
+ * @see apps/README.md, "train.cpp".
+ */
 
 #include <cstdlib>
 #include <exception>
@@ -37,6 +25,7 @@
 
 namespace
 {
+    /** @brief Holds the text `--help` prints. */
     constexpr std::string_view USAGE =
         "sushiai train - train a model described by a JSON configuration.\n"
         "\n"
@@ -47,6 +36,7 @@ namespace
         "  inside it resolve against its own directory.\n";
 }
 
+/** @brief Runs the training driver and returns its exit code. */
 int main(int argc, char** argv)
 {
     try
@@ -65,7 +55,7 @@ int main(int argc, char** argv)
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
 
-        // --- Everything below is selected by a string, not named by a type ---
+        // Everything below is selected by a string, not named by a type; see apps/README.md.
 
         const std::unique_ptr<sa::Data::Dataset> dataset =
             sa::Data::make_dataset(engine, spec.data.type, spec.data.attributes, "the data block");
@@ -97,9 +87,7 @@ int main(int argc, char** argv)
 
         sa::Train::TrainerOptions options;
         options.epochs = 1;
-        // The objective owns the metric now, so the trainer's own
-        // classifier-shaped accuracy path is switched off: a driver that knows
-        // no loss type must not be computing a loss-specific number.
+        // The objective owns the metric, so the trainer's own accuracy path is off; see apps/README.md.
         options.track_accuracy = false;
 
         sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, *optimizer, options);
@@ -121,10 +109,7 @@ int main(int argc, char** argv)
                                              built.graph.node_count(), built.graph.value_count())
                   << SushiBLAS::Core::format("Schedule   : {} epochs\n\n", spec.epochs);
 
-        // The loop drives run_step itself rather than fit(), so the METRIC it
-        // prints is whatever the objective offered - std::nullopt prints the
-        // loss alone. That is the whole point: a detector or a PINN reports
-        // through this same loop without it learning a second vocabulary.
+        // The loop calls run_step so the metric printed is the one the objective offers; see apps/README.md.
         for (int64_t epoch = 1; epoch <= spec.epochs; ++epoch)
         {
             double last_loss = 0.0;
@@ -151,8 +136,7 @@ int main(int argc, char** argv)
             }
         }
 
-        // The compile-once contract, printed in the same shape `sa demo mlp`
-        // prints it, because a CTest case pins this line.
+        // A CTest case pins this line, in the shape `sa demo mlp` prints it; see apps/README.md.
         std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", trainer.compile_count());
         if (trainer.compile_count() != 1)
         {

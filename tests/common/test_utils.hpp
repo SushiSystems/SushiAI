@@ -6,18 +6,14 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file test_utils.hpp
- * @brief The fixture and the host-side tensor helpers every device test uses.
- *
- * Reads and writes go straight through the shared-USM pointer rather than
- * through a queue memcpy. Every tensor the pool hands out is Shared-strategy
- * USM, and the fixture waits before it reads, so the pointer is valid and
- * coherent - and doing it this way keeps a test from accidentally queueing
- * work into the engine graph it is in the middle of inspecting.
+ * @brief Declares the per-test Engine fixture and the host-side tensor helpers device tests use.
+ * @author Mustafa Garip
+ * @see tests/common/README.md, "test_utils.hpp".
  */
+
+#pragma once
 
 #include <cmath>
 #include <cstddef>
@@ -33,18 +29,17 @@ namespace SushiAI
 {
     namespace Test
     {
-        /**
-         * @class EngineTest
-         * @brief A fresh Engine per test, over the shared RuntimeContext.
-         */
+        /** @brief Provides a fresh Engine per test, over the shared RuntimeContext. */
         class EngineTest : public ::testing::Test
         {
             protected:
+                /** @brief Builds the test's Engine over the shared context. */
                 void SetUp() override
                 {
                     engine = std::make_unique<SushiBLAS::Engine>(TestEnvironment::context());
                 }
 
+                /** @brief Destroys the test's Engine. */
                 void TearDown() override
                 {
                     engine.reset();
@@ -57,6 +52,7 @@ namespace SushiAI
                     TestEnvironment::context().wait_all();
                 }
 
+                /** @brief Holds the Engine the test records on. */
                 std::unique_ptr<SushiBLAS::Engine> engine;
         };
 
@@ -95,16 +91,8 @@ namespace SushiAI
         }
 
         /**
-         * @brief A tensor's element bytes, for a bit-for-bit comparison.
-         *
-         * @c read_tensor widens everything to double, which is lossless for
-         * float and therefore fine for "are these equal" - but it cannot
-         * distinguish -0.0 from 0.0, and it says nothing about a payload
-         * difference between two NaNs. A determinism claim is about bits, so
-         * the check that guards it reads bits.
-         *
-         * @param tensor The tensor to read.
-         * @return Its @c num_elements elements, as raw bytes.
+         * @brief Returns a tensor's element bytes, for a bit-for-bit comparison.
+         * @see tests/common/README.md, "test_utils.hpp".
          */
         inline std::vector<unsigned char> read_tensor_bytes(const SushiBLAS::Tensor& tensor)
         {
@@ -130,18 +118,16 @@ namespace SushiAI
         }
 
         /**
-         * @brief A cheap deterministic value stream, for filling test tensors.
-         *
-         * A 64-bit splitmix step mapped to (-1, 1). Not a good PRNG and not
-         * meant to be one; it just has to be reproducible without dragging a
-         * device RNG into a test that is checking something else.
+         * @brief Generates a reproducible value stream for filling test tensors.
+         * @see tests/common/README.md, "test_utils.hpp".
          */
         class HostNoise
         {
             public:
+                /** @brief Seeds the stream. */
                 explicit HostNoise(std::uint64_t seed) noexcept : state_(seed) {}
 
-                /** @brief The next value, uniform-ish in (-scale, scale). */
+                /** @brief Returns the next value, roughly uniform in (-scale, scale). */
                 double next(double scale = 1.0) noexcept
                 {
                     state_ += 0x9E3779B97F4A7C15ull;
@@ -162,6 +148,7 @@ namespace SushiAI
                 }
 
             private:
+                /** @brief Holds the splitmix state. */
                 std::uint64_t state_;
         };
 

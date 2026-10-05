@@ -3,21 +3,9 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Project build / test / run / demo / clean / docs logic.
+"""Runs SushiAI's build, test, run, demo, clean and docs commands through cmake and ctest.
 
-This module holds SushiAI's own build policy — which cache variables it passes, which
-demo targets and test suites it has — and drives cmake and ctest through
-``sushicore.cmake_driver.CMakeDriver`` with the snapshotted build env. SushiAI configures
-against the SushiRuntime sibling's bundled clang++ and vcpkg (via SushiBLAS's own
-transitive resolution), so the configure args resolve those from the sibling checkouts
-(or the config overrides) rather than provisioning anything - mirrors SushiEngine's `se`
-CLI, not SushiBLAS's `sb` (which still models an older, pre-SB-0/SB-2 oneAPI
-build).
-
-tests/CMakeLists.txt registers tests via gtest_discover_tests with CTest
-labels (unit / integration / regression) assigned from the GTest suite-name
-prefix convention, matching sushiblas/sushiengine — see the ``Suite`` enum
-below.
+The reasoning is in cli/README.md under "services/project.py".
 """
 
 from __future__ import annotations
@@ -47,25 +35,18 @@ class BuildType(str, enum.Enum):
 
 
 class Suite(str, enum.Enum):
-    # Fine-grained CTest labels (assigned in tests/CMakeLists.txt from the GTest
-    # suite-name prefix convention).
+    # These are the CTest labels tests/CMakeLists.txt assigns from the GTest suite prefix.
     unit = "unit"
     regression = "regression"
     integration = "integration"
     functional = "functional"   # umbrella: unit + regression + integration
     all = "all"
 
-    # Not a CTest label, and not part of `all`: an out-of-tree consumer of the
-    # INSTALLED package, which has to be installed and configured on its own
-    # before it can run at all. See :func:`test_package`.
+    # package is neither a CTest label nor part of all; see test_package.
     package = "package"
 
 
-# Each suite maps to a CTest label-selection regex (`ctest -L`). The umbrella
-# (functional) is an alternation over its sub-labels rather than a label of its
-# own, because a baked-in umbrella label does not survive gtest_discover_tests on
-# current CMake (see tests/CMakeLists.txt). `all` selects everything (no -L).
-# `package` is absent on purpose - it runs no CTest at all.
+# Suite.all and Suite.package are absent on purpose; see cli/README.md.
 _SUITE_LABEL_REGEX = {
     Suite.unit: "^unit$",
     Suite.regression: "^regression$",
@@ -73,10 +54,7 @@ _SUITE_LABEL_REGEX = {
     Suite.functional: "^(unit|integration|regression)$",
 }
 
-# `sa demo <name>` -> the executable that IS that demo. A demo is a separate
-# binary from an example on purpose: it is a supported entry point with a
-# stable flag and output contract, while examples/example.cpp is a teaching
-# file people are meant to edit. See examples/demo_mlp.cpp's header comment.
+# Each demo name maps to an executable of its own; see cli/README.md.
 _DEMO_TARGETS = {
     "mlp": "sushiai_demo_mlp",
 }
@@ -300,15 +278,13 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
 
     if suite is Suite.package:
         if filter or repeat:
-            # Both are ctest knobs, and this suite runs no ctest. Refusing
-            # beats accepting a flag and silently doing nothing with it.
+            # Both are ctest knobs, and this suite runs no ctest.
             console.error("--filter and --repeat do not apply to the package suite.")
             return 2
         return test_package(cfg, root, build_dir, env)
 
     if suite is Suite.all:
-        # `all` means every CTest test, which is not the same as every test this
-        # repo has. Saying so out loud beats a name that quietly under-delivers.
+        # all covers every CTest test, which leaves the package suite out.
         console.info(
             "'all' covers every CTest test. The package suite is not among them "
             "(it builds a separate project): run `sa test --suite package`.")
@@ -430,12 +406,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     prefix = build_dir / "package" / "prefix"
     consumer = build_dir / "package" / "consumer"
 
-    # Both start from nothing. A stale prefix would let a header deleted since
-    # the last run keep satisfying an include; a stale consumer directory would
-    # let a DLL staged by an earlier run - or by hand - keep satisfying the
-    # loader, which is how a deployment regression hides. Found the hard way:
-    # a hand-copied hwloc-15.dll from a manual run months earlier was still
-    # sitting there, making the run step prove nothing.
+    # The prefix and the consumer directory start from nothing; see cli/README.md.
     for stale in (prefix, consumer):
         if not _remove_tree(stale):
             return 1
@@ -455,10 +426,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     configure = [
         _DRIVER.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
         "-G", cfg.generator,
-        # The consumer is CXX-only and never invokes vcpkg's own installer, so
-        # a couple of the shared toolchain flags legitimately go unread here.
-        # Silencing exactly that warning keeps a clean run genuinely clean;
-        # anything else cmake has to say still comes through.
+        # The consumer leaves some shared toolchain flags unread; see cli/README.md.
         "--no-warn-unused-cli",
         f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DCMAKE_PREFIX_PATH={prefix_path}",

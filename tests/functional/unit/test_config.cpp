@@ -6,14 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: the config layer is host-lane by construction - it turns text
-// into a typed tree and never touches an Engine.
-//
-// Most of what is asserted here is a DIAGNOSTIC rather than a value. That is
-// deliberate: a config layer's job is to refuse a wrong file loudly, and a
-// test that only checked "it threw" would keep passing after a refactor
-// collapsed five specific messages into one generic complaint. See
-// tests/common/test_throws.hpp for the argument in full.
+/**
+ * @file test_config.cpp
+ * @brief Tests how the config layer parses its JSON documents and which ones it refuses.
+ * @author Mustafa Garip
+ */
 
 #include <cstdint>
 #include <filesystem>
@@ -64,17 +61,14 @@ TEST(Unit_Config, ParsesEveryScalarKind)
 
 TEST(Unit_Config, KeepsTheKeyOrderTheFileSpelled)
 {
-    // The order is what lets a "this object carries ..." diagnostic read the
-    // way the file does, so it is a property rather than an accident.
+    // Key order follows the file; see tests/functional/unit/README.md.
     const Value root = parse_json(R"({"zebra": 1, "apple": 2, "mango": 3})", "<test>");
     EXPECT_EQ(root.keys(), (std::vector<std::string>{"zebra", "apple", "mango"}));
 }
 
 TEST(Unit_Config, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
 {
-    // JSON's grammar distinguishes 3 from 3.0 and this layer keeps that, so
-    // "units": 2.5 is refused rather than truncated. The widening goes one
-    // way only.
+    // An integer widens to a real, never the reverse; see tests/functional/unit/README.md.
     const Value root = parse_json(R"({"lr": 3, "units": 2.5})", "<test>");
 
     EXPECT_DOUBLE_EQ(root.at("lr", "<test>").as_real("lr"), 3.0);
@@ -118,8 +112,7 @@ TEST(Unit_Config, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
     const std::string_view keys[] = {"type", "units"};
     EXPECT_NO_THROW(with_keys.reject_unknown_keys("layer 0", allowed(keys)));
 
-    // A layer taking no attributes at all - gelu - passes an empty list, so
-    // any key whatsoever is an error rather than something quietly dropped.
+    // An empty allowed set refuses every key; see tests/functional/unit/README.md.
     const std::string_view none[] = {"type"};
     const Value stray = parse_json(R"({"type": "gelu", "units": 8})", "<test>");
     SA_EXPECT_ERROR(stray.reject_unknown_keys("layer 1 'gelu'", allowed(none)),
@@ -136,8 +129,7 @@ TEST(Unit_Config, WithoutRemovesTheDiscriminatorAndLeavesTheRest)
     EXPECT_TRUE(attributes.has("units"));
     EXPECT_EQ(attributes.keys(), (std::vector<std::string>{"units", "use_bias"}));
 
-    // Removing a key that is not there is not an error: a layer spelled with
-    // no attributes at all still goes through the same call.
+    // Removing an absent key is not an error; see tests/functional/unit/README.md.
     EXPECT_EQ(attributes.without("type").keys().size(), 2u);
 }
 
@@ -149,9 +141,7 @@ TEST(Unit_Config, AtOrFallsBackWithoutThrowing)
     EXPECT_EQ(root.at_or("units", fallback).as_int("units"), 256);
     EXPECT_TRUE(root.at_or("use_bias", fallback).as_bool("use_bias"));
 
-    // A non-object falls back rather than throwing, so a layer spelled
-    // {"type": "gelu"} - whose attributes are an empty object - reads its
-    // optional keys through the same call as any other.
+    // A non-object falls back instead of throwing; see tests/functional/unit/README.md.
     const Value not_an_object = Value::integer(1);
     EXPECT_TRUE(not_an_object.at_or("use_bias", fallback).as_bool("use_bias"));
 }
@@ -168,10 +158,6 @@ TEST(Unit_Config, AnObjectBuiltFromMismatchedVectorsIsRefused)
     std::vector<Value> values{Value::integer(1)};
     SA_EXPECT_ERROR((void)Value::object(std::move(keys), std::move(values)), "2 keys", "1 value");
 }
-
-// ---------------------------------------------------------------------------
-// The model document, and the layer registry it selects through.
-// ---------------------------------------------------------------------------
 
 namespace
 {
@@ -200,8 +186,7 @@ TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
     EXPECT_EQ(model.layers[1].type, "gelu");
     EXPECT_EQ(model.layers[2].type, "linear");
 
-    // "type" is gone from the attributes, so no factory has to allow the key
-    // that selected it.
+    // The attributes no longer carry "type"; see tests/functional/unit/README.md.
     EXPECT_FALSE(model.layers[0].attributes.has("type"));
     EXPECT_TRUE(model.layers[0].attributes.has("units"));
     EXPECT_EQ(model.layers[1].attributes.keys().size(), 0u);
@@ -214,8 +199,7 @@ TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
     EXPECT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.output_features(), 4);
 
-    // The activation preserves the width it was handed, which is why the file
-    // never states one for it.
+    // An activation keeps the width it was handed; see tests/functional/unit/README.md.
     EXPECT_EQ(stack.layer(0).output_features(), 8);
     EXPECT_EQ(stack.layer(1).output_features(), 8);
 }
@@ -252,8 +236,7 @@ TEST(Unit_Config, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
     })");
     SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(typo), "layer 0 'linear'", "'unitss'");
 
-    // And an activation takes nothing at all, so a width written onto one is
-    // an error rather than a line that does nothing.
+    // An activation accepts no attribute; see tests/functional/unit/README.md.
     const SushiAI::Config::ModelSpec stray = model_from(R"({
         "sushiai_model": 1,
         "input": {"features": 6},
@@ -335,15 +318,6 @@ TEST(Unit_Config, ALayerThatIsNotAnObjectIsAnError)
         "sushiai_model": 1, "input": {"features": 6}, "layers": ["linear"]
     })"), "layer 0", "a string");
 }
-
-// ---------------------------------------------------------------------------
-// The train and eval documents.
-//
-// Path resolution is the one thing here that needs real files on disk: the
-// property is that a relative path resolves against the CONFIG FILE's own
-// directory rather than the process working directory, and that cannot be
-// asserted without a config file that is somewhere.
-// ---------------------------------------------------------------------------
 
 namespace
 {
@@ -434,9 +408,7 @@ TEST(Unit_Config, LeavesAnAbsolutePathAlone)
     const std::filesystem::path absolute =
         std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
 
-    // generic_string() spells separators as '/', which JSON needs no escaping
-    // for - so the document is built by concatenation rather than through a
-    // second, test-only escaper nobody would maintain.
+    // generic_string() writes '/', which JSON does not escape; see tests/functional/unit/README.md.
     const std::string text =
         R"({"sushiai_train": 1, "model": ")" + absolute.generic_string() +
         R"(", "objective": {"type": "cross_entropy"},
@@ -523,9 +495,7 @@ TEST(Unit_Config, ParsesAnEvalDocument)
 
 TEST(Unit_Config, AnEvalDocumentCarriesNoModelBlock)
 {
-    // The architecture is a separate file that inference is handed separately,
-    // so naming one here is an error rather than something silently preferred
-    // over the one on the command line.
+    // An eval document naming a model is an error; see tests/functional/unit/README.md.
     SA_EXPECT_ERROR((void)SushiAI::Config::parse_data(
         parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"}, "model": "m.json"})",
                    "eval.json"), "eval.json"), "'model'", "'data'");

@@ -6,24 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Four guarantees of the static memory planner whose failure would be silent -
-// the loop still converges, the run still reports success, and nobody notices:
-//
-//  1. A training loop allocates NOTHING after the first step. Counted, not
-//     eyeballed: every Storage holds a counted reference to the context's
-//     allocator, so the allocator's reference count is the live-allocation
-//     count plus a constant, and one extra buffer moves it by exactly one.
-//  2. Packing shrinks the footprint. A pass that quietly stopped packing would
-//     leave every other test in this suite green. Measured on the *unfused*
-//     graph, because fusion reaches the same bytes by a different route -
-//     deleting the intermediates rather than overlapping them - and a planner
-//     test that let fusion do its work first would be measuring the catalog.
-//  3. Packing changes no number. If it does, something is aliasing that should
-//     not be, and the right response is to find it rather than to re-record a
-//     reference.
-//  4. A buffer the planner packed is REWRITTEN every replay. A ZERO buffer that
-//     is filled once and then merely read holds zeros for exactly one step and
-//     then whatever overwrote it - which trains, badly, for ever.
+/**
+ * @file test_static_memory.cpp
+ * @brief Tests that the memory planner packs buffers without allocating or changing a number.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cstddef>
 #include <cstdint>
@@ -81,19 +69,7 @@ namespace
 
     /**
      * @brief Trains the same MLP, with the planner on or off.
-     *
-     * "Off" is a pool that has already adopted the empty plan, which covers no
-     * value and asks for no arena - the exact behaviour the library had before
-     * this pass existed, and therefore the only honest control.
-     *
-     * @param engine The engine to train on.
-     * @param packed Whether to let bind_parameters build a real plan.
-     * @param fusion What the fusion pass is allowed to do. It is a real
-     *        confound here and not a detail: a fused subtree's intermediates
-     *        stop being values at all, so fusion removes exactly the buffers
-     *        packing used to overlap. Every claim below therefore has to say
-     *        which graph it is about.
-     * @return The trained parameters, the loss trajectory and the footprint.
+     * @see tests/functional/regression/README.md
      */
     Outcome train(SushiBLAS::Engine& engine, bool packed, Graph::FusionOptions fusion = {})
     {
@@ -135,17 +111,12 @@ namespace
     }
 }
 
-// =========================================================================
-// 1. Zero allocation in the steady state
-// =========================================================================
-
+/**
+ * @brief Tests that twelve steps after the first leave the allocator's reference count unchanged.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
-    // The headline property of the whole pass, counted rather than claimed.
-    // The baseline is taken AFTER the first step, so a one-time lazy cache
-    // inside the runtime is tolerated while a per-step allocation is not - a
-    // per-step buffer would still train correctly and would only show up as a
-    // slowly growing process.
     const auto live_allocations = [this]
     {
         return engine->get_context().get_allocator()->get_ref_count();
@@ -187,10 +158,6 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
     }
 }
 
-// =========================================================================
-// 2. The saving is real
-// =========================================================================
-
 /** @brief The unfused graph - the one the planner's saving is a claim about. */
 Graph::FusionOptions unfused()
 {
@@ -199,14 +166,12 @@ Graph::FusionOptions unfused()
     return options;
 }
 
+/**
+ * @brief Tests that packing allocates fewer bytes than no plan on the unfused graph.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 {
-    // Deliberately measured on the **unfused** graph. Fusion is not a confound
-    // to be worked around here, it is a different mechanism reaching the same
-    // bytes: a fused subtree's intermediates stop being values, so they need no
-    // slot rather than a shared one. Planning what fusion already deleted would
-    // make this test a statement about the fusion catalog rather than about the
-    // planner, and it would go quiet the day a new catalog entry landed.
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::context());
     const Outcome unplanned = train(unplanned_engine, false, unfused());
 
@@ -226,19 +191,12 @@ TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
         << unplanned.allocated_bytes;
 }
 
+/**
+ * @brief Tests that fusion removes intermediates and never allocates more than packing alone.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
 {
-    // The interaction, stated rather than left to be rediscovered, because on
-    // the fused graph the planner's own report reads like a broken planner:
-    // every remaining activation's live range intersects every other's, so it
-    // overlaps *nothing* and prints "0% saved". It is not broken. The buffers
-    // it used to overlap have stopped existing - a fused subtree's
-    // intermediates are not values any more - which is the better outcome of
-    // the two and is why the arena has nothing left to do.
-    //
-    // `unpacked_bytes` is the direct measure of that: it is what the same
-    // tensors would cost one allocation each, so a drop there is buffers
-    // disappearing rather than being shared.
     SushiBLAS::Engine fused_engine(SaTest::TestEnvironment::context());
     const Outcome fused = train(fused_engine, true);
 
@@ -256,27 +214,18 @@ TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
         << "fused " << fused.allocated_bytes << " against an unplanned, unfused "
         << loose.allocated_bytes;
 
-    // Against the packed-but-unfused graph it is never worse - and on this
-    // model it is exactly equal, because what fusion deletes here happens to be
-    // precisely what the planner was overlapping. Written as <= rather than
-    // == on purpose: the equality is a property of this model's shape, not of
-    // the two passes, and pinning it would fail on the next catalog entry for
-    // no reason anyone should have to investigate.
+    // Never worse than packed-but-unfused, hence <=; see tests/functional/regression/README.md.
     EXPECT_LE(fused.allocated_bytes, planned.allocated_bytes)
         << "fused " << fused.allocated_bytes << " against an unfused-but-packed "
         << planned.allocated_bytes;
 }
 
-// =========================================================================
-// 3. Packing changes no number
-// =========================================================================
-
+/**
+ * @brief Tests that packed and unpacked training agree byte for byte.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
 {
-    // If these ever differ, two tensors are sharing bytes they should not - and
-    // the fix is to find which, never to relax the comparison. Bytes rather
-    // than a tolerance for the reason test_determinism.cpp gives: a tolerance
-    // cannot tell a rounding difference from a real overlap.
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::context());
     const Outcome unplanned = train(unplanned_engine, false);
 
@@ -299,17 +248,12 @@ TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
     }
 }
 
-// =========================================================================
-// 4. A packed buffer is rewritten every replay
-// =========================================================================
-
+/**
+ * @brief Tests that a packed ZERO buffer corrupted between replays is refilled.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
 {
-    // ZERO is the one operation whose output nothing else writes, so it is the
-    // one that would work perfectly if it were filled once outside the step -
-    // right up until the planner handed its bytes to a later value. The buffer
-    // is corrupted from the host between two replays here, which is exactly
-    // what a reused arena slot does, and the second replay must still see zeros.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

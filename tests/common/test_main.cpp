@@ -6,21 +6,22 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// A custom main, so the RuntimeContext is built once for the whole binary
-// rather than once per test. GTest::gtest_main is deliberately NOT linked in
-// tests/CMakeLists.txt - linking both is a duplicate-symbol error at link
-// time, which is the good failure mode, but the reason is worth stating where
-// the replacement lives.
+/**
+ * @file test_main.cpp
+ * @brief Defines the test binary's main(), which registers the shared TestEnvironment.
+ * @author Mustafa Garip
+ * @see tests/common/README.md, "test_main.cpp".
+ */
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/core/logger.hpp>
 #include "test_environment.hpp"
 
+/** @brief Runs every registered test under the shared TestEnvironment. */
 int main(int argc, char** argv)
 {
-    // Asynchronous logging interleaves with GTest's own output and makes a
-    // failure report unreadable; the sibling suites make the same choice.
+    // Logging is synchronous so it cannot interleave with GTest's own output.
     SR_LOGGER_SET_SYNC_MODE(true);
     SB_LOGGER_SET_SYNC_MODE(true);
 

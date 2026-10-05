@@ -3,22 +3,10 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Layered configuration loading for the SushiAI CLI.
+"""Loads the layered configuration of the SushiAI CLI.
 
-Precedence (low to high):
-
-    built-in defaults -> config.toml -> config.local.toml -> SA_* env vars
-
-SushiAI is a head of the stack, like SushiEngine: it consumes the shared
-SushiStack SYCL toolchain and vcpkg tree rather than provisioning its own.
-Unlike SushiEngine it depends on TWO siblings directly, SushiRuntime and
-SushiBLAS, so both get their own resolved directory below.
-
-Locating the project and layering the files is
-:class:`sushicore.module_config.ModuleConfig`'s job; resolving the compiler and
-vcpkg out of the shared dependency tree is
-:class:`sushicore.stack_config.StackConfig`'s. What is left here is what is
-actually SushiAI's: its identity, and the siblings it builds against.
+Precedence, low to high: built-in defaults, config.toml, config.local.toml, SA_* variables.
+The reasoning is in cli/README.md under "config.py".
 """
 
 from __future__ import annotations
@@ -30,9 +18,7 @@ from sushicore.module_config import ModuleConfig
 from sushicore.profile import ModuleProfile
 from sushicore.stack_config import StackConfig
 
-#: How SushiAI describes itself to the shared machinery. Stated once here and
-#: read by config loading, the console, executable discovery and diagnostics --
-#: which is the point: they cannot disagree about what this module is.
+#: Describes SushiAI to the shared machinery; every consumer reads this one profile.
 PROFILE = ModuleProfile(
     name="SushiAI",
     program="sa",
@@ -40,8 +26,7 @@ PROFILE = ModuleProfile(
     root_marker="CMakeLists.txt",
     siblings=("sushiruntime", "sushiblas"),
     default_target="sushiai_example",
-    # Not prefixed: these name the same checkouts for every CLI that builds
-    # against them, so they must read the same variables those CLIs do.
+    # These are unprefixed because every CLI that builds the siblings reads the same ones.
     extra_env_overrides={
         "sushiruntime_dir": "SUSHIRUNTIME_DIR",
         "sushiblas_dir": "SUSHIBLAS_DIR",
@@ -55,9 +40,7 @@ _MODULE = ModuleConfig(PROFILE)
 find_project_root = _MODULE.find_project_root
 config_dir = _MODULE.config_dir
 
-#: Field -> environment variable, derived from the profile's prefix. Exposed as
-#: a module attribute because `sa config` reports which values came from the
-#: environment and needs the reverse map.
+#: Maps each field to its environment variable; `sa config` reads the reverse map.
 _ENV_OVERRIDES = PROFILE.env_overrides()
 
 
@@ -71,12 +54,10 @@ class Config(StackConfig):
     under the shared toolchain if present, else a clang++ on PATH.
     """
 
-    # The SushiRuntime sibling checkout. Empty means "../sushiruntime" relative
-    # to the project root (matching SUSHIRUNTIME_DIR's default in CMakeLists.txt).
+    # Empty means ../sushiruntime under the project root, as CMakeLists.txt defaults it.
     sushiruntime_dir: str = ""
 
-    # The SushiBLAS sibling checkout. Empty means "../sushiblas" relative to the
-    # project root (matching SUSHIBLAS_DIR's default in CMakeLists.txt).
+    # Empty means ../sushiblas under the project root, as CMakeLists.txt defaults it.
     sushiblas_dir: str = ""
 
     # Run defaults.

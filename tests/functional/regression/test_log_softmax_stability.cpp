@@ -6,54 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Log-softmax stabilised by the WRONG maximum.
-//
-// The lowering used to shift the whole batch by the batch's global maximum,
-// on the argument that log-softmax is invariant to subtracting any single
-// scalar from a row. That argument is sound in real arithmetic and false in
-// binary32, because the invariance is destroyed by the *exponential*, not by
-// the subtraction: a row sitting a long way below the batch maximum has every
-// `exp(x - global_max)` collapse into the subnormals and then to zero, its row
-// sum becomes exactly zero, `log(0)` is `-inf`, and the row's log-probabilities
-// come back `+inf`.
-//
-// Measured on this project's OpenCL CPU device, FLOAT32, on the [2, 3] input
-// below, whose true log-probabilities are about -0.41 to -2.41.
-//
-// The quantity is the worst absolute deviation of row 1's log-probabilities
-// from the answer the same code gives at a gap of 0. That is the one figure
-// directly measured on BOTH sides of the fix, and the assertion that produces
-// it is TheAnswerDoesNotDependOnTheGapAtAll's EXPECT_EQ:
-//
-//   | row-to-batch-max gap | global shift (before) | per-row shift (after) |
-//   |---------------------:|----------------------:|----------------------:|
-//   |                   90 |              2.15e-06 |           0 (exactly) |
-//   |                  100 |              2.70e-02 |           0 (exactly) |
-//   |                  104 |                   inf |           0 (exactly) |
-//   |                  200 |                   inf |           0 (exactly) |
-//
-// Measured against the hand-computed expectation directly, rather than against
-// the gap-0 answer, the gap-100 case came out 2.7033e-02 off - which is 6.6% of
-// the largest true log-probability (-0.40761), and is the "about 7% low at 100"
-// SushiBLAS's GPU_VALIDATION.md recorded for this defect before it was fixed.
-//
-// The residual at the gaps that PASS is deliberately absent from both columns,
-// on both sides, because it was never measured: a passing EXPECT_NEAR bounds it
-// under 1e-4 and says nothing more. Do not quote a figure for it - an earlier
-// draft of this header did, and the invented numbers survived a full run
-// unchallenged because nothing here fails when a comment is wrong.
-//
-// This is a regression test rather than an integration one because of how it
-// fails. `+inf` log-probabilities do not stop a run: the loss becomes `inf` or
-// `nan`, the optimizer writes `nan` parameters, and the training loop reports
-// completion having learnt nothing. Nothing throws and no test that only checks
-// "did it run" notices. That is exactly the failure mode this tier exists for.
-//
-// The expectations are hand-computed, not read off another path in this
-// repository. Each row is {a, a+1, a+2}, whose log-softmax is
-// {-2 - k, -1 - k, -k} with k = ln(1 + e^-1 + e^-2), for *any* a - so the
-// expected values are the same for every gap under test, and any dependence on
-// `a` at all is the defect showing.
+/**
+ * @file test_log_softmax_stability.cpp
+ * @brief Tests that log-softmax stays finite and exact for a row far below the batch maximum.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cmath>
 #include <limits>
@@ -126,16 +84,10 @@ namespace
     }
 }
 
-// The defect itself. At a gap of 104 this returned `+inf` for row 1; at 100 it
-// was 6.6% low on the largest log-probability (-0.43464 measured against a true
-// -0.40761); at 90 it had drifted 2.15e-06 off its own gap-0 answer. The per-row
-// maximum removes the gap from the arithmetic entirely, so the answer is the
-// same at every gap - which is what the single shared expectation asserts.
-//
-// The tolerance here is 1e-4, which is wide enough to pass at gap 90 both before
-// and after. That is on purpose: this case exists to catch `+inf` and gross
-// error, and the fine-grained claim - that the gap changes *nothing* - is
-// TheAnswerDoesNotDependOnTheGapAtAll's to make, at exact equality.
+/**
+ * @brief Tests that log-softmax of a row far below the batch maximum is finite and within 1e-4.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
 {
     for (double gap : kGaps)
@@ -173,13 +125,10 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
     }
 }
 
-// The same defect one node downstream. Cross-entropy is `-sum(L * Y) / N` over
-// the log-probabilities, so an infinite row makes the loss infinite - and the
-// loss is the number the training loop prints and the number every stopping
-// rule reads.
-//
-// Hand-computed: with the target on class 0 of both rows, the loss is
-// `-(2 * (-2 - k)) / 2 = 2 + k`, whatever the gap.
+/**
+ * @brief Tests that cross-entropy over such a row is finite and equals 2 + k.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
 {
     for (double gap : kGaps)
@@ -208,15 +157,10 @@ TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrec
     }
 }
 
-// And the failure that actually destroys a run rather than merely reporting a
-// bad number. The fused cross-entropy gradient is `(exp(L) - Y) / N`, so an
-// infinite `L` makes the gradient infinite, the optimizer writes non-finite
-// parameters, and every subsequent step trains on NaN while the loop reports
-// success.
-//
-// Hand-computed: `exp(L)` is the softmax of {a, a+1, a+2}, which is
-// {e^-2, e^-1, 1} / (1 + e^-1 + e^-2), the same for both rows; subtract the
-// one-hot target and divide by the batch size of 2.
+/**
+ * @brief Tests that the cross-entropy gradient over such a row is finite and matches the softmax.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
 {
     const double mass = 1.0 + std::exp(-1.0) + std::exp(-2.0);
@@ -267,22 +211,10 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
     }
 }
 
-// The property that makes the fix a fix rather than a wider threshold: nothing
-// in the answer depends on the gap at all. Two batches differing only by a
-// constant offset applied to one row must produce identical log-probabilities
-// for the row that did not move, and identical ones for the row that did.
-//
-// A shift by the global maximum fails this at any gap large enough to matter; a
-// shift by each row's own maximum passes it at every gap, because the gap never
-// enters the arithmetic.
-//
-// Asserted as **equality**, not as a tolerance, and that is not optimism: every
-// logit here is a small integer, so each row's own maximum is exact, the shift
-// `x - row_max` is exact, and both rows are therefore reduced to literally the
-// same three floats {-2, -1, 0} before anything transcendental happens. The gap
-// cannot reach the answer, so any difference at all is a real one - and a
-// tolerance here would have been the same mistake in miniature, a threshold
-// wide enough to hide the thing under test.
+/**
+ * @brief Tests that the log-probabilities are exactly equal at every gap.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
 {
     std::vector<double> baseline;

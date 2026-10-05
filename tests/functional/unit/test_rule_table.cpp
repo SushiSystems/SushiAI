@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_rule_table.cpp
+ * @brief Tests that every domain's backward rules reach the combined table exactly once.
+ * @author Mustafa Garip
+ */
+
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/all.hpp>
@@ -16,9 +22,7 @@ namespace SushiAI
     {
         TEST(Unit_RuleTable, EveryDomainsRulesReachTheCombinedTable)
         {
-            // all.hpp concatenates; a domain left out of the concat compiles
-            // fine and simply never differentiates. The count is the cheapest
-            // thing that notices.
+            // A domain left out of all.hpp still compiles; see tests/functional/unit/README.md.
             constexpr std::size_t domains =
                 Autograd::ELEMENTWISE_RULES.size() + Autograd::LINALG_RULES.size()
                 + Autograd::ACTIVATION_RULES.size() + Autograd::LOSS_RULES.size()
@@ -30,9 +34,7 @@ namespace SushiAI
 
         TEST(Unit_RuleTable, NoOperationHasTwoRules)
         {
-            // Two entries for one identity is not a compile error and the
-            // first one silently wins - so which gradient runs would depend on
-            // the order two domains happened to be concatenated in.
+            // The first of two entries would win silently; see tests/functional/unit/README.md.
             for (std::size_t i = 0; i < Autograd::RULES.size(); ++i)
                 for (std::size_t j = i + 1; j < Autograd::RULES.size(); ++j)
                     EXPECT_NE(Autograd::RULES[i].op, Autograd::RULES[j].op)
@@ -42,8 +44,7 @@ namespace SushiAI
 
         TEST(Unit_RuleTable, TheRulesThatExistedBeforeTheSplitStillDo)
         {
-            // The split is a move, not a rewrite. These fourteen were the
-            // table before it; every one must still resolve.
+            // These fourteen rules predate the split; see tests/functional/unit/README.md.
             for (OpID op : {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::ADD.id,
                                  Ops::SUB.id, Ops::MUL.id, Ops::SCALE.id, Ops::EXP.id,
                                  Ops::RELU.id, Ops::GELU.id, Ops::SIGMOID.id,

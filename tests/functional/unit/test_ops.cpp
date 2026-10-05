@@ -6,9 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free. The uniqueness proof already runs as a static_assert inside
-// ops.hpp; these tests cover what that assert cannot - that the table is
-// actually complete, and that the reverse lookup behaves.
+/**
+ * @file test_ops.cpp
+ * @brief Tests that the operation table is complete and that the reverse lookup resolves names.
+ * @author Mustafa Garip
+ */
 
 #include <set>
 #include <string_view>
@@ -29,12 +31,7 @@ TEST(Unit_Ops, EveryIdentityHashesDistinctly)
 
 TEST(Unit_Ops, EveryNameCarriesTheLibraryPrefix)
 {
-    // The prefix is what keeps a SushiAI identity from colliding with
-    // SushiBLAS's own (blas.lvl3.gemm and friends) in the profiler's report.
-    //
-    // rfind(prefix, 0) rather than starts_with(), which is C++20: it searches
-    // backwards from position 0, so it can only match at position 0, which is
-    // the same question asked with the vocabulary C++17 has.
+    // rfind(prefix, 0) matches at position 0 only (C++17); see tests/functional/unit/README.md.
     constexpr std::string_view PREFIX = "sushiai.";
     for (const Ops::OpName& entry : Ops::ALL)
         EXPECT_EQ(entry.name.rfind(PREFIX, 0), 0u) << entry.name;
@@ -54,8 +51,7 @@ TEST(Unit_Ops, NameOfReportsUnknownForAForeignIdentity)
 
 TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
 {
-    // A new op declared but left out of ALL would escape the uniqueness
-    // static_assert entirely, so the membership is checked by name here.
+    // Membership in ALL is checked by name; see tests/functional/unit/README.md.
     const std::array expected = {
         std::string_view("sushiai.leaf"),
         std::string_view("sushiai.accumulate"),
@@ -123,9 +119,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
 
 TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
 {
-    // ALL is what all_ids_unique() proves over and what name_of() searches.
-    // An identity declared but left out of ALL is not covered by the collision
-    // proof and prints as "sushiai.unknown" in every profile - both silent.
+    // ALL is what the collision proof and name_of() read; see tests/functional/unit/README.md.
     const std::array<SushiAI::OpID, 20> declared = {
         Ops::RESHAPE.id, Ops::LAYOUT_CONVERT.id,
         Ops::IM2COL.id, Ops::COL2IM.id,
@@ -147,19 +141,13 @@ TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
 
 TEST(Unit_Ops, ThereIsNoConv2dIdentity)
 {
-    // CV-1: convolution is IM2COL + MATMUL in the IR. A CONV2D identity would
-    // be a second, opaque spelling of the same thing, and the first person to
-    // add one will do it by analogy rather than by reading the spec.
+    // Convolution is IM2COL + MATMUL in the IR (CV-1); see tests/functional/unit/README.md.
     EXPECT_EQ(Ops::name_of(Ops::op("sushiai.conv2d").id), "sushiai.unknown");
 }
 
 TEST(Unit_Ops, LeakyReluDifferentiatesAtItsOutput)
 {
-    // For alpha > 0, leaky_relu(x) > 0 exactly when x > 0, so reading the
-    // output instead of the input is a bit-identical substitution - the same
-    // argument the table already records for RELU, not an approximation.
-    // It is what makes the fold free: an ordinary use count licenses it with
-    // no activation-specific knowledge in the fusion pass.
+    // For alpha > 0 the output's sign equals the input's; see tests/functional/unit/README.md.
     const Ops::Activation* entry = Ops::activation_of(Ops::LEAKY_RELU.id);
     ASSERT_NE(entry, nullptr);
     EXPECT_EQ(entry->backward, Ops::LEAKY_RELU_BACKWARD.id);

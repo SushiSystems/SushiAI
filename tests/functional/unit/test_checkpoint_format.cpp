@@ -6,14 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The checkpoint format's whole malformed-file surface, in the device-free
-// tier - which is the point of splitting checkpoint_format.hpp out of
-// checkpoint.hpp. Every case here is a byte pattern, so none of it needs an
-// Engine, a TensorPool or a device to run.
-//
-// Each corruption is expressed as a patch at a known offset into a good file
-// rather than as a hand-written byte array, so a case says what is wrong with
-// the file instead of restating the whole format.
+/**
+ * @file test_checkpoint_format.cpp
+ * @brief Tests the checkpoint format's round trip and its refusal of each malformed byte pattern.
+ * @author Mustafa Garip
+ */
 
 #include <cstdint>
 #include <cstring>
@@ -30,8 +27,7 @@ namespace
     using SushiAI::IO::CheckpointWriter;
     using SushiAI::IO::TensorRecord;
 
-    // Byte offsets into sample_stream(), whose first record is "0.weight",
-    // FLOAT32, [2, 3]. Stated once here so a case names the field it breaks.
+    // Offsets index the first record of sample_stream(); see tests/functional/unit/README.md.
     constexpr std::size_t OFFSET_MAGIC        = 0;
     constexpr std::size_t OFFSET_VERSION      = 4;
     constexpr std::size_t OFFSET_COUNT        = 8;
@@ -118,9 +114,7 @@ TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
 
 TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
 {
-    // The defect this format exists to close: an element count alone lets a
-    // [2, 3] weight load into a [3, 2] one. The shape is recorded, so the two
-    // records are not interchangeable.
+    // The recorded shape separates [2, 3] from [3, 2]; see tests/functional/unit/README.md.
     std::ostringstream out;
     CheckpointWriter writer(out, 1);
     writer.write(TensorRecord{"w", SushiAI::DType::FLOAT32, SushiAI::Shape{2, 3}}, WEIGHT.data());

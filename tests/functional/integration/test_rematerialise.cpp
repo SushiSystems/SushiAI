@@ -6,19 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The half of the IM2COL rematerialisation pass that the host-lane tier cannot
-// reach. Unit_Rematerialise proves the rewrite has the shape it should; this
-// proves the rewritten graph computes the same numbers.
-//
-// "The pass ran and the graph still executes" would be worth nothing here. The
-// pass deletes a stored value and recomputes it, and every way that can go
-// wrong - a clone reading a different operand, a clone whose attributes were
-// rebuilt from the geometry instead of copied - produces a column matrix of
-// exactly the right shape holding the wrong pixels. So the assertion is
-// equality against the same graph run without the pass, and it is exact
-// equality rather than a tolerance: the clone recomputes the same operation
-// from the same inputs, and SushiRuntime's `sushiruntime_deterministic_fp`
-// contract is what makes "the same" mean bit-for-bit.
+/**
+ * @file test_rematerialise.cpp
+ * @brief Tests that the IM2COL rematerialisation pass leaves the computed numbers unchanged.
+ * @author Mustafa Garip
+ */
 
 #include <algorithm>
 #include <array>
@@ -47,13 +39,8 @@ namespace
     class Integration_Rematerialise : public SaTest::EngineTest {};
 
     /**
-     * @brief The image the convolution below reads: [1, 5, 4, 2].
-     *
-     * Deliberately not square. IM2COL's output extents live in attribute slots
-     * 8 and 9, and the way a clone goes wrong is by re-deriving them instead of
-     * copying them - which can yield the transpose of the real window grid,
-     * with the same number of windows. On a square image that mistake is
-     * invisible; on 5x4 it is a different gather.
+     * @brief Returns the non-square [1, 5, 4, 2] image the convolution reads; see
+     *        tests/functional/integration/README.md.
      */
     std::vector<double> image_values()
     {
@@ -155,16 +142,14 @@ TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
     const Outcome stored = run_convolution(*engine, false);
     const Outcome recomputed = run_convolution(*engine, true);
 
-    // First: the pass actually did something. A pass that silently no-ops
-    // passes the comparison below trivially.
+    // The pass must have inserted a recomputation; see tests/functional/integration/README.md.
     ASSERT_EQ(stored.im2col_nodes, std::size_t{1});
     ASSERT_EQ(recomputed.im2col_nodes, std::size_t{2}) << "no recomputation was inserted";
     ASSERT_EQ(recomputed.nodes, stored.nodes + 1);
     ASSERT_EQ(stored.cols_lifetime, Graph::Lifetime::ACTIVATION);
     ASSERT_EQ(recomputed.cols_lifetime, Graph::Lifetime::SCRATCH);
 
-    // Then: it changed nothing about the answer. Exact, not near - the clone
-    // recomputes the same operation from the same operands in the same order.
+    // Equality is exact, not within a tolerance; see tests/functional/integration/README.md.
     ASSERT_EQ(recomputed.loss.size(), stored.loss.size());
     for (std::size_t i = 0; i < stored.loss.size(); ++i)
         EXPECT_EQ(recomputed.loss[i], stored.loss[i]) << "loss element " << i;
@@ -185,9 +170,7 @@ TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
 
 TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
 {
-    // The reason the pass exists, stated against the planner rather than
-    // assumed from the lifetime field alone: the planner is what turns the
-    // shortened live range into an arena decision, and it has to agree.
+    // The planner must agree with the lifetime; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

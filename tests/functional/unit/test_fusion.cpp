@@ -6,30 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free: the static fusion pass is a pure function of the IR, exactly as
-// the memory planner is, so every case here is a synthetic graph and a table of
-// expectations with no engine anywhere.
-//
-// What is being pinned is the set of refusals, not the matches. A pass that
-// fuses too little is slow; a pass that fuses too much is *silently wrong* -
-// the graph still runs, the loss still falls, and the only symptom is a model
-// that converges somewhere slightly different. So the cases below are mostly
-// graphs the pass must decline, one per rule:
-//
-//   - an intermediate with a second consumer (fusing it means losing it),
-//   - an intermediate the caller reads by id (same, from outside),
-//   - a spilled pre-activation read by a node that runs before the fused one.
-//
-// The activation whose gradient differentiates at its input used to be a fourth
-// entry on that list. It is not any more: GEMM_BIAS_GELU folds it by spilling
-// the pre-activation to a second output, so the refusal became a *condition* -
-// an INPUT-gradient activation may be folded only by an entry that writes the
-// tensor its gradient reads, and only if it writes the right one. That has a
-// compile-time half in fusion.cpp: an entry breaking either half fails a
-// static_assert. It cannot be tested from here, because a test that fails to
-// compile is not a test, so what is checked here is the pair of properties the
-// assertion reads - and, above all, that the fold really does leave the
-// pre-activation written and readable by the backward node.
+/**
+ * @file test_fusion.cpp
+ * @brief Tests the matches and the refusals of the static fusion pass on synthetic graphs.
+ * @author Mustafa Garip
+ */
 
 #include <algorithm>
 #include <cstddef>
@@ -103,16 +84,9 @@ namespace
     class Unit_Fusion : public ::testing::Test {};
 }
 
-// =========================================================================
-// 1. The catalog is well formed
-// =========================================================================
-
 TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
 {
-    // fused_form_op and fused_form_of are what the lowering dispatches on, so a
-    // form that does not round-trip would lower as "no recorder for this
-    // operation" - loud, but only at run time and only on a graph that happens
-    // to contain it.
+    // Every form round-trips through its operation identity; see tests/functional/unit/README.md.
     constexpr FusedForm ALL[] = {
         FusedForm::GEMM_BIAS, FusedForm::GEMM_BIAS_RELU,
         FusedForm::GEMM_BIAS_SIGMOID, FusedForm::GEMM_BIAS_TANH,
@@ -135,24 +109,15 @@ TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
 
 TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts)
 {
-    // The property fusion.cpp's static_assert reads. If this ever flips for an
-    // activation that has a catalog entry, the assertion is the thing that
-    // catches it - but only if this stays true of the table it consults, which
-    // is what is pinned here.
+    // RELU's gradient reads its output, so it survives fusion; see tests/functional/unit/README.md.
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::RELU.id));
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::SIGMOID.id));
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::TANH.id));
 
-    // SushiBLAS's gelu_backward takes the pre-activation, so an entry that
-    // wrote only its result would differentiate at a tensor that never reached
-    // memory. That has not changed and must not: it is the premise the
-    // static_assert reasons from.
+    // GELU's gradient reads the pre-activation; see tests/functional/unit/README.md.
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::GELU.id));
 
-    // What changed is the conclusion drawn from it. GELU is folded, by the one
-    // entry that spills - so "survives fusion" and "the catalog folds it" are
-    // now two questions with two answers, and a caller reading the first as the
-    // second gets the wrong one for exactly one activation.
+    // Only the entry that spills folds GELU; see tests/functional/unit/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::GELU.id));
     EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GEMM_BIAS_GELU));
 
@@ -171,10 +136,6 @@ TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFac
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS_GELU), Ops::GELU.id);
 }
 
-// =========================================================================
-// 2. The matches
-// =========================================================================
-
 TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
 {
     Graph::Graph graph;
@@ -192,8 +153,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
     EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::GEMM_BIAS.id), 1u);
 
-    // The fused node reads A, B and the bias, and still writes the value the
-    // caller named - which is the whole reason ids are preserved.
+    // The fused node writes the value the caller named; see tests/functional/unit/README.md.
     ASSERT_EQ(report.fused().size(), 1u);
     EXPECT_EQ(report.fused()[0].result, layer.biased);
     ASSERT_NE(graph.value(layer.biased).producer, NO_NODE);
@@ -204,9 +164,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
     EXPECT_EQ(fused.inputs[1], layer.weight);
     EXPECT_EQ(fused.inputs[2], layer.bias);
 
-    // The transposition flags have to survive: the fused recorder hands them
-    // straight to execute_gemm, and losing one is a wrong answer of exactly the
-    // right shape.
+    // The transposition flags survive the fusion; see tests/functional/unit/README.md.
     EXPECT_FALSE(fused.attributes.flag(0));
     EXPECT_TRUE(fused.attributes.flag(1));
 
@@ -216,9 +174,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
 
 TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
 {
-    // Both gemm+bias and gemm+bias+relu match here. Rooted at the bias_add the
-    // shorter one would win and the relu would be left outside for ever, which
-    // is why the matcher walks roots in reverse.
+    // The matcher walks roots in reverse; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -265,10 +221,7 @@ TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
 
 TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
 {
-    // (exp(a) - b) and (b - exp(a)) are different functions with the same
-    // shapes, so nothing downstream could tell them apart. The link position in
-    // the catalog entry is what refuses, and this is the test that it is
-    // actually consulted.
+    // The entry's link position refuses swapped operands; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -288,18 +241,13 @@ TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
     EXPECT_EQ(report.nodes_after(), report.nodes_before());
 }
 
-// =========================================================================
-// 3. The refusals - the half that matters
-// =========================================================================
-
 TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
 
-    // A second reader of the MATMUL's result. Fusing would mean recomputing it
-    // for this one, or losing it.
+    // The MATMUL result has a second reader; see tests/functional/unit/README.md.
     const ValueId also = builder.scale(layer.product, 2.0);
 
     const std::vector<ValueId> observed{layer.biased, also};
@@ -321,9 +269,7 @@ TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
     const Layer layer = trace_linear(builder);
     const ValueId activated = builder.relu(layer.biased);
 
-    // `biased` is the logits of a real classifier: the training loop reads it
-    // after every replay to score accuracy, and a fused form gives it no
-    // buffer to read.
+    // The training loop reads `biased` after every replay; see tests/functional/unit/README.md.
     const std::vector<ValueId> observed{layer.biased, activated};
     FusionOptions options;
     options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
@@ -333,17 +279,13 @@ TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_RELU), 0u);
     EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_IS_OBSERVED));
 
-    // It still falls back to the shorter form rooted at the bias_add, whose own
-    // intermediate is free.
+    // The shorter form rooted at the bias_add still fuses; see tests/functional/unit/README.md.
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
 }
 
 TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
 {
-    // A persistent value's buffer outlives the step whatever the graph says, so
-    // the caller must not have to remember to list it. Here the "intermediate"
-    // is a parameter - an odd graph, but exactly the shape a caller would get
-    // wrong.
+    // A persistent value is protected without being listed; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -351,8 +293,7 @@ TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
     const ValueId b = builder.input(Shape{ROWS, OUT_FEATURES}, "b");
     const ValueId exponent = builder.exp(a);
 
-    // Force the exp's result into a persistent class, as a checkpointed
-    // activation would be.
+    // The exp's result is forced into a persistent class; see tests/functional/unit/README.md.
     graph.value(exponent).lifetime = Graph::Lifetime::OPTIMIZER_STATE;
 
     const ValueId difference = builder.sub(exponent, b);
@@ -366,12 +307,7 @@ TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
 
 TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntrySpills)
 {
-    // The trap this whole design is arranged around, and the shape of the graph
-    // in which it is sprung: the differentiation pass has already emitted
-    // gelu_backward reading the pre-activation, so that value has two
-    // consumers. Every other entry would stop there - rule 1 - and the reason
-    // this one does not is the reason it is allowed to exist: the fused node
-    // *keeps writing* that value, as a second output, under the same id.
+    // The fused node keeps writing the pre-activation; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -392,10 +328,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
 
-    // The load-bearing assertion, and the one a plain GEMM_BIAS_GELU with no
-    // spill would fail: the pre-activation is still written, by the fused node,
-    // as its second output - and it is the *same* value, so gelu_backward's
-    // operand needed no rewriting and the backward rule needed no change.
+    // The pre-activation is the fused node's second output; see tests/functional/unit/README.md.
     ASSERT_EQ(report.fused().size(), 1u);
     EXPECT_EQ(report.fused()[0].result, activated);
     EXPECT_EQ(report.fused()[0].spilled, layer.biased);
@@ -410,9 +343,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     EXPECT_EQ(fused.outputs[0], activated);
     EXPECT_EQ(fused.outputs[1], layer.biased);
 
-    // Only the MATMUL's result was dropped. Reporting the spilled value as
-    // eliminated would be a report that reads like the silently wrong version
-    // of this pass.
+    // Only the MATMUL's result is reported as eliminated; see tests/functional/unit/README.md.
     EXPECT_EQ(report.fused()[0].eliminated, std::vector<ValueId>{layer.product});
     EXPECT_EQ(graph.value(layer.product).producer, NO_NODE);
 
@@ -424,11 +355,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
 
 TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
 {
-    // The one new way this entry could break the graph, and it is not a wrong
-    // number - it is a wrong *order*. The fused node is emitted at the GELU's
-    // position, so a reader of the pre-activation sitting between the bias_add
-    // and the GELU would end up reading a value written after it, and every
-    // pass below assumes that cannot happen.
+    // A reader before the fused node would break the order; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -446,13 +373,11 @@ TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 0u) << report.to_string();
     EXPECT_TRUE(declined_for(report, FusionDecline::SPILL_READ_TOO_EARLY));
 
-    // It still falls back to the shorter form, exactly as any other refusal of
-    // the three-node entry does.
+    // The shorter form still fuses after the refusal; see tests/functional/unit/README.md.
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
     EXPECT_EQ(count_op(graph, Ops::GELU.id), 1u);
 
-    // And the rewritten graph really is still topological, which is the
-    // property the refusal exists to protect.
+    // The rewritten graph stays topological; see tests/functional/unit/README.md.
     for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
         for (ValueId in : graph.node(id).inputs)
         {
@@ -464,9 +389,7 @@ TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
 
 TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
 {
-    // The mirror of VALUE_IS_OBSERVED. That rule exists because a fused form
-    // gives an interior value no buffer to read; this entry gives it one, so
-    // naming the pre-activation as observed must not refuse the fold.
+    // A spilled pre-activation may be named as observed; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -485,10 +408,7 @@ TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
 
 TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
 {
-    // A spill licenses one interior value and no others. The MATMUL's result is
-    // not spilled, so a second reader of it refuses the whole chain exactly as
-    // it does for every other entry - and the fallback is nothing, because
-    // gemm+bias is blocked by the same value.
+    // A spill licenses one interior value and no other; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -527,19 +447,14 @@ TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
     EXPECT_TRUE(declined_for(report, FusionDecline::DISABLED));
 
-    // And the GELU that stayed outside is not also reported as unfoldable.
-    // "Its gradient differentiates at its input" and "no catalog entry composes
-    // it" are both false here and both would send a reader to change the wrong
-    // thing; the DISABLED line above is the whole and only reason.
+    // The GELU left outside is not reported as unfoldable; see tests/functional/unit/README.md.
     EXPECT_FALSE(declined_for(report, FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION));
     EXPECT_FALSE(declined_for(report, FusionDecline::NO_CATALOG_ENTRY));
 }
 
 TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
 {
-    // The mirror of the case above, and the reason ReLU's backward rule reads
-    // the output: with the gradient reading the activation's own result, the
-    // pre-activation has one consumer and folds with no special case anywhere.
+    // ReLU's gradient reads its own result, so it folds; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -558,10 +473,6 @@ TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
     EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_RELU), 1u);
     EXPECT_FALSE(declined_for(report, FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION));
 }
-
-// =========================================================================
-// 4. The pass keeps the graph usable
-// =========================================================================
 
 TEST_F(Unit_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
 {
@@ -608,10 +519,7 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
 
 TEST_F(Unit_Fusion, ValueIdsAndTheirDescriptionsSurviveTheRewrite)
 {
-    // Everything a caller holds across the pass - StepSpec, a Parameter's own
-    // id, a gradient - depends on this. A pass that compacted ids would need a
-    // remap reaching into the model's layer objects, and forgetting one would
-    // bind the optimizer to the wrong tensor.
+    // Value ids and descriptions survive the rewrite; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const Layer layer = trace_linear(builder);
@@ -640,10 +548,7 @@ TEST_F(Unit_Fusion, ValueIdsAndTheirDescriptionsSurviveTheRewrite)
 
 TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
 {
-    // Everything downstream - the memory planner's reachability closure, the
-    // lowering's single forward walk - rests on it, and the fused node is
-    // emitted at the *root's* position while reading operands from the chain's
-    // first node, which is exactly where a rewrite gets this wrong.
+    // The fused node sits at the root's position; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

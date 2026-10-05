@@ -6,24 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// What the library does when it is handed something it cannot serve, and what
-// it does at the edges of what it can.
-//
-// Three separate claims live here, and none of them is "the happy path
-// works" - that is the job of test_forward.cpp and test_training.cpp:
-//
-//  1. Every device-lane precondition fails loudly AND names the actual
-//     problem. See tests/common/test_throws.hpp for why the message is
-//     asserted rather than just the throw.
-//  2. Degenerate and boundary extents - one sample, one feature, one class,
-//     exactly the GEMM register-block edge and exactly one past it - produce
-//     right answers rather than off-by-one ones. Index arithmetic breaks here
-//     or nowhere.
-//  3. Numbers that would make a naive implementation produce NaN do not. A
-//     NaN is the worst failure this library has: it propagates into every
-//     weight on the next update, the loss stops moving, and nothing reports
-//     an error. Finiteness is therefore asserted explicitly rather than
-//     inferred from a loss that looks plausible.
+/**
+ * @file test_resilience.cpp
+ * @brief Tests loud failures, boundary extents, numerical extremes and resource discipline.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <cstddef>
@@ -40,8 +27,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
@@ -168,10 +154,6 @@ namespace
     }
 }
 
-// =========================================================================
-// 1. Loud failures that name the problem
-// =========================================================================
-
 TEST_F(Integration_Resilience, AnOptimizerNamesTheParameterWhoseGradientDoesNotMatch)
 {
     std::vector<Optim::ParameterSlot> slots;
@@ -196,9 +178,7 @@ TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrong
 
 TEST_F(Integration_Resilience, AnOptimizerRefusesADtypeItCannotServeAndExplainsWhy)
 {
-    // Complex is not a training dtype at all; half is a real float but is
-    // refused for a reason the message has to carry, because "it compiles and
-    // trains worse" is precisely the outcome the refusal exists to prevent.
+    // The half refusal must say why in its message; see tests/functional/integration/README.md.
     std::vector<Optim::ParameterSlot> complex_slot;
     complex_slot.push_back(Optim::ParameterSlot{"0.weight",
                                                 allocate_tensor(*engine, Shape{4}, DType::COMPLEX32),
@@ -250,14 +230,7 @@ TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
 
 TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarbage)
 {
-    // There is no zero_grad() in this library, by design: every gradient
-    // buffer in a step is written rather than accumulated into (see
-    // optimizer.hpp). That leaves exactly one window in which a gradient has
-    // never been written at all - between bind_parameters() and the first
-    // replay - and stepping in that window would otherwise feed whatever the
-    // allocator last had in that memory straight into the weights. There is
-    // nothing to catch it downstream: the parameters simply become garbage or
-    // NaN, and the loss never recovers.
+    // An unwritten gradient must read as zero; see tests/functional/integration/README.md.
     Fixture fixture = make_fixture(*engine, 8, 6, 12, 4);
 
     for (const Optim::ParameterSlot& slot : fixture.slots)
@@ -302,8 +275,7 @@ TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledS
     Train::Trainer trainer(*engine, fixture.built.graph, *fixture.pool,
                            fixture.built.spec, optimizer);
 
-    // A step's buffers are addresses baked into a compiled plan, so a batch of
-    // the wrong size cannot be accommodated - only reported.
+    // A wrong-sized batch can only be reported; see tests/functional/integration/README.md.
     const Data::SyntheticClassification wrong(*engine, data_for(4, 1, 6, 4));
 
     SA_EXPECT_ERROR((void)trainer.run_step(wrong.batch(0)),
@@ -343,10 +315,7 @@ TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
     SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(empty_dims, 2)),
                     "Tensor extents must be positive", "got 0");
 
-    // Signed overflow in the extent product is undefined behaviour, which a
-    // compiler may assume away along with any check written after it. Detected
-    // before the multiply, so the diagnostic is about the shape rather than
-    // about the wreckage.
+    // Overflow is detected before the multiply; see tests/functional/integration/README.md.
     const int64_t overflowing[3] = {3'000'000'000LL, 3'000'000'000LL, 3'000'000'000LL};
     SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(overflowing, 3)),
                     "more than", "elements", "3000000000");
@@ -354,23 +323,16 @@ TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
 
 TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanTheKernel)
 {
-    // A petabyte. No allocator serves it, and the point is what the caller is
-    // told: the shape and element type it asked for, not a bare byte count
-    // from four frames down, and not a null pointer for a kernel to chase.
+    // A petabyte: the error names shape and dtype; see tests/functional/integration/README.md.
     const int64_t enormous[2] = {1LL << 25, 1LL << 25};
 
     SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(enormous, 2)),
                     "Could not allocate the float32 tensor", "[33554432, 33554432]");
 }
 
-// =========================================================================
-// 2. Degenerate and boundary extents
-// =========================================================================
-
 TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
 {
-    // N = 1, D = 1, and one Linear with no hidden layer. Every loop bound in
-    // the lowering is at its minimum simultaneously.
+    // N = 1 and D = 1 with one Linear: every loop bound is at its minimum.
     const int64_t batch = 1;
     const int64_t features = 1;
     const int64_t classes = 3;
@@ -407,9 +369,7 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
 
 TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
 {
-    // With C = 1 the softmax is identically one, so the loss is exactly zero
-    // and the gradient (p - y) / N is exactly zero. Nothing learns, which is
-    // correct - but 0/0 anywhere in the recipe would show up as NaN instead.
+    // With C = 1 loss and gradient are exactly zero; see tests/functional/integration/README.md.
     const int64_t batch = 4;
     const int64_t features = 3;
     const int64_t classes = 1;
@@ -443,12 +403,7 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
 
 TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
 {
-    // The local-tiled GEMM stages a 64x64 block of float per work-group and
-    // pads the ragged remainder with zeros. An extent of exactly 64 exercises
-    // the padding-free path; 65 leaves a one-row, one-column remainder, which
-    // is where an off-by-one in the boundary test shows up as a wrong answer
-    // rather than as a fault. Both are checked against a host reference, and
-    // with the transpose FLAG the Linear layer actually emits.
+    // 64 fills a GEMM block; 65 leaves a remainder; see tests/functional/integration/README.md.
     for (int64_t n : {int64_t{64}, int64_t{65}})
     {
         Graph::Graph graph;
@@ -474,9 +429,7 @@ TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
         const std::vector<double> got = SaTest::read_tensor(run.pool.tensor(y));
         ASSERT_EQ(got.size(), static_cast<std::size_t>(n * n));
 
-        // The values that reached the device are float, so the reference has
-        // to be computed from those same floats or the comparison measures
-        // rounding rather than indexing.
+        // The reference uses the device's floats; see tests/functional/integration/README.md.
         const std::vector<double> x_seen = SaTest::read_tensor(run.pool.tensor(x));
         const std::vector<double> w_seen = SaTest::read_tensor(run.pool.tensor(w));
 
@@ -529,15 +482,10 @@ TEST_F(Integration_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastI
     }
 }
 
-// =========================================================================
-// 3. Numerical extremes
-// =========================================================================
-
 namespace
 {
     /**
      * @brief Log-softmax of @p logits, read back, for the stability checks.
-     *
      * @param engine The engine to run on.
      * @param rows Rows of the logit matrix.
      * @param columns Columns of the logit matrix.
@@ -564,10 +512,7 @@ namespace
 
 TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitude)
 {
-    // The max shift is the only reason any of these is representable: without
-    // it exp(1e30) is inf and exp(-1e30) is zero, and both give NaN. With it,
-    // every one of them must land on the same exact answer, because a uniform
-    // row is uniform whatever its offset.
+    // A uniform row gives -log(C) at any offset; see tests/functional/integration/README.md.
     const int64_t rows = 3;
     const int64_t columns = 4;
     const double expected = -std::log(static_cast<double>(columns));
@@ -585,12 +530,7 @@ TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitud
 
 TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
 {
-    // +1e30 against -1e30 in the same row: the shift drives the winner to
-    // exactly zero and every loser to -2e30, whose exponential underflows to
-    // zero without ever becoming a NaN. The row sum is therefore exactly one,
-    // and log(1) is exactly zero, so the winner's log-probability is exactly
-    // zero - a probability of one, which is the right answer for a logit gap
-    // of 2e30.
+    // The winner's log-probability is exactly zero; see tests/functional/integration/README.md.
     const int64_t rows = 2;
     const int64_t columns = 3;
 
@@ -610,18 +550,7 @@ TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
 
 TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
 {
-    // A gap of 60 between the two rows' own maxima. This used to pin the
-    // *supported side* of a boundary: the shift was by the batch's global
-    // maximum, so a row far enough below it came back +inf, and 60 was
-    // comfortably inside the range that still worked.
-    //
-    // There is no boundary now - the shift is each row's own maximum, so the
-    // gap does not reach the arithmetic - and the case is kept unchanged
-    // anyway. It is the shape a training run actually produces, and a
-    // regression that reintroduced a global shift would still pass every test
-    // whose rows sit on top of each other. The gaps that break a global shift
-    // are pinned separately, with their measured errors, in
-    // tests/functional/regression/test_log_softmax_stability.cpp.
+    // Each row is shifted by its own maximum; see tests/functional/integration/README.md.
     const int64_t columns = 3;
 
     std::vector<double> logits = {
@@ -632,8 +561,7 @@ TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRan
     const std::vector<double> got = log_softmax_of(*engine, 2, columns, logits);
     ASSERT_TRUE(all_finite(got, "log_softmax"));
 
-    // Both rows have the same internal spread, so both must produce the same
-    // log-probabilities - which is the whole claim of shift invariance.
+    // Equal spread gives equal log-probabilities; see tests/functional/integration/README.md.
     for (std::size_t column = 0; column < 3; ++column)
         EXPECT_NEAR(got[column], got[column + 3], 1e-4) << "column " << column;
 
@@ -655,9 +583,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
 
     Runner run(*engine, graph);
 
-    // Confidence of exp(80) either way. Anything that exponentiates without
-    // shifting first overflows here; anything that takes a log of a rounded
-    // zero produces -inf.
+    // exp(80) overflows without the shift; see tests/functional/integration/README.md.
     const std::vector<double> confident = {
         80.0, -80.0, -80.0,
         -80.0, 80.0, -80.0,
@@ -673,9 +599,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
     EXPECT_TRUE(std::isfinite(correct));
     EXPECT_NEAR(correct, 0.0, 1e-5) << "a perfectly confident correct prediction costs nothing";
 
-    // The same logits against the opposite targets: the loss is large, and
-    // large is the correct answer. It must not be inf, because an infinite
-    // loss makes every gradient below it a NaN.
+    // A wrong confident loss is large but finite; see tests/functional/integration/README.md.
     SaTest::write_tensor(run.pool.tensor(targets),
                          std::vector<double>{0.0, 1.0, 0.0, 1.0, 0.0, 0.0});
     run.run();
@@ -687,12 +611,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
 
 TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 {
-    // m and v are both exactly zero on step one, so the update is
-    // 0 / (sqrt(0 / bc2) + eps). It is eps in the denominator, and only eps,
-    // that keeps that a zero rather than a NaN - and eps is added AFTER the
-    // bias correction, so it is not scaled away. Fold it inside and the
-    // denominator becomes sqrt(0 + eps) / sqrt(bc2), which is still non-zero
-    // here but wrong everywhere else; drop it and this is 0/0.
+    // eps is added after the bias correction; see tests/functional/integration/README.md.
     SushiBLAS::Tensor parameter = allocate_tensor(*engine, Shape{6});
     SushiBLAS::Tensor gradient = allocate_tensor(*engine, Shape{6});
 
@@ -713,33 +632,18 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
     const std::vector<double> after = SaTest::read_tensor(parameter);
     ASSERT_TRUE(all_finite(after, "parameter"));
 
-    // With no decay and no gradient there is nothing to move by, so the
-    // parameter must be untouched rather than merely finite.
+    // With no decay and no gradient the parameter must be untouched.
     for (std::size_t i = 0; i < initial.size(); ++i)
         EXPECT_NEAR(after[i], initial[i], 1e-6) << "at " << i;
 
-    // A second step still has nothing to work with, and the bias corrections
-    // have changed - which is where a divide that only happened to be safe on
-    // step one would come apart.
+    // The bias corrections differ on step two; see tests/functional/integration/README.md.
     optimizer.step();
     EXPECT_TRUE(all_finite(SaTest::read_tensor(parameter), "parameter after two steps"));
 }
 
-// =========================================================================
-// 4. Resource discipline
-// =========================================================================
-
 TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 {
-    // Every SushiBLAS::Storage holds a counted reference to the context's
-    // allocator, so the allocator's reference count IS the number of live
-    // allocations plus a constant. That makes "did the last iteration leak a
-    // buffer" a number this test can read rather than something to eyeball in
-    // Task Manager - one leaked Storage moves it by exactly one.
-    //
-    // The baseline is taken after the FIRST iteration, not before it, so a
-    // one-time lazy cache inside the runtime is tolerated while a per-
-    // iteration leak is not.
+    // The allocator's ref count counts live buffers; see tests/functional/integration/README.md.
     const auto live_allocations = [this]()
     {
         return engine->get_context().get_allocator()->get_ref_count();
@@ -780,15 +684,7 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 
 TEST_F(Integration_Resilience, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
 {
-    // CV-7 keeps a BatchNorm's running statistics out of the IR: they are
-    // recorded into the training step beside the graph, the same way
-    // SGD_UPDATE and ADAMW_UPDATE are emitted directly by src/optim/. So
-    // BATCHNORM_UPDATE_STATS is the one declared identity with no case in
-    // Lowering::record_node, and that is deliberate rather than an omission.
-    //
-    // The test exists because the two are indistinguishable from the outside.
-    // Pinning the throw is what turns "we forgot" into "we decided": if
-    // somebody later adds a lowering, this fails and asks them to say why.
+    // BATCHNORM_UPDATE_STATS has no lowering; see tests/functional/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

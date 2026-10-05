@@ -6,43 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The gate on collapsing eleven launches per parameter into one.
-//
-// Fusing an optimizer update is a pure performance change that touches the
-// only arithmetic in the library nothing downstream validates. Every failure
-// mode it has is silent: a transposed scalar index, an epsilon folded inside
-// the square root, a momentum buffer read a step late, a first-step branch
-// that stopped being special - each of those still trains, still converges,
-// and still reports a healthy loss. So the fused kernel is not tested against
-// a tolerance or a fixture; it is tested against the separate-op sequence it
-// replaced, byte for byte, from identical state.
-//
-// WHY BYTE FOR BYTE IS THE RIGHT BAR, AND NOT OPTIMISM
-//
-// Each element's update is independent and the operation sequence is
-// unchanged, so the only thing that could move a bit is a difference in
-// rounding - and the one plausible source of that, a compiler contracting
-// `a * b + c` into an FMA inside one kernel where it could not across two, is
-// ruled out by construction: the whole stack compiles with `-ffp-contract=off`
-// through SushiRuntime's `sushiruntime_deterministic_fp` contract. Every
-// expression in the fused functors is also written in the same operand order
-// as the kernel it replaces (`x *= alpha` is `x * alpha`; `y += alpha * x` is
-// `y + (alpha * x)`), and both paths read their scalars out of the same
-// float32 device buffer so neither can pick up a differently rounded constant.
-//
-// If this ever fails, the answer is to find which expression moved - not to
-// loosen the comparison.
-//
-// THE SECOND HALF: FOLDING THE UPDATE INTO THE COMPILED PLAN
-//
-// Fusing is what makes the update replay-invariant, and replay-invariance is
-// what lets it be recorded into the same TaskGraph as the forward and backward
-// passes. That is a separate change with its own silent failure mode - a
-// dependency edge the runtime does not see would let the update race the
-// backward pass that produces its gradients, and a race that usually resolves
-// the right way looks exactly like training. So the folded and unfolded
-// placements are compared byte for byte too, and compile_count() is pinned at
-// one with the optimizer inside.
+/**
+ * @file test_fused_optimizer.cpp
+ * @brief Tests that the fused optimizer update matches the separate operations byte for byte.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <cstddef>
 #include <cstdint>
@@ -55,8 +24,7 @@
 
 using namespace SushiAI;
 
-// `Test` alone resolves to ::testing::Test inside a TEST_F body, where the
-// fixture's base injects the name; the alias keeps the helpers reachable.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/functional/regression/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 using Optim::UpdateKernel;
@@ -65,8 +33,7 @@ namespace
 {
     class Regression_FusedOptimizer : public ::testing::Test {};
 
-    // Deliberately not a multiple of the 128-bit vector width, so both the
-    // wide pass and the scalar tail of Launch::zip_inplace run on every call.
+    // 133 is not a multiple of the vector width; see tests/functional/regression/README.md.
     constexpr int64_t ELEMENTS = 133;
 
     constexpr int STEPS = 6;
@@ -74,17 +41,8 @@ namespace
     constexpr std::uint64_t GRAD_SEED = 0x5175'5348'4941'0002ull;
 
     /**
-     * @brief The gradient for step @p step, identical across runs.
-     *
-     * The first four entries are hand-placed rather than sampled: an exact
-     * zero, a negative zero, a denormal-adjacent tiny value and a large one.
-     * Zero is where AdamW's 0 / (sqrt(0) + eps) lives, negative zero is what
-     * distinguishes `b = staged` from `b = 0*b + 1*staged` (the latter turns
-     * -0.0 into +0.0 and would be invisible to any tolerance), and the two
-     * extremes exercise the square root and the division away from unity.
-     *
-     * @param step Which step's gradient to produce.
-     * @return ELEMENTS values.
+     * @brief Returns the gradient for step @p step, identical across runs.
+     * @see tests/functional/regression/README.md
      */
     std::vector<double> gradient_for(int step)
     {
@@ -111,14 +69,7 @@ namespace
 
     /**
      * @brief Steps one optimizer over a fixed gradient sequence, standalone.
-     *
-     * No graph, no trainer, no device RNG: one parameter, one gradient
-     * rewritten from the host between steps, and the optimizer's own step().
-     * That leaves the update as the only thing in the measurement.
-     *
-     * @param make Builds the optimizer over the slot, for a given kernel.
-     * @param kernel Which spelling of the update to use.
-     * @return The parameter's raw bytes after STEPS updates.
+     * @see tests/functional/regression/README.md
      */
     template<typename Make>
     std::vector<unsigned char> drive(Make make, UpdateKernel kernel)
@@ -184,8 +135,6 @@ namespace
             << ". Find the expression that moved; do not widen this comparison.";
     }
 
-    // --- The training-loop half ------------------------------------------
-
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 8;
@@ -222,13 +171,7 @@ namespace
 
     /**
      * @brief Trains the same MLP with AdamW, in the requested placement.
-     *
-     * A fresh Engine, because reproducibility is a property of one - see
-     * dataset.hpp on the RNG offset counter.
-     *
-     * @param placement Whether the update joins the compiled plan.
-     * @param kernel Which spelling of the update to use.
-     * @return The parameters, the trajectory and the compile count.
+     * @see tests/functional/regression/README.md
      */
     TrainedRun train(Train::OptimizerPlacement placement, UpdateKernel kernel)
     {
@@ -288,10 +231,6 @@ namespace
     }
 }
 
-// =========================================================================
-// 1. One kernel computes what eleven did
-// =========================================================================
-
 TEST_F(Regression_FusedOptimizer, AdamWsFusedKernelMatchesTheSeparateOperationsExactly)
 {
     Optim::AdamWOptions options;
@@ -300,21 +239,24 @@ TEST_F(Regression_FusedOptimizer, AdamWsFusedKernelMatchesTheSeparateOperationsE
     expect_kernels_agree(adamw_factory(options), "AdamW with decay");
 }
 
+/**
+ * @brief Tests that AdamW without weight decay matches the separate operations byte for byte.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, AdamWWithoutDecayTakesTheOtherBranchAndStillMatches)
 {
-    // weight_decay = 0 makes the decay factor exactly 1, which both paths
-    // must skip rather than multiply by - `theta * 1.0f` is bit-identical
-    // here, but only because it is, and the branch is what says so.
     Optim::AdamWOptions options;
     options.learning_rate = 0.02;
     options.weight_decay = 0.0;
     expect_kernels_agree(adamw_factory(options), "AdamW without decay");
 }
 
+/**
+ * @brief Tests that every SGD branch matches the separate operations byte for byte.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExactly)
 {
-    // Every branch of the recipe, because each one is a separate line of the
-    // fused functor and a separate opportunity to have written it differently.
     struct Case
     {
         const char* name;
@@ -351,15 +293,12 @@ TEST_F(Regression_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExa
         expect_kernels_agree(sgd_factory(one.options), std::string("SGD, ") + one.name);
 }
 
-// =========================================================================
-// 2. Folding the update into the plan changes no number
-// =========================================================================
-
+/**
+ * @brief Tests that AdamW inside the compiled plan trains identically to AdamW outside it.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt)
 {
-    // If these diverge, the update is not ordered against the graph the way
-    // the separate flush ordered it - which means the runtime is missing a
-    // dependency edge, and the fix is that edge, never a tolerance.
     const TrainedRun folded = train(Train::OptimizerPlacement::IN_PLAN, UpdateKernel::FUSED);
     const TrainedRun apart = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::FUSED);
 
@@ -370,21 +309,17 @@ TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdate
     expect_runs_agree(folded, apart, "the optimizer's placement");
 }
 
+/**
+ * @brief Tests that the fused and separate spellings train a whole model identically.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo)
 {
-    // The end-to-end version of test 1: not one optimizer over a synthetic
-    // gradient, but the whole pipeline, with gradients the backward pass
-    // produced and a trajectory long enough for a one-ULP difference in an
-    // early denominator to become a visible one.
     const TrainedRun fused = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::FUSED);
     const TrainedRun separate = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::SEPARATE);
 
     expect_runs_agree(fused, separate, "the update's spelling");
 }
-
-// =========================================================================
-// 3. It really is one compile, and the update really is inside it
-// =========================================================================
 
 TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
 {
@@ -394,26 +329,18 @@ TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
     EXPECT_EQ(folded.compiles, 1u);
     EXPECT_EQ(apart.compiles, 1u);
 
-    // Four parameters, so four fused updates joined the plan. Stated as a
-    // difference rather than an absolute so a change to the graph itself does
-    // not have to be re-recorded here.
+    // Each parameter adds one fused update to the plan; see tests/functional/regression/README.md.
     EXPECT_EQ(folded.operations_per_step, apart.operations_per_step + folded.names.size())
         << "the folded plan does not hold one extra task per parameter";
 }
 
-// =========================================================================
-// 4. The launch count itself
-// =========================================================================
-
+/**
+ * @brief Tests that the fused update records one task per parameter, against twelve for separate
+ *        AdamW and four for separate SGD.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve)
 {
-    // The headline claim, counted rather than timed - a wall clock says
-    // different things on a loaded machine, but the number of tasks issued is
-    // the same everywhere and is the thing that was actually changed.
-    //
-    // Twelve for AdamW with decay: the decay scal, two for m, three for v,
-    // four for the denominator, and two for the step. Eleven without decay,
-    // which is the figure the SushiBLAS seam's own documentation quotes.
     constexpr std::size_t PARAMETERS = 3;
 
     const auto count = [](UpdateKernel kernel, auto make) -> std::size_t
@@ -437,9 +364,7 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
 
         const std::unique_ptr<Optim::Optimizer> optimizer = make(engine, slots, kernel);
 
-        // The phases step() would run, with the count read out of the middle
-        // one. The flush afterwards is not optional: the tasks are in the
-        // engine's builder and something has to drain them.
+        // The recorded tasks must be drained; see tests/functional/regression/README.md.
         optimizer->before_replay();
         const std::size_t tasks = optimizer->record_into_step();
         engine.execute();
@@ -459,22 +384,17 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
     sgd.learning_rate = 0.1;
     sgd.momentum = 0.9;
 
-    // SGD's first step is its cheapest (b_1 = g_1 is one copy rather than a
-    // scal and an axpy), so four is the floor, not the typical cost.
+    // Four is the floor for SGD, on its first step; see tests/functional/regression/README.md.
     EXPECT_EQ(count(UpdateKernel::FUSED, sgd_factory(sgd)), PARAMETERS);
     EXPECT_EQ(count(UpdateKernel::SEPARATE, sgd_factory(sgd)), PARAMETERS * 4);
 }
 
-// =========================================================================
-// 5. An update that cannot be replayed is refused, not downgraded
-// =========================================================================
-
+/**
+ * @brief Tests that the trainer refuses to compile a separate-kernel AdamW into the step.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored)
 {
-    // The separate spelling bakes this step's bias corrections into its
-    // recorded tasks. Folded, it would replay step one's corrections for ever
-    // - and still converge, which is exactly why this has to be an error and
-    // not a quiet fallback.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
@@ -498,13 +418,12 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
                     "cannot be compiled into the step", "PER_STEP");
 }
 
+/**
+ * @brief Tests that step() reports an error on an optimizer already recorded into a compiled step.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
 {
-    // Before the update joined the plan, `trainer.run_step()` called
-    // `optimizer.step()` and a caller doing the same got a visible double
-    // update. Now the update is inside the replay and invisible from the
-    // outside, so the same mistake would quietly train at twice the learning
-    // rate and produce a run that looks fine and is not.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
@@ -527,12 +446,12 @@ TEST_F(Regression_FusedOptimizer, SteppingAnOptimizerThatIsAlreadyInThePlanIsRef
                     "twice per batch");
 }
 
+/**
+ * @brief Tests that step() reports an error when momentum is switched on after construction.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_FusedOptimizer, TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored)
 {
-    // The momentum buffer is allocated at construction or not at all, so the
-    // fused kernel's operand count is fixed there too. Before this check the
-    // separate path dereferenced a null tensor and the fused path would simply
-    // have trained without momentum.
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
