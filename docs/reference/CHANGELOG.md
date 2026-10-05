@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-05 — graph: Reported an operation or fused form that a lowering helper does not list as an error instead of emitting the last kernel in its chain (`lowering.cpp`).
 - 2026-10-05 — docs: Replaced the checkers with the SushiSkills set, archived two loose agent reports and rewrote the glossary, known issues and backlog (`tools/`, `docs/archive/agent/reports/`, `docs/reference/`, `docs/design/`).
 - 2026-10-05 — cli: Renamed `sa doxygen` to `sa docs` (`cli.py`, `aliases.py`).
 - 2026-10-05 — cli: Added `--version` and `--describe` (`cli.py`).
