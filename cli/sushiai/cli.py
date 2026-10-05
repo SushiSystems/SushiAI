@@ -14,18 +14,35 @@ from __future__ import annotations
 from typing import Optional
 
 import typer
+from sushicore.diag_commands import register_diagnostic_commands
+from sushicore.entry import run as run_entry
 from sushicore.provision.commands import ModuleProvision, register_provision_commands
+from sushicore.root_options import register_root_options
 from sushicore.typer_help import help_group
 
 from . import console
+from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
-from .services import diag as diag_svc
 from .services import project as project_svc
+from .services.diag import DIAGNOSTICS
 from .services.project import BuildType, Suite
 
+K_DISTRIBUTION = "sushiai-cli"
 K_PROJECT = "Project"
 K_MODELS = "Models"
 K_DIAGNOSTICS = "Diagnostics"
+K_HELP_FLAG = "--help"
+K_TRAIN_TARGET = "sushiai_train"
+K_INFERENCE_TARGET = "sushiai_inference"
+K_FORWARDING = {
+    "allow_extra_args": True,
+    "ignore_unknown_options": True,
+    "help_option_names": [],
+}
+K_DEMO_MLP_EXAMPLES = (
+    "sa demo mlp  # Train with the defaults\n"
+    "sa demo mlp --epochs 4 --optimizer sgd  # Flags go to the demo unchanged"
+)
 
 _help_group = help_group(console.current)
 
@@ -38,10 +55,20 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
+register_root_options(app, distribution=K_DISTRIBUTION)
 
-# --------------------------------------------------------------------------- #
-# build / test / run / clean / doxygen
-# --------------------------------------------------------------------------- #
+
+def _show_page_while_unbuilt(ctx: typer.Context, target: str) -> None:
+    """Prints the command's own help page when help was asked for and *target* is not built."""
+    if K_HELP_FLAG in ctx.args and not project_svc.is_built(target):
+        typer.echo(ctx.get_help())
+
+
+def _print_error(message: str) -> None:
+    """Prints one error line through the console, which is built only now."""
+    console.error(message)
+
+
 @app.command(
     "build",
     rich_help_panel=K_PROJECT,
@@ -61,7 +88,7 @@ def build(
         help="Pass a CMake cache variable through to configure. Repeatable. "
              "Quote values containing ';', e.g. "
              '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
-):
+) -> None:
     """Configure and build the project.
 
     Cache variables set with -D persist in the build tree, so dropping the
@@ -90,7 +117,7 @@ def test(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
-):
+) -> None:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
@@ -117,7 +144,7 @@ def run(
         None, help="Executable name to run (exact, then substring match)."),
     sort: bool = typer.Option(
         False, "--sort", help="Interactively pick an executable."),
-):
+) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
     raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args)))
 
@@ -127,130 +154,84 @@ def run(
     rich_help_panel=K_PROJECT,
     epilog="sa clean",
 )
-def clean():
-    """Remove the build/ tree."""
+def clean() -> None:
+    """Remove the build/ tree, the generated API reference included."""
     raise typer.Exit(project_svc.clean())
 
 
 @app.command(
-    "doxygen",
+    "docs",
     rich_help_panel=K_PROJECT,
-    epilog="sa doxygen",
+    epilog="sa docs  # Write the API reference to build/docs/api-site/html",
 )
-def doxygen():
-    """Generate Doxygen documentation."""
+def docs() -> None:
+    """Build the API reference with Doxygen."""
     raise typer.Exit(project_svc.doxygen())
 
 
-# --------------------------------------------------------------------------- #
-# demo (AI-7 showcase, per ST-2)
-# --------------------------------------------------------------------------- #
+K_ALIASES.command(app, "doxygen", docs, "sa doxygen")
+
+
 demo_app = typer.Typer(
     cls=_help_group,
     help="Run a SushiAI showcase demo.",
     no_args_is_help=True,
-    epilog="sa demo mlp  # Train with the defaults\n"
-           "sa demo mlp --epochs 4 --optimizer sgd  # Flags go to the demo unchanged",
+    epilog=K_DEMO_MLP_EXAMPLES,
 )
 app.add_typer(demo_app, name="demo", rich_help_panel=K_MODELS)
 
 
-@demo_app.command(
-    "mlp",
-    # Unknown options are collected instead of rejected, and Typer's own --help
-    # is disabled, so every flag - including --help - reaches the demo. The
-    # demo owns its flag surface; restating it here would give two places to
-    # change and one to forget.
-    context_settings={
-        "allow_extra_args": True,
-        "ignore_unknown_options": True,
-        "help_option_names": [],
-    },
-)
-def demo_mlp(ctx: typer.Context):
+@demo_app.command("mlp", epilog=K_DEMO_MLP_EXAMPLES, context_settings=K_FORWARDING)
+def demo_mlp(ctx: typer.Context) -> None:
     """Train an MLP end to end and report the compile count (AI-7 showcase).
 
-    Flags are forwarded verbatim to the demo; `sa demo mlp --help` prints its
-    full list. Example: sa demo mlp --epochs 4 --optimizer sgd
+    Flags are forwarded verbatim to the demo; once it is built,
+    `sa demo mlp --help` prints its full list.
     """
+    _show_page_while_unbuilt(ctx, project_svc.demo_target("mlp") or "")
     raise typer.Exit(project_svc.demo("mlp", list(ctx.args)))
 
 
-# --------------------------------------------------------------------------- #
-# train / inference (config-driven, per the config-driven training design)
-# --------------------------------------------------------------------------- #
-# Arguments are forwarded verbatim, exactly as `demo mlp` forwards its flags:
-# the argument surface lives in the C++ program, and restating it here would
-# give two places to change and one to forget. That matters more here than for
-# the demo, because the whole point of these two programs is that they are
-# written once and never edited again.
 @app.command(
     "train",
     rich_help_panel=K_MODELS,
-    context_settings={
-        "allow_extra_args": True,
-        "ignore_unknown_options": True,
-        "help_option_names": [],
-    },
+    epilog="sa train examples/heavy_mlp/train.json",
+    context_settings=K_FORWARDING,
 )
-def train(ctx: typer.Context):
+def train(ctx: typer.Context) -> None:
     """Train a model described by a JSON configuration.
 
-    Usage: sushiai train <train.json>. The configuration names the
-    architecture file, the objective, the data, the optimizer, the epoch count
-    and where to write the checkpoint; paths inside it resolve against its own
-    directory. Example: sushiai train examples/heavy_mlp/train.json
+    Usage: sa train <train.json>. The configuration names the architecture
+    file, the objective, the data, the optimizer, the epoch count and where to
+    write the checkpoint; paths inside it resolve against its own directory.
+    Arguments are forwarded verbatim to the program, --help included once it
+    is built.
     """
-    raise typer.Exit(
-        project_svc.run_app("sushiai_train", "SushiAI Train", list(ctx.args)))
+    _show_page_while_unbuilt(ctx, K_TRAIN_TARGET)
+    raise typer.Exit(project_svc.run_app(K_TRAIN_TARGET, "SushiAI Train", list(ctx.args)))
 
 
 @app.command(
     "inference",
     rich_help_panel=K_MODELS,
-    context_settings={
-        "allow_extra_args": True,
-        "ignore_unknown_options": True,
-        "help_option_names": [],
-    },
+    epilog="sa inference examples/heavy_mlp/model.json model.ckpt "
+           "examples/heavy_mlp/eval.json",
+    context_settings=K_FORWARDING,
 )
-def inference(ctx: typer.Context):
+def inference(ctx: typer.Context) -> None:
     """Evaluate a trained checkpoint over a dataset.
 
-    Usage: sushiai inference <model.json> <model.ckpt> <eval.json>. The data
-    is a positional argument because the architecture file carries no data
-    block, so an optional flag would always error when omitted.
+    Usage: sa inference <model.json> <model.ckpt> <eval.json>. The data is a
+    positional argument because the architecture file carries no data block.
+    Arguments are forwarded verbatim to the program, --help included once it
+    is built.
     """
+    _show_page_while_unbuilt(ctx, K_INFERENCE_TARGET)
     raise typer.Exit(
-        project_svc.run_app("sushiai_inference", "SushiAI Inference", list(ctx.args)))
+        project_svc.run_app(K_INFERENCE_TARGET, "SushiAI Inference", list(ctx.args)))
 
 
-# --------------------------------------------------------------------------- #
-# config / env (diagnostics)
-# --------------------------------------------------------------------------- #
-@app.command(
-    "config",
-    rich_help_panel=K_DIAGNOSTICS,
-    epilog="sa config",
-)
-def config():
-    """Print the resolved config and where each value came from."""
-    raise typer.Exit(diag_svc.config_show())
-
-
-@app.command(
-    "env",
-    rich_help_panel=K_DIAGNOSTICS,
-    epilog="sa env\n"
-           "sa env --all  # Show every variable, not just the build-relevant ones",
-)
-def env(
-    all: bool = typer.Option(
-        False, "--all", help="Show every variable, not just build-relevant ones."),
-):
-    """Print the environment cmake/ctest/run subprocesses execute under."""
-    raise typer.Exit(diag_svc.env_dump(show_all=all))
-
+register_diagnostic_commands(app, DIAGNOSTICS, program=PROFILE.program, panel=K_DIAGNOSTICS)
 
 register_provision_commands(app, ModuleProvision(
     profile=PROFILE,
@@ -263,5 +244,10 @@ register_provision_commands(app, ModuleProvision(
 ))
 
 
+def main() -> None:
+    """Runs `sa`; a failure the user can act on leaves one line and exit code 1."""
+    run_entry(app, _print_error)
+
+
 if __name__ == "__main__":
-    app()
+    main()

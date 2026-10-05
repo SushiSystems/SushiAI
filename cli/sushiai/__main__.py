@@ -5,7 +5,7 @@
 # Commercial use requires a licence from Sushi Systems.
 """Enable `python3 -m sushiai` as an entry point."""
 
-from .cli import app
+from .cli import main
 
 if __name__ == "__main__":
-    app()
+    main()

@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-sa = "sushiai.cli:app"
-sushiai = "sushiai.cli:app"
+sa = "sushiai.cli:main"
+sushiai = "sushiai.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

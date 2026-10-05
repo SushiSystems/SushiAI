@@ -52,7 +52,7 @@ several checkouts at once. Run `sa config` to see what the CLI resolved.
 | Command | What it's for |
 |---------|----------------|
 | `sa build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
-| `sa doxygen` | Generate the Doxygen API reference into `docs/api-site/html/` |
+| `sa docs` | Build the Doxygen API reference into `build/docs/api-site/html/` |
 | `sa demo mlp` | Train an MLP end to end and report the compile count |
 | `sushiai train` | Train a model described by a JSON configuration |
 | `sushiai inference` | Evaluate a trained checkpoint over a dataset |
@@ -63,6 +63,13 @@ several checkouts at once. Run `sa config` to see what the CLI resolved.
 | `sa link` / `unlink` | Add this checkout to a workspace's module registry, or remove it |
 
 Run any command with `--help` to see its options.
+
+`sa --version` prints `sushiai-cli` and its version. `sa --describe` prints the
+command catalogue as JSON: every command, its options and their defaults.
+
+A failure you can act on, such as a `cli/config.toml` that is not valid TOML,
+ends in one line naming the file and exit code 1. Ctrl+C while a build, a test
+run or a launched program is running stops it and exits 130.
 
 ## `sa build`
 
@@ -90,8 +97,8 @@ sa build -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_61" -D SA_BUILD_TESTS=OFF
 ```
 
 Repeatable, `VAR=VALUE`, passed straight through to `cmake` — the same flag
-`sb build` takes. A malformed entry is rejected before configure runs, with
-the message naming what you typed.
+`sb build` takes. A malformed entry exits 2 before the build tree is touched,
+`--clean` included, with the message naming what you typed.
 
 Two things worth knowing:
 
@@ -312,7 +319,10 @@ Two deliberate choices:
   `examples/demo_mlp.cpp`'s header comment argues it in full.
 - **Every flag is forwarded verbatim, including `--help`.** The demo owns its
   flag surface; restating it in Typer would give two places to change and one
-  to forget. `sa demo --help` still lists the available demos.
+  to forget. `sa demo --help` still lists the available demos. Until the demo
+  is built there is nothing to forward to, so `sa demo mlp --help` prints `sa`'s
+  own page and then says to run `sa build`. `sa train` and `sa inference` do
+  the same.
 
 ## `sushiai train` and `sushiai inference` — config-driven runs
 
@@ -410,20 +420,28 @@ printing the library's own diagnostic — which names the file, the key and what
 was found. Both print a `compiles: 1` line; two CTest cases pin it, the same
 way `sa demo mlp`'s is pinned.
 
-## `sa clean` and `sa doxygen`
+## `sa clean` and `sa docs`
 
 ```bash
 sa clean       # remove the build/ tree
-sa doxygen     # generate the Doxygen API reference
+sa docs        # build the Doxygen API reference
 ```
+
+`sa clean` removes the generated API reference too, because it lives under
+`build/`. If the tree is still there afterwards, for example because a program
+holds a file in it open, the command names the tree and exits 1.
+
+`sa docs` was `sa doxygen`. The old word still runs, prints one notice naming
+the new one when it runs on a terminal, and is removed after 2027-03-25; `SA_NO_DEPRECATION_NOTICE=1`
+silences the notice.
 
 It runs Doxygen against the repo-root `Doxyfile`, which is **committed** — for
 a while it was not, and `.gitignore` listed it, so the command reported
 `Doxyfile not found at repo root.` and exited 1 in every fresh checkout.
 sushiruntime commits its own for the same reason.
 
-Output lands in `docs/api-site/html/`, and warnings — every public symbol
-missing a doc comment — in `docs/api-site/doxygen-warnings.log`. Both are
+Output lands in `build/docs/api-site/html/`, and warnings — every public symbol
+missing a doc comment — in `build/docs/api-site/doxygen-warnings.log`. Both are
 gitignored; the log is where the documentation debt is read off, and
 `WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
 build.
@@ -442,12 +460,13 @@ with the rest of the shared tools.
 ```bash
 sa config         # print the resolved config and where each value came from
 sa env            # print the environment cmake/ctest/run subprocesses run under
-sa env --all      # show every variable, not just the build-relevant ones
+sa env --all      # show every variable, not just the build-relevant ones (-a for short)
 ```
 
 `sa config` prints both resolved sibling directories, the compiler, and the
-vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
-/ an `SA_*` environment variable) supplied each field.
+vcpkg root, plus the source of each field: `default`, `config.toml` or
+`env:<VARIABLE>`. A value from `cli/config.local.toml` is reported as
+`config.toml`, and a value from the workspace file as `default`.
 
 ## `sa setup`
 

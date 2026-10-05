@@ -4,6 +4,9 @@ All notable changes to SushiAI are documented here.
 
 ## Unreleased
 
+- 2026-10-05 — cli: Renamed `sa doxygen` to `sa docs`, added `--version` and `--describe`, and took `config`, `env` and the entry point from sushicore (`cli.py`, `aliases.py`, `diag.py`, `__main__.py`).
+- 2026-10-05 — cli: Rejected a malformed -D before the build tree is removed, reported trees and DLLs that could not be removed or copied, and exited 130 on Ctrl+C (`project.py`, `cli.py`).
+- 2026-10-05 — docs: Corrected the Doxygen output path to `build/docs/api-site` and described `sa docs`, `--version` and `--describe` (`CLI_GUIDE.md`, `README.md`, `TUTORIAL.md`).
 - 2026-10-05 — licence: Changed the licence from Apache-2.0 to PolyForm Noncommercial 1.0.0, which ends commercial use without a licence from Sushi Systems (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `README.md`, `docs/CONTRIBUTING.md`).
 - 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiai/cli.py`, `cli/sushiai/config.py`).
 - 2026-09-22 — cli: Grouped `sa --help` under Project, Models and Diagnostics and added examples to each command (`cli.py`, `console.py`).

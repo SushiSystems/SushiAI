@@ -18,20 +18,21 @@ from typer.testing import CliRunner
 from sushiai.cli import app
 
 K_GROUPS = {
-    "Project": ["build", "test", "run", "clean", "doxygen"],
+    "Project": ["build", "test", "run", "clean", "docs"],
     "Models": ["train", "inference", "demo"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
 
-# Commands whose --help is forwarded to the program they run, so no page is drawn for them.
+# Commands whose --help is forwarded to the program they run once that program is built.
 K_FORWARDING = {"train", "inference"}
+K_FORWARDING_LINES = [("train",), ("inference",), ("demo", "mlp")]
 
 K_EXAMPLES = {
     "build": "sa build --type debug",
     "test": "sa test --suite unit",
     "run": "sa run --sort",
     "clean": "sa clean",
-    "doxygen": "sa doxygen",
+    "docs": "sa docs",
     "config": "sa config",
     "env": "sa env --all",
 }
@@ -112,6 +113,25 @@ def test_a_sub_app_draws_its_own_page_with_examples():
 def test_a_forwarding_command_keeps_its_help_for_the_program_it_runs(name):
     command = get_command(app).commands[name]
     assert command.get_help_option_names(command.make_context(name, [])) == []
+
+
+@pytest.mark.parametrize("words", K_FORWARDING_LINES, ids=" ".join)
+def test_a_forwarding_command_draws_its_own_page_while_its_program_is_not_built(
+        words, tmp_path, monkeypatch):
+    """Without a built program to forward to, --help prints the command's page with examples."""
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(app, [*words, "--help"])
+    line = "sa " + " ".join(words)
+    assert f"Usage: {line}" in result.output
+    assert "Examples" in result.output and f"{line} " in result.output.split("Examples")[1]
+    assert result.exit_code == 1
+
+
+@pytest.mark.parametrize("name", sorted(K_FORWARDING))
+def test_a_forwarding_command_names_the_program_the_user_typed(name, tmp_path, monkeypatch):
+    """The page of train and inference says `sa`, as every other page does."""
+    monkeypatch.chdir(tmp_path)
+    assert f"sushiai {name}" not in CliRunner().invoke(app, [name, "--help"]).output
 
 
 @pytest.mark.parametrize("path", sorted(K_PACKAGE.rglob("*.py")), ids=lambda p: p.name)
