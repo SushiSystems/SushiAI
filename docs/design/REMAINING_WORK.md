@@ -102,6 +102,6 @@ v1, to revisit for PINN and GNN work.
 ## Estate programmes
 
 The estate audit of 2026-10-05 is in
-[`docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`](../agent/2026_10_05_ESTATE_AUDIT/REPORT.md).
+`docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`, which is kept out of git.
 Its "Code shape" section, 22 findings from the lowering's dispatch chain to the error model, is
 the input of the code programme and is not restated here.
