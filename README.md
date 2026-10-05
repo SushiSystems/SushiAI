@@ -223,13 +223,16 @@ sa link           # record this checkout in a workspace's module registry
 sa unlink         # remove it from that registry
 sa config         # print resolved config with per-field source annotation
 sa env            # print the environment cmake/ctest/run subprocesses see
-sa doxygen        # build the Doxygen API reference into docs/api-site/html/
+sa docs           # build the Doxygen API reference into build/docs/api-site/html/
 sa demo mlp       # train an MLP end to end (see below)
+sa --version      # print the CLI's version
+sa --describe     # print the command catalogue as JSON
 ```
 
 `sa --help` groups the commands under Project, Models and Diagnostics, and each command's own help
 ends with examples. `sa train`, `sa inference` and `sa demo mlp` pass `--help` on to the program
-they run, so their flag lists come from that program. On a colour terminal the root screen shows
+they run once it is built, so their flag lists come from that program. `sa doxygen` still runs
+`sa docs` until 2027-03-25. On a colour terminal the root screen shows
 the logo. On a dark terminal add `[cli]` and `background = "dark"` to `cli/config.local.toml` to
 give it a glow; `COLORFGBG` is read when the terminal sets it, and Windows Terminal does not.
 

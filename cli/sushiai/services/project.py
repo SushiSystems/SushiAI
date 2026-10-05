@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Project build / test / run / demo / clean / doxygen logic.
+"""Project build / test / run / demo / clean / docs logic.
 
 This module holds SushiAI's own build policy — which cache variables it passes, which
 demo targets and test suites it has — and drives cmake and ctest through
@@ -88,11 +88,16 @@ _CMAKE_BUILD_TYPE = {
 }
 
 
+class DefineError(ValueError):
+    """Reports a -D entry that is not VAR=VALUE."""
+
+
 def _build_dir(root: Path) -> Path:
+    """Returns the build tree of the project at *root*."""
     return root / "build"
 
 
-_RUNNER = Runner(console, PROFILE.program)
+_RUNNER = Runner(console, PROFILE.program, catch_interrupt=True)
 _DRIVER = CMakeDriver(console, _RUNNER)
 
 
@@ -167,8 +172,48 @@ def _toolchain_args(cfg: Config, root: Path) -> list[str]:
     return args
 
 
+def _define_args(defines: Sequence[str] | None) -> list[str]:
+    """Returns one -D argument per entry of *defines*.
+
+    Raises:
+        DefineError: An entry is not VAR=VALUE.
+    """
+    for entry in defines or ():
+        if "=" not in entry:
+            raise DefineError(
+                f"-D expects VAR=VALUE, got {entry!r}. "
+                "Use VAR= to clear a variable.")
+    return [f"-D{entry}" for entry in defines or ()]
+
+
+def _remove_tree(path: Path) -> bool:
+    """Removes the directory *path* and returns whether it is gone, reporting a failure."""
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        return True
+    except OSError as error:
+        console.error(
+            f"Could not remove {path}: {error}. "
+            "Close the program that holds it open and run the command again.")
+        return False
+    return True
+
+
+def _clean_build_tree(build_dir: Path) -> int:
+    """Removes *build_dir* through the driver and returns 1 when it is still there."""
+    _DRIVER.clean_tree(build_dir)
+    if build_dir.exists():
+        console.error(
+            f"Could not remove {build_dir}. "
+            "Close the program that holds it open and run the command again.")
+        return 1
+    return 0
+
+
 def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
-                    defines: Sequence[str] | None = None) -> list[str]:
+                    define_args: Sequence[str] = ()) -> list[str]:
+    """Returns the cmake configure command, with *define_args* after every default."""
     args = [
         _DRIVER.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
         f"-DCMAKE_BUILD_TYPE={build_type}",
@@ -179,22 +224,19 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
     if cfg.is_windows and (prefix := _vcpkg_prefix(cfg, root)):
         args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
 
-    # Caller-supplied cache variables are appended last, after every default
-    # this function sets, so that an explicit -D is never silently outranked by
-    # one of them.
-    for entry in defines or ():
-        if "=" not in entry:
-            raise ValueError(
-                f"-D expects VAR=VALUE, got {entry!r}. "
-                "Use VAR= to clear a variable.")
-        args.append(f"-D{entry}")
-
-    return args
+    # A caller's -D comes last, so no default set above outranks it.
+    return args + list(define_args)
 
 
 def build(build_type: BuildType, clean: bool = False,
           defines: Sequence[str] | None = None) -> int:
+    """Configures and builds the project; a malformed -D entry returns 2 with build/ untouched."""
     console.header("Project Build")
+    try:
+        define_args = _define_args(defines)
+    except DefineError as error:
+        console.error(str(error))
+        return 2
     root = find_project_root()
     cfg = load_config()
     cmake_build_type = _CMAKE_BUILD_TYPE[build_type]
@@ -203,8 +245,8 @@ def build(build_type: BuildType, clean: bool = False,
     if (rc := _check_siblings(cfg, root)) != 0:
         return rc
 
-    if clean:
-        _DRIVER.clean_tree(build_dir)
+    if clean and (rc := _clean_build_tree(build_dir)) != 0:
+        return rc
 
     console.info(f"Compiler: {cfg.resolved_compiler(root)}")
     console.info(f"SushiRuntime: {cfg.runtime_dir(root)}")
@@ -216,15 +258,11 @@ def build(build_type: BuildType, clean: bool = False,
                                     expect={"CMAKE_BUILD_TYPE": cmake_build_type})
     if fresh:
         console.info(f"Configuring CMake... (type={build_type.value})")
-        if build_dir.is_dir():
-            shutil.rmtree(build_dir, ignore_errors=True)
+        if not _remove_tree(build_dir):
+            return 1
     else:
         console.info("Reconfiguring in place...")
-    try:
-        configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, defines)
-    except ValueError as exc:
-        console.error(str(exc))
-        return 2
+    configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, define_args)
 
     rc = _DRIVER.configure(configure_args, cwd=root, env=env)
     if rc != 0:
@@ -281,7 +319,7 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
         filter=filter, repeat=repeat)
 
 
-def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> None:
+def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> bool:
     """Put the shared libraries the consumer needs beside its executable.
 
     In-tree targets get these from a POST_BUILD copy (see tests/CMakeLists.txt
@@ -303,17 +341,25 @@ def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> 
     @param root The project root.
     @param prefix The install prefix the package was installed to.
     @param dest The directory holding the consumer executable.
+    @return False when a library could not be copied; the failure is already reported.
     """
     if not cfg.is_windows:
-        return  # ELF consumers resolve via RPATH; nothing to stage.
+        return True  # ELF consumers resolve via RPATH; nothing to stage.
 
     sources = list((prefix / "bin").glob("*.dll"))
     if vcpkg_prefix := _vcpkg_prefix(cfg, root):
         sources += list(Path(vcpkg_prefix, "bin").glob("hwloc*.dll"))
 
     for dll in sources:
-        shutil.copy2(dll, dest / dll.name)
+        try:
+            shutil.copy2(dll, dest / dll.name)
+        except OSError as error:
+            console.error(
+                f"Could not copy {dll.name} to {dest}: {error}. "
+                "The consumer was not run.")
+            return False
     console.info(f"Deployed {len(sources)} shared libraries beside the consumer.")
+    return True
 
 
 def _consumer_run_env(cfg: Config, root: Path, env: dict[str, str]) -> dict[str, str]:
@@ -391,8 +437,8 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     # a hand-copied hwloc-15.dll from a manual run months earlier was still
     # sitting there, making the run step prove nothing.
     for stale in (prefix, consumer):
-        if stale.is_dir():
-            shutil.rmtree(stale, ignore_errors=True)
+        if not _remove_tree(stale):
+            return 1
 
     console.info(f"Installing to {prefix}...")
     rc = _RUNNER.run([_DRIVER.cmake(cfg), "--install", str(build_dir),
@@ -444,7 +490,8 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         console.error("Built the consumer but could not find its executable.")
         return 1
 
-    _deploy_consumer_dlls(cfg, root, prefix, exe.parent)
+    if not _deploy_consumer_dlls(cfg, root, prefix, exe.parent):
+        return 1
 
     console.info(f"Executing: {exe.name}")
     rc = _RUNNER.run([str(exe)], consumer, _consumer_run_env(cfg, root, env))
@@ -461,6 +508,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
 
 def run(target: str | None = None, sort: bool = False,
         app_args: list[str] | None = None) -> int:
+    """Runs a built executable from the project root, forwarding *app_args* to it."""
     console.header("Project Run")
     root = find_project_root()
     cfg = load_config()
@@ -480,54 +528,36 @@ def run(target: str | None = None, sort: bool = False,
     return _RUNNER.run([str(exe), *(app_args or [])], root, env)
 
 
+def demo_target(name: str) -> str | None:
+    """Returns the executable that is the demo *name*, or None for an unknown demo."""
+    return _DEMO_TARGETS.get(name)
+
+
+def is_built(target: str) -> bool:
+    """Returns whether the executable *target* exists in this checkout's build tree."""
+    try:
+        build_dir = _build_dir(find_project_root())
+    except SystemExit:
+        return False
+    return build_dir.is_dir() and discovery.match_by_name(build_dir, target) is not None
+
+
 def demo(name: str, app_args: Sequence[str] | None = None) -> int:
-    """Run a showcase demo, forwarding *app_args* to it verbatim.
-
-    The flag surface lives in the demo program, not here: duplicating it in
-    Typer would give two places to change and one to forget, and the demo's
-    own ``--help`` is then the only reference anybody has to read.
-
-    Run from the repo root, so a demo's relative data path (the MLP demo looks
-    for ``data/mnist``) means the same thing wherever ``sa`` was invoked from.
-    """
-    console.header(f"SushiAI Demo: {name}")
-
-    target = _DEMO_TARGETS.get(name)
+    """Runs the showcase demo *name* through :func:`run_app`; an unknown name returns 2."""
+    target = demo_target(name)
     if target is None:
+        console.header(f"SushiAI Demo: {name}")
         available = ", ".join(sorted(_DEMO_TARGETS))
         console.error(f"Unknown demo '{name}'. Available: {available}.")
         return 2
-
-    root = find_project_root()
-    cfg = load_config()
-    build_dir = _build_dir(root)
-    if not build_dir.is_dir():
-        console.error("build/ not found. Run `sa build` first.")
-        return 1
-
-    exe = discovery.match_by_name(build_dir, target)
-    if exe is None:
-        console.error(f"'{target}' is not built. Run `sa build` first.")
-        return 1
-
-    env = load_build_env(cfg, build_dir)
-    console.info(f"Executing: {exe.name}")
-    console.console.print(f"[muted]{exe}[/muted]")
-    return _RUNNER.run([str(exe), *(app_args or [])], root, env)
+    return run_app(target, f"SushiAI Demo: {name}", list(app_args or ()))
 
 
 def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
-    """Run one of the shipped app binaries, forwarding *app_args* verbatim.
+    """Runs the built program *target* from the project root, forwarding *app_args* to it.
 
-    The same locate-build-then-exec shape as :func:`demo`, factored out rather
-    than repeated: both need the build directory, the resolved environment and
-    the repo root as the working directory, and a second copy would be a second
-    place for the "run `sa build` first" advice to go stale.
-
-    Run from the repo root, so a configuration path a caller typed relative to
-    the checkout means the same thing wherever ``sushiai`` was invoked from.
-    Paths *inside* a configuration file resolve against that file's own
-    directory, which is the library's rule and not this one's.
+    Returns:
+        1 when build/ or the program is missing, otherwise the program's own exit code.
     """
     console.header(title)
 
@@ -550,18 +580,17 @@ def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
 
 
 def clean() -> int:
+    """Removes the build tree and returns 1 when it is still there afterwards."""
     console.header("Project Clean")
-    _DRIVER.clean_tree(_build_dir(find_project_root()))
-    return 0
+    return _clean_build_tree(_build_dir(find_project_root()))
 
 
 def doxygen() -> int:
+    """Builds the API reference from the root Doxyfile into build/docs/api-site."""
     console.header("Doxygen Generation")
     root = find_project_root()
     cfg = load_config()
-    env = load_build_env(cfg, _build_dir(root))
-    doxyfile = root / "Doxyfile"
-    if not doxyfile.exists():
-        doxyfile = root / "docs" / "Doxyfile"
-    (root / "build" / "docs").mkdir(parents=True, exist_ok=True)
-    return _DRIVER.doxygen(cfg, doxyfile, root, env)
+    build_dir = _build_dir(root)
+    env = load_build_env(cfg, build_dir)
+    (build_dir / "docs").mkdir(parents=True, exist_ok=True)
+    return _DRIVER.doxygen(cfg, root / "Doxyfile", root, env)

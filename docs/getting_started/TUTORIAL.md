@@ -484,7 +484,7 @@ verifying it once in fp64 verifies it everywhere.
 ## 12. Where to go next
 
 ```bash
-sa doxygen     # the generated API reference, into docs/api-site/html/
+sa docs        # the generated API reference, into build/docs/api-site/html/
 ```
 
 The prose docs, in the order they repay reading:

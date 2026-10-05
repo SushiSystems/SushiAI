@@ -36,12 +36,9 @@ def _build_env(cfg, build_dir: Path):
     return load_build_env(cfg, build_dir)
 
 
-_DIAG = Diagnostics(
+DIAGNOSTICS = Diagnostics(
     profile=PROFILE,
     console=console,
     config=config_module,
     build_env=_build_env,
 )
-
-config_show = _DIAG.config_show
-env_dump = _DIAG.env_dump
