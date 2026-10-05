@@ -866,77 +866,13 @@ first.
 
 ## 7. What's not here yet
 
-Named honestly, because the gap between what a library claims and what it
-does is the expensive kind of documentation debt:
-
-- **The memory planner packs IR values only.** The lowering's own temporaries
-  — `TensorPool::scratch()` and the shared `ones()` constants — are not IR
-  values, so they still get one `Storage` each. Packing them needs a
-  host-lane description of each operation's scratch requirements, shared
-  between the planner and the lowering; today those shapes are written inline
-  in `record_log_softmax()` and `record_nll_loss()`. On the demo they are
-  about 2 KiB of 130 KiB.
-- **The fusion catalog is five entries, and the biggest node in the graph is
-  not one of them.** `LOG_SOFTMAX` still lowers to nine calls, which is now the
-  single largest term in a step. Collapsing it further is a catalog problem
-  rather than a missing-operation one now: SushiBLAS exposes the row-wise
-  maximum (`max_along`) and the row-wise sum (`sum_along`) the recipe needs, and
-  `record_log_softmax()` already uses the first of them. `NLL_LOSS`'s three
-  calls are still blocked on the *whole-tensor* seam taking no transform
-  functor, so its elementwise `mul` cannot ride into the sum. Neither is a
-  fusion-pass problem.
-- **Feeding a batch still costs a flush of its own.** The optimizer no longer
-  does (§5.1), but the two `blas().copy()` calls that move a batch into the
-  plan's fixed input buffers do: they read a *different source tensor* every
-  step, and a recorded SushiBLAS call captures its operand addresses by value.
-  Fusing cannot help — the thing that changes is a pointer, not a scalar — and
-  neither can SushiRuntime's `LateBindings`, which re-points a node's iteration
-  count, base index and enabled flag but not the addresses its kernel captured.
-  `TaskGraph::add_offload_dynamic()` *does* carry re-pointable live read/write
-  lists, but only for offloadable tasks with a host fallback and no device
-  kernel, so it does not reach a `copy`. What would retire this is either an
-  operand-address late binding that ordinary device tasks can use, or a
-  `Dataset` that writes each batch straight into the two buffers the plan
-  already owns.
-- **`LOG_SOFTMAX` is differentiable only as part of the fused
-  `LOG_SOFTMAX` + `NLL_LOSS` pair.** The standalone rule is
-  `dx = dy - exp(L) * rowsum(dy)`, and a backward rule writes IR rather than
-  SushiBLAS calls — so what it is missing is an **IR node** for a row-wise sum,
-  not the kernel underneath one. `SushiBLAS::ReductionOps::sum_along` exists
-  now; an op identity, a builder entry point, a shape rule, a lowering and the
-  rule itself do not. It throws and says exactly that.
-- **Mixed precision's skip is per parameter, not per step.** The policy, the
-  cast pass, the fp32 master weights and loss scaling with overflow backoff are
-  all in (§5.3); what PyTorch's `GradScaler` does that this does not is freeze
-  *every* parameter when *any* gradient overflows. See
-  `optim/loss_scaler.hpp` for why the dependency edge that would give it is not
-  expressible through the `execute_zip_inplace` seam. There is also no
-  bfloat16: `SushiBLAS::Core::DataType` has no such entry yet, and
-  `MixedPrecisionPolicy` names its narrow type as a constructor parameter
-  precisely so that adding one is a call-site change rather than a redesign.
-- **`gradcheck` cannot verify a mixed-precision graph**, and is not meant to.
-  A central difference in fp16 has a noise floor around 1e-2, three orders of
-  magnitude worse than the discrepancy a wrong rule produces. A gradient rule
-  is a statement about the mathematics, so checking it once in FLOAT64 checks
-  it for every precision; the plumbing is checked by `find_dtype_mismatches`
-  instead. `autograd/gradcheck.hpp` says so in full.
-- **The `Dataset` seam is still classification-shaped.**
-  `Data::Dataset::num_classes()` is pure virtual and `Data::Batch` carries
-  one-hot targets and integer labels. `rings` and `SyntheticClassification`
-  both answer it meaningfully; a PINN or a detector would not. Widening the
-  data abstraction is a separate change that deserves its own argument, and it
-  is recorded here rather than quietly carried.
-- **`Train::Trainer` still feeds `StepSpec::targets` per step.**
-  `Train::ObjectiveLeaves` (§8) is what generalises that field, and
-  `TrainingGraph` carries both — but an objective that declares some *other*
-  leaf has nothing writing it, so such an objective cannot yet be driven by
-  `Trainer`. Wiring it to feed arbitrary declared leaves is the change that
-  closes this.
-- **AI-7's metric gates are only partly met.** `sa demo mlp` exists and
-  reports `compiles: 1`, a zero-allocation steady state and finite-difference
-  checks are green in the suite, but there is no pinned reference loss curve
-  to compare a run against, and the per-node timing table needs a
-  `RuntimeSettings::profiling` context the demo does not build.
+Open work is listed in one place,
+[`REMAINING_WORK.md`](../design/REMAINING_WORK.md): packing the lowering's scratch, the
+log-softmax and `NLL_LOSS` fusions, the two batch copies, the standalone `LOG_SOFTMAX` rule, the
+whole-step overflow skip, bfloat16, the `Dataset` and `Trainer` seams, and the demo's reference
+loss curve and timing table. What behaves wrongly or narrowly today, including why `gradcheck`
+does not verify a mixed-precision graph, is in
+[`KNOWN_ISSUES.md`](../reference/KNOWN_ISSUES.md).
 
 The retired 2025-06 prototype (`core/tensor.h`, eager autograd, CUDA-only)
 that used to occupy this repository is **not** a migration source for any of

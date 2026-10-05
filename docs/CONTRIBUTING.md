@@ -106,8 +106,8 @@ SushiBLAS) — match the file you're editing.
 
 Every source file opens with the license block of the `source-comments` skill: the file
 name, the project line `SushiAI - https://github.com/SushiSystems/SushiAI`, the copyright
-line and the two licence lines. `tools/licensing/write_license_block.py` in SushiSkills
-writes it; nobody types it by hand.
+line and the two licence lines. `tools/licensing/write_license_block.py` writes it;
+nobody types it by hand.
 
 ### C++ standard, naming, braces
 
@@ -129,8 +129,8 @@ writes it; nobody types it by hand.
 
 ### Documentation
 
-Doxygen-style comments on every public API: `@brief` for the summary,
-`@param` per parameter, `@return` for the result.
+Source comments follow the `source-comments` skill, which this page does not restate.
+`python tools/documentation/check_source_comments.py include src` checks them.
 
 ### Build-system names are prefixed with the full program name
 
@@ -153,9 +153,14 @@ they stay unprefixed.
 
 ## 5. Documentation is part of the change
 
-- **Changelog entries start at v1.0.0.** The project is pre-1.0. Until then,
-  [`CHANGELOG.md`](reference/CHANGELOG.md)'s `[Unreleased]` section documents
-  prototype-era milestones informally.
+- **Every change adds one line under `## Unreleased`** in
+  [`CHANGELOG.md`](reference/CHANGELOG.md), in the shape
+  [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md) §5 gives.
+- **Work that opens or closes updates
+  [`REMAINING_WORK.md`](design/REMAINING_WORK.md)**, the only backlog; a defect that stays goes
+  in [`KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md).
+- **A change under `docs/` passes both documentation checkers**; the commands are in
+  [`tools/README.md`](../tools/README.md).
 - **A change to the dependency chain, the library target, or the packaging
   shape updates [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)** — every class, CMake
   function, and file it names must still exist.

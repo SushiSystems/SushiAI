@@ -8,9 +8,9 @@ then replayed per batch. `compile_count() == 1` is a guarantee with a test on it
 This is the generated API reference. It documents what the headers say; the reasoning behind the
 design lives in the prose docs, and those are the better place to start:
 
-- `docs/README.md` — what the library is and how to run the demo.
-- `docs/ARCHITECTURE.md` — the pipeline, and why each stage is where it is.
-- `docs/INTEGRATION.md` — consuming SushiAI from your own CMake project.
+- `README.md` — what the library is and how to run the demo.
+- `docs/architecture/ARCHITECTURE.md` — the pipeline, and why each stage is where it is.
+- `docs/guides/INTEGRATION.md` — consuming SushiAI from your own CMake project.
 - `docs/CONTRIBUTING.md` — the build rules (`sa build`, never cmake directly).
 
 ## Where to start reading

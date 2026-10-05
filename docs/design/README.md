@@ -1,7 +1,7 @@
-# Design Documents
+# Design map
 
-Design documents record architectural decisions and implementation roadmaps with active or scheduled phases. Each topic maps to one document.
+Each topic maps to one design document.
 
 | Topic | Document | Status |
 | --- | --- | --- |
-| SushiBLAS & SushiAI Construction & Roadmap | [`ROADMAP.md`](ROADMAP.md) | Open — phase 2 of 4 |
+| Building SushiBLAS and SushiAI: the ST, SB and AI tracks | [`ROADMAP.md`](ROADMAP.md) | Open — AI-0 to AI-4 landed, AI-7 partly |

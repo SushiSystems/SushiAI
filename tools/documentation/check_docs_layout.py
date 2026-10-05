@@ -17,6 +17,7 @@ import time
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -29,6 +30,11 @@ K_DOCS_ENTRIES = frozenset(
     }
 )
 K_DESIGN_INDEXES = frozenset({"README.md", "REMAINING_WORK.md"})
+K_REQUIRED_ENTRIES = (
+    "README.md", "CONTRIBUTING.md", "DOCUMENTATION_STYLE_GUIDE.md",
+    "reference/CHANGELOG.md", "reference/GLOSSARY.md", "reference/KNOWN_ISSUES.md",
+    "design/README.md", "design/REMAINING_WORK.md",
+)
 K_WORK_FILES = frozenset({"SPEC.md", "PLAN.md", "REPORT.md"})
 K_WORK_FOLDER = re.compile(r"^\d{4}_\d{2}_\d{2}_[A-Z0-9]+(?:_[A-Z0-9]+)*$")
 K_DOCUMENT_NAME = re.compile(r"^[A-Z0-9]+(?:_[A-Z0-9]+)*\.md$")
@@ -37,7 +43,10 @@ K_SHIPPED = re.compile(r"^\*\*Status:\*\* Shipped")
 K_DESIGN_LINE_CEILING = 1500
 K_ARCHIVE_AFTER_DAYS = 90
 K_SECONDS_PER_DAY = 86_400
-K_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)\)")
+K_LINK = re.compile(r'(?<!!)\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')
+K_LINK_SUFFIX = re.compile(r"[#?]")
+K_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:")
+K_FENCE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 K_CODE_SPAN = re.compile(r"`[^`]*`")
 
 
@@ -59,6 +68,11 @@ class Repository:
             path for path in sorted(self.docs.rglob("*.md"))
             if archive not in path.parents
         ]
+
+    def manual_documents(self) -> list[Path]:
+        """Returns every live document outside the agent work folders."""
+        agent = self.docs / "agent"
+        return [path for path in self.live_documents() if agent not in path.parents]
 
     def design_documents(self) -> list[Path]:
         """Returns every design document, counting a split topic's README as its document."""
@@ -100,6 +114,48 @@ def _last_commit_age_days(repository: Repository, path: Path) -> float | None:
         return None
     stamp = completed.stdout.strip()
     return (time.time() - int(stamp)) / K_SECONDS_PER_DAY if stamp else None
+
+
+def _prose(path: Path) -> str:
+    """Returns a document's text with fenced blocks and code spans blanked, lines kept."""
+    kept: list[str] = []
+    fence = ""
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        opener = K_FENCE.match(line.lstrip())
+        if fence:
+            fence = "" if opener and opener.group(1).startswith(fence) else fence
+            kept.append("")
+        elif opener and opener.group(1)[0] not in opener.group(2):
+            fence = opener.group(1)
+            kept.append("")
+        else:
+            kept.append(K_CODE_SPAN.sub("", line))
+    return "\n".join(kept)
+
+
+def _relative_links(path: Path) -> Iterator[tuple[int, str]]:
+    """Yields the line number and the path part of each relative link outside code."""
+    text = _prose(path)
+    for match in K_LINK.finditer(text):
+        if K_SCHEME.match(match.group(1)):
+            continue
+        target = unquote(K_LINK_SUFFIX.split(match.group(1), maxsplit=1)[0])
+        if target:
+            yield text.count("\n", 0, match.start()) + 1, target
+
+
+def _reachable(repository: Repository) -> set[Path]:
+    """Returns the manual documents docs/README.md reaches without leaving the manual."""
+    manual = {path.resolve() for path in repository.manual_documents()}
+    reached: set[Path] = set()
+    pending = [(repository.docs / "README.md").resolve()]
+    while pending:
+        path = pending.pop()
+        if path in reached or path not in manual:
+            continue
+        reached.add(path)
+        pending += [(path.parent / target).resolve() for _, target in _relative_links(path)]
+    return reached
 
 
 def rule_docs_entries(repository: Repository) -> Iterator[Issue]:
@@ -150,18 +206,26 @@ def rule_design_ceiling(repository: Repository) -> Iterator[Issue]:
 def rule_links(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each relative link in a live document that does not resolve."""
     for path in repository.live_documents():
-        in_fence = False
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if line.lstrip().startswith("```"):
-                in_fence = not in_fence
-                continue
-            if in_fence:
-                continue
-            for target in K_LINK.findall(K_CODE_SPAN.sub("", line)):
-                if re.match(r"^[a-z][a-z0-9+.-]*:", target) or target.startswith("#"):
-                    continue
-                if not (path.parent / target.split("#", 1)[0]).exists():
-                    yield Issue(path, number, f"link target does not exist: {target}")
+        for number, target in _relative_links(path):
+            if not (path.parent / target).exists():
+                yield Issue(path, number, f"link target does not exist: {target}")
+
+
+def rule_required_entries(repository: Repository) -> Iterator[Issue]:
+    """Yields an issue for each required document missing from docs/."""
+    for name in K_REQUIRED_ENTRIES:
+        if not (repository.docs / name).is_file():
+            yield Issue(repository.docs / name, 1, "required document is missing")
+
+
+def rule_reachable_from_index(repository: Repository) -> Iterator[Issue]:
+    """Yields an issue for each manual document that docs/README.md does not reach."""
+    if not (repository.docs / "README.md").is_file():
+        return
+    reached = _reachable(repository)
+    for path in repository.manual_documents():
+        if path.resolve() not in reached:
+            yield Issue(path, 1, "not reachable from docs/README.md")
 
 
 def rule_module_readmes(repository: Repository) -> Iterator[Issue]:
@@ -192,11 +256,13 @@ K_CHECKER = Checker(
     collect=collect,
     rules={
         "rule_docs_entries": rule_docs_entries,
+        "rule_required_entries": rule_required_entries,
         "rule_document_names": rule_document_names,
         "rule_work_folders": rule_work_folders,
         "rule_status_lines": rule_status_lines,
         "rule_design_ceiling": rule_design_ceiling,
         "rule_links": rule_links,
+        "rule_reachable_from_index": rule_reachable_from_index,
         "rule_module_readmes": rule_module_readmes,
         "rule_archive_candidates": rule_archive_candidates,
     },

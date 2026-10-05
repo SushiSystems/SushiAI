@@ -20,7 +20,7 @@ docs/
     archive/                      frozen artifacts and historical plans
 ```
 
-No other directories exist under `docs/`. Root holds only the files permitted by `AGENTS.md` and `CLAUDE.md`.
+No other directories exist under `docs/`. The root holds only the files the `repository-layout` skill names.
 
 ## 2. File Naming Conventions
 
@@ -42,7 +42,7 @@ To determine where new content belongs, evaluate these questions in order:
 ## 4. Design Documents and Backlog
 
 - `docs/design/README.md` maintains a one-to-one mapping between technical topics and design documents. Check this index before authoring a new document. Never create duplicate documents for the same topic.
-- Every design document must declare its status on line 3:
+- Every design document carries its status on the first line under its title:
   ```markdown
   **Status:** Open — phase 2 of 4
   ```

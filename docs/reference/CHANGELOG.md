@@ -1,21 +1,23 @@
 # Changelog
 
-All notable changes to SushiAI are documented here.
-
 ## Unreleased
 
-- 2026-10-05 — cli: Renamed `sa doxygen` to `sa docs`, added `--version` and `--describe`, and took `config`, `env` and the entry point from sushicore (`cli.py`, `aliases.py`, `diag.py`, `__main__.py`).
+- 2026-10-05 — docs: Replaced the checkers with the SushiSkills set, archived two loose agent reports and rewrote the glossary, known issues and backlog (`tools/`, `docs/archive/agent/reports/`, `docs/reference/`, `docs/design/`).
+- 2026-10-05 — cli: Renamed `sa doxygen` to `sa docs` (`cli.py`, `aliases.py`).
+- 2026-10-05 — cli: Added `--version` and `--describe` (`cli.py`).
+- 2026-10-05 — cli: Took `config`, `env` and the entry point from sushicore (`diag.py`, `__main__.py`).
 - 2026-10-05 — cli: Rejected a malformed -D before the build tree is removed, reported trees and DLLs that could not be removed or copied, and exited 130 on Ctrl+C (`project.py`, `cli.py`).
-- 2026-10-05 — docs: Corrected the Doxygen output path to `build/docs/api-site` and described `sa docs`, `--version` and `--describe` (`CLI_GUIDE.md`, `README.md`, `TUTORIAL.md`).
+- 2026-10-05 — docs: Corrected the Doxygen output path to `build/docs/api-site` (`CLI_GUIDE.md`, `README.md`, `TUTORIAL.md`).
+- 2026-10-05 — docs: Described `sa docs`, `--version` and `--describe` (`CLI_GUIDE.md`, `README.md`).
 - 2026-10-05 — licence: Changed the licence from Apache-2.0 to PolyForm Noncommercial 1.0.0, which ends commercial use without a licence from Sushi Systems (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `README.md`, `docs/CONTRIBUTING.md`).
 - 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiai/cli.py`, `cli/sushiai/config.py`).
 - 2026-09-22 — cli: Grouped `sa --help` under Project, Models and Diagnostics and added examples to each command (`cli.py`, `console.py`).
-- 2026-09-22 — cli: Replaced raw Rich colour names with theme styles and raised the `sushicore` floor to 0.4.0 (`project.py`, `pyproject.toml`).
-- 2026-09-22 — build: Described this module in its own `sushi-module.toml`, so `hub` knows it from the checkout (`sushi-module.toml`).
+- 2026-09-22 — cli: Replaced raw Rich colour names with theme styles (`project.py`).
+- 2026-09-22 — cli: Raised the `sushicore` floor to 0.4.0 (`pyproject.toml`).
+- 2026-09-22 — build: Described this module in its own manifest (`sushi-module.toml`).
 - 2026-09-22 — build: Took `sushicore` from PyPI instead of a sibling checkout (`cli/pyproject.toml`).
 - 2026-09-16 — docs: Standardized source comments and file headers across core and source trees (`include/`, `src/`).
 - 2026-09-16 — docs: Restructured documentation hierarchy and added repository hygiene tools (`docs/`, `tools/`).
-
 - 2026-09-07 — docs: Renamed the hub CLI command from ss to hub (`docs/`).
 - 2026-08-09 — graph: Validated tensor layout uniformity on entry to graph lowering (`Lowering::record`, `lowering.cpp`).
 - 2026-08-08 — cli: Added out-of-tree package consumer test suite to sa test (`project.py`, `tests/package/`).

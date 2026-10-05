@@ -1,43 +1,45 @@
-# Known Issues
+# Known issues
 
-This document records measured limitations, open edge cases, and known architectural trade-offs in SushiAI. Active implementation items tracking these issues are listed in [REMAINING_WORK.md](../design/REMAINING_WORK.md).
+Defects that exist today, each with where it sits. Planned work is in
+[`REMAINING_WORK.md`](../design/REMAINING_WORK.md).
 
-## Runtime and Numerical Stability
+## Library behaviour
 
-### 1. Per-Parameter Loss Scaling Skip
-- **Behavior:** When dynamic loss scaling detects an `inf` or `nan` in a parameter's gradient tensor during mixed-precision training, that specific parameter update is skipped. The optimizer does not currently abort the entire optimizer step across all parameters simultaneously.
-- **Impact:** While infrequent, an overflow in one layer can cause parameter updates to become desynchronized across layers during that specific step.
-- **Tracking:** See [REMAINING_WORK.md](../design/REMAINING_WORK.md#1-whole-step-loss-scaling-skip).
+| Issue | Where |
+| --- | --- |
+| In mixed precision an overflowed gradient skips that parameter's update only; the other parameters still step, so one step can update some layers and not others | `include/SushiAI/optim/loss_scaler.hpp` |
+| Differentiating `LOG_SOFTMAX` on its own throws; it differentiates only as the fused `LOG_SOFTMAX` + `NLL_LOSS` pair | `src/autograd/rules/loss.cpp` |
+| `gradcheck` cannot verify a mixed-precision graph: a central difference in fp16 has a noise floor near 1e-2. Check the rule in FLOAT64 | `include/SushiAI/autograd/gradcheck.hpp` |
+| NVIDIA Pascal GPUs (GTX 1060, compute capability 6.1) fail when the OpenCL loader ingests SPIR-V. Workaround below | The oneAPI OpenCL loader, outside this repository |
 
-### 2. Unpacked Scratch Memory Arena
-- **Behavior:** The memory allocator assigns distinct device memory slots to intermediate activations rather than calculating lifetime overlaps to reuse memory addresses.
-- **Impact:** Device memory consumption during training scales linearly with the number of intermediate nodes rather than the maximum live cut size, limiting the maximum batch size on memory-constrained GPUs.
-- **Tracking:** See [REMAINING_WORK.md](../design/REMAINING_WORK.md#2-scratch-memory-arena-packing).
+On a Pascal machine, send the CLI, the tests and training to the OpenCL CPU runtime:
 
-## Kernel Optimization
+```powershell
+$env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
+```
 
-### 3. Separate Kernels for Row-Wise Log-Softmax
-- **Behavior:** Softmax normalization and logarithm operations currently execute as sequential global-memory passes rather than a single fused row reduction kernel.
-- **Impact:** Memory bandwidth utilization is sub-optimal for classification output heads with large vocabulary or class dimensions.
-- **Tracking:** See [REMAINING_WORK.md](../design/REMAINING_WORK.md#3-row-wise-log-softmax-fusion).
+## Documentation
 
-### 4. Absence of Standalone Log-Softmax Backward IR Node
-- **Behavior:** The autograd compiler decomposes log-softmax backward passes into elemental gradient calculations rather than lowering directly to a dedicated backward kernel.
-- **Impact:** Generates redundant intermediate graph nodes and temporary device buffers during cross-entropy backpropagation.
-- **Tracking:** See [REMAINING_WORK.md](../design/REMAINING_WORK.md#4-standalone-log-softmax-backward-ir-node).
+| Issue | Where |
+| --- | --- |
+| Names `docs/api-site/` as the Doxygen output; the `Doxyfile` writes `build/docs/api-site` | `CLAUDE.md:10` |
+| Name the command `sa doxygen`; it is `sa docs`, and the old word runs until 2027-03-25 | `CLAUDE.md:57`, `AGENTS.md:21` |
+| The demo transcript says "17 IR nodes over 22 values" and the text under it says "21 graph nodes"; neither was checked against a run | `README.md:268`, `README.md:311` |
+| Comments cite `docs/ARCHITECTURE.md`; the file is `docs/architecture/ARCHITECTURE.md` | `CMakeLists.txt:61`, `src/CMakeLists.txt:113` |
+| Comments cite `docs/README.md` for the demo's quoted output; that text is in the root `README.md` | `examples/demo_mlp.cpp`, `tests/functional/regression/test_mixed_precision.cpp` |
+| Comments cite `docs/TUTORIAL.md`; the file is `docs/getting_started/TUTORIAL.md` | `tests/functional/unit/test_module.cpp` |
+| The links to the SECURITY pages of SushiBLAS and SushiRuntime were not checked against those repositories' `main` | `docs/reference/SECURITY.md` |
+| No changelog entry records the `sushicore` floor moving from 0.4.0 to 0.7.0, and 0.7.0 was not confirmed on PyPI | `cli/pyproject.toml:15` |
 
-## Ingestion and Pipeline
+## Build, CI and root files
 
-### 5. Host-Copy Staging in Dataset Ingestion
-- **Behavior:** The standard dataset loader copies batch tensors from host memory to an intermediate buffer before device transfer, rather than using direct pinned memory or asynchronous DMA streams.
-- **Impact:** Host memory bandwidth creates a throughput bottleneck when training shallow networks with small input tensors at high step rates.
-- **Tracking:** See [REMAINING_WORK.md](../design/REMAINING_WORK.md#6-batch-ingestion-host-copy-overhead).
-
-## Hardware Compatibility
-
-### 6. NVIDIA Pascal (sm_61) SPIR-V Ingestion
-- **Behavior:** NVIDIA GPUs based on the Pascal architecture (such as the GeForce GTX 1060, Compute Capability 6.1) fail during OpenCL SPIR-V binary ingestion under oneAPI Level Zero / OpenCL loader.
-- **Workaround:** When running on host systems equipped with Pascal hardware, set the environment variable `ONEAPI_DEVICE_SELECTOR=opencl:cpu` to target the OpenCL CPU runtime for CLI operations, tests, and training:
-  ```powershell
-  $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
-  ```
+| Issue | Where |
+| --- | --- |
+| The `cli` job installs `sushicore` from `./.sushistack/sushicore`, a folder SushiStack no longer has, so the CLI tests do not run | `.github/workflows/ci.yml:166-179` |
+| The pyflakes step ends in `\|\| true` and cannot fail | `.github/workflows/ci.yml:184` |
+| The workflow header cites `docs/CLAUDE.md` and says `sushicore` is on no index | `.github/workflows/ci.yml:26`, `.github/workflows/ci.yml:167` |
+| No job runs the checkers under `tools/`; both jobs run on Linux only | `.github/workflows/ci.yml` |
+| `PROJECT_NUMBER` is "v1 (unreleased)"; the library and the CLI declare 0.1.0 | `Doxyfile:14` |
+| A comment says the Doxyfile is at `docs/Doxyfile`, and three rules ignore a `docs/api-site/` nothing writes | `.gitignore:22-25` |
+| The manifest spells the repository URL in lower case; the remote is `SushiSystems/SushiAI` | `sushi-module.toml:12` |
+| `rule_module_readmes` reads `modules/<tier>/` only, so it reports nothing in this single-module tree | `tools/documentation/check_docs_layout.py` |
