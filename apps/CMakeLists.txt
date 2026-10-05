@@ -1,3 +1,9 @@
+# CMakeLists.txt
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # The two config-driven drivers. Separate from examples/ because these are
 # shipping programs the `sushiai train` / `sushiai inference` CLI subcommands
 # invoke, not teaching files - and because neither is allowed to name a layer,

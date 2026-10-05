@@ -4,6 +4,7 @@ All notable changes to SushiAI are documented here.
 
 ## Unreleased
 
+- 2026-10-05 — licence: Changed the licence from Apache-2.0 to PolyForm Noncommercial 1.0.0, which ends commercial use without a licence from Sushi Systems (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `README.md`, `docs/CONTRIBUTING.md`).
 - 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiai/cli.py`, `cli/sushiai/config.py`).
 - 2026-09-22 — cli: Grouped `sa --help` under Project, Models and Diagnostics and added examples to each command (`cli.py`, `console.py`).
 - 2026-09-22 — cli: Replaced raw Rich colour names with theme styles and raised the `sushicore` floor to 0.4.0 (`project.py`, `pyproject.toml`).

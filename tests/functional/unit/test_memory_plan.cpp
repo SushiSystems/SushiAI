@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_memory_plan.cpp                                                   */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_memory_plan.cpp                                         */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Device-free: the memory planner is a pure function of the IR, which is the
 // whole reason the IR is a host-lane structure. No engine, no allocator, no

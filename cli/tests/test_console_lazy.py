@@ -1,3 +1,8 @@
+# test_console_lazy.py
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
 """Regression tests for the lazy console initialisation.
 
 The bug: console.py used to build the console at import time, which called

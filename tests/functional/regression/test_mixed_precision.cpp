@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_mixed_precision.cpp                                               */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_mixed_precision.cpp                                     */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Every guarantee here fails *silently*. That is what puts them in this tier
 // rather than beside the integration tests: none of them can be caught by a

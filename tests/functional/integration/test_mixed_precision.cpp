@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_mixed_precision.cpp                                               */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_mixed_precision.cpp                                     */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // The device half of AI-4. tests/functional/unit/test_precision.cpp pins the
 // graph shape with no hardware anywhere; what is left for this file is the

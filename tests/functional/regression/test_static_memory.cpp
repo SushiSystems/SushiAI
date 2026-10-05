@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_static_memory.cpp                                                 */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_static_memory.cpp                                       */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Four guarantees of the static memory planner whose failure would be silent -
 // the loop still converges, the run still reports success, and nobody notices:

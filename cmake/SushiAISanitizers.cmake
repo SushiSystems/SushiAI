@@ -1,3 +1,9 @@
+# SushiAISanitizers.cmake
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # SushiAISanitizers.cmake — the project's sanitizer policy as a target.
 #
 # Single responsibility: define an INTERFACE target `sushiai_sanitizers`.

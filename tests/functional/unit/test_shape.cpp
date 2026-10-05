@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_shape.cpp                                                         */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_shape.cpp                                               */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Device-free: Shape is host-lane vocabulary and must stay testable without a
 // RuntimeContext, which is what keeps the unit tier fast.

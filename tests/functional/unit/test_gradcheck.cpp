@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_gradcheck.cpp                                                     */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_gradcheck.cpp                                           */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Device-free. The gradient checker is the instrument the integration tier
 // measures with, so it is calibrated here against closed-form functions where

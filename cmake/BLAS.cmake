@@ -1,3 +1,9 @@
+# BLAS.cmake
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # BLAS — D3 layered resolution of the SushiBLAS dependency.
 #
 # Same three-mode pattern as cmake/Runtime.cmake, re-templated for SushiBLAS:

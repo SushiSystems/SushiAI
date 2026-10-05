@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_autograd_numeric.cpp                                              */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_autograd_numeric.cpp                                    */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Finite-difference verification of every backward rule, in FLOAT64.
 //

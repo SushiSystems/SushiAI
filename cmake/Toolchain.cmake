@@ -1,3 +1,9 @@
+# Toolchain.cmake
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # Toolchain — pick the default SYCL compiler before project()'s compiler probe.
 #
 # Mirrors the runtime's intel-llvm default: use clang++ when the caller named

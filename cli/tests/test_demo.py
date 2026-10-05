@@ -1,3 +1,8 @@
+# test_demo.py
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
 """End-to-end check that `sa demo mlp` still runs, and still compiles once.
 
 Unlike the other tests here this one is not pure logic: it shells out to the

@@ -179,6 +179,7 @@ from the runtime's `BB-*`/`WP-*` series.
   `LICENSE` + README only, since its current tree is the retired prototype AI-0 deletes wholesale).
   Makes D5's portBLAS attribution story simpler (same license family, no cross-license friction)
   and brings sushiblas/sushiai in line with sushiruntime/sushiengine, which were already Apache-2.0.
+  Superseded on 2026-10-05: both repositories moved to PolyForm Noncommercial 1.0.0; see `NOTICE.md`.
 
 ---
 

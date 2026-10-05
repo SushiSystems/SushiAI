@@ -1,3 +1,8 @@
+# env.py
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
 """Build-environment snapshotting for the SushiAI CLI.
 
 A parent process cannot ``call vcvars64.bat`` and inherit the result, so the

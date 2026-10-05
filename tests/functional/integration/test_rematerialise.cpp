@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_rematerialise.cpp                                                 */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_rematerialise.cpp                                       */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // The half of the IM2COL rematerialisation pass that the host-lane tier cannot
 // reach. Unit_Rematerialise proves the rewrite has the shape it should; this

@@ -1,3 +1,8 @@
+# test_train.py
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
 """End-to-end checks for `sushiai train` and `sushiai inference`.
 
 Like test_demo.py these shell out to the installed CLI and a real build tree,

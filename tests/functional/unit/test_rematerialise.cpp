@@ -1,9 +1,10 @@
-/**************************************************************************/
-/* test_rematerialise.cpp                                                 */
-/**************************************************************************/
-/*                          This file is part of:                         */
-/*                                 SushiAI                                */
-/**************************************************************************/
+/****************************************************************/
+/* test_rematerialise.cpp                                       */
+/* SushiAI - https://github.com/SushiSystems/SushiAI            */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
 
 // Device-free. The IM2COL rematerialisation pass is an IR-to-IR rewrite, so
 // what it produces is a graph that can be inspected node by node.
