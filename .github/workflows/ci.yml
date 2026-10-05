@@ -215,3 +215,26 @@ jobs:
 #   CMakeLists.txt header). sushiruntime and sushiblas both have the same
 #   directory and likewise do not wire it into CI; doing so here first would be
 #   a new decision, not a match of the house style.
+
+  checkers:
+    name: Checkers (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: python tools/documentation/check_source_comments.py .
+        run: python tools/documentation/check_source_comments.py .
+      - name: python tools/documentation/check_docs_layout.py .
+        run: python tools/documentation/check_docs_layout.py .
+      - name: python tools/documentation/check_changelog.py .
+        run: python tools/documentation/check_changelog.py .
+      - name: python tools/layering/check_layering.py .
+        run: python tools/layering/check_layering.py .
+      - name: python -m unittest discover -s tools/tests
+        run: python -m unittest discover -s tools/tests
