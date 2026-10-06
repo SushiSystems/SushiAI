@@ -1,6 +1,6 @@
 # write_license_block.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
-# Copyright (c) 2026 Sushi Systems
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 """Writes the license block of the source-comments skill into every tracked source file.
@@ -23,22 +23,36 @@ from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from documentation.check_source_comments import K_C_SUFFIXES, K_LICENSE_LINES  # noqa: E402
+from documentation.check_source_comments import (  # noqa: E402
+    K_C_SUFFIXES,
+    K_CLOSED_BOX_LINES,
+    K_CLOSED_LINES,
+    K_HOLDER,
+    K_OPEN_BOX_LINES,
+    K_OPEN_LINES,
+    K_PART_OF,
+)
 
-K_CLOSED_LINES = ("All rights reserved. No licence is granted.",)
-K_HOLDER = "Sushi Systems"
+K_SITE = "https://sushisystems.io"
+K_PROJECT_SEPARATOR = " - "
 K_HASH_SUFFIXES = frozenset({".py", ".cmake", ".sh"})
 K_HASH_NAMES = frozenset({"CMakeLists.txt"})
 K_FRAGMENT_SUFFIXES = frozenset({".inc"})
 K_TEMPLATE_SUFFIX = ".in"
 K_SKIPPED_FOLDERS = frozenset({"third_party", "node_modules", "build"})
-K_BOX_FIELD = 60
+K_BOX_FIELD = 70
 K_BYTE_ORDER_MARK = "﻿"
 K_BOXED_ROW = re.compile(r"^\s*/\*.*\*/\s*$")
 K_BOX_EDGE = re.compile(r"^\s*/\*{5,}/\s*$")
 K_HASH_PREAMBLE = re.compile(r"^#(!|.*coding[:=])")
 K_HASH_MARKER = re.compile(r"Copyright|Licensed under|All rights reserved")
 K_DOCSTRING = re.compile(r"^[rRuUbB]{0,2}(\"\"\"|''')")
+K_OWN_ROWS = frozenset(
+    row.strip()
+    for rows in (K_OPEN_LINES, K_CLOSED_LINES, K_OPEN_BOX_LINES, K_CLOSED_BOX_LINES)
+    for row in rows
+    if row.strip()
+)
 K_EXIT_CLEAN = 0
 K_EXIT_PENDING = 1
 K_EXIT_USAGE = 2
@@ -49,25 +63,50 @@ class LicenseWriterError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
+class Box:
+    """Holds the three sections of a boxed block: file name, project, and licence."""
+
+    name: str
+    project: list[str]
+    licence: list[str]
+
+
+@dataclass(frozen=True, slots=True)
 class Header:
     """Holds what a repository's license blocks say apart from file name and year."""
 
     project: str
-    license_lines: tuple[str, ...]
+    closed: bool = False
     upstream: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
-    def rows(self, path: str, year: int, kept: tuple[str, ...] = ()) -> list[str]:
-        """Returns the block's rows for a file, with the upstream rows named for it or kept."""
-        name = PurePosixPath(path).name
-        own = [name, self.project, f"Copyright (c) {year} {K_HOLDER}", *self.license_lines]
-        return own + list(self.upstream.get(path, kept))
+    def _copyright(self, year: int) -> str:
+        """Returns the copyright row for a file first written in the given year."""
+        return f"Copyright (c) {year}-present {K_HOLDER}"
 
-    def kept_rows(self, old: list[str]) -> tuple[str, ...]:
-        """Returns the rows an old block carries below this repository's own licence lines."""
-        if not all(line in old for line in self.license_lines):
-            return ()
-        last = max(old.index(line) for line in self.license_lines)
-        return tuple(old[last + 1:])
+    def _upstream(self, path: str, kept: tuple[str, ...]) -> list[str]:
+        """Returns the upstream rows named for a file, or the rows its old block kept."""
+        return list(self.upstream.get(path, kept))
+
+    def hashed_rows(self, path: str, year: int, kept: tuple[str, ...] = ()) -> list[str]:
+        """Returns the rows of the `#` form of the block for a file."""
+        lines = K_CLOSED_LINES if self.closed else K_OPEN_LINES
+        own = [PurePosixPath(path).name, self.project, self._copyright(year), *lines]
+        return own + self._upstream(path, kept)
+
+    def box(self, path: str, year: int, kept: tuple[str, ...] = ()) -> Box:
+        """Returns the three sections of the boxed form of the block for a file."""
+        name, _, address = self.project.partition(K_PROJECT_SEPARATOR)
+        addresses = list(dict.fromkeys(item for item in (address, K_SITE) if item))
+        lines = K_CLOSED_BOX_LINES if self.closed else K_OPEN_BOX_LINES
+        upstream = self._upstream(path, kept)
+        licence = [self._copyright(year), "", *lines, *([""] if upstream else []), *upstream]
+        return Box(PurePosixPath(path).name, [K_PART_OF, name, *addresses], licence)
+
+    @staticmethod
+    def kept_rows(old: list[str]) -> tuple[str, ...]:
+        """Returns the rows an old block carries below the last Sushi licence row."""
+        own = [index for index, row in enumerate(old) if row in K_OWN_ROWS]
+        return tuple(old[own[-1] + 1:]) if own else ()
 
 
 def _generated_name(path: str) -> PurePosixPath:
@@ -88,11 +127,26 @@ def is_source(path: str) -> bool:
     return is_hash_family(path) or suffix in K_C_SUFFIXES or suffix in K_FRAGMENT_SUFFIXES
 
 
-def _render_boxed(rows: list[str]) -> list[str]:
-    """Returns the rows inside a box whose edges are as wide as its rows."""
-    width = max(K_BOX_FIELD, *(len(row) for row in rows))
+def _centred(row: str, width: int) -> str:
+    """Returns a row centred between the comment markers, the odd space on the left."""
+    padding = width + 2 - len(row)
+    left = (padding + 1) // 2
+    return f"/*{' ' * left}{row}{' ' * (padding - left)}*/"
+
+
+def _render_boxed(box: Box) -> list[str]:
+    """Returns the box: file name, centred project section and licence section between edges."""
+    width = max(K_BOX_FIELD, len(box.name), *(len(row) for row in box.project + box.licence))
     edge = "/" + "*" * (width + 4) + "/"
-    return [edge, *(f"/* {row.ljust(width)} */" for row in rows), edge]
+    return [
+        edge,
+        f"/* {box.name.ljust(width)} */",
+        edge,
+        *(_centred(row, width) for row in box.project),
+        edge,
+        *(f"/* {row.ljust(width)} */" for row in box.licence),
+        edge,
+    ]
 
 
 def _render_hashed(rows: list[str]) -> list[str]:
@@ -141,8 +195,11 @@ def rewrite(path: str, text: str, header: Header, year: int) -> str:
     preamble, old, rest = _split_hashed(lines) if hashed else _split_boxed(lines)
     while rest and not rest[0].strip():
         rest = rest[1:]
-    rows = header.rows(path, year, header.kept_rows(old))
-    block = _render_hashed(rows) if hashed else _render_boxed(rows)
+    kept = header.kept_rows(old)
+    if hashed:
+        block = _render_hashed(header.hashed_rows(path, year, kept))
+    else:
+        block = _render_boxed(header.box(path, year, kept))
     joined = hashed and bool(rest) and bool(K_DOCSTRING.match(rest[0]))
     gap = [] if joined or not rest else [""]
     body = rest if rest else [""]
@@ -216,8 +273,8 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     """Returns the parsed command line."""
     parser = argparse.ArgumentParser(description="Writes the license block into tracked source files.")
     parser.add_argument("root", type=Path, help="repository root")
-    parser.add_argument("--project", required=True, help="the block's second line: name and URL")
-    parser.add_argument("--closed", action="store_true", help="write the reserved-rights line")
+    parser.add_argument("--project", required=True, help="the project as 'Name - URL'")
+    parser.add_argument("--closed", action="store_true", help="write the reserved-rights lines")
     parser.add_argument("--skip", action="append", default=[], help="glob of tracked paths to leave alone")
     parser.add_argument("--upstream", action="append", default=[], help="PATH=LINE;LINE of a ported file")
     parser.add_argument("--report", action="store_true", help="write nothing; list pending files")
@@ -227,9 +284,8 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     """Runs the writer from the command line and returns its exit code."""
     arguments = _parse_arguments(sys.argv[1:] if argv is None else argv)
-    lines = K_CLOSED_LINES if arguments.closed else K_LICENSE_LINES
     try:
-        header = Header(arguments.project, lines, _parse_upstream(arguments.upstream))
+        header = Header(arguments.project, arguments.closed, _parse_upstream(arguments.upstream))
         changes = list(pending(arguments.root, header, arguments.skip))
     except LicenseWriterError as error:
         print(error, file=sys.stderr)

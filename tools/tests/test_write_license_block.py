@@ -1,6 +1,6 @@
 # test_write_license_block.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
-# Copyright (c) 2026 Sushi Systems
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 """Tests the license block writer on each way a source file can open."""
@@ -17,12 +17,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from documentation.check_source_comments import (  # noqa: E402
-    K_LICENSE_LINES,
+    K_CLOSED,
     collect,
     rule_license_block,
 )
 from licensing.write_license_block import (  # noqa: E402
-    K_CLOSED_LINES,
     Header,
     first_years,
     is_source,
@@ -31,20 +30,29 @@ from licensing.write_license_block import (  # noqa: E402
 )
 
 K_PROJECT = "SushiRuntime - https://github.com/SushiSystems/SushiRuntime"
-K_LINES = (
-    "Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.",
-    "Commercial use requires a licence from Sushi Systems.",
-)
-K_HEADER = Header(K_PROJECT, K_LINES)
-K_EDGE = "/" + "*" * 64 + "/"
+K_HEADER = Header(K_PROJECT)
+K_EDGE = "/" + "*" * 74 + "/"
 K_BOX = "\n".join(
     [
         K_EDGE,
-        "/* graph.hpp                                                    */",
-        "/* SushiRuntime - https://github.com/SushiSystems/SushiRuntime  */",
-        "/* Copyright (c) 2026 Sushi Systems                             */",
-        "/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */",
-        "/* Commercial use requires a licence from Sushi Systems.        */",
+        "/* graph.hpp                                                              */",
+        K_EDGE,
+        "/*                          This file is part of:                         */",
+        "/*                              SushiRuntime                              */",
+        "/*              https://github.com/SushiSystems/SushiRuntime              */",
+        "/*                         https://sushisystems.io                        */",
+        K_EDGE,
+        "/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */",
+        "/*                                                                        */",
+        '/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */',
+        '/* "License"); you may not use this file except in compliance with the    */',
+        '/* License. You may obtain a copy of the License at                       */',
+        '/*                                                                        */',
+        '/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */',
+        '/*                                                                        */',
+        '/* Noncommercial use is free. Commercial use requires a separate licence  */',
+        '/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */',
+        '/* "as is", without warranty of any kind.                                 */',
         K_EDGE,
     ]
 )
@@ -52,7 +60,7 @@ K_HASHES = "\n".join(
     [
         "# graph.py",
         "# SushiRuntime - https://github.com/SushiSystems/SushiRuntime",
-        "# Copyright (c) 2026 Sushi Systems",
+        "# Copyright (c) 2026-present Mustafa Garip & Sushi Systems",
         "# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.",
         "# Commercial use requires a licence from Sushi Systems.",
     ]
@@ -155,36 +163,53 @@ class RewriteTest(unittest.TestCase):
 
     def test_writes_the_closed_lines(self) -> None:
         """Writes the reserved-rights line and no grant in a closed repository."""
-        text = _write("graph.hpp", K_DOC, Header("SushiWeb - https://sushisystems.io", K_CLOSED_LINES))
-        self.assertIn("/* All rights reserved. No licence is granted.", text)
+        text = _write("graph.hpp", K_DOC, Header("SushiWeb - https://sushisystems.io", closed=True))
+        self.assertIn("/* All rights reserved. ", text)
+        self.assertIn("No licence is granted.", text)
+        self.assertEqual(text.count("https://sushisystems.io"), 1)
         self.assertNotIn("PolyForm", text)
         self.assertNotIn("Commercial use", text)
 
     def test_appends_upstream_lines(self) -> None:
         """Appends a ported file's upstream notice below the Sushi lines."""
         upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
-        header = Header(K_PROJECT, K_LINES, {"source/lapjv.cpp": upstream})
-        rows = rewrite("source/lapjv.cpp", K_DOC, header, 2026).splitlines()
+        header = Header(K_PROJECT, upstream={"source/lapjv.cpp": upstream})
+        rows = rewrite("source/lapjv.cpp", K_DOC, header, 2026).split("\n\n")[0].splitlines()
         self.assertEqual(rows[1].strip("/* "), "lapjv.cpp")
-        self.assertEqual([row.strip("/* ") for row in rows[6:8]], list(upstream))
+        self.assertEqual([row.strip("/* ") for row in rows[-4:-1]], ["", *upstream])
         self.assertNotIn("Tomas", rewrite("source/other.cpp", K_DOC, header, 2026))
 
     def test_keeps_upstream_lines_on_a_plain_rerun(self) -> None:
         """Keeps a ported file's upstream rows when a later run names no upstream for it."""
         upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
-        ported = Header(K_PROJECT, K_LINES, {"lapjv.cpp": upstream})
+        ported = Header(K_PROJECT, upstream={"lapjv.cpp": upstream})
         for name, body in (("lapjv.cpp", K_DOC), ("lapjv.py", K_DOCSTRING)):
-            first = rewrite(name, body, Header(K_PROJECT, K_LINES, {name: upstream}), 2026)
+            first = rewrite(name, body, Header(K_PROJECT, upstream={name: upstream}), 2026)
             self.assertIn("Tomas Kazmar", first)
             self.assertEqual(rewrite(name, first, K_HEADER, 2026), first)
         replaced = rewrite("lapjv.cpp", rewrite("lapjv.cpp", K_DOC, ported, 2026),
-                           Header(K_PROJECT, K_LINES, {"lapjv.cpp": ("MIT",)}), 2026)
+                           Header(K_PROJECT, upstream={"lapjv.cpp": ("MIT",)}), 2026)
         self.assertNotIn("Tomas Kazmar", replaced)
         self.assertIn("/* MIT ", replaced)
 
     def test_drops_foreign_rows_of_an_old_block(self) -> None:
         """Carries nothing over from a block that lacks this repository's licence lines."""
-        self.assertNotIn("This file is part of", _write("graph.hpp", f"{K_OLD_BOX}\n\n{K_DOC}"))
+        self.assertNotIn("Apache", _write("graph.hpp", f"{K_OLD_BOX}\n\n{K_DOC}"))
+
+    def test_keeps_upstream_rows_of_the_narrow_box(self) -> None:
+        """Keeps the upstream rows of the one-section box the writer produced before."""
+        narrow = "\n".join([
+            "/" + "*" * 64 + "/",
+            "/* lapjv.cpp                                                    */",
+            "/* Copyright (c) 2026 Sushi Systems                             */",
+            "/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */",
+            "/* Commercial use requires a licence from Sushi Systems.        */",
+            "/* Portions Copyright (c) 2012 Tomas Kazmar                     */",
+            "/" + "*" * 64 + "/",
+        ])
+        written = _write("lapjv.cpp", f"{narrow}\n\n{K_DOC}")
+        self.assertIn("/* Portions Copyright (c) 2012 Tomas Kazmar ", written)
+        self.assertEqual(written.count("Copyright (c)"), 2)
 
     def test_reads_templates_and_include_fragments_as_c_family(self) -> None:
         """Gives a configure template and an include fragment the block of the file they become."""
@@ -201,20 +226,20 @@ class RewriteTest(unittest.TestCase):
 
     def test_widens_the_box_for_a_long_line(self) -> None:
         """Keeps every row and both edges the same width when a line is long."""
-        header = Header("SushiRuntime - " + "x" * 80, K_LINES)
+        header = Header("SushiRuntime - " + "x" * 80)
         rows = rewrite("graph.hpp", K_DOC, header, 2026).split("\n\n")[0].splitlines()
         self.assertEqual(len({len(row) for row in rows}), 1)
 
     def test_uses_the_year_it_is_given(self) -> None:
         """Writes the file's first year into the copyright line."""
-        self.assertIn("Copyright (c) 2024 Sushi Systems", _write("graph.py", "", year=2024))
+        self.assertIn("Copyright (c) 2024-present Mustafa Garip & Sushi Systems", _write("graph.py", "", year=2024))
 
     def test_output_passes_the_checker(self) -> None:
         """Produces blocks the license block rule accepts."""
         for name, text in (("graph.hpp", K_DOC), ("graph.py", K_DOCSTRING)):
             with tempfile.TemporaryDirectory() as folder:
                 path = Path(folder) / name
-                path.write_text(rewrite(name, text, Header(K_PROJECT, K_LICENSE_LINES), 2026), encoding="utf-8")
+                path.write_text(rewrite(name, text, Header(K_PROJECT, closed=K_CLOSED), 2026), encoding="utf-8")
                 issues = [issue for source in collect([path]) for issue in rule_license_block(source)]
                 self.assertEqual(issues, [])
 
@@ -257,7 +282,7 @@ class RepositoryTest(unittest.TestCase):
             self.assertEqual(main([*arguments, "--report"]), 1)
             self.assertEqual((root / "graph.py").read_text(encoding="utf-8"), K_DOCSTRING)
             self.assertEqual(main(arguments), 0)
-            self.assertIn("Copyright (c) 2024 Sushi Systems", (root / "graph.py").read_text(encoding="utf-8"))
+            self.assertIn("Copyright (c) 2024-present ", (root / "graph.py").read_text(encoding="utf-8"))
             self.assertEqual((root / "third_party" / "vendored.py").read_text(encoding="utf-8"), "x = 1\n")
             self.assertEqual(main([*arguments, "--report"]), 0)
 
@@ -270,7 +295,7 @@ class RepositoryTest(unittest.TestCase):
             _git(root, "add", "fresh.py")
             self.assertEqual(main([str(root), "--project", K_PROJECT]), 0)
             written = (root / "fresh.py").read_text(encoding="utf-8")
-            self.assertIn(f"Copyright (c) {date.today().year} Sushi Systems", written)
+            self.assertIn(f"Copyright (c) {date.today().year}-present ", written)
 
     def test_skips_a_tracked_file_deleted_from_the_working_tree(self) -> None:
         """Leaves out a tracked file the working tree no longer holds."""
