@@ -39,6 +39,9 @@ add_executable(sushiai_tests
 
     functional/unit/test_version.cpp
     functional/unit/test_shape.cpp
+    functional/unit/test_status.cpp
+    functional/unit/test_result.cpp
+    functional/unit/test_traced.cpp
     functional/unit/test_ops.cpp
     functional/unit/test_ir.cpp
     functional/unit/test_layout.cpp

@@ -38,6 +38,9 @@
 #include "core/ops.hpp"
 #include "core/shape.hpp"
 #include "core/allocation.hpp"
+#include "core/check.hpp"
+#include "core/status.hpp"
+#include "core/result.hpp"
 
 #include "graph/ir.hpp"
 #include "graph/builder.hpp"
@@ -51,6 +54,7 @@
 #include "graph/step_recorder.hpp"
 #include "graph/compiled_step.hpp"
 #include "graph/rematerialise.hpp"
+#include "graph/traced.hpp"
 
 #include "autograd/backward.hpp"
 #include "autograd/tape.hpp"

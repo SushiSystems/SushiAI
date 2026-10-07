@@ -1,0 +1,259 @@
+/**************************************************************************/
+/* test_traced.cpp                                                        */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file test_traced.cpp
+ * @brief Tests Traced and the refusal it carries through a chain of emitters.
+ * @author Mustafa Garip
+ */
+
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <gtest/gtest.h>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/traced.hpp>
+#include "../../common/test_status.hpp"
+
+using SushiAI::Status;
+using SushiAI::StatusCode;
+using SushiAI::Detail::live_failure_count;
+using SushiAI::Graph::Traced;
+using SushiAI::Graph::ValueId;
+
+static_assert(std::is_nothrow_default_constructible<Traced>::value, "an absent operand is free");
+static_assert(std::is_nothrow_constructible<Traced, ValueId>::value, "holding an id is free");
+static_assert(std::is_nothrow_constructible<Traced, Status>::value, "a failure never throws");
+static_assert(std::is_convertible<ValueId, Traced>::value, "an id is an operand");
+static_assert(std::is_convertible<Status, Traced>::value, "a failure is a result");
+static_assert(sizeof(Traced) == 2 * sizeof(void*), "a Traced is an id and one pointer");
+
+namespace
+{
+    /** @brief Holds what the stand-in builder did. */
+    struct TraceLog
+    {
+        /** @brief Holds how many values were emitted. */
+        ValueId emitted = 0;
+
+        /** @brief Holds how many refusals were recorded. */
+        int refusals = 0;
+    };
+
+    /** @brief Stands in for GraphBuilder: it issues ids and records refusals in a TraceLog. */
+    class StandInBuilder final
+    {
+        public:
+            /** @brief Records into @p log, which must outlive the builder. */
+            explicit StandInBuilder(TraceLog& log) noexcept : log_(&log)
+            {
+
+            }
+
+            /** @brief Issues the next id. */
+            [[nodiscard]] ValueId emit() const noexcept
+            {
+                return log_->emitted++;
+            }
+
+            /** @brief Records one refusal and returns @p failure. */
+            [[nodiscard]] Status refuse(Status failure) const noexcept
+            {
+                ++log_->refusals;
+                return failure;
+            }
+
+        private:
+            /** @brief Points at the log this builder writes. */
+            TraceLog* log_;
+    };
+
+    /** @brief Emits one value over @p operand, refusing an id above @p limit. */
+    Traced emit_below(const StandInBuilder& builder, const Traced& operand,
+                      ValueId limit) noexcept
+    {
+        SA_TRY_ASSIGN(const ValueId x, operand);
+        SA_REFUSE_IF(builder, x > limit, "operand {} is above the limit {}", x, limit);
+
+        return builder.emit();
+    }
+
+    /** @brief Emits one value over @p operand, which may be absent. */
+    Traced emit_over(const StandInBuilder& builder, const Traced& operand) noexcept
+    {
+        SA_TRY_ASSIGN(const ValueId x, operand);
+        static_cast<void>(x);
+
+        return builder.emit();
+    }
+
+    /** @brief Returns the failure of @p traced, or sets @p reached_end. */
+    Status forward_traced(const Traced& traced, bool& reached_end) noexcept
+    {
+        SA_TRY(traced);
+        reached_end = true;
+        return Status();
+    }
+
+    /** @brief Builds an InvalidDescription failure whose message is @p text. */
+    Status description_failure(std::string_view text) noexcept
+    {
+        return Status::from_message(StatusCode::InvalidDescription, [&]()
+        {
+            return std::string(text);
+        });
+    }
+
+} // namespace
+
+TEST(Unit_Traced, DefaultHoldsTheAbsentValueAndNoFailure)
+{
+    const Traced absent;
+    EXPECT_TRUE(absent.has_value());
+    EXPECT_TRUE(absent.status().is_ok());
+    EXPECT_EQ(absent.value(), SushiAI::Graph::NO_VALUE);
+}
+
+TEST(Unit_Traced, HoldsAnIdWithASuccessStatus)
+{
+    const Traced traced(ValueId{12});
+    EXPECT_TRUE(traced.has_value());
+    SA_EXPECT_OK(traced);
+    EXPECT_EQ(traced.value(), ValueId{12});
+}
+
+TEST(Unit_Traced, HoldsAFailureAndTheAbsentId)
+{
+    const Traced traced(description_failure("MATMUL needs two rank-2 operands"));
+    EXPECT_FALSE(traced.has_value());
+    SA_EXPECT_FAILURE(traced, StatusCode::InvalidDescription, "MATMUL", "rank-2");
+}
+
+// A Traced stores its id in place, so an unchanged block count means no allocation.
+TEST(Unit_Traced, SuccessPathCreatesNoFailureBlock)
+{
+    const std::size_t before = live_failure_count();
+    TraceLog log;
+    const StandInBuilder builder(log);
+
+    const Traced absent;
+    const Traced first = emit_over(builder, absent);
+    const Traced second = emit_below(builder, first, 8);
+    Traced copied(second);
+    const Traced moved(std::move(copied));
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueId id, moved);
+    EXPECT_EQ(id, ValueId{1});
+    EXPECT_EQ(log.refusals, 0);
+    EXPECT_EQ(live_failure_count(), before);
+}
+
+TEST(Unit_Traced, MovedFromTracedKeepsItsState)
+{
+    Traced failed(description_failure("window is larger than the image"));
+    const Traced taken(std::move(failed));
+    SA_EXPECT_FAILURE(taken, StatusCode::InvalidDescription, "window is larger");
+    SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "window is larger");
+
+    Traced held(ValueId{4});
+    Traced assigned;
+    assigned = std::move(held);
+    EXPECT_EQ(assigned.value(), ValueId{4});
+    EXPECT_EQ(held.value(), ValueId{4});
+}
+
+TEST(Unit_Traced, AssignmentReplacesAFailureWithAnId)
+{
+    Traced traced(description_failure("first attempt"));
+    traced = ValueId{3};
+    EXPECT_TRUE(traced.has_value());
+    EXPECT_EQ(traced.value(), ValueId{3});
+
+    traced = description_failure("second attempt");
+    SA_EXPECT_FAILURE(traced, StatusCode::InvalidDescription, "second attempt");
+}
+
+TEST(Unit_Traced, AnAbsentOperandPassesThroughAnEmitter)
+{
+    TraceLog log;
+    const StandInBuilder builder(log);
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueId id, emit_over(builder, Traced()));
+    EXPECT_EQ(id, ValueId{0});
+    EXPECT_EQ(log.emitted, ValueId{1});
+}
+
+TEST(Unit_Traced, RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing)
+{
+    TraceLog log;
+    const StandInBuilder builder(log);
+
+    const Traced refused = emit_below(builder, ValueId{9}, 4);
+    SA_EXPECT_FAILURE(refused, StatusCode::InvalidDescription,
+                      "operand 9 is above the limit 4");
+    EXPECT_EQ(log.refusals, 1);
+    EXPECT_EQ(log.emitted, ValueId{0});
+
+    const Traced chained = emit_over(builder, emit_below(builder, refused, 100));
+    SA_EXPECT_FAILURE(chained, StatusCode::InvalidDescription,
+                      "operand 9 is above the limit 4");
+    EXPECT_EQ(chained.status().message().data(), refused.status().message().data());
+    EXPECT_EQ(log.refusals, 1);
+    EXPECT_EQ(log.emitted, ValueId{0});
+}
+
+TEST(Unit_Traced, NestedCallsEmitWhenNothingIsRefused)
+{
+    TraceLog log;
+    const StandInBuilder builder(log);
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueId id,
+                            emit_over(builder, emit_below(builder, ValueId{2}, 4)));
+    EXPECT_EQ(id, ValueId{1});
+    EXPECT_EQ(log.emitted, ValueId{2});
+    EXPECT_EQ(log.refusals, 0);
+}
+
+TEST(Unit_Traced, TryForwardsATracedFailureAsAStatus)
+{
+    bool reached_end = false;
+    SA_EXPECT_FAILURE(forward_traced(description_failure("bias shape"), reached_end),
+                      StatusCode::InvalidDescription, "bias shape");
+    EXPECT_FALSE(reached_end);
+
+    SA_EXPECT_OK(forward_traced(ValueId{1}, reached_end));
+    EXPECT_TRUE(reached_end);
+}
+
+TEST(Unit_Traced, ValueOnAFailureIsFatalAndPrintsTheFailure)
+{
+    const Traced traced(description_failure("stride must be positive"));
+    SA_EXPECT_FATAL((void)traced.value(),
+                    "Traced::value() was called on a failure", "stride must be positive");
+}
+
+TEST(Unit_Traced, BuildingFromASuccessStatusIsFatal)
+{
+    SA_EXPECT_FATAL((void)Traced(Status()), "a Traced was built from a success Status");
+}
