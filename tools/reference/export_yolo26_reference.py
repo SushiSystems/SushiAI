@@ -37,7 +37,7 @@ K_CLASS_COUNT = 80
 K_IMAGE_SIDE = 640
 K_THREAD_COUNT = 2
 K_DEFAULT_SEED = 0
-K_FIXTURE_CEILING_BYTES = 40 * 1024 * 1024
+K_FIXTURE_CEILING_BYTES = 64 * 1024 * 1024
 K_MANIFEST_NAME = "MANIFEST.json"
 K_MANIFEST_FORMAT_VERSION = 1
 K_WEIGHTS_FILE = "weights.sacp"
@@ -101,6 +101,25 @@ K_GRADIENT_TENSORS = (
 )
 K_GRADIENT_SOURCE = "torch.autograd, backward of total_loss"
 K_STATISTICS_MODULE = "model.0.bn"
+K_BATCHNORM_FILE = "batchnorm.sacp"
+K_BATCHNORM_PREFIX = "batchnorm_factor"
+K_BATCHNORM_UNIT_CASE = "unit"
+K_BATCHNORM_UNIT_SHAPE = (2, 3, 2, 2)
+K_BATCHNORM_MODEL_MODULE = "model.9.cv1.bn"
+K_BATCHNORM_BIASED = "biased"
+K_BATCHNORM_UNBIASED = "unbiased"
+K_BATCHNORM_CANDIDATES = (K_BATCHNORM_BIASED, K_BATCHNORM_UNBIASED)
+K_BATCHNORM_MATCH_ULPS = 4
+K_BATCHNORM_OBSERVED = {
+    "input": K_LAYOUT_NHWC,
+    "weight": K_LAYOUT_VECTOR,
+    "bias": K_LAYOUT_VECTOR,
+    "before.running_mean": K_LAYOUT_VECTOR,
+    "before.running_var": K_LAYOUT_VECTOR,
+    "output": K_LAYOUT_NHWC,
+    "after.running_mean": K_LAYOUT_VECTOR,
+    "after.running_var": K_LAYOUT_VECTOR,
+}
 K_FOREIGN_ERRORS = (
     ArithmeticError,
     AttributeError,
@@ -805,6 +824,173 @@ def export_updated_statistics(model: torch.nn.Module) -> list[ExportedTensor]:
     ]
 
 
+def count_per_channel(shape: Sequence[int]) -> int:
+    """Returns how many values of an NCHW batch one channel's statistics are taken over."""
+    return int(shape[0]) * int(shape[2]) * int(shape[3])
+
+
+def scale_batch_variance(candidate: str, count: int) -> float:
+    """Returns the factor a candidate applies to the biased batch variance of count values.
+
+    Raises:
+        ReferenceMismatchError: The count is below 2, where the unbiased variance is undefined.
+    """
+    if count < 2:
+        raise ReferenceMismatchError(f"a channel holds {count} values; a variance needs 2")
+    if candidate == K_BATCHNORM_UNBIASED:
+        return count / (count - 1)
+    return 1.0
+
+
+def blend_running_statistic(before: Any, batch: Any, momentum: float, scale: float) -> Any:
+    """Returns before * (1 - momentum) + batch * momentum * scale, for numbers or tensors."""
+    return before * (1.0 - momentum) + batch * (momentum * scale)
+
+
+def select_matching_candidate(differences: dict[str, float], tolerance: float) -> str:
+    """Returns the one candidate whose difference from the reference is within the tolerance.
+
+    Raises:
+        ReferenceMismatchError: No candidate is within the tolerance, or more than one is.
+    """
+    matching = [name for name, difference in differences.items() if difference <= tolerance]
+    if len(matching) != 1:
+        raise ReferenceMismatchError(
+            f"{len(matching)} running-variance candidates lie within {tolerance:.3e} "
+            f"of the reference: {differences}",
+        )
+    return matching[0]
+
+
+def watch_batchnorm(module: torch.nn.Module) -> dict[str, torch.Tensor]:
+    """Returns a store the module's next forward call fills with the K_BATCHNORM_OBSERVED keys."""
+    store: dict[str, torch.Tensor] = {}
+    handles: list[Any] = []
+
+    def record_before(owner: torch.nn.Module, inputs: tuple[torch.Tensor, ...]) -> None:
+        store["input"] = inputs[0].detach().clone()
+        for leaf in ("weight", "bias"):
+            store[leaf] = getattr(owner, leaf).detach().clone()
+        for leaf in ("running_mean", "running_var"):
+            store[f"before.{leaf}"] = getattr(owner, leaf).detach().clone()
+
+    def record_after(owner: torch.nn.Module, _inputs: Any, output: torch.Tensor) -> None:
+        # The activation after the layer may run in place, so the output is copied here.
+        store["output"] = output.detach().clone()
+        for leaf in ("running_mean", "running_var"):
+            store[f"after.{leaf}"] = getattr(owner, leaf).detach().clone()
+        for handle in handles:
+            handle.remove()
+
+    handles.append(module.register_forward_pre_hook(record_before))
+    handles.append(module.register_forward_hook(record_after))
+    return store
+
+
+def run_unit_batchnorm(seed: int) -> tuple[torch.nn.Module, dict[str, torch.Tensor]]:
+    """Returns one BatchNorm2d with the Ultralytics settings and what one train-mode pass did."""
+    import torch
+    from ultralytics.utils.torch_utils import initialize_weights
+
+    generator = torch.Generator().manual_seed(seed)
+    layer = torch.nn.BatchNorm2d(K_BATCHNORM_UNIT_SHAPE[1])
+    initialize_weights(layer)
+    perturb_normalization(layer, generator)
+    layer.train()
+    observed = watch_batchnorm(layer)
+    with torch.no_grad():
+        layer(torch.randn(K_BATCHNORM_UNIT_SHAPE, generator=generator, dtype=torch.float32))
+    return layer, observed
+
+
+def export_batchnorm_case(
+    case: str,
+    module: torch.nn.Module,
+    observed: dict[str, torch.Tensor],
+) -> tuple[list[ExportedTensor], dict[str, Any]]:
+    """Returns one observed pass and both candidates of its updated running variance.
+
+    Raises:
+        ReferenceMismatchError: Not exactly one candidate reproduces the reference's variance.
+    """
+    import torch
+
+    prefix = f"{K_BATCHNORM_PREFIX}.{case}"
+    source = f"torch.nn.BatchNorm2d, momentum {module.momentum}, eps {module.eps}, train mode"
+    tensors = [
+        export_tensor(f"{prefix}.{key}", observed[key], source, layout)
+        for key, layout in K_BATCHNORM_OBSERVED.items()
+    ]
+    count = count_per_channel(observed["input"].shape)
+    after = observed["after.running_var"]
+    before = observed["before.running_var"].double()
+    variance = observed["input"].double().var(dim=(0, 2, 3), unbiased=False)
+    candidate_source = f"{Path(__file__).name} (export_batchnorm_case)"
+    candidates = {}
+    for candidate in K_BATCHNORM_CANDIDATES:
+        scale = scale_batch_variance(candidate, count)
+        value = blend_running_statistic(before, variance, module.momentum, scale).float()
+        name = f"{prefix}.candidate.{candidate}.running_var"
+        tensors.append(export_tensor(name, value, candidate_source, K_LAYOUT_VECTOR))
+        candidates[candidate] = {
+            "tensor": name,
+            "batch_variance_scale": scale,
+            "max_abs_difference": float((value.double() - after.double()).abs().max()),
+            "equal_in_float32": bool(torch.equal(value, after)),
+        }
+    spacing = float(torch.finfo(torch.float32).eps) * float(after.abs().max())
+    tolerance = K_BATCHNORM_MATCH_ULPS * spacing
+    differences = {name: entry["max_abs_difference"] for name, entry in candidates.items()}
+    context = {
+        "module": f"torch.nn.{type(module).__name__}",
+        "input_shape_nchw": [int(extent) for extent in observed["input"].shape],
+        "values_per_channel": count,
+        "momentum": module.momentum,
+        "eps": module.eps,
+        "candidates": candidates,
+        "match_tolerance": tolerance,
+        "matching_candidate": select_matching_candidate(differences, tolerance),
+    }
+    return tensors, context
+
+
+def export_batchnorm(
+    seed: int,
+    model: torch.nn.Module,
+    model_observed: dict[str, torch.Tensor],
+) -> ReferenceFile:
+    """Returns the batchnorm file: the unit case and one layer of the model's train-mode pass.
+
+    Args:
+        model_observed: Store of watch_batchnorm on K_BATCHNORM_MODEL_MODULE, filled by that pass.
+    """
+    from ultralytics.utils.torch_utils import initialize_weights
+
+    passes = {
+        K_BATCHNORM_UNIT_CASE: run_unit_batchnorm(seed),
+        K_BATCHNORM_MODEL_MODULE: (model.get_submodule(K_BATCHNORM_MODEL_MODULE), model_observed),
+    }
+    tensors: list[ExportedTensor] = []
+    cases = {}
+    for case, (module, observed) in passes.items():
+        written, cases[case] = export_batchnorm_case(case, module, observed)
+        tensors.extend(written)
+    context = {
+        "mode": "train",
+        "settings_source": describe_source(initialize_weights),
+        "candidate_rule": "before.running_var * (1 - momentum) "
+        "+ biased batch variance * momentum * batch_variance_scale, in float64, then float32",
+        "max_abs_difference": "largest |candidate - after.running_var| over the channels, "
+        "both read as float32",
+        "match_tolerance": f"{K_BATCHNORM_MATCH_ULPS} * float32 epsilon * max |after.running_var|",
+        "unit_case_state": "weight, bias and running statistics drawn as batch_norm_perturbation "
+        f"of {K_WEIGHTS_FILE}; input drawn standard normal",
+        "model_case_pass": "the train-mode pass of loss.sacp",
+        "cases": cases,
+    }
+    return ReferenceFile(K_BATCHNORM_FILE, tuple(tensors), context)
+
+
 def collect_run_facts(seed: int, commit: str) -> dict[str, Any]:
     """Returns the versions and settings the run used, read from the loaded libraries."""
     import torch
@@ -826,7 +1012,7 @@ def collect_run_facts(seed: int, commit: str) -> dict[str, Any]:
 
 
 def produce_references(seed: int, bn_state: str) -> tuple[dict[str, Any], list[ReferenceFile]]:
-    """Returns the run facts and the four reference files of one seeded run."""
+    """Returns the run facts and the five reference files of one seeded run."""
     import torch
 
     commit = read_installed_commit()
@@ -840,8 +1026,11 @@ def produce_references(seed: int, bn_state: str) -> tuple[dict[str, Any], list[R
         export_weights(model, bn_state),
         export_input(image_nhwc),
         export_forward(model, image_nchw),
-        export_loss(model, image_nchw, make_training_batch()),
     ]
+    # The watch is set after the eval-mode pass, so the train-mode pass is the one it records.
+    observed = watch_batchnorm(model.get_submodule(K_BATCHNORM_MODEL_MODULE))
+    files.append(export_loss(model, image_nchw, make_training_batch()))
+    files.append(export_batchnorm(seed, model, observed))
     return collect_run_facts(seed, commit), files
 
 
