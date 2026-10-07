@@ -227,24 +227,11 @@ namespace SushiAI
                 if (final_dtype[id] != declared[id]) ++report.retyped_;
             }
 
-            // Rebuild nodes into a fresh graph to preserve single-assignment invariants.
-            Graph rebuilt;
+            // Callers hold value ids and state leaves across the pass; only nodes are rebuilt.
+            Graph rebuilt = graph.without_nodes();
 
             for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
-            {
-                const Value& value = graph.value(id);
-                const ValueId fresh = rebuilt.add_value(value.shape, final_dtype[id],
-                                                        value.lifetime, value.debug_name);
-
-                SA_THROW_IF(fresh != id,
-                            "The cast pass copied value {} to {}; ids must be preserved because "
-                            "callers hold them across the pass", id, fresh);
-
-                rebuilt.value(fresh).requires_grad = value.requires_grad;
-
-                // Preserving layout tag avoids silent defaults to NHWC across passes.
-                rebuilt.value(fresh).layout = value.layout;
-            }
+                rebuilt.value(id).dtype = final_dtype[id];
 
             const GraphBuilder builder(rebuilt);
             std::unordered_map<CastKey, ValueId, CastKeyHash> converted;

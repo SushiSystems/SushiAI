@@ -39,6 +39,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
+#include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -159,6 +160,7 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
 
     // Running statistics are a buffer, not a gradient path; see tests/functional/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_UPDATE_STATS.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_FOLD.id));
 
     // LEAF and ZERO have no operand to hand a gradient to; see tests/functional/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::LEAF.id));
@@ -1041,4 +1043,105 @@ TEST(Unit_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
                 << Ops::name_of(op) << " narrows under the mixed-precision policy";
         }
     }
+}
+
+/** @brief Tests that a gradient reaching the batch variance, output 3, is refused by the rule. */
+TEST(Unit_Backward, AGradientOnTheBatchVarianceOfBatchNormThrows)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{2, 2, 2, 1}, "x");
+    const ValueId gamma = builder.parameter(Shape{1}, "gamma");
+    const ValueId beta = builder.parameter(Shape{1}, "beta");
+    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
+    const ValueId loss = builder.scale(bn.batch_variance, 2.0);
+
+    const ValueId wrt[] = {gamma};
+    SA_EXPECT_ERROR((void)Autograd::differentiate(graph, loss,
+                                                  SushiRuntime::span<const ValueId>(wrt, 1)),
+                    "BATCHNORM2D", "saved statistics received a gradient");
+}
+
+/** @brief Tests that a gradient through output 0 of a four-output BATCHNORM2D is still emitted. */
+TEST(Unit_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{2, 2, 2, 1}, "x");
+    const ValueId gamma = builder.parameter(Shape{1}, "gamma");
+    const ValueId beta = builder.parameter(Shape{1}, "beta");
+    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
+    const ValueId loss = builder.sum_channels(bn.output);
+
+    const ValueId wrt[] = {gamma, beta};
+    const std::vector<ValueId> gradients =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt, 2));
+
+    ASSERT_EQ(gradients.size(), 2u);
+    EXPECT_NE(gradients[0], NO_VALUE);
+    EXPECT_NE(gradients[1], NO_VALUE);
+    ASSERT_EQ(count_op(graph, Ops::BATCHNORM2D_BACKWARD.id), 1u);
+
+    // The backward node reads the saved mean and inverse deviation, never the variance.
+    for (const Graph::Node& node : graph.nodes())
+    {
+        if (node.op != Ops::BATCHNORM2D_BACKWARD.id)
+            continue;
+
+        EXPECT_EQ(node.inputs[3], bn.saved_mean);
+        EXPECT_EQ(node.inputs[4], bn.saved_inv_std);
+    }
+}
+
+/** @brief Tests that differentiation fails at BATCHNORM_FOLD when gamma requires a gradient. */
+TEST(Unit_Backward, DifferentiatingThroughBatchNormFoldFails)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueId gamma = builder.parameter(Shape{1}, "gamma");
+    const ValueId beta = builder.parameter(Shape{1}, "beta");
+    const ValueId mean = builder.buffer(Shape{1}, "running_mean");
+    const ValueId variance = builder.buffer(Shape{1}, "running_var");
+    const Graph::BatchNormFold fold = builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
+    const ValueId loss = builder.spatial_mean(builder.channel_affine(x, fold.scale, fold.shift));
+
+    const ValueId wrt[] = {gamma};
+    SA_EXPECT_ERROR((void)Autograd::differentiate(graph, loss,
+                                                  SushiRuntime::span<const ValueId>(wrt, 1)),
+                    "No backward rule", "sushiai.batchnorm_fold");
+}
+
+/** @brief Tests that differentiate refuses a buffer in wrt before it appends any node. */
+TEST(Unit_Backward, ABufferInWrtIsRefusedAndAppendsNoNode)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{4, 3}, "x");
+    const ValueId targets = builder.input(Shape{4, 5}, "targets");
+    const ValueId weight = builder.parameter(Shape{5, 3}, "weight");
+    const ValueId shift = builder.buffer(Shape{5}, "running_shift");
+    const ValueId logits = builder.bias_add(builder.matmul(x, weight, false, true), shift);
+    const ValueId loss = builder.nll_loss(builder.log_softmax(logits), targets);
+    const std::size_t nodes_before = graph.node_count();
+
+    const ValueId with_buffer[] = {weight, shift};
+    SA_EXPECT_ERROR((void)Autograd::differentiate(
+                        graph, loss, SushiRuntime::span<const ValueId>(with_buffer, 2)),
+                    "differentiate()", "running_shift", "buffer");
+    EXPECT_EQ(graph.node_count(), nodes_before);
+
+    // The same graph differentiates once the buffer is left out of the request.
+    const ValueId parameters_only[] = {weight};
+    const std::vector<ValueId> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueId>(parameters_only, 1));
+
+    ASSERT_EQ(gradients.size(), 1u);
+    ASSERT_NE(gradients[0], NO_VALUE);
+    EXPECT_EQ(graph.value(gradients[0]).lifetime, Graph::Lifetime::GRADIENT);
+    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::BUFFER);
 }

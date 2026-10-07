@@ -401,18 +401,33 @@ namespace SushiAI
             EXPECT_THROW((void)builder.channel_affine(x_nchw, gamma, beta), Error);
         }
 
-        TEST(Unit_SpatialShapes, BatchNorm2dKeepsItsShapeAndDeclaresTwoPerChannelStatistics)
+        /** @brief Tests that batchnorm2d emits four outputs, three of them per channel. */
+        TEST(Unit_SpatialShapes, BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
-            const ValueId x = builder.input({2, 8, 8, 16}, "x");
-            const ValueId gamma = builder.parameter({16}, "gamma");
-            const ValueId beta = builder.parameter({16}, "beta");
+            const ValueId x = builder.input({2, 8, 8, 16}, "x", DType::FLOAT64);
+            const ValueId gamma = builder.parameter({16}, "gamma", DType::FLOAT64);
+            const ValueId beta = builder.parameter({16}, "beta", DType::FLOAT64);
 
             const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
             EXPECT_EQ(graph.values()[bn.output].shape, Shape({2, 8, 8, 16}));
             EXPECT_EQ(graph.values()[bn.saved_mean].shape, Shape({16}));
             EXPECT_EQ(graph.values()[bn.saved_inv_std].shape, Shape({16}));
+            EXPECT_EQ(graph.values()[bn.batch_variance].shape, Shape({16}));
+
+            const Graph::Node& node = graph.node(graph.value(bn.output).producer);
+            EXPECT_EQ(node.op, Ops::BATCHNORM2D.id);
+            EXPECT_EQ(node.outputs, (std::vector<ValueId>{bn.output, bn.saved_mean,
+                                                          bn.saved_inv_std, bn.batch_variance}));
+            EXPECT_EQ(node.attributes.get(0), 1e-5);
+
+            for (ValueId out : node.outputs)
+            {
+                EXPECT_EQ(graph.value(out).dtype, DType::FLOAT64) << "value " << out;
+                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::ACTIVATION)
+                    << "value " << out;
+            }
 
             const ValueId wrong = builder.parameter({8}, "wrong");
             EXPECT_THROW((void)builder.batchnorm2d(x, wrong, beta, 1e-5), Error);
@@ -432,6 +447,90 @@ namespace SushiAI
             const ValueId beta = builder.parameter({3}, "beta");
 
             EXPECT_THROW((void)builder.batchnorm2d(x_nchw, gamma, beta, 1e-5), Error);
+        }
+
+        /** @brief Tests that batchnorm_fold emits one node of four operands and two [C] results. */
+        TEST(Unit_SpatialShapes, BatchNormFoldYieldsAPerChannelScaleAndShift)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId gamma = builder.parameter({16}, "gamma", DType::FLOAT64);
+            const ValueId beta = builder.parameter({16}, "beta", DType::FLOAT64);
+            const ValueId mean = builder.buffer({16}, "running_mean", DType::FLOAT64);
+            const ValueId variance = builder.buffer({16}, "running_var", DType::FLOAT64);
+            const std::size_t nodes_before = graph.node_count();
+
+            const Graph::BatchNormFold fold =
+                builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
+
+            ASSERT_EQ(graph.node_count(), nodes_before + 1);
+            const Graph::Node& node = graph.nodes().back();
+            EXPECT_EQ(node.op, Ops::BATCHNORM_FOLD.id);
+            EXPECT_EQ(node.inputs, (std::vector<ValueId>{gamma, beta, mean, variance}));
+            EXPECT_EQ(node.outputs, (std::vector<ValueId>{fold.scale, fold.shift}));
+            EXPECT_EQ(node.attributes.get(0), 1e-3);
+
+            for (ValueId out : {fold.scale, fold.shift})
+            {
+                EXPECT_EQ(graph.value(out).shape, Shape({16})) << "value " << out;
+                EXPECT_EQ(graph.value(out).dtype, DType::FLOAT64) << "value " << out;
+                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::ACTIVATION)
+                    << "value " << out;
+            }
+
+            // The fold's results are what CHANNEL_AFFINE reads in an evaluation trace.
+            const ValueId x = builder.input({2, 8, 8, 16}, "x", DType::FLOAT64);
+            EXPECT_EQ(graph.value(builder.channel_affine(x, fold.scale, fold.shift)).shape,
+                      Shape({2, 8, 8, 16}));
+        }
+
+        /** @brief Tests that batchnorm_fold names the operand whose shape or type does not fit. */
+        TEST(Unit_SpatialShapes, BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId gamma = builder.parameter({16}, "gamma");
+            const ValueId beta = builder.parameter({16}, "beta");
+            const ValueId mean = builder.buffer({16}, "running_mean");
+            const ValueId variance = builder.buffer({16}, "running_var");
+            const ValueId short_mean = builder.buffer({8}, "short_mean");
+            const ValueId wide_variance = builder.buffer({16}, "wide_var", DType::FLOAT64);
+            const ValueId matrix = builder.parameter({4, 4}, "matrix");
+            const ValueId counts = builder.buffer({16}, "counts", DType::INT64);
+            const std::size_t nodes_before = graph.node_count();
+            const std::size_t values_before = graph.value_count();
+
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, short_mean, variance, 1e-3),
+                            "batchnorm_fold", "mean", "[16]", "[8]");
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, short_mean, mean, variance, 1e-3),
+                            "batchnorm_fold", "beta");
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, mean, wide_variance, 1e-3),
+                            "batchnorm_fold", "variance", "float32", "float64");
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(matrix, beta, mean, variance, 1e-3),
+                            "batchnorm_fold", "rank-1");
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(counts, counts, counts, counts, 1e-3),
+                            "batchnorm_fold", "int64");
+
+            // A rejected fold declares no value and emits no node.
+            EXPECT_EQ(graph.node_count(), nodes_before);
+            EXPECT_EQ(graph.value_count(), values_before);
+        }
+
+        /** @brief Tests that batchnorm_fold accepts a positive epsilon only. */
+        TEST(Unit_SpatialShapes, BatchNormFoldRejectsANonPositiveEpsilon)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueId gamma = builder.parameter({4}, "gamma");
+            const ValueId beta = builder.parameter({4}, "beta");
+            const ValueId mean = builder.buffer({4}, "running_mean");
+            const ValueId variance = builder.buffer({4}, "running_var");
+
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, mean, variance, 0.0),
+                            "batchnorm_fold", "epsilon", "positive");
+            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, mean, variance, -1e-3),
+                            "batchnorm_fold", "epsilon", "positive");
+            EXPECT_NO_THROW((void)builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3));
         }
 
         TEST(Unit_SpatialShapes, SumChannelsFoldsEverythingButTheChannelAxis)

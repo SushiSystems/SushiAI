@@ -51,6 +51,9 @@ static_assert(!NN::ModuleContainer<Conv2d>, "Conv2d must not look like a contain
 
 namespace
 {
+    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
+    constexpr double K_EXACT_TOLERANCE = 1e-15;
+
     /** @brief Builds a layer with a square window, one stride and one pad for both axes. */
     Conv2d make_conv(int64_t in_channels, int64_t out_channels, int64_t kernel,
                      int64_t stride = 1, int64_t pad = 0)
@@ -286,6 +289,114 @@ TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAPointwiseWindow)
 
     EXPECT_EQ(layer.output_shape(sample), (Shape{5, 7, 6}));
     EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample)));
+}
+
+/** @brief Tests that same_padded() pads by kernel / 2, sets one stride and drops the bias. */
+TEST(Unit_Conv2d, SamePaddedPadsByHalfTheKernelAndDropsTheBias)
+{
+    const Conv2d layer = Conv2d::same_padded(3, 16, 5, 2);
+
+    EXPECT_EQ(layer.in_channels, 3);
+    EXPECT_EQ(layer.out_channels, 16);
+    EXPECT_EQ(layer.geometry.kernel_h, 5);
+    EXPECT_EQ(layer.geometry.kernel_w, 5);
+    EXPECT_EQ(layer.geometry.stride_h, 2);
+    EXPECT_EQ(layer.geometry.stride_w, 2);
+    EXPECT_EQ(layer.geometry.pad_top, 2);
+    EXPECT_EQ(layer.geometry.pad_left, 2);
+    EXPECT_EQ(layer.geometry.dilation_h, 1);
+    EXPECT_EQ(layer.geometry.dilation_w, 1);
+    EXPECT_FALSE(layer.use_bias);
+}
+
+/** @brief Tests that same_padded(c, c, 3, 1) keeps H and W in output_shape() and in the trace. */
+TEST(Unit_Conv2d, SamePaddedAtStrideOneKeepsTheSpatialExtents)
+{
+    const Conv2d layer = Conv2d::same_padded(4, 4, 3, 1);
+    const Shape sample{7, 10, 4};
+
+    EXPECT_EQ(layer.output_shape(sample), (Shape{7, 10, 4}));
+    EXPECT_EQ(traced_shape(layer, 2, sample), (Shape{2, 7, 10, 4}));
+}
+
+/** @brief Tests that same_padded() keeps H and W at stride 1 for a pointwise and a 5x5 window. */
+TEST(Unit_Conv2d, SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiveKernel)
+{
+    const Shape sample{9, 6, 2};
+
+    EXPECT_EQ(Conv2d::same_padded(2, 8, 1, 1).output_shape(sample), (Shape{9, 6, 8}));
+    EXPECT_EQ(Conv2d::same_padded(2, 8, 5, 1).output_shape(sample), (Shape{9, 6, 8}));
+}
+
+/** @brief Tests that same_padded() with stride 2 halves an even H and an even W. */
+TEST(Unit_Conv2d, SamePaddedAtStrideTwoHalvesAnEvenExtent)
+{
+    const Conv2d layer = Conv2d::same_padded(3, 16, 3, 2);
+    const Shape sample{640, 320, 3};
+
+    EXPECT_EQ(layer.output_shape(sample), (Shape{320, 160, 16}));
+    EXPECT_EQ(traced_shape(layer, 1, sample), (Shape{1, 320, 160, 16}));
+}
+
+/** @brief Tests that a same_padded() layer traces a weight alone and no BIAS_ADD node. */
+TEST(Unit_Conv2d, SamePaddedTracesNoBias)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Conv2d layer = Conv2d::same_padded(2, 8, 3, 1);
+    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    (void)layer.forward(builder, x);
+
+    EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 2]"}));
+    EXPECT_FALSE(layer.bias.declared());
+    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
+}
+
+/** @brief Tests that a non-zero bias_init reaches the bias parameter's init() as a constant. */
+TEST(Unit_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Conv2d layer = make_conv(2, 3, 3, 1, 1);
+    layer.bias_init = -4.5;
+    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    (void)layer.forward(builder, x);
+
+    // -4.5 is exact in binary, so the stored value compares equal with no tolerance.
+    EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(layer.bias.init().constant, -4.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::BIAS);
+}
+
+/** @brief Tests that a layer left at the default starts its bias from the constant zero. */
+TEST(Unit_Conv2d, TheDefaultBiasInitIsTheConstantZero)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Conv2d layer = make_conv(2, 3, 3, 1, 1);
+    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    (void)layer.forward(builder, x);
+
+    EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(layer.bias.init().constant, 0.0, K_EXACT_TOLERANCE);
+}
+
+/** @brief Tests that bias_init leaves the weight on its fan-scaled fill. */
+TEST(Unit_Conv2d, BiasInitLeavesTheWeightFanScaled)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Conv2d layer = make_conv(2, 3, 3, 1, 1);
+    layer.bias_init = 1.25;
+    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    (void)layer.forward(builder, x);
+
+    EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::FanScaled);
+    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::WEIGHT);
 }
 
 /** @brief Tests that output_shape() refuses a layer whose input channel count is zero. */

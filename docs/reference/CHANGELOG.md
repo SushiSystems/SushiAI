@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-07 — nn: Added the blocks ConvNorm, Bottleneck, C3k, C3k2 and SPPF, the node registry with `build_model`, and the YOLO26n model file (`nn/blocks/`, `node_registry.hpp`, `examples/yolo26/model.json`).
+- 2026-10-07 — nn: Added Buffer, ModuleList, Trace with two modes, the node seam, ModelGraph, and the layers BatchNorm2d, Concat, SiLU and Identity (`buffer.hpp`, `trace.hpp`, `node.hpp`, `model_graph.hpp`, `batch_norm2d.hpp`).
+- 2026-10-07 — config: Changed the model file to version 2 with from, outputs and input.shape; a version 1 file is upgraded on read (`model_config.hpp`, `model_config.cpp`, `MODEL_FILE.md`).
+- 2026-10-07 — graph: Added state identities, the BUFFER lifetime, a fourth BATCHNORM2D output holding the batch variance, BATCHNORM_FOLD and the refusal flag (`state_id.hpp`, `ir.hpp`, `builder.hpp`, `ops.hpp`).
+- 2026-10-07 — tools: Extended the YOLO26 reference exporter with the batch-norm running-variance cases (`export_yolo26_reference.py`, `MANIFEST.json`).
 - 2026-10-07 — tools: Added the naming tools and the generated rename map; the rename is not applied (`build_rename_map.py`, `apply_rename.py`, `rename_map.tsv`).
 - 2026-10-07 — tools: Added the contract checker and the class of every failure site, status or fatal (`check_contract.py`, `site_classes.tsv`).
 - 2026-10-07 — core: Added the status foundation that no code uses yet: Status, Result, the fatal check and Graph::Traced (`status.hpp`, `result.hpp`, `check.hpp`, `traced.hpp`).

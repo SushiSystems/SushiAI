@@ -73,6 +73,11 @@ namespace SushiAI
             return layers_.back()->output_shape();
         }
 
+        Shape LayerStack::output_shape(const Shape&) const
+        {
+            return output_shape();
+        }
+
         ILayer& LayerStack::layer(std::size_t index) const
         {
             SA_THROW_IF(index >= layers_.size(),

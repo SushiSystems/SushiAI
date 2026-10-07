@@ -33,9 +33,10 @@ namespace SushiAI
     {
         void batchnorm2d_backward(const GradientTape& tape)
         {
-            // Saved mean and inverse standard deviation are non-differentiable side channels.
+            // The saved mean, the inverse deviation and the batch variance carry no gradient.
             SA_THROW_IF(tape.output_grad(1) != Graph::NO_VALUE
-                        || tape.output_grad(2) != Graph::NO_VALUE,
+                        || tape.output_grad(2) != Graph::NO_VALUE
+                        || tape.output_grad(3) != Graph::NO_VALUE,
                         "BATCHNORM2D's saved statistics received a gradient. They are a side "
                         "channel for this node's own backward (CV-7), not a differentiable "
                         "result, and this rule has no path to propagate one.");

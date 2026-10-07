@@ -71,6 +71,23 @@ namespace SushiAI
             }
         } // namespace
 
+        Conv2d Conv2d::same_padded(int64_t in_channels, int64_t out_channels, int64_t kernel,
+                                   int64_t stride)
+        {
+            Conv2d layer;
+            layer.in_channels = in_channels;
+            layer.out_channels = out_channels;
+            layer.geometry.kernel_h = kernel;
+            layer.geometry.kernel_w = kernel;
+            layer.geometry.stride_h = stride;
+            layer.geometry.stride_w = stride;
+            layer.geometry.pad_top = kernel / 2;
+            layer.geometry.pad_left = kernel / 2;
+            layer.use_bias = false;
+
+            return layer;
+        }
+
         Graph::ValueId Conv2d::forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
         {
             // The shape and the type are held by value; declaring a parameter grows their table.
@@ -98,7 +115,8 @@ namespace SushiAI
             if (use_bias)
             {
                 b = bias.declare(builder, Shape{out_channels}, ParameterRole::BIAS,
-                                 fan_in, fan_out, "bias", dtype);
+                                 ParameterInit::constant_value(bias_init), fan_in, fan_out, "bias",
+                                 dtype);
             }
 
             return builder.conv2d(x, w, b, geometry);

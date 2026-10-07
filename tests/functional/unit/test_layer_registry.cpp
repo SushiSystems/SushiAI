@@ -37,6 +37,7 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/registry.hpp>
 #include <SushiAI/config/value.hpp>
+#include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -52,6 +53,7 @@
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
 #include "../../common/test_throws.hpp"
@@ -108,6 +110,7 @@ namespace
         {"global_avgpool", "{}", Shape{8, 8, 2}, Shape{2}},
         {"flatten", "{}", Shape{8, 8, 2}, Shape{128}},
         {"upsample", "{}", Shape{8, 8, 2}, Shape{16, 16, 2}},
+        {"silu", "{}", Shape{8, 8, 2}, Shape{8, 8, 2}},
     };
 
     /** @brief Parses @p text as the attributes of one layer. */
@@ -217,6 +220,22 @@ TEST(Unit_LayerRegistry, EveryRowHasAMinimalCase)
         EXPECT_EQ(K_MINIMAL_CASES[i].type, NN::LAYER_REGISTRY[i].type);
 }
 
+/** @brief Tests that the registry spells its fourteen type strings as model files do, in order. */
+TEST(Unit_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
+{
+    const std::vector<std::string_view> expected = {
+        "linear",     "gelu",      "relu",   "tanh",      "sigmoid",
+        "leaky_relu", "unflatten", "conv2d", "maxpool2d", "avgpool2d",
+        "global_avgpool", "flatten", "upsample", "silu",
+    };
+
+    std::vector<std::string_view> spelled;
+    for (const NN::LayerEntry& entry : NN::LAYER_REGISTRY)
+        spelled.push_back(entry.type);
+
+    EXPECT_EQ(spelled, expected);
+}
+
 /** @brief Tests that each factory builds a layer from its minimal object and reports its shape. */
 TEST(Unit_LayerRegistry, EachFactoryBuildsFromAMinimalObject)
 {
@@ -254,6 +273,7 @@ TEST(Unit_LayerRegistry, EachKeyBuildsItsOwnLayerType)
     EXPECT_NE(wrapped<NN::GlobalAvgPool>(make_layer("global_avgpool", "{}", image)), nullptr);
     EXPECT_NE(wrapped<NN::Flatten>(make_layer("flatten", "{}", image)), nullptr);
     EXPECT_NE(wrapped<NN::Upsample2d>(make_layer("upsample", "{}", image)), nullptr);
+    EXPECT_NE(wrapped<NN::SiLU>(make_layer("silu", "{}", image)), nullptr);
 }
 
 /** @brief Tests that each factory refuses a key it does not know and names that key. */
@@ -627,4 +647,148 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
         ASSERT_NE(gradients[i], Graph::NO_VALUE);
         EXPECT_EQ(graph.value(gradients[i]).shape, shapes[i]);
     }
+}
+
+/** @brief Tests that a silu row traces one SILU node that keeps the input's shape. */
+TEST(Unit_LayerRegistry, ASiluRowTracesOneSiluNode)
+{
+    const std::unique_ptr<NN::ILayer> layer = make_layer("silu", "{}", Shape{8, 8, 2});
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{4, 8, 8, 2}, "inputs");
+    const Graph::ValueId y = layer->forward(builder, x);
+
+    ASSERT_EQ(graph.node_count(), 1u);
+    EXPECT_EQ(graph.nodes()[0].op, Ops::SILU.id);
+    EXPECT_EQ(graph.value(y).shape, (Shape{4, 8, 8, 2}));
+}
+
+/** @brief Tests that a version 2 chain is seeded with input.shape, not with its element count. */
+TEST(Unit_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
+{
+    constexpr std::string_view K_IMAGE_CHAIN = R"({
+        "format_version": 2,
+        "input": {"shape": [8, 8, 2]},
+        "layers": [
+            {"type": "conv2d", "filters": 5, "kernel": 3, "from": -1},
+            {"type": "silu"},
+            {"type": "flatten", "from": 1}
+        ]
+    })";
+
+    const NN::LayerStack stack = NN::build_layer_stack(
+        Config::parse_model(Config::parse_json(K_IMAGE_CHAIN, "<test>"), "<test>"));
+
+    ASSERT_EQ(stack.size(), 3u);
+    EXPECT_EQ(stack.layer(0).output_shape(), (Shape{6, 6, 5}));
+    EXPECT_EQ(stack.output_shape(), (Shape{180}));
+}
+
+/** @brief Tests that build_layer_stack refuses a row that reads two rows and names build_model. */
+TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
+{
+    constexpr std::string_view K_MERGING_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh"},
+            {"type": "relu", "from": [-1, 0]}
+        ]
+    })";
+    const Config::ModelSpec model =
+        Config::parse_model(Config::parse_json(K_MERGING_MODEL, "<test>"), "<test>");
+
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 2 'relu'", "the row before it",
+                    "build_model");
+}
+
+/** @brief Tests that build_layer_stack refuses a row that reads one row other than the last. */
+TEST(Unit_LayerRegistry, AChainRefusesARowThatSkipsBack)
+{
+    constexpr std::string_view K_SKIPPING_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh"},
+            {"type": "relu", "from": 0}
+        ]
+    })";
+    const Config::ModelSpec model =
+        Config::parse_model(Config::parse_json(K_SKIPPING_MODEL, "<test>"), "<test>");
+
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 2 'relu'", "the row before it");
+}
+
+/** @brief Tests that build_layer_stack refuses a row that reads the model input below row 0. */
+TEST(Unit_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
+{
+    constexpr std::string_view K_RESTARTING_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh", "from": "input"}
+        ]
+    })";
+    const Config::ModelSpec model =
+        Config::parse_model(Config::parse_json(K_RESTARTING_MODEL, "<test>"), "<test>");
+
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 1 'tanh'", "the row before it");
+}
+
+/** @brief Tests that build_layer_stack refuses a file whose outputs publish an earlier row. */
+TEST(Unit_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
+{
+    constexpr std::string_view K_EARLY_OUTPUT_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh"}
+        ],
+        "outputs": [{"node": 0}]
+    })";
+    const Config::ModelSpec model =
+        Config::parse_model(Config::parse_json(K_EARLY_OUTPUT_MODEL, "<test>"), "<test>");
+
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "'outputs'", "last row", "build_model");
+}
+
+/** @brief Tests that build_layer_stack builds a file whose outputs name the last row whole. */
+TEST(Unit_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
+{
+    constexpr std::string_view K_LAST_OUTPUT_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh"}
+        ],
+        "outputs": [{"node": 1}]
+    })";
+
+    const NN::LayerStack stack = NN::build_layer_stack(
+        Config::parse_model(Config::parse_json(K_LAST_OUTPUT_MODEL, "<test>"), "<test>"));
+
+    EXPECT_EQ(stack.size(), 2u);
+}
+
+/** @brief Tests that build_layer_stack refuses a row that reads a named port of the row above. */
+TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsANamedPort)
+{
+    constexpr std::string_view K_PORT_MODEL = R"({
+        "format_version": 2,
+        "input": {"shape": [8]},
+        "layers": [
+            {"type": "relu"},
+            {"type": "tanh", "from": {"node": 0, "port": "output"}}
+        ]
+    })";
+    const Config::ModelSpec model =
+        Config::parse_model(Config::parse_json(K_PORT_MODEL, "<test>"), "<test>");
+
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 1 'tanh'", "the row before it");
 }

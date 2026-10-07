@@ -171,13 +171,18 @@ namespace SushiAI
                                               const Config::Value& attributes,
                                               std::string_view context);
 
+        /** @brief Builds a @c SiLU, which takes no key. */
+        std::unique_ptr<ILayer> make_silu(const Shape& input,
+                                          const Config::Value& attributes,
+                                          std::string_view context);
+
         /**
          * @brief Every layer type a model.json may name.
          *
          * A file-scope constant table, in the shape of @c Ops::ALL and the
          * fusion @c CATALOG.
          */
-        inline constexpr std::array<LayerEntry, 13> LAYER_REGISTRY = {
+        inline constexpr std::array<LayerEntry, 14> LAYER_REGISTRY = {
             LayerEntry{"linear",         &make_linear},
             LayerEntry{"gelu",           &make_gelu},
             LayerEntry{"relu",           &make_relu},
@@ -191,11 +196,14 @@ namespace SushiAI
             LayerEntry{"global_avgpool", &make_global_avgpool},
             LayerEntry{"flatten",        &make_flatten},
             LayerEntry{"upsample",       &make_upsample},
+            LayerEntry{"silu",           &make_silu},
         };
 
         /**
          * @brief Builds the whole layer stack, chaining each layer's per-sample shape.
-         * @param model Parsed model architecture specification.
+         * @param model Parsed model architecture specification; every row must read the row
+         *        before it, row 0 the model input, and "outputs" must be empty or publish
+         *        the last row whole.
          * @return Constructed layer stack ready for tracing.
          * @throws Error If a layer type is unknown or attributes are invalid.
          */

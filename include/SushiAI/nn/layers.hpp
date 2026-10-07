@@ -30,12 +30,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/trace.hpp>
 
 namespace SushiAI
 {
@@ -184,13 +186,27 @@ namespace SushiAI
         class Sequential
         {
             public:
-                // Enforces Module concept constraints across parameter pack in C++17.
-                static_assert((Module<Ls> && ...),
-                              "Every type in a Sequential must satisfy the Module contract: "
-                              "a static fields() listing its parameters, and a "
-                              "forward(const Graph::GraphBuilder&, Graph::ValueId) returning "
-                              "exactly Graph::ValueId. Check the layer named in the "
+                static_assert((!Detail::HasHalfModalPair<Ls> && ...),
+                              "A type in a Sequential has one of trace_training and "
+                              "trace_evaluation and lacks the other. A layer whose emission "
+                              "depends on the mode states both. Check the layer named in the "
                               "instantiation below, not this line.");
+
+                static_assert((!Detail::HasModalMemberAndForward<Ls> && ...),
+                              "A type in a Sequential has trace_training or trace_evaluation "
+                              "and a forward as well, so which of them traces it is unstated. "
+                              "A modal layer has the pair and no forward. Check the layer named "
+                              "in the instantiation below, not this line.");
+
+                static_assert((Traceable<Ls> && ...),
+                              "Every type in a Sequential needs a static fields() listing its "
+                              "state and one of three forms: "
+                              "forward(const Graph::GraphBuilder&, Graph::ValueId), "
+                              "forward(const Trace&, Graph::ValueId), or the pair "
+                              "trace_training and trace_evaluation over "
+                              "(const Trace&, Graph::ValueId), each returning exactly "
+                              "Graph::ValueId. Check the layer named in the instantiation "
+                              "below, not this line.");
 
                 /**
                  * @brief Constructs from the layers themselves.
@@ -202,16 +218,52 @@ namespace SushiAI
                 static constexpr auto fields() { return std::tuple<>{}; }
 
                 /**
-                 * @brief Traces every layer in order.
+                 * @brief Traces every layer in order; exists only when every layer is a Module.
+                 * @tparam Enabled Leave at its default; false removes the overload.
                  * @param builder Where the nodes go.
                  * @param x The input value.
                  * @return The last layer's result.
                  */
+                template<bool Enabled = true,
+                         std::enable_if_t<Enabled && (Module<Ls> && ...), int> = 0>
                 Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
                 {
                     std::apply([&](auto&... layer) { ((x = layer.forward(builder, x)), ...); },
                                layers_);
                     return x;
+                }
+
+                /**
+                 * @brief Traces every layer in order, each in the form trace_layer() picks.
+                 * @param trace Passed to every layer unread; the mode is not consulted here.
+                 * @param x The input value.
+                 * @return The last layer's result.
+                 */
+                Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+                {
+                    std::apply([&](auto&... layer)
+                    {
+                        ((x = trace_child(layer, trace, x)), ...);
+                    }, layers_);
+                    return x;
+                }
+
+                /**
+                 * @brief Returns the per-sample shape forward() produces over @p input.
+                 * @tparam Enabled Leave at its default; false removes the overload.
+                 * @param input The per-sample shape the first layer reads, batch axis excluded.
+                 */
+                template<bool Enabled = true,
+                         std::enable_if_t<
+                             Enabled && (Detail::HasOutputShapeOfInput<Ls>::value && ...), int> = 0>
+                Shape output_shape(const Shape& input) const
+                {
+                    Shape shape = input;
+                    std::apply([&](const auto&... layer)
+                    {
+                        ((shape = layer.output_shape(shape)), ...);
+                    }, layers_);
+                    return shape;
                 }
 
                 /**
@@ -232,6 +284,15 @@ namespace SushiAI
                 auto& layer() noexcept { return std::get<Index>(layers_); }
 
             private:
+                /** @brief Traces one child and throws the failure it recorded on @p trace. */
+                template<typename L>
+                static Graph::ValueId trace_child(L& layer, const Trace& trace, Graph::ValueId x)
+                {
+                    const Graph::ValueId traced = trace_layer(layer, trace, x);
+                    SA_THROW_IF(!trace.status().is_ok(), "{}", trace.status().message());
+                    return traced;
+                }
+
                 template<typename Fn, std::size_t... Indices>
                 void visit_children_impl(Fn& visitor, std::index_sequence<Indices...>)
                 {
@@ -253,6 +314,16 @@ namespace SushiAI
         static_assert(Module<Sigmoid>, "Sigmoid must satisfy the Module contract");
         static_assert(Module<Sequential<Linear, ReLU>>,
                       "Sequential must itself satisfy the Module contract so it can nest");
+        static_assert(TraceModule<Sequential<Linear, ReLU>>,
+                      "Sequential must take a trace whatever its layers are");
+        static_assert(Detail::HasOutputShapeOfInput<Sequential<Linear, ReLU>>::value,
+                      "Sequential must map an input shape to its output shape to be a node");
+        static_assert(!ModalModule<Sequential<Linear, ReLU>>,
+                      "Sequential never reads the mode, so it is not a modal layer");
+        static_assert(Module<Sequential<Sequential<Linear, ReLU>, Linear>>,
+                      "A Sequential of Modules must stay a Module when it nests");
+        static_assert(!TraceModule<Linear> && !ModalModule<Linear>,
+                      "A builder-only leaf must be traced through its builder forward");
         static_assert(ModuleContainer<Sequential<Linear, ReLU>>,
                       "Sequential must be walkable as a container");
         static_assert(!ModuleContainer<Linear>,

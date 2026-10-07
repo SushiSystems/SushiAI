@@ -132,6 +132,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.softplus_backward"),
         std::string_view("sushiai.stop_gradient"),
         std::string_view("sushiai.constant"),
+        std::string_view("sushiai.batchnorm_fold"),
     };
 
     EXPECT_EQ(Ops::ALL.size(), expected.size());
@@ -245,6 +246,7 @@ TEST(Unit_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
                                      Ops::RELU_BACKWARD, Ops::SILU_BACKWARD,
                                      Ops::SOFTPLUS_BACKWARD, Ops::MAXPOOL2D_BACKWARD,
                                      Ops::BATCHNORM2D_BACKWARD, Ops::BATCHNORM_UPDATE_STATS,
+                                     Ops::BATCHNORM_FOLD,
                                      Ops::GEMM_BIAS, Ops::EXP_SUB_SCALE, Ops::ADAMW_UPDATE})
         EXPECT_FALSE(Ops::is_gradient_barrier(entry.id)) << entry.name;
 
@@ -287,4 +289,12 @@ TEST(Unit_Ops, IsActivationBackwardAcceptsOnlyTheTablesGradientColumn)
         accepted += Ops::is_activation_backward(entry.id) ? 1u : 0u;
 
     EXPECT_EQ(accepted, Ops::ACTIVATIONS.size());
+}
+
+/** @brief Tests that BATCHNORM_FOLD is in the table and claims neither a rule nor a barrier. */
+TEST(Unit_Ops, BatchNormFoldIsListedAndClaimsNoRule)
+{
+    EXPECT_EQ(Ops::name_of(Ops::BATCHNORM_FOLD.id), "sushiai.batchnorm_fold");
+    EXPECT_FALSE(Ops::BATCHNORM_FOLD.differentiable);
+    EXPECT_FALSE(Ops::BATCHNORM_FOLD.blocks_gradient);
 }

@@ -70,6 +70,12 @@ namespace SushiAI
                     provenance_->origin.clear();
                 }
 
+                /**
+                 * @brief Throws unless a gradient may be requested for @p value.
+                 * @param value A value of the graph whose lifetime is not BUFFER.
+                 */
+                void require_requestable(Graph::ValueId value) const;
+
                 /** @brief Runs the reverse sweep over the forward nodes. */
                 void run();
 

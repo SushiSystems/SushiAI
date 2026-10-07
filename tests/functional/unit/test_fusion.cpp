@@ -598,3 +598,33 @@ TEST_F(Unit_Fusion, TheReportNamesEverySubtreeItCollapsed)
     EXPECT_NE(text.find("dropping value"), std::string::npos) << text;
     EXPECT_EQ(report.nodes_after(), graph.node_count());
 }
+
+/** @brief Tests that fuse keeps each state's leaf, a buffer's lifetime and a refusal mark. */
+TEST_F(Unit_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueId x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
+    const ValueId weight = builder.parameter(Shape{OUT_FEATURES, IN_FEATURES}, "w");
+    const ValueId shift = builder.buffer(Shape{OUT_FEATURES}, "running_shift");
+    (void)builder.relu(builder.bias_add(builder.matmul(x, weight, false, true), shift));
+
+    graph.bind_state_leaf(Graph::StateId{21}, weight);
+    graph.bind_state_leaf(Graph::StateId{22}, shift);
+    graph.mark_refused();
+    const auto bound_before = graph.state_leaves();
+
+    const FusionReport report = Graph::fuse(graph, FusionOptions{});
+
+    // The pass must have rebuilt the graph, or the lookups below prove nothing.
+    ASSERT_EQ(report.fused().size(), 1u);
+    ASSERT_EQ(count_op(graph, Ops::GEMM_BIAS_RELU.id), 1u);
+
+    EXPECT_EQ(graph.state_leaf(Graph::StateId{21}), weight);
+    EXPECT_EQ(graph.state_leaf(Graph::StateId{22}), shift);
+    EXPECT_EQ(graph.state_leaves(), bound_before);
+    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::BUFFER);
+    EXPECT_FALSE(graph.value(shift).requires_grad);
+    EXPECT_TRUE(graph.value(weight).requires_grad);
+    EXPECT_TRUE(graph.has_refusal());
+}

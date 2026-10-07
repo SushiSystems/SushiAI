@@ -30,10 +30,14 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/traced.hpp>
 
 namespace SushiAI
 {
@@ -125,6 +129,14 @@ namespace SushiAI
             ValueId output;         /**< @brief The normalised [N,H,W,C] value. */
             ValueId saved_mean;     /**< @brief The batch mean, [C]. */
             ValueId saved_inv_std;  /**< @brief 1/sqrt(var + eps), [C]. */
+            ValueId batch_variance; /**< @brief The biased batch variance before epsilon, [C]. */
+        };
+
+        /** @brief Holds the per-channel scale and shift BATCHNORM_FOLD yields. */
+        struct BatchNormFold
+        {
+            ValueId scale;  /**< @brief Holds gamma / sqrt(variance + epsilon), [C]. */
+            ValueId shift;  /**< @brief Holds beta - mean * scale, [C]. */
         };
 
         /**
@@ -173,6 +185,16 @@ namespace SushiAI
                  */
                 ValueId parameter(Shape shape, std::string_view debug_name,
                                   DType dtype = DType::FLOAT32) const;
+
+                /**
+                 * @brief Declares a buffer leaf: persistent, no gradient, not rewritten per step.
+                 * @param shape The value's extents.
+                 * @param debug_name A label for diagnostics; must outlive the graph.
+                 * @param dtype The element type.
+                 * @return The new value's id, with the BUFFER lifetime.
+                 */
+                ValueId buffer(Shape shape, std::string_view debug_name,
+                               DType dtype = DType::FLOAT32) const;
 
                 /**
                  * @brief Emits MATMUL: C = op(A) * op(B).
@@ -610,7 +632,7 @@ namespace SushiAI
                  * @param x The [N,H,W,C] input tensor.
                  * @param gamma The [C] scale; @p beta The [C] shift.
                  * @param epsilon Small constant added to variance; must be positive.
-                 * @return The normalised value and saved batch statistics.
+                 * @return The normalised value, the saved statistics and the batch variance.
                  */
                 BatchNormResult batchnorm2d(ValueId x, ValueId gamma, ValueId beta,
                                             double epsilon) const;
@@ -628,6 +650,17 @@ namespace SushiAI
                                                     ValueId saved_inv_std) const;
 
                 /**
+                 * @brief Emits BATCHNORM_FOLD: the scale and shift of fixed statistics.
+                 * @param gamma The [C] scale; @p beta The [C] shift.
+                 * @param mean The [C] mean; @p variance The [C] variance before epsilon.
+                 * @param epsilon Constant added to the variance; must be positive.
+                 * @return scale = gamma / sqrt(variance + epsilon) and shift = beta - mean * scale.
+                 * @pre The four operands share one [C] shape, one real floating type and a layout.
+                 */
+                BatchNormFold batchnorm_fold(ValueId gamma, ValueId beta, ValueId mean,
+                                             ValueId variance, double epsilon) const;
+
+                /**
                  * @brief Emits @c RESHAPE: a view of @p x with different extents.
                  * @param x The value reshaped.
                  * @param shape The result's extents.
@@ -642,6 +675,42 @@ namespace SushiAI
                  * @return A value shaped, typed and laid out like @p x that requires no gradient.
                  */
                 ValueId stop_gradient(ValueId x) const;
+
+                /**
+                 * @brief Records on the graph that a description was refused.
+                 * @param failure The refusal an emitter built; see SA_REFUSE_IF.
+                 * @return @p failure, for the emitter to return.
+                 */
+                [[nodiscard]] Status refuse(Status failure) const noexcept
+                {
+                    graph_->mark_refused();
+                    return failure;
+                }
+
+                /**
+                 * @brief Records on the graph a failure that a call made while tracing returned.
+                 * @return @p outcome unchanged; a success leaves the graph as it is.
+                 */
+                [[nodiscard]] Status observe(Status outcome) const noexcept
+                {
+                    if (!outcome.is_ok())
+                        graph_->mark_refused();
+
+                    return outcome;
+                }
+
+                /**
+                 * @brief Records on the graph a failure that a call made while tracing returned.
+                 * @return @p outcome unchanged; a held value leaves the graph as it is.
+                 */
+                template<typename T>
+                [[nodiscard]] Result<T> observe(Result<T> outcome) const noexcept
+                {
+                    if (!outcome.has_value())
+                        graph_->mark_refused();
+
+                    return outcome;
+                }
 
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
@@ -658,3 +727,22 @@ namespace SushiAI
 
     } // namespace Graph
 } // namespace SushiAI
+
+/**
+ * @brief Returns a refusal through @p builder with a formatted message when @p condition holds.
+ * @param builder An object whose @c refuse(Status) records the refusal and returns the Status.
+ * @param condition Expression to evaluate; the same polarity as SA_THROW_IF.
+ * @param ... Format string and arguments for SushiBLAS::Core::format, evaluated only on failure.
+ */
+#define SA_REFUSE_IF(builder, condition, ...)                                          \
+    do                                                                                 \
+    {                                                                                  \
+        if (condition)                                                                 \
+        {                                                                              \
+            return (builder).refuse(::SushiAI::Status::from_message(                   \
+                ::SushiAI::StatusCode::InvalidDescription, [&]()                       \
+                {                                                                      \
+                    return ::SushiBLAS::Core::format(__VA_ARGS__);                     \
+                }));                                                                   \
+        }                                                                              \
+    } while (0)

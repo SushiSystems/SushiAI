@@ -43,6 +43,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/leaky_relu.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
+#include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
 
@@ -249,6 +250,31 @@ namespace SushiAI
                 return adapt(Pool{make_geometry(kernel, stride, padding, AxisPair{1, 1})},
                              input, context);
             }
+
+            /** @brief Reports whether row @p index reads port 0 of the row before it only. */
+            bool reads_previous_row_only(const Config::LayerSpec& spec, std::size_t index)
+            {
+                if (spec.from.size() != 1 || !spec.from[0].port.empty())
+                    return false;
+
+                const std::int64_t previous = index == 0
+                                                  ? Config::K_MODEL_INPUT
+                                                  : static_cast<std::int64_t>(index) - 1;
+                return spec.from[0].node == previous;
+            }
+
+            /** @brief Reports whether @p model publishes nothing, or its last row whole only. */
+            bool publishes_last_row_only(const Config::ModelSpec& model)
+            {
+                if (model.outputs.empty())
+                    return true;
+
+                if (model.outputs.size() != 1 || !model.outputs[0].port.empty())
+                    return false;
+
+                return model.outputs[0].node ==
+                       static_cast<std::int64_t>(model.layers.size()) - 1;
+            }
         }
 
         std::unique_ptr<ILayer> make_linear(const Shape& input,
@@ -394,16 +420,33 @@ namespace SushiAI
             return adapt(layer, input, context);
         }
 
+        std::unique_ptr<ILayer> make_silu(const Shape& input,
+                                          const Config::Value& attributes,
+                                          std::string_view context)
+        {
+            return make_keyless<SiLU>(input, attributes, context);
+        }
+
         LayerStack build_layer_stack(const Config::ModelSpec& model)
         {
+            SA_THROW_IF(!publishes_last_row_only(model),
+                        "the model's 'outputs' publishes something other than the whole of its "
+                        "last row; a LayerStack is a chain and yields its last layer. Build "
+                        "this file with build_model.");
+
             LayerStack stack;
 
-            Shape shape{model.input_features};
+            Shape shape = model.input_shape;
             for (std::size_t i = 0; i < model.layers.size(); ++i)
             {
                 const Config::LayerSpec& spec = model.layers[i];
                 const std::string context =
                     "layer " + std::to_string(i) + " '" + spec.type + "'";
+
+                SA_THROW_IF(!reads_previous_row_only(spec, i),
+                            "{} reads something other than the row before it; a LayerStack is "
+                            "a chain. Build this file with build_model.",
+                            context);
 
                 const LayerEntry& entry =
                     Config::find_entry(LAYER_REGISTRY, spec.type, "layer type");

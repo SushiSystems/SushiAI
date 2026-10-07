@@ -28,6 +28,7 @@
 #include <SushiAI/graph/builder.hpp>
 
 #include <limits>
+#include <utility>
 
 namespace SushiAI
 {
@@ -142,6 +143,13 @@ namespace SushiAI
         {
             const ValueId id = declare(shape, dtype, Lifetime::PARAMETER, debug_name);
             graph_->value(id).requires_grad = true;
+            graph_->add_node(Ops::LEAF.id, {}, {id});
+            return id;
+        }
+
+        ValueId GraphBuilder::buffer(Shape shape, std::string_view debug_name, DType dtype) const
+        {
+            const ValueId id = declare(shape, dtype, Lifetime::BUFFER, debug_name);
             graph_->add_node(Ops::LEAF.id, {}, {id});
             return id;
         }
@@ -991,19 +999,26 @@ namespace SushiAI
                             dtype_name(v.dtype), dtype_name(in.dtype));
             }
 
-            const Shape per_channel({in.shape[3]});
-            const ValueId y = declare_like(x, in.shape, in.dtype, Lifetime::ACTIVATION, "bn");
+            // A declaration grows the value table, so the shape and the type are held by value.
+            const Shape image = in.shape;
+            const DType dtype = in.dtype;
+            const Shape per_channel({image[3]});
+
+            const ValueId y = declare_like(x, image, dtype, Lifetime::ACTIVATION, "bn");
 
             // Normalization statistics are preserved directly to avoid numerical drift.
-            const ValueId mean = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
+            const ValueId mean = declare_like(x, per_channel, dtype, Lifetime::ACTIVATION,
                                               "bn_saved_mean");
-            const ValueId inv_std = declare_like(x, per_channel, in.dtype, Lifetime::ACTIVATION,
+            const ValueId inv_std = declare_like(x, per_channel, dtype, Lifetime::ACTIVATION,
                                                  "bn_saved_inv_std");
+            const ValueId variance = declare_like(x, per_channel, dtype, Lifetime::ACTIVATION,
+                                                  "bn_batch_variance");
 
             Attributes a{};
             a.values[0] = epsilon;
-            graph_->add_node(Ops::BATCHNORM2D.id, {x, gamma, beta}, {y, mean, inv_std}, a);
-            return BatchNormResult{y, mean, inv_std};
+            graph_->add_node(Ops::BATCHNORM2D.id, {x, gamma, beta}, {y, mean, inv_std, variance},
+                             a);
+            return BatchNormResult{y, mean, inv_std, variance};
         }
 
         BatchNormGrads GraphBuilder::batchnorm2d_backward(ValueId dy, ValueId x, ValueId gamma,
@@ -1046,6 +1061,53 @@ namespace SushiAI
                              {dy, x, gamma, saved_mean, saved_inv_std},
                              {dx, dgamma, dbeta});
             return BatchNormGrads{dx, dgamma, dbeta};
+        }
+
+        BatchNormFold GraphBuilder::batchnorm_fold(ValueId gamma, ValueId beta, ValueId mean,
+                                                   ValueId variance, double epsilon) const
+        {
+            // A declaration grows the value table, so gamma's description is held by value.
+            const Shape per_channel = graph_->value(gamma).shape;
+            const DType dtype = graph_->value(gamma).dtype;
+            const TensorLayout layout = graph_->value(gamma).layout;
+
+            SA_THROW_IF(per_channel.rank() != 1,
+                        "batchnorm_fold needs a rank-1 [C] gamma; got {}",
+                        per_channel.to_string());
+            SA_THROW_IF(!is_real_float(dtype),
+                        "batchnorm_fold needs a half, float32 or float64 gamma; got {}",
+                        dtype_name(dtype));
+            SA_THROW_IF(epsilon <= 0.0,
+                        "batchnorm_fold's epsilon must be positive; got {}", epsilon);
+
+            const std::pair<ValueId, std::string_view> others[] = {
+                {beta, "beta"}, {mean, "mean"}, {variance, "variance"}};
+
+            for (const std::pair<ValueId, std::string_view>& other : others)
+            {
+                const Value& v = graph_->value(other.first);
+                SA_THROW_IF(v.shape != per_channel,
+                            "batchnorm_fold needs its {} shaped like gamma, {}; got {}",
+                            other.second, per_channel.to_string(), v.shape.to_string());
+                SA_THROW_IF(v.dtype != dtype,
+                            "batchnorm_fold needs its {} in gamma's element type, {}; got {}",
+                            other.second, dtype_name(dtype), dtype_name(v.dtype));
+                SA_THROW_IF(v.layout != layout,
+                            "batchnorm_fold needs its {} in gamma's layout; cross with "
+                            "layout_convert first (CV-3).",
+                            other.second);
+            }
+
+            const ValueId scale = declare_like(gamma, per_channel, dtype, Lifetime::ACTIVATION,
+                                               "bn_fold_scale");
+            const ValueId shift = declare_like(gamma, per_channel, dtype, Lifetime::ACTIVATION,
+                                               "bn_fold_shift");
+
+            Attributes a{};
+            a.values[0] = epsilon;
+            graph_->add_node(Ops::BATCHNORM_FOLD.id, {gamma, beta, mean, variance},
+                             {scale, shift}, a);
+            return BatchNormFold{scale, shift};
         }
 
         ValueId GraphBuilder::reshape(ValueId x, Shape shape) const

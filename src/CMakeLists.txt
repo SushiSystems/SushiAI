@@ -56,6 +56,21 @@ set(SUSHIAI_SOURCES
     nn/layer_stack.cpp
     nn/layer_registry.cpp
     nn/init.cpp
+    nn/batch_norm2d.cpp
+    nn/concat.cpp
+    nn/identity.cpp
+    nn/layer_node.cpp
+    nn/model_graph.cpp
+    nn/model_outputs.cpp
+    nn/node_registry.cpp
+    nn/silu.cpp
+    nn/trace.cpp
+    nn/blocks/block_attributes.cpp
+    nn/blocks/bottleneck.cpp
+    nn/blocks/c3k.cpp
+    nn/blocks/c3k2.cpp
+    nn/blocks/conv_norm.cpp
+    nn/blocks/sppf.cpp
 
     optim/optimizer.cpp
     optim/step_scalars.cpp

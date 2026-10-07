@@ -131,6 +131,17 @@ namespace SushiAI
             provenance_->origin.resize(graph_.node_count() - forward_node_count_, origin);
         }
 
+        void Differentiator::require_requestable(Graph::ValueId value) const
+        {
+            const Graph::Value& requested = graph_.value(value);
+
+            SA_THROW_IF(requested.lifetime == Graph::Lifetime::BUFFER,
+                        "differentiate() cannot return a gradient for value {} ('{}'): it is a "
+                        "buffer, model state that takes no gradient and is written beside the "
+                        "graph. Request parameters and inputs only.",
+                        value, requested.debug_name);
+        }
+
         void Differentiator::run()
         {
             graph_.finalise();
@@ -259,6 +270,11 @@ namespace SushiAI
                                                   Provenance* provenance)
         {
             Differentiator differentiator(graph, loss, seed_factor, provenance);
+
+            // Every request is checked before the sweep, so a refused one appends no node.
+            for (Graph::ValueId value : wrt)
+                differentiator.require_requestable(value);
+
             differentiator.run();
 
             std::vector<Graph::ValueId> gradients;

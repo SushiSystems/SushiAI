@@ -29,6 +29,8 @@
 
 #include <cstdint>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -72,6 +74,88 @@ namespace SushiAI
                 int64_t output_features() const noexcept { return output_shape().num_elements(); }
         };
 
+        namespace Detail
+        {
+            /** @brief Reports whether the state tree of T lists a buffer. */
+            template<typename T>
+            struct HoldsBufferField;
+
+            /** @brief Reports whether one fields() entry is a buffer or a child that lists one. */
+            template<typename F>
+            struct EntryHoldsBuffer : std::false_type
+            {
+
+            };
+
+            /** @brief Holds for a buffer entry. */
+            template<typename M>
+            struct EntryHoldsBuffer<BufferField<M>> : std::true_type
+            {
+
+            };
+
+            /** @brief Holds for a child entry whose type lists a buffer. */
+            template<typename M, typename C>
+            struct EntryHoldsBuffer<ChildField<M, C>> : HoldsBufferField<C>
+            {
+
+            };
+
+            /** @brief Reports whether any entry of a fields() tuple holds a buffer. */
+            template<typename Fields>
+            struct AnyEntryHoldsBuffer : std::false_type
+            {
+
+            };
+
+            /** @brief Holds when one of the entries Fs does. */
+            template<typename... Fs>
+            struct AnyEntryHoldsBuffer<std::tuple<Fs...>>
+                : std::integral_constant<bool, (EntryHoldsBuffer<Fs>::value || ...)>
+            {
+
+            };
+
+            /** @brief Reports whether the fields() list of T holds a buffer; false without one. */
+            template<typename T, typename = void>
+            struct FieldListHoldsBuffer : std::false_type
+            {
+
+            };
+
+            /** @brief Reads the fields() list of a T that has one. */
+            template<typename T>
+            struct FieldListHoldsBuffer<T, std::void_t<decltype(T::fields())>>
+                : AnyEntryHoldsBuffer<std::decay_t<decltype(T::fields())>>
+            {
+
+            };
+
+            /** @brief Reports whether a child type of the container T lists a buffer. */
+            template<typename T, bool = IsModuleContainer<T>::value>
+            struct ChildTypesHoldBuffer : std::false_type
+            {
+
+            };
+
+            /** @brief Reads the type arguments of a container, which are its child types. */
+            template<template<typename...> class Container, typename... Children>
+            struct ChildTypesHoldBuffer<Container<Children...>, true>
+                : std::integral_constant<bool, (HoldsBufferField<Children>::value || ...)>
+            {
+
+            };
+
+            template<typename T>
+            struct HoldsBufferField
+                : std::integral_constant<bool, FieldListHoldsBuffer<T>::value ||
+                                                   ChildTypesHoldBuffer<T>::value>
+            {
+
+            };
+
+        } // namespace Detail
+
         /**
          * @class LayerAdapter
          * @brief Adapts a compile-time Module to the runtime ILayer interface.
@@ -86,6 +170,13 @@ namespace SushiAI
                               "a static fields() listing its parameters, and a "
                               "forward(const Graph::GraphBuilder&, Graph::ValueId) returning "
                               "exactly Graph::ValueId.");
+
+                static_assert(!Detail::HoldsBufferField<L>::value,
+                              "LayerAdapter's argument lists a buffer in its fields() tree. "
+                              "LayerAdapter walks parameters only, so the buffer would reach "
+                              "no checkpoint. Present the layer as a node instead "
+                              "(nn/module_node.hpp). Check the layer named in the "
+                              "instantiation below, not this line.");
 
                 /**
                  * @brief Wraps a module instance with the per-sample shape it produces.
