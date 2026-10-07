@@ -36,6 +36,9 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/format.hpp>
 
+/** @brief Shortens the SushiBLAS namespace. */
+namespace sb = SushiBLAS;
+
 namespace
 {
     /** @brief Holds the text `--help` prints. */

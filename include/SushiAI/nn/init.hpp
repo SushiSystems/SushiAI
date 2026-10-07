@@ -172,7 +172,7 @@ namespace SushiAI
         void initialize(SushiBLAS::Engine& engine, M& module, Graph::TensorPool& pool,
                         const InitPolicy& policy = {})
         {
-            engine.set_seed(policy.seed);
+            engine.random().set_seed(policy.seed);
 
             std::vector<Parameter*> parameters;
             for_each_parameter(module, [&parameters](const std::string&, Parameter& parameter)
