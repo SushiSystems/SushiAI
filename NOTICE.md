@@ -1,6 +1,6 @@
 # Notices
 
-SushiAI is Copyright (c) 2026 Sushi Systems and licensed under the PolyForm Noncommercial
+SushiAI is Copyright (c) 2026-present Mustafa Garip & Sushi Systems and licensed under the PolyForm Noncommercial
 License 1.0.0; see `LICENSE`. The material below keeps its own licence.
 
 Nothing third-party is vendored, ported or redistributed from this tree: it has no

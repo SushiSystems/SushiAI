@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-07 — licence: Named Mustafa Garip and Sushi Systems as the copyright holders in the licence and notice files (`LICENSE`, `NOTICE.md`).
 - 2026-10-06 — licence: Restored the three-section license box and named both holders in the copyright line of every source file (`tools/licensing/write_license_block.py`, `tools/documentation/check_source_comments.py`).
 - 2026-10-05 — docs: Moved design reasoning out of source comments into folder READMEs and gave every source file its file block (`tests/functional/`, `examples/`, `apps/`, `cli/`).
 - 2026-10-05 — graph: Reported an operation or fused form that a lowering helper does not list as an error instead of emitting the last kernel in its chain (`lowering.cpp`).
