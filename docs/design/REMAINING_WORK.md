@@ -72,8 +72,30 @@ executes a partition.
 ## YOLO26
 
 The requirements map is `docs/agent/2026_10_07_YOLO26/SPEC.md`, with the owner's rulings in its
-section 8 and the staged plan in section 7. Nothing is implemented. The reference exporter is
-`tools/reference/export_yolo26_reference.py`.
+section 8 and the staged plan in section 7; what has been written is in `PLAN.md` beside it. The
+reference exporter is `tools/reference/export_yolo26_reference.py`.
+
+Written and never run: the loss operations and their rules, any scalar loss root, stop-gradient,
+the `detect` module and the `imaging` module.
+
+- **Lowerings for thirteen operations.** DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS,
+  SOFTPLUS_BACKWARD, SILU, SILU_BACKWARD, SELECT, LESS_EQUAL, CONSTANT and STOP_GRADIENT have an
+  identity, an emitter and a rule and no lowering; `PLAN.md` names the SushiBLAS kernel for each.
+  They are written once, after the migration.
+- **The detection objective.** No code builds the loss graph of SPEC section 4 from the
+  operations; `PLAN.md` walks each term on paper.
+- **Two-pass label assignment in the training loop**: a forward-only replay, the host assigner,
+  then the full step, and what `CompiledStep` and `Trainer` need for it.
+- **The model graph, batch normalisation, the weight importer and the YOLO26 blocks.** Design in
+  `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`, waiting for the owner's review.
+- **A detection dataset and a threaded loader** over the imaging pipelines: a directory-backed
+  sample source, the build pass that parses and rejects labels once, one pipeline per thread.
+- **The image decode tool** that writes the raw cache, with libjpeg-turbo through vcpkg.
+- **MuSGD, parameter groups, the learning-rate schedule with warmup, and the weight EMA.**
+- **Reference coverage of NMS.** The fixture's detections are one class with no pair above the
+  IoU threshold, so a removal by suppression and the class shift are covered by hand tests only.
+- **The detect module's open interface points** are listed in `PLAN.md` under "Detection host
+  lane".
 
 ## Memory planning
 
