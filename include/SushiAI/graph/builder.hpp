@@ -73,6 +73,39 @@ namespace SushiAI
             return (padded - covered) / stride + 1;
         }
 
+        /** @brief Holds the height and the width a spatial operation yields. */
+        struct SpatialExtents
+        {
+            int64_t height = 0; /**< @brief Extent along the height axis. */
+            int64_t width = 0;  /**< @brief Extent along the width axis. */
+        };
+
+        /**
+         * @brief Computes the extents a window yields over a height by width input.
+         * @param height Input height, padded above and below by the geometry's top pad.
+         * @param width Input width, padded left and right by the geometry's left pad.
+         * @param g Needs a positive kernel, stride and dilation, a non-negative padding and a
+         *        window the padded input holds; anything else throws.
+         * @return The number of window rows and of window columns, both positive.
+         */
+        [[nodiscard]] SpatialExtents window_extents(int64_t height, int64_t width,
+                                                    const ConvGeometry& g);
+
+        /**
+         * @brief Computes the extents UPSAMPLE2D yields from a height by width input.
+         * @param scale_h Vertical replication factor; below one throws.
+         * @param scale_w Horizontal replication factor; below one throws.
+         * @return The scaled height and width; a product beyond 64 bits throws.
+         */
+        [[nodiscard]] SpatialExtents upsampled_extents(int64_t height, int64_t width,
+                                                       int64_t scale_h, int64_t scale_w);
+
+        /**
+         * @brief Tells whether LEAKY_RELU and its gradient accept @p slope.
+         * @return True when @p slope lies strictly inside (0, 1), compared in double.
+         */
+        [[nodiscard]] bool is_legal_leaky_relu_slope(double slope) noexcept;
+
         /**
          * @struct PoolResult
          * @brief Holds pooled tensor output and argmax indices.
@@ -363,6 +396,17 @@ namespace SushiAI
                 ValueId col2im_with_extents(ValueId cols, Shape image_shape,
                                             const ConvGeometry& g,
                                             int64_t out_h, int64_t out_w) const;
+
+                /**
+                 * @brief Emits a convolution as IM2COL and MATMUL, with symmetric padding assumed.
+                 * @param x The [N,H,W,C_in] input; must be NHWC.
+                 * @param weight The [C_out,kernel_h,kernel_w,C_in] filters, matching @p g and @p x.
+                 * @param bias The [C_out] bias, or NO_VALUE to add none.
+                 * @param g The window geometry; a 1x1 unit-stride unpadded one emits no IM2COL.
+                 * @return The [N,out_h,out_w,C_out] value id.
+                 */
+                ValueId conv2d(ValueId x, ValueId weight, ValueId bias,
+                               const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits @c MAXPOOL2D, with symmetric padding assumed.
