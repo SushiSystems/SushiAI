@@ -21,7 +21,7 @@
 
 /**
  * @file test_layer_stack.cpp
- * @brief Tests that a LayerStack names and declares its parameters exactly as Sequential does.
+ * @brief Tests the runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread.
  * @author Mustafa Garip
  */
 
@@ -30,9 +30,13 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/config/model_config.hpp>
+#include <SushiAI/config/value.hpp>
+#include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
@@ -161,4 +165,88 @@ TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 
     (void)stack.forward(builder, x);
     EXPECT_EQ(NN::parameter_count(stack), 4u);
+}
+
+/** @brief Tests that an adapter built from a Shape reports that shape unchanged. */
+TEST(Unit_LayerStack, AnAdapterBuiltFromAShapeReportsIt)
+{
+    const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
+    EXPECT_EQ(adapter.output_shape(), (Shape{4, 5, 3}));
+}
+
+/** @brief Tests that an adapter built from a width reports the rank-1 shape of that width. */
+TEST(Unit_LayerStack, AnAdapterBuiltFromAWidthReportsARankOneShape)
+{
+    const LayerAdapter<Linear> adapter(Linear{6, 8}, 8);
+    EXPECT_EQ(adapter.output_shape(), (Shape{8}));
+    EXPECT_EQ(adapter.output_features(), 8);
+}
+
+/** @brief Tests that output_features() is the element count of output_shape(). */
+TEST(Unit_LayerStack, OutputFeaturesEqualsTheElementCountOfTheOutputShape)
+{
+    const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
+    const NN::ILayer& layer = adapter;
+
+    EXPECT_EQ(layer.output_features(), 4 * 5 * 3);
+    EXPECT_EQ(layer.output_features(), layer.output_shape().num_elements());
+}
+
+/** @brief Tests that a stack reports the last layer's per-sample shape and its element count. */
+TEST(Unit_LayerStack, ReportsTheLastLayersOutputShape)
+{
+    EXPECT_EQ(make_stack().output_shape(), (Shape{4}));
+
+    LayerStack image_stack = make_stack();
+    image_stack.push(std::make_unique<LayerAdapter<GELU>>(GELU{}, Shape{2, 2, 1}));
+    EXPECT_EQ(image_stack.output_shape(), (Shape{2, 2, 1}));
+    EXPECT_EQ(image_stack.output_features(), 4);
+}
+
+/** @brief Tests that an empty stack refuses to report an output shape. */
+TEST(Unit_LayerStack, RefusesAnOutputShapeWhenEmpty)
+{
+    const LayerStack stack;
+    SA_EXPECT_ERROR((void)stack.output_shape(), "no layers", "output shape");
+}
+
+/** @brief Tests that build_layer_stack hands each layer's output shape to the next factory. */
+TEST(Unit_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
+{
+    Config::ModelSpec model;
+    model.input_features = 6;
+    model.layers.push_back({"linear", Config::parse_json(R"({"units": 8})", "<test>")});
+    model.layers.push_back({"gelu", Config::parse_json("{}", "<test>")});
+    model.layers.push_back({"linear", Config::parse_json(R"({"units": 4})", "<test>")});
+
+    const LayerStack stack = NN::build_layer_stack(model);
+
+    ASSERT_EQ(stack.size(), 3u);
+    EXPECT_EQ(stack.layer(0).output_shape(), (Shape{8}));
+    EXPECT_EQ(stack.layer(1).output_shape(), (Shape{8}));
+    EXPECT_EQ(stack.output_shape(), (Shape{4}));
+
+    const auto& last = dynamic_cast<const LayerAdapter<Linear>&>(stack.layer(2));
+    EXPECT_EQ(last.layer().in_features, 8);
+}
+
+/** @brief Tests that a factory hands a rank-3 per-sample shape to its layer with no axis merged. */
+TEST(Unit_LayerStack, AnActivationFactoryKeepsARankThreeInputShape)
+{
+    const Config::Value attributes = Config::parse_json("{}", "<test>");
+    const std::unique_ptr<NN::ILayer> layer =
+        NN::make_gelu(Shape{4, 4, 3}, attributes, "layer 1 'gelu'");
+
+    EXPECT_EQ(layer->output_shape(), (Shape{4, 4, 3}));
+    EXPECT_EQ(layer->output_features(), 48);
+}
+
+/** @brief Tests that a linear layer after a rank-3 input throws and tells the reader to flatten. */
+TEST(Unit_LayerStack, ALinearFactoryRefusesARankThreeInputAndNamesFlatten)
+{
+    const Config::Value attributes = Config::parse_json(R"({"units": 8})", "<test>");
+
+    SA_EXPECT_ERROR((void)NN::make_linear(Shape{4, 4, 3}, attributes, "layer 1 'linear'"),
+                    "layer 1 'linear'", "[4, 4, 3]", "flatten");
+    EXPECT_NO_THROW((void)NN::make_linear(Shape{48}, attributes, "layer 1 'linear'"));
 }

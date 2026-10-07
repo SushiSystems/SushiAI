@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <string_view>
 #include <utility>
+#include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>
@@ -64,11 +65,11 @@ namespace SushiAI
                 virtual void walk_parameters(std::string_view prefix,
                                              const ParameterVisitor& visitor) = 0;
 
-                /**
-                 * @brief Returns the feature count per sample after this layer.
-                 * @return Output feature count.
-                 */
-                virtual int64_t output_features() const noexcept = 0;
+                /** @brief Returns the per-sample shape after this layer, batch axis excluded. */
+                virtual Shape output_shape() const noexcept = 0;
+
+                /** @brief Returns the element count of output_shape(). */
+                int64_t output_features() const noexcept { return output_shape().num_elements(); }
         };
 
         /**
@@ -87,12 +88,18 @@ namespace SushiAI
                               "exactly Graph::ValueId.");
 
                 /**
-                 * @brief Wraps an existing module instance with its output feature count.
-                 * @param layer Layer moved into the adapter.
-                 * @param output_features Output dimension produced by this layer.
+                 * @brief Wraps a module instance with the per-sample shape it produces.
+                 * @param output_shape Must equal what @p layer traces, batch axis excluded.
+                 */
+                LayerAdapter(L layer, Shape output_shape)
+                    : layer_(std::move(layer)), output_shape_(output_shape) {}
+
+                /**
+                 * @brief Wraps a module instance that produces a rank-1 feature vector.
+                 * @param output_features Must be positive; the shape becomes [output_features].
                  */
                 LayerAdapter(L layer, int64_t output_features)
-                    : layer_(std::move(layer)), output_features_(output_features) {}
+                    : LayerAdapter(std::move(layer), Shape{output_features}) {}
 
                 Graph::ValueId forward(const Graph::GraphBuilder& builder,
                                        Graph::ValueId x) override
@@ -107,7 +114,7 @@ namespace SushiAI
                     for_each_parameter(layer_, prefix, visitor);
                 }
 
-                int64_t output_features() const noexcept override { return output_features_; }
+                Shape output_shape() const noexcept override { return output_shape_; }
 
                 /** @brief The wrapped layer, for a test that wants to inspect it. */
                 L& layer() noexcept { return layer_; }
@@ -117,7 +124,7 @@ namespace SushiAI
 
             private:
                 L layer_;
-                int64_t output_features_ = 0;
+                Shape output_shape_{};
         };
 
     } // namespace NN
