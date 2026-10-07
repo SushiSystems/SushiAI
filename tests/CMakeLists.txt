@@ -58,6 +58,9 @@ add_executable(sushiai_tests
     functional/unit/test_spatial_shapes.cpp
     functional/unit/test_rematerialise.cpp
     functional/unit/test_provenance.cpp
+    functional/unit/test_scope_trace.cpp
+    functional/unit/test_scope_partitioner.cpp
+    functional/unit/test_region_signature.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp

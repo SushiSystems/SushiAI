@@ -56,6 +56,10 @@ set(SUSHIAI_SOURCES
 
     data/dataset.cpp
 
+    eager/scope_trace.cpp
+    eager/scope_partitioner.cpp
+    eager/region_signature.cpp
+
     io/checkpoint_format.cpp
 
     train/objective.cpp
