@@ -38,3 +38,7 @@ __pycache__/
 cli/*.egg-info/
 cli/.pytest_cache/
 .sushi_env.json
+
+# YOLO26 reference tensors: 35 MB, regenerated bit for bit by
+# tools/reference/export_yolo26_reference.py; MANIFEST.json pins their hashes.
+tests/fixtures/yolo26/*.sacp
