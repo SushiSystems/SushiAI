@@ -10881,6 +10881,405 @@
           "mean": 0.9870083555579185
         }
       ]
+    },
+    {
+      "name": "batchnorm.sacp",
+      "location": "output_directory",
+      "sha256": "c167d5a18ca946378c5d3f81fa8ce0424ba98d9cad4b6138a8c1bd2a56581e53",
+      "size_bytes": 415334,
+      "context": {
+        "mode": "train",
+        "settings_source": "ultralytics/utils/torch_utils.py:674 (initialize_weights)",
+        "candidate_rule": "before.running_var * (1 - momentum) + biased batch variance * momentum * batch_variance_scale, in float64, then float32",
+        "max_abs_difference": "largest |candidate - after.running_var| over the channels, both read as float32",
+        "match_tolerance": "4 * float32 epsilon * max |after.running_var|",
+        "unit_case_state": "weight, bias and running statistics drawn as batch_norm_perturbation of weights.sacp; input drawn standard normal",
+        "model_case_pass": "the train-mode pass of loss.sacp",
+        "cases": {
+          "unit": {
+            "module": "torch.nn.BatchNorm2d",
+            "input_shape_nchw": [
+              2,
+              3,
+              2,
+              2
+            ],
+            "values_per_channel": 8,
+            "momentum": 0.03,
+            "eps": 0.001,
+            "candidates": {
+              "biased": {
+                "tensor": "batchnorm_factor.unit.candidate.biased.running_var",
+                "batch_variance_scale": 1.0,
+                "max_abs_difference": 0.0082741379737854,
+                "equal_in_float32": false
+              },
+              "unbiased": {
+                "tensor": "batchnorm_factor.unit.candidate.unbiased.running_var",
+                "batch_variance_scale": 1.1428571428571428,
+                "max_abs_difference": 0.0,
+                "equal_in_float32": true
+              }
+            },
+            "match_tolerance": 5.28635837326874e-07,
+            "matching_candidate": "unbiased"
+          },
+          "model.9.cv1.bn": {
+            "module": "torch.nn.BatchNorm2d",
+            "input_shape_nchw": [
+              1,
+              128,
+              20,
+              20
+            ],
+            "values_per_channel": 400,
+            "momentum": 0.03,
+            "eps": 0.001,
+            "candidates": {
+              "biased": {
+                "tensor": "batchnorm_factor.model.9.cv1.bn.candidate.biased.running_var",
+                "batch_variance_scale": 1.0,
+                "max_abs_difference": 1.3887882232666016e-05,
+                "equal_in_float32": false
+              },
+              "unbiased": {
+                "tensor": "batchnorm_factor.model.9.cv1.bn.candidate.unbiased.running_var",
+                "batch_variance_scale": 1.0025062656641603,
+                "max_abs_difference": 1.1920928955078125e-07,
+                "equal_in_float32": false
+              }
+            },
+            "match_tolerance": 6.951018463041692e-07,
+            "matching_candidate": "unbiased"
+          }
+        }
+      },
+      "tensors": [
+        {
+          "name": "batchnorm_factor.unit.input",
+          "dtype": "float32",
+          "shape": [
+            2,
+            2,
+            2,
+            3
+          ],
+          "original_shape": [
+            2,
+            3,
+            2,
+            2
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -1.6959311962127686,
+          "max": 2.3022053241729736,
+          "mean": 0.011739223923844596
+        },
+        {
+          "name": "batchnorm_factor.unit.weight",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": 0.5884774327278137,
+          "max": 1.2682218551635742,
+          "mean": 0.9509852925936381
+        },
+        {
+          "name": "batchnorm_factor.unit.bias",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -0.18398475646972656,
+          "max": 0.06703934073448181,
+          "mean": -0.07107800245285034
+        },
+        {
+          "name": "batchnorm_factor.unit.before.running_mean",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -0.02218601107597351,
+          "max": 0.19822236895561218,
+          "mean": 0.057027687629063926
+        },
+        {
+          "name": "batchnorm_factor.unit.before.running_var",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": 0.8488934636116028,
+          "max": 1.1323063373565674,
+          "mean": 0.9609723687171936
+        },
+        {
+          "name": "batchnorm_factor.unit.output",
+          "dtype": "float32",
+          "shape": [
+            2,
+            2,
+            2,
+            3
+          ],
+          "original_shape": [
+            2,
+            3,
+            2,
+            2
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -1.641696810722351,
+          "max": 2.2233526706695557,
+          "mean": -0.0710780064885815
+        },
+        {
+          "name": "batchnorm_factor.unit.after.running_mean",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -0.015082098543643951,
+          "max": 0.1850796639919281,
+          "mean": 0.05566903374468287
+        },
+        {
+          "name": "batchnorm_factor.unit.after.running_var",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": 0.8889714479446411,
+          "max": 1.1086297035217285,
+          "mean": 0.9624069929122925
+        },
+        {
+          "name": "batchnorm_factor.unit.candidate.biased.running_var",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "export_yolo26_reference.py (export_batchnorm_case)",
+          "min": 0.8813456892967224,
+          "max": 1.107343077659607,
+          "mean": 0.958624005317688
+        },
+        {
+          "name": "batchnorm_factor.unit.candidate.unbiased.running_var",
+          "dtype": "float32",
+          "shape": [
+            3
+          ],
+          "original_shape": [
+            3
+          ],
+          "layout": "channel_vector",
+          "source": "export_yolo26_reference.py (export_batchnorm_case)",
+          "min": 0.8889714479446411,
+          "max": 1.1086297035217285,
+          "mean": 0.9624069929122925
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.input",
+          "dtype": "float32",
+          "shape": [
+            1,
+            20,
+            20,
+            128
+          ],
+          "original_shape": [
+            1,
+            128,
+            20,
+            20
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -2.5236451625823975,
+          "max": 2.279104232788086,
+          "mean": -0.003932432331473877
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.weight",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": 0.5052814483642578,
+          "max": 1.4993870258331299,
+          "mean": 0.9954855819232762
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.bias",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -0.249710351228714,
+          "max": 0.24377545714378357,
+          "mean": -0.013318724231794477
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.before.running_mean",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -0.24822017550468445,
+          "max": 0.2494221329689026,
+          "mean": -0.014464987674728036
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.before.running_var",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": 0.5011073350906372,
+          "max": 1.4980401992797852,
+          "mean": 0.993361335247755
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.output",
+          "dtype": "float32",
+          "shape": [
+            1,
+            20,
+            20,
+            128
+          ],
+          "original_shape": [
+            1,
+            128,
+            20,
+            20
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -7.323036193847656,
+          "max": 7.565597057342529,
+          "mean": -0.013318719703979695
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.after.running_mean",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": -0.24171000719070435,
+          "max": 0.2440909743309021,
+          "mean": -0.014149011514746235
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.after.running_var",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "torch.nn.BatchNorm2d, momentum 0.03, eps 0.001, train mode",
+          "min": 0.4898741543292999,
+          "max": 1.457734227180481,
+          "mean": 0.9671229764353484
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.candidate.biased.running_var",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "export_yolo26_reference.py (export_batchnorm_case)",
+          "min": 0.48986464738845825,
+          "max": 1.4577226638793945,
+          "mean": 0.9671140452846885
+        },
+        {
+          "name": "batchnorm_factor.model.9.cv1.bn.candidate.unbiased.running_var",
+          "dtype": "float32",
+          "shape": [
+            128
+          ],
+          "original_shape": [
+            128
+          ],
+          "layout": "channel_vector",
+          "source": "export_yolo26_reference.py (export_batchnorm_case)",
+          "min": 0.4898741543292999,
+          "max": 1.457734227180481,
+          "mean": 0.9671229489613324
+        }
+      ]
     }
   ]
 }

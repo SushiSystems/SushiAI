@@ -3,7 +3,10 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests the SACP encoder, the layout rule and the manifest of the YOLO26 reference exporter."""
+"""Tests the torch-free parts of the YOLO26 reference exporter.
+
+Covers the SACP encoder, the layout rule, the manifest and the running-variance candidates.
+"""
 
 from __future__ import annotations
 
@@ -28,12 +31,17 @@ from reference.export_yolo26_reference import (  # noqa: E402
     ExportedTensor,
     FixtureTooLargeError,
     ReferenceFile,
+    ReferenceMismatchError,
     SacpFormatError,
     SacpRecord,
+    blend_running_statistic,
     build_manifest,
     classify_layout,
+    count_per_channel,
     encode_files,
     encode_sacp,
+    scale_batch_variance,
+    select_matching_candidate,
     write_reference_files,
 )
 
@@ -170,6 +178,48 @@ class ManifestTest(unittest.TestCase):
             with self.assertRaises(FixtureTooLargeError):
                 write_reference_files(payloads, "{}", Path(folder) / "out", None)
             self.assertFalse((Path(folder) / "out").exists())
+
+    def test_ceiling_is_64_mebibytes(self) -> None:
+        """Checks the size the writer refuses above."""
+        self.assertEqual(K_FIXTURE_CEILING_BYTES, 64 * 1024 * 1024)
+
+
+class RunningVarianceCandidateTest(unittest.TestCase):
+    """Checks the arithmetic of the two running-variance candidates and the choice between them."""
+
+    def test_count_multiplies_batch_height_and_width(self) -> None:
+        """Checks that the channel extent of an NCHW shape stays out of the count."""
+        self.assertEqual(count_per_channel((2, 3, 2, 2)), 8)
+        self.assertEqual(count_per_channel((1, 128, 20, 20)), 400)
+
+    def test_scale_is_one_biased_and_count_over_count_less_one_unbiased(self) -> None:
+        """Checks both factors at a count of 8."""
+        self.assertEqual(scale_batch_variance("biased", 8), 1.0)
+        self.assertEqual(scale_batch_variance("unbiased", 8), 8 / 7)
+
+    def test_scale_rejects_a_single_value(self) -> None:
+        """Checks that a count with no unbiased variance is refused for either candidate."""
+        for candidate in ("biased", "unbiased"):
+            with self.assertRaises(ReferenceMismatchError):
+                scale_batch_variance(candidate, 1)
+
+    def test_blend_weights_the_batch_by_momentum_and_scale(self) -> None:
+        """Checks one update against its value worked by hand, to 1e-15."""
+        self.assertAlmostEqual(blend_running_statistic(2.0, 4.0, 0.25, 1.0), 2.5, delta=1e-15)
+        self.assertAlmostEqual(blend_running_statistic(2.0, 4.0, 0.25, 2.0), 3.5, delta=1e-15)
+
+    def test_select_returns_the_only_candidate_within_tolerance(self) -> None:
+        """Checks that the far candidate loses and a difference equal to the tolerance passes."""
+        differences = {"biased": 3.0e-3, "unbiased": 1.0e-7}
+        self.assertEqual(select_matching_candidate(differences, 1.0e-7), "unbiased")
+
+    def test_select_rejects_no_match_and_two_matches(self) -> None:
+        """Checks that a case which cannot tell the candidates apart ends the export."""
+        differences = {"biased": 2.0e-7, "unbiased": 1.0e-7}
+        with self.assertRaises(ReferenceMismatchError):
+            select_matching_candidate(differences, 5.0e-8)
+        with self.assertRaises(ReferenceMismatchError):
+            select_matching_candidate(differences, 1.0e-6)
 
 
 if __name__ == "__main__":
