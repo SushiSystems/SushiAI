@@ -950,9 +950,9 @@ int main(int argc, char** argv)
 
 | Source | Exception | Where stated |
 | --- | --- | --- |
-| SushiBLAS, record time | `std::invalid_argument` for every refusal, a device-only family under `FORCE_REFERENCE` and a device-only USM operand among them | `sushiblas/docs/agent/2026_10_07_V010/DESIGN_RECORDER.md:540-546`, `:701-765` |
-| SushiBLAS, tensor creation | `std::runtime_error` | `DESIGN_RECORDER.md:864`, `:886`, `:926` |
-| SushiBLAS, inside a task | `std::runtime_error` for a device that cannot host the work | `sushiblas/docs/agent/2026_10_07_V010/PLAN.md:350` |
+| SushiBLAS, record time | `std::invalid_argument` for every refusal, a device-only family under `FORCE_REFERENCE` and a device-only USM operand among them | `sushiblas/docs/agent/2026_10_07_V010/REPORT.md`, heading `EXCEPTIONS`; a device or mode refusal is `SushiBLAS::UnsupportedExecution`, derived from it |
+| SushiBLAS, tensor creation | `std::runtime_error` | `sushiblas/docs/agent/2026_10_07_V010/REPORT.md`, heading `EXCEPTIONS` |
+| SushiBLAS, inside a task | `std::runtime_error` for a device that cannot host the work | `sushiblas/docs/agent/2026_10_07_V010/REPORT.md`, heading `EXCEPTIONS`, "Execute time" |
 | SushiRuntime | `Core::SushiException` carrying an `Errc` | `sushiruntime/include/SushiRuntime/core/error.hpp:46-57`, `:100-126` |
 | SushiRuntime, a run | the first exception a task threw | `sushiruntime/include/SushiRuntime/execution/execution_engine.hpp:211`, `:346` |
 
@@ -1028,7 +1028,7 @@ next `compile()` picks them up. Exceptions hide this today because the program u
 `TaskGraph::take_nodes()` hands off the built nodes without finalising a plan
 (`sushiruntime/include/SushiRuntime/graph/task_graph.hpp:234-238`). `record_guarded` calls it on
 a failure and drops the nodes. After v0.1.0 the recorder is constructed over a `TaskGraph` the
-caller supplies (`DESIGN_RECORDER.md:665-673`), so the graph to drain is one SushiAI holds.
+caller supplies (`sushiblas/docs/agent/2026_10_07_V010/SPEC.md`, heading `DESIGN_RECORDER`), so the graph to drain is one SushiAI holds.
 Whether dropping the nodes also releases what the recorder retained for them is listed in
 section 10.
 

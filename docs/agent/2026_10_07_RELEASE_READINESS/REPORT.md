@@ -163,6 +163,6 @@ Next release: v0.1.0 (first tag), about 80 entries under Unreleased. It is due b
 - GPU behaviour of any SushiAI test, and CPU/GPU numeric agreement.
 - `install.sh`, `sushicore` 0.7.0 on PyPI, and `sa test --suite package` on any recent tree.
 - Estate audit findings other than those named above.
-- The YOLO26 spec beyond its first table, and `DESIGN_BLAS.md` section 9.4.
+- The YOLO26 spec beyond its first table, and section 9.4 of the BLAS design (`sushiblas/docs/agent/2026_10_07_V010/SPEC.md`, heading `DESIGN_BLAS`).
 - The statement that the owner calls `ROADMAP.md` obsolete: the tree does not say so.
 - The nn files and READMEs were being edited while they were read, so the checker counts and test counts can have moved.
