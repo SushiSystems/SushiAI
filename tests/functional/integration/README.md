@@ -734,8 +734,8 @@ divide that only happened to be safe on step one would fail there.
 
 ### BuildingAndDestroyingTrainersReachesASteadyState
 
-Every `SushiBLAS::Storage` holds a counted reference to the context's allocator, so the
-allocator's reference count is the number of live allocations plus a constant. Whether the last
+Every `SushiBLAS::Storage` allocates through the runtime context, which records each
+allocation, so `RuntimeContext::live_usm_count()` is the number of live allocations. Whether the last
 iteration leaked a buffer is then a number the test can read, where otherwise somebody would
 have to watch Task Manager. One leaked Storage moves the count by exactly one.
 

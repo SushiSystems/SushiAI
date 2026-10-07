@@ -656,10 +656,10 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 
 TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 {
-    // The allocator's ref count counts live buffers; see tests/functional/integration/README.md.
+    // The context counts its live USM allocations; see tests/functional/integration/README.md.
     const auto live_allocations = [this]()
     {
-        return engine->get_context().get_allocator()->get_ref_count();
+        return static_cast<std::int32_t>(engine->get_context().live_usm_count());
     };
 
     std::int32_t baseline = 0;
