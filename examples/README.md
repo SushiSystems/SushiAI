@@ -1,12 +1,13 @@
 # examples
 
-Two programs and one configuration folder.
+Two programs and two configuration folders.
 
 | Path | What it is |
 | --- | --- |
 | `example.cpp` | A teaching file: one training run, read top to bottom |
 | `demo_mlp.cpp` | The program behind `sa demo mlp` |
-| [`heavy_mlp/`](heavy_mlp/README.md) | Three JSON files for `sushiai train` and `sushiai inference` |
+| [`heavy_mlp/`](heavy_mlp/README.md) | Three JSON files for `sushiai train` and `sushiai inference`: a deep MLP on the rings dataset |
+| [`mnist_cnn/`](mnist_cnn/README.md) | Three JSON files for the same two commands: a convolutional network on MNIST |
 
 The sections below hold the reasoning that the source files cite.
 
