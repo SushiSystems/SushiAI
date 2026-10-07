@@ -11,12 +11,18 @@ A rule is fixed there first and copied here; `K_` settings are the only local ch
 | `documentation/check_changelog.py` | Headings and entry shape, releases kept live, length, one sentence, nesting, cited places | Repository root |
 | `layering/check_layering.py` | Declared tiers, upward includes, reaches into another module's `source/` | Repository root |
 | `licensing/write_license_block.py` | Nothing; writes the license block of `source-comments` into every tracked source file, or lists the files that lack it with `--report` | Repository root, `--project` |
+| `contract/check_contract.py` | `SA_THROW_IF` and `throw` sites of `include/`, `src/`, `apps/` and `examples/` against `contract/site_classes.tsv`: table shape, no file with more sites than rows, every site a row, every row a site; prints the open questions of the table and the `Detail::bridge(` count per module as notes | Repository root |
+| `naming/build_rename_map.py` | Nothing; lists the constants, enumerators, interfaces, enums and macros the naming ruling changes, writes `naming/rename_map.tsv` and prints the tokens the rename could not resolve | Repository root, `--output` |
+| `naming/apply_rename.py` | Nothing; applies `naming/rename_map.tsv` to the C++ tree as identifier-token replacements, one kind at a time with `--kind`, or prints the per-file counts with `--dry-run`; refuses a tree with uncommitted work under the code roots | Repository root, `--map`, `--kind`, `--dry-run` |
 | `tests/` | Unit tests for the checker rules; run `python -m unittest discover -s tools/tests` | |
 
 `check_docs_layout.py` reads inline Markdown links, with or without a title, wrapped over a
 line or in angle brackets. It does not read reference-style links or a link around an image.
 
-`write_license_block.py` is the one tool here that writes files. It takes its licence lines
+Three tools here write files. `naming/build_rename_map.py` writes the rename map and
+`naming/apply_rename.py` rewrites the C++ tree from it; [`naming/README.md`](naming/README.md)
+says what each reads and when it runs, and [`contract/README.md`](contract/README.md) does the
+same for the contract checker and its table. `write_license_block.py` takes its licence lines
 from `check_source_comments.py`, covers `.in` templates and `.inc` fragments by the file they become, `--closed` for a closed repository, `--skip GLOB` for generated
 files and `--upstream PATH=LINE;LINE` for a ported file; a later run without it keeps those lines. A `--report` run that prints nothing
 proves a repository's headers are in place.

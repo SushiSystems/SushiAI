@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-07 — tools: Added the naming tools and the generated rename map; the rename is not applied (`build_rename_map.py`, `apply_rename.py`, `rename_map.tsv`).
+- 2026-10-07 — tools: Added the contract checker and the class of every failure site, status or fatal (`check_contract.py`, `site_classes.tsv`).
 - 2026-10-07 — core: Added the status foundation that no code uses yet: `Status`, `Result`, the fatal check and `Graph::Traced` (`status.hpp`, `result.hpp`, `check.hpp`, `traced.hpp`).
 - 2026-10-07 — imaging: Added the host-lane augmentation module: image type, resize, letterbox, flip, HSV, affine, mosaic, polygon labels, the raw image cache and the two pipelines (`include/SushiAI/imaging/`, `pipeline.hpp`).
 - 2026-10-07 — detect: Added the host-lane detection module: anchors, box coding, IoU, the task-aligned assigner, target leaves, top-k and NMS, average precision (`include/SushiAI/detect/`, `assigner.hpp`, `average_precision.hpp`).
