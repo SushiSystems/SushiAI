@@ -43,6 +43,10 @@ K_MANIFEST_FORMAT_VERSION = 1
 K_WEIGHTS_FILE = "weights.sacp"
 K_BRANCHES = ("one2many", "one2one")
 K_GAIN_NAMES = ("box", "cls", "dfl")
+K_ASSIGNER_INPUTS = ("scores", "boxes")
+K_VALIDATION_CONFIDENCE = 0.001
+K_SUPPRESSION_CONFIDENCE = 1.8e-4
+K_SUPPRESSION_TENSOR = "one2many.suppressed.detections"
 
 K_SACP_MAGIC = 0x50434153
 K_SACP_VERSION = 1
@@ -558,6 +562,8 @@ def export_forward(model: torch.nn.Module, image_nchw: torch.Tensor) -> Referenc
     tensors.append(
         export_tensor("one2one.detections", detections, describe_source(Detect.postprocess)),
     )
+    suppressed, suppression = export_suppression(decoded["one2many"])
+    tensors.append(suppressed)
     context = {
         "mode": "eval",
         "batch_norm_statistics": f"running_mean and running_var as written in {K_WEIGHTS_FILE}",
@@ -569,8 +575,76 @@ def export_forward(model: torch.nn.Module, image_nchw: torch.Tensor) -> Referenc
         "default_end2end": default_end2end,
         "self_check": "the model's own inference output equals "
         + ("one2one.detections" if default_end2end else "the one2many decode"),
+        "validation": describe_validation(decoded["one2many"], detections),
+        "suppression": suppression,
     }
     return ReferenceFile("forward.sacp", tuple(tensors), context)
+
+
+def read_validator_arguments(confidence: float) -> dict[str, Any]:
+    """Returns what the reference validator passes to its suppression, at the given confidence."""
+    from ultralytics.utils import DEFAULT_CFG
+
+    return {
+        "conf_thres": confidence,
+        "iou_thres": float(DEFAULT_CFG.iou),
+        "multi_label": True,
+        "agnostic": bool(DEFAULT_CFG.single_cls or DEFAULT_CFG.agnostic_nms),
+        "max_det": int(DEFAULT_CFG.max_det),
+    }
+
+
+def export_suppression(one2many: torch.Tensor) -> tuple[ExportedTensor, dict[str, Any]]:
+    """Returns the rows suppression keeps of the first image at a confidence its scores pass.
+
+    Args:
+        one2many: Decoded one-to-many output, [B, 4 + nc, A].
+
+    Raises:
+        ReferenceMismatchError: No score passes the confidence, so there is no row to write.
+    """
+    from ultralytics.utils import nms
+
+    arguments = read_validator_arguments(K_SUPPRESSION_CONFIDENCE)
+    rows = nms.non_max_suppression(one2many.clone(), nc=0, end2end=False, **arguments)[0]
+    if not rows.shape[0]:
+        raise ReferenceMismatchError(f"no score passes {K_SUPPRESSION_CONFIDENCE}")
+    source = describe_source(nms.non_max_suppression)
+    context = {
+        "tensor": K_SUPPRESSION_TENSOR,
+        "arguments": arguments,
+        "candidate_count": int((one2many[0, 4:] > K_SUPPRESSION_CONFIDENCE).sum()),
+        "row_count": int(rows.shape[0]),
+        "columns": ["x1", "y1", "x2", "y2", "score", "class_index"],
+    }
+    return export_tensor(K_SUPPRESSION_TENSOR, rows, source), context
+
+
+def describe_validation(one2many: torch.Tensor, one2one: torch.Tensor) -> dict[str, Any]:
+    """Returns the validator's suppression arguments and the rows it keeps of each head.
+
+    Args:
+        one2many: Decoded one-to-many output, [B, 4 + nc, A].
+        one2one: Top-k detections of the one-to-one head, [B, k, 6].
+    """
+    from ultralytics.utils import nms
+
+    arguments = read_validator_arguments(K_VALIDATION_CONFIDENCE)
+    heads = {"one2many": (one2many, False), "one2one": (one2one, True)}
+    rows = {
+        branch: nms.non_max_suppression(output.clone(), nc=0, end2end=end2end, **arguments)
+        for branch, (output, end2end) in heads.items()
+    }
+    return {
+        "source": describe_source(nms.non_max_suppression),
+        "arguments": arguments,
+        "suppression": "torchvision.ops.nms" if "torchvision" in sys.modules else "TorchNMS.nms",
+        "row_count": {branch: int(kept[0].shape[0]) for branch, kept in rows.items()},
+        "largest_score": {
+            "one2many": float(one2many[:, 4:].max()),
+            "one2one": float(one2one[..., 4].max()),
+        },
+    }
 
 
 def split_levels(joined: torch.Tensor, features: Sequence[torch.Tensor]) -> list[torch.Tensor]:
@@ -648,6 +722,9 @@ def export_loss(
     foreground = {}
     for branch in K_BRANCHES:
         tensors.append(export_tensor(f"{branch}.loss_items", items[branch], loss_source))
+        for key, value in zip(K_ASSIGNER_INPUTS, captured[branch][0]):
+            name = f"{branch}.assignment.input.{key}"
+            tensors.append(export_tensor(name, value, assign_source))
         labels, boxes, scores, mask, indices = captured[branch][1]
         foreground[branch] = int(mask.sum())
         for key, value in (
@@ -674,6 +751,7 @@ def export_loss(
         "+ one2one.loss_items * branch_weights[1])",
         "assigner": {branch: describe_assigner(branches[branch].assigner) for branch in K_BRANCHES},
         "foreground_anchor_count": foreground,
+        "assigner_input_format": "scores after sigmoid; boxes xyxy, pixels; both detached",
         "target_box_format": "xyxy, pixels; a row off the foreground holds ground truth 0",
         "anchor_point_format": "x, y of the cell centre, pixels",
         "gradient_of": "total_loss, with no optimizer step taken",

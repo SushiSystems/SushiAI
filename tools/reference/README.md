@@ -42,8 +42,8 @@ by `tools/tests/test_export_yolo26_reference.py`.
 | --- | --- |
 | `weights.sacp` | Every floating state-dict entry under its Ultralytics name, as the model stood before either pass |
 | `input.sacp` | `image`, `[1, 640, 640, 3]` NHWC, uniform draws in [0, 1); torch receives `image.permute(0, 3, 1, 2)` |
-| `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sacp`: three feature maps, twelve raw head outputs, both decodes, the top-k detections |
-| `loss.sacp` | Train mode, BatchNorm on batch statistics: ground truth, loss items and label assignment per branch, total loss, three gradients, one BatchNorm's running statistics after the pass |
+| `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sacp`: three feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
+| `loss.sacp` | Train mode, BatchNorm on batch statistics: ground truth, loss items per branch, the inputs and the outputs of label assignment per branch, total loss, three gradients, one BatchNorm's running statistics after the pass |
 | `MANIFEST.json` | Versions, seed, per file SHA-256 and size, per tensor name, dtype, shape, source and min, max, mean |
 
 ### Layouts
@@ -55,7 +55,7 @@ by `tools/tests/test_export_yolo26_reference.py`.
 | Convolution bias, BatchNorm weight, bias, running mean, running variance | `[C]` | `[C]` | Unchanged |
 | Feature map, raw head output per level | `[B, C, H, W]` | `[B, H, W, C]` | `permute(0, 2, 3, 1)` |
 | Decoded boxes and scores | `[B, 4 + nc, A]` | `[B, A, 4]` and `[B, A, nc]` | `permute(0, 2, 1)`, then split |
-| Assignment outputs | `[B, A]`, `[B, A, 4]`, `[B, A, nc]` | Same | Unchanged |
+| Assignment inputs and outputs | `[B, A]`, `[B, A, 4]`, `[B, A, nc]` | Same | Unchanged |
 
 The first three rows are the "Weight importer" block of the SPEC. A state-dict tensor of any
 other kind is written unpermuted and listed under `unspecified_layout` in the manifest; YOLO26n
@@ -69,6 +69,36 @@ levels in order, offsets 0, 6400 and 8000 at 640 px, recorded under `levels` in 
 
 A foreground mask is boolean in torch and SACP has no boolean dtype, so it is written as
 `int32` zeros and ones. A gradient takes the layout of the parameter it belongs to.
+
+### Assigner inputs
+
+A forward hook on each branch's `TaskAlignedAssigner` captures the call's arguments and its
+result. `<branch>.assignment.input.scores` is the first argument, `pred_scores.detach().sigmoid()`,
+and `<branch>.assignment.input.boxes` the second, `pred_bboxes.detach() * stride_tensor`, in pixel
+xyxy (`ultralytics/utils/loss.py:440-441`). `anchors.points` is the third. The ground truth the
+assigner received is not written padded; `batch.batch_idx`, `batch.cls` and `batch.bboxes` hold
+the rows it was padded from.
+
+### Validation row counts
+
+`forward.sacp` holds no output at the validator's confidence: with the seeded weights the largest
+class score is `1.9e-4`, the reference validator keeps no row of either head, and SACP cannot hold
+an empty tensor. The manifest records the run under `context.validation` of `forward.sacp` instead: the
+arguments `ultralytics/models/yolo/detect/val.py:168-176` passes to `non_max_suppression`, which
+suppression function it selects (`TorchNMS.nms`, or `torchvision.ops.nms` when torchvision is
+imported), the rows kept per head and each head's largest score. The
+confidence, 0.001, is typed from `ultralytics/engine/validator.py:145`, where the validator sets
+it inside a call that needs a dataset.
+
+### Suppression rows
+
+`one2many.suppressed.detections`, `[300, 6]`, holds the rows `non_max_suppression` keeps of the
+first image's one-to-many decode with the same arguments and `conf_thres` lowered to `1.8e-4`.
+1542 of the seeded scores pass that confidence. `context.suppression` of `forward.sacp` records
+the arguments, the candidate count and the row count, and the exporter fails when no score
+passes. No two candidates overlap above the IoU threshold of 0.7, so the rows are the 300
+highest-scoring candidates; candidates of equal score come in the order torch's `argsort` gave
+them. Each row is x1, y1, x2, y2 in pixels, the score and the class index.
 
 ## SACP layout as written
 
@@ -112,7 +142,7 @@ Whether the C++ reader accepts a rank-0 record was not checked, so the one scala
 | `ultralytics_commit`, `ultralytics_version`, `torch_version`, `python_version` | Read from the installed packages; the run fails if the commit is not the pinned one |
 | `seed`, `thread_count`, `deterministic_algorithms` | The run's settings, read back from torch |
 | `files[].name`, `sha256`, `size_bytes`, `location` | One entry per SACP file; `location` is `output_directory` or `external` |
-| `files[].context` | The conditions of that file: mode, BatchNorm statistics used, level geometry, gains, assigner settings, box formats |
+| `files[].context` | The conditions of that file: mode, BatchNorm statistics used, level geometry, gains, assigner settings, box formats, validation row counts, suppression arguments and counts |
 | `files[].tensors[]` | `name`, `dtype`, `shape`, `original_shape`, `layout`, `source`, `min`, `max`, `mean` |
 
 `source` is the Ultralytics file, the first line of the function and its qualified name, found

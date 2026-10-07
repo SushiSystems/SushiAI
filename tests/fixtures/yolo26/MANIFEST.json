@@ -9855,8 +9855,8 @@
     {
       "name": "forward.sacp",
       "location": "output_directory",
-      "sha256": "029e97e9e569f6b1745888c2d212f6558b73cd5064260c4f26a8bf28f67386c7",
-      "size_bytes": 14165255,
+      "sha256": "376a59b03ec456290da5512096372253718d5cd05295b894aa14d401b3554f49",
+      "size_bytes": 14172513,
       "context": {
         "mode": "eval",
         "batch_norm_statistics": "running_mean and running_var as written in weights.sacp",
@@ -9898,7 +9898,46 @@
         ],
         "max_detections": 300,
         "default_end2end": false,
-        "self_check": "the model's own inference output equals the one2many decode"
+        "self_check": "the model's own inference output equals the one2many decode",
+        "validation": {
+          "source": "ultralytics/utils/nms.py:13 (non_max_suppression)",
+          "arguments": {
+            "conf_thres": 0.001,
+            "iou_thres": 0.7,
+            "multi_label": true,
+            "agnostic": false,
+            "max_det": 300
+          },
+          "suppression": "TorchNMS.nms",
+          "row_count": {
+            "one2many": 0,
+            "one2one": 0
+          },
+          "largest_score": {
+            "one2many": 0.0001871694257715717,
+            "one2one": 0.00018050531798508018
+          }
+        },
+        "suppression": {
+          "tensor": "one2many.suppressed.detections",
+          "arguments": {
+            "conf_thres": 0.00018,
+            "iou_thres": 0.7,
+            "multi_label": true,
+            "agnostic": false,
+            "max_det": 300
+          },
+          "candidate_count": 1542,
+          "row_count": 300,
+          "columns": [
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "score",
+            "class_index"
+          ]
+        }
       },
       "tensors": [
         {
@@ -10310,14 +10349,31 @@
           "min": -17.01477813720703,
           "max": 653.8112182617188,
           "mean": 220.06818524758734
+        },
+        {
+          "name": "one2many.suppressed.detections",
+          "dtype": "float32",
+          "shape": [
+            300,
+            6
+          ],
+          "original_shape": [
+            300,
+            6
+          ],
+          "layout": "as_is",
+          "source": "ultralytics/utils/nms.py:13 (non_max_suppression)",
+          "min": -48.59227752685547,
+          "max": 686.8053588867188,
+          "mean": 223.05919629866204
         }
       ]
     },
     {
       "name": "loss.sacp",
       "location": "output_directory",
-      "sha256": "d4b4aa4a4c9a2df75b68e1c15c848fccda81d82050761c57627bb3e588b2d89a",
-      "size_bytes": 6051565,
+      "sha256": "b820ea3803a341c85541570b17379422573fe2868c93c2a0ab60c7742e779e8c",
+      "size_bytes": 11696633,
       "context": {
         "mode": "train",
         "batch_norm_statistics": "batch statistics of the one training image",
@@ -10356,6 +10412,7 @@
           "one2many": 31,
           "one2one": 4
         },
+        "assigner_input_format": "scores after sigmoid; boxes xyxy, pixels; both detached",
         "target_box_format": "xyxy, pixels; a row off the foreground holds ground truth 0",
         "anchor_point_format": "x, y of the cell centre, pixels",
         "gradient_of": "total_loss, with no optimizer step taken",
@@ -10442,6 +10499,44 @@
           "min": 0.08202528953552246,
           "max": 6.705904006958008,
           "mean": 3.5503881772359214
+        },
+        {
+          "name": "one2many.assignment.input.scores",
+          "dtype": "float32",
+          "shape": [
+            1,
+            8400,
+            80
+          ],
+          "original_shape": [
+            1,
+            8400,
+            80
+          ],
+          "layout": "as_is",
+          "source": "ultralytics/utils/tal.py:140 (TaskAlignedAssigner._forward)",
+          "min": 9.249327415083997e-10,
+          "max": 0.014753053896129131,
+          "mean": 2.395397957738477e-05
+        },
+        {
+          "name": "one2many.assignment.input.boxes",
+          "dtype": "float32",
+          "shape": [
+            1,
+            8400,
+            4
+          ],
+          "original_shape": [
+            1,
+            8400,
+            4
+          ],
+          "layout": "as_is",
+          "source": "ultralytics/utils/tal.py:140 (TaskAlignedAssigner._forward)",
+          "min": -70.27951049804688,
+          "max": 695.9434204101562,
+          "mean": 319.27649859981875
         },
         {
           "name": "one2many.assignment.foreground_mask",
@@ -10546,6 +10641,44 @@
           "min": 0.06288668513298035,
           "max": 10.073809623718262,
           "mean": 4.478272984425227
+        },
+        {
+          "name": "one2one.assignment.input.scores",
+          "dtype": "float32",
+          "shape": [
+            1,
+            8400,
+            80
+          ],
+          "original_shape": [
+            1,
+            8400,
+            80
+          ],
+          "layout": "as_is",
+          "source": "ultralytics/utils/tal.py:140 (TaskAlignedAssigner._forward)",
+          "min": 1.6507653022301838e-09,
+          "max": 0.038697198033332825,
+          "mean": 2.4319365958992296e-05
+        },
+        {
+          "name": "one2one.assignment.input.boxes",
+          "dtype": "float32",
+          "shape": [
+            1,
+            8400,
+            4
+          ],
+          "original_shape": [
+            1,
+            8400,
+            4
+          ],
+          "layout": "as_is",
+          "source": "ultralytics/utils/tal.py:140 (TaskAlignedAssigner._forward)",
+          "min": -54.446380615234375,
+          "max": 710.329833984375,
+          "mean": 319.4948901597375
         },
         {
           "name": "one2one.assignment.foreground_mask",
