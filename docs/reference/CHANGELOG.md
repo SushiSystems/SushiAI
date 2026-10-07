@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-07 — imaging: Added the host-lane augmentation module: image type, resize, letterbox, flip, HSV, affine, mosaic, polygon labels, the raw image cache and the two pipelines (`include/SushiAI/imaging/`, `pipeline.hpp`).
 - 2026-10-07 — detect: Added the host-lane detection module: anchors, box coding, IoU, the task-aligned assigner, target leaves, top-k and NMS, average precision (`include/SushiAI/detect/`, `assigner.hpp`, `average_precision.hpp`).
 - 2026-10-07 — tools: Extended the YOLO26 reference exporter with the suppressed one-to-many detections (`export_yolo26_reference.py`, `MANIFEST.json`).
 - 2026-10-07 — autograd: Changed `differentiate` to seed any one-element root, where it accepted only an `NLL_LOSS` root (`differentiator.cpp`, `test_loss_roots.cpp`).
