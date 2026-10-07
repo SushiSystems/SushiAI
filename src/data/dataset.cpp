@@ -49,6 +49,29 @@ namespace SushiAI
                 "ring_width", "position_noise", "seed",
             };
 
+            /** @brief Lists every key a "mnist" dataset accepts. */
+            constexpr std::string_view K_MNIST_KEYS[] = {
+                "directory", "split", "batch_size", "max_samples",
+            };
+
+            /** @brief Names the "split" value that selects the training files. */
+            constexpr std::string_view K_MNIST_SPLIT_TRAIN = "train";
+
+            /** @brief Names the "split" value that selects the test files. */
+            constexpr std::string_view K_MNIST_SPLIT_TEST = "test";
+
+            /** @brief Names the IDX image file of the training split. */
+            constexpr std::string_view K_MNIST_TRAIN_IMAGES = "train-images-idx3-ubyte";
+
+            /** @brief Names the IDX label file of the training split. */
+            constexpr std::string_view K_MNIST_TRAIN_LABELS = "train-labels-idx1-ubyte";
+
+            /** @brief Names the IDX image file of the test split. */
+            constexpr std::string_view K_MNIST_TEST_IMAGES = "t10k-images-idx3-ubyte";
+
+            /** @brief Names the IDX label file of the test split. */
+            constexpr std::string_view K_MNIST_TEST_LABELS = "t10k-labels-idx1-ubyte";
+
             /** @brief Wraps a literal key list as a span, for reject_unknown_keys. */
             template<std::size_t N>
             SushiRuntime::span<const std::string_view> as_span(const std::string_view (&keys)[N])
@@ -116,14 +139,33 @@ namespace SushiAI
             std::filesystem::path image_path(const MnistOptions& options)
             {
                 return options.directory /
-                       (options.test_split ? "t10k-images-idx3-ubyte" : "train-images-idx3-ubyte");
+                       (options.test_split ? K_MNIST_TEST_IMAGES : K_MNIST_TRAIN_IMAGES);
             }
 
             /** @brief The IDX label file for a split. */
             std::filesystem::path label_path(const MnistOptions& options)
             {
                 return options.directory /
-                       (options.test_split ? "t10k-labels-idx1-ubyte" : "train-labels-idx1-ubyte");
+                       (options.test_split ? K_MNIST_TEST_LABELS : K_MNIST_TRAIN_LABELS);
+            }
+
+            /**
+             * @brief Reads the optional "split" key of a "mnist" dataset.
+             * @return True for the test split, false for the training split; an absent
+             * key gives the MnistOptions default.
+             */
+            bool is_test_split(const Config::Value& attributes, const std::string& prefix)
+            {
+                const Config::Value spelled = Config::Value::string(std::string(
+                    MnistOptions().test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN));
+                const std::string& split =
+                    attributes.at_or("split", spelled).as_string(prefix + " 'split'");
+
+                SA_THROW_IF(split != K_MNIST_SPLIT_TRAIN && split != K_MNIST_SPLIT_TEST,
+                            "{} 'split' is '{}'; it must be '{}' or '{}'",
+                            prefix, split, K_MNIST_SPLIT_TRAIN, K_MNIST_SPLIT_TEST);
+
+                return split == K_MNIST_SPLIT_TEST;
             }
 
             /**
@@ -171,7 +213,7 @@ namespace SushiAI
                         "features={} classes={}",
                         options_.batch_size, options_.batches, options_.features, options_.classes);
 
-            engine.set_seed(options_.seed);
+            engine.random().set_seed(options_.seed);
 
             const int64_t rows = options_.batch_size;
             const int64_t features = options_.features;
@@ -423,6 +465,35 @@ namespace SushiAI
                 read_int(attributes, "seed", prefix, static_cast<int64_t>(options.seed)));
 
             return std::make_unique<Rings>(engine, options);
+        }
+
+        std::unique_ptr<Dataset> make_mnist(SushiBLAS::Engine& engine,
+                                            const Config::Value& attributes,
+                                            std::string_view context)
+        {
+            attributes.reject_unknown_keys(context, as_span(K_MNIST_KEYS));
+
+            MnistOptions options;
+            const std::string prefix(context);
+
+            options.directory = attributes.at("directory", context)
+                                          .as_string(prefix + " 'directory'");
+            options.test_split = is_test_split(attributes, prefix);
+            options.batch_size = read_int(attributes, "batch_size", prefix, options.batch_size);
+            options.max_samples = read_int(attributes, "max_samples", prefix, options.max_samples);
+
+            std::unique_ptr<Dataset> dataset = try_load_mnist(engine, options);
+
+            SA_THROW_IF(dataset == nullptr,
+                        "{} 'directory' '{}' does not hold the MNIST {} split ({}). A complete "
+                        "directory holds {}, {}, {} and {}",
+                        prefix, options.directory.string(),
+                        options.test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN,
+                        mnist_expected_paths(options),
+                        K_MNIST_TRAIN_IMAGES, K_MNIST_TRAIN_LABELS,
+                        K_MNIST_TEST_IMAGES, K_MNIST_TEST_LABELS);
+
+            return dataset;
         }
 
         std::unique_ptr<Dataset> make_dataset(SushiBLAS::Engine& engine, std::string_view type,

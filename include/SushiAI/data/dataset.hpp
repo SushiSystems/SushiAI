@@ -298,13 +298,26 @@ namespace SushiAI
                                             std::string_view context);
 
         /**
+         * @brief Builds the MNIST dataset from configuration attributes.
+         *
+         * Reads "directory" (required), "split" ("train" or "test"), "batch_size" and
+         * "max_samples". A relative directory is used as given, so it resolves against
+         * the working directory of the process.
+         * @return The loaded dataset; never null.
+         */
+        std::unique_ptr<Dataset> make_mnist(SushiBLAS::Engine& engine,
+                                            const Config::Value& attributes,
+                                            std::string_view context);
+
+        /**
          * @brief Every dataset type a configuration file may name.
          *
          * A file-scope constant table; nothing self-registers. See
          * config/registry.hpp for why that is forced rather than preferred.
          */
-        inline constexpr std::array<DatasetEntry, 1> DATASET_REGISTRY = {
+        inline constexpr std::array<DatasetEntry, 2> DATASET_REGISTRY = {
             DatasetEntry{"rings", &make_rings},
+            DatasetEntry{"mnist", &make_mnist},
         };
 
         /**
