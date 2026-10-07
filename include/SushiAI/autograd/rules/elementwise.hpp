@@ -46,15 +46,33 @@ namespace SushiAI
         void exp_backward(const GradientTape& tape);
         /** @brief Propagates accumulation gradients to both operands. */
         void accumulate_backward(const GradientTape& tape);
+        /** @brief Differentiates division: d(a/b) = [dy/b, -(dy/b)*(a/b)]. */
+        void div_backward(const GradientTape& tape);
+        /** @brief Differentiates the minimum: dy goes to a where a <= b, to b elsewhere. */
+        void minimum_backward(const GradientTape& tape);
+        /** @brief Differentiates the maximum: dy goes to a where a >= b, to b elsewhere. */
+        void maximum_backward(const GradientTape& tape);
+        /** @brief Differentiates the absolute value: d|x| = dy * sign(x), zero at x = 0. */
+        void abs_backward(const GradientTape& tape);
+        /** @brief Differentiates the arctangent: d(atan x) = dy / (1 + x*x). */
+        void atan_backward(const GradientTape& tape);
+        /** @brief Differentiates selection: dy goes to a where the condition holds, else to b. */
+        void select_backward(const GradientTape& tape);
 
         /** @brief Holds backward rule entries for elementwise operations. */
-        inline constexpr std::array<RuleEntry, 6> ELEMENTWISE_RULES = {{
+        inline constexpr std::array<RuleEntry, 12> ELEMENTWISE_RULES = {{
             {Ops::ADD.id,        &add_backward},
             {Ops::SUB.id,        &sub_backward},
             {Ops::MUL.id,        &mul_backward},
             {Ops::SCALE.id,      &scale_backward},
             {Ops::EXP.id,        &exp_backward},
             {Ops::ACCUMULATE.id, &accumulate_backward},
+            {Ops::DIV.id,        &div_backward},
+            {Ops::MINIMUM.id,    &minimum_backward},
+            {Ops::MAXIMUM.id,    &maximum_backward},
+            {Ops::ABS.id,        &abs_backward},
+            {Ops::ATAN.id,       &atan_backward},
+            {Ops::SELECT.id,     &select_backward},
         }};
     }
 }

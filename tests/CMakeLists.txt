@@ -70,6 +70,8 @@ add_executable(sushiai_tests
     functional/unit/test_leaky_relu.cpp
     functional/unit/test_upsample2d.cpp
     functional/unit/test_layer_registry.cpp
+    functional/unit/test_elementwise_ops.cpp
+    functional/unit/test_loss_roots.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp

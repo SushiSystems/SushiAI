@@ -25,6 +25,8 @@
  * @author Mustafa Garip
  */
 
+#include <array>
+#include <cstddef>
 #include <set>
 #include <string_view>
 #include <gtest/gtest.h>
@@ -117,6 +119,19 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.batchnorm2d_backward"),
         std::string_view("sushiai.channel_affine"),
         std::string_view("sushiai.batchnorm_update_stats"),
+        std::string_view("sushiai.div"),
+        std::string_view("sushiai.minimum"),
+        std::string_view("sushiai.maximum"),
+        std::string_view("sushiai.abs"),
+        std::string_view("sushiai.atan"),
+        std::string_view("sushiai.softplus"),
+        std::string_view("sushiai.less_equal"),
+        std::string_view("sushiai.select"),
+        std::string_view("sushiai.silu"),
+        std::string_view("sushiai.silu_backward"),
+        std::string_view("sushiai.softplus_backward"),
+        std::string_view("sushiai.stop_gradient"),
+        std::string_view("sushiai.constant"),
     };
 
     EXPECT_EQ(Ops::ALL.size(), expected.size());
@@ -166,4 +181,110 @@ TEST(Unit_Ops, LeakyReluDifferentiatesAtItsOutput)
     EXPECT_EQ(entry->backward, Ops::LEAKY_RELU_BACKWARD.id);
     EXPECT_EQ(entry->gradient_source, Ops::GradientSource::OUTPUT);
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::LEAKY_RELU.id));
+}
+
+/** @brief Tests that every elementwise, selection and SiLU identity resolves through ALL. */
+TEST(Unit_Ops, EveryElementwiseAndSelectionIdentityIsListedInAll)
+{
+    const std::array<SushiAI::OpID, 11> declared = {
+        Ops::DIV.id, Ops::MINIMUM.id, Ops::MAXIMUM.id,
+        Ops::ABS.id, Ops::ATAN.id,
+        Ops::LESS_EQUAL.id, Ops::SELECT.id,
+        Ops::SILU.id, Ops::SILU_BACKWARD.id,
+        Ops::SOFTPLUS.id, Ops::SOFTPLUS_BACKWARD.id,
+    };
+
+    for (SushiAI::OpID id : declared)
+        EXPECT_NE(Ops::name_of(id), "sushiai.unknown")
+            << "an identity was declared but not added to Ops::ALL";
+}
+
+/** @brief Tests that the eight forward identities are flagged differentiable and three are not. */
+TEST(Unit_Ops, TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable)
+{
+    for (const Ops::OpName& entry : {Ops::DIV, Ops::MINIMUM, Ops::MAXIMUM, Ops::ABS, Ops::ATAN,
+                                     Ops::SOFTPLUS, Ops::SELECT, Ops::SILU})
+        EXPECT_TRUE(entry.differentiable) << entry.name;
+
+    EXPECT_FALSE(Ops::LESS_EQUAL.differentiable);
+    EXPECT_FALSE(Ops::SILU_BACKWARD.differentiable);
+    EXPECT_FALSE(Ops::SOFTPLUS_BACKWARD.differentiable);
+}
+
+/** @brief Tests that exactly ZERO, CONSTANT, LESS_EQUAL and STOP_GRADIENT are gradient barriers. */
+TEST(Unit_Ops, TheGradientBarriersAreTheFourIdentitiesThatPassNoGradient)
+{
+    const std::array<SushiAI::OpID, 4> barriers = {
+        Ops::ZERO.id, Ops::CONSTANT.id, Ops::LESS_EQUAL.id, Ops::STOP_GRADIENT.id,
+    };
+
+    for (SushiAI::OpID id : barriers)
+        EXPECT_TRUE(Ops::is_gradient_barrier(id)) << Ops::name_of(id);
+
+    std::size_t flagged = 0;
+    for (const Ops::OpName& entry : Ops::ALL)
+    {
+        EXPECT_EQ(Ops::is_gradient_barrier(entry.id), entry.blocks_gradient) << entry.name;
+        flagged += entry.blocks_gradient ? 1u : 0u;
+    }
+
+    EXPECT_EQ(flagged, barriers.size());
+}
+
+/** @brief Tests that no identity is flagged both differentiable and a gradient barrier. */
+TEST(Unit_Ops, NoGradientBarrierIsFlaggedDifferentiable)
+{
+    for (const Ops::OpName& entry : Ops::ALL)
+        EXPECT_FALSE(entry.differentiable && entry.blocks_gradient) << entry.name;
+}
+
+/** @brief Tests that the identities that pass a gradient or throw on one are not barriers. */
+TEST(Unit_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
+{
+    for (const Ops::OpName& entry : {Ops::LEAF, Ops::CAST, Ops::DYNAMIC_SCALE, Ops::LOG_SOFTMAX,
+                                     Ops::RELU_BACKWARD, Ops::SILU_BACKWARD,
+                                     Ops::SOFTPLUS_BACKWARD, Ops::MAXPOOL2D_BACKWARD,
+                                     Ops::BATCHNORM2D_BACKWARD, Ops::BATCHNORM_UPDATE_STATS,
+                                     Ops::GEMM_BIAS, Ops::EXP_SUB_SCALE, Ops::ADAMW_UPDATE})
+        EXPECT_FALSE(Ops::is_gradient_barrier(entry.id)) << entry.name;
+
+    EXPECT_FALSE(Ops::is_gradient_barrier(SushiAI::OpID(0xDEADBEEFu)));
+}
+
+/** @brief Tests that SILU's table row differentiates at the forward input and does not fold. */
+TEST(Unit_Ops, SiluDifferentiatesAtItsInput)
+{
+    const Ops::Activation* entry = Ops::activation_of(Ops::SILU.id);
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->backward, Ops::SILU_BACKWARD.id);
+    EXPECT_EQ(entry->gradient_source, Ops::GradientSource::INPUT);
+    EXPECT_FALSE(Ops::activation_survives_fusion(Ops::SILU.id));
+}
+
+/** @brief Tests that SOFTPLUS's table row differentiates at the forward input and does not fold. */
+TEST(Unit_Ops, SoftplusDifferentiatesAtItsInput)
+{
+    const Ops::Activation* entry = Ops::activation_of(Ops::SOFTPLUS.id);
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->backward, Ops::SOFTPLUS_BACKWARD.id);
+    EXPECT_EQ(entry->gradient_source, Ops::GradientSource::INPUT);
+    EXPECT_FALSE(Ops::activation_survives_fusion(Ops::SOFTPLUS.id));
+}
+
+/** @brief Tests that is_activation_backward accepts exactly the gradient column of ACTIVATIONS. */
+TEST(Unit_Ops, IsActivationBackwardAcceptsOnlyTheTablesGradientColumn)
+{
+    for (const Ops::Activation& entry : Ops::ACTIVATIONS)
+    {
+        EXPECT_TRUE(Ops::is_activation_backward(entry.backward))
+            << Ops::name_of(entry.backward);
+        EXPECT_FALSE(Ops::is_activation_backward(entry.forward))
+            << Ops::name_of(entry.forward);
+    }
+
+    std::size_t accepted = 0;
+    for (const Ops::OpName& entry : Ops::ALL)
+        accepted += Ops::is_activation_backward(entry.id) ? 1u : 0u;
+
+    EXPECT_EQ(accepted, Ops::ACTIVATIONS.size());
 }

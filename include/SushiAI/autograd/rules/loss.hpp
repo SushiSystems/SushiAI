@@ -46,6 +46,15 @@ namespace SushiAI
          */
         void nll_loss_backward(const GradientTape& tape);
 
+        /**
+         * @brief Reports whether the rule of @p op starts from the implicit scalar seed.
+         * @return True when the rule reads no output gradient at the root and seeds itself.
+         */
+        constexpr bool starts_from_implicit_seed(OpID op) noexcept
+        {
+            return op == Ops::NLL_LOSS.id;
+        }
+
         /** @brief Holds backward rule entries for loss operations. */
         inline constexpr std::array<RuleEntry, 1> LOSS_RULES = {{
             {Ops::NLL_LOSS.id, &nll_loss_backward},

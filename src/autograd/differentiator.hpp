@@ -101,6 +101,20 @@ namespace SushiAI
                 Graph::Graph& graph() noexcept { return graph_; }
 
             private:
+                /**
+                 * @brief Throws unless the root can take an explicit seed.
+                 * @param producer The node that produces the root.
+                 * @pre finalise() has run on the graph.
+                 */
+                void require_seedable_root(Graph::NodeId producer) const;
+
+                /**
+                 * @brief Emits the explicit one that seeds the root and records it as a gradient.
+                 * @param producer The node that produces the root; the seed nodes get it as origin.
+                 * @pre require_seedable_root(producer) has passed.
+                 */
+                void seed_root(Graph::NodeId producer);
+
                 /** @brief Emits the gradient nodes of forward node @p id, when it needs any. */
                 void differentiate_node(Graph::NodeId id);
 

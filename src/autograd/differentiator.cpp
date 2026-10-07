@@ -41,6 +41,9 @@ namespace SushiAI
             /** @brief The extra entry that only exists to produce a good error. */
             constexpr RuleEntry LOG_SOFTMAX_RULE{Ops::LOG_SOFTMAX.id, &log_softmax_backward};
 
+            /** @brief Holds d(loss)/d(loss), the value an explicit root seed is filled with. */
+            constexpr double K_ROOT_SEED = 1.0;
+
             /** @brief Finds a rule, or null when the operation has none. */
             constexpr BackwardRule find_rule(OpID op) noexcept
             {
@@ -84,9 +87,6 @@ namespace SushiAI
 
         Graph::ValueId Differentiator::resolve(Graph::ValueId primal)
         {
-            // The differentiation root has an implicit scalar gradient without an explicit tensor.
-            if (primal == loss_) return Graph::NO_VALUE;
-
             const auto cached = resolved_.find(primal);
             if (cached != resolved_.end()) return cached->second;
 
@@ -139,19 +139,20 @@ namespace SushiAI
                         "differentiate() needs a scalar to differentiate; value {} has shape {}",
                         loss_, graph_.value(loss_).shape.to_string());
 
-            // Only NLL_LOSS starts from the implicit scalar seed, so it must produce the root.
             const Graph::NodeId root_producer = graph_.value(loss_).producer;
             SA_THROW_IF(root_producer == Graph::NO_NODE,
                         "differentiate() cannot seed a gradient for value {}: nothing produces "
-                        "it. The loss must be the result of NLL_LOSS - see NN::CrossEntropyLoss.",
+                        "it. The loss must be the result of an operation that has a backward "
+                        "rule, for example NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of "
+                        "loss terms.",
                         loss_);
-            SA_THROW_IF(graph_.node(root_producer).op != Ops::NLL_LOSS.id,
-                        "differentiate() seeds the loss gradient as the implicit scalar one, and "
-                        "only NLL_LOSS knows to start from it. Value {} is produced by {}, whose "
-                        "rule declines an absent output gradient and returns, so every requested "
-                        "gradient would come back empty with nothing reported. Produce the loss "
-                        "with NLL_LOSS - see NN::CrossEntropyLoss.",
-                        loss_, Ops::name_of(graph_.node(root_producer).op));
+
+            // A rule that seeds itself reads no output gradient, so it gets no explicit seed.
+            if (!starts_from_implicit_seed(graph_.node(root_producer).op))
+            {
+                require_seedable_root(root_producer);
+                seed_root(root_producer);
+            }
 
             for (std::size_t offset = forward_node_count_; offset > 0; --offset)
             {
@@ -161,6 +162,47 @@ namespace SushiAI
             }
         }
 
+        void Differentiator::require_seedable_root(Graph::NodeId producer) const
+        {
+            const OpID op = graph_.node(producer).op;
+            const DType dtype = graph_.value(loss_).dtype;
+
+            SA_THROW_IF(op == Ops::LEAF.id,
+                        "differentiate() cannot differentiate value {}: it is a leaf, produced "
+                        "by {}, so no operation computes it from a parameter. The loss must be "
+                        "the result of an operation that has a backward rule, for example "
+                        "NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of loss terms.",
+                        loss_, Ops::name_of(op));
+            SA_THROW_IF(!graph_.value(loss_).requires_grad,
+                        "differentiate() has nothing to differentiate: value {}, produced by {}, "
+                        "requires no gradient. No value that requires a gradient reaches it, or "
+                        "every path to it passes through an operation that lets no gradient "
+                        "through, such as STOP_GRADIENT.",
+                        loss_, Ops::name_of(op));
+            SA_THROW_IF(graph_.node(producer).outputs.front() != loss_,
+                        "differentiate() cannot differentiate value {}: it is not the first "
+                        "result of {}, and a backward rule reads the gradient of the first "
+                        "result only. Pass the first result, or a value computed from this one.",
+                        loss_, Ops::name_of(op));
+            SA_THROW_IF(!is_real_float(dtype),
+                        "differentiate() cannot differentiate value {}, produced by {}: its "
+                        "element type is {}, and a gradient exists only for half, float32 and "
+                        "float64.",
+                        loss_, Ops::name_of(op), dtype_name(dtype));
+            SA_THROW_IF(find_rule(op) == nullptr,
+                        "differentiate() cannot differentiate value {}: {} produces it and has "
+                        "no backward rule. Produce the loss with a differentiable operation, or "
+                        "add a rule to the appropriate domain under autograd/rules/.",
+                        loss_, Ops::name_of(op));
+        }
+
+        void Differentiator::seed_root(Graph::NodeId producer)
+        {
+            const Graph::ValueId one = builder_.constant_like(loss_, K_ROOT_SEED);
+            contribute(loss_, tape_.apply_seed_factor(one));
+            stamp_appended(producer);
+        }
+
         void Differentiator::differentiate_node(Graph::NodeId id)
         {
             if (skipped_[id])
@@ -168,6 +210,9 @@ namespace SushiAI
 
             // Snapshot before anything below can grow the graph.
             current_node_ = graph_.node(id);
+
+            if (Ops::is_gradient_barrier(current_node_.op))
+                return;
 
             bool any_input_needs_grad = false;
             for (Graph::ValueId in : current_node_.inputs)

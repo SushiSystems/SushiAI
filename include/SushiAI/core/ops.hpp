@@ -65,6 +65,13 @@ namespace SushiAI
              * table is visible; this file only declares the claim.
              */
             bool differentiable = false;
+
+            /**
+             * @brief Whether the result needs no gradient, whatever the operands need.
+             *
+             * Declared through @ref gradient_barrier_op, which states the rule.
+             */
+            bool blocks_gradient = false;
         };
 
         /**
@@ -77,7 +84,7 @@ namespace SushiAI
          */
         constexpr OpName op(std::string_view n)
         {
-            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), false};
+            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), false, false};
         }
 
         /**
@@ -89,7 +96,20 @@ namespace SushiAI
          */
         constexpr OpName differentiable_op(std::string_view n)
         {
-            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), true};
+            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), true, false};
+        }
+
+        /**
+         * @brief Builds an OpName whose result lets no gradient reach its operands.
+         *
+         * This is the one way an operation passes no gradient. @c Graph::finalise leaves the
+         * result without @c requires_grad, so no rule contributes to it, and the reverse walk
+         * steps over the node. A barrier has no backward rule; the static_assert in
+         * @c autograd/rules/all.hpp fails the build if one gains a row.
+         */
+        constexpr OpName gradient_barrier_op(std::string_view n)
+        {
+            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), false, true};
         }
 
         /** @brief A graph leaf: a parameter or an input, produced by nothing. */
@@ -124,7 +144,25 @@ namespace SushiAI
         /** @brief Elementwise natural exponential, out of place. */
         inline constexpr OpName EXP = differentiable_op("sushiai.exp");
         /** @brief An all-zero tensor, read by nothing upstream. */
-        inline constexpr OpName ZERO = op("sushiai.zero");
+        inline constexpr OpName ZERO = gradient_barrier_op("sushiai.zero");
+        /** @brief Fills a tensor with the value in attribute slot 0; reads no operand. */
+        inline constexpr OpName CONSTANT = gradient_barrier_op("sushiai.constant");
+
+        /** @brief Divides two equally shaped tensors elementwise: a / b. */
+        inline constexpr OpName DIV = differentiable_op("sushiai.div");
+        /** @brief Takes the elementwise smaller of two equally shaped tensors. */
+        inline constexpr OpName MINIMUM = differentiable_op("sushiai.minimum");
+        /** @brief Takes the elementwise larger of two equally shaped tensors. */
+        inline constexpr OpName MAXIMUM = differentiable_op("sushiai.maximum");
+        /** @brief Takes the elementwise absolute value, out of place. */
+        inline constexpr OpName ABS = differentiable_op("sushiai.abs");
+        /** @brief Takes the elementwise arctangent, out of place. */
+        inline constexpr OpName ATAN = differentiable_op("sushiai.atan");
+
+        /** @brief Compares elementwise: 1 where a <= b and 0 elsewhere, in the operands' dtype. */
+        inline constexpr OpName LESS_EQUAL = gradient_barrier_op("sushiai.less_equal");
+        /** @brief Selects elementwise: a where the condition is non-zero, b elsewhere. */
+        inline constexpr OpName SELECT = differentiable_op("sushiai.select");
 
         /** @brief Rectified linear unit. */
         inline constexpr OpName RELU = differentiable_op("sushiai.relu");
@@ -134,6 +172,10 @@ namespace SushiAI
         inline constexpr OpName SIGMOID = differentiable_op("sushiai.sigmoid");
         /** @brief Hyperbolic tangent. */
         inline constexpr OpName TANH = differentiable_op("sushiai.tanh");
+        /** @brief Computes the sigmoid linear unit, x * sigmoid(x). */
+        inline constexpr OpName SILU = differentiable_op("sushiai.silu");
+        /** @brief Computes softplus, log(1 + exp(x)). */
+        inline constexpr OpName SOFTPLUS = differentiable_op("sushiai.softplus");
 
         // Each activation gradient takes [dy, primal] and yields [dx].
         /** @brief Gradient of RELU; second operand is the forward output. */
@@ -144,11 +186,17 @@ namespace SushiAI
         inline constexpr OpName SIGMOID_BACKWARD = op("sushiai.sigmoid_backward");
         /** @brief Gradient of TANH; second operand is the forward output. */
         inline constexpr OpName TANH_BACKWARD = op("sushiai.tanh_backward");
+        /** @brief Computes the gradient of SILU; second operand is the forward input. */
+        inline constexpr OpName SILU_BACKWARD = op("sushiai.silu_backward");
+        /** @brief Computes the gradient of SOFTPLUS; second operand is the forward input. */
+        inline constexpr OpName SOFTPLUS_BACKWARD = op("sushiai.softplus_backward");
 
         /** @brief Reinterprets extents without moving data. */
         inline constexpr OpName RESHAPE = differentiable_op("sushiai.reshape");
         /** @brief The only node permitted to change a value's TensorLayout (CV-4). */
         inline constexpr OpName LAYOUT_CONVERT = differentiable_op("sushiai.layout_convert");
+        /** @brief Passes a value through unchanged and lets no gradient reach its operand. */
+        inline constexpr OpName STOP_GRADIENT = gradient_barrier_op("sushiai.stop_gradient");
 
         // A convolution is IM2COL followed by MATMUL.
         /** @brief Gathers each window into a row of a column matrix. */
@@ -242,16 +290,18 @@ namespace SushiAI
         inline constexpr std::array ALL = {
             LEAF, ACCUMULATE, CAST,
             MATMUL, BIAS_ADD,
-            ADD, SUB, MUL, SCALE, DYNAMIC_SCALE, EXP, ZERO,
-            RELU, GELU, SIGMOID, TANH, LEAKY_RELU,
+            ADD, SUB, MUL, SCALE, DYNAMIC_SCALE, EXP, ZERO, CONSTANT,
+            DIV, MINIMUM, MAXIMUM, ABS, ATAN,
+            LESS_EQUAL, SELECT,
+            RELU, GELU, SIGMOID, TANH, LEAKY_RELU, SILU, SOFTPLUS,
             RELU_BACKWARD, GELU_BACKWARD, SIGMOID_BACKWARD, TANH_BACKWARD,
-            LEAKY_RELU_BACKWARD,
+            LEAKY_RELU_BACKWARD, SILU_BACKWARD, SOFTPLUS_BACKWARD,
             LOG_SOFTMAX, NLL_LOSS,
             SUM_ROWS,
             ADAMW_UPDATE, SGD_UPDATE,
             GEMM_BIAS, GEMM_BIAS_RELU, GEMM_BIAS_SIGMOID, GEMM_BIAS_TANH, GEMM_BIAS_GELU,
             EXP_SUB_SCALE,
-            RESHAPE, LAYOUT_CONVERT,
+            RESHAPE, LAYOUT_CONVERT, STOP_GRADIENT,
             IM2COL, COL2IM,
             MAXPOOL2D, MAXPOOL2D_BACKWARD, AVGPOOL2D, AVGPOOL2D_BACKWARD,
             SPATIAL_MEAN, SPATIAL_MEAN_BACKWARD, UPSAMPLE2D, UPSAMPLE2D_BACKWARD,
@@ -291,6 +341,40 @@ namespace SushiAI
         }
 
         /**
+         * @brief Reports whether any identity in @p table is both differentiable and a barrier.
+         * @param table The identities to check.
+         * @return True when some entry carries both flags.
+         */
+        constexpr bool any_barrier_is_differentiable(SushiRuntime::span<const OpName> table)
+        {
+            for (const OpName& entry : table)
+            {
+                if (entry.differentiable && entry.blocks_gradient)
+                    return true;
+            }
+            return false;
+        }
+
+        static_assert(!any_barrier_is_differentiable(
+                          SushiRuntime::span<const OpName>(ALL.data(), ALL.size())),
+                      "A SushiAI operation is declared both differentiable and a gradient "
+                      "barrier. A barrier's rule would never run; pick one of the two.");
+
+        /**
+         * @brief Reports whether @p op cuts the gradient path between its result and its operands.
+         * @return True when @p op was declared through @ref gradient_barrier_op.
+         */
+        constexpr bool is_gradient_barrier(OpID op) noexcept
+        {
+            for (const OpName& entry : ALL)
+            {
+                if (entry.id == op)
+                    return entry.blocks_gradient;
+            }
+            return false;
+        }
+
+        /**
          * @enum GradientSource
          * @brief Which tensor an activation's gradient rule differentiates at.
          */
@@ -319,12 +403,14 @@ namespace SushiAI
         };
 
         /** @brief Every activation this library differentiates, in one table. */
-        inline constexpr std::array<Activation, 5> ACTIVATIONS = {{
+        inline constexpr std::array<Activation, 7> ACTIVATIONS = {{
             {RELU.id,       RELU_BACKWARD.id,       GradientSource::OUTPUT},
             {GELU.id,       GELU_BACKWARD.id,       GradientSource::INPUT},
             {SIGMOID.id,    SIGMOID_BACKWARD.id,    GradientSource::OUTPUT},
             {TANH.id,       TANH_BACKWARD.id,       GradientSource::OUTPUT},
             {LEAKY_RELU.id, LEAKY_RELU_BACKWARD.id, GradientSource::OUTPUT},
+            {SILU.id,       SILU_BACKWARD.id,       GradientSource::INPUT},
+            {SOFTPLUS.id,   SOFTPLUS_BACKWARD.id,   GradientSource::INPUT},
         }};
 
         /**
@@ -338,6 +424,19 @@ namespace SushiAI
             for (const Activation& entry : ACTIVATIONS)
                 if (entry.forward == forward) return &entry;
             return nullptr;
+        }
+
+        /**
+         * @brief Reports whether @p op is the gradient operation of a row in @ref ACTIVATIONS.
+         */
+        constexpr bool is_activation_backward(OpID op) noexcept
+        {
+            for (const Activation& entry : ACTIVATIONS)
+            {
+                if (entry.backward == op)
+                    return true;
+            }
+            return false;
         }
 
         /**

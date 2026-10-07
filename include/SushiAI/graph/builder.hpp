@@ -212,6 +212,47 @@ namespace SushiAI
                 ValueId mul(ValueId a, ValueId b) const;
 
                 /**
+                 * @brief Emits DIV: elementwise a / b.
+                 * @param a The dividend.
+                 * @param b The divisor; must share the shape and dtype of @p a.
+                 * @return The quotient, shaped and laid out like @p a.
+                 */
+                ValueId div(ValueId a, ValueId b) const;
+
+                /**
+                 * @brief Emits MINIMUM: the elementwise smaller of a and b.
+                 * @param a The first operand.
+                 * @param b Must share the shape and dtype of @p a.
+                 * @return The minimum, shaped and laid out like @p a.
+                 */
+                ValueId minimum(ValueId a, ValueId b) const;
+
+                /**
+                 * @brief Emits MAXIMUM: the elementwise larger of a and b.
+                 * @param a The first operand.
+                 * @param b Must share the shape and dtype of @p a.
+                 * @return The maximum, shaped and laid out like @p a.
+                 */
+                ValueId maximum(ValueId a, ValueId b) const;
+
+                /**
+                 * @brief Emits LESS_EQUAL: 1 where a <= b and 0 elsewhere.
+                 * @param a The first operand.
+                 * @param b Must share the shape and dtype of @p a.
+                 * @return The mask, in the shape, dtype and layout of @p a.
+                 */
+                ValueId less_equal(ValueId a, ValueId b) const;
+
+                /**
+                 * @brief Emits SELECT: a where the condition is non-zero, b elsewhere.
+                 * @param condition A mask holding 0 or 1, in the shape and dtype of @p a.
+                 * @param a The branch taken where the condition is non-zero.
+                 * @param b Must share the shape and dtype of @p a.
+                 * @return The selection, shaped and laid out like @p a.
+                 */
+                ValueId select(ValueId condition, ValueId a, ValueId b) const;
+
+                /**
                  * @brief Emits @c SCALE: Y = alpha * X.
                  * @param x The operand.
                  * @param alpha The host-side constant factor.
@@ -233,6 +274,15 @@ namespace SushiAI
                 /** @brief Emits @c EXP: elementwise exp(X), out of place. */
                 ValueId exp(ValueId x) const;
 
+                /** @brief Emits ABS: elementwise |x|, out of place. */
+                ValueId abs(ValueId x) const;
+
+                /** @brief Emits ATAN: elementwise arctangent of x, out of place. */
+                ValueId atan(ValueId x) const;
+
+                /** @brief Emits SOFTPLUS: elementwise log(1 + exp(x)), out of place. */
+                ValueId softplus(ValueId x) const;
+
                 /**
                  * @brief Emits ZERO: a fresh all-zero tensor with no operands.
                  * @param shape The tensor extents.
@@ -251,6 +301,23 @@ namespace SushiAI
                 ValueId zeros_like(ValueId like, Shape shape,
                                    DType dtype = DType::FLOAT32) const;
 
+                /**
+                 * @brief Emits CONSTANT: a tensor with no operands, filled with @p value.
+                 * @param shape The tensor extents.
+                 * @param value The fill, stored in attribute slot 0.
+                 * @param dtype The element type; must be half, float32 or float64.
+                 * @return The new value id, in the NHWC layout, requiring no gradient.
+                 */
+                ValueId constant(Shape shape, double value, DType dtype = DType::FLOAT32) const;
+
+                /**
+                 * @brief Emits CONSTANT in the shape, element type and layout of @p x.
+                 * @param x The value described; it is not read. Must be a real floating value.
+                 * @param value The fill, stored in attribute slot 0.
+                 * @return The new value id, requiring no gradient.
+                 */
+                ValueId constant_like(ValueId x, double value) const;
+
                 /** @brief Emits @c RELU. */
                 ValueId relu(ValueId x) const;
 
@@ -262,6 +329,9 @@ namespace SushiAI
 
                 /** @brief Emits @c TANH. */
                 ValueId tanh(ValueId x) const;
+
+                /** @brief Emits SILU: elementwise x * sigmoid(x). */
+                ValueId silu(ValueId x) const;
 
                 /**
                  * @brief Emits LEAKY_RELU with the given negative slope.
@@ -565,6 +635,13 @@ namespace SushiAI
                  * @throws Error If @p shape's element count differs from @p x's.
                  */
                 ValueId reshape(ValueId x, Shape shape) const;
+
+                /**
+                 * @brief Emits STOP_GRADIENT: the value of @p x, with no gradient path back to it.
+                 * @param x The value to pass through.
+                 * @return A value shaped, typed and laid out like @p x that requires no gradient.
+                 */
+                ValueId stop_gradient(ValueId x) const;
 
             private:
                 ValueId declare(Shape shape, DType dtype, Lifetime lifetime,

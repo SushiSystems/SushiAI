@@ -417,13 +417,16 @@ namespace SushiAI
                  * @brief Propagates @c requires_grad forward from the leaves.
                  *
                  * A value needs a gradient exactly when some input it descends
-                 * from needs one. One forward sweep suffices because insertion
-                 * order is topological.
+                 * from needs one through a path no gradient barrier cuts. One
+                 * forward sweep suffices because insertion order is topological.
                  */
                 void propagate_requires_grad() noexcept
                 {
                     for (const Node& n : nodes_)
                     {
+                        if (Ops::is_gradient_barrier(n.op))
+                            continue;
+
                         bool any = false;
                         for (ValueId in : n.inputs)
                             if (values_[in].requires_grad) { any = true; break; }

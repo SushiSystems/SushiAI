@@ -248,6 +248,38 @@ namespace SushiAI
             return elementwise(Ops::MUL.id, a, b, "MUL");
         }
 
+        ValueId GraphBuilder::div(ValueId a, ValueId b) const
+        {
+            return elementwise(Ops::DIV.id, a, b, "DIV");
+        }
+
+        ValueId GraphBuilder::minimum(ValueId a, ValueId b) const
+        {
+            return elementwise(Ops::MINIMUM.id, a, b, "MINIMUM");
+        }
+
+        ValueId GraphBuilder::maximum(ValueId a, ValueId b) const
+        {
+            return elementwise(Ops::MAXIMUM.id, a, b, "MAXIMUM");
+        }
+
+        ValueId GraphBuilder::less_equal(ValueId a, ValueId b) const
+        {
+            return elementwise(Ops::LESS_EQUAL.id, a, b, "LESS_EQUAL");
+        }
+
+        ValueId GraphBuilder::select(ValueId condition, ValueId a, ValueId b) const
+        {
+            require_same(a, b, "SELECT");
+            require_same(condition, a, "SELECT");
+
+            const Value& va = graph_->value(a);
+            const ValueId out = declare_like(a, va.shape, va.dtype, Lifetime::ACTIVATION,
+                                             "select");
+            graph_->add_node(Ops::SELECT.id, {condition, a, b}, {out});
+            return out;
+        }
+
         ValueId GraphBuilder::scale(ValueId x, double alpha) const
         {
             const Value& vx = graph_->value(x);
@@ -297,6 +329,26 @@ namespace SushiAI
         ValueId GraphBuilder::sigmoid(ValueId x) const { return unary(Ops::SIGMOID.id, x); }
         ValueId GraphBuilder::tanh(ValueId x) const { return unary(Ops::TANH.id, x); }
 
+        ValueId GraphBuilder::abs(ValueId x) const
+        {
+            return unary(Ops::ABS.id, x);
+        }
+
+        ValueId GraphBuilder::atan(ValueId x) const
+        {
+            return unary(Ops::ATAN.id, x);
+        }
+
+        ValueId GraphBuilder::softplus(ValueId x) const
+        {
+            return unary(Ops::SOFTPLUS.id, x);
+        }
+
+        ValueId GraphBuilder::silu(ValueId x) const
+        {
+            return unary(Ops::SILU.id, x);
+        }
+
         ValueId GraphBuilder::leaky_relu(ValueId x, double slope) const
         {
             SA_THROW_IF(!is_legal_leaky_relu_slope(slope),
@@ -330,12 +382,35 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::constant(Shape shape, double value, DType dtype) const
+        {
+            SA_THROW_IF(!is_real_float(dtype),
+                        "CONSTANT fills a real floating tensor (half, float32, float64); got {}",
+                        dtype_name(dtype));
+
+            const ValueId out = declare(shape, dtype, Lifetime::ACTIVATION, "constant");
+
+            Attributes attributes{};
+            attributes.values[0] = value;
+
+            graph_->add_node(Ops::CONSTANT.id, {}, {out}, attributes);
+            return out;
+        }
+
+        ValueId GraphBuilder::constant_like(ValueId x, double value) const
+        {
+            // The description is held by value; constant() grows the table a reference points into.
+            const Value described = graph_->value(x);
+
+            const ValueId out = constant(described.shape, value, described.dtype);
+            graph_->value(out).layout = described.layout;
+            return out;
+        }
+
         ValueId GraphBuilder::activation_backward(OpID op, ValueId dy, ValueId primal,
                                                   const Attributes& attributes) const
         {
-            SA_THROW_IF(op != Ops::RELU_BACKWARD.id && op != Ops::GELU_BACKWARD.id
-                        && op != Ops::SIGMOID_BACKWARD.id && op != Ops::TANH_BACKWARD.id
-                        && op != Ops::LEAKY_RELU_BACKWARD.id,
+            SA_THROW_IF(!Ops::is_activation_backward(op),
                         "{} is not an activation gradient", Ops::name_of(op));
 
             // Verify slope explicitly to prevent silent emission of standard ReLU gradients.
@@ -984,6 +1059,11 @@ namespace SushiAI
             const ValueId out = declare_like(x, shape, in.dtype, Lifetime::ACTIVATION, "reshape");
             graph_->add_node(Ops::RESHAPE.id, {x}, {out});
             return out;
+        }
+
+        ValueId GraphBuilder::stop_gradient(ValueId x) const
+        {
+            return unary(Ops::STOP_GRADIENT.id, x);
         }
 
     } // namespace Graph

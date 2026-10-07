@@ -84,5 +84,28 @@ namespace SushiAI
                       "backward rule. Declaring an identity and forgetting its rule is "
                       "otherwise silent: the graph builds, differentiate() skips the node, "
                       "and the model trains with a missing gradient.");
+
+        /**
+         * @brief Verifies that no gradient barrier possesses a backward rule.
+         * @param table Operation metadata table to inspect.
+         * @return True when every operation flagged blocks_gradient is absent from RULES.
+         */
+        constexpr bool no_gradient_barrier_has_a_rule(
+            SushiRuntime::span<const Ops::OpName> table) noexcept
+        {
+            for (const Ops::OpName& entry : table)
+            {
+                if (entry.blocks_gradient && has_rule(entry.id))
+                    return false;
+            }
+            return true;
+        }
+
+        static_assert(no_gradient_barrier_has_a_rule(
+                          SushiRuntime::span<const Ops::OpName>(Ops::ALL.data(),
+                                                                Ops::ALL.size())),
+                      "An operation is declared a gradient barrier in core/ops.hpp and also has "
+                      "a backward rule. The reverse walk steps over a barrier, so the rule "
+                      "would never run. Remove the row, or declare the operation differentiable.");
     }
 }

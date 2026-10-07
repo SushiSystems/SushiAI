@@ -66,5 +66,44 @@ namespace SushiAI
                 EXPECT_TRUE(Autograd::has_backward_rule(op))
                     << "'" << Ops::name_of(op) << "' lost its rule in the split";
         }
+
+        /** @brief Tests that no identity declared a gradient barrier has a backward rule. */
+        TEST(Unit_RuleTable, NoGradientBarrierHasARule)
+        {
+            std::size_t barriers = 0;
+            for (const Ops::OpName& entry : Ops::ALL)
+            {
+                if (!entry.blocks_gradient)
+                    continue;
+
+                ++barriers;
+                EXPECT_FALSE(Autograd::has_rule(entry.id)) << entry.name;
+                EXPECT_FALSE(Autograd::has_backward_rule(entry.id)) << entry.name;
+            }
+
+            EXPECT_EQ(barriers, 4u) << "the loop above checked a different set than it names";
+        }
+
+        /** @brief Tests that the comparison is a gradient barrier and has no rule row. */
+        TEST(Unit_RuleTable, TheComparisonIsABarrierWithoutARule)
+        {
+            EXPECT_FALSE(Ops::LESS_EQUAL.differentiable);
+            EXPECT_TRUE(Ops::LESS_EQUAL.blocks_gradient);
+            EXPECT_FALSE(Autograd::has_rule(Ops::LESS_EQUAL.id));
+        }
+
+        /** @brief Tests that each ACTIVATIONS row has a rule for its forward identity alone. */
+        TEST(Unit_RuleTable, EveryActivationRowHasARuleForItsForwardIdentityOnly)
+        {
+            for (const Ops::Activation& entry : Ops::ACTIVATIONS)
+            {
+                EXPECT_TRUE(Autograd::has_rule(entry.forward))
+                    << "'" << Ops::name_of(entry.forward) << "' has no backward rule";
+                EXPECT_FALSE(Autograd::has_rule(entry.backward))
+                    << "'" << Ops::name_of(entry.backward) << "' is a gradient with a rule";
+            }
+
+            EXPECT_EQ(Autograd::ACTIVATION_RULES.size(), Ops::ACTIVATIONS.size());
+        }
     }
 }
