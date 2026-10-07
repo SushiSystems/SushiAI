@@ -34,13 +34,40 @@
 #include <vector>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/shape.hpp>
 
 namespace SushiAI
 {
     namespace Config
     {
-        /** @brief The model-file version this build reads. */
-        inline constexpr std::int64_t MODEL_VERSION = 1;
+        /** @brief Holds the model-file version this build writes and the newest it reads. */
+        inline constexpr std::int64_t MODEL_VERSION = 2;
+
+        /** @brief Marks a resolved @ref SourceSpec that reads the model input, not a row. */
+        inline constexpr std::int64_t K_MODEL_INPUT = -1;
+
+        /** @brief Names one value a layer reads: a port of a row above it, or the model input. */
+        struct SourceSpec
+        {
+            /** @brief Holds the absolute row index, or @ref K_MODEL_INPUT. */
+            std::int64_t node = K_MODEL_INPUT;
+
+            /** @brief Holds the port name; empty selects the row's first port. */
+            std::string port;
+        };
+
+        /** @brief Names what a model publishes: every port of a row, or one of them. */
+        struct OutputSpec
+        {
+            /** @brief Holds the absolute row index. */
+            std::int64_t node = 0;
+
+            /** @brief Holds the port name; empty publishes every port of the row. */
+            std::string port;
+
+            /** @brief Holds the published name; empty keeps the port's own name. */
+            std::string name;
+        };
 
         /**
          * @struct LayerSpec
@@ -51,13 +78,11 @@ namespace SushiAI
             /** @brief The @c NN::LAYER_REGISTRY key, e.g. "linear". */
             std::string type;
 
-            /**
-             * @brief Every other key the layer object carried.
-             *
-             * The layer object with @c "type" removed, so the key that chose
-             * the factory is not also a key the factory has to allow.
-             */
+            /** @brief Holds the row's keys without "type" and "from", defaults merged in. */
             Value attributes;
+
+            /** @brief Lists the values the row reads, in the order the file gave them. */
+            std::vector<SourceSpec> from;
         };
 
         /**
@@ -66,19 +91,24 @@ namespace SushiAI
          */
         struct ModelSpec
         {
-            /** @brief Features per sample entering the first layer. */
-            std::int64_t input_features = 0;
+            /** @brief Holds the shape of one sample entering the model, batch axis left out. */
+            Shape input_shape;
 
             /** @brief The layers, in application order. */
             std::vector<LayerSpec> layers;
+
+            /** @brief Lists what the model publishes; never empty after a parse. */
+            std::vector<OutputSpec> outputs;
+
+            /** @brief Holds the element count of @ref input_shape. */
+            std::int64_t input_features = 0;
         };
 
         /**
-         * @brief Parses a model configuration value into a @ref ModelSpec.
-         * @param root Parsed configuration value tree.
+         * @brief Parses a model document of any version this build reads into a @ref ModelSpec.
+         * @param root Parsed configuration value tree; a version 1 tree is upgraded in memory.
          * @param origin Context description for diagnostics.
          * @return Parsed model specification.
-         * @throws Error If schema constraints or version requirements fail.
          */
         ModelSpec parse_model(const Value& root, std::string_view origin);
 

@@ -21,7 +21,7 @@
 
 /**
  * @file test_module.cpp
- * @brief Tests the parameter walk over layers, containers and a layer enumerated at run time.
+ * @brief Tests Parameter across graphs and the state walk over layers, containers and fields.
  * @author Mustafa Garip
  */
 
@@ -29,13 +29,21 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/state_id.hpp>
+#include <SushiAI/nn/buffer.hpp>
+#include <SushiAI/nn/ilayer.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
@@ -46,6 +54,9 @@ using NN::Sequential;
 
 namespace
 {
+    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
+    constexpr double K_EXACT_TOLERANCE = 1e-15;
+
     /** @brief Collects the walk's output as "name:extents" strings. */
     template<typename M>
     std::vector<std::string> walk(M& model)
@@ -383,4 +394,605 @@ TEST(Unit_Module, AnActivationsOutputShapeAgreesWithItsTrace)
     EXPECT_EQ(traced_shape(gelu, 5), (Shape{2, gelu.output_shape(Shape{5})[0]}));
     EXPECT_EQ(traced_shape(tanh, 5), (Shape{2, tanh.output_shape(Shape{5})[0]}));
     EXPECT_EQ(traced_shape(sigmoid, 5), (Shape{2, sigmoid.output_shape(Shape{5})[0]}));
+}
+
+namespace
+{
+    /** @brief Declares one [2, 3] weight into @p builder and returns its leaf. */
+    Graph::ValueId declare_weight(Parameter& parameter, const Graph::GraphBuilder& builder)
+    {
+        return parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "weight");
+    }
+}
+
+/** @brief Tests that one parameter traced into two graphs has its own leaf in each. */
+TEST(Unit_Module, AParameterTracedIntoTwoGraphsHasALeafInEach)
+{
+    Graph::Graph first;
+    Graph::Graph second;
+    const Graph::GraphBuilder first_builder(first);
+    const Graph::GraphBuilder second_builder(second);
+
+    // The padding input gives the first graph's leaf an id the second graph does not repeat.
+    (void)first_builder.input(Shape{2, 3}, "padding");
+
+    Parameter parameter;
+    const Graph::ValueId first_leaf = declare_weight(parameter, first_builder);
+    const Graph::ValueId second_leaf = declare_weight(parameter, second_builder);
+
+    EXPECT_EQ(first_leaf, 1u);
+    EXPECT_EQ(second_leaf, 0u);
+    EXPECT_EQ(parameter.id_in(first), first_leaf);
+    EXPECT_EQ(parameter.id_in(second), second_leaf);
+    EXPECT_EQ(first.state_leaf(parameter.state()), first_leaf);
+    EXPECT_EQ(second.state_leaf(parameter.state()), second_leaf);
+    EXPECT_EQ(second.value(second_leaf).lifetime, Graph::Lifetime::PARAMETER);
+}
+
+/** @brief Tests that id_in() reports NO_VALUE for a graph the parameter was never traced into. */
+TEST(Unit_Module, AParameterHasNoLeafInAGraphItWasNotTracedInto)
+{
+    Graph::Graph traced;
+    Graph::Graph untouched;
+    const Graph::GraphBuilder builder(traced);
+
+    Parameter parameter;
+    EXPECT_EQ(parameter.id_in(traced), Graph::NO_VALUE);
+    EXPECT_EQ(parameter.state(), Graph::K_NO_STATE);
+
+    (void)declare_weight(parameter, builder);
+
+    EXPECT_NE(parameter.state(), Graph::K_NO_STATE);
+    EXPECT_EQ(parameter.id_in(untouched), Graph::NO_VALUE);
+}
+
+/** @brief Tests that a second declare in one graph returns the first leaf and adds no value. */
+TEST(Unit_Module, ASecondDeclareInOneGraphReturnsTheFirstLeaf)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Parameter parameter;
+    const Graph::ValueId first_leaf = declare_weight(parameter, builder);
+    const std::size_t values_after_first = graph.value_count();
+
+    EXPECT_EQ(declare_weight(parameter, builder), first_leaf);
+    EXPECT_EQ(graph.value_count(), values_after_first);
+    EXPECT_EQ(graph.state_leaves().size(), 1u);
+}
+
+/** @brief Tests that a declare with another shape is refused, in the same graph and in another. */
+TEST(Unit_Module, ADeclareWithAnotherShapeIsRefused)
+{
+    Graph::Graph graph;
+    Graph::Graph other;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::GraphBuilder other_builder(other);
+
+    Parameter parameter;
+    (void)declare_weight(parameter, builder);
+
+    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{4, 3}, NN::ParameterRole::WEIGHT,
+                                            3, 4, "weight"),
+                    "'weight'", "[2, 3]", "[4, 3]");
+    SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{4, 3}, NN::ParameterRole::WEIGHT,
+                                            3, 4, "weight"),
+                    "'weight'", "[2, 3]", "[4, 3]");
+    EXPECT_EQ(other.value_count(), 0u);
+    EXPECT_EQ(parameter.shape(), (Shape{2, 3}));
+}
+
+/** @brief Tests that a declare with another element type is refused in either graph. */
+TEST(Unit_Module, ADeclareWithAnotherElementTypeIsRefused)
+{
+    Graph::Graph graph;
+    Graph::Graph other;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::GraphBuilder other_builder(other);
+
+    Parameter parameter;
+    (void)declare_weight(parameter, builder);
+
+    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT,
+                                            3, 2, "weight", DType::FLOAT64),
+                    "'weight'", dtype_name(DType::FLOAT32), dtype_name(DType::FLOAT64));
+    SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{2, 3},
+                                            NN::ParameterRole::WEIGHT, 3, 2, "weight",
+                                            DType::FLOAT64),
+                    "'weight'", dtype_name(DType::FLOAT32), dtype_name(DType::FLOAT64));
+    EXPECT_EQ(other.value_count(), 0u);
+    EXPECT_EQ(parameter.dtype(), DType::FLOAT32);
+}
+
+/** @brief Tests that a later declare with another fill and other fans leaves the first ones. */
+TEST(Unit_Module, ALaterDeclareKeepsTheFirstDescription)
+{
+    Graph::Graph first;
+    Graph::Graph second;
+    const Graph::GraphBuilder first_builder(first);
+    const Graph::GraphBuilder second_builder(second);
+
+    Parameter scale;
+    (void)scale.declare(first_builder, Shape{4}, NN::ParameterRole::SCALE,
+                        NN::ParameterInit::constant_value(1.5), 4, 4, "scale");
+    (void)scale.declare(second_builder, Shape{4}, NN::ParameterRole::WEIGHT,
+                        NN::ParameterInit::fan_scaled(), 9, 9, "scale");
+
+    EXPECT_EQ(scale.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(scale.init().constant, 1.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(scale.role(), NN::ParameterRole::SCALE);
+    EXPECT_EQ(scale.fan_in(), 4);
+    EXPECT_EQ(scale.fan_out(), 4);
+    EXPECT_NE(scale.id_in(second), Graph::NO_VALUE);
+}
+
+/** @brief Tests that a copied layer is new state: its own StateId and its own leaf. */
+TEST(Unit_Module, ACopiedLayerHasANewStateId)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+
+    Linear original{4, 3};
+    (void)original.forward(builder, x);
+
+    Linear copy = original;
+    EXPECT_EQ(copy.weight.state(), Graph::K_NO_STATE);
+    EXPECT_EQ(copy.weight.id_in(graph), Graph::NO_VALUE);
+
+    // id() is copied with the description, so an untraced copy reports the original's leaf.
+    EXPECT_TRUE(copy.weight.declared());
+    EXPECT_EQ(copy.weight.id(), original.weight.id());
+
+    (void)copy.forward(builder, x);
+
+    EXPECT_EQ(copy.weight.id(), copy.weight.id_in(graph));
+
+    EXPECT_NE(copy.weight.state(), Graph::K_NO_STATE);
+    EXPECT_NE(copy.weight.state(), original.weight.state());
+    EXPECT_NE(copy.weight.id_in(graph), original.weight.id_in(graph));
+    EXPECT_NE(copy.bias.id_in(graph), original.bias.id_in(graph));
+}
+
+/** @brief Tests that a moved layer keeps its StateId, so it still matches the graph it traced. */
+TEST(Unit_Module, AMovedLayerKeepsItsStateId)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+
+    Linear original{4, 3};
+    (void)original.forward(builder, x);
+    const Graph::StateId weight_state = original.weight.state();
+    const Graph::ValueId weight_leaf = original.weight.id_in(graph);
+    const std::size_t values_after_trace = graph.value_count();
+
+    Linear moved = std::move(original);
+
+    EXPECT_EQ(moved.weight.state(), weight_state);
+    EXPECT_EQ(moved.weight.id_in(graph), weight_leaf);
+
+    (void)moved.forward(builder, x);
+
+    // A second trace of the moved layer adds the two activations and no parameter leaf.
+    EXPECT_EQ(graph.value_count(), values_after_trace + 2);
+}
+
+/** @brief Tests that id() returns the leaf of the most recent declare. */
+TEST(Unit_Module, IdReturnsTheLeafOfTheMostRecentDeclare)
+{
+    Graph::Graph first;
+    Graph::Graph second;
+    const Graph::GraphBuilder first_builder(first);
+    const Graph::GraphBuilder second_builder(second);
+    (void)second_builder.input(Shape{2, 3}, "padding");
+
+    Parameter parameter;
+    EXPECT_EQ(parameter.id(), Graph::NO_VALUE);
+
+    const Graph::ValueId first_leaf = declare_weight(parameter, first_builder);
+    EXPECT_EQ(parameter.id(), first_leaf);
+
+    const Graph::ValueId second_leaf = declare_weight(parameter, second_builder);
+    EXPECT_NE(second_leaf, first_leaf);
+    EXPECT_EQ(parameter.id(), second_leaf);
+}
+
+/** @brief Tests that id() follows a declare back into a graph that already holds the leaf. */
+TEST(Unit_Module, IdFollowsADeclareBackIntoAnEarlierGraph)
+{
+    Graph::Graph first;
+    Graph::Graph second;
+    const Graph::GraphBuilder first_builder(first);
+    const Graph::GraphBuilder second_builder(second);
+    (void)first_builder.input(Shape{2, 3}, "padding");
+
+    Parameter parameter;
+    const Graph::ValueId first_leaf = declare_weight(parameter, first_builder);
+    const Graph::ValueId second_leaf = declare_weight(parameter, second_builder);
+    ASSERT_NE(first_leaf, second_leaf);
+    ASSERT_EQ(parameter.id(), second_leaf);
+
+    EXPECT_EQ(declare_weight(parameter, first_builder), first_leaf);
+    EXPECT_EQ(parameter.id(), first_leaf);
+}
+
+/** @brief Tests that a role declare records the fill the role stands for. */
+TEST(Unit_Module, ARoleDeclareRecordsTheFillOfItsRole)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Parameter weight;
+    Parameter bias;
+    (void)weight.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "weight");
+    (void)bias.declare(builder, Shape{2}, NN::ParameterRole::BIAS, 3, 2, "bias");
+
+    EXPECT_EQ(weight.init().kind, NN::ParameterInit::Kind::FanScaled);
+    EXPECT_EQ(bias.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(bias.init().constant, 0.0, K_EXACT_TOLERANCE);
+}
+
+/** @brief Tests that an init declare keeps the stated fill and the stated role, each as given. */
+TEST(Unit_Module, AnInitDeclareRecordsTheStatedFillAndTheStatedRole)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Parameter offset;
+    Parameter kernel;
+    (void)offset.declare(builder, Shape{4}, NN::ParameterRole::BIAS,
+                         NN::ParameterInit::constant_value(1.5), 4, 4, "offset");
+    (void)kernel.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT,
+                         NN::ParameterInit::fan_scaled(), 3, 2, "kernel");
+
+    EXPECT_EQ(offset.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(offset.init().constant, 1.5, K_EXACT_TOLERANCE);
+    EXPECT_EQ(offset.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(offset.fan_in(), 4);
+    EXPECT_EQ(kernel.init().kind, NN::ParameterInit::Kind::FanScaled);
+    EXPECT_EQ(kernel.role(), NN::ParameterRole::WEIGHT);
+    EXPECT_TRUE(graph.value(offset.id_in(graph)).requires_grad);
+}
+
+/** @brief Tests that each role's own fill is fan-scaled, zero or one, by the role declared. */
+TEST(Unit_Module, ARoleDeclareFillsByItsRole)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    Parameter weight;
+    Parameter bias;
+    Parameter scale;
+    (void)weight.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "weight");
+    (void)bias.declare(builder, Shape{2}, NN::ParameterRole::BIAS, 3, 2, "bias");
+    (void)scale.declare(builder, Shape{2}, NN::ParameterRole::SCALE, 2, 2, "scale");
+
+    EXPECT_EQ(weight.init().kind, NN::ParameterInit::Kind::FanScaled);
+    EXPECT_EQ(bias.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(bias.init().constant, 0.0, K_EXACT_TOLERANCE);
+    EXPECT_EQ(scale.role(), NN::ParameterRole::SCALE);
+    EXPECT_EQ(scale.init().kind, NN::ParameterInit::Kind::Constant);
+    EXPECT_NEAR(scale.init().constant, 1.0, K_EXACT_TOLERANCE);
+}
+
+namespace
+{
+    /** @brief Holds one parameter and one buffer, to be listed as a child. */
+    struct StatePair
+    {
+        Parameter scale{};
+        NN::Buffer mean{};
+
+        static constexpr auto fields()
+        {
+            return std::tuple{
+                NN::field("scale", &StatePair::scale),
+                NN::buffer("mean", &StatePair::mean),
+            };
+        }
+
+        /** @brief Declares the parameter into @p builder and defines the buffer. */
+        void describe(const Graph::GraphBuilder& builder)
+        {
+            (void)scale.declare(builder, Shape{4}, NN::ParameterRole::SCALE, 4, 4, "scale");
+            const Status defined = mean.define(Shape{4}, 0.0);
+            static_cast<void>(defined);
+        }
+    };
+
+    /** @brief Lists all three field kinds, with a buffer first and one buffer left undefined. */
+    struct MixedState
+    {
+        NN::Buffer count{};
+        StatePair pair{};
+        Parameter offset{};
+        NN::Buffer unset{};
+
+        static constexpr auto fields()
+        {
+            return std::tuple{
+                NN::buffer("count", &MixedState::count),
+                NN::child("pair", &MixedState::pair),
+                NN::field("offset", &MixedState::offset),
+                NN::buffer("unset", &MixedState::unset),
+            };
+        }
+
+        /** @brief Describes every piece of state except the buffer named "unset". */
+        void describe(const Graph::GraphBuilder& builder)
+        {
+            const Status defined = count.define(Shape{1}, 0.0, DType::INT64);
+            static_cast<void>(defined);
+            pair.describe(builder);
+            (void)offset.declare(builder, Shape{4}, NN::ParameterRole::BIAS, 4, 4, "offset");
+        }
+    };
+
+    /** @brief Collects what walk_state() yields as "kind name:extents" strings. */
+    template<typename M>
+    std::vector<std::string> walk_all(M& model, std::string_view prefix)
+    {
+        std::vector<std::string> seen;
+        const auto on_parameter = [&seen](const std::string& name, Parameter& parameter)
+        {
+            seen.push_back("parameter " + name + ":" + parameter.shape().to_string());
+        };
+        const auto on_buffer = [&seen](const std::string& name, NN::Buffer& buffer)
+        {
+            seen.push_back("buffer " + name + ":" + buffer.shape().to_string());
+        };
+
+        const NN::StateVisitor visitor(on_parameter, on_buffer);
+        NN::walk_state(model, prefix, visitor);
+        return seen;
+    }
+
+    /** @brief Collects the names for_each_buffer() yields. */
+    template<typename M>
+    std::vector<std::string> buffer_names(M& model)
+    {
+        std::vector<std::string> names;
+        NN::for_each_buffer(model, [&names](const std::string& name, NN::Buffer&)
+        {
+            names.push_back(name);
+        });
+        return names;
+    }
+}
+
+/** @brief Tests that walk_state() yields all three field kinds in declaration order. */
+TEST(Unit_Module, WalkStateYieldsTheThreeFieldKindsInDeclarationOrder)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MixedState model;
+    model.describe(builder);
+
+    EXPECT_EQ(walk_all(model, ""), (std::vector<std::string>{
+        "buffer count:[1]",
+        "parameter pair.scale:[4]",
+        "buffer pair.mean:[4]",
+        "parameter offset:[4]",
+    }));
+}
+
+/** @brief Tests that walk_state() puts its prefix in front of every name, children included. */
+TEST(Unit_Module, WalkStateJoinsItsPrefixToEveryName)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MixedState model;
+    model.describe(builder);
+
+    EXPECT_EQ(walk_all(model, "model.3"), (std::vector<std::string>{
+        "buffer model.3.count:[1]",
+        "parameter model.3.pair.scale:[4]",
+        "buffer model.3.pair.mean:[4]",
+        "parameter model.3.offset:[4]",
+    }));
+}
+
+/** @brief Tests that for_each_parameter() yields the parameters of the walk and no buffer. */
+TEST(Unit_Module, ForEachParameterNeverYieldsABuffer)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MixedState model;
+    model.describe(builder);
+
+    EXPECT_EQ(walk(model), (std::vector<std::string>{"pair.scale:[4]", "offset:[4]"}));
+    EXPECT_EQ(NN::parameter_count(model), 2u);
+    EXPECT_EQ(NN::parameter_elements(model), 8);
+}
+
+/** @brief Tests that for_each_buffer() yields the buffers of the walk and no parameter. */
+TEST(Unit_Module, ForEachBufferNeverYieldsAParameter)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MixedState model;
+    model.describe(builder);
+
+    EXPECT_EQ(buffer_names(model), (std::vector<std::string>{"count", "pair.mean"}));
+    EXPECT_EQ(NN::buffer_count(model), 2u);
+}
+
+/** @brief Tests that the walk skips a buffer until define() is called on it. */
+TEST(Unit_Module, AnUndefinedBufferIsSkipped)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MixedState model;
+    EXPECT_TRUE(buffer_names(model).empty());
+
+    model.describe(builder);
+    EXPECT_EQ(NN::buffer_count(model), 2u);
+
+    SA_EXPECT_OK(model.unset.define(Shape{2}, 1.0));
+    EXPECT_EQ(buffer_names(model), (std::vector<std::string>{"count", "pair.mean", "unset"}));
+}
+
+/** @brief Tests that a defined buffer is walked although no graph holds a leaf for it. */
+TEST(Unit_Module, ADefinedBufferIsWalkedWithoutALeaf)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MixedState model;
+    model.describe(builder);
+
+    EXPECT_EQ(model.count.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(NN::buffer_count(model), 2u);
+}
+
+namespace
+{
+    /** @brief Walks its own state in an order no fields() list of it would give. */
+    class SelfWalkingStub
+    {
+        public:
+            SelfWalkingStub()
+            {
+                (void)gain_.declare(builder_, Shape{3}, NN::ParameterRole::WEIGHT, 3, 3, "gain");
+                const Status defined = level_.define(Shape{3}, 0.5);
+                static_cast<void>(defined);
+            }
+
+            void walk_state(std::string_view prefix, const NN::StateVisitor& visitor)
+            {
+                visitor.buffer(NN::Detail::join(prefix, "level"), level_);
+                visitor.parameter(NN::Detail::join(prefix, "gain"), gain_);
+            }
+
+        private:
+            Graph::Graph graph_{};
+            Graph::GraphBuilder builder_{graph_};
+            Parameter gain_{};
+            NN::Buffer level_{};
+    };
+
+    /** @brief Lists a self-walking child and a walk_parameters child by name. */
+    struct StubPair
+    {
+        SelfWalkingStub own{};
+        WalkableStub legacy{};
+
+        static constexpr auto fields()
+        {
+            return std::tuple{
+                NN::child("own", &StubPair::own),
+                NN::child("legacy", &StubPair::legacy),
+            };
+        }
+    };
+}
+
+/** @brief Tests that a type with its own walk_state() is enumerated by it, order included. */
+TEST(Unit_Module, ATypesOwnWalkStateIsTheWalk)
+{
+    static_assert(NN::Detail::HasStateWalk<SelfWalkingStub>::value,
+                  "the stub must be detected as walking its own state");
+    static_assert(!NN::Detail::HasStateWalk<Linear>::value,
+                  "a layer listed by fields() must not take the own-walk arm");
+
+    SelfWalkingStub stub;
+    EXPECT_EQ(walk_all(stub, "head"), (std::vector<std::string>{
+        "buffer head.level:[3]",
+        "parameter head.gain:[3]",
+    }));
+    EXPECT_EQ(walk(stub), (std::vector<std::string>{"gain:[3]"}));
+    EXPECT_EQ(buffer_names(stub), (std::vector<std::string>{"level"}));
+}
+
+/** @brief Tests that a child field names a self-walking child and a walk_parameters child. */
+TEST(Unit_Module, AChildFieldNamesEveryKindOfWalkableChild)
+{
+    StubPair pair;
+    EXPECT_EQ(walk_all(pair, ""), (std::vector<std::string>{
+        "buffer own.level:[3]",
+        "parameter own.gain:[3]",
+        "parameter legacy.weight:[2, 3]",
+        "parameter legacy.bias:[2]",
+    }));
+}
+
+/** @brief Tests that a walk_parameters type yields its parameters and no buffer. */
+TEST(Unit_Module, AWalkParametersTypeYieldsNoBuffer)
+{
+    WalkableStub stub;
+    EXPECT_EQ(walk_all(stub, ""), (std::vector<std::string>{
+        "parameter weight:[2, 3]",
+        "parameter bias:[2]",
+    }));
+    EXPECT_EQ(NN::buffer_count(stub), 0u);
+}
+
+/** @brief Tests that a LayerAdapter, which walks through walk_parameters, yields its layer. */
+TEST(Unit_Module, ALayerAdapterYieldsItsLayersParametersUnderThePrefix)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    NN::LayerAdapter<Linear> adapter(Linear{4, 3}, int64_t{3});
+    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    (void)adapter.forward(builder, x);
+
+    EXPECT_EQ(walk_all(adapter, "2"), (std::vector<std::string>{
+        "parameter 2.weight:[3, 4]",
+        "parameter 2.bias:[3]",
+    }));
+    EXPECT_EQ(NN::buffer_count(adapter), 0u);
+}
+
+/** @brief Tests that the name check accepts distinct names and refuses a repeated one. */
+TEST(Unit_Module, TwoFieldsWithOneNameAreDetected)
+{
+    // walk_state() asserts the same check, so a layer that repeats a name does not compile.
+    static_assert(NN::Detail::has_unique_names(MixedState::fields()),
+                  "four distinct names must pass");
+    static_assert(NN::Detail::has_unique_names(std::tuple<>{}),
+                  "an empty list has no repeated name");
+    static_assert(!NN::Detail::has_unique_names(std::tuple{
+                      NN::field("weight", &Linear::weight),
+                      NN::field("weight", &Linear::bias)}),
+                  "two parameters with one name must be refused");
+    static_assert(!NN::Detail::has_unique_names(std::tuple{
+                      NN::buffer("pair", &MixedState::count),
+                      NN::field("offset", &MixedState::offset),
+                      NN::child("pair", &MixedState::pair)}),
+                  "a buffer and a child with one name must be refused");
+
+    EXPECT_TRUE(NN::Detail::has_unique_names(Linear::fields()));
+}
+
+/** @brief Tests that a Sequential of Modules keeps its builder forward and stays a Module. */
+TEST(Unit_Module, ASequentialOfModulesKeepsItsBuilderForward)
+{
+    using Chain = Sequential<Linear, ReLU>;
+
+    static_assert(NN::Module<Chain>, "a Sequential of Modules must stay a Module");
+    static_assert(NN::Module<Sequential<Chain, Linear>>,
+                  "a Sequential of Modules must stay a Module when it nests");
+    static_assert(std::is_same<decltype(std::declval<Chain&>().forward(
+                                   std::declval<const Graph::GraphBuilder&>(),
+                                   std::declval<Graph::ValueId>())),
+                               Graph::ValueId>::value,
+                  "the builder forward must return exactly a ValueId");
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    Sequential model{Chain{Linear{4, 8}, ReLU{}}, Linear{8, 3}};
+    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+
+    EXPECT_EQ(graph.value(model.forward(builder, x)).shape, (Shape{2, 3}));
+    EXPECT_EQ(walk(model), (std::vector<std::string>{
+        "0.0.weight:[8, 4]", "0.0.bias:[8]",
+        "1.weight:[3, 8]", "1.bias:[3]",
+    }));
 }

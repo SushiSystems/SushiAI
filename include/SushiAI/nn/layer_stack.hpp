@@ -39,6 +39,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/ilayer.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/trace.hpp>
 
 namespace SushiAI
 {
@@ -105,6 +106,14 @@ namespace SushiAI
                 Shape output_shape() const;
 
                 /**
+                 * @brief Returns output_shape(), in the form a layer type gives it.
+                 * @param input The shape the stack was built over; the layers check it when
+                 *              they are traced, and the stack does not hold it.
+                 * @pre The stack holds at least one layer.
+                 */
+                Shape output_shape(const Shape& input) const;
+
+                /**
                  * @brief The layer at @p index, for a test that wants to inspect it.
                  * @param index Which layer, in [0, size()).
                  * @return The layer; owned by the stack.
@@ -120,6 +129,8 @@ namespace SushiAI
         static_assert(Module<LayerStack>,
                       "LayerStack must satisfy the Module contract so every "
                       "template written over the parameter walk accepts it");
+        static_assert(Detail::HasOutputShapeOfInput<LayerStack>::value,
+                      "LayerStack must map an input shape to its output shape to be a node");
         static_assert(Detail::HasParameterWalk<LayerStack>::value,
                       "LayerStack must be enumerated through its own walk");
         static_assert(!ModuleContainer<LayerStack>,

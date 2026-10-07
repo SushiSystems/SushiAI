@@ -28,7 +28,6 @@
 #pragma once
 
 #include <utility>
-#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -110,22 +109,3 @@ namespace SushiAI
 
     } // namespace Detail
 } // namespace SushiAI
-
-/**
- * @brief Returns a refusal through @p builder with a formatted message when @p condition holds.
- * @param builder An object whose @c refuse(Status) records the refusal and returns the Status.
- * @param condition Expression to evaluate; the same polarity as SA_THROW_IF.
- * @param ... Format string and arguments for SushiBLAS::Core::format, evaluated only on failure.
- */
-#define SA_REFUSE_IF(builder, condition, ...)                                          \
-    do                                                                                 \
-    {                                                                                  \
-        if (condition)                                                                 \
-        {                                                                              \
-            return (builder).refuse(::SushiAI::Status::from_message(                   \
-                ::SushiAI::StatusCode::InvalidDescription, [&]()                       \
-                {                                                                      \
-                    return ::SushiBLAS::Core::format(__VA_ARGS__);                     \
-                }));                                                                   \
-        }                                                                              \
-    } while (0)

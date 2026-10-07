@@ -5,8 +5,10 @@ document, a byte stream, an image or a plain array on the host and inspects the 
 case needs an Engine, a TensorPool or SYCL. A few cases touch the disk. The path-resolution
 cases of `test_config.cpp` use config files on disk. `test_imaging_raw_cache.cpp` writes small
 files under the system's temporary directory and removes them. The `test_detect_*.cpp` cases
-that compare with the reference read tensors from `tests/fixtures/yolo26/` and report
-themselves skipped when a file is absent.
+that compare with the reference, and the two reference cases of `test_batch_norm2d.cpp`,
+read tensors from `tests/fixtures/yolo26/` and report themselves skipped when a file is
+absent. The YOLO26n cases of `test_node_registry.cpp` read `examples/yolo26/model.json` and
+`tests/fixtures/yolo26/MANIFEST.json`.
 
 This page holds the reasoning behind the cases. A `//` line in a test states the invariant the
 case relies on and cites this page. The section under the test's name says why the invariant
@@ -21,7 +23,15 @@ tests.
 | --- | --- |
 | [`test_avg_pool2d.cpp`](test_avg_pool2d.cpp) | The shapes the AvgPool2d layer traces and reports, and the inputs it refuses. |
 | [`test_backward.cpp`](test_backward.cpp) | The graph that differentiation emits and the coverage of the backward rule table. |
+| [`test_batch_norm2d.cpp`](test_batch_norm2d.cpp) | BatchNorm2d's two trace forms and the running-statistic update. |
+| [`test_block_bottleneck.cpp`](test_block_bottleneck.cpp) | Bottleneck's trace, its state names against YOLO26n row 2, and its factory. |
+| [`test_block_c3k.cpp`](test_block_c3k.cpp) | C3k's trace, its state names against YOLO26n row 6, and its factory. |
+| [`test_block_c3k2.cpp`](test_block_c3k2.cpp) | C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factories. |
+| [`test_block_conv_norm.cpp`](test_block_conv_norm.cpp) | ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node. |
+| [`test_block_sppf.cpp`](test_block_sppf.cpp) | SPPF's trace, its state names against YOLO26n row 9, and its factory. |
+| [`test_buffer.cpp`](test_buffer.cpp) | Buffer: its description, its one leaf per graph and its identity. |
 | [`test_checkpoint_format.cpp`](test_checkpoint_format.cpp) | The checkpoint format's round trip and its refusal of each malformed byte pattern. |
+| [`test_concat.cpp`](test_concat.cpp) | The Concat node's shape check, its port and the node it traces. |
 | [`test_config.cpp`](test_config.cpp) | How the config layer parses its JSON documents and which ones it refuses. |
 | [`test_conv2d.cpp`](test_conv2d.cpp) | The Conv2d layer's trace, parameters, shape inference and rejections. |
 | [`test_detect_anchors.cpp`](test_detect_anchors.cpp) | The anchor grid, the per-image anchor leaves and the copies between a level and the joined anchor axis. |
@@ -35,6 +45,7 @@ tests.
 | [`test_fusion.cpp`](test_fusion.cpp) | The matches and the refusals of the static fusion pass on synthetic graphs. |
 | [`test_global_avg_pool.cpp`](test_global_avg_pool.cpp) | The shapes GlobalAvgPool traces and reports, and the inputs it refuses. |
 | [`test_gradcheck.cpp`](test_gradcheck.cpp) | The gradient checker against closed-form functions and a wrong gradient. |
+| [`test_identity.cpp`](test_identity.cpp) | That the Identity layer returns its input, emits nothing and holds no state. |
 | [`test_imaging_affine.cpp`](test_imaging_affine.cpp) | The plan and the application of the scale and translation warp to an image and its labels. |
 | [`test_imaging_boxes.cpp`](test_imaging_boxes.cpp) | The two box forms, their conversions and the candidate filter. |
 | [`test_imaging_flip.cpp`](test_imaging_flip.cpp) | The plan and the application of the horizontal flip to an image and its labels. |
@@ -61,18 +72,30 @@ tests.
 | [`test_loss_scaling.cpp`](test_loss_scaling.cpp) | The dynamic loss-scaling rule on LossScaleState, with no device involved. |
 | [`test_max_pool2d.cpp`](test_max_pool2d.cpp) | The MaxPool2d layer's trace, shape inference and rejections. |
 | [`test_memory_plan.cpp`](test_memory_plan.cpp) | That the memory planner never shares a byte between two values live together. |
-| [`test_module.cpp`](test_module.cpp) | The parameter walk over layers, containers and a layer enumerated at run time. |
+| [`test_model_graph.cpp`](test_model_graph.cpp) | ModelGraph: what add and output refuse, what a trace emits, and the state names. |
+| [`test_model_outputs.cpp`](test_model_outputs.cpp) | ModelOutputs: publishing named values and reading them back. |
+| [`test_module.cpp`](test_module.cpp) | Parameter across graphs and the state walk over layers, containers and fields. |
+| [`test_module_list.cpp`](test_module_list.cpp) | ModuleList: its storage, its index names and its place in the state walk. |
+| [`test_node.cpp`](test_node.cpp) | ModuleNode, LayerNode and the buffer check LayerAdapter makes at compile time. |
+| [`test_node_registry.cpp`](test_node_registry.cpp) | The node registry, make_node, build_model and the YOLO26n model file. |
 | [`test_objective.cpp`](test_objective.cpp) | The objective seam: the leaves it declares, the loss it emits and the resulting IR. |
 | [`test_ops.cpp`](test_ops.cpp) | That the operation table is complete and that the reverse lookup resolves names. |
 | [`test_precision.cpp`](test_precision.cpp) | The mixed-precision policy and where the cast insertion pass places its casts. |
 | [`test_provenance.cpp`](test_provenance.cpp) | The forward origin that differentiation records for every node it appends. |
 | [`test_region_signature.cpp`](test_region_signature.cpp) | The signature that `signature_of` computes for one region of a partition. |
 | [`test_rematerialise.cpp`](test_rematerialise.cpp) | The structure of the graph that the IM2COL rematerialisation pass rewrites. |
+| [`test_result.cpp`](test_result.cpp) | Result, its reference form and SA_TRY_ASSIGN. |
 | [`test_rule_table.cpp`](test_rule_table.cpp) | That every domain's backward rules reach the combined table exactly once. |
 | [`test_scope_partitioner.cpp`](test_scope_partitioner.cpp) | The region keys ScopePartitioner gives the nodes of a differentiated graph. |
 | [`test_scope_trace.cpp`](test_scope_trace.cpp) | How ScopeTrace cuts a trace into segments and which calls it rejects. |
 | [`test_shape.cpp`](test_shape.cpp) | Shape's extents, indexing, validation, equality and hash. |
+| [`test_silu.cpp`](test_silu.cpp) | The SiLU layer's trace, shape inference and empty state. |
 | [`test_spatial_shapes.cpp`](test_spatial_shapes.cpp) | The shapes the builder infers for spatial operations and the layouts it refuses. |
+| [`test_status.cpp`](test_status.cpp) | Status, its macros, the fatal family and the assertions of test_status.hpp. |
+| [`test_step_recorder.cpp`](test_step_recorder.cpp) | That StepRecorderList drives its members as one recorder, in the order added. |
+| [`test_throwing_bridge.cpp`](test_throwing_bridge.cpp) | bridge_throwing: a value passes through and a thrown Error becomes a Status. |
+| [`test_trace.cpp`](test_trace.cpp) | Trace, the buffer-update sinks, the three layer forms and trace_layer. |
+| [`test_traced.cpp`](test_traced.cpp) | Traced and the refusal it carries through a chain of emitters. |
 | [`test_unflatten.cpp`](test_unflatten.cpp) | The trace, the shape rule and the rejected inputs of the Unflatten layer. |
 | [`test_upsample2d.cpp`](test_upsample2d.cpp) | The shape, layout and rejections of the Upsample2d layer. |
 | [`test_version.cpp`](test_version.cpp) | That the runtime version agrees with the compile-time macros. |
@@ -245,6 +268,10 @@ has no rule, so a second differentiation over one throws.
 `has_backward_rule(BATCHNORM_UPDATE_STATS)` is false, and that is decision CV-7, not an
 omission. A running mean is a buffer the training step writes beside the graph. No gradient
 flows through it.
+
+`has_backward_rule(BATCHNORM_FOLD)` is false too. The fold is the node an evaluation trace of
+`NN::BatchNorm2d` emits, and DifferentiatingThroughBatchNormFoldFails holds what a gradient
+request through it does.
 
 `has_backward_rule` is false for LEAF and ZERO because both produce values from nothing. There
 is nothing upstream to hand a gradient to, so there is no rule to write.
@@ -434,6 +461,1027 @@ For each of `div`, `minimum`, `maximum`, `abs`, `atan`, `softplus`, `silu` and a
 a node beyond the SCALE, and `Graph::narrows_under_mixed_precision` is false for every appended
 node.
 
+### AGradientOnTheBatchVarianceOfBatchNormThrows
+
+`GraphBuilder::batchnorm2d` returns four values, and `batch_variance` is output 3 of the node.
+A loss built on a SCALE of that value is differentiated against gamma. `differentiate` throws
+with a message containing "BATCHNORM2D" and "saved statistics received a gradient".
+
+### BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst
+
+A loss built on `sum_channels` of output 0 is differentiated against gamma and beta. Both
+gradients are values other than `NO_VALUE` and the graph holds one BATCHNORM2D_BACKWARD node.
+Inputs 3 and 4 of that node are the saved mean and the saved inverse deviation. The batch
+variance is not among its operands.
+
+### DifferentiatingThroughBatchNormFoldFails
+
+A loss built on a CHANNEL_AFFINE over the two results of `batchnorm_fold` is differentiated
+against gamma, a parameter. `differentiate` throws with a message containing "No backward
+rule" and "sushiai.batchnorm_fold".
+
+### ABufferInWrtIsRefusedAndAppendsNoNode
+
+A request that lists a weight and a buffer named "running_shift" throws with a message
+containing "differentiate()", "running_shift" and "buffer", and the graph's node count is
+unchanged. The same graph then differentiates against the weight alone: the one gradient has
+the lifetime `GRADIENT`, and the buffer keeps the lifetime `BUFFER`.
+
+## test_batch_norm2d.cpp
+
+Tests BatchNorm2d's two trace forms and the running-statistic update.
+
+This file needs no device. `NN::BatchNorm2d` in `include/SushiAI/nn/batch_norm2d.hpp` is a
+modal layer. `trace_training` emits one BATCHNORM2D node and requests two buffer updates
+through the trace. `trace_evaluation` reads the two running statistics as buffer leaves and
+emits a BATCHNORM_FOLD and a CHANNEL_AFFINE. Both forms record a refusal on the trace and
+return their input.
+
+The last two cases read `tests/fixtures/yolo26/batchnorm.sacp` through
+`tests/common/reference_fixture.hpp` and report themselves skipped when the file is absent.
+They compute the updated statistics on the host from the momentum and the source scale the
+trace requested. No device runs the update.
+
+Two `static_assert` lines after the helpers hold that `BatchNorm2d` is a `ModalModule` and
+neither a `Module` nor a `TraceModule`, and that `Sequential<Conv2d, BatchNorm2d>` is a
+`TraceModule` and not a `Module`.
+
+### Constants
+
+`K_REFERENCE_EPSILON` is 1e-3 and `K_REFERENCE_MOMENTUM` is 0.03, the two values the reference
+layers ran with. `K_UNIT_CASE_TOLERANCE` is 5.3e-7 and `K_MODEL_CASE_TOLERANCE` is 7.0e-7. Each
+is four float32 epsilons of the case's largest running variance, 1.1086 and 1.4578.
+`K_EXACT_TOLERANCE` is 1e-15, for a double computed the same way on both sides.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### only_node
+
+`only_node` returns the first node of a graph that carries one operation. Each caller has
+asserted a count of one before it.
+
+### count_buffer_leaves
+
+`count_buffer_leaves` counts the values of a graph whose lifetime is `BUFFER`.
+
+### ChannelStatistics
+
+`ChannelStatistics` holds the per-channel mean and biased variance of one NHWC activation.
+
+### batch_statistics
+
+`batch_statistics` computes a `ChannelStatistics` over batch, height and width from a flat
+NHWC array, in double.
+
+### updated_vector
+
+`updated_vector` applies `NN::updated_statistic` per channel and rounds each result to
+float32.
+
+### view
+
+`view` returns a `SushiRuntime::span<const float>` over a vector, the argument
+`Test::near_reference` takes.
+
+### expect_reference_case
+
+`expect_reference_case` reads one case of `batchnorm.sacp`: an input and the running mean and
+variance before and after one torch training step. It traces a layer of the input's channel
+count with the reference epsilon and momentum, and applies the two requested updates to the
+"before" statistics on the host. The results must be within the tolerance of the "after"
+statistics. The variance recomputed with a source scale of 1.0 must not be, so the fixture
+tells the unbiased update from the biased one.
+
+### refused_training
+
+`refused_training` traces the training form, expects the input id back and returns the trace's
+`status()`.
+
+### refused_evaluation
+
+`refused_evaluation` does the same for the evaluation form.
+
+### train_under_an_evaluation_trace
+
+`train_under_an_evaluation_trace` calls `trace_training` with an evaluation trace. It is the
+statement of a death test.
+
+### evaluate_over_a_value_the_graph_lacks
+
+`evaluate_over_a_value_the_graph_lacks` calls `trace_evaluation` over value 7 in a graph of
+one value. It is the statement of a death test.
+
+### ATrainingTraceEmitsOneBatchNorm
+
+A training trace over [2, 2, 2, 3] emits one BATCHNORM2D node and no BATCHNORM_FOLD or
+CHANNEL_AFFINE. The graph gains three nodes: the two parameter leaves and the BATCHNORM2D. The
+node reads the input, the weight's leaf and the bias's leaf, has four outputs of which the
+first is the returned value, and carries the epsilon 1e-3 in attribute 0.
+
+### ATrainingTraceReadsNoBuffer
+
+After a training trace the graph holds no value of lifetime `BUFFER`, and neither running
+statistic has a leaf in it.
+
+### ATrainingTraceRequestsTheTwoRunningUpdates
+
+The list holds two updates. The first reads output 1 of the node and targets the running
+mean's state, and the second reads output 3 and targets the running variance's state. The two
+states are distinct and neither is `K_NO_STATE`. Both momenta are 0.03 and the mean's source
+scale is 1.0.
+
+### TheVarianceUpdateCarriesTheUnbiasedFactor
+
+The variance update's source scale is n / (n - 1), where n is the number of values per channel.
+For [2, 2, 2, 3] it is 8/7, and for [1, 20, 20, 128] it is 400/399.
+
+### AnEvaluationTraceFoldsTheRunningStatistics
+
+An evaluation trace over [2, 4, 4, 3] emits one BATCHNORM_FOLD, one CHANNEL_AFFINE and no
+BATCHNORM2D, and the graph holds two buffer leaves. It gains six nodes: two parameter leaves,
+two buffer leaves, the fold and the affine. The fold reads the weight, the bias, the running
+mean and the running variance in that order and carries the epsilon 1e-3. The affine reads the
+input and the fold's two outputs, and its output is the returned value of shape [2, 4, 4, 3].
+
+### BothFormsNameTheSameState
+
+One layer is traced in training form into one graph and in evaluation form into another. In
+the evaluation graph, `state_leaf` of each update's target is the leaf of the matching running
+statistic. The weight's and the bias's states are unchanged by the second trace, and each has
+a leaf in the evaluation graph.
+
+### TheWalkYieldsTwoParametersThenTwoBuffers
+
+`NN::walk_state(layer, "bn", visitor)` over a traced five-channel layer yields "bn.weight",
+"bn.bias", "bn.running_mean" and "bn.running_var" in that order, each of shape [5]. Both
+parameters have a constant fill. The starting values are 1.0 for the weight, 0.0 for the bias,
+0.0 for the running mean and 1.0 for the running variance.
+
+### TrainingOverOneValuePerChannelFails
+
+A training trace over [1, 1, 1, 3] records `InvalidDescription` with a message containing
+"BatchNorm2d(3)", "more than one value per channel" and "got 1". The graph gains no value and
+no node, the list holds no update, the weight is not declared, and the graph is marked refused.
+
+### AnIntegerInputFails
+
+Over an INT32 input, both forms record `InvalidDescription` with a message containing
+"BatchNorm2d(3)", "half, float32 or float64 input" and "int32". Nothing is added to the graph
+or the list, and neither the weight nor the running mean is declared.
+
+### EvaluationOverOneValuePerChannelTraces
+
+An evaluation trace over [1, 1, 1, 3] returns a value of that shape. The limit that
+TrainingOverOneValuePerChannelFails holds belongs to the training form.
+
+### AnInputThatDoesNotFitFails
+
+Over a [2, 2, 2, 4] input both forms fail with a message containing "BatchNorm2d(3)" and
+"[N, H, W, 3]". Over a [2, 3] input both fail with "rank-4". The graph gains no value and the
+list no update.
+
+### AnNchwInputFails
+
+Over a value converted to NCHW both forms fail with a message containing "BatchNorm2d(3)" and
+"NHWC", and the graph gains no value.
+
+### ALayerDescribedWrongFails
+
+A default-constructed layer fails with "positive channel count" and "got 0". A layer with
+epsilon 0.0 fails with "positive epsilon". A layer with momentum 1.5 fails with "momentum in
+[0, 1]" and "1.5". The graph gains no value.
+
+### ASecondTraceUnderAnotherElementTypeFails
+
+A layer traced over a FLOAT32 input and then, in a second graph, over a FLOAT64 input fails
+the second time with a message containing "'weight'" and both type names. The running mean's
+type stays FLOAT32.
+
+### TheScaleStartsAtOneAndTheShiftAtZero
+
+After a trace the weight has the role `ParameterRole::SCALE` and a constant fill of 1.0, and
+the bias has the role `BIAS` and a constant fill of 0.0.
+
+### TheFactoryReadsTheChannelsAndTheTwoConstants
+
+`NN::make_batch_norm2d_node` over the shape [8, 8, 6] with `bn_epsilon` 0.001 and `bn_momentum`
+0.03 returns a `ModuleNode<BatchNorm2d>` whose layer has 6 channels and those two options. The
+node has one port of the input's shape and an input count of 1.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The key `channels` fails with a message containing the context, "'channels'" and "bn_epsilon".
+The input shape [48] fails with "[48]" and "[H, W, C]". A `bn_epsilon` of -1.0 fails with
+"'bn_epsilon'" and "positive".
+
+### TheTrainingFormUnderAnEvaluationTraceIsFatal
+
+The case is in the suite `Unit_BatchNorm2dDeathTest`. `trace_training` given an evaluation
+trace stops the process with a report containing "trace_training" and "was given an evaluation
+trace".
+
+### ATraceOverAValueTheGraphLacksIsFatal
+
+The case is in the suite `Unit_BatchNorm2dDeathTest`. `trace_evaluation` over value 7 stops the
+process with a report containing "BatchNorm2d(3)", "value 7" and "holds 1 values".
+
+### TraceLayerPicksTheFormOfTheMode
+
+`NN::trace_layer` under a training trace leaves one BATCHNORM2D and no BATCHNORM_FOLD in its
+graph. Under an evaluation trace it leaves one BATCHNORM_FOLD and no BATCHNORM2D.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([7, 5, 3])` is [7, 5, 3]. A three-channel layer also returns [7, 5, 4] for
+[7, 5, 4]: `output_shape` does not check the channel count.
+
+### UpdatedStatisticBlendsTheScaledBatchValue
+
+`NN::updated_statistic(running, batch, momentum, scale)` is
+(1 - momentum) * running + momentum * scale * batch. (1.0, 3.0, 0.25, 2.0) gives 2.25 and
+(4.0, 8.0, 0.5, 1.0) gives 6.0. A momentum of 0 returns the running value 4.0 and a momentum
+of 1 returns the batch value 8.0. Every operand and result is exact in a double.
+
+### TheUpdatesReproduceTheUnitReferenceCase
+
+`expect_reference_case("unit", K_UNIT_CASE_TOLERANCE)` checks the [2, 2, 2, 3] case. The
+test's own comment gives the miss of the unscaled variance on this case as 8.3e-3.
+
+### TheUpdatesReproduceTheModelReferenceCase
+
+`expect_reference_case("model.9.cv1.bn", K_MODEL_CASE_TOLERANCE)` checks the case recorded at
+that layer of the reference model. The test's own comment gives the miss of the unscaled
+variance on this case as 1.4e-5.
+
+## test_block_bottleneck.cpp
+
+Tests Bottleneck's trace, its state names against YOLO26n row 2, and its factory.
+
+This file needs no device. `NN::Bottleneck` in `include/SushiAI/nn/blocks/bottleneck.hpp` is
+two `Conv` blocks, `cv1` and `cv2`, and an optional ADD of the block's input to the second
+one's result. `NN::make_bottleneck_node` builds the node of a `bottleneck` row.
+
+The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
+No case opens a fixture file.
+
+### Constants
+
+`K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_CONTEXT` is "layer 4 'bottleneck'", the row
+name handed to the factory.
+
+### StateKind
+
+`StateKind` has the enumerators `Parameter` and `Buffer`.
+
+### record
+
+`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
+
+### walk
+
+`walk` returns one `record` per parameter and buffer that `NN::walk_state` yields under a
+prefix, in walk order.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### first_node
+
+`first_node` returns the index of the first node of a graph that carries one operation.
+
+### one_input
+
+`one_input` views one shape as the `NN::ShapeSpan` of a one-input row.
+
+### attributes_of
+
+`attributes_of` parses a string of JSON as the attributes of one row.
+
+### expect_norm_options
+
+`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+graph and the given momentum on every update of a list.
+
+### OutputShapeKeepsTheExtentsAndSetsTheWidth
+
+`Bottleneck(16, 24, 8, true)` maps [5, 7, 16] to [5, 7, 24].
+
+### AShortcutOverEqualWidthsAddsTheInput
+
+A training trace of `Bottleneck(16, 16, 8, true)` reports `adds_input` true and emits two
+MATMUL, two BATCHNORM2D, two SILU and one ADD. The ADD's first operand is the block's input and
+its second is produced by a SILU. Its output is the returned value, of shape [2, 4, 4, 16].
+
+### NoShortcutTracesNoAdd
+
+With the shortcut argument false, `adds_input` is false and the trace holds two MATMUL and no
+ADD.
+
+### AShortcutOverUnequalWidthsTracesNoAdd
+
+`Bottleneck(16, 24, 8, true)` reports `adds_input` false and traces no ADD, although a shortcut
+was asked for. The result has the shape [2, 4, 4, 24].
+
+### StateMatchesManifestRow2Inner
+
+The walk of a traced `Bottleneck(16, 16, 8)` under "model.2.m.0" yields ten records. The five
+of `cv1` come first: "cv1.conv.weight" [8, 3, 3, 16], then "cv1.bn.weight", "cv1.bn.bias",
+"cv1.bn.running_mean" and "cv1.bn.running_var", each [8]. The five of `cv2` follow in the same
+order with the weight [16, 3, 3, 8] and the rest [16].
+
+### EachKernelSetsItsOwnConvolution
+
+`Bottleneck(16, 16, 8, false, K_YOLO_NORM, 1, 3)` traces a `cv1` weight of [8, 1, 1, 16] and a
+`cv2` weight of [16, 3, 3, 8].
+
+### TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue
+
+`make_bottleneck_node` over [4, 4, 16] with 16 filters and a hidden width of 8 has one port of
+shape [4, 4, 16]. Its training trace holds one ADD, so a row without `shortcut` adds its input.
+The walk under "model.2.m.0" yields ten records; record 0 is the `cv1` weight [8, 3, 3, 16]
+and record 5 the `cv2` weight [16, 3, 3, 8].
+
+### TheFactoryReadsTheShortcut
+
+With `"shortcut": false` the trace holds no ADD.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The key `kernel` fails with a message containing "layer 4 'bottleneck'" and "'kernel'". A row
+without `hidden` fails with "'hidden'" and "absent". A `shortcut` given as the string "yes"
+fails with "'shortcut'" and "true or false".
+
+### TheFactoryRefusesAnInputThatIsNotAFeatureMap
+
+The input shape [256] fails with "[256]" and "rank-3".
+
+### TheFactoryHandsTheNormOptionsToBothNorms
+
+A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two BATCHNORM2D nodes and four
+updates, and `expect_norm_options` finds those two values on all of them.
+
+## test_block_c3k.cpp
+
+Tests C3k's trace, its state names against YOLO26n row 6, and its factory.
+
+This file needs no device. `NN::C3k` in `include/SushiAI/nn/blocks/c3k.hpp` holds three `Conv`
+blocks, `cv1`, `cv2` and `cv3`, and a `ModuleList` of `Bottleneck`s named `m`. The cases show
+its trace: a chain of bottlenecks on one branch, `cv2` on the other, one CONCAT_CHANNELS of the
+two, and `cv3` after it. `NN::make_c3k_node` builds the node of a `c3k` row.
+
+The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
+No case opens a fixture file.
+
+### Constants
+
+`K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_CONTEXT` is "layer 5 'c3k'", the row name handed
+to the factory.
+
+### StateKind
+
+`StateKind` has the enumerators `Parameter` and `Buffer`.
+
+### record
+
+`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
+
+### walk
+
+`walk` returns one `record` per parameter and buffer that `NN::walk_state` yields under a
+prefix, in walk order.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### first_node
+
+`first_node` returns the index of the first node of a graph that carries one operation.
+
+### one_input
+
+`one_input` views one shape as the `NN::ShapeSpan` of a one-input row.
+
+### attributes_of
+
+`attributes_of` parses a string of JSON as the attributes of one row.
+
+### expect_norm_options
+
+`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+graph and the given momentum on every update of a list.
+
+### OutputShapeKeepsTheExtentsAndSetsTheWidth
+
+`C3k(64, 96, 2, true)` maps [5, 7, 64] to [5, 7, 96].
+
+### TheChainHoldsOneBottleneckPerRepeat
+
+`C3k(64, 64, 3, true)` has `m.size()` 3.
+
+### ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat
+
+A training trace of `C3k(64, 64, 2, true)` over [2, 4, 4, 64] emits seven each of MATMUL,
+BATCHNORM2D and SILU, two ADD, one CONCAT_CHANNELS and no SLICE_CHANNELS. The list holds 14
+updates and the result has the shape [2, 4, 4, 64]. Seven is three `Conv` blocks of the C3k
+plus two in each of the two bottlenecks.
+
+### TheJoinReadsTheChainThenTheSecondBranch
+
+The CONCAT_CHANNELS node has two inputs. The first is produced by an ADD, the end of the last
+bottleneck, and the second by a SILU, the end of `cv2`. Each is [2, 4, 4, 32] and the joined
+value is [2, 4, 4, 64].
+
+### NoShortcutTracesNoAdd
+
+With the shortcut argument false, an evaluation trace holds seven MATMUL and no ADD.
+
+### TheHiddenWidthIsHalfTheOutputWidthRoundedDown
+
+`C3k(8, 7, 1, true)` has a hidden width of 3. The traced weights are [3, 1, 1, 8] for `cv1`
+and `cv2`, [7, 1, 1, 6] for `cv3` and [3, 3, 3, 3] for the bottleneck's `cv1`. The result is
+[2, 4, 4, 7], and `output_shape([4, 4, 8])` is [4, 4, 7].
+
+### StateMatchesManifestRow6Inner
+
+The walk of a traced `C3k(64, 64, 2)` under "model.6.m.0" yields 35 records: five each for
+`cv1`, `cv2`, `cv3`, `m.0.cv1`, `m.0.cv2`, `m.1.cv1` and `m.1.cv2`, in that order. Each group
+is the convolution weight, the norm's weight and bias as parameters, then its running mean and
+variance as buffers. The weights are [32, 1, 1, 64] for `cv1` and `cv2`, [64, 1, 1, 64] for
+`cv3` and [32, 3, 3, 32] for the four bottleneck convolutions.
+
+### TheFactoryDefaultsToOneBottleneckWithAShortcut
+
+`make_c3k_node` over [4, 4, 64] with only 32 filters has one port of shape [4, 4, 32]. Its
+evaluation trace appends one [2, 4, 4, 32] value and holds five MATMUL and one ADD: one
+bottleneck that adds its input.
+
+### TheFactoryReadsRepeatsAndShortcut
+
+With 64 filters, `repeats` 2 and `shortcut` false, the trace holds seven MATMUL and no ADD. The
+walk under "model.6.m.0" yields 35 records, and record 30 is "model.6.m.0.m.1.cv2.conv.weight"
+[32, 3, 3, 32].
+
+### TheFactoryRefusesAWidthThatLeavesNoHiddenChannel
+
+`filters` 1 fails with `InvalidDescription` and a message containing "layer 5 'c3k'",
+"'filters'" and "at least 2".
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The key `hidden` fails with the context and "'hidden'". A row without `filters` fails with
+"'filters'" and "absent". `repeats` 0 fails with "'repeats'" and "positive".
+
+### TheFactoryRefusesTwoInputs
+
+Two input shapes fail with a message containing "one input" and "2".
+
+### TheFactoryHandsTheNormOptionsToEveryNorm
+
+A row with `repeats` 2, `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces seven BATCHNORM2D
+nodes and 14 updates, and `expect_norm_options` finds those two values on all of them.
+
+## test_block_c3k2.cpp
+
+Tests C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factories.
+
+This file needs no device. `NN::C3k2<Inner>` in `include/SushiAI/nn/blocks/c3k2.hpp` holds a
+stem `cv1`, a `ModuleList<Inner>` named `m` and a closing `cv2`. The cases show its trace: the
+stem's result is cut into two halves by two SLICE_CHANNELS, the inner blocks are chained off
+the second half, and one CONCAT_CHANNELS joins both halves and every inner block's result
+before `cv2`. `Inner` is `Bottleneck` or `C3k`. `NN::make_c3k2_node` reads the row's `inner`
+key and selects a factory from `NN::K_C3K2_INNER`.
+
+The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
+No case opens a fixture file.
+
+### Constants
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged. `K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_CONTEXT` is "layer 2 'c3k2'", the row
+name handed to the factory.
+
+### StateKind
+
+`StateKind` has the enumerators `Parameter` and `Buffer`.
+
+### record
+
+`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
+
+### walk
+
+`walk` returns one `record` per parameter and buffer that `NN::walk_state` yields under a
+prefix, in walk order.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### first_node
+
+`first_node` returns the index of the first node of a graph that carries one operation.
+
+### one_input
+
+`one_input` views one shape as the `NN::ShapeSpan` of a one-input row.
+
+### attributes_of
+
+`attributes_of` parses a string of JSON as the attributes of one row.
+
+### expect_norm_options
+
+`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+graph and the given momentum on every update of a list.
+
+### row2_records
+
+`row2_records` lists the 20 records `MANIFEST.json` holds under "model.2": five for `cv1`
+(weight [32, 1, 1, 32]), five for `cv2` (weight [64, 1, 1, 48]), then five each for `m.0.cv1`
+(weight [8, 3, 3, 16]) and `m.0.cv2` (weight [16, 3, 3, 8]).
+
+### row6_records
+
+`row6_records` lists the 45 records `MANIFEST.json` holds under "model.6": five for `cv1`
+(weight [128, 1, 1, 128]), five for `cv2` (weight [128, 1, 1, 192]), then the 35 records of
+the inner C3k under "model.6.m.0" that `test_block_c3k.cpp` lists.
+
+### make_row2
+
+`make_row2` builds `C3k2<Bottleneck>(32, 64, 16)` over one `Bottleneck(16, 16, 8, true)`.
+
+### make_row6
+
+`make_row6` builds `C3k2<C3k>(128, 128, 64)` over one `C3k(64, 64, 2, true)`.
+
+### OutputShapeKeepsTheExtentsAndSetsTheWidth
+
+Row 2 maps [160, 160, 32] to [160, 160, 64].
+
+### Row2EmitsFourConvBlocksTwoSlicesAndOneConcat
+
+A training trace of row 2 over [2, 4, 4, 32] emits four each of MATMUL, BATCHNORM2D and SILU,
+two SLICE_CHANNELS, one ADD and one CONCAT_CHANNELS. The list holds eight updates, the result
+is [2, 4, 4, 64], and every norm carries `K_YOLO_NORM`.
+
+### TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf
+
+The CONCAT_CHANNELS of row 2 has three inputs. The first two are produced by SLICE_CHANNELS
+nodes that read the same value, with the offsets 0 and 16 in attribute 0, and each is
+[2, 4, 4, 16]. The third is produced by the bottleneck's ADD, whose first operand is the second
+half. The joined value is [2, 4, 4, 48].
+
+### TwoInnerBlocksAreChainedAndBothJoined
+
+With two bottlenecks the join has four inputs. The producer of input 2 reads input 1, and the
+producer of input 3 reads input 2. The `cv2` weight is [64, 1, 1, 64], four parts of 16
+channels, and the second bottleneck's `cv1` weight is [8, 3, 3, 16].
+
+### Row6EmitsNineConvBlocksAndTwoConcats
+
+A training trace of row 6 over [2, 4, 4, 128] emits nine each of MATMUL, BATCHNORM2D and SILU,
+two SLICE_CHANNELS, two ADD and two CONCAT_CHANNELS. The list holds 18 updates, the result is
+[2, 4, 4, 128], every norm carries `K_YOLO_NORM`, and `output_shape([40, 40, 128])` is
+[40, 40, 128].
+
+### StateMatchesManifestRow2
+
+The walk of traced row 2 under "model.2" equals `row2_records()`.
+
+### StateMatchesManifestRow6
+
+The walk of traced row 6 under "model.6" equals `row6_records()`.
+
+### TheInnerTableListsBottleneckAndC3k
+
+`NN::K_C3K2_INNER` has two entries: "bottleneck" with `&NN::make_c3k2_of_bottleneck` and "c3k"
+with `&NN::make_c3k2_of_c3k`.
+
+### TheFactoryBuildsRow2
+
+`make_c3k2_node` over [160, 160, 32] with 64 filters, hidden 16, one repeat, inner
+"bottleneck", shortcut true and the two norm keys has one port of shape [160, 160, 64]. Its
+training trace holds one ADD, four BATCHNORM2D and eight updates carrying `K_YOLO_NORM`, and
+its walk under "model.2" equals `row2_records()`.
+
+### TheFactoryBuildsRow6
+
+`make_c3k2_node` over [40, 40, 128] with 128 filters, hidden 64, one repeat, inner "c3k",
+shortcut true and the two norm keys has a port of shape [40, 40, 128]. Its training trace
+holds two CONCAT_CHANNELS, two ADD, nine BATCHNORM2D and 18 updates carrying `K_YOLO_NORM`,
+and its walk under "model.6" equals `row6_records()`. The inner C3k therefore has two
+bottlenecks that add their input.
+
+### TheFactoryReadsTheShortcutOfAC3kInnerBlock
+
+With inner "c3k" and shortcut false the evaluation trace holds nine MATMUL and no ADD.
+
+### TheFactoryDefaultsToOneBottleneckWithAShortcut
+
+A row stating only 64 filters and hidden 16 traces four MATMUL, one ADD and one
+CONCAT_CHANNELS.
+
+### TheFactoryReadsRepeatsAndShortcut
+
+With `repeats` 3 and `shortcut` false the trace holds eight MATMUL and no ADD. The walk yields
+40 records: record 5 is "cv2.conv.weight" [64, 1, 1, 80] and record 30 is "m.2.cv1.conv.weight"
+[8, 3, 3, 16].
+
+### TheFactoryRefusesAnInnerBlockItDoesNotList
+
+`"inner": "bottleneck_psa"` fails with `InvalidDescription` and a message containing "layer 2
+'c3k2'", "'bottleneck_psa'" and "bottleneck, c3k". `"inner": 2` fails with "'inner'" and
+"string".
+
+### TheFactoryRefusesAHiddenWidthOfOne
+
+`hidden` 1 fails with "'hidden'" and "at least 2" for the default inner block and for inner
+"c3k".
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The key `heads` fails with the context and "'heads'". A row without `hidden` fails with
+"'hidden'" and "absent". The input shape [512] fails with "[512]" and "rank-3".
+
+### AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock
+
+`make_c3k2_of_bottleneck` given `"inner": "c3k"` fails with a message containing the context,
+"'inner' is 'c3k'" and "builds 'bottleneck'". `make_c3k2_of_c3k` given `"inner": "bottleneck"`
+fails with "'inner' is 'bottleneck'" and "builds 'c3k'". `make_c3k2_of_bottleneck` given
+`"inner": 2` fails with "'inner'" and "string". Each factory accepts a row that names its own
+block.
+
+## test_block_conv_norm.cpp
+
+Tests ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node.
+
+This file needs no device. `NN::ConvNorm` in `include/SushiAI/nn/blocks/conv_norm.hpp` is a
+bias-free same-padded `Conv2d`, a `BatchNorm2d` and an activation, traced in that order.
+`NN::Conv` is `ConvNorm<Conv2d, SiLU>` and `NN::ConvLinear` is `ConvNorm<Conv2d, Identity>`.
+`NN::make_conv_node` builds the node of a `conv` row of a model file.
+
+The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
+No case opens a fixture file.
+
+### Constants
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged. `K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`, the epsilon and momentum `MANIFEST.json`
+records for YOLO26n. `K_CONTEXT` is "layer 0 'conv'", the row name handed to the factory.
+
+### StateKind
+
+`StateKind` has the enumerators `Parameter` and `Buffer`.
+
+### record
+
+`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
+
+### walk
+
+`walk` returns one `record` per parameter and buffer that `NN::walk_state` yields under a
+prefix, in walk order.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### first_node
+
+`first_node` returns the index of the first node of a graph that carries one operation.
+
+### one_input
+
+`one_input` views one shape as the `NN::ShapeSpan` of a one-input row.
+
+### attributes_of
+
+`attributes_of` parses a string of JSON as the attributes of one row.
+
+### OutputShapeHalvesAnEvenExtentAtStrideTwo
+
+`Conv(3, 16, 3, 2)` maps [640, 640, 3] to [320, 320, 16].
+
+### OutputShapeOfAPointwiseBlockKeepsTheExtents
+
+`Conv(32, 64, 1, 1)` maps [7, 9, 32] to [7, 9, 64].
+
+### ATrainingTraceEmitsConvolutionNormThenSilu
+
+A training trace of `Conv(3, 16, 3, 2)` over [2, 8, 8, 3] emits one MATMUL, one BATCHNORM2D
+and one SILU, in that order, and no BIAS_ADD. The SILU's output is the returned value, of
+shape [2, 4, 4, 16].
+
+### ATrainingTraceCarriesTheNormOptions
+
+The BATCHNORM2D node carries the epsilon 1e-3 in attribute 0, and both requested updates carry
+the momentum 0.03.
+
+### AnEvaluationTraceFoldsTheNorm
+
+An evaluation trace emits one BATCHNORM_FOLD, one CHANNEL_AFFINE, one SILU and no BATCHNORM2D,
+and returns a [2, 4, 4, 16] value.
+
+### ConvLinearEmitsNoActivation
+
+A training trace of `ConvLinear(3, 16, 1, 1)` emits one BATCHNORM2D and no SILU. The returned
+value is output 0 of the BATCHNORM2D node.
+
+### StateMatchesManifestRow0
+
+The walk of a traced `Conv(3, 16, 3, 2)` under "model.0" yields five records in this order:
+"model.0.conv.weight" [16, 3, 3, 3], "model.0.bn.weight" [16] and "model.0.bn.bias" [16] as
+parameters, then "model.0.bn.running_mean" [16] and "model.0.bn.running_var" [16] as buffers.
+
+### AnUntracedBlockYieldsNoState
+
+The walk of a block that was never traced is empty.
+
+### TheFactoryBuildsRow0
+
+`make_conv_node` over [640, 640, 3] with 16 filters, kernel 3, stride 2, `bn_epsilon` 0.001 and
+`bn_momentum` 0.03 returns a node with one port named `NN::K_SINGLE_PORT_NAME` of shape
+[320, 320, 16]. A training trace over [1, 640, 640, 3] appends one value of shape
+[1, 320, 320, 16], the BATCHNORM2D carries 1e-3, and the first update carries 0.03. The walk
+under "model.0" yields five records, the first "model.0.conv.weight" [16, 3, 3, 3] and the
+last "model.0.bn.running_var" [16].
+
+### TheFactoryDefaultsKernelAndStrideToOne
+
+A row stating only 8 filters over [6, 10, 3] has a port of shape [6, 10, 8]. After a trace its
+first state record is "conv.weight" [8, 1, 1, 3].
+
+### TheFactoryRefusesAnUnknownKey
+
+The key `padding` fails with `InvalidDescription` and a message containing "layer 0 'conv'",
+"'padding'" and "filters".
+
+### TheFactoryRefusesARowWithoutFilters
+
+A row without `filters` fails with a message containing the context, "'filters'" and "absent".
+
+### TheFactoryRefusesAWindowThatIsNotAPositiveWholeNumber
+
+A `stride` of 0 fails with "'stride'", "positive" and "0". A `kernel` given as the string "3"
+fails with "'kernel'" and "whole number".
+
+### TheFactoryRefusesNormOptionsOutOfRange
+
+A `bn_epsilon` of 0.0 fails with "'bn_epsilon'" and "positive", and one given as a string
+fails with "'bn_epsilon'" and "number". A `bn_momentum` of 1.5 fails with "'bn_momentum'" and
+"[0, 1]", and one of -0.1 fails with those and "-0.1".
+
+### TheFactoryRefusesInputsThatAreNotOneFeatureMap
+
+Two input shapes fail with a message containing the context, "one input" and "2". The one
+shape [192] fails with "[192]" and "rank-3".
+
+## test_block_sppf.cpp
+
+Tests SPPF's trace, its state names against YOLO26n row 9, and its factory.
+
+This file needs no device. `NN::SPPF` in `include/SushiAI/nn/blocks/sppf.hpp` holds a
+`ConvLinear` named `cv1`, a `MaxPool2d` named `pool` and a `Conv` named `cv2`. The cases show
+its trace: `cv1` narrows the input, the pool is applied a number of times in a chain, one
+CONCAT_CHANNELS joins `cv1`'s result and every pooled value, `cv2` follows, and an optional ADD
+closes the block. `NN::make_sppf_node` builds the node of an `sppf` row.
+
+The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
+No case opens a fixture file.
+
+### Constants
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged. `K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_CONTEXT` is "layer 9 'sppf'", the row
+name handed to the factory.
+
+### StateKind
+
+`StateKind` has the enumerators `Parameter` and `Buffer`.
+
+### record
+
+`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
+
+### walk
+
+`walk` returns one `record` per parameter and buffer that `NN::walk_state` yields under a
+prefix, in walk order.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### first_node
+
+`first_node` returns the index of the first node of a graph that carries one operation.
+
+### one_input
+
+`one_input` views one shape as the `NN::ShapeSpan` of a one-input row.
+
+### attributes_of
+
+`attributes_of` parses a string of JSON as the attributes of one row.
+
+### expect_norm_options
+
+`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+graph and the given momentum on every update of a list.
+
+### OutputShapeKeepsTheExtentsAndSetsTheWidth
+
+`SPPF(256, 256, 5, 3, true)` maps [20, 20, 256] to [20, 20, 256], and `SPPF(64, 96, 5, 3,
+true)` maps [5, 7, 64] to [5, 7, 96].
+
+### ThePoolKeepsTheExtents
+
+The pool of `SPPF(256, 256, 5, 3, true)` has a 5x5 kernel, stride 1 and a pad of 2 on top and
+left, and its `output_shape([20, 20, 128])` is [20, 20, 128].
+
+### Row9EmitsThreePoolsOneConcatAndOneAdd
+
+A training trace over [2, 4, 4, 256] emits two MATMUL, two BATCHNORM2D, one SILU, three
+MAXPOOL2D, one CONCAT_CHANNELS and one ADD. The list holds four updates and the result is
+[2, 4, 4, 256]. The one SILU is `cv2`'s.
+
+### TheJoinReadsTheNarrowedValueThenEachPoolInAChain
+
+The CONCAT_CHANNELS has four inputs. The first is produced by a BATCHNORM2D, because `cv1` is
+a `ConvLinear` and emits no activation. Each of the other three is produced by a MAXPOOL2D
+that reads the input before it, and each is [2, 4, 4, 128]. The joined value is
+[2, 4, 4, 512].
+
+### TheClosingAddReadsTheResultThenTheInput
+
+`adds_input` is true. The ADD's first operand is produced by a SILU and its second is the
+block's input, and its output is the returned value. The operand order is the reverse of
+`Bottleneck`'s.
+
+### NoAddWithoutAShortcutOrOverUnequalWidths
+
+`SPPF(64, 64, 5, 3, false)` and `SPPF(64, 96, 5, 3, true)` both report `adds_input` false and
+trace no ADD.
+
+### ThePoolCountSetsThePoolsAndTheJoinedWidth
+
+`SPPF(64, 64, 3, 1, false)` traces one MAXPOOL2D. Its `cv1` weight is [32, 1, 1, 64] and its
+`cv2` weight is [64, 1, 1, 64], two parts of 32 channels.
+
+### StateMatchesManifestRow9
+
+The walk of a traced `SPPF(256, 256, 5, 3)` under "model.9" yields ten records. The five of
+`cv1` come first, with the weight [128, 1, 1, 256] and the rest [128]. The five of `cv2`
+follow, with the weight [256, 1, 1, 512] and the rest [256]. The pool has no state.
+
+### TheFactoryBuildsRow9
+
+`make_sppf_node` over [20, 20, 256] with 256 filters, kernel 5, 3 pools and shortcut true has
+one port of shape [20, 20, 256]. Its training trace holds three MAXPOOL2D and one ADD. The walk
+under "model.9" yields ten records; record 0 is the `cv1` weight and record 5 the `cv2`
+weight.
+
+### TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut
+
+A row stating only 64 filters traces three MAXPOOL2D and no ADD, and its `cv2` weight is
+[64, 1, 1, 128].
+
+### TheFactoryRefusesAnEvenKernel
+
+`kernel` 4 fails with `InvalidDescription` and a message containing "layer 9 'sppf'",
+"'kernel'", "odd" and "4".
+
+### TheFactoryRefusesAnInputOfOneChannel
+
+The input shape [4, 4, 1] fails with "[4, 4, 1]" and "at least 2 channels".
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The key `hidden` fails with the context and "'hidden'". A row without `filters` fails with
+"'filters'" and "absent". `pools` 0 fails with "'pools'" and "positive".
+
+### TheFactoryHandsTheNormOptionsToBothNorms
+
+A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two BATCHNORM2D nodes and four
+updates, and `expect_norm_options` finds those two values on all of them.
+
+### TheFactoryReadsKernelAndPools
+
+With `kernel` 3 and `pools` 1 the trace holds one MAXPOOL2D whose attributes 0, 1 and 6, which
+are kernel_h, kernel_w and pad_top, are 3, 3 and 1. The `cv2` weight is [64, 1, 1, 64].
+
+## test_buffer.cpp
+
+Tests Buffer: its description, its one leaf per graph and its identity.
+
+This file needs no device. `NN::Buffer` in `include/SushiAI/nn/buffer.hpp` is state a model
+owns that takes no gradient. `define()` records its shape, starting value and element type and
+returns a `Status`. `read()` declares a leaf of lifetime `Graph::Lifetime::BUFFER` in the graph
+of the builder it is given.
+
+### K_EXACT_TOLERANCE
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged.
+
+### read_undefined
+
+`read_undefined` calls `read()` on a buffer under the name "running_mean" with a builder over
+a fresh graph. It is the statement of the death test.
+
+### ANewBufferIsUndefined
+
+A default-constructed buffer reports `declared()` false and the state `Graph::K_NO_STATE`.
+
+### DefineRecordsTheDescription
+
+After `define([8], 1.0, FLOAT64)` the buffer is declared and returns that shape, that element
+type and the starting value 1.0.
+
+### DefineDefaultsToFloat32
+
+`define([8], 0.0)` with no element type records `DType::FLOAT32`.
+
+### ADefinedBufferAddsNoLeafUntilItIsRead
+
+After `define()` alone a graph holds no value and `id_in(graph)` is `Graph::NO_VALUE`.
+
+### DefineDrawsTheIdentity
+
+Two buffers that were only defined have states other than `K_NO_STATE`, and the two states
+differ. A second identical `define()` and a `read()` leave the first buffer's state unchanged.
+
+### ReadDeclaresABufferLeaf
+
+`read()` adds one value to the graph. It has the lifetime `BUFFER`, `requires_grad` false and
+the shape [8] and type FLOAT64 that were defined. `id_in(graph)` and
+`graph.state_leaf(buffer.state())` both return it.
+
+### ASecondReadInOneGraphReturnsTheFirstLeaf
+
+A second `read()` through the same builder returns the first leaf. The graph's value count
+does not grow and `state_leaves()` holds one pair.
+
+### ABufferReadInTwoGraphsHasALeafInEach
+
+The first graph holds a padding input, so the buffer's leaf there is value 1, and in the
+second graph it is value 0. `id_in` returns each graph's own leaf, and the buffer's state is
+the same after both reads.
+
+### ACopiedBufferHasANewStateId
+
+A copy of a defined and read buffer has the original's shape and starting value and a state
+that is neither `K_NO_STATE` nor the original's. `copy.id_in(graph)` is `NO_VALUE` until the
+copy is read, and its leaf then differs from the original's, which keeps its own.
+
+### AMovedBufferKeepsItsStateId
+
+A buffer move-constructed from a read one has the same state and the same leaf in the graph.
+Reading it again returns that leaf and adds no value.
+
+### AMovedFromBufferIsUndefined
+
+After a move construction and after a move assignment the source reports `declared()` false
+and the state `K_NO_STATE`. The assigned target is declared and has a state.
+
+### ACopyAssignedBufferHasANewStateId
+
+A defined [2] buffer copy-assigned from a [8] FLOAT64 one takes that shape and type. Its state
+differs from the state it had before and from the source's.
+
+### ACopyOfAnUndefinedBufferHasNoIdentity
+
+A copy of a buffer that was never defined is not declared and has the state `K_NO_STATE`.
+
+### DefiningTwiceWithOneDescriptionIsAccepted
+
+A second `define()` with the same shape, value and type returns ok and leaves the description
+as it was.
+
+### DefiningWithAnotherShapeFails
+
+`define([4], 0.0)` after `define([8], 0.0)` returns `InvalidDescription` with a message
+containing "Buffer was defined as", "[8]" and "[4]". The shape stays [8].
+
+### DefiningWithAnotherElementTypeFails
+
+`define([8], 0.0, FLOAT64)` after a FLOAT32 definition returns `InvalidDescription` with a
+message naming both types. The type stays FLOAT32.
+
+### DefiningWithAnotherStartingValueFails
+
+`define([8], 1.0)` after `define([8], 0.0)` returns `InvalidDescription` with a message
+containing "Buffer was defined as" and "is now defined as". The starting value stays 0.0.
+
+### ReadingBeforeDefineIsFatal
+
+The case is in the suite `Unit_BufferDeathTest`. `read()` on an undefined buffer stops the
+process with a report containing "'running_mean'" and "before define()".
+
 ## test_checkpoint_format.cpp
 
 Tests the checkpoint format's round trip and its refusal of each malformed byte pattern.
@@ -458,6 +1506,93 @@ This case covers the defect the format exists to close: an element count alone l
 weight load into a [3, 2] one. The shape is recorded, so the two records are not
 interchangeable.
 
+## test_concat.cpp
+
+Tests the Concat node's shape check, its port and the node it traces.
+
+This file needs no device. `NN::Concat` in `include/SushiAI/nn/concat.hpp` is an `NN::Node`
+that joins several feature maps along the channel axis. `Concat::create` takes one per-sample
+shape per input and returns a `Result`, and `forward` returns a `Status`.
+
+### create_over
+
+`create_over` calls `Concat::create` over a vector of shapes viewed as an `NN::ShapeSpan`.
+
+### span_of
+
+`span_of` views a vector of ids as the `NN::ValueSpan` one `forward` call takes.
+
+### CreateSumsTheChannelsOfItsInputs
+
+Over [8, 6, 3], [8, 6, 5] and [8, 6, 1] the node has one port named "output" of shape
+[8, 6, 9].
+
+### CreateAcceptsOneInput
+
+Over the one shape [8, 6, 3] the port's shape is [8, 6, 3].
+
+### CreateRejectsUnequalHeight
+
+[8, 6, 3] with [4, 6, 3] fails with `InvalidDescription` and a message containing "concat
+input 1" and "H and W".
+
+### CreateRejectsUnequalWidth
+
+A third input of [8, 12, 3] fails with a message containing "concat input 2" and "H and W".
+
+### CreateRejectsAnInputThatIsNotAFeatureMap
+
+[8, 6, 3] with [144] fails with a message containing "concat input 1" and "rank-3".
+
+### CreateRejectsAFirstInputThatIsNotAFeatureMap
+
+[144] with [8, 6, 3] fails with a message containing "concat input 0" and "rank-3".
+
+### CreateRejectsNoInput
+
+No shape at all fails with a message containing "at least one input".
+
+### ForwardEmitsOneConcatChannelsReadingEveryInputInOrder
+
+`forward` over the values b and a adds one `Ops::CONCAT_CHANNELS` node whose inputs are b then
+a. It appends one id to `outputs`, the node's one output.
+
+### ForwardResultIsThePortShapeWithABatchAxis
+
+Over [2, 8, 6, 3] and [2, 8, 6, 5] the traced value has the shape [2, 8, 6, 8], and the port
+reports [8, 6, 8].
+
+### ForwardRejectsAnInputCountItWasNotBuiltOver
+
+A node built over two shapes and given one value fails with a message containing "input count
+is 2" and "given is 1". `outputs` stays empty and the graph gains no node.
+
+### TheInputCountIsTheNumberOfShapesItWasBuiltOver
+
+`input_count()` is 1 for a node built over one shape and 3 for a node built over three.
+
+### ForwardReturnsTheFailureOfValuesThatDoNotJoin
+
+A node built over two [8, 6, 3] shapes is given a [2, 8, 6, 3] value and a [2, 4, 6, 3] value.
+`forward` returns an `InvalidDescription` failure, appends nothing to `outputs` and adds no
+node.
+
+### TheFactoryBuildsANodeFromARowWithNoKey
+
+`NN::make_concat_node` over [8, 6, 3] and [8, 6, 5] with the attributes `{}` returns a
+`Concat` with an input count of 2 and one port of shape [8, 6, 8].
+
+### TheFactoryRefusesAKeyAndShapesThatDoNotJoin
+
+The attributes `{"axis": 3}` fail with a message containing the context "layer 2 'concat'",
+"'axis'" and "no key". The shapes [8, 6, 3] and [4, 6, 5] with no attribute fail with the
+context and "H and W".
+
+### TheStateWalkVisitsNothing
+
+After a trace, `walk_state("merge", visitor)` calls neither the parameter callback nor the
+buffer callback.
+
 ## test_config.cpp
 
 Tests how the config layer parses its JSON documents and which ones it refuses.
@@ -472,7 +1607,7 @@ passing after a refactor collapsed five specific messages into one generic compl
 
 The cases fall into two groups, in file order:
 
-- the model document, and the layer registry it selects through
+- the model document in both of its versions, and the layer registry it selects through
 - the train and eval documents
 
 ### KeepsTheKeyOrderTheFileSpelled
@@ -520,6 +1655,151 @@ be a name the registry does not hold, and "conv2d" is a row of the table.
 The `stray` document writes a width onto an activation. An activation takes no attributes, so
 that width is an error and not a line that does nothing.
 
+### The version 2 model document
+
+The cases from AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite to
+AMalformedOutputIsAnError cover the two versions of the model document that
+`Config::parse_model` reads. `Config::MODEL_VERSION` is 2. A version 1 document carries the key
+`sushiai_model` and an `input` of `features`. A version 2 document carries `format_version`,
+an `input` of `shape`, an optional `from` on each row, and the optional top-level keys
+`defaults` and `outputs`. Both parse to one `Config::ModelSpec`, in which every row holds its
+sources as absolute row indices and the model input is `Config::K_MODEL_INPUT`, which is -1.
+
+### K_FIRST_VERSION_MODEL
+
+`K_FIRST_VERSION_MODEL` is a version 1 document of five rows over 784 features: `unflatten` to
+28 by 28 by 1, `conv2d` of 8 filters and kernel 3 with a bias, `relu`, `flatten` and `linear`
+of 10 units.
+
+### K_REWRITTEN_MODEL
+
+`K_REWRITTEN_MODEL` is the same model written as version 2, with the input shape [784] and
+`"from": -1` on every row.
+
+### scalar_text
+
+`scalar_text` renders one scalar attribute as "int n", "bool true", "bool false" or "string
+s", and any other kind as its kind name.
+
+### spec_text
+
+`spec_text` renders a `ModelSpec` as text: one line for the input shape and feature count, one
+line per row with its type, its sources as `node:'port'` and its attributes, and one line per
+output. Two specs compare equal as text when every one of those fields agrees.
+
+### current_model_from
+
+`current_model_from` wraps a `layers` array, and optionally more top-level keys, in a version
+2 document whose input shape is [6].
+
+### AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite
+
+`spec_text` of the two documents is equal. The expected text is asserted as a literal too: the
+input is [784] with 784 features, row 0 reads -1, each later row reads the row above it, and
+the one output is row 4 with no port and no name.
+
+### AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount
+
+`GOOD_MODEL`, a version 1 document of 6 features, parses to `input_shape` [6] and
+`input_features` 6. The case also asserts that `Config::MODEL_VERSION` is 2.
+
+### AVersionTwoInputShapeKeepsItsRankAndCountsItsElements
+
+The input shape [28, 28, 1] is kept at rank 3 and `input_features` is 784.
+
+### AnEmptyOrNonPositiveInputShapeIsAnError
+
+An empty `shape` throws with a message containing "'input' 'shape'" and "empty". The shape
+[28, 0, 1] throws with "'shape' entry 1" and "positive". A version 2 input that states
+`features` throws with "'features'" and "'shape'".
+
+### AnInputShapeAboveTheRankOrTheElementLimitIsAnError
+
+A shape of `MAX_RANK` + 1 extents throws with "'shape'" and "at most". The shape
+[4294967296, 4294967296], whose product is 2^64, throws with "'shape'", "entry 1" and "more
+elements".
+
+### AModelRootThatIsNotAnObjectIsAnError
+
+The document `[1]` throws with a message containing "model.json", "'format_version'" and "an
+array".
+
+### AVersionAboveTheNewestIsRefusedWithBothNumbers
+
+`"format_version": 3` throws with a message containing "model.json", "version 3" and "version
+2".
+
+### FormatVersionOneIsRefusedAndNamesTheVersionOneKey
+
+`"format_version": 1` throws with a message containing "'format_version'" and
+"'sushiai_model'". Version 1 files carry the second key and never the first.
+
+### AVersionOneDocumentRefusesTheVersionTwoKeys
+
+A version 1 document with a `from` on row 1 throws with "layer 1", "'from'" and "version 1".
+One with a top-level `defaults` throws with "'defaults'" and "'layers'".
+
+### EachFromFormResolvesToAnAbsoluteRow
+
+Six rows use every form of `from`. An absent `from` on row 0 and the string "input" resolve to
+-1. The number -1 resolves to the row above. An array `[-1, 0]` on row 3 resolves to rows 2
+and 0. An object `{"node": 3, "port": "boxes"}` resolves to row 3 with that port. An array may
+mix objects, "input" and a relative object. The whole spec is compared as text. Row 0's source
+is `K_MODEL_INPUT`, and "from" is not among row 3's attributes.
+
+### ANegativeFromOtherThanMinusOneNamesTheRow
+
+`"from": -2` on row 2 throws with a message containing "layer 2 of 'model.json'", "'from'" and
+"row -2". `{"node": -3}` inside an array throws with the layer and "row -3".
+
+### AForwardReferenceNamesTheRow
+
+`"from": 2` on row 1 throws with "layer 1 of 'model.json'", "row 2" and "above row 1".
+`"from": [0, 1]` on row 1, which names the row itself, throws with the layer and "row 1".
+
+### AnUnknownKeyOrFormInAFromEntryNamesTheRow
+
+Each of five `from` entries on row 1 throws with "layer 1 of 'model.json'" and one more
+needle: the key `prot` with "'prot'" and "'port'"; the string "previous" with "'previous'" and
+"'input'"; an empty array with "empty"; the number 0.5 with "it is a number"; and an empty
+`port` string with "'port'" and "empty string".
+
+### AnUnknownTopLevelKeyOfAVersionTwoDocumentIsAnError
+
+A top-level key `output` throws with a message containing "'output'", "'outputs'" and
+"'defaults'".
+
+### DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne
+
+The `defaults` block gives `conv` rows `bn_momentum` 3 and `kernel` 5. Row 0 states only
+`filters` and ends with the keys `filters`, `bn_momentum`, `kernel` and the values 3 and 5.
+Row 1 states `bn_momentum` 7 and keeps it. Row 2 is a `relu` and receives no key.
+
+### AMalformedDefaultsBlockIsAnError
+
+A `defaults` that is an array throws with "'defaults'" and "an array". A type whose default is
+the number 3 throws with "'defaults' for 'conv'" and "object". A default that sets `from`
+throws with that context and "'from'", and one that sets `type` with "'type'".
+
+### ADefaultsEntryForATypeNoLayerStatesIsAnError
+
+A default for "covn" in a model of `conv` and `relu` rows throws with a message containing
+"'defaults'", "'covn'" and "'conv', 'relu'".
+
+### OutputsDefaultToTheLastRowAndKeepWhatTheFileStates
+
+A document with no `outputs` gets one output: the last row, with an empty port and an empty
+name. A document that states three outputs keeps each as written: row 0 alone, row 1 with the
+port "boxes", and row 1 with the port "boxes" and the name "predictions".
+
+### AMalformedOutputIsAnError
+
+Seven `outputs` values each throw. Row 1 in a one-row model: "'outputs' entry 0", "row 1" and
+"0 to 0". The key `nme`: "'nme'" and "'name'". A `name` without a `port`: "'name'" and
+"'port'". An empty array: "'outputs'" and "empty". The number 3 as an entry: "a whole number".
+An empty `port` string: "'outputs' entry 0 'port'" and "empty string". An empty `name` string:
+"'outputs' entry 0 'name'" and "empty string".
+
 ### Path resolution in the train and eval documents
 
 Path resolution is the one thing in this file that needs real files on disk. The property is
@@ -549,6 +1829,11 @@ case reads a host-side graph, the layer's two parameters or the result of `outpu
 
 Two `static_assert` lines at file scope require `Conv2d` to be a `Module` and not a
 `ModuleContainer`.
+
+### K_EXACT_TOLERANCE
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged.
 
 ### make_conv
 
@@ -634,6 +1919,44 @@ A 3x3 window with stride 2, padding 1 and dilations 2 by 3 maps [11, 13, 2] to [
 
 A 1x1 window with six filters maps [5, 7, 4] to [5, 7, 6]. This is the geometry for which
 `GraphBuilder::conv2d` emits no IM2COL.
+
+### SamePaddedPadsByHalfTheKernelAndDropsTheBias
+
+`Conv2d::same_padded(3, 16, 5, 2)` has 3 input and 16 output channels, a 5x5 kernel, stride 2
+on both axes, a pad of 2 on top and left, dilation 1 and `use_bias` false.
+
+### SamePaddedAtStrideOneKeepsTheSpatialExtents
+
+`same_padded(4, 4, 3, 1)` maps [7, 10, 4] to [7, 10, 4] in `output_shape()` and traces
+[2, 7, 10, 4] over a batch of two.
+
+### SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiveKernel
+
+Over [9, 6, 2], `same_padded(2, 8, 1, 1)` and `same_padded(2, 8, 5, 1)` both report [9, 6, 8].
+
+### SamePaddedAtStrideTwoHalvesAnEvenExtent
+
+`same_padded(3, 16, 3, 2)` maps [640, 320, 3] to [320, 160, 16] in `output_shape()` and in the
+trace.
+
+### SamePaddedTracesNoBias
+
+A traced `same_padded(2, 8, 3, 1)` layer walks as "weight:[8, 3, 3, 2]" alone. Its bias is not
+declared and the graph holds no BIAS_ADD node.
+
+### ANonZeroBiasInitReachesTheBiasParameter
+
+A layer with `bias_init` set to -4.5 traces a bias whose `init()` is a constant of -4.5 and
+whose role is `ParameterRole::BIAS`. -4.5 is exact in binary.
+
+### TheDefaultBiasInitIsTheConstantZero
+
+A layer left at the default traces a bias whose `init()` is a constant of 0.0.
+
+### BiasInitLeavesTheWeightFanScaled
+
+With `bias_init` set to 1.25 the weight's `init()` is still `ParameterInit::Kind::FanScaled`
+and its role is `WEIGHT`.
 
 ### OutputShapeRejectsANonPositiveInputChannelCount
 
@@ -2065,6 +3388,15 @@ The memory planner's reachability closure and the lowering's single forward walk
 topological order. The fused node is emitted at the root's position while it reads operands
 from the chain's first node, and that is where a rewrite gets the order wrong.
 
+### StateLeavesAndTheRefusalMarkSurviveTheRewrite
+
+The graph is a MATMUL, a BIAS_ADD whose bias is a buffer, and a RELU. The weight and the buffer
+are bound to the states 21 and 22 and the graph is marked refused before `Graph::fuse` runs.
+The report lists one fused form and the graph holds one GEMM_BIAS_RELU node, so the pass did
+rebuild the graph. Both `state_leaf` lookups and the whole `state_leaves()` table are what they
+were. The buffer keeps the lifetime `BUFFER` and no gradient, the weight still requires one,
+and `has_refusal()` is still true.
+
 ## test_global_avg_pool.cpp
 
 Tests the shapes GlobalAvgPool traces and reports, and the inputs it refuses.
@@ -2155,6 +3487,31 @@ difference of x^2 is still exact to 1e-9.
 
 The `unshifted` point straddles the kink. The quotient taken across it reports the average of
 the two one-sided derivatives, which no correct rule can match.
+
+## test_identity.cpp
+
+Tests that the Identity layer returns its input, emits nothing and holds no state.
+
+This file needs no device. `NN::Identity` is in `include/SushiAI/nn/identity.hpp`.
+
+Three `static_assert` lines at the top of the file hold that `Identity` is a `Module`, is not
+a `ModuleContainer`, and that `Identity::fields()` is an empty tuple.
+
+### ForwardReturnsItsInput
+
+`forward` over a [2, 8, 6, 3] input returns the id it was given.
+
+### ForwardEmitsNothing
+
+The graph's node count and value count are the same before and after `forward`.
+
+### OutputShapeReturnsItsInput
+
+`output_shape([7])` is [7] and `output_shape([8, 6, 4])` is [8, 6, 4].
+
+### TheParameterWalkVisitsNothing
+
+After a trace, `NN::for_each_parameter` calls its visitor zero times.
 
 ## test_imaging_affine.cpp
 
@@ -4656,12 +6013,72 @@ the same window count, which every downstream shape check accepts.
 Nothing downstream caps the ten. Nothing copies an attribute into a fixed-width metadata array:
 `src/graph/lowering.cpp` reads slots with `get()` and passes the values straight to SushiBLAS.
 
+### ABufferLeafIsPersistentAndNeedsNoGradient
+
+The nine cases from here are in the suite `Unit_Ir`; the cases above are in `Unit_IR`.
+
+`GraphBuilder::buffer` declares a value of the shape, type and name it was given, with the
+lifetime `Lifetime::BUFFER` and `requires_grad` false. Its producer is a LEAF node. A BIAS_ADD
+that reads an input and a buffer does not require a gradient either. `is_persistent(BUFFER)` is
+true and `lifetime_name(BUFFER)` is "buffer".
+
+### ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist
+
+`Graph::is_persistent` is true for PARAMETER, GRADIENT, OPTIMIZER_STATE, INPUT and BUFFER, and
+false for ACTIVATION and SCRATCH.
+
+### StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState
+
+`Graph::state_leaf` returns `NO_VALUE` before any binding. After `bind_state_leaf` of state 7
+to a buffer and state 5 to a parameter, it returns each leaf for its state and `NO_VALUE` for
+state 6 and for `K_NO_STATE`. `state_leaves()` holds the two pairs in the order they were
+bound, not in the order of the state numbers.
+
+### BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf
+
+With state 7 bound to a leaf, four bindings throw: state 7 to another leaf ("State 7",
+"already has leaf"), state 8 to the bound leaf ("already stands for state 7"), `K_NO_STATE` to
+a leaf ("no identity"), and state 9 to value 99 ("value 99", "does not exist"). The table
+still holds the first pair alone.
+
+### WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode
+
+`Graph::without_nodes()` returns a graph with no node and the same number of values. Every
+value keeps its shape, element type, layout, lifetime, `requires_grad` and debug name, and its
+producer is `NO_NODE`. The fixture holds an NCHW value, a parameter that requires a gradient
+and a HALF buffer, and each is checked by name. The copy's `state_leaves()` equals the
+source's. The source graph still has its nodes and producers.
+
+### ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes
+
+`has_refusal()` is false for a new graph and for its `without_nodes()` copy. After
+`mark_refused()` it is true for both.
+
+### StateIdentityDrawsOneIdentityPerHolder
+
+`Graph::StateIdentity` in `include/SushiAI/graph/state_id.hpp` holds the identity of one piece
+of model state. `peek()` returns `K_NO_STATE` before the first `get()`. `get()` returns the
+same identity on every call, `peek()` then returns it too, and a second holder's `get()`
+returns a different one.
+
+### ACopiedStateIdentityDoesNotShareTheSourcesIdentity
+
+A holder copy-constructed from one that has drawn peeks `K_NO_STATE` and then draws a
+different identity. A holder that had drawn and is then copy-assigned from the source also
+peeks `K_NO_STATE`, and its next identity differs from the source's and from the one it had.
+The source keeps its identity.
+
+### AMovedStateIdentityCarriesItsIdentityAway
+
+After a move construction the target peeks the source's identity and the source peeks
+`K_NO_STATE`. A move assignment over a holder that had drawn does the same.
+
 ## test_layer_registry.cpp
 
 Tests the layer registry: each row's factory, the keys it reads and the model it builds.
 
 This file needs no device. `NN::LAYER_REGISTRY` in `include/SushiAI/nn/layer_registry.hpp` is
-a constant table of thirteen rows, and a factory turns a per-sample input shape and a parsed
+a constant table of fourteen rows, and a factory turns a per-sample input shape and a parsed
 JSON object into an `NN::ILayer`. A case therefore needs a `Shape`, a string of JSON and, for
 the model cases, a host-side graph.
 
@@ -4744,13 +6161,20 @@ makes of it.
 row `i`. A row added to the registry without a case here fails this test, so the two tests
 that loop over the cases cover every factory.
 
+### TheTypeStringsAreTheOnesModelFilesSpell
+
+The `type` fields of `NN::LAYER_REGISTRY` are, in order, "linear", "gelu", "relu", "tanh",
+"sigmoid", "leaky_relu", "unflatten", "conv2d", "maxpool2d", "avgpool2d", "global_avgpool",
+"flatten", "upsample" and "silu". A model file names a layer by one of these strings, so a
+renamed row fails here.
+
 ### EachFactoryBuildsFromAMinimalObject
 
 For every case the factory returns a layer whose `output_shape()` is the shape the case lists.
 
 ### EachKeyBuildsItsOwnLayerType
 
-Each of the thirteen keys builds an adapter over the layer type it names: `wrapped<L>` is not
+Each of the fourteen keys builds an adapter over the layer type it names: `wrapped<L>` is not
 null for the expected `L`. Two rows that pointed at one factory would fail for one of them.
 
 ### EachFactoryRejectsAnUnknownKey
@@ -4872,6 +6296,45 @@ The stack's output goes into `NN::CrossEntropyLoss`, and the loss is differentia
 the six parameters the walk yields. Every gradient is a value other than `NO_VALUE` with the
 shape of its parameter. The case checks that the graph differentiates; it computes no number.
 
+### ASiluRowTracesOneSiluNode
+
+The layer of a `silu` row over [8, 8, 2], traced over [4, 8, 8, 2], adds one node. Its
+operation is `Ops::SILU` and the result keeps the shape [4, 8, 8, 2].
+
+### AVersionTwoChainStartsFromTheInputShape
+
+A version 2 document over the input shape [8, 8, 2] holds a `conv2d` of 5 filters and kernel
+3, a `silu` and a `flatten`. `NN::build_layer_stack` builds three layers. Layer 0 reports
+[6, 6, 5], which requires the factory to have received the rank-3 shape and not the count 128,
+and the stack reports [180].
+
+### AChainRefusesARowThatReadsTwoRows
+
+Row 2 with `"from": [-1, 0]` makes `build_layer_stack` throw with a message containing "layer
+2 'relu'", "the row before it" and "build_model".
+
+### AChainRefusesARowThatSkipsBack
+
+Row 2 with `"from": 0` throws with "layer 2 'relu'" and "the row before it".
+
+### AChainRefusesALaterRowThatReadsTheInput
+
+Row 1 with `"from": "input"` throws with "layer 1 'tanh'" and "the row before it".
+
+### AChainRefusesOutputsThatPublishAnEarlierRow
+
+A two-row document whose `outputs` is `[{"node": 0}]` throws with a message containing
+"'outputs'", "last row" and "build_model".
+
+### AChainAcceptsOutputsThatPublishTheLastRow
+
+The same document with `[{"node": 1}]` builds a stack of two layers.
+
+### AChainRefusesARowThatReadsANamedPort
+
+Row 1 with `"from": {"node": 0, "port": "output"}` throws with "layer 1 'tanh'" and "the row
+before it". The row it names is the row above; the port is what the chain refuses.
+
 ## test_layer_stack.cpp
 
 Tests the runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread.
@@ -4884,6 +6347,17 @@ and `NN::build_layer_stack` hands from each layer to the next factory.
 The comparison is written as "trace both, walk both, compare the two lists" and not as "check
 LayerStack produces these literal names", so it fails if either path changes its naming. A test
 against literals would let both drift together and still pass.
+
+### chain_row
+
+`chain_row` returns one `Config::LayerSpec` of a given type and attributes that reads one given
+source row.
+
+### hand_built_chain
+
+`hand_built_chain` fills a `Config::ModelSpec` field by field, with no parser involved: the
+input shape [6], 6 input features, and the rows `linear` 8, `gelu` and `linear` 4. Row 0 reads
+`Config::K_MODEL_INPUT` and each later row reads the row above it.
 
 ### NamesItsParametersExactlyAsSequentialDoes
 
@@ -4931,10 +6405,30 @@ shape".
 
 ### BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer
 
-A `Config::ModelSpec` of 6 input features with `linear` 8, `gelu` and `linear` 4 builds three
-layers that report [8], [8] and [4]. The last layer is cast to `LayerAdapter<Linear>` and its
-`in_features` is 8, the width the activation before it reported. The file never states that
-number, so it can only come from the shape `build_layer_stack` hands on.
+The spec of `hand_built_chain` builds three layers that report [8], [8] and [4]. The last
+layer is cast to `LayerAdapter<Linear>` and its `in_features` is 8, the width the activation
+before it reported. The spec never states that number, so it can only come from the shape
+`build_layer_stack` hands on.
+
+### BuildLayerStackSeedsTheChainFromTheInputShape
+
+The spec of `hand_built_chain` is given `input_shape` [5] and `input_features` 6, two fields
+that disagree. The first layer's `in_features` is 5, so `build_layer_stack` reads the shape.
+
+### BuildLayerStackRefusesAHandBuiltRowWithoutASource
+
+With the `from` list of row 1 cleared, `build_layer_stack` throws with a message containing
+"layer 1 'gelu'" and "the row before it".
+
+### OutputShapeOfAnInputIsTheLastLayersOutputShape
+
+`LayerStack::output_shape([6])` of the built chain is [4] and equals the argument-free
+`output_shape()`.
+
+### RefusesAnOutputShapeOfAnInputWhenEmpty
+
+`output_shape([6])` of an empty stack throws with a message containing "no layers" and "output
+shape".
 
 ### AnActivationFactoryKeepsARankThreeInputShape
 
@@ -5579,16 +7073,342 @@ reach itself. The planner therefore refuses both directions and the two values c
 an inference from an existing rule and not a rule of its own, so a future rewrite of
 `precedes()` could take it away silently.
 
+## test_model_graph.cpp
+
+Tests ModelGraph: what add and output refuse, what a trace emits, and the state names.
+
+This file needs no device. `NN::ModelGraph` in `include/SushiAI/nn/model_graph.hpp` holds
+named nodes in the order they were added. `add` takes a name, a layer or an `NN::Node` and the
+`NodeRef`s the node reads, and returns the `NodeRef` of the new node. `output` publishes a ref
+under a name. `trace` returns the published values as an `NN::ModelOutputs`, and `forward`
+returns the one published value. `add`, `output`, `port`, `output_ports` and `trace` return a
+`Status` or a `Result`.
+
+Three `static_assert` lines at the top of the file hold that `ModelGraph` is a `TraceModule`,
+is not a `Module`, and is detected by `Detail::HasStateWalk`.
+
+### OpList
+
+`OpList` is a vector of the operation of every node of a graph, in order.
+
+### TwoPortNode
+
+`TwoPortNode` is an `NN::Node` with one input and two ports. `forward` appends the ReLU and
+then the GELU of its input. The one-argument constructor names the ports "low" and "high", and
+the three-argument one takes the two names.
+
+### BranchingModel
+
+`BranchingModel` holds a `ModelGraph` and the refs `stem`, `up` and `mix` of three of its
+nodes.
+
+### build_branching_model
+
+`build_branching_model` builds five nodes over an [8, 8, 3] sample and publishes nothing:
+"stem", a same-padded `Conv2d(3, 4)` of kernel 3 and stride 2 on the input; "down", a
+`Conv2d(4, 8)` of the same window on the stem; "up", an `Upsample2d{2}` on that; "merge", a
+`Concat` of up and stem; and "mix", a pointwise `Conv2d(12, 4)` on the merge.
+
+### ops_of
+
+`ops_of` returns the `OpList` of a graph.
+
+### parameter_names
+
+`parameter_names` collects what `NN::for_each_parameter` yields under a prefix as
+"name:extents" strings.
+
+### add_relu_declared_as
+
+`add_relu_declared_as` adds a `LayerNode` over a `LayerAdapter<ReLU>` constructed with a given
+shape. The node declares that shape on its port whatever its input is.
+
+### RefsNameTheInputAndTheNodesInTheOrderAdded
+
+`model.input()` reports `is_input()` and port 0. The refs of stem, up and mix report the nodes
+0, 2 and 4, mix reports port 0, stem and up compare unequal, and `size()` is 5.
+
+### ShapeOfReturnsTheDeclaredPerSampleShapes
+
+`shape_of` is [8, 8, 3] for the input, [4, 4, 4] for stem, [4, 4, 8] for up and [4, 4, 4] for
+mix. Node 3, the merge, declares [4, 4, 12] on its port.
+
+### BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace
+
+The model's `forward` under an evaluation trace is compared with the same five layers traced
+by hand through a `GraphBuilder` in a second graph. The two graphs hold the same operations in
+the same order, and both results are [2, 4, 4, 4]. The sequence holds one UPSAMPLE2D and one
+CONCAT_CHANNELS.
+
+### MergeEmitsOneConcatChannelsReadingBothBranches
+
+With stem, up and mix published, the traced graph holds one CONCAT_CHANNELS node. Its inputs
+are the published value of up and then that of stem, and its output is [2, 4, 4, 12].
+
+### TraceReturnsEveryPublishedOutputByName
+
+With "features" and "skip" published in that order, `trace` returns two entries in that order.
+`at` returns a different id for each name, and both values are [2, 4, 4, 4].
+
+### ForwardReturnsTheSinglePublishedOutput
+
+A model of one ReLU node whose result is published traces one RELU node. That node reads the
+input, and its output is the id `forward` returned.
+
+### ForwardFailsWhenTwoOutputsArePublished
+
+With two outputs published, `forward` returns its input id and records `InvalidDescription` on
+the trace with a message containing "exactly one model output", "features" and "skip". The
+graph is marked refused.
+
+### OutputShapeIsTheShapeOfTheSinglePublishedOutput
+
+`output_shape([8, 8, 3])` is an empty `Shape` while nothing is published, [4, 4, 8] once up is
+the one published output, and an empty `Shape` again once a second output is published.
+
+### AGraphIsANodeOfAnotherGraph
+
+A `ModelGraph` holding a `Linear{6, 8}` named "dense" is added to an outer graph as the node
+"inner", with a ReLU after it. `shape_of` of the nested node is [8], the one output is
+[4, 8], and the outer walk yields "inner.dense.weight:[8, 6]" and "inner.dense.bias:[8]".
+
+### ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace
+
+An inner graph that publishes "first" and "second" is added as a node. The outer `trace` fails
+with `InvalidDescription` and a message containing "node 'inner'", "exactly one model output",
+"first" and "second".
+
+### ASequentialAndALayerStackAreNodesOfAGraph
+
+A `Sequential{Linear{6, 8}, ReLU}` is added as "head" and a `LayerStack` of a `Linear{8, 4}`
+and a GELU as "tail". `shape_of` is [8] and [4], the output is [4, 4], and the walk yields
+"head.0.weight:[8, 6]", "head.0.bias:[8]", "tail.0.weight:[4, 8]" and "tail.0.bias:[4]".
+
+### TheInputCanBePublishedAsAnOutput
+
+A model with no node that publishes its input returns the input id from `forward` and emits no
+node.
+
+### WalkNamesStateByNodeNameInTheOrderAdded
+
+After a trace of the branching model, the walk under "model" yields "model.stem.weight:[4, 3,
+3, 3]", "model.down.weight:[8, 3, 3, 4]" and "model.mix.weight:[4, 1, 1, 12]", and
+`NN::buffer_count` is 0. The upsample and the concat contribute no name.
+
+### ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers
+
+A model of one `BatchNorm2d(3)` node named "bn", traced under a training trace, emits one
+BATCHNORM2D node and leaves two updates in the list. The parameter walk under "model" yields
+"model.bn.weight:[3]" and "model.bn.bias:[3]", and `for_each_buffer` yields
+"model.bn.running_mean" and "model.bn.running_var".
+
+### AChainNamedByIndexYieldsTheNamesOfALayerStack
+
+A model whose nodes are named "0", "1" and "2" holds a `Linear{6, 8}`, a GELU and a
+`Linear{8, 4}`. A `LayerStack` holds the same three layers. After each is traced into its own
+graph, the two parameter walks are equal, the two graphs hold the same operation sequence, and
+the names are "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]" and "2.bias:[4]".
+
+### NestsInASequentialUnderItsIndex
+
+A `Sequential<ModelGraph, ReLU>` traces to a [4, 8] value whose last node is a RELU. Its walk
+yields "0.dense.weight:[8, 6]" and "0.dense.bias:[8]".
+
+### AddRejectsADuplicateName
+
+A second node named "act" fails with `InvalidDescription` and a message containing "already
+has a node named 'act'" and "index 0". `size()` stays 1.
+
+### AddRejectsAnEmptyName
+
+The name "" fails with "needs a name" and `size()` stays 0.
+
+### AddRejectsANameWithADot
+
+The name "a.conv" fails with "'a.conv'" and "contains '.'" through the layer overload, and
+"b.act" fails the same way through the `NN::Node` overload. `size()` stays 0.
+
+### AddReportsARefusedNameBeforeTheLayerSeesItsSource
+
+A `Conv2d` added under a taken name, or under an empty one, on a [6] source fails with the
+message about the name. The convolution would refuse a [6] source, and that failure is not the
+one returned. `size()` stays 1.
+
+### AddReturnsTheFailureOfALayerThatRefusesItsSource
+
+`add("stem", Conv2d::same_padded(3, 4, 3, 2), input)` on a [6] sample fails with a message
+containing "node 'stem'", "Conv2d(3, 4)" and "[6]", and `size()` stays 0.
+
+### AddRejectsAnUnknownSource
+
+A ref to node 1 of another graph, used as the source in a graph of one node, fails with a
+message containing "node 'late'", "source node 1" and "holds 1 nodes". The `NN::Node` overload
+fails with "node 'later'" and "source node 1". `size()` stays 1.
+
+### AddRejectsASourcePortTheNodeDoesNotHave
+
+A ref to port 1 of a two-port node of another graph, used on a graph whose node 0 has one
+port, fails with a message containing "node 'late'", "'only' has 1 ports" and "port 1".
+
+### PortSelectsANamedPortThatALaterNodeReads
+
+`port(pair, "high")` returns a ref to node 0, port 1, and `port(high, "low")` returns a ref
+equal to `pair`. A ReLU added on `high` and published traces three nodes. Node 1 is the GELU,
+and node 2 reads node 1's output.
+
+### PortRejectsAnUnknownNameAndTheInput
+
+`port(pair, "middle")` fails with a message containing "node 'pair'", "'middle'" and "low,
+high". `port(input, "low")` fails with "the model input has no port named 'low'".
+
+### OutputPortsPublishesEveryPortUnderItsOwnName
+
+`output_ports(pair)` publishes two outputs. `at("low")` is the output of graph node 0 and
+`at("high")` that of graph node 1.
+
+### OutputPortsPublishesNothingWhenAPortNameIsTaken
+
+With "high" already published, `output_ports(pair)` fails with "port 'high' of node 'pair'",
+and `output_ports(input)` fails with "the model input has no ports to publish". A trace then
+returns one output, so the failed call did not publish "low" either.
+
+### OutputRejectsATakenNameAnEmptyNameAndAnUnknownSource
+
+A second `output("echo", ...)` fails with "already publishes an output named 'echo'". The name
+"" fails with "needs a name". A ref to a node of another graph fails with "output 'far'",
+"source node 0" and "holds 0 nodes".
+
+### TraceRejectsADeclaredShapeThatDisagreesWithTheTracedOne
+
+A node that declares [5] and traces a ReLU of a [4, 6] value fails the trace with
+`InvalidDescription` and a message containing "node 'narrow'", "port 'output'", "[5]" and
+"[4, 6]".
+
+### TraceRejectsAnInputOfAnotherSampleShape
+
+A model over a [6] sample traced with a [4, 7] value fails with "the model input", "[6]" and
+"[4, 7]". Traced with a [6] value, which has no batch axis, it fails with "the model input"
+and "[6]". The graph gains no node.
+
+### TraceRejectsAModelThatPublishesNoOutput
+
+A model with one node and no published output fails the trace with "publishes no output", and
+the graph gains no node.
+
+### AddRejectsASourceCountTheNodeDoesNotRead
+
+A `Concat` built over two shapes and added with one source fails with a message containing
+"node 'merge'", "reads 2 values" and "given is 1". A `TwoPortNode` added with two sources fails
+with "node 'split'", "reads 1 values" and "given is 2". `size()` stays 0.
+
+### AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph
+
+A graph move-constructed from the branching model has `size()` 5, resolves the ref `up` to
+[4, 4, 8] and accepts `output("features", mix)`. The graph moved from has `size()` 0. A ReLU
+added to it and published traces one node whose output is the published value.
+
+### AccessorsAreFatalOutOfRange
+
+The case is in the suite `Unit_ModelGraphDeathTest`. On an empty graph, `shape_of` of a ref to
+another graph's node stops the process with "shape_of" and "source node 0", and `node(0)`
+stops it with "ModelGraph::node" and "node 0".
+
+### AddIsFatalOnANullNode
+
+The case is in the suite `Unit_ModelGraphDeathTest`. `add` given a null `unique_ptr<NN::Node>`
+stops the process with a report containing "null node" and "'ghost'".
+
+### AddIsFatalOnANodeWithTwoPortsOfOneName
+
+The case is in the suite `Unit_ModelGraphDeathTest`. `add` given a `TwoPortNode` whose ports
+are both named "low" stops the process with a report containing "'pair'" and "two ports named
+'low'".
+
+## test_model_outputs.cpp
+
+Tests ModelOutputs: publishing named values and reading them back.
+
+This file needs no device. `NN::ModelOutputs` in `include/SushiAI/nn/model_outputs.hpp` is
+the set of named `ValueId`s one trace of a model publishes. `add()` returns a `Status`, and
+`at()` and `only()` return a `Result`.
+
+Three `static_assert` lines at the top of the file hold that `ModelOutputs` is final,
+copy-constructible and nothrow move-constructible.
+
+### boxes_and_scores
+
+`boxes_and_scores` returns a set holding "boxes" as value 4 and "scores" as value 9, added in
+that order.
+
+### add_without_value
+
+`add_without_value` adds "boxes" with `Graph::NO_VALUE`. It is the statement of the death
+test.
+
+### StartsEmpty
+
+A new set's `all()` is empty.
+
+### AllKeepsTheOrderOfAdd
+
+After adding "scores", "boxes" and "features", `all()` holds those three entries in that order
+with their ids 9, 4 and 0. The order is the order of the calls, not of the names or the ids.
+
+### AddRejectsADuplicateName
+
+A second `add("boxes", ...)` returns `InvalidDescription` with a message containing "'boxes'"
+and "boxes, scores". The set still holds two entries and `at("boxes")` is still 4.
+
+### AddRejectsAnEmptyName
+
+`add("", ...)` returns `InvalidDescription` with "needs a name" and adds nothing.
+
+### AddStopsOnNoValue
+
+The case is in the suite `Unit_ModelOutputsDeathTest`. `add("boxes", NO_VALUE)` stops the
+process with a report containing "'boxes'" and "no value".
+
+### AtReturnsTheNamedValue
+
+`at("boxes")` is 4 and `at("scores")` is 9.
+
+### AtDoesNotMatchAPrefix
+
+`at("box")` and `at("boxes.")` both fail with `InvalidDescription` and the name that was asked
+for.
+
+### AtOnAMissingNameListsTheNames
+
+`at("masks")` fails with a message containing "'masks'" and "boxes, scores".
+
+### AtOnAnEmptySetSaysNone
+
+`at("boxes")` on an empty set fails with a message containing "'boxes'" and "none".
+
+### OnlyReturnsTheSingleValue
+
+`only()` on a set of one entry returns that entry's id, 12.
+
+### OnlyFailsOnZero
+
+`only()` on an empty set fails with a message containing "exactly one", "has 0" and "none".
+
+### OnlyFailsOnTwo
+
+`only()` on a set of two fails with a message containing "exactly one", "has 2" and "boxes,
+scores".
+
 ## test_module.cpp
 
-Tests the parameter walk over layers, containers and a layer enumerated at run time.
+Tests Parameter across graphs and the state walk over layers, containers and fields.
 
 This file needs no device. The layer library is host-lane, so the parameter walk, which decides
 whether the optimizer sees a layer at all, is testable without hardware.
 
-The file holds four groups: the walk over the library's own layers and containers, the
-tutorial's custom layer, the run-time arm of the walk, and the per-sample output shape of
-`Linear` and the four activations of `include/SushiAI/nn/layers.hpp`.
+The file holds six groups: the walk over the library's own layers and containers, the
+tutorial's custom layer, the run-time arm of the walk, the per-sample output shape of `Linear`
+and the four activations of `include/SushiAI/nn/layers.hpp`, a parameter traced into more than
+one graph, and the state walk over parameters, buffers and children.
 
 ### AnUntracedLayerYieldsNoParameters
 
@@ -5690,6 +7510,752 @@ The rank-3 shape is the one a convolution hands on.
 The traced shape of each activation over a [2, 5] input is [2, n], where n is the one extent
 of its `output_shape([5])`.
 
+### A parameter across graphs
+
+The cases from AParameterTracedIntoTwoGraphsHasALeafInEach to ARoleDeclareFillsByItsRole cover
+`NN::Parameter` in `include/SushiAI/nn/module.hpp`. A parameter holds a `Graph::StateId` and
+no graph. `declare()` adds a leaf to the graph of the builder it is given and binds the leaf to
+the state there, so one parameter has one leaf in each graph it was traced into. `id_in(graph)`
+returns that graph's leaf, and `id()` returns the leaf of the most recent `declare()`.
+
+The file-local `K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is
+stored and read back unchanged.
+
+### declare_weight
+
+`declare_weight` declares a [2, 3] parameter of role `WEIGHT` named "weight" through a given
+builder and returns its leaf.
+
+### AParameterTracedIntoTwoGraphsHasALeafInEach
+
+The first graph holds a padding input, so the parameter's leaf there is value 1, and in the
+second graph it is value 0. `id_in` returns each graph's own leaf, `state_leaf` of the
+parameter's state returns the same in each graph, and the second leaf has the lifetime
+`PARAMETER`.
+
+### AParameterHasNoLeafInAGraphItWasNotTracedInto
+
+Before any `declare()`, `id_in` is `NO_VALUE` and `state()` is `K_NO_STATE`. After one
+`declare()` the state is set, and `id_in` of a graph that was never traced into is still
+`NO_VALUE`.
+
+### ASecondDeclareInOneGraphReturnsTheFirstLeaf
+
+A second `declare()` through the same builder returns the first leaf. The graph's value count
+does not grow and `state_leaves()` holds one pair.
+
+### ADeclareWithAnotherShapeIsRefused
+
+After a [2, 3] declaration, a `declare()` with [4, 3] throws with a message containing
+"'weight'", "[2, 3]" and "[4, 3]", through the same builder and through a builder over a second
+graph. The second graph holds no value and the parameter's shape stays [2, 3].
+
+### ADeclareWithAnotherElementTypeIsRefused
+
+After a FLOAT32 declaration, a `declare()` with FLOAT64 throws with a message containing
+"'weight'" and both type names, in the same graph and in a second one. The second graph holds
+no value and the parameter's type stays FLOAT32.
+
+### ALaterDeclareKeepsTheFirstDescription
+
+A parameter declared as a `SCALE` with a constant fill of 1.5 and fans of 4 is declared into a
+second graph as a `WEIGHT` with a fan-scaled fill and fans of 9. Its fill, role and both fans
+are still the first ones, and it has a leaf in the second graph.
+
+### ACopiedLayerHasANewStateId
+
+A copy of a traced `Linear` has a weight whose state is `K_NO_STATE` and whose `id_in(graph)`
+is `NO_VALUE`. `declared()` is true and `id()` is the original's leaf, because both are copied
+with the description. Once the copy is traced, its `id()` equals its own `id_in(graph)`, its
+state differs from the original's, and its weight and bias leaves differ from the original's.
+
+### AMovedLayerKeepsItsStateId
+
+A `Linear` move-constructed from a traced one has the same weight state and the same weight
+leaf in the graph. Tracing it again adds two values, the two activations, and no parameter
+leaf.
+
+### IdReturnsTheLeafOfTheMostRecentDeclare
+
+`id()` is `NO_VALUE` before any `declare()`, the first graph's leaf after the first, and the
+second graph's leaf after the second. The second graph holds a padding input, so the two leaves
+have different ids.
+
+### IdFollowsADeclareBackIntoAnEarlierGraph
+
+After declarations into a first and a second graph, `id()` is the second leaf. A `declare()`
+through the first builder again returns the first leaf, and `id()` is then the first leaf.
+
+### ARoleDeclareRecordsTheFillOfItsRole
+
+A `declare()` that states a role and no fill records a fan-scaled fill for a `WEIGHT` and a
+constant fill of 0.0 for a `BIAS`.
+
+### AnInitDeclareRecordsTheStatedFillAndTheStatedRole
+
+A `declare()` that states both keeps both: a `BIAS` with a constant fill of 1.5 and a fan-in
+of 4, and a `WEIGHT` with a fan-scaled fill. The bias's leaf requires a gradient.
+
+### ARoleDeclareFillsByItsRole
+
+The three roles give three fills: fan-scaled for `WEIGHT`, a constant 0.0 for `BIAS` and a
+constant 1.0 for `SCALE`.
+
+### The state walk
+
+The cases from WalkStateYieldsTheThreeFieldKindsInDeclarationOrder on cover `NN::walk_state`
+and the two walks derived from it. A `fields()` list holds three kinds of entry: `NN::field`
+for a `Parameter`, `NN::buffer` for a `Buffer` and `NN::child` for a member that is itself
+walked. `walk_state` hands each parameter and each defined buffer to an `NN::StateVisitor`.
+`for_each_parameter` and `for_each_buffer` each yield one kind.
+
+### StatePair
+
+`StatePair` lists a parameter "scale" and a buffer "mean". `describe()` declares the parameter
+as a [4] `SCALE` and defines the buffer as [4] zeros.
+
+### MixedState
+
+`MixedState` lists, in this order, a buffer "count", a `StatePair` child "pair", a parameter
+"offset" and a buffer "unset". `describe()` defines "count" as a [1] INT64 buffer, describes
+the pair and declares "offset" as a [4] `BIAS`. It leaves "unset" undefined.
+
+### walk_all
+
+`walk_all` collects what `walk_state` yields under a prefix as "parameter name:extents" and
+"buffer name:extents" strings.
+
+### buffer_names
+
+`buffer_names` collects the names `NN::for_each_buffer` yields.
+
+### WalkStateYieldsTheThreeFieldKindsInDeclarationOrder
+
+The walk of a described `MixedState` yields "buffer count:[1]", "parameter pair.scale:[4]",
+"buffer pair.mean:[4]" and "parameter offset:[4]". Parameters and buffers interleave in the
+order `fields()` lists them.
+
+### WalkStateJoinsItsPrefixToEveryName
+
+Under the prefix "model.3" the same four entries are named "model.3.count",
+"model.3.pair.scale", "model.3.pair.mean" and "model.3.offset".
+
+### ForEachParameterNeverYieldsABuffer
+
+`for_each_parameter` yields "pair.scale:[4]" and "offset:[4]". `parameter_count` is 2 and
+`parameter_elements` is 8.
+
+### ForEachBufferNeverYieldsAParameter
+
+`for_each_buffer` yields "count" and "pair.mean", and `buffer_count` is 2.
+
+### AnUndefinedBufferIsSkipped
+
+Before `describe()` no buffer is yielded. After it two are. Once `define()` is called on
+"unset", the walk yields "count", "pair.mean" and "unset".
+
+### ADefinedBufferIsWalkedWithoutALeaf
+
+The buffer "count" has no leaf in the graph, `id_in` is `NO_VALUE`, and it is one of the two
+buffers counted.
+
+### SelfWalkingStub
+
+`SelfWalkingStub` has a member `walk_state(prefix, visitor)` and no `fields()`. It yields its
+buffer "level" before its parameter "gain".
+
+### StubPair
+
+`StubPair` lists a `SelfWalkingStub` as the child "own" and a `WalkableStub` as the child
+"legacy".
+
+### ATypesOwnWalkStateIsTheWalk
+
+`Detail::HasStateWalk` is true for `SelfWalkingStub` and false for `Linear`. The stub's walk
+under "head" yields "buffer head.level:[3]" and then "parameter head.gain:[3]", the order its
+member function states. `for_each_parameter` yields "gain:[3]" and `for_each_buffer` yields
+"level".
+
+### AChildFieldNamesEveryKindOfWalkableChild
+
+The walk of a `StubPair` yields "buffer own.level:[3]", "parameter own.gain:[3]", "parameter
+legacy.weight:[2, 3]" and "parameter legacy.bias:[2]". A `child` entry prefixes a type with its
+own `walk_state` and a type with `walk_parameters` alike.
+
+### AWalkParametersTypeYieldsNoBuffer
+
+The walk of a `WalkableStub` yields its weight and its bias as parameters, and `buffer_count`
+is 0.
+
+### ALayerAdapterYieldsItsLayersParametersUnderThePrefix
+
+A traced `LayerAdapter<Linear>` walked under the prefix "2" yields "parameter 2.weight:[3, 4]"
+and "parameter 2.bias:[3]", and `buffer_count` is 0.
+
+### TwoFieldsWithOneNameAreDetected
+
+`Detail::has_unique_names` is checked in four `static_assert` lines. It is true for
+`MixedState::fields()` and for an empty tuple. It is false for two `field` entries both named
+"weight", and for a `buffer` and a `child` both named "pair". At run time it is true for
+`Linear::fields()`. `walk_state` asserts the same predicate.
+
+### ASequentialOfModulesKeepsItsBuilderForward
+
+Three `static_assert` lines hold that `Sequential<Linear, ReLU>` is a `Module`, that it stays
+one when nested in another `Sequential`, and that its `forward` over a `GraphBuilder` returns
+a `Graph::ValueId`. A nested model of `Linear{4, 8}`, `ReLU` and `Linear{8, 3}` traces to
+[2, 3] through the builder and walks as "0.0.weight:[8, 4]", "0.0.bias:[8]", "1.weight:[3, 8]"
+and "1.bias:[3]".
+
+## test_module_list.cpp
+
+Tests ModuleList: its storage, its index names and its place in the state walk.
+
+This file needs no device. `NN::ModuleList<M>` in `include/SushiAI/nn/module_list.hpp` holds
+children of one type whose count is known at run time.
+
+Three `static_assert` lines at the top of the file hold that `ModuleList<Linear>` is a
+`ModuleContainer` and that neither `Detail::HasStateWalk` nor `Detail::HasParameterWalk`
+detects it, so the walk reaches it through `visit_children`.
+
+### Stage
+
+`Stage` lists a `ModuleList<Linear>` under the child name "blocks" and a `Linear{4, 2}` under
+"head".
+
+### Counter
+
+`Counter` holds one `NN::Buffer` listed as "count", so a list of it carries state that is not
+a parameter.
+
+### parameter_names
+
+`parameter_names` collects what `NN::for_each_parameter` yields as "name:extents" strings.
+
+### read_past_the_end
+
+`read_past_the_end` builds a list of two layers and reads `list[2]`. It is the statement of
+the death test.
+
+### ANewListIsEmpty
+
+A new list has size 0, `visit_children` calls its visitor zero times, and `begin()` equals
+`end()`.
+
+### PushBackAppendsInOrder
+
+After two `push_back` calls the size is 2, element 0 has 8 output features and element 1
+has 3. Indexing a const reference to the list reads element 1's 8 input features.
+
+### IterationFollowsIndexOrder
+
+A range-for over three layers reads the output widths 8, 3 and 1.
+
+### VisitChildrenPairsEachChildWithItsIndex
+
+`visit_children` over two layers passes the indices 0 and 1 with the addresses of `list[0]` and
+`list[1]`.
+
+### TheWalkNamesChildrenByIndex
+
+Two traced layers, the second without a bias, walk as "0.weight:[8, 4]", "0.bias:[8]" and
+"1.weight:[3, 8]", and `parameter_count` is 3.
+
+### AListUnderAChildFieldIsNamedByFieldThenIndex
+
+A traced `Stage` with two blocks walks as "blocks.0.weight", "blocks.0.bias",
+"blocks.1.weight", "blocks.1.bias", "head.weight" and "head.bias", each with its extents.
+
+### TheWalkNamesBuffersByIndex
+
+Of three `Counter` children, 0 and 2 have their buffer defined. `for_each_buffer` yields
+"0.count" and "2.count": child 1 yields nothing and still keeps its index. `parameter_count`
+is 0.
+
+### GrowingTheListKeepsATracedChildsStateIdentity
+
+The first child is traced, then 64 more layers are appended, which moves a one-element
+vector's storage at least once. The first child's weight has the same state and the same leaf
+in the graph afterwards, and its bias's `id_in(graph)` equals its `id()`.
+
+### AnIndexPastTheEndIsFatal
+
+The case is in the suite `Unit_ModuleListDeathTest`. `list[2]` on a list of two stops the
+process with a report containing "index 2" and "holds 2 children".
+
+## test_node.cpp
+
+Tests ModuleNode, LayerNode and the buffer check LayerAdapter makes at compile time.
+
+This file needs no device. `NN::Node` in `include/SushiAI/nn/node.hpp` is the seam a
+`ModelGraph` holds its rows through: a node declares its ports, reads a span of values and
+appends its results. `NN::ModuleNode<L>` in `include/SushiAI/nn/module_node.hpp` wraps a
+layer of any of the three forms, and `NN::LayerNode` in `include/SushiAI/nn/layer_node.hpp`
+wraps an `NN::ILayer`. Both return a `Status` from `forward`, and an `Error` a layer throws
+comes back as a failure.
+
+### BufferedStub
+
+`BufferedStub` lists one `Buffer` as "running" and defines it as [4] zeros in its builder
+`forward`.
+
+### BufferedParentStub
+
+`BufferedParentStub` lists a `BufferedStub` as the child "inner".
+
+### ModalStub
+
+`ModalStub` has the modal pair, counts the calls of each form and returns its input.
+
+### TraceStub
+
+`TraceStub` has a trace `forward` that records the mode of each trace it is given.
+
+### ShapelessStub
+
+`ShapelessStub` has `fields()` and a builder `forward` and no `output_shape`.
+
+### RefusingStub
+
+`RefusingStub` records an `InvalidDescription` failure on the trace and returns its input.
+
+### RefusingThenThrowingStub
+
+`RefusingThenThrowingStub` records an `OutOfMemory` failure on the trace and then throws an
+`Error` with a different message.
+
+### node_of
+
+`node_of` calls `ModuleNode<L>::create` over a layer and an input shape, expects success and
+returns the node.
+
+### span_of
+
+`span_of` views a vector of ids as the `NN::ValueSpan` one `forward` call takes.
+
+### state_names
+
+`state_names` collects the name of every parameter and buffer a node's `walk_state` yields
+under a prefix.
+
+### make_test_conv2d
+
+`make_test_conv2d` calls `NN::make_conv2d` with 5 filters and a 3x3 kernel, the layer a
+`conv2d` row of a model file builds.
+
+### The two predicates at compile time
+
+`LayerAdapter` asserts that `Detail::HoldsBufferField` is false for its layer. The predicate is
+true for `BufferedStub`, for `BufferedParentStub`, for `Sequential<Linear, BufferedStub>` and
+for `ModuleList<BufferedStub>`, and false for `Linear` and `Sequential<Linear, ReLU>`.
+
+`ModuleNode` asserts that `Detail::HasOutputShapeOfInput` is true for its layer. The predicate
+is true for `Linear` and `TraceStub` and false for `ShapelessStub`.
+
+### ModuleNodeDeclaresOnePortWithTheLayersOutputShape
+
+The node of `Linear{6, 8}` over [6] has one port named "output" of shape [8].
+
+### ALayerNodeOfEitherKindReadsOneValue
+
+`input_count()` is 1 for a `ModuleNode<Linear>` and for a `LayerNode`.
+
+### ModuleNodeCreateReturnsTheFailureOfAShapeTheLayerRefuses
+
+`ModuleNode<Linear>::create(Linear{6, 8}, [5])` returns `InvalidDescription` with a message
+containing "Linear(6, 8)", "[5]" and "[6]". `Linear::output_shape` throws for that shape, and
+`create` returns the throw as a failure.
+
+### ModuleNodeForwardReturnsTheFailureOfALayerThatThrows
+
+`forward` over a [2, 5] value returns `InvalidDescription` with "Linear(6, 8)" and "[2, 5]",
+and `outputs` stays empty.
+
+### ModuleNodeForwardReturnsTheFailureALayerRecorded
+
+The node of `RefusingStub` returns the failure the stub recorded on the trace, and `outputs`
+stays empty although the stub returned an id.
+
+### ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow
+
+The node of `RefusingThenThrowingStub` returns the `OutOfMemory` failure with "the stub's
+recorded cause". The `Error` thrown after it is not what the caller sees.
+
+### ModuleNodeForwardAppendsTheLayersResult
+
+`outputs` holds one id before the call and two after it. The first is untouched and the second
+is a value of shape [2, 8].
+
+### ModuleNodeTracesAModalLayerInTheModeOfTheTrace
+
+Under a training trace the stub counts one training call and no evaluation call. After an
+evaluation trace it counts one of each.
+
+### ModuleNodeHandsTheTraceToATraceModule
+
+A training trace and then an evaluation trace leave `TraceStub::modes` as Training,
+Evaluation, and `outputs` as the input id twice.
+
+### ModuleNodeWalksTheLayersParametersUnderThePrefix
+
+After a trace, `walk_state("stem", ...)` of the node of `Linear{6, 8}` yields "stem.weight" and
+"stem.bias".
+
+### ModuleNodeWalksABufferOfTheLayer
+
+After a trace, `walk_state("bn", ...)` of the node of `BufferedStub` yields "bn.running".
+
+### ModuleNodeRejectsTwoInputs
+
+`forward` given two values returns `InvalidDescription` with "input count is 1" and "given is
+2". `outputs` stays empty and the graph gains no node.
+
+### LayerNodeReportsTheShapeOfTheLayerItWraps
+
+A `LayerNode` over the conv2d layer built for [8, 8, 2] has one port named "output" whose
+shape is the layer's `output_shape()`, [6, 6, 5].
+
+### LayerNodeForwardAppendsAValueShapedLikeItsPort
+
+`forward` over a [2, 8, 8, 2] value appends one id of shape [2, 6, 6, 5].
+
+### LayerNodeForwardReturnsTheFailureOfALayerThatThrows
+
+A `LayerNode` over `LayerAdapter<Linear>` given a [2, 5] value returns `InvalidDescription`
+with "Linear(6, 8)" and "[2, 5]", and `outputs` stays empty.
+
+### LayerNodeWalksTheLayersParametersUnderThePrefix
+
+After a trace, `walk_state("0", ...)` yields "0.weight" and "0.bias".
+
+### LayerNodeRejectsTwoInputs
+
+`forward` given two values returns `InvalidDescription` with "input count is 1" and "given is
+2". `outputs` stays empty and the graph gains no node.
+
+### LayerNodeRejectsNoInput
+
+`forward` given an empty span returns `InvalidDescription` with "input count is 1" and "given
+is 0".
+
+### LayerNodeOverANullLayerIsFatal
+
+The case is in the suite `Unit_NodeDeathTest`. Constructing a `LayerNode` from a null pointer
+stops the process with a report containing "LayerNode" and "null layer".
+
+## test_node_registry.cpp
+
+Tests the node registry, make_node, build_model and the YOLO26n model file.
+
+This file needs no device. `NN::K_NODE_REGISTRY` in `include/SushiAI/nn/node_registry.hpp` is
+the table of node types a model file can name. `NN::make_node` builds the node of one row: it
+looks the type up in `K_NODE_REGISTRY` and then in `NN::LAYER_REGISTRY`, and wraps a layer of
+the second table in an `NN::LayerNode`. `NN::build_model` turns a `Config::ModelSpec` into an
+`NN::ModelGraph`. All three return a `Result`.
+
+The last six cases read `examples/yolo26/model.json`, and three of them also read
+`tests/fixtures/yolo26/MANIFEST.json`. They locate the repository through
+`Test::fixture_directory()` and report themselves skipped when that directory is not defined
+for the binary.
+
+### OpList
+
+`OpList` is a vector of the operation of every node of a graph, in order.
+
+### Constants
+
+`K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_BATCH` is 2, the batch size of every trace in
+the file. `K_YOLO_ROWS` is 24, the row count of the YOLO26n model file. `K_ATTENTION_ROW` is
+10, the row that names a type no table holds, and `K_ATTENTION_INNER_ROW` is 22, the row whose
+inner block no table holds. `K_TOLERANCE` is 1e-12, the absolute bound on a real number read
+from a file.
+
+### MinimalCase
+
+`MinimalCase` holds a node registry key, a row's attributes as JSON, the per-sample shapes the
+row reads and the per-sample shape of the node's one port.
+
+### K_MINIMAL_CASES
+
+`K_MINIMAL_CASES` has one `MinimalCase` per row of `K_NODE_REGISTRY`, in the table's order.
+
+### LayerCase
+
+`LayerCase` holds a layer registry key, a row's attributes as JSON and the per-sample shape
+the row reads.
+
+### K_LAYER_CASES
+
+`K_LAYER_CASES` has one `LayerCase` per row of `NN::LAYER_REGISTRY`, in the table's order.
+
+### K_INPUT_JOINING_MODEL
+
+`K_INPUT_JOINING_MODEL` is a version 2 model over [8, 8, 3] with three rows: a `conv` of 4
+filters, a `silu`, and a `concat` whose `from` is `["input", -1]`.
+
+### K_BRANCHING_MODEL
+
+`K_BRANCHING_MODEL` is a version 2 model over [16, 16, 3] with a `defaults` block that gives
+every `conv` row `bn_epsilon` 0.001 and `bn_momentum` 0.03. Its five rows are a `conv` of 8
+filters, kernel 3 and stride 2; a `conv` of 16 filters with the same window; an `upsample` of
+scale 2; a `concat` whose `from` is `[-1, 0]`; and a `conv` of 8 filters and kernel 1.
+
+### TraceSummary
+
+`TraceSummary` holds the operation list of one traced graph, each published output as "name
+[extents]" and each piece of state as `record` writes it.
+
+### attributes_of
+
+`attributes_of` parses a string of JSON as the attributes of one row.
+
+### model_of
+
+`model_of` parses a string of JSON as a model file through `Config::parse_model`.
+
+### span_of
+
+`span_of` views a vector of shapes as the `NN::ShapeSpan` of one row.
+
+### make_minimal
+
+`make_minimal` calls `NN::make_node` for a `MinimalCase` with given attributes and the context
+"layer 0 '<type>'".
+
+### record
+
+`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
+
+### state_records
+
+`state_records` returns one `record` per parameter and buffer that `ModelGraph::walk_state`
+yields under a prefix.
+
+### trace_summary
+
+`trace_summary` traces a model under a training trace over a batch of `K_BATCH` samples and
+returns its `TraceSummary`.
+
+### build_branching_model_by_hand
+
+`build_branching_model_by_hand` builds the graph `K_BRANCHING_MODEL` describes through
+`ModelGraph::add`, with the nodes named "0" to "4", and publishes the last node through
+`output_ports`.
+
+### repository_root
+
+`repository_root` returns the directory two levels above `Test::fixture_directory()`, or an
+empty path when that directory is unknown.
+
+### yolo_model_path
+
+`yolo_model_path` returns `examples/yolo26/model.json` under a root.
+
+### manifest_path
+
+`manifest_path` returns the `MANIFEST.json` of the YOLO26 fixture folder under a root.
+
+### manifest_file
+
+`manifest_file` returns the entry of the manifest's `files` array with a given name, and throws
+when there is none.
+
+### record_row
+
+`record_row` returns the row index of a manifest record named "model.<row>.<rest>".
+
+### manifest_records
+
+`manifest_records` lists the `weights.sacp` records of a range of rows in manifest order, as
+`record` writes them. A name that contains ".running_" is a buffer.
+
+### stand_in
+
+`stand_in` replaces the type and the attributes of one row of a `ModelSpec` and keeps its
+sources.
+
+### keep_first_rows
+
+`keep_first_rows` truncates a `ModelSpec` to its first rows and sets its outputs to the last
+kept row.
+
+### named_output
+
+`named_output` returns an `OutputSpec` that publishes the port `NN::K_SINGLE_PORT_NAME` of a
+row under a name.
+
+### K_YOLO_ROW_SHAPES
+
+`K_YOLO_ROW_SHAPES` lists the per-sample shape of rows 0 to 21 of YOLO26n over a
+[640, 640, 3] input, from [320, 320, 16] for row 0 to [20, 20, 384] for row 21.
+
+### SA_FIND_REPOSITORY_OR_SKIP
+
+`SA_FIND_REPOSITORY_OR_SKIP(root)` declares `root` as `repository_root()` and skips the test
+when it is empty.
+
+### TheTypeStringsAreTheOnesModelFilesSpell
+
+The `type` fields of `K_NODE_REGISTRY` are "batchnorm2d", "concat", "conv", "bottleneck",
+"c3k", "c3k2" and "sppf", in that order.
+
+### NoTypeIsInBothTables
+
+No `type` of `K_NODE_REGISTRY` equals a `type` of `LAYER_REGISTRY`.
+
+### EveryRowHasAMinimalCase
+
+`K_MINIMAL_CASES` has as many entries as `K_NODE_REGISTRY`, and entry `i` names the type of
+row `i`.
+
+### EachRowBuildsFromAMinimalObject
+
+For every case, `make_node` returns a node with one port named `NN::K_SINGLE_PORT_NAME` whose
+shape is the one the case lists.
+
+### EachRowRejectsAnUnknownKey
+
+For every case, the attributes `{"no_such_key": 1}` fail with `InvalidDescription` and a
+message containing the row's context and "'no_such_key'".
+
+### AConcatRowNamesItselfWhenItsInputsDisagree
+
+A `concat` row over [4, 4, 2] and [8, 4, 2] fails with a message containing "layer 7
+'concat'", "[8, 4, 2]" and "H and W".
+
+### ANodeTypeBuildsItsOwnNode
+
+`make_node("conv", ...)` returns a `ModuleNode<Conv>` and not a `LayerNode`.
+
+### ALayerTypeIsWrappedInALayerNode
+
+`make_node("upsample", ...)` with scale 2 over [4, 4, 2] returns a `LayerNode` with one port
+named `K_SINGLE_PORT_NAME` of shape [8, 8, 2]. The case then walks `K_LAYER_CASES`, which has
+one entry per row of `LAYER_REGISTRY` in order. Every type builds a `LayerNode`, and every
+type given `{"no_such_key": 1}` fails with "'no_such_key'", which shows the layer's own
+factory ran.
+
+### ALayerTypeRefusesTwoInputs
+
+A `relu` row over two shapes fails with a message containing "layer 3 'relu'", "reads 2
+values" and "reads one".
+
+### ALayerFactorysRefusalComesBackAsAStatus
+
+A `linear` row with no attribute fails with a message containing "layer 4 'linear'" and
+"'units'". A `linear` row over [8, 8, 2] fails with the context, "[8, 8, 2]" and "'flatten'".
+The layer factories throw, and `make_node` returns each throw as an `InvalidDescription`
+failure.
+
+### AnUnknownTypeListsBothTables
+
+`make_node("conv3d", ...)` fails with a message containing "layer 5 'conv3d'", "the type
+'conv3d'", "does not have", "node types" and "layer types". The message also contains every
+type of `K_NODE_REGISTRY` and of `LAYER_REGISTRY` in quotes.
+
+### AFileAndAHandBuiltGraphAgree
+
+`build_model` of `K_BRANCHING_MODEL` and `build_branching_model_by_hand` both hold five nodes.
+Their training traces have equal operation lists, equal outputs and equal state records. The
+one output is "output [2, 8, 8, 8]". The state holds 15 records, five for each of the three
+`conv` rows, from "model.0.conv.weight [8, 3, 3, 3] parameter" to "model.4.bn.running_var [8]
+buffer".
+
+### ARowReadsItsSourcesInFileOrder
+
+In the model built from `K_BRANCHING_MODEL`, node 3 declares [8, 8, 24]: row 2's 16 channels
+and then row 0's 8. Node 2 declares [8, 8, 16] and node 1 [4, 4, 16].
+
+### OutputsArePublishedUnderTheirStatedNames
+
+With the outputs set to row 4 as "mixed" and row 0 as "stem", the trace publishes "mixed
+[2, 8, 8, 8]" and "stem [2, 8, 8, 8]" in that order.
+
+### AnOutputWithoutANameKeepsThePortsName
+
+An output of row 1 with an empty name is published as "output [2, 4, 4, 16]".
+
+### ASourceMayNameAPort
+
+A source that names the port `K_SINGLE_PORT_NAME` of the row above builds. A source that names
+"no_such_port" fails with "layer 1 'conv'" and "'no_such_port'".
+
+### ALaterRowMayReadTheModelInput
+
+Row 2 of `K_INPUT_JOINING_MODEL` parses with `Config::K_MODEL_INPUT` as its first source. The
+built node 2 declares [8, 8, 7]: the input's 3 channels and then row 1's 4.
+
+### ASourceCannotNameAPortOfTheModelInput
+
+A source that is the model input and names a port fails with a message containing "layer 2
+'concat'", "the model input has no port" and "'output'".
+
+### ARefusedRowNamesItsIndexAndType
+
+Row 4 with `filters` 0 fails with a message containing "layer 4 'conv'", "'filters'" and
+"positive".
+
+### ARowThatReadsARowNotAboveItIsRefused
+
+The specs here are changed after parsing, so they hold what the parser would have refused. A
+source of row 3 on row 1 fails with "layer 1 'conv'", "row 3" and "not above". A source of -2
+on row 2 fails with "layer 2 'upsample'" and "row -2". A row with no source fails with "layer 2
+'upsample'" and "no source".
+
+### AnEmptyOutputListPublishesTheLastRowWhole
+
+A spec whose `outputs` were cleared builds a model whose `output_shape` is [8, 8, 8], the same
+as that of the model built from the parsed spec.
+
+### AWrongOutputListIsRefused
+
+A spec with no layer fails with "no layers". An output of row 5 fails with "output 0", "row 5"
+and "rows 0 to 4". A named output with an empty port fails with "output 0", "'mixed'" and
+"without a port". An output of the port "no_such_port" fails with "output 0" and
+"'no_such_port'". Two outputs named "mixed" fail with "output 1" and "'mixed'".
+
+### TheYolo26FileHoldsItsTwentyFourRows
+
+`Config::load_model` of `examples/yolo26/model.json` returns 24 rows over [640, 640, 3]. The
+types in order are conv, conv, c3k2, conv, c3k2, conv, c3k2, conv, c3k2, sppf, c2psa,
+upsample, concat, c3k2, upsample, concat, c3k2, conv, concat, c3k2, conv, concat, c3k2 and
+detect. Row 0 reads the model input. The four joins read rows 11 and 6, 14 and 4, 17 and 13,
+and 20 and 10, and row 23 reads rows 16, 19 and 22. Row 0 carries `bn_epsilon` 0.001 and row 9
+`bn_momentum` 0.03 from the defaults, and row 11, an `upsample`, has no `bn_epsilon`. The one
+output is row 23 with no port.
+
+### TheYolo26FileNamesEachMissingBlock
+
+`build_model` of the file fails at row 10 with a message containing "layer 10 'c2psa'", "the
+type 'c2psa'", "does not have", "'c3k2'" and "'upsample'". With a `silu` row standing in for
+row 10 it fails at row 22 with "layer 22 'c3k2'", "'inner'", "'bottleneck_psa'" and
+"bottleneck, c3k". With a `conv` row of 256 filters standing in for row 22 it fails at row 23
+with "layer 23 'detect'", "the type 'detect'" and "does not have".
+
+### Yolo26RowsTwoAndFourAddTheirBottlenecksInput
+
+Rows 2 and 4 of the file state `shortcut` true. The model built from rows 0 to 4 traces two ADD
+nodes, one for the bottleneck of each of the two `c3k2` rows.
+
+### Yolo26RowsZeroToNineMatchTheManifest
+
+The model built from rows 0 to 9 is traced, and its state records under "model" equal the 165
+records `manifest_records` reads from `MANIFEST.json` for rows 0 to 9: names, shapes, kinds
+and order. The one output is "output [2, 20, 20, 256]".
+
+### Yolo26RowsBuildToTheReferenceShapes
+
+With a `silu` row standing in for row 10, the model built from rows 0 to 21 has 22 nodes, and
+node `i` declares `K_YOLO_ROW_SHAPES[i]` on its one port.
+
+### Yolo26NeckTracesToTheReferenceLevels
+
+With the same stand-in, rows 16, 19 and 21 are published as "level0", "level1" and "joined".
+For levels 0 and 1 the traced shape is [2, height, width, channels] with the three numbers
+read from the `levels` array of the manifest's `forward.sacp` entry, and the level's `stride`
+times its height is 640. The third output is "joined [2, 20, 20, 384]". The state records
+equal the manifest's records for rows 0 to 9 followed by its 145 records for rows 11 to 21.
+
 ## test_objective.cpp
 
 Tests the objective seam: the leaves it declares, the loss it emits and the resulting IR.
@@ -5786,9 +8352,10 @@ No row of `Ops::ALL` has both `differentiable` and `blocks_gradient` set.
 
 `is_gradient_barrier` is false for LEAF, CAST, DYNAMIC_SCALE, LOG_SOFTMAX, RELU_BACKWARD,
 SILU_BACKWARD, SOFTPLUS_BACKWARD, MAXPOOL2D_BACKWARD, BATCHNORM2D_BACKWARD,
-BATCHNORM_UPDATE_STATS, GEMM_BIAS, EXP_SUB_SCALE and ADAMW_UPDATE, and for the foreign identity
-0xDEADBEEF. These either pass a gradient or throw when one reaches them. Marking one as a
-barrier would turn that throw into a gradient that is dropped without a message.
+BATCHNORM_UPDATE_STATS, BATCHNORM_FOLD, GEMM_BIAS, EXP_SUB_SCALE and ADAMW_UPDATE, and for the
+foreign identity 0xDEADBEEF. These either pass a gradient or throw when one reaches them.
+Marking one as a barrier would turn that throw into a gradient that is dropped without a
+message.
 
 ### SiluDifferentiatesAtItsInput
 
@@ -5805,6 +8372,12 @@ The row of SOFTPLUS names SOFTPLUS_BACKWARD and `GradientSource::INPUT`, and
 For every row of `Ops::ACTIVATIONS`, `is_activation_backward` is true for the row's `backward`
 identity and false for its `forward` one. Over `Ops::ALL` it accepts as many identities as the
 table has rows.
+
+### BatchNormFoldIsListedAndClaimsNoRule
+
+`Ops::name_of(BATCHNORM_FOLD)` is "sushiai.batchnorm_fold", and the row has `differentiable`
+false and `blocks_gradient` false. `test_backward.cpp` holds what differentiation does when a
+gradient reaches the node.
 
 ## test_precision.cpp
 
@@ -5870,6 +8443,8 @@ special-cased: it stays at the graph's own precision.
 SILU, SILU_BACKWARD, SOFTPLUS and SOFTPLUS_BACKWARD are in `stays`. SILU and SOFTPLUS read
 their input, so neither they nor their gradients narrow. DIV, MINIMUM, MAXIMUM, ABS, ATAN,
 LESS_EQUAL, SELECT, STOP_GRADIENT and CONSTANT are in `stays` under the same default.
+
+BATCHNORM_FOLD is in `stays`. It takes the square root of a variance plus epsilon.
 
 The closing `EXPECT_EQ` on the two list sizes holds because every identity is accounted for by
 `narrows` or by `stays`. A new operation cannot join the enum without someone deciding which
@@ -6003,6 +8578,21 @@ policy's `choose()`, so the uniform policy reaches it too.
 This is the loud half of the same defect. An unpinned argmax is retyped in place and the
 mismatch disappears silently. A pinned one keeps its id and its INT64 buffer, so the pass
 reaches for the widening cast, and CAST is real-float to real-float by design.
+
+### ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
+
+The graph is a MATMUL and a BIAS_ADD whose bias is a buffer. The weight and the buffer are
+bound to the states 31 and 32 and the graph is marked refused before `insert_casts` runs under
+the mixed policy. The report counts at least one cast and the BIAS_ADD's result is HALF, so
+the pass did rewrite the graph. The buffer is still FLOAT32 with the lifetime `BUFFER` and no
+gradient. Both `state_leaf` lookups, the whole `state_leaves()` table and `has_refusal()` are
+what they were, and `find_dtype_mismatches` returns nothing.
+
+### BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy
+
+The graph is one `batchnorm_fold` over two parameters and two buffers. `insert_casts` under
+the mixed policy reports zero casts and the graph holds no CAST node. The four operands and
+the two results are all FLOAT32.
 
 ## test_provenance.cpp
 
@@ -6356,6 +8946,145 @@ Once the rewiring is done the clone has one consumer of its own, so the pass has
 rematerialise its own output. If it did, the pass would not terminate on a graph with three
 consumers.
 
+## test_result.cpp
+
+Tests Result, its reference form and SA_TRY_ASSIGN.
+
+This file needs no device. `Result<T>` and `SA_TRY_ASSIGN` are in
+`include/SushiAI/core/result.hpp`. A `Result<T>` holds a value or a failed `Status`, and
+`Result<T&>` holds a reference to the caller's object or a failed `Status`.
+
+Nine `static_assert` lines at the top of the file hold the type's shape. Neither form is
+default-constructible. Construction of a `Result<int>` from an `int` and from a `Status`, and
+its move, are `noexcept`. A `Result<int>` is at most two pointers and a `Result<int&>` is
+exactly two. Neither `Result<int&>` nor `Result<const int&>` is constructible from an rvalue
+`int`, so a reference form cannot refer to a temporary.
+
+### description_failure
+
+`description_failure` builds an `InvalidDescription` failure with a given message.
+
+### checked_extent
+
+`checked_extent` returns its extent as a `Result<int>`, or an `InvalidDescription` failure from
+`SA_FAIL_IF` when the extent is not positive.
+
+### doubled_extent
+
+`doubled_extent` binds `checked_extent`'s value through `SA_TRY_ASSIGN` and returns twice it.
+
+### boxed_extent
+
+`boxed_extent` returns a `std::unique_ptr<int>` holding the checked extent, a move-only value.
+
+### unboxed_extent
+
+`unboxed_extent` binds `boxed_extent`'s pointer through `SA_TRY_ASSIGN` and returns the
+integer it owns.
+
+### forward_temporary_status
+
+`forward_temporary_status` runs `SA_TRY(checked_extent(extent).status())`, which reads a
+`Status` reference into a temporary `Result`, and sets a flag after it.
+
+### slot_at
+
+`slot_at` returns a `Result<int&>` to one of two slots, or an `InvalidDescription` failure for
+an index outside 0 and 1.
+
+### bump_slot
+
+`bump_slot` binds `int& slot` from `slot_at` through `SA_TRY_ASSIGN` and increments it.
+
+### HoldsAValueWithASuccessStatus
+
+`Result<int>(7)` has a value, an ok status and the value 7. Writing 9 through `value()` is
+read back through a const reference.
+
+### HoldsAFailureAndNoValue
+
+A result built from the failure "rank must be 2" has no value. `SA_EXPECT_FAILURE` accepts
+both the result and its `status()`.
+
+### ReturnStatementsConvertFromAValueAndFromAStatus
+
+`checked_extent(5)` yields 5 through `SA_ASSERT_OK_AND_ASSIGN`, and `checked_extent(-1)` is an
+`InvalidDescription` failure containing "extent must be positive" and "got -1". The function
+returns an `int` on one path and the `Status` of `SA_FAIL_IF` on the other.
+
+### SuccessPathCreatesNoFailureBlock
+
+A made, a copied and a moved `Result<int>` and one `SA_TRY_ASSIGN` through `doubled_extent`
+sum to 13 and leave `live_failure_count()` where it was.
+
+### RvalueValueMovesAMoveOnlyValueOut
+
+`std::move(result).value()` on a `Result<std::unique_ptr<int>>` returns a pointer that is not
+null and owns 11.
+
+### MovedFromValueResultStillHoldsAMovedFromValue
+
+After a `Result<std::unique_ptr<int>>` is moved from, the target owns 2. The source still
+reports a value and an ok status, and its pointer is null.
+
+### MovedFromFailureResultKeepsItsFailure
+
+After a failed `Result<int>` is moved from, the source and the target both report
+`InvalidDescription` and "layout must be NHWC", and the source has no value.
+
+### CopyAndAssignmentCarryTheHeldState
+
+Assigning a failed result to one that holds 1 leaves no value and the failure "no such key".
+Assigning `Result<int>(8)` to it afterwards leaves a value, an ok status and 8.
+
+### TryAssignBindsTheValueOrReturnsTheFailure
+
+`doubled_extent(21)` is 42. `doubled_extent(0)` is the failure of `checked_extent`, with
+"got 0" in its message.
+
+### TryAssignMovesFromATemporaryResult
+
+`unboxed_extent(6)` is 6, which requires `SA_TRY_ASSIGN` to move the `unique_ptr` out of the
+temporary result. `unboxed_extent(-6)` is the failure with "got -6".
+
+### ReferenceFormRefersToTheCallersObject
+
+`slot_at(slots, 1)` has a value whose address is `&slots[1]`, and writing 25 through it
+changes the array. A `Result<const int&>` built from a const `int` returns that object's
+address.
+
+### TryReadsAStatusReferenceIntoATemporaryResult
+
+`forward_temporary_status(-4)` returns the failure with "extent must be positive" and
+"got -4" and leaves its flag false. `forward_temporary_status(4)` succeeds and sets it.
+`live_failure_count()` is at its start after each call.
+
+### MovedFromReferenceResultKeepsItsState
+
+A `Result<int&>` to slot 0 is copied and moved from. The source, the copy and the target all
+refer to `&slots[0]`. A failed reference result moved from keeps the failure "slot 2 is not
+one of 2" in both source and target. Assigning the failed one over a result to slot 1 gives
+the failure, and assigning the successful one over that gives `&slots[0]` and an ok status.
+
+### ReferenceFormHoldsAFailure
+
+`slot_at(slots, 2)` has no value and the `InvalidDescription` failure "slot 2 is not one of 2".
+
+### TryAssignBindsAReferenceFromTheReferenceForm
+
+`bump_slot(slots, 0)` succeeds and slot 0 goes from 10 to 11, so the reference `SA_TRY_ASSIGN`
+bound is the array's element. `bump_slot(slots, 5)` fails with "slot 5" and slot 1 stays 20.
+
+### ValueOnAFailureIsFatalAndPrintsTheFailure
+
+`value()` on a failed `Result<int>` and on a failed `Result<int&>` stops the process. The
+report contains "Result::value() was called on a failure" and the failure's own message.
+
+### BuildingFromASuccessStatusIsFatal
+
+`Result<int>(Status())` and `Result<int&>(Status())` stop the process with "a Result was built
+from a success Status".
+
 ## test_rule_table.cpp
 
 Tests that every domain's backward rules reach the combined table exactly once.
@@ -6391,6 +9120,11 @@ For every row of `Ops::ALL` with `blocks_gradient` set, `Autograd::has_rule` and
 For every row of `Ops::ACTIVATIONS`, `Autograd::has_rule` is true for the `forward` identity
 and false for the `backward` one. `Autograd::ACTIVATION_RULES` has as many entries as
 `Ops::ACTIVATIONS` has rows.
+
+### BatchNormFoldHasNoRuleAndBatchNormKeepsIts
+
+`Autograd::has_rule` is true for BATCHNORM2D and false for BATCHNORM_FOLD, `has_backward_rule`
+is false for BATCHNORM_FOLD, and `Autograd::NORM_RULES` has two entries.
 
 ## test_scope_partitioner.cpp
 
@@ -6691,6 +9425,42 @@ RuntimeContext, which is what keeps the unit tier fast.
 [4, 1] and [4] hold the same element count and the same leading extent. A hash that folded only
 the extents would collide them, and the tensor pool keys its constant operands on this hash.
 
+## test_silu.cpp
+
+Tests the SiLU layer's trace, shape inference and empty state.
+
+This file needs no device. `NN::SiLU` in `include/SushiAI/nn/silu.hpp` has no parameter and no
+attribute.
+
+Three `static_assert` lines at the top of the file hold that `SiLU` is a `Module`, is not a
+`ModuleContainer`, and that `SiLU::fields()` is an empty tuple.
+
+### ForwardEmitsOneSiluNodeReadingTheInput
+
+`forward` adds one node. Its operation is `Ops::SILU`, its one input is the value passed in
+and its one output is the value returned.
+
+### ForwardKeepsTheShapeAndTypeOfAFeatureBatch
+
+Over a [2, 4] input the result has the shape [2, 4] and the input's element type.
+
+### ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch
+
+Over a [2, 8, 6, 3] input the result has that shape and the layout `TensorLayout::NHWC`.
+
+### ForwardCarriesTheLayoutOfItsInput
+
+Over a value converted to NCHW with `layout_convert`, the result is tagged NCHW and has the
+converted value's shape.
+
+### OutputShapeReturnsItsInput
+
+`output_shape([7])` is [7] and `output_shape([8, 6, 4])` is [8, 6, 4].
+
+### TheParameterWalkVisitsNothing
+
+After a trace, `NN::for_each_parameter` calls its visitor zero times.
+
 ## test_spatial_shapes.cpp
 
 Tests the shapes the builder infers for spatial operations and the layouts it refuses.
@@ -6767,7 +9537,13 @@ must not pool the channel axis.
 The result is the [N,C] that the numeric Probe's loss needs, which is why every convolutional
 gradient test in this plan ends with this call.
 
-### BatchNorm2dKeepsItsShapeAndDeclaresTwoPerChannelStatistics
+### BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics
+
+`GraphBuilder::batchnorm2d` over a [2, 8, 8, 16] FLOAT64 input returns four values: the output,
+of the input's shape, and `saved_mean`, `saved_inv_std` and `batch_variance`, each [16]. They
+are the four outputs of one BATCHNORM2D node in that order, and attribute 0 of the node is the
+epsilon 1e-5. Each of the four is FLOAT64 with the lifetime `ACTIVATION`. A gamma of [8]
+throws.
 
 A non-positive epsilon is a division by the standard deviation itself, which is exactly zero
 for a constant channel.
@@ -6776,6 +9552,26 @@ for a constant channel.
 
 The layout check runs before any extent is read, so the operand that is wrong is the one the
 message names.
+
+### BatchNormFoldYieldsAPerChannelScaleAndShift
+
+`GraphBuilder::batchnorm_fold` over a [16] gamma, beta, running mean and running variance adds
+one node. Its operation is `Ops::BATCHNORM_FOLD`, its inputs are those four values in that
+order, its outputs are `fold.scale` and `fold.shift`, and attribute 0 is the epsilon 1e-3.
+Both results are [16] FLOAT64 values of lifetime `ACTIVATION`, the operands' type. A
+`channel_affine` of a [2, 8, 8, 16] input with the two results keeps that shape.
+
+### BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma
+
+Five calls throw with "batchnorm_fold" and the operand at fault: a [8] mean ("mean", "[16]",
+"[8]"), a [8] beta ("beta"), a FLOAT64 variance among FLOAT32 operands ("variance", "float32",
+"float64"), a [4, 4] gamma ("rank-1") and four INT64 operands ("int64"). The graph's node count
+and value count are unchanged after all five.
+
+### BatchNormFoldRejectsANonPositiveEpsilon
+
+An epsilon of 0.0 and one of -1e-3 each throw with a message containing "batchnorm_fold",
+"epsilon" and "positive". An epsilon of 1e-3 does not throw.
 
 ### ReshapeRefusesToChangeTheElementCount
 
@@ -6991,6 +9787,682 @@ A [1, 8, 8, 2] input is converted to NCHW, which leaves 2 on the axis an NHWC re
 for the height, and a 3x3 window does not fit that. `im2col`, `maxpool2d` and `avgpool2d` each
 throw a message containing their own name and "NHWC". A caller who passed the wrong layout is
 told so, and is not told that the window is too large.
+
+## test_status.cpp
+
+Tests Status, its macros, the fatal family and the assertions of test_status.hpp.
+
+This file needs no device. `Status` and the `SA_FAIL_IF`, `SA_TRY` and `SA_ANNOTATE` macros are
+in `include/SushiAI/core/status.hpp`, and the fatal checks are in
+`include/SushiAI/core/check.hpp`. The assertions `SA_EXPECT_OK`, `SA_EXPECT_FAILURE` and
+`SA_EXPECT_FATAL` come from `tests/common/test_status.hpp`. `SA_EXPECT_FATAL` is a death test:
+the statement runs in a child process and the needles are matched against what it wrote to
+stderr.
+
+Six `static_assert` lines at the top of the file hold that a `Status` is the size of one
+pointer and that its default construction, copy, move and both assignments are `noexcept`.
+
+Several cases read `Detail::live_failure_count()`. A failed `Status` owns one failure block and
+a successful one owns none, so a count that did not move means the code under test allocated
+nothing for a failure.
+
+### counted
+
+`counted` returns its value and increments a counter. A case passes it as a format argument to
+find out whether a macro evaluated its arguments.
+
+### failure_of
+
+`failure_of` builds a failure of a given code and message through `Status::from_message`.
+
+### check_extent
+
+`check_extent` fails with `StatusCode::InvalidDescription` through `SA_FAIL_IF` when its extent
+is not positive. The message's argument goes through `counted`.
+
+### forward_extent
+
+`forward_extent` calls `check_extent` under `SA_TRY` and sets a flag after it, so a case can
+tell whether control went past the macro.
+
+### FatalRecord
+
+`FatalRecord` holds the call count, file, line and message of the last report the recording
+handler received.
+
+### fatal_record
+
+`fatal_record` returns the one static `FatalRecord` of the file.
+
+### record_fatal
+
+`record_fatal` is a `FatalHandler` that stores its report in `fatal_record()`.
+
+### announce_fatal
+
+`announce_fatal` is a `FatalHandler` that writes "recorded: " and the message to stderr, where
+a death test reads it.
+
+### stop_when
+
+`stop_when` runs `SA_FATAL_IF` on its condition with the message "extent {} is refused" and
+returns the line number of that check. The extent goes through `counted`.
+
+### stop_with_throwing_composer
+
+`stop_with_throwing_composer` calls `Detail::fail_fast_composed` with a composer that throws
+`std::runtime_error`.
+
+### stop_under_announcer
+
+`stop_under_announcer` installs `announce_fatal` and then runs `SA_FATAL("stop {}", 3)`.
+
+### assert_positive
+
+`assert_positive` runs `SA_ASSERT(value > 0)`. It is compiled only when `NDEBUG` is not
+defined.
+
+### DefaultIsSuccessWithNoMessage
+
+A default-constructed `Status` reports `is_ok()`, the code `StatusCode::Ok` and an empty
+message, and `SA_EXPECT_OK` accepts it.
+
+### EveryCodeHasALowerCaseName
+
+`status_code_name` returns "ok", "invalid_description", "file_not_found", "invalid_file",
+"incompatible", "unsupported", "out_of_memory" and "device_failed" for the eight codes, and
+"unknown" for the value 200, which is no enumerator.
+
+### FromMessageCarriesTheCodeAndTheText
+
+A status built from `StatusCode::InvalidFile` and "the header is 3 bytes short" is not ok and
+returns that code and that text.
+
+### SuccessPathCreatesNoFailureBlock
+
+The case constructs, copies, moves, copy-assigns and move-assigns successful statuses and
+calls `annotated` on one. The annotation's composer never runs, both results are ok, and
+`live_failure_count()` is what it was before.
+
+### FailIfFormatsOnlyWhenTheConditionHolds
+
+`check_extent(4)` succeeds with zero calls to `counted` and no failure block. `check_extent(-2)`
+fails with `InvalidDescription` and a message containing "extent must be positive" and
+"got -2", after one call to `counted`. The count of live blocks is back at its start once the
+temporary is gone.
+
+### CopiesShareOneBlockAndTheLastOneFreesIt
+
+A failure, a copy of it and a status assigned from the copy leave `live_failure_count()` one
+above its start, and the third status's `message().data()` is the first one's pointer. After
+the scope closes the count is back at its start.
+
+### MovedFromStatusKeepsItsFailure
+
+A failed status is moved from twice, once by construction and once by assignment. The source
+and both targets still report `Unsupported` and "no kernel for int64".
+
+### AssignmentReplacesTheHeldFailure
+
+Assigning a second failure to a status that holds one leaves one live block and the second
+failure's code and message. A self-assignment through a const reference keeps the failure.
+Assigning `Status()` makes the status ok and frees the block.
+
+### AnnotatedPrefixesTheMessageAndKeepsTheCode
+
+`SA_ANNOTATE(inner, "Conv2d({}, {})", 3, 16)` over the failure "stride must be positive"
+returns a status with the same code and the message "Conv2d(3, 16): stride must be positive".
+The inner status's message is unchanged.
+
+### ThrowingComposerYieldsTheStaticOutOfMemoryFailure
+
+`Status::from_message` with a composer that throws returns a failure of code `OutOfMemory`
+whose message contains "message could not be built". `live_failure_count()` does not move, so
+that failure is not a heap block.
+
+### ThrowingAnnotationKeepsTheOriginalFailure
+
+`annotated` with a composer that throws returns the code `InvalidFile` and the message "wrong
+magic" of the status it was called on.
+
+### TryForwardsAFailureAndPassesASuccess
+
+`forward_extent(0)` returns `check_extent`'s failure, with "got 0" in the message, and leaves
+its flag false. `forward_extent(5)` succeeds and sets the flag.
+
+### FromMessageWithTheOkCodeIsFatal
+
+`Status::from_message(StatusCode::Ok, ...)` stops the process with a report containing
+"Status::from_message needs a failure code" and "got ok".
+
+### StatusNamesRejectsSuccessAWrongCodeAndAMissingNeedle
+
+`Test::status_names` is called directly. Over the failure `InvalidFile` "wrong magic 0x1F" it
+is true for the right code with both needles and with no needle. It is false for a successful
+status, for the code `FileNotFound` and for the needle "wrong version". `Test::status_is_ok` is
+false for the failure.
+
+### DeathPatternEscapesAndJoinsItsNeedles
+
+`Test::death_pattern` is called directly. One plain needle is returned as it is. Two needles
+are joined with `.*`, and each of the characters `. [ ] ( ) * { } | ^ $ + ? \` is escaped with
+a backslash.
+
+### FatalHandlerIsReplacedByARecorderAndRestored
+
+`set_fatal_handler(&record_fatal)` returns a handler that is not null. One call of
+`Detail::report_fatal("layer.cpp", 42, "a sealed trace was reused")` reaches the recorder
+once, with that file, line and message. Restoring the original returns `&record_fatal`, and
+setting the original again returns the original.
+
+### NullFatalHandlerInstallsTheDefaultOne
+
+`set_fatal_handler(nullptr)` returns the handler that was installed, `&record_fatal`. The
+handler in place after it is not null and is not the recorder.
+
+### FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse
+
+`stop_when(false, ...)` returns and never calls `counted`.
+
+### FatalIfPrintsTheMessageThenTheFileAndTheLineAndStops
+
+`stop_when(true, ...)` stops the process with a report containing "sushiai: fatal: extent 7 is
+refused" followed by "test_status.cpp:", the line `stop_when` returned and ")". The case calls
+`stop_when(false, ...)` first to learn that line.
+
+### FatalCheckWhoseComposerThrowsReportsTheFixedMessage
+
+`stop_with_throwing_composer` stops the process with a report containing "sushiai: fatal:",
+"its message could not be composed" and "test_status.cpp:".
+
+### ReplacedFatalHandlerRunsBeforeTheStop
+
+`stop_under_announcer` stops the process and its stderr contains "recorded: stop 3", the line
+`announce_fatal` writes.
+
+### AssertChecksInDebugBuildsOnly
+
+With `NDEBUG` defined, `SA_ASSERT(counted(evaluations, 0) == 1)` does not evaluate its
+condition: the counter stays at zero. Without it, `assert_positive(1)` returns and
+`assert_positive(0)` stops the process with "assertion failed: value > 0".
+
+## test_step_recorder.cpp
+
+Tests that StepRecorderList drives its members as one recorder, in the order added.
+
+This file needs no device. `Graph::IStepRecorder` and `Graph::StepRecorderList` are in
+`include/SushiAI/graph/step_recorder.hpp`. The list is itself an `IStepRecorder` and holds
+references to its members; it does not own them.
+
+### JournalRecorder
+
+`JournalRecorder` appends "<name>.record", "<name>.before" or "<name>.after" to a journal the
+test owns, and `record_into_step()` returns the task count given at construction.
+
+### RecordOnlyRecorder
+
+`RecordOnlyRecorder` overrides `record_into_step()` alone and returns 3. Its `before_replay()`
+and `after_replay()` are the interface's own.
+
+### in_order_added
+
+`in_order_added` returns the three journal entries that recorders named a, b and c write for
+one call.
+
+### EmptyListRecordsNothing
+
+An empty list reports `empty()`, returns 0 from `record_into_step()` and does not throw from
+either replay hook.
+
+### AddMakesTheListNonEmpty
+
+After one `add` the list is not empty and the journal is still empty, so `add` calls nothing
+on the member.
+
+### RecordSumsTheMemberCounts
+
+Members that report 2, 0 and 5 tasks give `record_into_step()` 7.
+
+### RecordCallsMembersInTheOrderAdded
+
+`record_into_step()` over a, b and c journals "a.record", "b.record", "c.record".
+
+### OrderFollowsAddNotConstruction
+
+With b added before a, the journal is "b.record", "a.record", although a was constructed
+first.
+
+### BeforeReplayCallsMembersInTheOrderAdded
+
+`before_replay()` over a, b and c journals "a.before", "b.before", "c.before".
+
+### AfterReplayCallsMembersInTheOrderAdded
+
+`after_replay()` over a, b and c journals "a.after", "b.after", "c.after". The members are not
+called in reverse.
+
+### MemberWithoutReplayHooksIsDriven
+
+A list of a `RecordOnlyRecorder` and a journal recorder of 4 tasks records 7. After both replay
+hooks the journal holds "a.record", "a.before" and "a.after" only.
+
+### ListIsDrivenThroughTheInterface
+
+Through an `IStepRecorder*`, a list of a and b records 5 tasks and journals the record calls,
+then the before calls, then the after calls, each as a then b.
+
+### NestedListKeepsItsPlaceInTheOrder
+
+An outer list of a, an inner list holding b, and c records 7 tasks and journals "a.record",
+"b.record", "c.record".
+
+### AddRejectsARecorderAlreadyHeld
+
+A second `add` of the same recorder throws with a message containing "StepRecorderList::add"
+and "already". The list still records that member once: 2 tasks and one journal entry.
+
+### AddRejectsTheListItself
+
+`list.add(list)` throws with a message containing "StepRecorderList::add" and "itself", and
+the list stays empty.
+
+## test_throwing_bridge.cpp
+
+Tests bridge_throwing: a value passes through and a thrown Error becomes a Status.
+
+This file needs no device. `NN::Detail::bridge_throwing` in
+`include/SushiAI/nn/throwing_bridge.hpp` runs a callable that may throw and returns its value
+as a `Result`.
+
+### refuse_a_shape
+
+`refuse_a_shape` throws an `Error` through `SA_THROW_IF` with the message "Linear(6, 8) was
+given [5]".
+
+### refuse_an_allocation
+
+`refuse_an_allocation` throws `std::bad_alloc`.
+
+### throw_a_logic_error
+
+`throw_a_logic_error` throws `std::logic_error("an index was out of range")`, which is neither
+an `Error` nor `std::bad_alloc`.
+
+### bridge_a_logic_error
+
+`bridge_a_logic_error` passes `throw_a_logic_error` to `bridge_throwing`, as the statement of
+a death test.
+
+### AValuePassesThrough
+
+A callable that returns 7 gives an ok `Result<int>` holding 7.
+
+### AMoveOnlyValuePassesThrough
+
+A callable that returns `std::make_unique<int>(7)` gives an ok result whose pointer is not
+null and owns 7.
+
+### AnErrorBecomesInvalidDescriptionWithItsMessage
+
+Bridging `refuse_a_shape` gives an `InvalidDescription` failure whose message contains
+"Linear(6, 8)" and "[5]".
+
+### ARefusedAllocationBecomesOutOfMemory
+
+Bridging `refuse_an_allocation` gives an `OutOfMemory` failure whose message contains
+"allocation was refused".
+
+### AnotherExceptionIsFatal
+
+The case is in the suite `Unit_ThrowingBridgeDeathTest`. `bridge_a_logic_error` stops the
+process with a report containing "other than Error" and "an index was out of range".
+
+## test_trace.cpp
+
+Tests Trace, the buffer-update sinks, the three layer forms and trace_layer.
+
+This file needs no device. `NN::Trace` in `include/SushiAI/nn/trace.hpp` carries a
+`Graph::GraphBuilder`, a `TraceMode` and the sink that receives buffer updates. A layer has one
+of three forms: `Module`, whose `forward` takes a builder; `TraceModule`, whose `forward` takes
+a `Trace`; and `ModalModule`, which states `trace_training` and `trace_evaluation` and no
+`forward`. `NN::trace_layer` calls whichever form a layer has.
+
+### K_EXACT_TOLERANCE
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged.
+
+### ModalStub
+
+`ModalStub` has the modal pair and an empty `fields()`. `trace_training` emits one ReLU and
+`trace_evaluation` returns its input, and each counts its calls.
+
+### CompositeStub
+
+`CompositeStub` lists a `ModalStub` as the child "inner". Its `forward` takes a `Trace` and
+passes it to the child through `NN::trace_layer`.
+
+### ByValueTraceStub
+
+`ByValueTraceStub` has a `forward` that takes its `Trace` by value.
+
+### TrainingOnlyStub
+
+`TrainingOnlyStub` states `trace_training` and no `trace_evaluation`.
+
+### ModalWithForwardStub
+
+`ModalWithForwardStub` states the modal pair and a builder `forward` together.
+
+### BothForwardsStub
+
+`BothForwardsStub` has a builder `forward` and a trace `forward` and counts the calls of each.
+
+### FieldlessStub
+
+`FieldlessStub` has the modal pair and no `fields()`.
+
+### RefusingStub
+
+`RefusingStub` has a trace `forward` that records an `InvalidDescription` failure on the trace
+through `Trace::fail` and returns its input.
+
+### failure_saying
+
+`failure_saying` returns an `InvalidDescription` failure with a given message.
+
+### defined_buffer
+
+`defined_buffer` returns a `Buffer` defined as [3] with the starting value 0.0 that no graph
+has read.
+
+### update_undefined_buffer
+
+`update_undefined_buffer` requests an update of a buffer on which `define()` was never called.
+It is the statement of a death test.
+
+### update_from
+
+`update_from` requests an update whose source is a given id, in a graph that holds one value.
+It is the statement of two death tests.
+
+### parameter_names
+
+`parameter_names` collects the names `NN::for_each_parameter` yields, in walk order.
+
+### The layer forms at compile time
+
+The `static_assert` lines after the helpers hold which form each type has. `Linear` is a
+`Module` only, `ModalStub` a `ModalModule` only and `CompositeStub` a `TraceModule` only, and
+all three are `Traceable`. A `Sequential` of `Module`s is both a `Module` and a `TraceModule`.
+A `Sequential` that holds a modal layer or a trace-only composite, at any depth, is a
+`TraceModule` and not a `Module`, and is still a `ModuleContainer`. `BothForwardsStub` is a
+`Module` and a `TraceModule`.
+
+`Detail::HasHalfModalPair` detects `TrainingOnlyStub` and `Detail::HasModalMemberAndForward`
+detects `ModalWithForwardStub`; neither detects `ModalStub` or `Linear`. `TrainingOnlyStub`,
+`FieldlessStub`, `ByValueTraceStub` and `int` are not `Traceable`.
+
+`Trace` is final. It is not copy-constructible, move-constructible or default-constructible,
+and a `GraphBuilder` does not convert to it. `NN::BufferUpdateSink` has a virtual destructor.
+
+### AFactoryStatesItsModeAndKeepsItsBuilder
+
+`Trace::training(builder, list)` reports `TraceMode::Training` and `Trace::evaluation(builder)`
+reports `TraceMode::Evaluation`. `builder()` of each returns the address of the builder it was
+made from.
+
+### UpdateUnderAnEvaluationTraceFails
+
+`update()` on an evaluation trace returns `InvalidDescription` with a message containing
+"evaluation trace".
+
+### ANewListIsEmpty
+
+A new `BufferUpdateList` has no update and no source.
+
+### EachUpdateAddsOneUpdateAndOneSource
+
+Two `update()` calls on a training trace leave two entries in `updates()` and two in
+`sources()`. Entry 0 holds the first buffer's state, the source x, the momentum 0.1 and the
+source scale 1.0. Entry 1 holds the second buffer's state, the source y, 0.25 and 1.5.
+`sources()` is x then y.
+
+### AnUpdateAddsNothingToTheGraph
+
+An `update()` leaves the graph's value count unchanged and the buffer without a leaf in it.
+
+### ARecordedTargetSurvivesAMoveOfItsBuffer
+
+After the buffer of a recorded update is move-constructed into another, the update's `target`
+equals the moved buffer's state and is not `K_NO_STATE`.
+
+### TheDiscardingSinkAcceptsAnUpdateAndIsOneObject
+
+A trace made with `NN::discard_updates()` is in Training mode, its `update()` returns ok and
+the graph gains no value. Two calls of `discard_updates()` return the same address.
+
+### AnUpdateOfAnUndefinedBufferIsFatal
+
+The case is in the suite `Unit_TraceDeathTest`. `update_undefined_buffer` stops the process
+with "define() has not given a shape".
+
+### AnUpdateOfABufferThatWasNeverReadIsRecorded
+
+An update of a defined buffer that no graph has read is recorded with the buffer's state as
+its target. The graph gains no value and the buffer has no leaf in it.
+
+### ANewTraceHoldsNoFailure
+
+A new trace's `status()` is ok and the graph has no refusal.
+
+### FailKeepsTheFirstFailureAndMarksTheGraphRefused
+
+After `fail` with "the first reason" and then "the second reason", `status()` carries the
+first message and does not contain "second". `graph.has_refusal()` is true.
+
+### ValueOrFailReturnsAHeldValue
+
+`value_or_fail(Result<ValueId>(y), x)` returns y and leaves `status()` ok.
+
+### ValueOrFailRecordsAFailureAndReturnsTheFallback
+
+`value_or_fail` over a failed result returns the fallback x, and `status()` then carries that
+failure.
+
+### FailGivenASuccessIsFatal
+
+The case is in the suite `Unit_TraceDeathTest`. `trace.fail(Status())` stops the process with
+"Trace::fail was given a success".
+
+### SequentialThrowsTheFailureAChildRecorded
+
+`Sequential{RefusingStub, ModalStub}::forward` over a trace throws with a message containing
+"RefusingStub refuses". The second child's `trace_evaluation` is never called.
+
+### SequentialFoldsAnInputShapeThroughItsChildren
+
+`output_shape([4])` of `Sequential{Linear{4, 8}, ReLU, Linear{8, 3}}` is [3].
+`output_shape([5])` throws with a message containing "Linear(4, 8)" and "[5]".
+
+### AnUpdateWithoutASourceIsFatal
+
+The case is in the suite `Unit_TraceDeathTest`. An update whose source is `NO_VALUE` stops the
+process with "a buffer update reads value".
+
+### AnUpdateFromAValueOutsideTheGraphIsFatal
+
+The case is in the suite `Unit_TraceDeathTest`. An update whose source is value 7, in a graph
+of one value, stops the process with a report containing "reads value 7" and "holds 1 values".
+
+### TraceLayerCallsTheTrainingFormInTrainingMode
+
+Under a training trace, `trace_layer` calls `ModalStub::trace_training` once and
+`trace_evaluation` never. The result differs from the input, because the training form emits a
+ReLU.
+
+### TraceLayerCallsTheEvaluationFormInEvaluationMode
+
+Under an evaluation trace, `trace_layer` calls `trace_evaluation` once and `trace_training`
+never, and returns its input.
+
+### TraceLayerTracesAModuleThroughTheBuilder
+
+`trace_layer` on a `Linear{4, 3}` and `Linear::forward` on a second one, each in its own graph,
+return the same id and leave the same value count. The traced result has the shape [2, 3].
+
+### TraceLayerPassesTheTraceToATraceModule
+
+`CompositeStub` is traced once under an evaluation trace and twice under a training trace. Its
+child counts one evaluation call and two training calls.
+
+### TraceLayerPrefersTheTraceForwardOverTheBuilderForward
+
+On `BothForwardsStub`, `trace_layer` calls the trace `forward` once and the builder `forward`
+never.
+
+### ANestedSequentialTracesItsModalChildInTheTracesMode
+
+A `ModalStub` inside a `Sequential` inside a `Sequential` counts one evaluation call after an
+evaluation trace of the outer container, and one training call after a training trace of it.
+
+### SequentialTracesAModalChildInTheTracesMode
+
+`Sequential{Linear{4, 3}, ModalStub}` traced under each mode calls the stub's matching form
+once and yields a [2, 3] value both times. Its parameter walk yields "0.weight" and "0.bias".
+
+### SequentialOfModulesTracesTheSameThroughBothForwards
+
+`Sequential{Linear{4, 8}, ReLU, Linear{8, 3}}` traced through the trace `forward` in one graph
+and through the builder `forward` in another returns the same id, leaves the same value count
+and walks the same parameter names.
+
+## test_traced.cpp
+
+Tests Traced and the refusal it carries through a chain of emitters.
+
+This file needs no device. `Graph::Traced` in `include/SushiAI/graph/traced.hpp` holds a
+`ValueId` or a failed `Status`. An emitter that returns one takes its operands as `Traced`
+too, so a call can be nested inside another and the first refusal travels to the outermost
+result.
+
+Six `static_assert` lines at the top of the file hold that a `Traced` is default-constructible
+and constructible from a `ValueId` and from a `Status` without throwing, that both conversions
+are implicit, and that its size is two pointers.
+
+The cases up to BuildingFromASuccessStatusIsFatal use `StandInBuilder` and involve no graph.
+The last four use a `Graph::GraphBuilder` and read `Graph::has_refusal()`.
+
+### TraceLog
+
+`TraceLog` counts the values the stand-in builder emitted and the refusals it recorded.
+
+### StandInBuilder
+
+`StandInBuilder` has two members. `emit()` returns the next id, and `refuse()` counts one
+refusal and returns the failure it was given. `SA_REFUSE_IF` is run over it in `emit_below`.
+
+### emit_below
+
+`emit_below` binds its operand through `SA_TRY_ASSIGN`, refuses through `SA_REFUSE_IF` when
+the id is above a limit, and otherwise emits one value.
+
+### emit_over
+
+`emit_over` binds its operand through `SA_TRY_ASSIGN` and emits one value. It has no condition
+of its own, so it accepts the absent operand.
+
+### forward_traced
+
+`forward_traced` runs `SA_TRY` on a `Traced` and sets a flag after it.
+
+### declare_below
+
+`declare_below` runs `SA_REFUSE_IF` over a `Graph::GraphBuilder` when an extent is above a
+limit, and otherwise declares one input of that extent.
+
+### description_failure
+
+`description_failure` builds an `InvalidDescription` failure with a given message.
+
+### DefaultHoldsTheAbsentValueAndNoFailure
+
+A default-constructed `Traced` has a value, an ok status and the id `Graph::NO_VALUE`.
+
+### HoldsAnIdWithASuccessStatus
+
+`Traced(ValueId{12})` has a value, is ok and returns 12.
+
+### HoldsAFailureAndTheAbsentId
+
+A `Traced` built from a failure has no value and reports the failure's code and message.
+
+### SuccessPathCreatesNoFailureBlock
+
+Two chained emitters over an absent operand, a copy and a move yield the id 1, record no
+refusal and leave `live_failure_count()` where it was.
+
+### MovedFromTracedKeepsItsState
+
+A failed `Traced` that was moved from still reports its failure, as does the target. A
+`Traced` holding 4 that was move-assigned from still returns 4, as does the target.
+
+### AssignmentReplacesAFailureWithAnId
+
+Assigning `ValueId{3}` to a failed `Traced` leaves a value and the id 3. Assigning a failure to
+it afterwards leaves that failure.
+
+### AnAbsentOperandPassesThroughAnEmitter
+
+`emit_over(builder, Traced())` succeeds with the id 0, and the log shows one emitted value.
+
+### RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing
+
+`emit_below` given the id 9 and the limit 4 fails with "operand 9 is above the limit 4",
+records one refusal and emits nothing. That result is then passed through `emit_below` with
+the limit 100, nested inside `emit_over`. The outer result carries the same message, and its
+`message().data()` is the first result's pointer, so the failure was forwarded and not rebuilt.
+The log still shows one refusal and no emitted value.
+
+### NestedCallsEmitWhenNothingIsRefused
+
+`emit_over(builder, emit_below(builder, ValueId{2}, 4))` yields the id 1 with two values
+emitted and no refusal.
+
+### TryForwardsATracedFailureAsAStatus
+
+`forward_traced` over a failed `Traced` returns the failure and leaves its flag false. Over
+`ValueId{1}` it succeeds and sets the flag.
+
+### ValueOnAFailureIsFatalAndPrintsTheFailure
+
+`value()` on a failed `Traced` stops the process with a report containing "Traced::value() was
+called on a failure" and the failure's message.
+
+### BuildingFromASuccessStatusIsFatal
+
+`Traced(Status())` stops the process with "a Traced was built from a success Status".
+
+### RefuseMarksTheGraphAndReturnsTheFailure
+
+`GraphBuilder::refuse` returns the failure it was given, with the same message pointer, and
+`graph.has_refusal()` goes from false to true.
+
+### RefuseIfOverAGraphBuilderMarksTheGraphOnlyOnARefusal
+
+`declare_below(builder, 4, 8)` declares value 0 and leaves the graph without a refusal.
+`declare_below(builder, 9, 8)` fails with "extent 9 is above the limit 8", adds no value and
+marks the graph.
+
+### ObserveMarksTheGraphForAFailedStatusOnly
+
+`GraphBuilder::observe(Status())` is ok and leaves the graph unmarked. `observe` of a failed
+status returns that failure and marks the graph.
+
+### ObserveMarksTheGraphForAFailedResultOnly
+
+`observe(Result<int>(7))` returns a result holding 7 and leaves the graph unmarked. `observe`
+of a failed `Result<int>` returns the failure and marks the graph.
 
 ## test_unflatten.cpp
 

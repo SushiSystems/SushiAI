@@ -21,13 +21,16 @@
 
 /**
  * @file step_recorder.hpp
- * @brief Declares the IStepRecorder interface for joining compiled steps.
+ * @brief Declares the IStepRecorder interface and the list that drives several as one.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
+#include <vector>
+#include <SushiAI/core/common.hpp>
 
 namespace SushiAI
 {
@@ -62,6 +65,71 @@ namespace SushiAI
 
                 /** @brief Runs after the replay has completed and been waited on. */
                 virtual void after_replay() {}
+        };
+
+        /**
+         * @brief Runs several recorders as one, in the order they were added.
+         *
+         * Holds each member by address and owns none of them.
+         */
+        class StepRecorderList final : public IStepRecorder
+        {
+            public:
+                /**
+                 * @brief Appends @p recorder behind the members already held.
+                 * @param recorder Must outlive the list, and is neither the list nor a direct
+                 *                 member. A recorder reached through a nested list is not checked.
+                 * @pre No list of one tree holds a recorder twice, and no list reaches itself.
+                 */
+                void add(IStepRecorder& recorder)
+                {
+                    SA_THROW_IF(&recorder == this,
+                                "StepRecorderList::add: a list cannot hold itself");
+                    SA_THROW_IF(std::find(members_.begin(), members_.end(), &recorder)
+                                    != members_.end(),
+                                "StepRecorderList::add: the recorder is already one of the {} "
+                                "members",
+                                members_.size());
+
+                    members_.push_back(&recorder);
+                }
+
+                /** @brief Returns whether the list holds no member. */
+                [[nodiscard]] bool empty() const noexcept
+                {
+                    return members_.empty();
+                }
+
+                /**
+                 * @brief Records every member's work into the step, first added first.
+                 * @return Sum of the device tasks the members recorded.
+                 */
+                std::size_t record_into_step() override
+                {
+                    std::size_t recorded = 0;
+                    for (IStepRecorder* member : members_)
+                        recorded += member->record_into_step();
+
+                    return recorded;
+                }
+
+                /** @brief Refreshes every member's host state, first added first. */
+                void before_replay() override
+                {
+                    for (IStepRecorder* member : members_)
+                        member->before_replay();
+                }
+
+                /** @brief Notifies every member that the replay finished, first added first. */
+                void after_replay() override
+                {
+                    for (IStepRecorder* member : members_)
+                        member->after_replay();
+                }
+
+            private:
+                /// @brief Members in the order add() received them; none is owned.
+                std::vector<IStepRecorder*> members_;
         };
 
     } // namespace Graph

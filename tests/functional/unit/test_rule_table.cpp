@@ -105,5 +105,14 @@ namespace SushiAI
 
             EXPECT_EQ(Autograd::ACTIVATION_RULES.size(), Ops::ACTIVATIONS.size());
         }
+
+        /** @brief Tests that the normalisation domain rules BATCHNORM2D and not the fold. */
+        TEST(Unit_RuleTable, BatchNormFoldHasNoRuleAndBatchNormKeepsIts)
+        {
+            EXPECT_TRUE(Autograd::has_rule(Ops::BATCHNORM2D.id));
+            EXPECT_FALSE(Autograd::has_rule(Ops::BATCHNORM_FOLD.id));
+            EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_FOLD.id));
+            EXPECT_EQ(Autograd::NORM_RULES.size(), 2u);
+        }
     }
 }

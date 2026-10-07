@@ -237,6 +237,8 @@ namespace SushiAI
          * @brief Updates running statistics for batch normalisation.
          */
         inline constexpr OpName BATCHNORM_UPDATE_STATS = op("sushiai.batchnorm_update_stats");
+        /** @brief Folds gamma, beta and fixed statistics into a per-channel scale and shift. */
+        inline constexpr OpName BATCHNORM_FOLD = op("sushiai.batchnorm_fold");
 
         /** @brief Leaky ReLU; its slope is attribute slot 0. */
         inline constexpr OpName LEAKY_RELU = differentiable_op("sushiai.leaky_relu");
@@ -307,6 +309,7 @@ namespace SushiAI
             SPATIAL_MEAN, SPATIAL_MEAN_BACKWARD, UPSAMPLE2D, UPSAMPLE2D_BACKWARD,
             CONCAT_CHANNELS, SLICE_CHANNELS,
             BATCHNORM2D, BATCHNORM2D_BACKWARD, CHANNEL_AFFINE, BATCHNORM_UPDATE_STATS,
+            BATCHNORM_FOLD,
         };
 
         /**

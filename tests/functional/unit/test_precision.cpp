@@ -188,6 +188,8 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::SILU.id, Ops::SILU_BACKWARD.id, Ops::SOFTPLUS.id, Ops::SOFTPLUS_BACKWARD.id,
         Ops::DIV.id, Ops::MINIMUM.id, Ops::MAXIMUM.id, Ops::ABS.id, Ops::ATAN.id,
         Ops::LESS_EQUAL.id, Ops::SELECT.id, Ops::STOP_GRADIENT.id, Ops::CONSTANT.id,
+        // BATCHNORM_FOLD takes the square root of a variance plus epsilon, so it stays wide.
+        Ops::BATCHNORM_FOLD.id,
     };
 
     for (OpID op : stays)
@@ -785,4 +787,68 @@ TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 
     EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
     EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
+}
+
+/** @brief Tests that the cast pass keeps a buffer's type, lifetime and state leaf. */
+TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
+    const ValueId weight = builder.parameter(Shape{HIDDEN, IN_FEATURES}, "w");
+    const ValueId shift = builder.buffer(Shape{HIDDEN}, "running_shift");
+    const ValueId biased = builder.bias_add(builder.matmul(x, weight, false, true), shift);
+
+    graph.bind_state_leaf(Graph::StateId{31}, weight);
+    graph.bind_state_leaf(Graph::StateId{32}, shift);
+    graph.mark_refused();
+    const auto bound_before = graph.state_leaves();
+
+    const MixedPrecisionPolicy policy;
+    CastOptions options;
+    options.policy = &policy;
+
+    const CastReport report = Graph::insert_casts(graph, options);
+
+    // BIAS_ADD narrows, so the pass must have cast the buffer for the lookups to prove anything.
+    ASSERT_GT(report.count(), 0u);
+    EXPECT_EQ(graph.value(biased).dtype, DType::HALF);
+
+    EXPECT_EQ(graph.value(shift).dtype, DType::FLOAT32);
+    EXPECT_EQ(graph.value(shift).lifetime, Lifetime::BUFFER);
+    EXPECT_FALSE(graph.value(shift).requires_grad);
+    EXPECT_EQ(graph.state_leaf(Graph::StateId{31}), weight);
+    EXPECT_EQ(graph.state_leaf(Graph::StateId{32}), shift);
+    EXPECT_EQ(graph.state_leaves(), bound_before);
+    EXPECT_TRUE(graph.has_refusal());
+
+    const std::vector<DTypeMismatch> mismatches = Graph::find_dtype_mismatches(graph, policy);
+    EXPECT_TRUE(mismatches.empty()) << describe_all(mismatches);
+}
+
+/** @brief Tests that the mixed policy leaves BATCHNORM_FOLD and its four operands in fp32. */
+TEST(Unit_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId gamma = builder.parameter(Shape{HIDDEN}, "gamma");
+    const ValueId beta = builder.parameter(Shape{HIDDEN}, "beta");
+    const ValueId mean = builder.buffer(Shape{HIDDEN}, "running_mean");
+    const ValueId variance = builder.buffer(Shape{HIDDEN}, "running_var");
+    const Graph::BatchNormFold fold = builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
+
+    const MixedPrecisionPolicy policy;
+    CastOptions options;
+    options.policy = &policy;
+
+    const CastReport report = Graph::insert_casts(graph, options);
+
+    EXPECT_EQ(report.count(), 0u);
+    EXPECT_EQ(count_op(graph, Ops::CAST.id), 0u);
+    ASSERT_EQ(count_op(graph, Ops::BATCHNORM_FOLD.id), 1u);
+
+    for (ValueId id : {gamma, beta, mean, variance, fold.scale, fold.shift})
+        EXPECT_EQ(graph.value(id).dtype, DType::FLOAT32) << "value " << id;
 }

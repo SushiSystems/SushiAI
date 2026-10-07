@@ -86,8 +86,12 @@ the `detect` module and the `imaging` module.
   operations; `PLAN.md` walks each term on paper.
 - **Two-pass label assignment in the training loop**: a forward-only replay, the host assigner,
   then the full step, and what `CompiledStep` and `Trainer` need for it.
-- **The model graph, batch normalisation, the weight importer and the YOLO26 blocks.** Design in
-  `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`, waiting for the owner's review.
+- **The rest of the model graph.** Units U1 to U12 of `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`
+  are written and never built; `PLAN.md` there lists what waits: the engine-side units U13 to U17
+  (the lowering of the fourth `BATCHNORM2D` output and of `BATCHNORM_FOLD`, an `initialize` that
+  fills a scale with one and fills buffers, checkpoints with buffers, the weight importer), the
+  attention and head blocks behind rows 10, 22 and 23 of `examples/yolo26/model.json`, and how
+  `BatchNorm2d` and a nested `ModelGraph` refuse a misfit when added (owner's ruling).
 - **A detection dataset and a threaded loader** over the imaging pipelines: a directory-backed
   sample source, the build pass that parses and rejects labels once, one pipeline per thread.
 - **The image decode tool** that writes the raw cache, with libjpeg-turbo through vcpkg.

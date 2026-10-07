@@ -53,6 +53,12 @@ namespace SushiAI
             /** @brief Tells whether the layer adds a learnable bias per filter. */
             bool use_bias = true;
 
+            /**
+             * @brief Holds the value every bias element starts from; forward() reads it on the
+             *        first trace only, and never without a bias.
+             */
+            double bias_init = 0.0;
+
             /** @brief Holds the [out_channels, kernel_h, kernel_w, in_channels] filters. */
             Parameter weight{};
 
@@ -67,6 +73,15 @@ namespace SushiAI
                     field("bias", &Conv2d::bias),
                 };
             }
+
+            /**
+             * @brief Builds a bias-free convolution padded by kernel / 2 on every side.
+             * @param kernel The square window's side; an odd side keeps H and W at stride 1.
+             * @param stride The step on both axes; 2 halves an even extent under an odd kernel.
+             * @return A layer with dilation 1 whose geometry output_shape() and forward() check.
+             */
+            [[nodiscard]] static Conv2d same_padded(int64_t in_channels, int64_t out_channels,
+                                                    int64_t kernel, int64_t stride);
 
             /**
              * @brief Traces the convolution, declaring its parameters on the first call.

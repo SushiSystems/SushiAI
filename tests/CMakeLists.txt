@@ -97,6 +97,24 @@ add_executable(sushiai_tests
     functional/unit/test_imaging_partners.cpp
     functional/unit/test_imaging_polygon.cpp
     functional/unit/test_imaging_rectangle.cpp
+    functional/unit/test_batch_norm2d.cpp
+    functional/unit/test_block_bottleneck.cpp
+    functional/unit/test_block_c3k.cpp
+    functional/unit/test_block_c3k2.cpp
+    functional/unit/test_block_conv_norm.cpp
+    functional/unit/test_block_sppf.cpp
+    functional/unit/test_buffer.cpp
+    functional/unit/test_concat.cpp
+    functional/unit/test_identity.cpp
+    functional/unit/test_model_graph.cpp
+    functional/unit/test_model_outputs.cpp
+    functional/unit/test_module_list.cpp
+    functional/unit/test_node.cpp
+    functional/unit/test_node_registry.cpp
+    functional/unit/test_silu.cpp
+    functional/unit/test_step_recorder.cpp
+    functional/unit/test_trace.cpp
+    functional/unit/test_throwing_bridge.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp

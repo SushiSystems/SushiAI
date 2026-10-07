@@ -31,7 +31,9 @@
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiAI/core/result.hpp>
+#include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/traced.hpp>
 #include "../../common/test_status.hpp"
@@ -114,6 +116,15 @@ namespace
         SA_TRY(traced);
         reached_end = true;
         return Status();
+    }
+
+    /** @brief Declares one input over @p builder, refusing an extent above @p limit. */
+    Traced declare_below(const SushiAI::Graph::GraphBuilder& builder, int64_t extent,
+                         int64_t limit)
+    {
+        SA_REFUSE_IF(builder, extent > limit, "extent {} is above the limit {}", extent, limit);
+
+        return builder.input(SushiAI::Shape{extent}, "x");
     }
 
     /** @brief Builds an InvalidDescription failure whose message is @p text. */
@@ -256,4 +267,67 @@ TEST(Unit_Traced, ValueOnAFailureIsFatalAndPrintsTheFailure)
 TEST(Unit_Traced, BuildingFromASuccessStatusIsFatal)
 {
     SA_EXPECT_FATAL((void)Traced(Status()), "a Traced was built from a success Status");
+}
+
+/** @brief Tests that GraphBuilder::refuse marks its graph and returns the failure it was given. */
+TEST(Unit_Traced, RefuseMarksTheGraphAndReturnsTheFailure)
+{
+    SushiAI::Graph::Graph graph;
+    const SushiAI::Graph::GraphBuilder builder(graph);
+    ASSERT_FALSE(graph.has_refusal());
+
+    const Status failure = description_failure("kernel is wider than the image");
+    const Status returned = builder.refuse(failure);
+
+    SA_EXPECT_FAILURE(returned, StatusCode::InvalidDescription, "kernel is wider");
+    EXPECT_EQ(returned.message().data(), failure.message().data());
+    EXPECT_TRUE(graph.has_refusal());
+}
+
+/** @brief Tests that SA_REFUSE_IF over a GraphBuilder marks the graph only when it refuses. */
+TEST(Unit_Traced, RefuseIfOverAGraphBuilderMarksTheGraphOnlyOnARefusal)
+{
+    SushiAI::Graph::Graph graph;
+    const SushiAI::Graph::GraphBuilder builder(graph);
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueId id, declare_below(builder, 4, 8));
+    EXPECT_EQ(id, ValueId{0});
+    EXPECT_EQ(graph.value_count(), 1u);
+    EXPECT_FALSE(graph.has_refusal());
+
+    SA_EXPECT_FAILURE(declare_below(builder, 9, 8), StatusCode::InvalidDescription,
+                      "extent 9 is above the limit 8");
+    EXPECT_EQ(graph.value_count(), 1u);
+    EXPECT_TRUE(graph.has_refusal());
+}
+
+/** @brief Tests that observe marks the graph for a failed Status and not for a success. */
+TEST(Unit_Traced, ObserveMarksTheGraphForAFailedStatusOnly)
+{
+    SushiAI::Graph::Graph graph;
+    const SushiAI::Graph::GraphBuilder builder(graph);
+
+    SA_EXPECT_OK(builder.observe(Status()));
+    EXPECT_FALSE(graph.has_refusal());
+
+    SA_EXPECT_FAILURE(builder.observe(description_failure("unknown layer type")),
+                      StatusCode::InvalidDescription, "unknown layer type");
+    EXPECT_TRUE(graph.has_refusal());
+}
+
+/** @brief Tests that observe passes a Result through and marks the graph when it holds a failure. */
+TEST(Unit_Traced, ObserveMarksTheGraphForAFailedResultOnly)
+{
+    SushiAI::Graph::Graph graph;
+    const SushiAI::Graph::GraphBuilder builder(graph);
+
+    const SushiAI::Result<int> held = builder.observe(SushiAI::Result<int>(7));
+    ASSERT_TRUE(held.has_value());
+    EXPECT_EQ(held.value(), 7);
+    EXPECT_FALSE(graph.has_refusal());
+
+    const SushiAI::Result<int> failed =
+        builder.observe(SushiAI::Result<int>(description_failure("channels do not divide")));
+    SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "channels do not divide");
+    EXPECT_TRUE(graph.has_refusal());
 }

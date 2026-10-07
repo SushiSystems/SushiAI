@@ -581,24 +581,8 @@ namespace SushiAI
             Matcher matcher(graph, options);
             matcher.run();
 
-            // Rebuilds graph node list while preserving value identifiers exactly.
-            Graph rebuilt;
-
-            for (ValueId id = 0; id < static_cast<ValueId>(graph.value_count()); ++id)
-            {
-                const Value& value = graph.value(id);
-                const ValueId fresh = rebuilt.add_value(value.shape, value.dtype,
-                                                        value.lifetime, value.debug_name);
-
-                SA_THROW_IF(fresh != id,
-                            "The fusion pass copied value {} to {}; ids must be preserved "
-                            "because callers hold them across the pass", id, fresh);
-
-                rebuilt.value(fresh).requires_grad = value.requires_grad;
-
-                // Preserves explicit layout tags to avoid incorrect default assignment.
-                rebuilt.value(fresh).layout = value.layout;
-            }
+            // Callers hold value ids and state leaves across the pass; only nodes are rebuilt.
+            Graph rebuilt = graph.without_nodes();
 
             for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
             {

@@ -29,10 +29,12 @@
 
 #include <vector>
 #include <cstdint>
+#include <utility>
 #include <string_view>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/graph/state_id.hpp>
 
 namespace SushiAI
 {
@@ -64,6 +66,8 @@ namespace SushiAI
             OPTIMIZER_STATE,
             /** @brief A minibatch input or target. Lives for the whole run, rewritten per step. */
             INPUT,
+            /** @brief Model state with no gradient, written beside the graph. */
+            BUFFER,
             /** @brief An intermediate. Lives only between its producer and its last reader. */
             ACTIVATION,
             /** @brief A transient the planner may overlap freely with any other scratch. */
@@ -79,6 +83,7 @@ namespace SushiAI
                 case Lifetime::GRADIENT:        return "gradient";
                 case Lifetime::OPTIMIZER_STATE: return "optimizer_state";
                 case Lifetime::INPUT:           return "input";
+                case Lifetime::BUFFER:          return "buffer";
                 case Lifetime::ACTIVATION:      return "activation";
                 case Lifetime::SCRATCH:         return "scratch";
             }
@@ -96,7 +101,8 @@ namespace SushiAI
             return lifetime == Lifetime::PARAMETER
                 || lifetime == Lifetime::GRADIENT
                 || lifetime == Lifetime::OPTIMIZER_STATE
-                || lifetime == Lifetime::INPUT;
+                || lifetime == Lifetime::INPUT
+                || lifetime == Lifetime::BUFFER;
         }
 
         /**
@@ -369,6 +375,89 @@ namespace SushiAI
                 const std::vector<Node>& nodes() const noexcept { return nodes_; }
 
                 /**
+                 * @brief Returns this graph's leaf for @p state.
+                 * @return The leaf's id, or NO_VALUE when the graph records none for @p state.
+                 */
+                [[nodiscard]] ValueId state_leaf(StateId state) const noexcept
+                {
+                    for (const std::pair<StateId, ValueId>& bound : state_leaves_)
+                    {
+                        if (bound.first == state)
+                            return bound.second;
+                    }
+
+                    return NO_VALUE;
+                }
+
+                /**
+                 * @brief Records @p leaf as this graph's leaf for @p state.
+                 * @param state An assigned identity this graph has no leaf for; else it throws.
+                 * @param leaf A value of this graph that stands for no other state; else it throws.
+                 */
+                void bind_state_leaf(StateId state, ValueId leaf)
+                {
+                    SA_THROW_IF(state == K_NO_STATE,
+                                "Cannot bind value {} to a state that has no identity; draw one "
+                                "with StateIdentity::get() first",
+                                leaf);
+                    SA_THROW_IF(leaf >= values_.size(),
+                                "Cannot bind state {} to value {}, which does not exist",
+                                static_cast<std::uint64_t>(state), leaf);
+
+                    for (const std::pair<StateId, ValueId>& bound : state_leaves_)
+                    {
+                        SA_THROW_IF(bound.first == state,
+                                    "State {} already has leaf {} in this graph; it cannot also "
+                                    "take value {}",
+                                    static_cast<std::uint64_t>(state), bound.second, leaf);
+                        SA_THROW_IF(bound.second == leaf,
+                                    "Value {} already stands for state {} in this graph; it "
+                                    "cannot also stand for state {}",
+                                    leaf, static_cast<std::uint64_t>(bound.first),
+                                    static_cast<std::uint64_t>(state));
+                    }
+
+                    state_leaves_.emplace_back(state, leaf);
+                }
+
+                /** @brief Lists every recorded state and its leaf, in the order they were bound. */
+                [[nodiscard]] const std::vector<std::pair<StateId, ValueId>>&
+                state_leaves() const noexcept
+                {
+                    return state_leaves_;
+                }
+
+                /**
+                 * @brief Returns a graph holding this graph's values and state leaves and no node.
+                 * @return A copy in which every value keeps its id and fields and has no producer;
+                 *         a recorded refusal is kept as well.
+                 */
+                [[nodiscard]] Graph without_nodes() const
+                {
+                    Graph stripped;
+                    stripped.values_ = values_;
+                    stripped.state_leaves_ = state_leaves_;
+                    stripped.refused_ = refused_;
+
+                    for (Value& value : stripped.values_)
+                        value.producer = NO_NODE;
+
+                    return stripped;
+                }
+
+                /** @brief Records that an emitter refused part of the description traced here. */
+                void mark_refused() noexcept
+                {
+                    refused_ = true;
+                }
+
+                /** @brief Reports whether an emitter refused part of the description. */
+                [[nodiscard]] bool has_refusal() const noexcept
+                {
+                    return refused_;
+                }
+
+                /**
                  * @brief Completes the forward graph with propagation and proof.
                  *
                  * Propagates gradient requirements and validates layout uniformity.
@@ -439,6 +528,12 @@ namespace SushiAI
 
                 std::vector<Value> values_;
                 std::vector<Node> nodes_;
+
+                /** @brief Holds each recorded state with its leaf, in the order they were bound. */
+                std::vector<std::pair<StateId, ValueId>> state_leaves_;
+
+                /** @brief Holds whether an emitter refused part of the description. */
+                bool refused_ = false;
         };
 
     } // namespace Graph

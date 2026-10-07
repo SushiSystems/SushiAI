@@ -25,15 +25,22 @@
  * @author Mustafa Garip
  */
 
+#include <string_view>
+#include <utility>
 #include <gtest/gtest.h>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/state_id.hpp>
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::Lifetime;
+using Graph::K_NO_STATE;
 using Graph::NO_NODE;
+using Graph::NO_VALUE;
+using Graph::StateId;
+using Graph::StateIdentity;
 using Graph::ValueId;
 
 TEST(Unit_Ir, AddValueRecordsShapeDtypeAndLifetime)
@@ -254,4 +261,201 @@ TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
     EXPECT_EQ(a.get(7), 8.0);
     EXPECT_EQ(a.get(9), 10.0);
     EXPECT_EQ(a.get(10), 0.0) << "out-of-range reads must stay defined and yield zero";
+}
+
+/** @brief Tests that a buffer leaf is persistent, produced by LEAF and never needs a gradient. */
+TEST(Unit_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{4, 3}, "x");
+    const ValueId running = builder.buffer(Shape{3}, "running_mean", DType::FLOAT64);
+    const ValueId y = builder.bias_add(x, builder.buffer(Shape{3}, "shift"));
+
+    graph.finalise();
+
+    EXPECT_EQ(graph.value(running).shape, Shape({3}));
+    EXPECT_EQ(graph.value(running).dtype, DType::FLOAT64);
+    EXPECT_EQ(graph.value(running).lifetime, Lifetime::BUFFER);
+    EXPECT_EQ(graph.value(running).debug_name, "running_mean");
+    EXPECT_FALSE(graph.value(running).requires_grad);
+    EXPECT_FALSE(graph.value(y).requires_grad);
+
+    ASSERT_NE(graph.value(running).producer, NO_NODE);
+    EXPECT_EQ(graph.node(graph.value(running).producer).op, Ops::LEAF.id);
+
+    EXPECT_TRUE(Graph::is_persistent(Lifetime::BUFFER));
+    EXPECT_EQ(std::string_view(Graph::lifetime_name(Lifetime::BUFFER)), "buffer");
+}
+
+/** @brief Tests that the persistent lifetimes are the five that outlive a step. */
+TEST(Unit_Ir, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
+{
+    for (Lifetime lifetime : {Lifetime::PARAMETER, Lifetime::GRADIENT, Lifetime::OPTIMIZER_STATE,
+                              Lifetime::INPUT, Lifetime::BUFFER})
+        EXPECT_TRUE(Graph::is_persistent(lifetime)) << Graph::lifetime_name(lifetime);
+
+    EXPECT_FALSE(Graph::is_persistent(Lifetime::ACTIVATION));
+    EXPECT_FALSE(Graph::is_persistent(Lifetime::SCRATCH));
+}
+
+/** @brief Tests that state_leaf returns the leaf bound to a state and NO_VALUE for any other. */
+TEST(Unit_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueId weight = builder.parameter(Shape{3}, "weight");
+    const ValueId running = builder.buffer(Shape{3}, "running_mean");
+
+    EXPECT_EQ(graph.state_leaf(StateId{7}), NO_VALUE);
+    EXPECT_TRUE(graph.state_leaves().empty());
+
+    graph.bind_state_leaf(StateId{7}, running);
+    graph.bind_state_leaf(StateId{5}, weight);
+
+    EXPECT_EQ(graph.state_leaf(StateId{7}), running);
+    EXPECT_EQ(graph.state_leaf(StateId{5}), weight);
+    EXPECT_EQ(graph.state_leaf(StateId{6}), NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(K_NO_STATE), NO_VALUE);
+
+    ASSERT_EQ(graph.state_leaves().size(), 2u);
+    EXPECT_EQ(graph.state_leaves()[0], std::make_pair(StateId{7}, running));
+    EXPECT_EQ(graph.state_leaves()[1], std::make_pair(StateId{5}, weight));
+}
+
+/** @brief Tests that a state binds one leaf and a leaf stands for one state, in one graph. */
+TEST(Unit_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueId first = builder.buffer(Shape{3}, "first");
+    const ValueId second = builder.buffer(Shape{3}, "second");
+
+    graph.bind_state_leaf(StateId{7}, first);
+
+    SA_EXPECT_ERROR(graph.bind_state_leaf(StateId{7}, second), "State 7", "already has leaf");
+    SA_EXPECT_ERROR(graph.bind_state_leaf(StateId{8}, first), "already stands for state 7");
+    SA_EXPECT_ERROR(graph.bind_state_leaf(K_NO_STATE, second), "no identity");
+    SA_EXPECT_ERROR(graph.bind_state_leaf(StateId{9}, ValueId{99}), "value 99", "does not exist");
+
+    // A refused binding records nothing, so the table still holds the first pair alone.
+    ASSERT_EQ(graph.state_leaves().size(), 1u);
+    EXPECT_EQ(graph.state_leaf(StateId{7}), first);
+    EXPECT_EQ(graph.state_leaf(StateId{8}), NO_VALUE);
+}
+
+/** @brief Tests that without_nodes keeps every value field and state leaf and holds no node. */
+TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, 3, 4, 4}, "x", DType::FLOAT64);
+    const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId weight = builder.parameter(Shape{2, 3}, "weight");
+    const ValueId running = builder.buffer(Shape{3}, "running", DType::HALF);
+    graph.bind_state_leaf(StateId{11}, weight);
+    graph.bind_state_leaf(StateId{12}, running);
+    graph.finalise();
+
+    const Graph::Graph stripped = graph.without_nodes();
+
+    EXPECT_EQ(stripped.node_count(), 0u);
+    ASSERT_EQ(stripped.value_count(), graph.value_count());
+
+    for (ValueId id = 0; id < static_cast<ValueId>(graph.value_count()); ++id)
+    {
+        const Graph::Value& before = graph.value(id);
+        const Graph::Value& after = stripped.value(id);
+
+        EXPECT_EQ(after.shape, before.shape) << "value " << id;
+        EXPECT_EQ(after.dtype, before.dtype) << "value " << id;
+        EXPECT_EQ(after.layout, before.layout) << "value " << id;
+        EXPECT_EQ(after.lifetime, before.lifetime) << "value " << id;
+        EXPECT_EQ(after.requires_grad, before.requires_grad) << "value " << id;
+        EXPECT_EQ(after.debug_name, before.debug_name) << "value " << id;
+        EXPECT_EQ(after.producer, NO_NODE) << "value " << id;
+    }
+
+    // The fixture holds both layouts, both gradient flags and three element types.
+    EXPECT_EQ(stripped.value(x_nchw).layout, Graph::TensorLayout::NCHW);
+    EXPECT_TRUE(stripped.value(weight).requires_grad);
+    EXPECT_EQ(stripped.value(running).dtype, DType::HALF);
+
+    EXPECT_EQ(stripped.state_leaves(), graph.state_leaves());
+    EXPECT_EQ(stripped.state_leaf(StateId{12}), running);
+
+    // The source graph is not changed by the copy.
+    EXPECT_NE(graph.value(x_nchw).producer, NO_NODE);
+    EXPECT_GT(graph.node_count(), 0u);
+}
+
+/** @brief Tests that a graph reports a refusal only once one was marked, and a copy keeps it. */
+TEST(Unit_Ir, ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes)
+{
+    Graph::Graph graph;
+    (void)graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
+
+    EXPECT_FALSE(graph.has_refusal());
+    EXPECT_FALSE(graph.without_nodes().has_refusal());
+
+    graph.mark_refused();
+
+    EXPECT_TRUE(graph.has_refusal());
+    EXPECT_TRUE(graph.without_nodes().has_refusal());
+}
+
+/** @brief Tests that get() draws one identity per holder and that two holders never share one. */
+TEST(Unit_Ir, StateIdentityDrawsOneIdentityPerHolder)
+{
+    StateIdentity first;
+    StateIdentity second;
+
+    EXPECT_EQ(first.peek(), K_NO_STATE);
+
+    const StateId drawn = first.get();
+    EXPECT_NE(drawn, K_NO_STATE);
+    EXPECT_EQ(first.get(), drawn);
+    EXPECT_EQ(first.peek(), drawn);
+
+    EXPECT_NE(second.get(), K_NO_STATE);
+    EXPECT_NE(second.get(), drawn);
+}
+
+/** @brief Tests that a copied holder is new state and never takes the source's identity. */
+TEST(Unit_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
+{
+    StateIdentity source;
+    const StateId drawn = source.get();
+
+    StateIdentity copied(source);
+    EXPECT_EQ(copied.peek(), K_NO_STATE);
+    EXPECT_NE(copied.get(), drawn);
+
+    StateIdentity assigned;
+    const StateId replaced = assigned.get();
+    assigned = source;
+    EXPECT_EQ(assigned.peek(), K_NO_STATE);
+    EXPECT_NE(assigned.get(), drawn);
+    EXPECT_NE(assigned.get(), replaced);
+
+    EXPECT_EQ(source.peek(), drawn);
+}
+
+/** @brief Tests that a move carries the identity to the target and leaves the source without. */
+TEST(Unit_Ir, AMovedStateIdentityCarriesItsIdentityAway)
+{
+    StateIdentity source;
+    const StateId drawn = source.get();
+
+    StateIdentity moved(std::move(source));
+    EXPECT_EQ(moved.peek(), drawn);
+    EXPECT_EQ(source.peek(), K_NO_STATE);
+
+    StateIdentity assigned;
+    (void)assigned.get();
+    assigned = std::move(moved);
+    EXPECT_EQ(assigned.peek(), drawn);
+    EXPECT_EQ(moved.peek(), K_NO_STATE);
 }
