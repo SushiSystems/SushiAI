@@ -9,6 +9,7 @@ the manual.
 | [Architecture](architecture/ARCHITECTURE.md) | The IR, autograd, memory planning, fusion, mixed precision, lowering and packaging |
 | [CLI guide](guides/CLI_GUIDE.md) | Every `sa` command and its options |
 | [Integration guide](guides/INTEGRATION.md) | Consuming SushiAI from another CMake project |
+| [FAQ](guides/FAQ.md) | The questions a newcomer asks, each answered from this manual |
 | [API reference](reference/API_REFERENCE.md) | The main page of the generated Doxygen site |
 | [Glossary](reference/GLOSSARY.md) | The words these documents use |
 | [Known issues](reference/KNOWN_ISSUES.md) | Defects that are recorded and not yet fixed |
