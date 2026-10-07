@@ -79,6 +79,26 @@ set(SUSHIAI_SOURCES
     detect/anchor_leaves.cpp
     detect/average_precision.cpp
 
+    imaging/affine.cpp
+    imaging/boxes.cpp
+    imaging/flip.cpp
+    imaging/hsv.cpp
+    imaging/image.cpp
+    imaging/labels.cpp
+    imaging/letterbox.cpp
+    imaging/mosaic.cpp
+    imaging/pipeline.cpp
+    imaging/random.cpp
+    imaging/raw_cache.cpp
+    imaging/resize.cpp
+    imaging/bilinear.cpp
+    imaging/dataset_partners.cpp
+    imaging/gray.cpp
+    imaging/label_set.cpp
+    imaging/polygon.cpp
+    imaging/recent_partners.cpp
+    imaging/rectangle.cpp
+
     eager/scope_trace.cpp
     eager/scope_partitioner.cpp
     eager/region_signature.cpp

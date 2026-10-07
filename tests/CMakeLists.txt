@@ -75,8 +75,25 @@ add_executable(sushiai_tests
     functional/unit/test_detect_boxes.cpp
     functional/unit/test_detect_postprocess.cpp
     functional/unit/test_elementwise_ops.cpp
+    functional/unit/test_imaging_affine.cpp
+    functional/unit/test_imaging_boxes.cpp
+    functional/unit/test_imaging_flip.cpp
+    functional/unit/test_imaging_hsv.cpp
+    functional/unit/test_imaging_image.cpp
+    functional/unit/test_imaging_labels.cpp
+    functional/unit/test_imaging_letterbox.cpp
+    functional/unit/test_imaging_mosaic.cpp
+    functional/unit/test_imaging_pipeline.cpp
+    functional/unit/test_imaging_random.cpp
+    functional/unit/test_imaging_raw_cache.cpp
+    functional/unit/test_imaging_resize.cpp
     functional/unit/test_loss_roots.cpp
     functional/unit/test_detect_average_precision.cpp
+    functional/unit/test_imaging_gray.cpp
+    functional/unit/test_imaging_label_set.cpp
+    functional/unit/test_imaging_partners.cpp
+    functional/unit/test_imaging_polygon.cpp
+    functional/unit/test_imaging_rectangle.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp
