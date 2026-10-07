@@ -354,7 +354,7 @@ changed is said where it applies.
 
 | File | Holds |
 | --- | --- |
-| `tools/contract/site_classes.tsv` | 549 rows, one per failure site of `include/`, `src/`, `apps/` and `examples/` |
+| `tools/contract/site_classes.tsv` | 588 rows, one per failure site of `include/`, `src/`, `apps/` and `examples/` (549 when the wave closed) |
 | `tools/contract/check_contract.py`, `README.md` | The ratchet, the two coverage rules, the table-shape rule and four notes |
 | `tools/naming/build_rename_map.py`, `rename_map.tsv` | The scanner and the map it wrote, 324 rows |
 | `tools/naming/apply_rename.py`, `README.md` | The token-level rename, with a dry run, a kind filter and the freeze check |
@@ -415,15 +415,58 @@ modules are as the SPEC counted them, once its comment lines are taken out.
   `output_features()` and from the `noexcept` `output_shape()` of SPEC 2.8 is not a one-token
   edit: the check has to move to where the stack is built.
 
+**The table after the model-graph work and the rulings.** The paragraphs above describe the
+table as wave 0 wrote it, with 549 rows. The model-graph work then changed the tree, and the
+engineer ruled on three questions. The table was brought in line with both on 2026-10-07 and
+holds 588 rows; the totals below are that table's.
+
+- 41 rows were added, one per `SA_THROW_IF` the model-graph work wrote into a file that existed
+  before it, where a new line keeps the file's contract: 24 in `src/config/model_config.cpp`, 6 in
+  `src/graph/builder.cpp` (`batchnorm_fold`), 4 in `include/SushiAI/graph/ir.hpp`
+  (`bind_state_leaf`), 2 in `include/SushiAI/graph/step_recorder.hpp`, 2 in
+  `src/nn/layer_registry.cpp` and 1 each in `include/SushiAI/nn/layers.hpp`,
+  `include/SushiAI/nn/module.hpp` and `src/autograd/differentiator.cpp`. 35 are content and a
+  status, one of them, the gradient of a buffer, under `handle_or_content`. The 6 of `Graph` and
+  `StepRecorderList` are preconditions and fatal.
+- 2 rows were removed. The id-preservation checks of `src/graph/cast_insertion.cpp` and
+  `src/graph/fusion.cpp` are no longer in the tree.
+- 122 line hints in 7 files were set to the lines the scanner finds now. The three older rows of
+  `model_config.cpp` also took the functions their sites moved to.
+- The scanner finds no `SA_THROW_IF` and no `throw` in a file the model-graph work created.
+- `hand_built_graph` left 76 rows. 28 checks in `GraphBuilder` emitters stay statuses. 35 fatal
+  rows stay fatal. 11 rows went from status to fatal: `Graph::prove_layout_uniformity`'s check on
+  a result's layout (`ir.hpp:495`), which still carries `layout_proof`, and ten rank, shape and
+  element-type checks of `src/graph/lowering.cpp` (`:466`, `:496`, `:510`, `:515`, `:819`, `:864`,
+  `:882`, `:1162`, `:1246`, `:1314`). An emitter or the fusion pass holds each of the ten already,
+  so they fire on a SushiAI defect or on a graph built by hand, and such a graph takes the
+  structure's contract. `src/autograd/differentiator.cpp:114` and `:256` stay statuses: the
+  builder alone reaches both, so the ruling does not apply to them.
+- `hand_built_plan` left 13 rows, all now precondition and fatal. `apply_affine:213` reads
+  `plan.output`, so `is_valid_size` is fatal there and a status in `src/imaging/image.cpp`.
+  `plan_mosaic:219` reads the centre of a `MosaicDraw`; the ruling names plans, and the row
+  treats the draw that `draw_mosaic` returns the same way.
+- `empty_stack` left 3 rows, all now precondition and fatal. The ruling puts the refusal where
+  the stack is built, as a status, and says the accessors of a stack that exists cannot fail. It
+  gives these three lines no mechanism of their own. The rows read what is left of the check as
+  the caller's contract; the wave that converts `LayerStack` may delete them instead, and it adds
+  the status to `build_layer_stack`. `src/config/model_config.cpp:487` already refuses a document
+  with no layers.
+- `tools/contract/README.md` says a new `SA_THROW_IF` is not answered by a row. These 41 sites
+  were given rows because the model-graph work's contract let an existing file keep its macro.
+  The ratchet counts from this table on.
+
 **Totals.**
 
 | Cause | Sites | | Mechanism | Sites |
 | --- | --- | --- | --- | --- |
-| user-content | 343 | | status | 385 |
-| outside | 42 | | fatal | 141 |
-| precondition | 90 | | unclassified | 23 |
-| invariant | 51 | | | |
+| user-content | 351 | | status | 393 |
+| outside | 42 | | fatal | 172 |
+| precondition | 112 | | unclassified | 23 |
+| invariant | 60 | | | |
 | unclassified | 23 | | | |
+
+The library holds 565 sites in 81 files: 563 `SA_THROW_IF(` calls and the 2 `throw` statements
+of `src/core/allocation.cpp`.
 
 Four rows carry a mechanism their cause does not predict, each by a line of the SPEC:
 `src/eager/scope_trace.cpp:71` and `:72` are content made fatal by D8(a);
@@ -432,23 +475,23 @@ both returned as statuses because SPEC 2.6 lists them under `make`.
 
 | Module | Sites | user-content | outside | precondition | invariant | Status | Fatal | In frozen files | With an open question |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| autograd | 26 | 15 | 0 | 6 | 5 | 15 | 11 | 0 | 11 |
-| config | 21 | 17 | 3 | 1 | 0 | 20 | 1 | 0 | 3 |
+| autograd | 27 | 16 | 0 | 6 | 5 | 16 | 11 | 0 | 7 |
+| config | 45 | 41 | 3 | 1 | 0 | 44 | 1 | 0 | 3 |
 | core | 15 | 3 | 2 | 8 | 2 | 5 | 10 | 0 | 11 |
 | data | 18 | 13 | 2 | 3 | 0 | 15 | 3 | 18 | 7 |
 | detect | 42 | 42 | 0 | 0 | 0 | 42 | 0 | 0 | 16 |
 | eager | 16 | 2 | 0 | 12 | 2 | 0 | 16 | 0 | 6 |
-| graph, `lowering.cpp` and `arena.cpp` | 59 | 11 | 0 | 14 | 34 | 11 | 48 | 57 | 44 |
-| graph, host units | 118 | 93 | 0 | 22 | 3 | 93 | 25 | 0 | 40 |
-| imaging | 89 | 65 | 14 | 10 | 0 | 79 | 10 | 0 | 43 |
+| graph, `lowering.cpp` and `arena.cpp` | 59 | 1 | 0 | 14 | 44 | 1 | 58 | 57 | 6 |
+| graph, host units | 128 | 98 | 0 | 28 | 2 | 98 | 30 | 0 | 10 |
+| imaging | 89 | 52 | 14 | 23 | 0 | 66 | 23 | 0 | 33 |
 | io | 30 | 2 | 21 | 5 | 2 | 23 | 7 | 0 | 25 |
-| nn | 44 | 42 | 0 | 2 | 0 | 42 | 2 | 4 | 7 |
+| nn | 48 | 43 | 0 | 5 | 0 | 43 | 5 | 4 | 4 |
 | optim | 32 | 23 | 0 | 6 | 3 | 24 | 8 | 32 | 13 |
 | train | 16 | 15 | 0 | 1 | 0 | 16 | 0 | 16 | 7 |
-| Library | 526 | 343 | 42 | 90 | 51 | 385 | 141 | 127 | 233 |
+| Library | 565 | 351 | 42 | 112 | 60 | 393 | 172 | 127 | 148 |
 | apps | 5 | unclassified | | | | | | 0 | 0 |
 | examples | 18 | unclassified | | | | | | 0 | 0 |
-| Total | 549 | | | | | | | 127 | 233 |
+| Total | 588 | | | | | | | 127 | 148 |
 
 ### Waves 3 to 7 in numbers
 
@@ -457,28 +500,29 @@ converts with its file. Status sites follow the module order of SPEC section 5.
 
 | Module | Wave 3, fatal | Of those, held by a question | Wave 4, leaf statuses | Wave 5, trace surface | Wave 6, engine lane | Wave 7 |
 | --- | --- | --- | --- | --- | --- | --- |
-| autograd | 11 | 3 | | 15 | | |
-| config | 1 | 1 | 20 | | | |
+| autograd | 11 | 0 | | 16 | | |
+| config | 1 | 1 | 44 | | | |
 | core | 10 | 6 | 5 | | | |
 | data | | | 18 (15 status, 3 fatal; `src/data/` is frozen today) | | | |
 | detect | | | 42 | | | |
 | eager | 16 | 2 | | | | |
 | graph, `arena.cpp` | 2 | 1 | | | | |
-| graph, `lowering.cpp` | | | | | 57 (11 status, 46 fatal) | |
-| graph, host units | 25 | 5 | | 93 | | |
-| imaging | 10 | 1 | 79 | | | |
+| graph, `lowering.cpp` | | | | | 57 (1 status, 56 fatal) | |
+| graph, host units | 30 | 4 | | 98 | | |
+| imaging | 23 | 1 | 66 | | | |
 | io | 7 | 1 | 23 | | | |
-| nn | 2 | 0 | | 38 | 4 (`init.cpp`) | |
+| nn | 5 | 0 | | 39 | 4 (`init.cpp`) | |
 | optim | | | | | 32 (24 status, 8 fatal) | |
 | train | | | | 4 (`objective.cpp`; `src/train/` is frozen today) | 12 (`trainer.cpp`) | |
 | apps | | | | | | 5 |
 | examples | | | | | | 18 |
-| Total | 84 | 20 | 187 | 150 | 105 | 23 |
+| Total | 105 | 16 | 198 | 157 | 105 | 23 |
 
-Wave 3 is 84 one-token edits in 8 modules. 64 of them can be converted today; 20
-carry an open question that could change their mechanism and wait for its answer. 57 further
-fatal sites wait for their frozen files, 34 of them behind such a question. Eager is finished by
-wave 3: none of its 16 sites is a status.
+Wave 3 is 105 edits in 8 modules. 89 of them can be converted today; 16 carry an open question
+that could change their mechanism and wait for its answer. Not all 105 are one-token edits: the
+13 imaging rows and the 3 `LayerStack` rows that the rulings made fatal also move a refusal to
+where a pipeline or a stack is built. 67 further fatal sites wait for their frozen files, 6 of
+them behind such a question. Eager is finished by wave 3: none of its 16 sites is a status.
 
 ### Doubtful sites
 
@@ -487,22 +531,22 @@ the sixteen rows named above. Most doubts reduce to a few questions for the owne
 engineer, so they are grouped by the question that decides them.
 
 Each question has a key, and the `open_question` cell of every row it touches holds that key. A
-row with two doubts holds both keys, joined by `;`. 233 rows carry a key, under 54 keys. A key
+row with two doubts holds both keys, joined by `;`. 148 rows carry a key, under 52 keys. A key
 that starts with `label_` questions the cause label, the status code, the `function` cell or how
-the row was read, and leaves the mechanism settled: 57 rows carry only such keys. The other 176
-rows, 54 of them fatal, wait for an answer before a script converts them. `check_contract.py`
+the row was read, and leaves the mechanism settled: 60 rows carry only such keys. The other 88
+rows, 22 of them fatal, wait for an answer before a script converts them. The table after this
+one gives the row count of each key. `check_contract.py`
 prints one note per key with its row count. The cell is emptied by hand when the question is
 answered.
 
 | Key | Sites | Row says | Decided by |
 | --- | --- | --- | --- |
 | `shape_make_coverage` | `include/SushiAI/core/shape.hpp:56`, `:61`, `:73`, `:78` | fatal, by SPEC 2.6 | Whether every data-sourced `Shape{` goes through `Shape::make`. The list of the 35 `Shape{` lines decides it and was not produced in this wave. Known callers with data: `src/io/checkpoint_format.cpp:226`, `include/SushiAI/io/checkpoint.hpp:96` |
-| `hand_built_graph` | `include/SushiAI/graph/ir.hpp:406`; `src/graph/lowering.cpp:466`, `:819`, `:864`, `:882`, `:1162`, `:1246`, `:1314`, `:496`, `:510`, `:515`; `src/autograd/differentiator.cpp:114`, `:245`; the backward and `_with_extents` emitters of `src/graph/builder.cpp` (`:420`, `:576-579`, `:609-621`, `:704-708`, `:780-794`, `:808-814`, `:828-834`, `:852-858`, `:1014-1033`) | status | Whether a graph built by hand through the public `Graph::add_node` is a supported description. Through the builder alone each of these fires only on a SushiAI defect and would be fatal |
-| `hand_built_graph` | `src/graph/lowering.cpp:306`, `:314`, `:440`, `:448`, `:462`, `:489`, `:638`, `:719`, `:859`, `:896`, `:919`, `:932`, `:957`, `:1016`, `:1034`, `:1052`, `:1068`, `:1084`, `:1098`, `:1112`, `:1127`, `:1142`, `:1154`, `:1174`, `:1195`, `:1227`, `:1241`, `:1308`; `src/graph/cast_insertion.cpp:77`, `:184`; `src/graph/fusion.cpp:574`; `src/graph/memory_plan.cpp:278`; `src/autograd/differentiator.cpp:73`; `src/autograd/rules/spatial.cpp:60`, `:172` | fatal | The same question. If a hand-built graph is a description, SPEC 2.9's reasoning makes them statuses. An arity check inside `add_node` would make the arity family unreachable |
-| `layout_proof` | `include/SushiAI/graph/ir.hpp:400`, `:406` | status | `prove_layout_uniformity` also runs inside `insert_casts` as a proof of the pass's own output. Either one status-returning proof and the pass turns a failure into `SA_FATAL`, or `:406` is fatal outright |
-| `cast_into_return` | `src/graph/builder.cpp:484`, `:487` | status | `cast_into` returns `void` and its one caller is the cast pass. It needs a `Status` return, and the pass decides what a failure is |
-| `op_choice` | `src/graph/builder.cpp:413` | fatal | Whether the choice of an `OpID` is part of the description. The function returns `Traced` either way |
-| `branch_list_source` | `src/graph/builder.cpp:870` | status | Whether a branch list can arrive from a model document (stage 3 multi-input layers) |
+| `layout_proof` | `include/SushiAI/graph/ir.hpp:489`, `:495` | `:489` status, `:495` fatal | `prove_layout_uniformity` also runs inside `insert_casts` as a proof of the pass's own output. Either one status-returning proof and the pass turns a failure into `SA_FATAL`, or both checks are fatal outright. The `hand_built_graph` ruling made `:495` fatal; operands of two layouts reach `:489` through the builder, so it stays a status |
+| `bind_state_leaf_return` | `include/SushiAI/graph/ir.hpp:409`, `:413` | fatal | Whether `Graph::bind_state_leaf` returns `Status` for a state or a value that is already bound, as the model-graph SPEC declares it. SPEC 2.1 reads both as object state inside `Graph`, which is fatal. The function is `void` today, and its callers `Buffer::read` and `Parameter::declare_described` return a `ValueId` |
+| `cast_into_return` | `src/graph/builder.cpp:492`, `:495` | status | `cast_into` returns `void` and its one caller is the cast pass. It needs a `Status` return, and the pass decides what a failure is |
+| `op_choice` | `src/graph/builder.cpp:421` | fatal | Whether the choice of an `OpID` is part of the description. The function returns `Traced` either way |
+| `branch_list_source` | `src/graph/builder.cpp:878` | status | Whether a branch list can arrive from a model document (stage 3 multi-input layers) |
 | `precision_policy_extension` | `src/graph/cast_insertion.cpp:91` | status | Whether a user-written precision policy is a supported extension point. If not, it is an invariant once `MixedPrecisionPolicy::make` checks its type |
 | `plan_alignment_source` | `src/graph/memory_plan.cpp:248` | status | Who fills `PlanOptions::alignment`; `lowering.cpp` and `compiled_step.cpp` were not read for it |
 | `bound_tensor_rule` | `src/graph/lowering.cpp:726` | status | A rule for a bound tensor that disagrees with its `Value`; `TensorPool::bind` checks none today |
@@ -522,10 +566,9 @@ answered.
 | `label_cause_outside_or_content` | `include/SushiAI/io/checkpoint.hpp:157`, `:160`, `:166`, `:170`, `:181`; `src/data/dataset.cpp:305`, `:308`, `:311`, `:342`, `:358`; `src/imaging/dataset_partners.cpp:41`; `src/imaging/recent_partners.cpp:43`; `src/imaging/pipeline.cpp:180`, `:191`, `:253`; `src/imaging/rectangle.cpp:86`; `src/imaging/raw_cache.cpp:156`, `:193` | status | The cause label only: `outside` or `user-content`. The four causes have no slot for SPEC 2.3's `Incompatible` |
 | `label_read_without_parse` | `src/io/checkpoint_format.cpp:172-239`, `include/SushiAI/io/checkpoint.hpp:76-181` | as listed | Classified by reading only; `checkpoint.hpp` calls the engine and does not parse today |
 | `gradcheck_surface` | `src/autograd/gradcheck.cpp:94`, `:140`, `:141` | status | Whether gradcheck is public surface or a test utility whose misuse may abort. A status changes both return types to `Result<GradCheckResult>` |
-| `handle_or_content` | `src/autograd/differentiator.cpp:182` | status | Read as a wrong handle it would be fatal; the id is valid, so SPEC 2.1 points to content |
+| `handle_or_content` | `src/autograd/differentiator.cpp:138`, `:193` | status | Read as a wrong handle each would be fatal; the id is valid, so SPEC 2.1 points to content. `:138` is a request for the gradient of a buffer, `:193` a secondary result passed as the loss |
 | `saved_statistics_grad` | `src/autograd/rules/norm.cpp:37` | status | Whether a value computed from batch norm's saved statistics can carry `requires_grad` through the builder; `Graph::add_node`'s propagation was not read |
 | `init_fans` | `src/nn/init.cpp:51`, `:58`, `:68`, `:79` | status | Through `Detail::apply_initializer` the fans are already checked, so there they are invariants. The functions return `void` and the file is frozen. The Xavier condition is `fan_in + fan_out <= 0`, so one negative fan passes it |
-| `empty_stack` | `src/nn/layer_stack.cpp:46`, `:64`, `:71` | status, all three | Whether "holds no layers" is content of the model or state of the container. The rows follow D1 and call it content. `output_features()` returns `int64_t` and SPEC 2.8 keeps `output_shape()` `noexcept`, so the check then moves to where the stack is built. If the engineer calls it container state, all three become fatal |
 | `make_by_spec_2_6` | `src/optim/step_scalars.cpp:40`; `src/train/trainer.cpp:184` | status, by SPEC 2.6 | Whether `StepScalars::make` exists for this check or only for the allocation; whether an unset `StepSpec` field is a bad handle or an incomplete description |
 | `loss_scaler_surface` | `src/optim/loss_scaler.cpp:124`, `:127`, `:133` | status | Whether users construct a `LossScaler` over a tensor of their own, and whether a model with no parameters is refused earlier |
 | `separate_kernel_source` | `src/optim/optimizer.cpp:62`, `:69`; `src/train/trainer.cpp:132` | status | Whether the `SEPARATE` kernel with loss scaling, or with `IN_PLAN`, can be reached from a JSON document. A status changes `set_loss_scaler` from `void` to `Status` |
@@ -543,7 +586,6 @@ answered.
 | `top_k_public` | `src/detect/top_k.cpp:45` | status | Whether `top_k.hpp` stays public; its two callers already bound `k` |
 | `assigner_make` | `src/detect/assigner.cpp:98`, `:101`; `assigner_config.cpp:63` | status | `TaskAlignedAssigner` is not in SPEC 2.6's list of types that get `make`; the same treatment is assumed |
 | `image_index_field` | `src/detect/ground_truth.cpp:60` | status | An image index is a field of a label row here, not an id SushiAI issued |
-| `hand_built_plan` | `src/imaging/affine.cpp:66`, `:70`, `:73`, `:77`, `:210`, `:213`; `flip.cpp:59`; `letterbox.cpp:120`, `:123`; `mosaic.cpp:125`, `:134`, `:142`, `:219` | status | Whether a plan is a description or a handle. The rows follow SPEC 2.1, which reads the check alone: extents, matrix values and window geometry are content. If the owner rules that a plan is valid only as `plan_affine`, `plan_letterbox`, `plan_mosaic` or `draw_mosaic` returned it, all thirteen become fatal. As statuses they change the return type of `apply_affine`, `apply_flip`, `apply_letterbox`, `apply_mosaic` and `plan_mosaic` |
 | `image_view_handle` | `src/imaging/image.cpp:101`, `:104` | status | Whether an `ImageView` is a handle. `check_source` holds two fatal checks beside them, so one function would return a status and abort |
 | `image_constructor` | `src/imaging/image.cpp:49`, `:51` | status | The `Image` constructor cannot return a status; the classifier did not read SPEC 2.6 for what it becomes |
 | `label_set_source` | `src/imaging/label_set.cpp:38` | fatal | Whether a user builds a `LabelSet` from three lists of their own; `label_set.hpp` was not read |
@@ -552,6 +594,23 @@ answered.
 | `sample_source_contract` | `src/imaging/pipeline.cpp:83`, `:85` | status | Whether the `SampleSource` contract promises an image for every index below `size()` |
 | `check_layout_two_paths` | `src/imaging/raw_cache.cpp:87`, `:89`, `:91`, `:97` | status | `check_layout` serves the read path and the write path; on the write path `:91` fires only on a programmer's misuse |
 | `label_function_from_message` | `src/imaging/affine.cpp:166-213`, `flip.cpp:40-59`, `gray.cpp:39`, `polygon.cpp:192`, `resize.cpp:59`, `:69` | as listed | The `function` cell is taken from the message prefix; the bodies were not opened |
+
+Open questions that remain, with the rows each key holds:
+
+| Rows | Keys |
+| --- | --- |
+| 20 | `label_read_without_parse` |
+| 18 | `label_cause_outside_or_content` |
+| 13 | `label_function_from_message` |
+| 12 | `label_cause_public_surface` |
+| 9 | `output_span` |
+| 4 | `check_layout_two_paths`, `init_fans`, `shape_make_coverage`, `slot_validation_home` |
+| 3 | `assigner_make`, `bound_tensor_layout`, `dtype_check_once`, `gradcheck_surface`, `label_status_code`, `loss_scaler_surface`, `separate_kernel_source` |
+| 2 | `assignment_source`, `bind_state_leaf_return`, `cast_into_return`, `handle_or_content`, `image_constructor`, `image_view_handle`, `layout_proof`, `make_by_spec_2_6`, `options_accessor`, `raw_span_overload`, `sample_source_contract` |
+| 1 | `bound_tensor_rule`, `branch_list_source`, `constant_like_origin`, `declare_return`, `empty_step`, `epoch_source`, `foreign_plan`, `format_rank_limit`, `image_index_field`, `label_check_order`, `label_set_source`, `like_source`, `op_choice`, `plan_alignment_source`, `platform_size`, `policy_mismatch_source`, `precision_policy_extension`, `resampled_count_zero`, `saved_statistics_grad`, `selector_source`, `tensor_count_limit`, `top_k_public`, `value_object_shape`, `writer_public`, `zero_parameter_count` |
+
+The counts sum to 156 over 148 rows, because eight rows carry two keys. `hand_built_graph` (76
+rows), `hand_built_plan` (13) and `empty_stack` (3) are answered, and no row carries them.
 
 ### The rename map
 
@@ -679,8 +738,9 @@ run.
 ## Engineer's rulings on the open questions
 
 The owner left the remaining decisions to the engineer on 2026-10-07. These three settle the
-largest groups of rows in `tools/contract/site_classes.tsv`; the rows are updated when wave 3 is
-planned, not here.
+largest groups of rows in `tools/contract/site_classes.tsv`. The table carries them: each of
+the 92 rows has its mechanism, an empty key and a reason that names its ruling. "The table after
+the model-graph work and the rulings" under Wave 0 lists what changed.
 
 - **`hand_built_graph`.** `Graph` is the structure and `GraphBuilder` is where a description
   enters. A check in `Graph::add_value`, `add_node` or `insert_node` reads ids and the
