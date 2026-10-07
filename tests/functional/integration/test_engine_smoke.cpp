@@ -30,6 +30,9 @@
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
+/** @brief Shortens the SushiBLAS namespace. */
+namespace sb = SushiBLAS;
+
 // SushiAI links and runs one SushiBLAS op end to end; see tests/functional/integration/README.md.
 TEST(Integration_EngineSmoke, AxpyThroughSushiBLAS)
 {

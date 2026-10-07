@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/graph/fusion.hpp>
 

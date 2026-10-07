@@ -42,6 +42,9 @@
 #include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+/** @brief Shortens the SushiBLAS namespace. */
+namespace sb = SushiBLAS;
+
 namespace
 {
     /** @brief Selects the update rule the demo trains with. */

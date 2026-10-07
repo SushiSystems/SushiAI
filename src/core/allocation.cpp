@@ -186,10 +186,10 @@ namespace SushiAI
 
         const std::size_t bytes = static_cast<std::size_t>(shape.num_elements()) * element;
 
-        SA_THROW_IF(byte_offset + bytes > arena->size_bytes,
+        SA_THROW_IF(byte_offset + bytes > arena->size_bytes(),
                     "A {} {} view at byte {} needs {} bytes and would run past the end of a "
                     "{} byte arena",
-                    dtype_name(dtype), shape.to_string(), byte_offset, bytes, arena->size_bytes);
+                    dtype_name(dtype), shape.to_string(), byte_offset, bytes, arena->size_bytes());
 
         return SushiBLAS::Tensor(arena,
                                  SushiRuntime::span<const int64_t>(shape.data(),

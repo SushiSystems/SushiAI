@@ -33,6 +33,9 @@
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
+/** @brief Shortens the SushiBLAS namespace. */
+namespace sb = SushiBLAS;
+
 /** @brief Runs the example and returns its exit code. */
 int main()
 {
