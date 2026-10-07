@@ -16,6 +16,7 @@ PROJECT_NUMBER         = "v1 (unreleased)"
 OUTPUT_DIRECTORY       = build/docs/api-site
 HTML_OUTPUT            = html
 GENERATE_HTML          = YES
+GENERATE_XML           = YES
 GENERATE_LATEX         = NO
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO

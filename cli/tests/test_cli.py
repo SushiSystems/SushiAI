@@ -18,12 +18,25 @@ from typer.testing import CliRunner
 from sushicore.root_options import version_line
 from sushiai import cli
 from sushiai import console as console_module
+from sushiai.services import project
 
 K_VISIBLE_COMMANDS = [
-    "build", "clean", "config", "demo mlp", "docs", "doctor", "env", "inference", "link",
-    "run", "setup", "test", "train", "unlink",
+    "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "inference",
+    "link", "run", "setup", "test", "train", "unlink",
 ]
 K_BROKEN_TOML = "tool = [\n"
+
+
+def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_path):
+    """`sa docs` still builds the reference, and `sa docs bundle` asks for a release."""
+    monkeypatch.setattr(project, "doxygen", lambda: 6)
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
+    runner = CliRunner()
+    assert runner.invoke(cli.app, ["docs"]).exit_code == 6
+    assert runner.invoke(cli.app, ["doxygen"]).exit_code == 6
+    missing = runner.invoke(cli.app, ["docs", "bundle"])
+    assert missing.exit_code == 2
+    assert "--release" in missing.output
 
 
 @pytest.fixture
