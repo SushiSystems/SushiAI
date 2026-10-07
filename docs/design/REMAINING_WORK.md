@@ -5,6 +5,76 @@ a defect that exists today is in [`KNOWN_ISSUES.md`](../reference/KNOWN_ISSUES.m
 behind the library items is in [`ROADMAP.md`](ROADMAP.md) and
 [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md).
 
+## What the owner's build must confirm
+
+Builds and test runs have been off since 2026-10-07, so everything written since then was checked
+by reading and by single-file syntax checks only. The first build has to settle:
+
+- **The tree compiles and links.** The library and test binaries in `build/` are from 2026-08-09.
+- **The `No kernel named` failure.** The test logs of 2026-09-16 and later show nearly every test
+  failing with a SYCL "No kernel named" error; no document names the cause (stale binary, device
+  selection or kernel bundle).
+- **The new unit suites**: the eager units, provenance, the eight layers, the layer registry and
+  the changed layer stack, module, config and spatial shape cases.
+- **The pinned references.** SushiBLAS reseeds by rewinding its counter and draws four values per
+  Philox block, so `test_learning_curve.cpp`, `test_determinism.cpp` and the demo transcript may
+  have moved.
+- **A convolution step on a device**, and the first `sa train examples/mnist_cnn/train.json`. The
+  list is in `docs/agent/2026_10_07_CV_CLOSE/SPEC.md` section 4.
+
+## SushiBLAS v0.1.0 migration
+
+SushiBLAS removes the engine facades, makes every operation take a `TaskRecorder` and removes
+`Engine::get_graph()`. Its design is in the sushiblas repository under
+`docs/agent/2026_10_07_V010/`.
+
+- **Migrate the call sites**, about 130 in `src/`, most of them in `src/graph/lowering.cpp`.
+- **Split the lowering into per-domain tables in the same pass**, the shape the backward rules
+  have, and move `TensorPool` to its own header (estate audit findings C1 and C3).
+- **Own the task graph in `CompiledStep`**, since the engine no longer hands one out.
+- **Move the loss-scale factor to a declared operand** once the caller-functor seams take one.
+- **State what the gradient check's reference mode proves.** The host reference path of v0.1.0
+  shares the element functor with the SYCL path, so it separates launch and indexing errors and
+  not an error in the functor's arithmetic.
+
+## Eager front end
+
+The design is `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md`. The host-lane units exist; nothing
+executes a partition.
+
+- **`Session`, `Step`, `StepExecutor`, `RegionExecutor`, `RegionEmitter`**, after the migration.
+- **Match a boundary value with its storage of the previous step**, so a region survives the
+  rebuild of the region that feeds it.
+- **Measure the host cost of a step whose structure did not change**, and of renumbering.
+- **`Scope`'s destructor can throw** through `ScopeTrace::close()`.
+
+## Convolutional networks
+
+- **Batch normalisation**: a non-trainable `Buffer`, training and evaluation modes, a ones
+  initialiser and the running-statistics update (`BATCHNORM_UPDATE_STATS` has an identity and no
+  emitter or lowering).
+- **Layers with more than one input**: `Concat`, a residual block, named children.
+- **A rank-4 input leaf**, so images need no `Unflatten` layer.
+- **Asymmetric padding in the layers and the model file.** The builder's `_with_extents` emitters
+  express it; `Conv2d`, the pools and the `padding` key do not.
+- **Make a contiguous `RESHAPE` a view in the lowering.** It copies today, so each step copies
+  every convolution kernel and its gradient.
+- **One home for the layer-name prefix on a refused window**: `Conv2d`, both pools and
+  `Upsample2d` each catch and re-throw the builder's message, and the two pools hold the same
+  `fit_window`.
+- **One order for setting and rank checks across the layers**; it needs the geometry check of
+  `window_extents` as its own function.
+- **The leaky slope check compares in double**, so a slope that narrows to 0 or 1 in float32
+  passes.
+- **Call `rematerialise_im2col` from `build_graph`.**
+- **The ResNet-18 on CIFAR-10 gate** of the August design, with its loader and augmentation.
+
+## YOLO26
+
+The requirements map is `docs/agent/2026_10_07_YOLO26/SPEC.md`, with the owner's rulings in its
+section 8 and the staged plan in section 7. Nothing is implemented. The reference exporter is
+`tools/reference/export_yolo26_reference.py`.
+
 ## Memory planning
 
 - **Pack the lowering's scratch.** `MemoryPlan::build` packs graph IR values into arenas.
@@ -85,6 +155,13 @@ v1, to revisit for PINN and GNN work.
   the prose of `ARCHITECTURE.md` sections 1 to 6, or the flag tables of `CLI_GUIDE.md`.
 
 ## Layout, tools and release
+
+- **Let CI reach the siblings.** SushiRuntime and SushiBLAS are private and the workflow has no
+  token, so the functional job has never compiled a SushiAI source
+  (`.github/workflows/ci.yml`).
+- **`Shape::hash` starts from 1469598103934665603**; the 64-bit FNV-1a offset basis is
+  14695981039346656037, one digit longer (`include/SushiAI/core/shape.hpp`).
+- **Release readiness** is assessed in `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md`.
 
 - **Declare the tiers.** `K_TIER_ORDER` in `tools/layering/check_layering.py` is empty, and the
   checker looks for `modules/<tier>/` and `source/`, which this tree does not have.

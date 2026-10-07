@@ -1,9 +1,9 @@
 # apps
 
 The two drivers behind `sushiai train` and `sushiai inference`. Both read JSON configuration
-and name no layer type and no dataset type; [`examples/heavy_mlp/`](../examples/heavy_mlp/README.md)
-holds a configuration to run them with, and
-[`docs/guides/CLI_GUIDE.md`](../docs/guides/CLI_GUIDE.md) documents the schema.
+and name no layer type and no dataset type. [`examples/heavy_mlp/`](../examples/heavy_mlp/README.md)
+and [`examples/mnist_cnn/`](../examples/mnist_cnn/README.md) each hold a configuration to run
+them with, and [`docs/guides/CLI_GUIDE.md`](../docs/guides/CLI_GUIDE.md) documents the schema.
 
 | File | Command |
 | --- | --- |
@@ -18,12 +18,14 @@ The sections below hold the reasoning that the source files cite.
 
 The driver is written once and does not change as the library grows. It names no layer type,
 no loss, no dataset and no optimizer. Each of those arrives through a registry lookup keyed
-by a string out of a JSON file, so adding a convolution, a detection loss or a COCO reader is
-a table row and a factory function in the library, and `train.cpp` stays as it is.
+by a string out of a JSON file, so adding a layer, a detection loss or a COCO reader is a
+table row and a factory function in the library, and `train.cpp` stays as it is. The
+`conv2d` row of `NN::LAYER_REGISTRY` and the `mnist` row of `Data::DATASET_REGISTRY` are
+rows of that kind.
 
-The property can be checked: search the file for `Linear`, `GELU`, `CrossEntropy`, `AdamW`,
-`SGD`, `Rings` or `Sequential` and there is nothing to find. If an edit adds one, the driver
-has stopped being what the config-driven design set out to build.
+The property can be checked: search the file for `Linear`, `GELU`, `Conv2d`, `CrossEntropy`,
+`AdamW`, `SGD`, `Rings`, `Mnist` or `Sequential` and there is nothing to find. If an edit
+adds one, the driver has stopped being what the config-driven design set out to build.
 
 ### Why it takes no flags
 

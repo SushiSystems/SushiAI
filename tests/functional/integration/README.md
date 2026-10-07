@@ -566,6 +566,52 @@ The dataset draws from a host RNG and not from the engine's Philox stream, so re
 is a property of the seed alone. The device stream mixes in a monotonic offset counter, which
 is why `dataset.hpp` warns about `set_seed`.
 
+### The mnist cases
+
+The six cases below cover the "mnist" row of `Data::DATASET_REGISTRY` and its factory,
+`Data::make_mnist` in `src/data/dataset.cpp`. None of them needs the IDX files. Each asks for
+the directory `sushiai_absent_mnist`, which does not exist, or omits the directory, so every
+call ends in an error and the case asserts what the message contains. Loading the files is
+not covered here.
+
+### TheDatasetRegistryListsMnist
+
+A search of `Data::DATASET_REGISTRY` finds an entry whose type is "mnist". The message for
+the unknown type "coco" contains "'mnist'", so the row also reaches the list a user is shown.
+
+### MnistRefusesADirectoryWithoutTheFiles
+
+`make_dataset` for "mnist" with an absent directory throws. The message contains the context
+"data", the directory, "MNIST train split", the image path followed by ", labels", and all
+four file names: `train-images-idx3-ubyte`, `train-labels-idx1-ubyte`,
+`t10k-images-idx3-ubyte` and `t10k-labels-idx1-ubyte`. The split defaults to "train" when the
+key is absent. `Data::try_load_mnist` returns null for absent files, because the demo falls
+back to synthetic data; a configuration file that names "mnist" has no fallback, so the
+factory turns the null into this error.
+
+### MnistTestSplitLooksForTheT10kFiles
+
+With `"split": "test"` the message contains "MNIST test split" and
+"t10k-images-idx3-ubyte, labels", so the split key selects the file pair the loader looks
+for.
+
+### MnistRequiresADirectory
+
+An object with a split and no "directory" throws with a message containing "data", "has no"
+and "'directory'". The factory does not fall back to the default directory of
+`Data::MnistOptions`.
+
+### AnUnknownMnistKeyIsRejectedByItsOwnFactory
+
+The key "batch_sizes" is refused with a message containing "data", "'batch_sizes'" and
+"'batch_size'". The directory in the same object is absent, and the message is the one about
+the key, so the factory checks its keys before it looks for a file.
+
+### MnistRefusesASplitItDoesNotKnow
+
+`"split": "validation"` throws with a message containing "data", "'split'", "'validation'",
+"'train'" and "'test'".
+
 ### TheOptimizerRegistryBuildsBothRulesFromAConfigValue
 
 The test passes one real parameter and gradient pair, so the optimizers allocate their state

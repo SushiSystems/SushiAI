@@ -334,6 +334,9 @@ sushiai inference  examples/heavy_mlp/model.json \
 these work under either name; they are spelled `sushiai` here because that is
 how the design document names them.
 
+[`examples/mnist_cnn/`](../../examples/mnist_cnn/README.md) holds a second set of the three
+files, for a convolutional network on MNIST. Its README says where the IDX files go.
+
 ### What the two commands are for
 
 A model's architecture lives in a JSON file rather than in the C++ type
@@ -341,7 +344,7 @@ system, and these two drivers consume it. The point is not convenience: it is
 that `apps/train.cpp` contains **no layer, loss, dataset or optimizer type
 name** and therefore never has to be edited as the library grows. Every one of
 those arrives through a constant registry table keyed by a string out of the
-configuration, so adding a convolution or a detection loss is a table row and
+configuration, so adding a layer type or a detection loss is a table row and
 a factory function in the library.
 
 ### The three documents
@@ -392,7 +395,50 @@ closes a way of being silently wrong:
 - **Relative paths resolve against the configuration file's own directory**,
   not your working directory — so `sushiai train examples/heavy_mlp/train.json`
   works from the repository root and a configuration directory can be moved
-  without editing what is inside it.
+  without editing what is inside it. This holds for `model` and `checkpoint`.
+  The `data` block is passed to its factory as written, so the `directory` of
+  an `mnist` dataset resolves against the working directory of the process.
+
+### Layer types
+
+`NN::LAYER_REGISTRY` in `include/SushiAI/nn/layer_registry.hpp` holds thirteen
+rows. The shapes below are per sample and leave out the batch axis. The chain
+starts at `[input.features]`, and each layer receives the shape the layer
+before it reports.
+
+| `type` | Keys | Input | Output |
+|---|---|---|---|
+| `linear` | `units` (required, positive), `use_bias` (default `true`) | `[features]` | `[units]` |
+| `gelu`, `relu`, `tanh`, `sigmoid` | none | any shape | the same shape |
+| `leaky_relu` | `slope` (default `0.01`, inside the open range 0 to 1) | any shape | the same shape |
+| `unflatten` | `height`, `width`, `channels` (all required) | `[height * width * channels]` | `[height, width, channels]` |
+| `conv2d` | `filters`, `kernel` (required); `stride` (default `1`), `padding` (default `0`), `dilation` (default `1`), `use_bias` (default `true`) | `[H, W, C]` | `[out_h, out_w, filters]` |
+| `maxpool2d`, `avgpool2d` | `kernel` (required); `stride` (default: the kernel), `padding` (default `0`) | `[H, W, C]` | `[out_h, out_w, C]` |
+| `global_avgpool` | none | `[H, W, C]` | `[C]` |
+| `flatten` | none | any shape | `[element count]` |
+| `upsample` | `scale` (default `2`, at least `1`) | `[H, W, C]` | `[H * scale, W * scale, C]` |
+
+`kernel`, `stride`, `padding` and `dilation` each take an integer, which sets
+both axes, or a two-entry `[h, w]` array. A padding applies to both sides of
+its axis. A convolution reads its input channel count from the shape before
+it, so there is no key for it.
+
+Images enter a model flat. A model that convolves starts with `unflatten`,
+and a `linear` layer after an image-shaped layer needs a `flatten` before it.
+The factories refuse both mistakes and name the missing layer.
+
+### Dataset types
+
+`Data::DATASET_REGISTRY` in `include/SushiAI/data/dataset.hpp` holds two rows.
+
+| `type` | Keys |
+|---|---|
+| `rings` | `batch_size` (default `64`), `batches` (`64`), `classes` (`4`), `distractors` (`4`), `ring_width` (`1.0`), `position_noise` (`0.12`), `seed`; all optional |
+| `mnist` | `directory` (required); `split` (`"train"` or `"test"`, default `"train"`), `batch_size` (default `64`), `max_samples` (default `4096`; `0` loads every sample) |
+
+`mnist` reads the four uncompressed IDX files under their original names and
+stops with an error that names them when the split's two files are not in
+`directory`.
 
 ### Why inference takes its data as an argument
 
