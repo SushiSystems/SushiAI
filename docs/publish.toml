@@ -3,6 +3,7 @@ title = "SushiAI"
 summary = "The AI/ML head of the SushiStack: a C++17 library with a graph-native autograd core, a memory planner, a fusion pass and mixed-precision dtype plumbing."
 sections = ["getting_started", "guides", "architecture", "reference"]
 exclude = [
+    "reference/API_REFERENCE.md",
     "reference/CODE_OF_CONDUCT.md",
     "reference/SECURITY.md",
 ]
