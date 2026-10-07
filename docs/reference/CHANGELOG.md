@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-07 — tools: Added the exporter that writes YOLO26 reference tensors from the pinned Ultralytics commit as SACP files (`export_yolo26_reference.py`, `tools/reference/README.md`).
 - 2026-10-07 — nn: Added eight layer types, a header and source each: Unflatten, Conv2d, MaxPool2d, AvgPool2d, GlobalAvgPool, Flatten, LeakyReLU, Upsample2d (`conv2d.hpp`, `max_pool2d.hpp`, `unflatten.hpp`, `flatten.hpp`, `upsample2d.hpp`).
 - 2026-10-07 — nn: Changed the runtime layer seam to carry a per-sample shape: `ILayer::output_shape` is the virtual and a layer factory takes the input shape (`ilayer.hpp`, `layer_stack.hpp`, `layer_registry.hpp`).
 - 2026-10-07 — nn: Added eleven layer registry rows, so a model file can name relu, tanh, sigmoid, leaky_relu, unflatten, conv2d, maxpool2d, avgpool2d, global_avgpool, flatten and upsample (`layer_registry.hpp`, `layer_registry.cpp`).
