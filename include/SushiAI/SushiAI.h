@@ -98,6 +98,7 @@
 #include "eager/region_partitioner.hpp"
 #include "eager/scope_partitioner.hpp"
 #include "eager/region_signature.hpp"
+
 #include "io/checkpoint_format.hpp"
 #include "io/checkpoint.hpp"
 
