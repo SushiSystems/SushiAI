@@ -675,3 +675,23 @@ run.
   no place for.
 - **Not produced.** The list of `Shape{` lines with non-literal extents, which SPEC 2.6 and
   section 5 assign to wave 0.
+
+## Engineer's rulings on the open questions
+
+The owner left the remaining decisions to the engineer on 2026-10-07. These three settle the
+largest groups of rows in `tools/contract/site_classes.tsv`; the rows are updated when wave 3 is
+planned, not here.
+
+- **`hand_built_graph`.** `Graph` is the structure and `GraphBuilder` is where a description
+  enters. A check in `Graph::add_value`, `add_node` or `insert_node` reads ids and the
+  single-assignment and ordering rules, which are handle and structure checks: fatal. A check in
+  a `GraphBuilder` emitter reads rank, shape, element type or layout, which is content: status,
+  under ruling D1. Code that builds a `Graph` by hand takes the structure's contract.
+- **`hand_built_plan`.** An imaging plan is produced by its `plan_` function and consumed by its
+  `apply_` function. A plan that does not fit the image it is applied to is misuse of that pair:
+  fatal. The settings a user fills are content and are refused once, when a pipeline is
+  constructed, as a status. `apply_` keeps returning nothing.
+- **`empty_stack`.** A `LayerStack` with no layer is refused where the stack is built, as a
+  status from the builder. `output_shape()` and `output_features()` on a stack that exists
+  cannot fail.
+
