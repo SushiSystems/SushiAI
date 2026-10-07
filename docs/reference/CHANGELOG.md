@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-07 — docs: Added the programme that replaces the roadmap, the YOLO26 requirements map and the 0.1.0 readiness report (`PROGRAMME.md`, `REMAINING_WORK.md`, `docs/agent/`).
 - 2026-10-07 — tools: Added the exporter that writes YOLO26 reference tensors from the pinned Ultralytics commit as SACP files (`export_yolo26_reference.py`, `tools/reference/README.md`).
 - 2026-10-07 — nn: Added eight layer types, a header and source each: Unflatten, Conv2d, MaxPool2d, AvgPool2d, GlobalAvgPool, Flatten, LeakyReLU, Upsample2d (`conv2d.hpp`, `max_pool2d.hpp`, `unflatten.hpp`, `flatten.hpp`, `upsample2d.hpp`).
 - 2026-10-07 — nn: Changed the runtime layer seam to carry a per-sample shape: `ILayer::output_shape` is the virtual and a layer factory takes the input shape (`ilayer.hpp`, `layer_stack.hpp`, `layer_registry.hpp`).

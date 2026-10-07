@@ -1,6 +1,6 @@
 # SushiBLAS & SushiAI — SushiStack Construction and AAA-Quality Plan
 
-**Status:** Open — AI-0 to AI-4 landed and AI-7's gates are partly met; each section carries its own status
+**Status:** Shipped — AI-0 to AI-4 landed; superseded on 2026-10-07 by [`PROGRAMME.md`](PROGRAMME.md), which carries what is still open
 
 **Mandate.** The macro architecture of the stack, stated once:
 

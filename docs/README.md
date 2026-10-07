@@ -17,13 +17,15 @@ the manual.
 | [Code of conduct](reference/CODE_OF_CONDUCT.md) | What is expected in project spaces |
 | [Security policy](reference/SECURITY.md) | How to report a vulnerability |
 | [Design map](design/README.md) | Which design document covers which topic |
-| [Roadmap](design/ROADMAP.md) | The plan that builds SushiBLAS and SushiAI, by track |
+| [Programme](design/PROGRAMME.md) | The target, the owner's rulings and the stages towards 0.1.0 |
+| [Roadmap](design/ROADMAP.md) | The plan that built SushiBLAS and SushiAI up to the MLP showcase |
 | [Remaining work](design/REMAINING_WORK.md) | The backlog |
 | [Contributing](CONTRIBUTING.md) | How a change is built, tested, documented and committed |
 | [Documentation style guide](DOCUMENTATION_STYLE_GUIDE.md) | Where a document goes and how it is written |
 
-READMEs beside the code: [`tools/README.md`](../tools/README.md) for the checkers and
-[`examples/heavy_mlp/README.md`](../examples/heavy_mlp/README.md) for the JSON-configured
-example.
+READMEs beside the code: [`tools/README.md`](../tools/README.md) for the checkers, and
+[`examples/heavy_mlp/README.md`](../examples/heavy_mlp/README.md) and
+[`examples/mnist_cnn/README.md`](../examples/mnist_cnn/README.md) for the two JSON-configured
+examples.
 
 Agent work folders are under `agent/`. Finished material is under `archive/` and is not edited.

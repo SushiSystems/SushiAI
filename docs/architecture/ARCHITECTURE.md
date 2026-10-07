@@ -750,8 +750,11 @@ owning it and therefore allocates nothing.
 ```
 apps/train.cpp  (no type names; never edited again)
    |
-   +-- NN::LAYER_REGISTRY       "linear", "gelu"
-   +-- Data::DATASET_REGISTRY   "rings"
+   +-- NN::LAYER_REGISTRY       "linear", "gelu", "relu", "tanh", "sigmoid",
+   |                            "leaky_relu", "unflatten", "conv2d",
+   |                            "maxpool2d", "avgpool2d", "global_avgpool",
+   |                            "flatten", "upsample"
+   +-- Data::DATASET_REGISTRY   "rings", "mnist"
    +-- Optim::OPTIMIZER_REGISTRY "adamw", "sgd"
    +-- Train::OBJECTIVE_REGISTRY "cross_entropy"
 ```
@@ -763,9 +766,19 @@ serves all of them. **Nothing self-registers**, for the reason §4 gives for the
 backward-rule table.
 
 Two rules make growth local. A **layer's own factory** is the only thing that
-knows which keys it accepts, so adding `conv2d` never edits the parser; and an
+knows which keys it accepts, so adding a layer type never edits the parser; and an
 unknown `type` or key is an **error listing what is available**, so a typed
 `"unitss": 256` cannot train silently against a default.
+
+The layer seam carries a per-sample `Shape`, batch axis excluded.
+`ILayer::output_shape()` in `include/SushiAI/nn/ilayer.hpp` is the virtual, and a
+`LayerFactory` in `include/SushiAI/nn/layer_registry.hpp` receives the shape the
+layer before it reports, so a convolution, a pool and a flatten chain through
+`build_layer_stack` with no width restated in the file. `GraphBuilder::conv2d`
+in `include/SushiAI/graph/builder.hpp` owns the convolution's node sequence, a
+reshape of the rank-4 weight, IM2COL, MATMUL, an optional BIAS_ADD and a reshape
+back to NHWC, and `NN::Conv2d` in `include/SushiAI/nn/conv2d.hpp` calls it and
+does not restate it.
 
 `Train::IObjective` is the seam that breaks the classifier lock-in:
 `build_classifier` hardcoded `NN::CrossEntropyLoss`, and it is now a wrapper
