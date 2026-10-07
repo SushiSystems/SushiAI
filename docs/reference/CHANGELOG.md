@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-07 — autograd: Added an optional `Provenance` to `differentiate`, which records the forward node each appended node was emitted for (`provenance.hpp`, `backward.hpp`, `differentiator.cpp`).
 - 2026-10-07 — build: Followed SushiBLAS to the seed call on its random operations, its support header folder and its removed sb alias (`init.hpp`, `dataset.cpp`, `fusion_selector.hpp`, `apps/`, `examples/`).
 - 2026-10-07 — licence: Named Mustafa Garip and Sushi Systems as the copyright holders in the licence and notice files (`LICENSE`, `NOTICE.md`).
 - 2026-10-06 — licence: Restored the three-section license box and named both holders in the copyright line of every source file (`tools/licensing/write_license_block.py`, `tools/documentation/check_source_comments.py`).

@@ -54,6 +54,7 @@
 
 #include "autograd/backward.hpp"
 #include "autograd/tape.hpp"
+#include "autograd/provenance.hpp"
 #include "autograd/rule.hpp"
 #include "autograd/rules/all.hpp"
 #include "autograd/rules/elementwise.hpp"
