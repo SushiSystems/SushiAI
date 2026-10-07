@@ -31,11 +31,20 @@ namespace SushiAI
 {
     namespace NN
     {
+        namespace
+        {
+            /** @brief Throws unless the feature counts of @p layer are both positive. */
+            void require_positive_features(const Linear& layer)
+            {
+                SA_THROW_IF(layer.in_features <= 0 || layer.out_features <= 0,
+                            "Linear needs positive feature counts; got in={} out={}",
+                            layer.in_features, layer.out_features);
+            }
+        } // namespace
+
         Graph::ValueId Linear::forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
         {
-            SA_THROW_IF(in_features <= 0 || out_features <= 0,
-                        "Linear needs positive feature counts; got in={} out={}",
-                        in_features, out_features);
+            require_positive_features(*this);
 
             const Shape& input_shape = builder.graph().value(x).shape;
             SA_THROW_IF(input_shape.rank() != 2,
@@ -62,6 +71,16 @@ namespace SushiAI
             }
 
             return y;
+        }
+
+        Shape Linear::output_shape(const Shape& input) const
+        {
+            require_positive_features(*this);
+            SA_THROW_IF(input.rank() != 1 || input[0] != in_features,
+                        "Linear({}, {}) was given a per-sample shape of {}; it needs [{}]",
+                        in_features, out_features, input.to_string(), in_features);
+
+            return Shape{out_features};
         }
 
     } // namespace NN

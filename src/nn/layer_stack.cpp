@@ -66,6 +66,13 @@ namespace SushiAI
             return layers_.back()->output_features();
         }
 
+        Shape LayerStack::output_shape() const
+        {
+            SA_THROW_IF(layers_.empty(),
+                        "this LayerStack holds no layers, so it has no output shape");
+            return layers_.back()->output_shape();
+        }
+
         ILayer& LayerStack::layer(std::size_t index) const
         {
             SA_THROW_IF(index >= layers_.size(),

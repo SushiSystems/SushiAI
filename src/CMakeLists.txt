@@ -43,6 +43,14 @@ set(SUSHIAI_SOURCES
     autograd/gradcheck.cpp
 
     nn/layers.cpp
+    nn/unflatten.cpp
+    nn/conv2d.cpp
+    nn/max_pool2d.cpp
+    nn/avg_pool2d.cpp
+    nn/global_avg_pool.cpp
+    nn/flatten.cpp
+    nn/leaky_relu.cpp
+    nn/upsample2d.cpp
     nn/layer_stack.cpp
     nn/layer_registry.cpp
     nn/init.cpp

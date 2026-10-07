@@ -61,6 +61,15 @@ add_executable(sushiai_tests
     functional/unit/test_scope_trace.cpp
     functional/unit/test_scope_partitioner.cpp
     functional/unit/test_region_signature.cpp
+    functional/unit/test_unflatten.cpp
+    functional/unit/test_conv2d.cpp
+    functional/unit/test_max_pool2d.cpp
+    functional/unit/test_avg_pool2d.cpp
+    functional/unit/test_global_avg_pool.cpp
+    functional/unit/test_flatten.cpp
+    functional/unit/test_leaky_relu.cpp
+    functional/unit/test_upsample2d.cpp
+    functional/unit/test_layer_registry.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp

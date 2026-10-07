@@ -31,10 +31,12 @@
 #include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
+#include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
 using NN::Linear;
@@ -54,6 +56,16 @@ namespace
             names.push_back(name + ":" + parameter.shape().to_string());
         });
         return names;
+    }
+
+    /** @brief Traces @p layer over a batch of two and returns the result's shape. */
+    template<typename L>
+    Shape traced_shape(L& layer, int64_t features)
+    {
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueId x = builder.input(Shape{2, features}, "x");
+        return graph.value(layer.forward(builder, x)).shape;
     }
 }
 
@@ -314,4 +326,61 @@ TEST(Unit_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
                   "a compile-time container must not take the runtime arm");
     static_assert(!NN::Detail::HasParameterWalk<StubHolder>::value,
                   "a container holding a walkable child is still a container");
+}
+
+/** @brief Tests that Linear maps the per-sample shape [in_features] to [out_features]. */
+TEST(Unit_Module, LinearReportsItsOutFeaturesAsThePerSampleOutputShape)
+{
+    const Linear layer{4, 3};
+    EXPECT_EQ(layer.output_shape(Shape{4}), (Shape{3}));
+}
+
+/** @brief Tests that Linear's output_shape() matches what forward() traces, batch axis aside. */
+TEST(Unit_Module, LinearsOutputShapeAgreesWithItsTrace)
+{
+    Linear layer{4, 3};
+    EXPECT_EQ(traced_shape(layer, 4), (Shape{2, layer.output_shape(Shape{4})[0]}));
+}
+
+/** @brief Tests that Linear refuses a per-sample shape whose rank is not 1. */
+TEST(Unit_Module, LinearRefusesAPerSampleShapeOfTheWrongRank)
+{
+    const Linear layer{4, 3};
+
+    // The first extent equals in_features, so only the rank check can refuse this shape.
+    SA_EXPECT_ERROR((void)layer.output_shape(Shape{4, 2, 1}), "Linear(4, 3)", "[4, 2, 1]", "[4]");
+}
+
+/** @brief Tests that Linear refuses a rank-1 per-sample shape whose width is not in_features. */
+TEST(Unit_Module, LinearRefusesAPerSampleShapeOfTheWrongWidth)
+{
+    const Linear layer{4, 3};
+
+    SA_EXPECT_ERROR((void)layer.output_shape(Shape{7}), "Linear(4, 3)", "[7]", "[4]");
+}
+
+/** @brief Tests that every activation returns the per-sample shape it was given, at any rank. */
+TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
+{
+    for (const Shape& input : {Shape{5}, Shape{4, 4, 3}})
+    {
+        EXPECT_EQ(ReLU{}.output_shape(input), input);
+        EXPECT_EQ(NN::GELU{}.output_shape(input), input);
+        EXPECT_EQ(NN::Tanh{}.output_shape(input), input);
+        EXPECT_EQ(NN::Sigmoid{}.output_shape(input), input);
+    }
+}
+
+/** @brief Tests that every activation's output_shape() matches what forward() traces. */
+TEST(Unit_Module, AnActivationsOutputShapeAgreesWithItsTrace)
+{
+    ReLU relu;
+    NN::GELU gelu;
+    NN::Tanh tanh;
+    NN::Sigmoid sigmoid;
+
+    EXPECT_EQ(traced_shape(relu, 5), (Shape{2, relu.output_shape(Shape{5})[0]}));
+    EXPECT_EQ(traced_shape(gelu, 5), (Shape{2, gelu.output_shape(Shape{5})[0]}));
+    EXPECT_EQ(traced_shape(tanh, 5), (Shape{2, tanh.output_shape(Shape{5})[0]}));
+    EXPECT_EQ(traced_shape(sigmoid, 5), (Shape{2, sigmoid.output_shape(Shape{5})[0]}));
 }

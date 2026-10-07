@@ -233,11 +233,11 @@ TEST(Unit_Config, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
     const SushiAI::Config::ModelSpec model = model_from(R"({
         "sushiai_model": 1,
         "input": {"features": 6},
-        "layers": [{"type": "conv2d", "units": 8}]
+        "layers": [{"type": "hologram", "units": 8}]
     })");
 
     SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(model),
-                    "conv2d", "layer type", "'linear'", "'gelu'");
+                    "hologram", "layer type", "'linear'", "'gelu'");
 }
 
 TEST(Unit_Config, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)

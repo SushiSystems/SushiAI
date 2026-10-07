@@ -79,6 +79,12 @@ namespace SushiAI
              * @throws Error If @p x's inner extent is not in_features.
              */
             Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x);
+
+            /**
+             * @brief Returns the per-sample shape forward() produces, [out_features].
+             * @param input The per-sample input shape; must be [in_features].
+             */
+            Shape output_shape(const Shape& input) const;
         };
 
         /**
@@ -94,6 +100,12 @@ namespace SushiAI
             Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
             {
                 return builder.relu(x);
+            }
+
+            /** @brief Returns the per-sample shape forward() produces, which is @p input. */
+            Shape output_shape(const Shape& input) const
+            {
+                return input;
             }
         };
 
@@ -111,6 +123,12 @@ namespace SushiAI
             {
                 return builder.gelu(x);
             }
+
+            /** @brief Returns the per-sample shape forward() produces, which is @p input. */
+            Shape output_shape(const Shape& input) const
+            {
+                return input;
+            }
         };
 
         /**
@@ -127,6 +145,12 @@ namespace SushiAI
             {
                 return builder.tanh(x);
             }
+
+            /** @brief Returns the per-sample shape forward() produces, which is @p input. */
+            Shape output_shape(const Shape& input) const
+            {
+                return input;
+            }
         };
 
         /**
@@ -142,6 +166,12 @@ namespace SushiAI
             Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
             {
                 return builder.sigmoid(x);
+            }
+
+            /** @brief Returns the per-sample shape forward() produces, which is @p input. */
+            Shape output_shape(const Shape& input) const
+            {
+                return input;
             }
         };
 

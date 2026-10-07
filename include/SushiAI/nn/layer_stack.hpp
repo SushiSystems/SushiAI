@@ -34,6 +34,7 @@
 #include <string_view>
 #include <tuple>
 #include <vector>
+#include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/ilayer.hpp>
@@ -96,6 +97,12 @@ namespace SushiAI
                  * @throws Error If the stack is empty.
                  */
                 int64_t output_features() const;
+
+                /**
+                 * @brief Returns the last layer's per-sample output shape, batch axis excluded.
+                 * @pre The stack holds at least one layer.
+                 */
+                Shape output_shape() const;
 
                 /**
                  * @brief The layer at @p index, for a test that wants to inspect it.
