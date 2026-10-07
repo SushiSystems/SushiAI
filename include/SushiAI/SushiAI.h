@@ -83,6 +83,13 @@
 
 #include "data/dataset.hpp"
 
+#include "eager/segment.hpp"
+#include "eager/scope_trace.hpp"
+#include "eager/scope.hpp"
+#include "eager/partition.hpp"
+#include "eager/region_partitioner.hpp"
+#include "eager/scope_partitioner.hpp"
+#include "eager/region_signature.hpp"
 #include "io/checkpoint_format.hpp"
 #include "io/checkpoint.hpp"
 
