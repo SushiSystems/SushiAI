@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-07 — detect: Added the host-lane detection module: anchors, box coding, IoU, the task-aligned assigner, target leaves, top-k and NMS, average precision (`include/SushiAI/detect/`, `assigner.hpp`, `average_precision.hpp`).
+- 2026-10-07 — tools: Extended the YOLO26 reference exporter with the suppressed one-to-many detections (`export_yolo26_reference.py`, `MANIFEST.json`).
 - 2026-10-07 — autograd: Changed `differentiate` to seed any one-element root, where it accepted only an `NLL_LOSS` root (`differentiator.cpp`, `test_loss_roots.cpp`).
 - 2026-10-07 — graph: Added the operations DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS, SILU, SELECT, LESS_EQUAL, CONSTANT and STOP_GRADIENT with their rules; none has a lowering yet (`ops.hpp`, `builder.hpp`, `rules/elementwise.cpp`).
 - 2026-10-07 — docs: Excluded the Doxygen main page from the published pages, passed secrets to the called CI and pinned `docs bundle` with tests (`docs/publish.toml`, `release.yml`, `cli/tests/test_cli.py`).

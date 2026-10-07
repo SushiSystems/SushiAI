@@ -64,6 +64,21 @@ set(SUSHIAI_SOURCES
 
     data/dataset.cpp
 
+    detect/anchors.cpp
+    detect/assigner.cpp
+    detect/assigner_config.cpp
+    detect/box_coding.cpp
+    detect/box_format.cpp
+    detect/detections_nms.cpp
+    detect/detections_topk.cpp
+    detect/ground_truth.cpp
+    detect/iou.cpp
+    detect/level_rows.cpp
+    detect/target_leaves.cpp
+    detect/top_k.cpp
+    detect/anchor_leaves.cpp
+    detect/average_precision.cpp
+
     eager/scope_trace.cpp
     eager/scope_partitioner.cpp
     eager/region_signature.cpp

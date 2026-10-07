@@ -70,8 +70,13 @@ add_executable(sushiai_tests
     functional/unit/test_leaky_relu.cpp
     functional/unit/test_upsample2d.cpp
     functional/unit/test_layer_registry.cpp
+    functional/unit/test_detect_anchors.cpp
+    functional/unit/test_detect_assigner.cpp
+    functional/unit/test_detect_boxes.cpp
+    functional/unit/test_detect_postprocess.cpp
     functional/unit/test_elementwise_ops.cpp
     functional/unit/test_loss_roots.cpp
+    functional/unit/test_detect_average_precision.cpp
 
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp
@@ -102,6 +107,12 @@ add_executable(sushiai_tests
 target_link_libraries(sushiai_tests PRIVATE
     sushiai
     GTest::gtest
+)
+
+# Where the reference tensors live; a test that needs one reports itself skipped
+# when the file is absent (tests/common/reference_fixture.hpp).
+target_compile_definitions(sushiai_tests PRIVATE
+    SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
 sushiai_apply_build_policy(sushiai_tests)
