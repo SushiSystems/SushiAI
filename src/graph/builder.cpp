@@ -27,6 +27,8 @@
 
 #include <SushiAI/graph/builder.hpp>
 
+#include <limits>
+
 namespace SushiAI
 {
     namespace Graph
@@ -37,16 +39,69 @@ namespace SushiAI
             Shape shape_of(int64_t rows) { return Shape{rows}; }
             Shape shape_of(int64_t rows, int64_t cols) { return Shape{rows, cols}; }
 
-            /**
-             * @brief Validates that a LeakyReLU slope lies strictly within (0, 1).
-             *
-             * @param slope The slope value to validate.
-             * @return True if valid for forward and backward emission.
-             */
-            bool is_legal_leaky_relu_slope(double slope)
+            /** @brief Throws unless @p value is tagged NHWC, naming the emitter @p what. */
+            void require_nhwc(const Value& value, std::string_view what)
             {
-                return slope > 0.0 && slope < 1.0;
+                SA_THROW_IF(value.layout != TensorLayout::NHWC,
+                            "{} reads NHWC; this value is NCHW. Cross with "
+                            "layout_convert first (CV-3).",
+                            what);
             }
+
+            /** @brief Throws unless both upsampling scales are at least one, naming @p what. */
+            void require_upsample_scales(std::string_view what, int64_t scale_h, int64_t scale_w)
+            {
+                SA_THROW_IF(scale_h < 1 || scale_w < 1,
+                            "{} needs scales of at least one; got {}x{}",
+                            what, scale_h, scale_w);
+            }
+        } // namespace
+
+        SpatialExtents window_extents(int64_t height, int64_t width, const ConvGeometry& g)
+        {
+            SA_THROW_IF(g.kernel_h <= 0 || g.kernel_w <= 0,
+                        "A window needs a positive kernel; got kernel {}x{}",
+                        g.kernel_h, g.kernel_w);
+            SA_THROW_IF(g.stride_h <= 0 || g.stride_w <= 0,
+                        "A window needs a positive stride; got stride {},{}",
+                        g.stride_h, g.stride_w);
+            SA_THROW_IF(g.dilation_h <= 0 || g.dilation_w <= 0,
+                        "A window needs a positive dilation; got dilation {},{}",
+                        g.dilation_h, g.dilation_w);
+            SA_THROW_IF(g.pad_top < 0 || g.pad_left < 0,
+                        "A window needs a non-negative padding; got padding {},{}",
+                        g.pad_top, g.pad_left);
+
+            const SpatialExtents extents{
+                output_extent(height, g.pad_top, g.pad_top, g.dilation_h, g.kernel_h, g.stride_h),
+                output_extent(width, g.pad_left, g.pad_left, g.dilation_w, g.kernel_w, g.stride_w)};
+
+            SA_THROW_IF(extents.height <= 0 || extents.width <= 0,
+                        "A window needs to fit its padded input; got a {}x{} window dilated by "
+                        "{}x{} over a {}x{} input padded by {},{}",
+                        g.kernel_h, g.kernel_w, g.dilation_h, g.dilation_w, height, width,
+                        g.pad_top, g.pad_left);
+
+            return extents;
+        }
+
+        SpatialExtents upsampled_extents(int64_t height, int64_t width,
+                                         int64_t scale_h, int64_t scale_w)
+        {
+            require_upsample_scales("upsample2d", scale_h, scale_w);
+
+            constexpr int64_t K_LARGEST_EXTENT = std::numeric_limits<int64_t>::max();
+            SA_THROW_IF(height > K_LARGEST_EXTENT / scale_h || width > K_LARGEST_EXTENT / scale_w,
+                        "upsample2d needs scaled extents that fit in 64 bits; got a {}x{} input "
+                        "scaled by {}x{}",
+                        height, width, scale_h, scale_w);
+
+            return SpatialExtents{height * scale_h, width * scale_w};
+        }
+
+        bool is_legal_leaky_relu_slope(double slope) noexcept
+        {
+            return slope > 0.0 && slope < 1.0;
         }
 
         ValueId GraphBuilder::declare(Shape shape, DType dtype, Lifetime lifetime,
@@ -166,7 +221,8 @@ namespace SushiAI
             return out;
         }
 
-        ValueId GraphBuilder::elementwise(OpID op, ValueId a, ValueId b, std::string_view what) const
+        ValueId GraphBuilder::elementwise(OpID op, ValueId a, ValueId b,
+                                          std::string_view what) const
         {
             require_same(a, b, what);
 
@@ -378,13 +434,16 @@ namespace SushiAI
                         "LAYOUT_CONVERT needs a rank-4 operand; got {}", vx.shape.to_string());
 
             // Permute dimensions based on source operand layout and requested target layout.
-            const Shape converted = (vx.layout == TensorLayout::NHWC && layout == TensorLayout::NCHW)
+            const bool to_nchw = vx.layout == TensorLayout::NHWC && layout == TensorLayout::NCHW;
+            const bool to_nhwc = vx.layout == TensorLayout::NCHW && layout == TensorLayout::NHWC;
+            const Shape converted = to_nchw
                 ? Shape{vx.shape[0], vx.shape[3], vx.shape[1], vx.shape[2]}
-                : (vx.layout == TensorLayout::NCHW && layout == TensorLayout::NHWC)
+                : to_nhwc
                     ? Shape{vx.shape[0], vx.shape[2], vx.shape[3], vx.shape[1]}
                     : vx.shape;
 
-            const ValueId out = declare(converted, vx.dtype, Lifetime::ACTIVATION, "layout_convert");
+            const ValueId out = declare(converted, vx.dtype, Lifetime::ACTIVATION,
+                                        "layout_convert");
             graph_->value(out).layout = layout;
             graph_->add_node(Ops::LAYOUT_CONVERT.id, {x}, {out});
             return out;
@@ -420,27 +479,19 @@ namespace SushiAI
                 a.values[9] = static_cast<double>(out_w);
                 return a;
             }
-        }
+        } // namespace
 
         ValueId GraphBuilder::im2col(ValueId x, const ConvGeometry& g) const
         {
             const Value& in = graph_->value(x);
             SA_THROW_IF(in.shape.rank() != 4,
                         "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
+            require_nhwc(in, "im2col");
 
             // Default im2col assumes symmetric padding; asymmetric cases use im2col_with_extents.
-            const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
-            const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
+            const SpatialExtents out = window_extents(in.shape[1], in.shape[2], g);
 
-            SA_THROW_IF(out_h <= 0 || out_w <= 0,
-                        "A {}x{} window dilated by {}x{} covers more than the "
-                        "{}x{} input padded by {},{}; it yields no windows.",
-                        g.kernel_h, g.kernel_w, g.dilation_h, g.dilation_w,
-                        in.shape[1], in.shape[2], g.pad_top, g.pad_left);
-
-            return im2col_with_extents(x, g, out_h, out_w);
+            return im2col_with_extents(x, g, out.height, out.width);
         }
 
         ValueId GraphBuilder::im2col_with_extents(ValueId x, const ConvGeometry& g,
@@ -449,9 +500,7 @@ namespace SushiAI
             const Value& in = graph_->value(x);
             SA_THROW_IF(in.shape.rank() != 4,
                         "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "im2col reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            require_nhwc(in, "im2col");
             SA_THROW_IF(out_h <= 0 || out_w <= 0,
                         "im2col was given non-positive output extents {}x{}", out_h, out_w);
 
@@ -467,13 +516,14 @@ namespace SushiAI
         ValueId GraphBuilder::col2im(ValueId cols, Shape image_shape,
                                      const ConvGeometry& g) const
         {
-            // Default col2im assumes symmetric padding; backward passes use col2im_with_extents.
-            const int64_t out_h = output_extent(image_shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
-            const int64_t out_w = output_extent(image_shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
+            SA_THROW_IF(image_shape.rank() != 4,
+                        "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
+                        image_shape.rank());
 
-            return col2im_with_extents(cols, image_shape, g, out_h, out_w);
+            // Default col2im assumes symmetric padding; backward passes use col2im_with_extents.
+            const SpatialExtents out = window_extents(image_shape[1], image_shape[2], g);
+
+            return col2im_with_extents(cols, image_shape, g, out.height, out.width);
         }
 
         ValueId GraphBuilder::col2im_with_extents(ValueId cols, Shape image_shape,
@@ -505,24 +555,71 @@ namespace SushiAI
             return out;
         }
 
+        namespace
+        {
+            /** @brief Tells whether @p g is an unpadded 1x1 window of unit stride and dilation. */
+            bool is_pointwise(const ConvGeometry& g) noexcept
+            {
+                return g.kernel_h == 1 && g.kernel_w == 1 && g.stride_h == 1 && g.stride_w == 1
+                    && g.dilation_h == 1 && g.dilation_w == 1 && g.pad_top == 0 && g.pad_left == 0;
+            }
+        } // namespace
+
+        ValueId GraphBuilder::conv2d(ValueId x, ValueId weight, ValueId bias,
+                                     const ConvGeometry& g) const
+        {
+            // Shapes are held by value; each emitter below grows the table a reference points into.
+            const Shape image = graph_->value(x).shape;
+            const Shape filter = graph_->value(weight).shape;
+
+            SA_THROW_IF(image.rank() != 4,
+                        "conv2d needs a rank-4 [N,H,W,C_in] input; got {}", image.to_string());
+            require_nhwc(graph_->value(x), "conv2d");
+            SA_THROW_IF(filter.rank() != 4,
+                        "conv2d needs a rank-4 [C_out,kernel_h,kernel_w,C_in] weight; got {}",
+                        filter.to_string());
+            SA_THROW_IF(filter[1] != g.kernel_h || filter[2] != g.kernel_w || filter[3] != image[3],
+                        "conv2d with a {}x{} window over a {} input needs a [C_out, {}, {}, {}] "
+                        "weight; got {}",
+                        g.kernel_h, g.kernel_w, image.to_string(), g.kernel_h, g.kernel_w,
+                        image[3], filter.to_string());
+
+            if (bias != NO_VALUE)
+            {
+                const Shape& offsets = graph_->value(bias).shape;
+                SA_THROW_IF(offsets.rank() != 1 || offsets[0] != filter[0],
+                            "conv2d with {} filters needs a [{}] bias; got {}",
+                            filter[0], filter[0], offsets.to_string());
+            }
+
+            const SpatialExtents out = window_extents(image[1], image[2], g);
+
+            // Row-major [C_out,R,S,C_in] flattens to (r * S + s) * C_in + c, IM2COL's column order.
+            const int64_t taps = g.kernel_h * g.kernel_w * image[3];
+            const ValueId filters = reshape(weight, Shape({filter[0], taps}));
+
+            const ValueId cols = is_pointwise(g)
+                ? reshape(x, Shape({image[0] * image[1] * image[2], image[3]}))
+                : im2col_with_extents(x, g, out.height, out.width);
+
+            const ValueId product = matmul(cols, filters, false, true);
+            const ValueId rows = bias == NO_VALUE ? product : bias_add(product, bias);
+
+            return reshape(rows, Shape({image[0], out.height, out.width, filter[0]}));
+        }
+
         PoolResult GraphBuilder::maxpool2d(ValueId x, const ConvGeometry& g) const
         {
             const Value& in = graph_->value(x);
             SA_THROW_IF(in.shape.rank() != 4,
                         "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
                         in.shape.rank());
+            require_nhwc(in, "maxpool2d");
 
             // Default maxpool2d assumes symmetric padding; asymmetric cases use with_extents.
-            const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
-            const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
-            SA_THROW_IF(out_h <= 0 || out_w <= 0,
-                        "A {}x{} pool window does not fit a {}x{} input padded by {},{}.",
-                        g.kernel_h, g.kernel_w, in.shape[1], in.shape[2],
-                        g.pad_top, g.pad_left);
+            const SpatialExtents out = window_extents(in.shape[1], in.shape[2], g);
 
-            return maxpool2d_with_extents(x, g, out_h, out_w);
+            return maxpool2d_with_extents(x, g, out.height, out.width);
         }
 
         PoolResult GraphBuilder::maxpool2d_with_extents(ValueId x, const ConvGeometry& g,
@@ -532,16 +629,15 @@ namespace SushiAI
             SA_THROW_IF(in.shape.rank() != 4,
                         "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
                         in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "maxpool2d reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            require_nhwc(in, "maxpool2d");
             SA_THROW_IF(out_h <= 0 || out_w <= 0,
                         "maxpool2d was given non-positive output extents {}x{}",
                         out_h, out_w);
 
             const Shape pooled({in.shape[0], out_h, out_w, in.shape[3]});
             const ValueId out = declare_like(x, pooled, in.dtype, Lifetime::ACTIVATION, "pooled");
-            const ValueId idx = declare_like(x, pooled, DType::INT64, Lifetime::ACTIVATION, "argmax");
+            const ValueId idx = declare_like(x, pooled, DType::INT64, Lifetime::ACTIVATION,
+                                             "argmax");
 
             graph_->add_node(Ops::MAXPOOL2D.id, {x}, {out, idx}, geometry_attributes(g));
             return PoolResult{out, idx};
@@ -553,21 +649,13 @@ namespace SushiAI
             SA_THROW_IF(in.shape.rank() != 4,
                         "avgpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
                         in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "avgpool2d reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            require_nhwc(in, "avgpool2d");
 
-            const int64_t out_h = output_extent(in.shape[1], g.pad_top, g.pad_top,
-                                                g.dilation_h, g.kernel_h, g.stride_h);
-            const int64_t out_w = output_extent(in.shape[2], g.pad_left, g.pad_left,
-                                                g.dilation_w, g.kernel_w, g.stride_w);
-            SA_THROW_IF(out_h <= 0 || out_w <= 0,
-                        "A {}x{} pool window does not fit a {}x{} input padded by {},{}.",
-                        g.kernel_h, g.kernel_w, in.shape[1], in.shape[2],
-                        g.pad_top, g.pad_left);
+            const SpatialExtents pooled = window_extents(in.shape[1], in.shape[2], g);
 
-            const ValueId out = declare_like(x, Shape({in.shape[0], out_h, out_w, in.shape[3]}),
-                                             in.dtype, Lifetime::ACTIVATION, "pooled");
+            const ValueId out = declare_like(
+                x, Shape({in.shape[0], pooled.height, pooled.width, in.shape[3]}),
+                in.dtype, Lifetime::ACTIVATION, "pooled");
             graph_->add_node(Ops::AVGPOOL2D.id, {x}, {out}, geometry_attributes(g));
             return out;
         }
@@ -578,16 +666,14 @@ namespace SushiAI
             SA_THROW_IF(in.shape.rank() != 4,
                         "upsample2d needs a rank-4 [N,H,W,C] input; got rank {}",
                         in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "upsample2d reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(scale_h < 1 || scale_w < 1,
-                        "upsample2d needs scales of at least one; got {}x{}",
-                        scale_h, scale_w);
+            require_nhwc(in, "upsample2d");
 
-            const ValueId out = declare_like(x, Shape({in.shape[0], in.shape[1] * scale_h,
-                                                        in.shape[2] * scale_w, in.shape[3]}),
-                                             in.dtype, Lifetime::ACTIVATION, "upsampled");
+            const SpatialExtents scaled = upsampled_extents(in.shape[1], in.shape[2],
+                                                            scale_h, scale_w);
+
+            const ValueId out = declare_like(
+                x, Shape({in.shape[0], scaled.height, scaled.width, in.shape[3]}),
+                in.dtype, Lifetime::ACTIVATION, "upsampled");
 
             Attributes a{};
             a.values[0] = static_cast<double>(scale_h);
@@ -673,9 +759,7 @@ namespace SushiAI
             SA_THROW_IF(input_shape.rank() != 4,
                         "upsample2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
                         "rank {}", input_shape.rank());
-            SA_THROW_IF(scale_h < 1 || scale_w < 1,
-                        "upsample2d_backward needs scales of at least one; got {}x{}",
-                        scale_h, scale_w);
+            require_upsample_scales("upsample2d_backward", scale_h, scale_w);
 
             const ValueId out = declare_like(dy, input_shape, gy.dtype,
                                              Lifetime::ACTIVATION, "dx");

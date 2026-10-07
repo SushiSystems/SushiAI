@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-07 — graph: Added `GraphBuilder::conv2d` and the extent functions the windowed emitters and layers share, which reject a negative padding (`builder.hpp`, `builder.cpp`, `window_extents`, `upsampled_extents`).
 - 2026-10-07 — eager: Added the host-lane units of the eager front end: scope tracing, the region partitioner and the region signature (`scope_trace.hpp`, `scope_partitioner.hpp`, `region_signature.hpp`, `partition.hpp`, `segment.hpp`).
 - 2026-10-07 — autograd: Added an optional `Provenance` to `differentiate`, which records the forward node each appended node was emitted for (`provenance.hpp`, `backward.hpp`, `differentiator.cpp`).
 - 2026-10-07 — build: Followed SushiBLAS to the seed call on its random operations, its support header folder and its removed sb alias (`init.hpp`, `dataset.cpp`, `fusion_selector.hpp`, `apps/`, `examples/`).
