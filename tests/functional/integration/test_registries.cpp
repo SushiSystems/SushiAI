@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -145,6 +146,72 @@ TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
         (void)Data::make_dataset(*engine, "rings",
                                  attributes_from(R"({"batch_size": 0})"), "data"),
         "positive");
+}
+
+/** @brief Tests that the dataset registry carries a row named "mnist". */
+TEST_F(Integration_Registries, TheDatasetRegistryListsMnist)
+{
+    const bool listed = std::any_of(
+        Data::DATASET_REGISTRY.begin(), Data::DATASET_REGISTRY.end(),
+        [](const Data::DatasetEntry& entry) { return entry.type == "mnist"; });
+    EXPECT_TRUE(listed);
+
+    SA_EXPECT_ERROR(
+        (void)Data::make_dataset(*engine, "coco", attributes_from("{}"), "data"),
+        "'mnist'");
+}
+
+/** @brief Tests that "mnist" throws, naming the directory and its files, when they are absent. */
+TEST_F(Integration_Registries, MnistRefusesADirectoryWithoutTheFiles)
+{
+    SA_EXPECT_ERROR(
+        (void)Data::make_dataset(*engine, "mnist",
+                                 attributes_from(R"({"directory": "sushiai_absent_mnist"})"),
+                                 "data"),
+        "data", "sushiai_absent_mnist", "MNIST train split", "train-images-idx3-ubyte, labels",
+        "train-labels-idx1-ubyte", "t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte");
+}
+
+/** @brief Tests that the "test" split of "mnist" looks for the t10k file pair. */
+TEST_F(Integration_Registries, MnistTestSplitLooksForTheT10kFiles)
+{
+    SA_EXPECT_ERROR(
+        (void)Data::make_dataset(
+            *engine, "mnist",
+            attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "test"})"),
+            "data"),
+        "data", "sushiai_absent_mnist", "MNIST test split", "t10k-images-idx3-ubyte, labels");
+}
+
+/** @brief Tests that "mnist" throws when the required "directory" key is absent. */
+TEST_F(Integration_Registries, MnistRequiresADirectory)
+{
+    SA_EXPECT_ERROR(
+        (void)Data::make_dataset(*engine, "mnist", attributes_from(R"({"split": "test"})"),
+                                 "data"),
+        "data", "has no", "'directory'");
+}
+
+/** @brief Tests that "mnist" rejects a key it does not know before it looks for any file. */
+TEST_F(Integration_Registries, AnUnknownMnistKeyIsRejectedByItsOwnFactory)
+{
+    SA_EXPECT_ERROR(
+        (void)Data::make_dataset(
+            *engine, "mnist",
+            attributes_from(R"({"directory": "sushiai_absent_mnist", "batch_sizes": 16})"),
+            "data"),
+        "data", "'batch_sizes'", "'batch_size'");
+}
+
+/** @brief Tests that "mnist" rejects a split other than "train" or "test". */
+TEST_F(Integration_Registries, MnistRefusesASplitItDoesNotKnow)
+{
+    SA_EXPECT_ERROR(
+        (void)Data::make_dataset(
+            *engine, "mnist",
+            attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "validation"})"),
+            "data"),
+        "data", "'split'", "'validation'", "'train'", "'test'");
 }
 
 TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
