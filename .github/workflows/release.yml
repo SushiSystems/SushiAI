@@ -1,0 +1,58 @@
+name: Release
+
+# On a pushed version tag: the whole of ci.yml, then the documentation bundle, attached to the
+# tag's GitHub release. The bundle is what docs.sushisystems.io compiles this repository's pages
+# from; docs/reference/DOCS_BUNDLE.md in the SushiCore repository describes it.
+#
+# This workflow has not run. It was written on a machine with no runner, and it needs a
+# published sushicore that carries `sushicore.docs_bundle`.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  docs-bundle:
+    name: Documentation bundle
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check the tag against the version in CMakeLists.txt
+        id: release
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, re, sys
+          tag = os.environ["GITHUB_REF_NAME"]
+          text = open("CMakeLists.txt", encoding="utf-8").read()
+          found = re.search(r'project\([^)]*?VERSION\s+(\d+\.\d+\.\d+)', text, re.S | re.M)
+          declared = found.group(1) if found else None
+          if tag != f"v{declared}":
+              sys.exit(f"the tag is {tag} and CMakeLists.txt declares {declared}")
+          print(f"version={declared}")
+          PY
+      - name: sudo apt-get install -y --no-install-recommends doxygen graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends doxygen graphviz
+      - name: python -m pip install -e ./cli
+        run: python -m pip install -e ./cli
+      - name: sa docs bundle --release ${{ steps.release.outputs.version }}
+        run: sa docs bundle --release "${{ steps.release.outputs.version }}"
+      - name: Attach the bundle to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+          gh release upload "$GITHUB_REF_NAME" --clobber \
+            "build/docs/bundle/docs-bundle-${{ steps.release.outputs.version }}.tar.gz" \
+            "build/docs/bundle/docs-bundle-${{ steps.release.outputs.version }}.tar.gz.sha256"
