@@ -23,12 +23,15 @@
  * @file differentiator.hpp
  * @brief Declares internal bookkeeping for reverse-mode differentiation runs.
  * @author Mustafa Garip
+ * @see include/SushiAI/eager/README.md
  */
 
 #pragma once
 
+#include <cstddef>
 #include <unordered_map>
 #include <vector>
+#include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/autograd/tape.hpp>
 
 namespace SushiAI
@@ -43,18 +46,28 @@ namespace SushiAI
          * set of nodes a fusion has already absorbed. Lives only for the length
          * of a @c differentiate() call.
          */
-        class Differentiator
+        class Differentiator final
         {
             public:
+                /**
+                 * @brief Binds one run to @p graph and resets @p provenance when it is given.
+                 * @param provenance Receives the origin of every appended node; may be null.
+                 */
                 Differentiator(Graph::Graph& graph, Graph::ValueId loss,
-                               Graph::ValueId seed_factor)
+                               Graph::ValueId seed_factor, Provenance* provenance)
                     : graph_(graph),
                       loss_(loss),
                       builder_(graph),
                       forward_node_count_(graph.node_count()),
                       skipped_(graph.node_count(), false),
-                      tape_(Graph::GraphBuilder(graph), *this, seed_factor)
+                      tape_(Graph::GraphBuilder(graph), *this, seed_factor),
+                      provenance_(provenance)
                 {
+                    if (provenance_ == nullptr)
+                        return;
+
+                    provenance_->forward_node_count = forward_node_count_;
+                    provenance_->origin.clear();
                 }
 
                 /** @brief Runs the reverse sweep over the forward nodes. */
@@ -62,6 +75,12 @@ namespace SushiAI
 
                 /** @brief The summed gradient of @p primal, materialising the sum on first read. */
                 Graph::ValueId resolve(Graph::ValueId primal);
+
+                /**
+                 * @brief Returns the gradient a caller requested for @p value, after run().
+                 * @see include/SushiAI/eager/README.md, "Provenance".
+                 */
+                Graph::ValueId resolve_requested(Graph::ValueId value);
 
                 /** @brief Records one gradient contribution to @p primal. */
                 void contribute(Graph::ValueId primal, Graph::ValueId gradient);
@@ -82,14 +101,43 @@ namespace SushiAI
                 Graph::Graph& graph() noexcept { return graph_; }
 
             private:
+                /** @brief Emits the gradient nodes of forward node @p id, when it needs any. */
+                void differentiate_node(Graph::NodeId id);
+
+                /**
+                 * @brief Records @p origin for every node appended since the last call.
+                 * @see include/SushiAI/eager/README.md, "Provenance".
+                 */
+                void stamp_appended(Graph::NodeId origin);
+
+                /** @brief Holds the graph being extended. */
                 Graph::Graph& graph_;
+
+                /** @brief Holds the scalar being differentiated. */
                 Graph::ValueId loss_;
+
+                /** @brief Emits the ACCUMULATE nodes that sum contributions. */
                 Graph::GraphBuilder builder_;
+
+                /** @brief Holds the node count of the graph when the run began. */
                 std::size_t forward_node_count_;
+
+                /** @brief Holds the forward nodes a fusion already differentiated, by node id. */
                 std::vector<bool> skipped_;
+
+                /** @brief Holds the gradient contributions received so far, per primal value. */
                 std::unordered_map<Graph::ValueId, std::vector<Graph::ValueId>> contributions_;
+
+                /** @brief Holds the summed gradients already read, per primal value. */
                 std::unordered_map<Graph::ValueId, Graph::ValueId> resolved_;
+
+                /** @brief Holds the view of this run that backward rules receive. */
                 GradientTape tape_;
+
+                /** @brief Receives the origin of every appended node; null when not requested. */
+                Provenance* provenance_;
+
+                /** @brief Holds a snapshot of the forward node the walk is at. */
                 Graph::Node current_node_{};
         };
 

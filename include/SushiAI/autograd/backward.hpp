@@ -35,6 +35,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/autograd/tape.hpp>
+#include <SushiAI/autograd/provenance.hpp>
 
 namespace SushiAI
 {
@@ -51,12 +52,14 @@ namespace SushiAI
          * @brief Extends graph with reverse-mode gradients of loss.
          * @param loss Scalar value being differentiated; must have one element.
          * @param seed_factor Optional scaling scalar, or Graph::NO_VALUE.
+         * @param provenance Filled with the origin of every appended node when not null.
          * @return Gradient ValueId per wrt entry, or Graph::NO_VALUE if unreachable.
          */
         std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
                                                   Graph::ValueId loss,
                                                   SushiRuntime::span<const Graph::ValueId> wrt,
-                                                  Graph::ValueId seed_factor = Graph::NO_VALUE);
+                                                  Graph::ValueId seed_factor = Graph::NO_VALUE,
+                                                  Provenance* provenance = nullptr);
 
     } // namespace Autograd
 } // namespace SushiAI

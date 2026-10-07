@@ -23,6 +23,7 @@
  * @file differentiator.cpp
  * @brief Implements reverse-mode automatic differentiation over computational graphs.
  * @author Mustafa Garip
+ * @see include/SushiAI/eager/README.md
  */
 
 #include <SushiAI/autograd/backward.hpp>
@@ -104,6 +105,32 @@ namespace SushiAI
             return result;
         }
 
+        Graph::ValueId Differentiator::resolve_requested(Graph::ValueId value)
+        {
+            const std::size_t nodes_before = graph_.node_count();
+            const Graph::ValueId gradient = resolve(value);
+            const Graph::NodeId producer = graph_.value(value).producer;
+
+            SA_THROW_IF(provenance_ != nullptr && graph_.node_count() > nodes_before
+                            && producer == Graph::NO_NODE,
+                        "Cannot record provenance for the gradient of value {}: summing its "
+                        "contributions appended a node, and no node produces the value. A "
+                        "requested value needs a producer node to carry provenance.",
+                        value);
+
+            stamp_appended(producer);
+            return gradient;
+        }
+
+        void Differentiator::stamp_appended(Graph::NodeId origin)
+        {
+            if (provenance_ == nullptr)
+                return;
+
+            // origin holds one entry per appended node, so its size marks the last stamped node.
+            provenance_->origin.resize(graph_.node_count() - forward_node_count_, origin);
+        }
+
         void Differentiator::run()
         {
             graph_.finalise();
@@ -112,7 +139,7 @@ namespace SushiAI
                         "differentiate() needs a scalar to differentiate; value {} has shape {}",
                         loss_, graph_.value(loss_).shape.to_string());
 
-            // Root differentiation requires NLL_LOSS to establish the implicit scalar gradient seed.
+            // Only NLL_LOSS starts from the implicit scalar seed, so it must produce the root.
             const Graph::NodeId root_producer = graph_.value(loss_).producer;
             SA_THROW_IF(root_producer == Graph::NO_NODE,
                         "differentiate() cannot seed a gradient for value {}: nothing produces "
@@ -129,42 +156,64 @@ namespace SushiAI
             for (std::size_t offset = forward_node_count_; offset > 0; --offset)
             {
                 const Graph::NodeId id = static_cast<Graph::NodeId>(offset - 1);
-                if (skipped_[id]) continue;
-
-                // Snapshot before anything below can grow the graph.
-                current_node_ = graph_.node(id);
-
-                bool any_input_needs_grad = false;
-                for (Graph::ValueId in : current_node_.inputs)
-                    if (graph_.value(in).requires_grad) { any_input_needs_grad = true; break; }
-
-                // Skip leaves and frozen subgraphs whose operands require no gradient.
-                if (!any_input_needs_grad) continue;
-
-                bool reachable = false;
-                for (Graph::ValueId out : current_node_.outputs)
-                    if (is_root(out) || resolve(out) != Graph::NO_VALUE) { reachable = true; break; }
-
-                if (!reachable) continue;
-
-                const BackwardRule rule = find_rule(current_node_.op);
-                SA_THROW_IF(rule == nullptr,
-                            "No backward rule for {} (node {}), but its operands require a "
-                            "gradient. Add one to the appropriate domain under "
-                            "autograd/rules/, or mark the subgraph as not requiring gradients.",
-                            Ops::name_of(current_node_.op), id);
-
-                tape_.retarget(id);
-                rule(tape_);
+                differentiate_node(id);
+                stamp_appended(id);
             }
+        }
+
+        void Differentiator::differentiate_node(Graph::NodeId id)
+        {
+            if (skipped_[id])
+                return;
+
+            // Snapshot before anything below can grow the graph.
+            current_node_ = graph_.node(id);
+
+            bool any_input_needs_grad = false;
+            for (Graph::ValueId in : current_node_.inputs)
+            {
+                if (graph_.value(in).requires_grad)
+                {
+                    any_input_needs_grad = true;
+                    break;
+                }
+            }
+
+            // Skip leaves and frozen subgraphs whose operands require no gradient.
+            if (!any_input_needs_grad)
+                return;
+
+            bool reachable = false;
+            for (Graph::ValueId out : current_node_.outputs)
+            {
+                if (is_root(out) || resolve(out) != Graph::NO_VALUE)
+                {
+                    reachable = true;
+                    break;
+                }
+            }
+
+            if (!reachable)
+                return;
+
+            const BackwardRule rule = find_rule(current_node_.op);
+            SA_THROW_IF(rule == nullptr,
+                        "No backward rule for {} (node {}), but its operands require a "
+                        "gradient. Add one to the appropriate domain under "
+                        "autograd/rules/, or mark the subgraph as not requiring gradients.",
+                        Ops::name_of(current_node_.op), id);
+
+            tape_.retarget(id);
+            rule(tape_);
         }
 
         std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
                                                   Graph::ValueId loss,
                                                   SushiRuntime::span<const Graph::ValueId> wrt,
-                                                  Graph::ValueId seed_factor)
+                                                  Graph::ValueId seed_factor,
+                                                  Provenance* provenance)
         {
-            Differentiator differentiator(graph, loss, seed_factor);
+            Differentiator differentiator(graph, loss, seed_factor, provenance);
             differentiator.run();
 
             std::vector<Graph::ValueId> gradients;
@@ -172,7 +221,7 @@ namespace SushiAI
 
             for (Graph::ValueId value : wrt)
             {
-                const Graph::ValueId gradient = differentiator.resolve(value);
+                const Graph::ValueId gradient = differentiator.resolve_requested(value);
                 gradients.push_back(gradient);
 
                 // Parameter gradients persist across execution and receive Lifetime::GRADIENT.
