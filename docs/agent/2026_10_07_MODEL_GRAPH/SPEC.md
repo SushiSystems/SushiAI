@@ -1,6 +1,15 @@
 # Model graph and batch normalisation
 
-**Status:** Draft for owner review. Nothing here is implemented.
+**Status:** Approved in outline on 2026-10-07; see "Decided" below. Nothing here is implemented.
+
+## Decided
+
+The owner left these decisions to the engineer on 2026-10-07; each takes the recommendation of
+section 9. Decision 1 follows from his ruling on the error contract: the status type lands first
+(wave 1 of `docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md`) and the seams of this design
+are written against it. Decision 13, the run-time arity gap of `BATCHNORM2D`, goes to the
+migration work. Decision 8, the exporter rerun that settles the n/(n-1) factor of the running
+variance, is done before the `BatchNorm2d` unit is accepted.
 
 This document designs the model graph, the node seam, buffers, the two trace modes and
 `BatchNorm2d` for SushiAI, and the YOLO26 blocks written over them. Section 9 lists the choices
