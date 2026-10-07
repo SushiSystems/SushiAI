@@ -15,6 +15,7 @@ from typing import Optional
 
 import typer
 from sushicore.diag_commands import register_diagnostic_commands
+from sushicore.docs_bundle import ApiSource, register_docs_commands
 from sushicore.entry import run as run_entry
 from sushicore.provision.commands import ModuleProvision, register_provision_commands
 from sushicore.root_options import register_root_options
@@ -34,6 +35,7 @@ K_DIAGNOSTICS = "Diagnostics"
 K_HELP_FLAG = "--help"
 K_TRAIN_TARGET = "sushiai_train"
 K_INFERENCE_TARGET = "sushiai_inference"
+K_API_XML = "build/docs/api-site/xml"
 K_FORWARDING = {
     "allow_extra_args": True,
     "ignore_unknown_options": True,
@@ -159,17 +161,27 @@ def clean() -> None:
     raise typer.Exit(project_svc.clean())
 
 
-@app.command(
-    "docs",
-    rich_help_panel=K_PROJECT,
-    epilog="sa docs  # Write the API reference to build/docs/api-site/html",
-)
-def docs() -> None:
-    """Build the API reference with Doxygen."""
+def _api_source() -> ApiSource:
+    """Returns how `sa` builds the API reference and where Doxygen leaves its XML."""
+    return ApiSource(build=project_svc.doxygen, xml_dir=find_project_root() / K_API_XML)
+
+
+def _docs_alias() -> None:
+    """Builds the API reference; the callback behind the old spelling `sa doxygen`."""
     raise typer.Exit(project_svc.doxygen())
 
 
-K_ALIASES.command(app, "doxygen", docs, "sa doxygen")
+register_docs_commands(
+    app,
+    program=PROFILE.program,
+    panel=K_PROJECT,
+    project_root=find_project_root,
+    api=_api_source,
+    report=lambda line: console.success(line),
+    group_cls=_help_group,
+)
+
+K_ALIASES.command(app, "doxygen", _docs_alias, "sa doxygen")
 
 
 demo_app = typer.Typer(
