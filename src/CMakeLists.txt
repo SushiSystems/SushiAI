@@ -19,6 +19,8 @@ set(SUSHIAI_SOURCES
     config/train_config.cpp
 
     core/allocation.cpp
+    core/check.cpp
+    core/status.cpp
 
     graph/builder.cpp
     graph/precision.cpp
