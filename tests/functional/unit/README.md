@@ -1,8 +1,12 @@
 # Unit tests
 
-The unit tier runs without a device. Every file in this folder builds a graph, a config document
-or a byte stream on the host and inspects the result, so no case needs an Engine, a TensorPool or
-SYCL.
+The unit tier runs without a device. Every file in this folder builds a graph, a config
+document, a byte stream, an image or a plain array on the host and inspects the result, so no
+case needs an Engine, a TensorPool or SYCL. A few cases touch the disk. The path-resolution
+cases of `test_config.cpp` use config files on disk. `test_imaging_raw_cache.cpp` writes small
+files under the system's temporary directory and removes them. The `test_detect_*.cpp` cases
+that compare with the reference read tensors from `tests/fixtures/yolo26/` and report
+themselves skipped when a file is absent.
 
 This page holds the reasoning behind the cases. A `//` line in a test states the invariant the
 case relies on and cites this page. The section under the test's name says why the invariant
@@ -20,16 +24,40 @@ tests.
 | [`test_checkpoint_format.cpp`](test_checkpoint_format.cpp) | The checkpoint format's round trip and its refusal of each malformed byte pattern. |
 | [`test_config.cpp`](test_config.cpp) | How the config layer parses its JSON documents and which ones it refuses. |
 | [`test_conv2d.cpp`](test_conv2d.cpp) | The Conv2d layer's trace, parameters, shape inference and rejections. |
+| [`test_detect_anchors.cpp`](test_detect_anchors.cpp) | The anchor grid, the per-image anchor leaves and the copies between a level and the joined anchor axis. |
+| [`test_detect_assigner.cpp`](test_detect_assigner.cpp) | The task-aligned assigner, its presets, the padded ground truth and the target leaves. |
+| [`test_detect_average_precision.cpp`](test_detect_average_precision.cpp) | Detection matching, the 101-point average precision and the validation table. |
+| [`test_detect_boxes.cpp`](test_detect_boxes.cpp) | Box decoding and encoding, the two box formats and the IoU forms. |
+| [`test_detect_postprocess.cpp`](test_detect_postprocess.cpp) | The top-k selection, both postprocess paths and the overlap suppression. |
 | [`test_diagnostics.cpp`](test_diagnostics.cpp) | That each host-lane precondition raises a message carrying the values that disagree. |
+| [`test_elementwise_ops.cpp`](test_elementwise_ops.cpp) | The nodes the builder emits for the elementwise, comparison, selection and constant operations. |
 | [`test_flatten.cpp`](test_flatten.cpp) | The Flatten layer's trace, shape rule, rejections and parameter walk. |
 | [`test_fusion.cpp`](test_fusion.cpp) | The matches and the refusals of the static fusion pass on synthetic graphs. |
 | [`test_global_avg_pool.cpp`](test_global_avg_pool.cpp) | The shapes GlobalAvgPool traces and reports, and the inputs it refuses. |
 | [`test_gradcheck.cpp`](test_gradcheck.cpp) | The gradient checker against closed-form functions and a wrong gradient. |
+| [`test_imaging_affine.cpp`](test_imaging_affine.cpp) | The plan and the application of the scale and translation warp to an image and its labels. |
+| [`test_imaging_boxes.cpp`](test_imaging_boxes.cpp) | The two box forms, their conversions and the candidate filter. |
+| [`test_imaging_flip.cpp`](test_imaging_flip.cpp) | The plan and the application of the horizontal flip to an image and its labels. |
+| [`test_imaging_gray.cpp`](test_imaging_gray.cpp) | The expansion of a one-channel image to three equal channels. |
+| [`test_imaging_hsv.cpp`](test_imaging_hsv.cpp) | The hue, saturation and value jitter: its plan, its tables and both colour conversions. |
+| [`test_imaging_image.cpp`](test_imaging_image.cpp) | The owned image, the view over foreign pixels and the checks both share. |
+| [`test_imaging_label_set.cpp`](test_imaging_label_set.cpp) | The label set that holds classes, boxes and polygons in step, and its conversions. |
+| [`test_imaging_labels.cpp`](test_imaging_labels.cpp) | The parser of a label file's text. |
+| [`test_imaging_letterbox.cpp`](test_imaging_letterbox.cpp) | The plan and the application of the letterbox to an image and its labels. |
+| [`test_imaging_mosaic.cpp`](test_imaging_mosaic.cpp) | The draw, the plan and the application of the four-image mosaic. |
+| [`test_imaging_partners.cpp`](test_imaging_partners.cpp) | The two sources of a mosaic's three partner images. |
+| [`test_imaging_pipeline.cpp`](test_imaging_pipeline.cpp) | The training and the validation pipeline that compose the imaging transforms into a sample. |
+| [`test_imaging_polygon.cpp`](test_imaging_polygon.cpp) | Polygon resampling, mapping, clamping, the point test and the visible box. |
+| [`test_imaging_random.cpp`](test_imaging_random.cpp) | The generator every augmentation draws from. |
+| [`test_imaging_raw_cache.cpp`](test_imaging_raw_cache.cpp) | The raw image file: its bytes, its header checks and its file reader and writer. |
+| [`test_imaging_rectangle.cpp`](test_imaging_rectangle.cpp) | The plan that orders a dataset by aspect ratio and gives each batch one shape. |
+| [`test_imaging_resize.cpp`](test_imaging_resize.cpp) | The bilinear resize and the fit of an image's long side. |
 | [`test_ir.cpp`](test_ir.cpp) | The IR's single-assignment and ordering rules and the builder's shape inference. |
 | [`test_layer_registry.cpp`](test_layer_registry.cpp) | Each layer registry row's factory, the keys it reads and the model it builds. |
 | [`test_layer_stack.cpp`](test_layer_stack.cpp) | The runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread. |
 | [`test_layout.cpp`](test_layout.cpp) | That every value carries a tensor layout and that the rebuilding passes keep it. |
 | [`test_leaky_relu.cpp`](test_leaky_relu.cpp) | The LeakyReLU layer's trace, shape inference and slope range. |
+| [`test_loss_roots.cpp`](test_loss_roots.cpp) | Which values differentiation accepts as a loss, the seed it emits and the STOP_GRADIENT barrier. |
 | [`test_loss_scaling.cpp`](test_loss_scaling.cpp) | The dynamic loss-scaling rule on LossScaleState, with no device involved. |
 | [`test_max_pool2d.cpp`](test_max_pool2d.cpp) | The MaxPool2d layer's trace, shape inference and rejections. |
 | [`test_memory_plan.cpp`](test_memory_plan.cpp) | That the memory planner never shares a byte between two values live together. |
@@ -167,7 +195,52 @@ This file needs no device. Differentiation is an IR-to-IR transform, so what it 
 graph that can be inspected node by node with no hardware involved. That is why
 `include/SushiAI/graph/ir.hpp` insists that a backward rule emits IR and never device work.
 
+The cases from DivReadsItsDivisorAndItsOwnQuotient on each put one operation under an NLL_LOSS
+root and compare the appended nodes with a literal list of operation names. The first appended
+node is always the SCALE that NLL_LOSS's rule emits, and its result is the gradient the tested
+operation receives. The cases then check which operands each appended node reads, since a rule
+that emits the right operations over the wrong operands gives a graph of the same shape.
+
+### K_ATTRIBUTE_TOLERANCE
+
+`K_ATTRIBUTE_TOLERANCE` is 1e-12, the error allowed on an attribute a rule writes as an exact
+constant.
+
+### K_UNPROVEN_RULES
+
+`K_UNPROVEN_RULES` is 8, the number of rules no finite-difference case names.
+EveryRuleInTheTableIsNamedByANumericTest compares the size of its `unproven` list with it, so
+adding a rule to that list takes an edit in two places.
+
+### ForwardCase
+
+`ForwardCase` holds a failure label and a function that emits one forward operation over two
+parameters.
+
+### Appended
+
+`Appended` holds what one differentiation appended: the index of the first appended node, the
+gradient the tested operation receives, and one gradient per requested value.
+
+### differentiate_through
+
+`differentiate_through` declares a `targets` input in the shape of a rank-2 result, puts
+`nll_loss(result, targets)` over it and differentiates. It returns an `Appended` whose `seed`
+is the first result of the first appended node.
+
+### appended_node
+
+`appended_node` returns the node a given number of places after the first appended one.
+
 ### EveryImplementedOperationHasARule
+
+`has_backward_rule` is true for DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS, SELECT and SILU.
+
+`has_backward_rule` is false for LESS_EQUAL, CONSTANT and STOP_GRADIENT. Each is a gradient
+barrier: the reverse walk steps over it, so no rule is ever asked of it.
+
+`has_backward_rule` is false for SILU_BACKWARD and SOFTPLUS_BACKWARD. An activation gradient
+has no rule, so a second differentiation over one throws.
 
 `has_backward_rule(BATCHNORM_UPDATE_STATS)` is false, and that is decision CV-7, not an
 omission. A running mean is a buffer the training step writes beside the graph. No gradient
@@ -197,6 +270,12 @@ FLOAT64, for the reason `include/SushiAI/autograd/gradcheck.hpp` derives.
 
 The LOG_SOFTMAX entry names a message test. LOG_SOFTMAX's rule exists only to produce a good
 error, so there is no gradient to verify and the message test is its proof.
+
+The `unproven` vector lists the eight rules no finite-difference case names: DIV, MINIMUM,
+MAXIMUM, ABS, ATAN, SOFTPLUS, SELECT and SILU. Its size must equal `K_UNPROVEN_RULES`, every
+entry must have a rule, and no operation may appear in both the ledger and this list. The loop
+over `Ops::ALL` accepts a rule that either list names. An entry leaves `unproven` when a
+finite-difference case names its rule in the ledger.
 
 ### TwoLayerMlpProducesTheExpectedBackwardTopology
 
@@ -238,6 +317,122 @@ future operation added to the lowering but not to the rule table.
 
 A RELU consumes the log-softmax result, so the cross-entropy fusion does not apply and the
 standalone rule has to refuse.
+
+### DivReadsItsDivisorAndItsOwnQuotient
+
+For `c = a / b` with both operands parameters, the appended nodes are SCALE, DIV, MUL, SCALE.
+The DIV reads the seed and `b` and is the gradient of `a`. The MUL reads that quotient and the
+forward result `c`, and the last SCALE negates it with the factor -1 and is the gradient of
+`b`. The rule reuses `c` and does not divide by `b` a second time.
+
+### DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient
+
+With `b` an input, the appended nodes are SCALE and DIV.
+
+### DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone
+
+With `a` an input, the appended nodes are still SCALE, DIV, MUL, SCALE, because the divisor's
+gradient is computed from the quotient. The one returned gradient is the result of the last
+SCALE.
+
+### MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand
+
+For `minimum(a, b)` the appended nodes are SCALE, LESS_EQUAL, ZERO, SELECT, SELECT. The mask
+reads `a` then `b`. The first SELECT reads the mask, the seed and the zero and is the gradient
+of `a`; the second reads the mask, the zero and the seed and is the gradient of `b`. Where the
+operands are equal the mask holds, so the first operand takes the gradient.
+
+### MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand
+
+For `maximum(a, b)` the node list is the same and the mask reads `b` then `a`. The two SELECT
+nodes read the same operands as in the MINIMUM case, so a tie again goes to the first operand.
+
+### MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient
+
+With `a` an input, one SELECT is appended, and it reads the mask, the zero and the seed.
+
+### MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient
+
+With `b` an input, one SELECT is appended. The mask reads `b` then `a`, and the SELECT reads
+the mask, the seed and the zero.
+
+### AbsMultipliesByASignThatIsZeroAtZero
+
+For `abs(x)` the appended nodes are SCALE, ZERO, LESS_EQUAL, LESS_EQUAL, SUB, MUL. The ZERO has
+the shape of `x`. The first mask reads the zero then `x`, the second reads `x` then the zero,
+the SUB reads the first mask then the second, and the MUL reads the seed and the difference.
+The sign is `[0 <= x] - [x <= 0]`, which is 0 at x = 0.
+
+### AtanDividesByOnePlusTheSquaredInput
+
+For `atan(x)` the appended nodes are SCALE, MUL, CONSTANT, ADD, DIV. The MUL reads `x` twice.
+The CONSTANT has no input, holds 1 and has the shape and element type of `x`. The ADD reads the
+square and the one, and the DIV reads the seed and that sum.
+
+### SoftplusBackwardReadsTheForwardInputNotTheOutput
+
+For `softplus(x)` one SOFTPLUS_BACKWARD is appended after the SCALE, and it reads the seed and
+`x`. The case asserts that `x` and the forward result are different values first, so the
+operand check distinguishes the input from the output.
+
+### SiluBackwardReadsTheForwardInputNotTheOutput
+
+For `silu(x)` one SILU_BACKWARD is appended after the SCALE, and it reads the seed and `x`.
+
+### SelectRoutesItsGradientByItsOwnCondition
+
+For `select(condition, a, b)` the appended nodes are SCALE, ZERO, SELECT, SELECT. The first
+SELECT reads the condition, the seed and the zero and is the gradient of `a`. The second reads
+the condition, the zero and the seed and is the gradient of `b`.
+
+### SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient
+
+With `a` an input, the appended nodes are SCALE, ZERO, SELECT, and the SELECT reads the
+condition, the zero and the seed.
+
+### SelectGivesItsConditionNoGradient
+
+With the condition a parameter and both branches inputs, only the SCALE is appended and the
+condition's gradient is `NO_VALUE`.
+
+### AComparisonUnderASelectLeavesItsOperandsWithoutAGradient
+
+The condition is `less_equal(p, q)` with `p` a parameter. The gradient of `p` is `NO_VALUE`,
+the gradient of the branch `a` exists, and the appended nodes are SCALE, ZERO, SELECT.
+
+### AComparisonMultipliedIntoAProductEmitsNothingForTheMask
+
+For `mul(less_equal(p, q), a)` differentiation does not throw. The mask does not require a
+gradient, the gradient of `p` is `NO_VALUE`, and the appended nodes are SCALE and one MUL that
+reads the seed and the mask and is the gradient of `a`. MUL's rule emits no node for its mask
+operand.
+
+### AConstantAddedToAParameterPathEmitsNothingForTheConstant
+
+For `(x + epsilon) * epsilon`, with `epsilon` a `constant_like` of `x`, differentiation does
+not throw. The constant does not require a gradient, and the appended nodes are SCALE and one
+MUL that reads the seed and the constant and is the gradient of `x`.
+
+### MaximumOfXAndAZeroConstantRoutesATieToX
+
+For `maximum(x, floor)` with `floor` a zero CONSTANT, the mask reads `floor` then `x`, and the
+SELECT reads the mask, the seed and the zero. The mask `[floor <= x]` holds at x = 0, so `x`
+takes the gradient there.
+
+### MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATie
+
+For `maximum(floor, x)` the mask reads `x` then `floor`, and the SELECT reads the mask, the
+zero and the seed. The mask `[x <= floor]` holds at x = 0, so `x` takes the zero branch there.
+The operand order of a clamp therefore decides its gradient at the bound. The case also checks
+that no node of the graph, forward or appended, narrows under the mixed-precision policy, so
+the clamp stays in the loss's precision.
+
+### NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows
+
+For each of `div`, `minimum`, `maximum`, `abs`, `atan`, `softplus`, `silu` and a `select` on a
+`less_equal` mask, the case differentiates the operation over two parameters. The rule appends
+a node beyond the SCALE, and `Graph::narrows_under_mixed_precision` is false for every appended
+node.
 
 ## test_checkpoint_format.cpp
 
@@ -510,6 +705,874 @@ The layer's result is reduced with `spatial_mean` and passed to `NN::CrossEntrop
 of its parameter. The case checks that a gradient exists and has the right shape; it computes
 no number.
 
+## test_detect_anchors.cpp
+
+Tests the anchor grid, the per-image anchor leaves and the copies between a level and the joined
+anchor axis.
+
+This file needs no device. Its three suites, `Unit_DetectAnchors`, `Unit_DetectAnchorLeaves` and
+`Unit_DetectLevelRows`, cover `include/SushiAI/detect/anchors.hpp`,
+`include/SushiAI/detect/anchor_leaves.hpp` and `include/SushiAI/detect/level_rows.hpp`.
+`include/SushiAI/detect/README.md` quotes the reference lines each unit ports. One case reads
+`loss.sacp` through `tests/common/reference_fixture.hpp` and reports itself skipped when the
+file is absent.
+
+### K_EXACT
+
+`K_EXACT` is the tolerance 0. Every expected value in the file is a multiple of 0.5, which
+float32 holds exactly.
+
+### K_REFERENCE_LEVELS
+
+`K_REFERENCE_LEVELS` holds the three levels `tests/fixtures/yolo26/MANIFEST.json` records for a
+640 px input: 80 by 80 at stride 8, 40 by 40 at stride 16 and 20 by 20 at stride 32.
+
+### K_SMALL_LEVELS
+
+`K_SMALL_LEVELS` is a grid of 2 by 3 cells at stride 8 followed by 1 by 2 cells at stride 16,
+eight anchors in all, so a case can write every expected value out.
+
+### CountsOneAnchorPerCell
+
+`count_anchors` returns 8 for `K_SMALL_LEVELS` and 8400 for `K_REFERENCE_LEVELS`.
+
+### OrdersPointsByLevelThenRowThenColumn
+
+`make_anchors` over `K_SMALL_LEVELS` writes the sixteen point values and the eight strides the
+case lists: the first level row by row, x before y, then the second level.
+
+### ScalesEachPointByItsStride
+
+`scale_points` multiplies both coordinates of a point by its anchor's stride. The centres 0.5,
+1.5 and 2.5 become 4, 12 and 20 on the first level, and 0.5 and 1.5 become 8 and 24 on the
+second.
+
+### ScaleRejectsStridesThatDoNotMatchThePoints
+
+Seven strides for eight points throw with a message containing "[A] strides" and "got 16, 7 and
+16 values".
+
+### RejectsALevelWithoutCellsOrStride
+
+`count_anchors` throws on a level of height 0 with a message containing "height 0" and
+"width 3", and on a level of stride 0 with a message containing "stride 0".
+
+### RejectsOutputsOfTheWrongSize
+
+`make_anchors` given a point array of 15 values throws with a message containing "16 point
+values" and "got 15".
+
+### MatchesTheReferenceAnchorPoints
+
+The points of `K_REFERENCE_LEVELS`, scaled to pixels, equal the tensor `anchors.points` of
+`loss.sacp` at tolerance 0, and that tensor has shape [8400, 2]. The case is skipped when
+`loss.sacp` is absent.
+
+### GivesEachLevelItsStrideOverItsAnchorRange
+
+The strides of `K_REFERENCE_LEVELS` are 8 over anchors 0 to 6399, 16 over 6400 to 7999 and 32
+over 8000 to 8399. The offsets 0, 6400 and 8000 are the `anchor_offset` entries of the manifest.
+
+### RepeatsThePointsAndTheStridesForEveryImage
+
+`build_anchor_leaves` for a batch of two writes the eight points of `K_SMALL_LEVELS` twice. It
+writes the strides with four values per anchor: 24 values of 8 and 8 values of 16, also twice.
+
+### SplitsIntoALevelsPointsAndStrides
+
+`split_level` cuts the second level, anchors 6 and 7, out of both leaves. The points come out as
+[2, 1, 2, 2] and the strides as sixteen values of 16.
+
+### RejectsABatchWithoutImagesAndAModelWithoutLevels
+
+A batch of 0 throws with a message containing "positive batch" and "batch 0 and 2 levels". An
+empty level list throws with a message containing "at least one level" and "batch 1 and 0
+levels".
+
+### JoinPlacesALevelAtItsAnchorOffset
+
+`join_level` with two images, five anchors of two values and a level at anchors 3 and 4 writes
+the level's rows into values 6 to 9 of each image and leaves the other values at 0.
+
+### SplitReturnsTheRowsJoinPlaced
+
+The joined array holds its own index in every value. `split_level` for anchors 1 to 3 returns
+values 2 to 7 of image 0 and 12 to 17 of image 1.
+
+### RejectsALevelPastTheLastAnchor
+
+A level of two anchors at offset 4 of five throws with a message containing "2 anchors",
+"offset 4" and "5 anchors".
+
+### SplitRejectsALevelArrayOfTheWrongSize
+
+`split_level` into an array of 10 values, where the placement needs 12, throws with a message
+containing "12 level values", "20 joined values" and "got 10 and 20".
+
+## test_detect_assigner.cpp
+
+Tests the task-aligned assigner, its presets, the padded ground truth and the target leaves.
+
+This file needs no device. Its three suites are `Unit_DetectAssigner`, `Unit_DetectGroundTruth`
+and `Unit_DetectTargetLeaves`, over `include/SushiAI/detect/assigner.hpp`,
+`include/SushiAI/detect/assigner_config.hpp`, `include/SushiAI/detect/ground_truth.hpp` and
+`include/SushiAI/detect/target_leaves.hpp`. Most cases build one image on a 4 by 4 grid by
+hand, with `alpha` and `beta` both 1, so the metric is the class score times the overlap and
+each expected score is a fraction a comment derives. Three cases read `loss.sacp` and report
+themselves skipped when the file is absent. `include/SushiAI/detect/README.md`, under
+"Reference tensors the assigner tests read", lists the tensors.
+
+### Tolerances
+
+`K_EXACT` is 0, for copied values and multiples of 0.5. `K_SCORE_TOLERANCE` is 1e-6, eight
+float32 steps at 1, for a target score computed by hand. `K_REFERENCE_SCORE_TOLERANCE` is 1e-5
+for a reference target score, where `std::pow` and `std::atan` may round apart from torch.
+`K_REFERENCE_BOX_TOLERANCE` is 1.3e-4, two float32 steps at 640, for a reference box in pixels.
+
+### The hand-built grid
+
+`K_GRID_SIDE` is 4 cells, `K_GRID_ANCHORS` is 16, `K_GRID_STRIDE` is 8 px and `K_CLASSES` is 2.
+`K_FAR_BOX` is the box (100, 100, 101, 101), which no hand-built ground truth touches.
+
+### Scene
+
+`Scene` holds one image on that grid: anchor `a` sits in column `a % 4` and row `a / 4`, with
+pixel centres 4, 12, 20 and 28. Its constructor gives every anchor one score for both classes
+and the prediction `K_FAR_BOX`. `add_truth` appends a valid ground-truth box, `predict` sets one
+anchor's predicted box, and `inputs` returns the scene as an `AssignerInputs`.
+
+### make_hand_config
+
+`make_hand_config` returns an `AssignerConfig` with the given `topk` and `topk2`, two classes,
+`alpha` 1, `beta` 1 and `stride_val` 8.
+
+### foreground_anchors
+
+`foreground_anchors` returns the rows an `Assignment` marks as foreground, in ascending order.
+
+### make_crowded_scene
+
+`make_crowded_scene` returns a scene with one box of class 1 over the whole 32 px image. Every
+anchor predicts that box and scores 0.1, except anchors 5, 10 and 2, which score 0.9, 0.6 and
+0.3 in class 1.
+
+### make_contested_scene
+
+`make_contested_scene` returns a scene with two boxes, of classes 0 and 1, that both contain
+anchor 5. Anchors 0, 1 and 4 predict the first box, anchors 6, 9 and 10 the second, and anchor 5
+predicts the box the caller passes.
+
+### box_row
+
+`box_row` returns the four values of one row of a `[rows, 4]` array.
+
+### make_idle_assignment
+
+`make_idle_assignment` returns an `Assignment` of the given batch and anchor count with no
+foreground and every array at zero.
+
+### set_foreground
+
+`set_foreground` marks one row of an `Assignment` as foreground and gives it a pixel box and two
+class scores.
+
+### Reference constants
+
+`K_REFERENCE_LEVELS` holds the manifest's three levels for a 640 px input,
+`K_REFERENCE_IMAGE_SIDE` is 640, and `K_SMALL_BOX_ROW` is 3, the ground-truth row of the
+fixture that is smaller than a stride.
+
+### pad_reference_truth
+
+`pad_reference_truth` reads `batch.batch_idx`, `batch.cls` and `batch.bboxes` from `loss.sacp`
+and pads them with `pad_ground_truth` for one 640 px image. It returns an empty string, or the
+reason a tensor could not be read.
+
+### count_holders
+
+`count_holders` counts the foreground anchors of a mask whose target index is a given
+ground-truth row. It is a template over the mask's element type, so it takes the assigner's
+mask and the reference's.
+
+### expect_reference_assignment
+
+`expect_reference_assignment` runs one branch's assigner on the reference's scores, boxes and
+anchor points and compares all five outputs: the mask, the indices and the labels for equality,
+the boxes within `K_REFERENCE_BOX_TOLERANCE` and the scores within
+`K_REFERENCE_SCORE_TOLERANCE`. It then compares the foreground count and the count of anchors
+that hold box 3 with the two numbers the caller passes, and the second with the same count
+taken from the reference. Equality of the mask and the indices relies on the fixture having no
+tied metrics. The helper skips when `loss.sacp` is absent.
+
+### OneToManyPresetMatchesTheReferenceSettings
+
+`one_to_many_assigner_config(80, {8, 16, 32})` has `topk` 10, `topk2` 10, 80 classes, `alpha`
+0.5, `beta` 6, `stride_val` 16 and `eps` 1e-9. These are the `assigner.one2many` values of
+`loss.sacp` in `tests/fixtures/yolo26/MANIFEST.json`.
+
+### OneToOnePresetMatchesTheReferenceSettings
+
+`one_to_one_assigner_config(80, {8, 16, 32})` has `topk` 7, `topk2` 1, `alpha` 0.5, `beta` 6 and
+`stride_val` 16, the `assigner.one2one` values of the manifest.
+
+### PresetTakesStrideValFromTheSecondLevel
+
+`stride_val` is 12 for the strides 4 and 12, 4 for the one stride 4, and 16 for an empty stride
+list.
+
+### ConfigDefaultsMatchTheReferenceConstructor
+
+A default `AssignerConfig` has `topk` 13, `topk2` 13, 80 classes, `alpha` 1, `beta` 6,
+`stride_val` 16 and `eps` 1e-9, the arguments of the reference's `TaskAlignedAssigner.__init__`.
+
+### RejectsAConfigWithoutCandidatesOrWithANegativeMargin
+
+Constructing a `TaskAlignedAssigner` throws for `topk` 0, with a message containing "positive
+topk" and "got 0, 3 and 2", for `stride_val` -1, with "stride_val", "at least 0" and "-1", and
+for `eps` -1, with "eps of at least 0" and "-1".
+
+### TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta
+
+The case uses the one-to-many preset, so `alpha` is 0.5 and `beta` is 6. Anchor 5 predicts the
+box exactly with score 0.25, so its metric is sqrt(0.25) times 1, which is 0.5. Anchor 10
+predicts a 24 px box with score 0.81; its overlap is 576 / 1024 - 32 / 2048, which is 35 / 64,
+and its metric is 0.9 times (35 / 64)^6, about 0.024. With `topk` 1 the foreground is anchor 5
+alone, and with `topk` 2 it is anchors 5 and 10. The target score of anchor 5 is 1 and that of
+anchor 10 is its metric over 0.5. An assigner that used the scores or the overlaps unraised
+gives another second score.
+
+### NormalisesByTheLargestOverlapOfTheBox
+
+Anchors 0 and 1 both predict a box offset by 8 px from a 16 px truth, with scores 0.8 and 0.4.
+The overlap is 64 / 448 - 128 / 1152, which is 2 / 63. The target scores are that overlap and
+half of it: each metric over the largest metric, times the largest overlap of the box.
+
+### APredictionApartFromItsBoxHasNoOverlap
+
+Anchors 0 and 1 score 0.9 and predict `K_FAR_BOX`, whose complete IoU with the box is negative
+and is clamped to 0. With `topk` 2 the foreground is anchors 4 and 5, which predict the box.
+With `topk` 3 the third place goes to anchor 0, the first candidate of metric zero, and its
+target score is 0.
+
+### AContestedAnchorOfEqualOverlapsGoesToTheFirstBox
+
+Two ground-truth rows hold the same box with classes 0 and 1, and anchor 5 predicts it. Anchor 5
+is the one foreground anchor, its target index and label are 0, its score in class 0 is 1 and
+its score in class 1 is 0.
+
+### AContestedAnchorCanGoToABoxThatDidNotKeepIt
+
+With `topk` 1, boxes 0 and 1 both keep anchor 5 and box 2 keeps anchor 2. Anchor 5 predicts box
+2 exactly, so its largest overlap is with box 2 and it goes there, with target index 2 and
+label 1. Its score in class 1 is 0.1 / 0.9 and its score in class 0 is 0. The case pins that
+the maximum overlap is taken over every box, including one that did not keep the anchor.
+
+### AnImageWithoutGroundTruthGetsNoForeground
+
+A scene with no ground truth has no foreground anchor. Every target label is 2, the class
+count, and every index, box and score is 0.
+
+### APaddingRowAssignsNothing
+
+The crowded scene's one box is marked invalid. No anchor is foreground and every target score
+is 0, although the box contains all sixteen anchors.
+
+### KeepsTheTopkCandidatesWhenABoxHoldsMore
+
+In the crowded scene every overlap is 1, so the metric is the class score. With `topk` 3 the
+foreground is anchors 2, 5 and 10, with target scores 0.3 / 0.9, 1 and 0.6 / 0.9 in class 1 and
+0 in class 0. Every target label is 1, the label of ground-truth row 0, on and off the
+foreground.
+
+### TheSecondTopkKeepsTheBestAnchorOfABox
+
+With `topk` 3 and `topk2` 1 the crowded scene keeps anchor 5 alone, with target score 1.
+
+### AContestedAnchorGoesToTheHigherOverlap
+
+Anchor 5 predicts the second box of the contested scene. The foreground is anchors 0, 1, 4, 5,
+6, 9 and 10, and the target index and label of anchor 5 are 1. Its score is 1 in class 1 and 0
+in class 0, and its target box starts at x = 8.
+
+### AContestedAnchorCanGoToTheFirstBox
+
+The same scene with anchor 5 predicting the first box gives anchor 5 the target index 0, score
+1 in class 0 and 0 in class 1.
+
+### ASmallBoxIsEnlargedToStrideVal
+
+A 2 px box centred at 14 contains no anchor centre. With `stride_val` 16 it is tested as the
+span 6 to 22, which holds the centres 12 and 20 on both axes, so anchors 5, 6, 9 and 10 are
+foreground. With `stride_val` 1 there is no foreground. The target box of anchor 5 still starts
+at 13: the enlargement applies to the candidate test and not to the target.
+
+### AssignsEachImageFromItsOwnRows
+
+A batch of two holds an image with one invalid row and the crowded scene. The foreground rows
+are 18, 21 and 26, which are anchors 2, 5 and 10 of image 1. The target label of row 0 is 0 and
+that of row 16 is 1.
+
+### RejectsTooFewAnchorsAndAnUnknownClass
+
+`assign` with `topk` 17 on sixteen anchors throws with a message containing "16 anchors" and
+"topk 17". A valid box of class 2 with two classes throws with "class 2 of 2".
+
+### PadsLabelRowsPerImage
+
+Three label rows, two for image 0 and one for image 2, are padded to a batch of three 64 by 32
+images with `max_boxes` 2. The boxes are converted from normalised centre and size to pixel
+corners, the labels are 3, 1, 0, 0, 7, 0 and the valid flags are 1, 1, 0, 0, 1, 0.
+
+### MarksARowWithoutExtentInvalid
+
+A row whose four values are 0 is padded in with its label 4 and the valid flag 0. The row after
+it is valid.
+
+### PadsNoRowsToABatchWithoutBoxes
+
+With no label rows and a batch of 2, `max_boxes` is 0 and the labels, boxes and flags are empty.
+
+### RejectsARowOutsideTheBatch
+
+A row naming image 3 in a batch of 3 throws with a message containing "row 0 names image 3" and
+"batch of 3".
+
+### BuildsTheLossLeavesOfAnAssignment
+
+The crowded scene is assigned with `topk` 3 and its leaves are built for an image 64 px wide and
+32 px high. The three weights are 1, 2/3 and 1/3, so `target_scores_sum` is 2 and the
+normalised weights of anchors 5 and 10 are 1/2 and 1/3. Row 5 has a box mask of four ones, the
+target box (0, 0, 4, 4) in grid units, the target distances (1.5, 1.5, 2.5, 2.5) and an
+`l1_scale` of 8 / 64 * 0.25 * 0.5 across and 8 / 32 * 0.25 * 0.5 down. The unequal width and
+height separate the two `l1_scale` values.
+
+### ReadsEachRowsAnchorAcrossImagesAndLevels
+
+Two levels give five anchors, and a hand-built assignment for two images marks rows 1 and 9.
+Row 1 is anchor 1 of image 0, at point (1.5, 0.5) on stride 8. Row 9 is anchor 4 of image 1, at
+point (0.5, 0.5) on stride 16. Each row's target box, distances and `l1_scale` are computed
+from its own point and stride, and `target_scores_sum` is 1.5. Row 4, the same anchor as row 9
+in image 0, has a box mask of zeros.
+
+### AnUnassignedRowCarriesTheSafeBoxAndNoWeight
+
+Row 0 of the crowded scene is off the foreground. Its target box is (0, 0, 1, 1), and its box
+mask, `l1_scale`, target distances, weight and normalised weight are 0. `safe_boxes` holds
+(0, 0, 1, 1) in row 5 as well, which is a foreground row.
+
+### TheScoreSumIsAtLeastOne
+
+With no ground truth, `target_scores_sum` is 1.
+
+### PadsTheReferenceLabelsToItsTargetBoxes
+
+The reference labels pad to four valid rows. Gathering the padded boxes and labels by the
+reference's `one2many.assignment.target_indices` gives its `target_boxes` within
+`K_REFERENCE_BOX_TOLERANCE` and its `target_labels` exactly. The case is skipped when
+`loss.sacp` is absent.
+
+### ReproducesTheReferenceOneToManyAssignment
+
+`expect_reference_assignment` runs the one-to-many preset and expects 31 foreground anchors,
+the manifest's `foreground_anchor_count.one2many`, of which 4 hold box 3. The case is skipped
+when `loss.sacp` is absent.
+
+### ReproducesTheReferenceOneToOneAssignment
+
+The same helper runs the one-to-one preset and expects 4 foreground anchors, the manifest's
+`foreground_anchor_count.one2one`, of which 1 holds box 3. The case is skipped when `loss.sacp`
+is absent.
+
+## test_detect_average_precision.cpp
+
+Tests detection matching, the 101-point average precision and the validation table.
+
+This file needs no device and reads no fixture. Every case in `Unit_AveragePrecision` builds
+detection rows and ground-truth boxes by hand and calls `match_detections`,
+`integrate_precision` or the `AveragePrecision` accumulator of
+`include/SushiAI/detect/average_precision.hpp`. A comment in each case derives the expected
+number from the recall and precision the detections produce.
+
+### K_TOLERANCE
+
+`K_TOLERANCE` is 1e-12, the absolute tolerance of a metric, about 4500 float64 steps at 1.
+
+### K_FULL_AP
+
+`K_FULL_AP` is 0.995, the area under an envelope that is 1 up to recall 1. The integration
+samples 101 recall points and the envelope is 0 at the last one, so the area is
+0.99 + 0.01 / 2 and not 1.
+
+### The boxes
+
+`K_BOX_A` is the 8 by 8 box at the origin. `K_BOX_B` and `K_BOX_FAR` are 8 by 8 boxes that
+touch neither it nor each other. `K_BOX_LOOSE` is the 8 by 5 box whose IoU with `K_BOX_A` is
+40 / 64, which is 0.625, and `K_BOX_NEAR` is the 8 by 7 box whose IoU with it is 56 / 64, which
+is 0.875. `K_NO_VALUES` and `K_NO_CLASSES` are empty arrays.
+
+### make_row
+
+`make_row` returns one detection row: a box, then a score and a class.
+
+### join
+
+`join` lays several arrays end to end.
+
+### match
+
+`match` calls `match_detections` for one image and returns the flags. It sizes the array from
+`K_DETECTION_VALUES` and fills it with 7 first, so a flag the function does not write is
+neither 0 nor 1.
+
+### add_image
+
+The file-local `add_image` passes three vectors to `AveragePrecision::add_image`.
+
+### summarize_image
+
+`summarize_image` returns the table of an accumulator that holds one image.
+
+### HoldsTheTenReferenceThresholds
+
+`K_IOU_THRESHOLDS` has ten entries, and each equals a hexadecimal float literal that carries
+the float32 bits of `torch.linspace(0.5, 0.95, 10)`. The comparison is exact, so a threshold
+that rounds to a neighbouring float32 fails it.
+
+### IntegratesAnEmptyCurveToOneHalf
+
+`integrate_precision` of two empty curves is 0.5. With no points the envelope is the line from
+1 at recall 0 to 0 at recall 1.
+
+### IntegratesUnderThePrecisionEnvelope
+
+Recall 0.5, 0.5, 1 with precision 1, 0.5, 2/3 integrates to
+0.49 + 0.05 / 6 + 0.98 / 3 + 0.01 / 3. The envelope lifts the dip to 0.5 up to the 2/3 that
+follows it at higher recall.
+
+### RejectsCurvesOfUnequalLength
+
+Two recall values with one precision value throw with a message containing "1 and 2".
+
+### PerfectDetectorScoresTheInterpolationCeiling
+
+Two images each hold one box, of classes 0 and 1, and one detection that equals it. Both rows
+have precision 1, recall 1 and `K_FULL_AP` in both AP columns, and the four means are the same
+numbers.
+
+### NoDetectionsScoreZero
+
+One box of class 0 and no detection give one row, with label 0 and one instance. Precision,
+recall and both AP columns are 0 in the row and in the means.
+
+### FalsePositiveAboveTheTruePositiveHalvesPrecision
+
+A miss at score 0.9 ranks above a hit at 0.6. Recall is 0 then 1 and precision 0 then 0.5, so
+the AP is 0.99 * 0.5 + 0.01 * 0.25, which is 0.4975, at every threshold. The mean F1 is flat
+below confidence 0.6, so the first confidence point is read: precision 0.5 and recall 1.
+
+### ReadsPrecisionAndRecallAtTheBestF1Confidence
+
+A hit at 0.9 ranks above a miss at 0.3. F1 rises from 2/3 at confidence 0.3 to 1 at 0.9 and is 0
+above it, so the smoothed curve is largest at point 849 of 1000. Precision there is
+1 - 0.5 * (0.9 - 849 / 999) / (0.9 - 0.3), and the case also compares it with the literal
+0.9582082255854392. Recall is 1. The row and the means hold the same values. Reading the first
+confidence point gives precision 0.5.
+
+### TwoDetectionsOnOneBoxCountOneMatch
+
+Two detections equal `K_BOX_A` and a third equals `K_BOX_B`, all of class 0. The flags are 1
+for the first, 0 for the second and 1 for the third at all ten thresholds. The AP at IoU 0.5 is
+0.49 + 0.05 / 6 + 0.98 / 3 + 0.01 / 3, precision is 2/3 and recall is 1. Three matches give
+0.995.
+
+### ClassWithoutGroundTruthIsLeftOutOfTheMean
+
+A detection of class 3 has no ground truth of its class. The table has one row, for class 0,
+and the means are `K_FULL_AP`, 1 and 1. A row for class 3 halves every mean.
+
+### ClassWithoutDetectionsCountsAsZeroInTheMean
+
+Classes 0 and 1 both have a box and only class 0 has a detection. The row of class 1 has AP 0,
+and the means are 0.4975 for both AP columns and 0.5 for precision and recall.
+
+### EqualScoresKeepTheOrderTheyWereAddedIn
+
+A miss and a hit share the score 0.5. Added miss first, the AP at IoU 0.5 is 0.4975; added hit
+first, it is `K_FULL_AP`. The ranking is therefore stable.
+
+### LooseDetectionCountsAtTheLowThresholdsOnly
+
+A detection at IoU 0.625 has the flags 1, 1, 1 and then seven zeros. Its AP at IoU 0.5 is
+`K_FULL_AP` and its mean over the ten thresholds is 3 * 0.995 / 10, which is 0.2985.
+
+### ImageWithoutGroundTruthAddsFalsePositives
+
+The second image has no ground truth and one detection at score 0.9, which ranks above the
+first image's hit at 0.6. The summary counts 2 images and 1 instance, the class row counts 1
+image, the AP at IoU 0.5 is 0.4975, precision is 0.5 and recall is 1.
+
+### ImageWithoutDetectionsLowersRecall
+
+The second image has a box and no detection. `image_count()` is 2, the class row counts 2
+images and 2 instances, recall is 0.5, precision is 1, and both AP columns are 0.49 + 0.005,
+which is 0.495.
+
+### DetectionWhoseBestBoxIsTakenStaysUnmatched
+
+The first detection takes `K_BOX_A`. The second overlaps `K_BOX_A` by 0.875 and `K_BOX_LOOSE`
+by 40 / 56, about 0.714. Its flags are ten zeros: a detection is matched to its box of largest
+IoU or to none.
+
+### DetectionTakesTheBoxOfLargestIou
+
+The boxes are listed `K_BOX_LOOSE` then `K_BOX_A`, and one detection equals `K_BOX_NEAR`. Its
+flags are eight ones and two zeros, which is the IoU 0.875 it has with the box listed second. A
+matcher that took the first box passing 0.5 gives five ones.
+
+### DetectionWithNanBoxDoesNotMatch
+
+A detection whose x1 is NaN has a NaN IoU with `K_BOX_A`, and its flags are ten zeros. The row
+is built by hand because `make_row` takes a box constant.
+
+### BoxGoesToItsFirstDetectionAtEachThreshold
+
+A detection at IoU 0.625 ranks above one at IoU 1. The first holds the box at 0.5, 0.55 and
+0.6; the second gets it from 0.65 up. The flags are 1, 1, 1, 0, 0, 0, 0, 0, 0, 0 and
+0, 0, 0, 1, 1, 1, 1, 1, 1, 1.
+
+### DetectionOfAnotherClassDoesNotMatch
+
+A detection of class 1 that equals a box of class 0 has ten zero flags.
+
+### NoGroundTruthGivesNoRows
+
+An empty accumulator has no rows. After an image with one detection and no ground truth it
+counts 1 image, has no rows, and its four means are 0.
+
+### ClearDropsEveryImage
+
+An image with a miss is added and `clear()` is called. `image_count()` is 0. An image with a
+hit added afterwards gives 1 image, 1 instance and AP `K_FULL_AP`, so nothing of the first
+image remains.
+
+### RejectsMalformedImages
+
+`add_image` throws for a detection array of 5 values ("[N, 6]", "got 5"), for one box with two
+classes ("4 values", "2 classes"), for a ground-truth class of -1 ("box 0", "negative class
+-1"), for a detection class of 0.5 ("detection 0", "not a class index") and for a NaN score
+("detection 0", "score"). The accumulator still holds no image and no rows afterwards.
+`match_detections` throws for a box without a class ("0 classes") and for a flag array of 9
+values ("need 10 values", "got 9").
+
+## test_detect_boxes.cpp
+
+Tests box decoding and encoding, the two box formats and the IoU forms.
+
+This file needs no device. `Unit_DetectBoxes` covers `include/SushiAI/detect/box_coding.hpp`,
+`include/SushiAI/detect/box_format.hpp` and `include/SushiAI/detect/iou.hpp`. The hand cases
+write the expected value as the arithmetic that produces it. Three cases read `forward.sacp`
+and report themselves skipped when the file is absent.
+
+### Tolerances
+
+`K_EXACT` is 0, for values float32 holds exactly. `K_DECODE_TOLERANCE` is 1.3e-4, two float32
+steps at 640, for a decoded box in pixels. `K_ROUND_TRIP_TOLERANCE` is 1.6e-5, two steps at 80,
+for a decode followed by an encode in grid units. `K_IOU_TOLERANCE` is 1e-6, eight float32
+steps at 1.
+
+### K_REFERENCE_ANCHORS and K_REFERENCE_LEVELS
+
+`K_REFERENCE_ANCHORS` is 8400 and `K_REFERENCE_LEVELS` holds the three levels of a 640 px
+input, both from "levels" in `tests/fixtures/yolo26/MANIFEST.json`.
+
+### ReferenceGrid
+
+`ReferenceGrid` holds the `[8400, 2]` points and the `[8400]` strides of the reference levels
+in grid units, and `make_reference_grid` fills one with `make_anchors`.
+
+### join_raw_boxes
+
+`join_raw_boxes` reads a branch's three per-level tensors, `<branch>.level<i>.boxes`, and
+copies each into its place in an `[8400, 4]` array with `join_level`. It returns an empty
+string, or the reason a level could not be read.
+
+### DecodesDistancesToCorners
+
+`decode_xyxy` of the distances (0.5, 1, 1.5, 2) at the point (1.5, 2.5) gives
+(1, 1.5, 3, 4.5): left and top are subtracted from the point, right and bottom added.
+
+### DecodesDistancesToCentreAndSize
+
+`decode_xywh` of the same input gives the midpoint (2, 3) and the size (2, 3) of those corners.
+
+### RepeatsTheAnchorPointsForEachImage
+
+Two anchor points and four rows of distances decode as two images: rows 2 and 3 use points 0
+and 1 again.
+
+### EncodeInvertsDecode
+
+`encode_distances` of the boxes `decode_xyxy` writes returns the three rows of distances at
+tolerance 0.
+
+### ScalesEachBoxByItsAnchorStride
+
+`scale_boxes` multiplies all four values of a row by its anchor's stride: the row (1, 2, 3, 4)
+becomes (8, 16, 24, 32) at stride 8 and (16, 32, 48, 64) at stride 16.
+
+### ConvertsBetweenCornersAndCentreSize
+
+`xyxy_to_xywh` maps (1, 2, 5, 8) to (3, 5, 4, 6), and `xywh_to_xyxy` maps that back to the
+corners.
+
+### RejectsRowsThatDoNotCoverTheAnchors
+
+Three rows of distances over two anchor points throw with a message containing "2 anchors" and
+"12".
+
+### ReproducesTheReferenceOneToManyDecode
+
+The raw one-to-many boxes, decoded with `decode_xywh` and scaled by the strides, equal
+`one2many.decoded.boxes` within `K_DECODE_TOLERANCE`. The case is skipped when `forward.sacp`
+is absent.
+
+### ReproducesTheReferenceOneToOneDecode
+
+The raw one-to-one boxes, decoded with `decode_xyxy` and scaled, equal `one2one.decoded.boxes`
+within `K_DECODE_TOLERANCE`. The case is skipped when `forward.sacp` is absent.
+
+### EncodeInvertsTheDecodeOfTheReferenceBoxes
+
+Encoding the decode of the raw one-to-one boxes returns them within `K_ROUND_TRIP_TOLERANCE`.
+The case is skipped when `forward.sacp` is absent.
+
+### IdenticalBoxesScoreOne
+
+A 2 by 2 box has IoU 1 and complete IoU 1 with itself.
+
+### DisjointBoxesScoreZeroAndPayForDistance
+
+Two unit squares two units apart have IoU 0. Their complete IoU is minus the squared centre
+distance, 4, over the squared hull diagonal, 10.
+
+### OverlappingSquaresLoseTheCentreTerm
+
+Two 2 by 2 squares offset by 1 on both axes have IoU 1 / 7, and their complete IoU is that
+minus 2 / 18. The aspect ratios are equal, so the aspect term is 0.
+
+### DifferentAspectRatiosLoseTheAspectTerm
+
+A 4 by 2 box and a 2 by 2 box at one corner have IoU 0.5. The expected complete IoU is computed
+in double from the centre term, the angle gap `atan(1) - atan(2)` and the trade-off factor, and
+compared within `K_IOU_TOLERANCE`.
+
+### ADegenerateBoxStaysFinite
+
+A box of zero size inside a 2 by 2 box has IoU 0. Its width over its height is 0 over eps, so
+the angle gap is pi / 4, the aspect term is 0.25, and the complete IoU is -0.25 * 0.25 / 1.25,
+which is -0.05. The complete IoU of the zero-size box with itself is finite and 0.
+
+### ElementwiseFormsPairRows
+
+`elementwise_iou` and `elementwise_complete_iou` over two rows give 1 / 7 and 0, and
+1 / 7 - 2 / 18 and -4 / 10: row i of the first array is paired with row i of the second.
+
+### PairwiseFormFillsEveryPair
+
+`pairwise_iou` of two boxes against three writes six values, row n and column m holding the
+IoU of box n with box m: 1, 1 / 7, 0, then 1 / 4, 0, 0.
+
+### RejectsElementwiseInputsOfDifferentLength
+
+Arrays of 8 and 4 values with an output of 2 throw with a message containing "got 8, 4 and 2".
+
+## test_detect_postprocess.cpp
+
+Tests the top-k selection, both postprocess paths and the overlap suppression.
+
+This file needs no device. `Unit_DetectTopK` covers `include/SushiAI/detect/top_k.hpp`, and
+`Unit_DetectPostprocess` covers `include/SushiAI/detect/detections_topk.hpp` and
+`include/SushiAI/detect/detections_nms.hpp`. The suppression path takes boxes as centre and
+size, so the hand cases write them that way and expect corners. Four cases read `forward.sacp`
+and report themselves skipped when the file is absent.
+
+Two of the reference comparisons cannot compare row by row. The reference orders equal scores
+in an order torch does not specify, and the fixture's scores are nearly constant.
+`include/SushiAI/detect/README.md`, under `top_k.hpp` and "Reference rows the suppression test
+reads", gives the counts.
+
+### K_EXACT
+
+`K_EXACT` is the tolerance 0. A postprocess copies its output values from its inputs.
+
+### K_SUPPRESSION_CONFIDENCE
+
+`K_SUPPRESSION_CONFIDENCE` is 1.8e-4, the `suppression.arguments.conf_thres` of `forward.sacp`
+in `tests/fixtures/yolo26/MANIFEST.json`.
+
+### Row
+
+`Row` is an array of six floats, one detection.
+
+### sorted_rows_above
+
+`sorted_rows_above` returns the rows whose score exceeds a floor, sorted by their six values.
+Two detection arrays that hold the same rows in different orders compare equal through it.
+
+### is_anchor_class_pair
+
+`is_anchor_class_pair` reports whether a row's box is some anchor's box and its score is that
+anchor's score in the row's class.
+
+### make_nms_config
+
+`make_nms_config` returns an `NmsConfig` with the given confidence threshold, IoU threshold,
+label mode and class mode, and the default limits.
+
+### suppress_one_image
+
+`suppress_one_image` runs `select_nms_detections` on one image of `[A, 4]` boxes and returns
+that image's rows.
+
+### OrdersByValueThenIndex
+
+`select_top_k` of the values 0.5, 0.9, 0.5, 0.1, 0.9 with k = 4 returns the indices 1, 4, 0, 2:
+larger values first, equal values by ascending index. Asking for 6 of 5 values throws with a
+message containing "6" and "5 values".
+
+### SelectsTheHighestScoringAnchorClassPairs
+
+Three anchors with two classes and a limit of 2 give the row of anchor 1 with score 0.9 and
+class 0, then the row of anchor 0 with score 0.7 and class 1.
+
+### OneAnchorCanYieldTwoDetections
+
+Anchor 1 scores 0.8 and 0.7 in its two classes, both above anchor 0's 0.6. Both output rows
+carry anchor 1's box, with classes 0 and 1.
+
+### LimitsRowsToTheAnchorCount
+
+`count_top_detections` returns 3 for three anchors and a limit of 300, and 300 for 8400 anchors.
+
+### SelectsEachImageFromItsOwnRows
+
+A batch of two images with two anchors each and a limit of 1 gives one row per image: anchor 1
+of image 0 at 0.6 in class 0, and anchor 1 of image 1 at 0.9 in class 1.
+
+### RejectsADetectionArrayOfTheWrongSize
+
+An output of 6 values where the shape needs `[1, 2, 6]` throws with a message containing
+"[1, 2, 6] detections" and "6 values".
+
+### ReproducesTheReferenceDetections
+
+`select_top_detections` on `one2one.decoded.boxes` and `one2one.decoded.scores` with
+`K_MAX_DETECTIONS` is compared with `one2one.detections` in three ways. The score column and
+the class column are equal row by row. The rows above the last score are equal as a set,
+through `sorted_rows_above`. Every output row passes `is_anchor_class_pair`. The case is
+skipped when `forward.sacp` is absent.
+
+### TheConfidenceFilterDropsAScoreAtTheThreshold
+
+`keep_confident_detections` at 0.25 keeps the rows at 0.5 and 0.26, in their order, and drops
+the rows at 0.25 and 0.1.
+
+### TheConfidenceFilterKeepsEachImagesRows
+
+Four rows split between two images at `K_VALIDATION_CONFIDENCE`: image 0 keeps its row at 0.9
+and image 1 keeps none.
+
+### TheConfidenceFilterRejectsRowsTheBatchDoesNotDivide
+
+Three rows for a batch of 2 throw with a message containing "[2, k, 6] detections" and "18
+values". A batch of 0 throws with "positive batch" and "got 0".
+
+### TheConfidenceFilterKeepsTheRowsTheReferenceValidatorKeeps
+
+At `K_VALIDATION_CONFIDENCE` the filter keeps none of the 300 rows of `one2one.detections`,
+which is `validation.row_count.one2one` of the manifest. At threshold 0 it keeps all of them
+unchanged, since every reference score is a sigmoid above zero. The case is skipped when
+`forward.sacp` is absent.
+
+### SuppressionReproducesTheReferenceRows
+
+`select_nms_detections` at `K_SUPPRESSION_CONFIDENCE` on the one-to-many decode returns as many
+values as `one2many.suppressed.detections`. The score column is equal row by row and the rows
+above the last score are equal as a set. The case is skipped when `forward.sacp` is absent.
+
+### NoReferenceScorePassesTheValidationConfidence
+
+With a default `NmsConfig` the one-to-many decode yields no row, which is
+`validation.row_count.one2many` of the manifest. The case is skipped when `forward.sacp` is
+absent.
+
+### SuppressionDefaultsMatchTheValidator
+
+A default `NmsConfig` has confidence 0.001, IoU 0.7, `LabelMode::MultiLabel`,
+`ClassMode::ClassAware`, 300 detections, 30000 candidates and a class offset of 7680.
+
+### SuppressesTheLowerOfTwoOverlappingBoxes
+
+Boxes 0 and 1 share 81 of 119 px, an IoU of 0.68, and box 2 is apart. `suppress_overlaps` at 0.5
+keeps the indices 0 and 2.
+
+### ListsSurvivorsByDescendingScore
+
+Four boxes that do not overlap, with scores 0.1, 0.9, 0.5 and 0.5, are kept in the order
+1, 2, 3, 0.
+
+### KeepsABoxWhoseIouEqualsTheThreshold
+
+Two boxes share 2 of 4 px, an IoU of exactly 0.5 in float32. At threshold 0.5 both are kept; at
+0.25 only the first is.
+
+### OverlappingBoxesOfOneClassCollapse
+
+Two anchors hold the same box and score 0.9 and 0.8 in class 0. One row remains, with corners
+(0, 0, 10, 10), score 0.9 and class 0.
+
+### OverlappingBoxesOfDifferentClassesBothSurvive
+
+The same two boxes score in classes 0 and 1. `ClassMode::ClassAware` keeps both rows, and
+`ClassMode::ClassAgnostic` keeps the one at 0.9.
+
+### DropsAScoreEqualToTheConfidenceThreshold
+
+An anchor at 0.25 with the threshold at 0.25 yields no row. The anchor at 0.5 yields the one
+row.
+
+### AnAnchorContributesEveryPassingClassOrItsBest
+
+One anchor scores 0.6, 0.1 and 0.7 in three classes. `LabelMode::MultiLabel` yields two rows,
+class 2 at 0.7 then class 0 at 0.6. `LabelMode::BestClass` yields the row of class 2 alone.
+
+### LimitsDetectionsToTheHighestScores
+
+Three boxes that are apart score 0.5, 0.9 and 0.7. With `max_detections` 2 the rows at 0.9 and
+0.7 remain.
+
+### LimitsCandidatesBeforeSuppression
+
+With `max_candidates` 1 the same input yields the row at 0.9 alone.
+
+### RejectsAThresholdOutsideTheUnitInterval
+
+A confidence threshold of 1.5 throws with a message containing "[0, 1]" and "1.5".
+
+### AnImageBelowTheThresholdYieldsNoRows
+
+Scores of 0.25, 0.1, 0.2 and 0 at the threshold 0.25 yield an empty row vector.
+
+### SuppressesEachImageFromItsOwnRows
+
+A batch of two images with two anchors each. Image 0 holds one box twice, so the row at 0.9
+remains. Image 1 holds two boxes that are apart, and its rows are 0.6 then 0.3.
+
+### RejectsScoresThatDoNotFillTheShape
+
+Six scores where the shape `[1, 2, 2]` needs four throw with a message containing "[1, 2, 2]
+scores" and "8 and 6 values".
+
 ## test_diagnostics.cpp
 
 Tests that each host-lane precondition raises a message carrying the values that disagree.
@@ -553,13 +1616,26 @@ The message has to show both shapes or the reader cannot tell which side was wro
 The second write is what would make a differentiated graph silently wrong, so the message has
 to say which two operations collided.
 
-### ALossThatNoRuleCanSeedIsRejectedRatherThanReturningNothing
+### AOneElementRootOfADifferentiableOperationIsSeeded
 
-A 1-element MATMUL result passes the "is it a scalar" check. Every rule then declines to act,
-because the root's own gradient is implicit and only NLL_LOSS knows to start from it. Before
-this diagnostic existed the caller got a full set of NO_VALUE gradients and no error. Then
-`bind_parameters` reported a misleading "parameter receives no gradient", which blamed the model
-and not the loss.
+The root is a [1, 1] MATMUL of a parameter `x` and an input `w`. Differentiation does not
+throw and appends two nodes. The first is a CONSTANT in the root's shape, the seed. The second
+is a MATMUL that reads the seed and `w`, and its result is the gradient of `x`, in the shape of
+`x`. `test_loss_roots.cpp` covers the seed in full.
+
+### ARootThatRequiresNoGradientNamesItsProducerAndTheCause
+
+Two roots are refused. A MATMUL of two inputs is reached by no parameter, and the message
+contains "value 3", "sushiai.matmul" and "requires no gradient". A MATMUL that reads the
+parameter through `stop_gradient` is refused with a message containing "sushiai.matmul",
+"requires no gradient" and "STOP_GRADIENT", so the message names the barrier as a cause the
+caller can look for.
+
+### ARootWhoseProducerHasNoRuleNamesTheProducer
+
+The root is a DYNAMIC_SCALE of a parameter, an operation with no backward rule. The message
+contains "sushiai.dynamic_scale", "has no backward rule" and "autograd/rules/", the folder a
+rule is added in.
 
 ### ALossNoOperationProducesIsRejected
 
@@ -581,6 +1657,191 @@ through NLL_LOSS, and not merely that log-softmax said no.
 This error is reachable only from inside a backward rule, so the test provokes it the way a
 buggy rule would. It builds a graph by hand whose SUB claims a result of a different shape from
 its operands, so the rule contributes a [4, 3] gradient to a [2, 6] value.
+
+## test_elementwise_ops.cpp
+
+Tests the nodes the builder emits for the elementwise, comparison, selection and constant
+operations.
+
+This file needs no device. Every case in `Unit_ElementwiseOps` calls an emitter of
+`include/SushiAI/graph/builder.hpp` on a host-side graph and reads the node and the value it
+wrote. The emitters are `div`, `minimum`, `maximum`, `less_equal`, `abs`, `atan`, `softplus`,
+`silu`, `select`, `activation_backward`, `constant` and `constant_like`. The cases that concern
+several emitters loop over a table and label each iteration with `SCOPED_TRACE`, so a failure
+names the emitter. `test_backward.cpp` covers the backward rules of the same operations.
+
+### BinaryEmitter and UnaryEmitter
+
+`BinaryEmitter` holds a label, the identity an emitter must write and a pointer to a
+two-operand member of `GraphBuilder`. `UnaryEmitter` is the same for one operand.
+
+### K_BINARY_EMITTERS
+
+`K_BINARY_EMITTERS` lists `div`, `minimum`, `maximum` and `less_equal` with DIV, MINIMUM,
+MAXIMUM and LESS_EQUAL.
+
+### K_UNARY_EMITTERS
+
+`K_UNARY_EMITTERS` lists `abs`, `atan`, `softplus` and `silu` with ABS, ATAN, SOFTPLUS and SILU.
+
+### K_INPUT_READING_GRADIENTS
+
+`K_INPUT_READING_GRADIENTS` lists SILU_BACKWARD and SOFTPLUS_BACKWARD, the two activation
+gradients that read the forward input.
+
+### nchw_input
+
+`nchw_input` declares a [2, 2, 2, 2] input and converts it to NCHW. Every extent is 2, so the
+permuted shape equals the original and two such values still agree in shape.
+
+### expect_produced_by
+
+`expect_produced_by` expects a value to be the single result of a node of a given operation
+that reads a given operand list in order.
+
+### expect_described_like
+
+`expect_described_like` expects a value to have the shape, element type and layout of another
+value and the lifetime ACTIVATION.
+
+### BinaryEmittersWriteTheirIdentityOverBothOperandsInOrder
+
+Each two-operand emitter writes one node of its own identity whose inputs are `a` then `b`.
+
+### BinaryEmittersKeepShapeDtypeAndLayout
+
+With two FLOAT64 NCHW operands, the result of each two-operand emitter has the first operand's
+shape and is FLOAT64 and NCHW.
+
+### BinaryEmittersRejectUnequalShapesWithoutBroadcasting
+
+Each two-operand emitter throws for a [4, 3] operand with a [4, 1] one, in both orders, and
+with a [3] one. These are the pairs a broadcasting library accepts. The node count is unchanged
+after the three calls.
+
+### BinaryEmittersRejectUnequalDtypes
+
+Each two-operand emitter throws for a FLOAT32 operand with a FLOAT64 one, in both orders.
+
+### LessEqualYieldsAMaskInTheOperandsOwnDtype
+
+The result of `less_equal` is FLOAT32 for FLOAT32 operands and FLOAT64 for FLOAT64 ones. The
+mask has no element type of its own, which is what lets `mul` and `select` read it beside a
+value of the same type.
+
+### UnaryEmittersWriteTheirIdentityOverTheirOperand
+
+Each single-operand emitter returns a value other than its operand, written by one node of its
+own identity that reads the operand.
+
+### UnaryEmittersKeepShapeDtypeAndLayout
+
+With a FLOAT64 NCHW operand, the result of each single-operand emitter has the operand's shape
+and is FLOAT64 and NCHW.
+
+### SelectReadsItsConditionThenBothBranches
+
+`select(condition, a, b)` writes one SELECT node whose inputs are the condition, `a` and `b`,
+in that order.
+
+### SelectKeepsShapeDtypeAndLayout
+
+With three FLOAT64 NCHW operands the result has the shape, element type and layout of `a`.
+
+### SelectRejectsAConditionOfAnotherShape
+
+A [4, 1] condition over [4, 3] branches throws, and the node count is unchanged.
+
+### SelectRejectsAConditionOfAnotherDtype
+
+An INT64 condition over FLOAT32 branches throws.
+
+### SelectRejectsBranchesOfUnequalShape
+
+A [4, 3] branch with a [4, 1] branch throws in both orders.
+
+### SelectRejectsBranchesOfUnequalDtype
+
+A FLOAT32 branch with a FLOAT64 branch throws in both orders.
+
+### ActivationBackwardEmitsTheInputReadingGradients
+
+For SILU_BACKWARD and SOFTPLUS_BACKWARD, `activation_backward(gradient, dy, x)` writes one node
+of that identity whose inputs are `dy` then `x`, and the result is described like `dy`.
+
+### InputReadingGradientsRejectAGradientOfAnotherShape
+
+A [4, 1] `dy` with a [4, 3] `x` throws for both gradients.
+
+### InputReadingGradientsRejectAGradientOfAnotherDtype
+
+A FLOAT32 value with a FLOAT64 one throws for both gradients, in both orders.
+
+### ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient
+
+`activation_backward` throws when the identity is SILU, SOFTPLUS or DIV. The first two are
+forward identities of `Ops::ACTIVATIONS` and the third is not in the table.
+
+### FinaliseAcceptsAGraphUsingEveryEmitter
+
+Two NCHW inputs are chained through all four two-operand emitters and all four single-operand
+ones, and the chain ends in a `select` on a `less_equal` mask. `Graph::finalise()` does not
+throw.
+
+### FinaliseRejectsOperandsInTwoLayouts
+
+For each two-operand emitter, a node that reads one NCHW operand and one NHWC operand is
+emitted, and `finalise()` throws. The emitter itself accepts the pair because the shapes are
+equal.
+
+### FinaliseRejectsASelectConditionInAnotherLayout
+
+A `select` with an NHWC condition over NCHW branches is emitted, and `finalise()` throws.
+
+### ResultsOfAParameterRequireAGradient
+
+After `finalise()`, `silu(div(weight, constant))` requires a gradient and
+`atan(maximum(constant, constant))` over an input does not.
+
+### AComparisonOfAParameterRequiresNoGradient
+
+After `finalise()`, the mask `less_equal(weight, bound)` requires no gradient, and neither does
+a `select` that reads it as its condition over two inputs.
+
+### ConstantWritesAnOperandFreeNodeHoldingItsValue
+
+`constant([4, 3], 1e-7, FLOAT64)` writes one CONSTANT node with no input. Attribute slot 0
+holds 1e-7 within 1e-20, and the value is [4, 3], FLOAT64, NHWC and ACTIVATION. `K_VALUE` and
+`K_VALUE_TOLERANCE` are constants local to the case.
+
+### ConstantDefaultsToFloat32
+
+`constant([2], 1.0)` with no element type is FLOAT32.
+
+### ConstantRejectsAnElementTypeThatIsNotRealFloating
+
+`constant` throws for INT64 and for COMPLEX32, and the node count and the value count are
+unchanged.
+
+### ConstantLikeCopiesShapeDtypeAndLayoutWithoutReadingItsOperand
+
+`constant_like(x, 0.5)` over a FLOAT64 NCHW value writes a CONSTANT node with no input whose
+result is described like `x`. The value it names is not an operand of the node.
+
+### ConstantLikeRejectsAValueThatIsNotRealFloating
+
+`constant_like` over an INT64 value throws, and the node count and the value count are
+unchanged.
+
+### AConstantLikeAValueIsAnOperandThatFinaliseAccepts
+
+`add(x, constant_like(x, 1e-7))` over an NCHW input passes `finalise()`, and the sum requires
+no gradient.
+
+### ZerosStillWritesTheZeroIdentity
+
+`zeros` and `zeros_like` each write a ZERO node with no input. ZERO and CONSTANT are two
+identities.
 
 ## test_flatten.cpp
 
@@ -894,6 +2155,2464 @@ difference of x^2 is still exact to 1e-9.
 
 The `unshifted` point straddles the kink. The quotient taken across it reports the average of
 the two one-sided derivatives, which no correct rule can match.
+
+## test_imaging_affine.cpp
+
+Tests the plan and the application of the scale and translation warp to an image and its
+labels.
+
+This file needs no device. `Unit_ImagingAffine` covers `include/SushiAI/imaging/affine.hpp`.
+`plan_affine` draws a scale and a translation per axis and stores the 2 by 3 matrix;
+`apply_affine` warps an image with bilinear weights, or warps, clips and filters a label set.
+The matrix has no rotation and no shear, and `apply_affine` refuses a plan that has one.
+
+### K_PIXEL_TOLERANCE
+
+`K_PIXEL_TOLERANCE` is 1e-3 px, the tolerance of a box edge or a matrix term.
+
+### Matrix3 and multiply
+
+`Matrix3` is a row-major 3 by 3 float matrix, the form the reference builds its factors in.
+`multiply` returns the product of two of them with each term summed left to right.
+
+### make_pattern_image
+
+`make_pattern_image` returns an image whose byte at row y, column x, channel c is
+(31 y + 7 x + 53 c + 1) modulo 256.
+
+### make_gray_image
+
+`make_gray_image` returns a one-channel image holding the given bytes.
+
+### make_plan
+
+`make_plan` returns an `AffinePlan` with a given scale and matrix translation, built without a
+draw. A case uses it to state the matrix it tests.
+
+### make_labels
+
+`make_labels` returns a label set with one object per box and the classes 0, 1, 2 and so on.
+
+### expect_box_near
+
+`expect_box_near` compares the four edges of two boxes within `K_PIXEL_TOLERANCE`.
+
+### bytes_of
+
+`bytes_of` returns the bytes of an image.
+
+### ZeroRangesPutTheSourceCentreOnTheOutputCentre
+
+With the scale and translate ranges at 0, a 1200 by 1000 source and a 480 by 640 output give
+scale 1, translation (320, 240) and the matrix [1 0 -180; 0 1 -360]: the source centre
+(500, 600) maps to the output centre.
+
+### MatrixEqualsTranslationTimesScaleTimesCentre
+
+The case replays the three draws on a copy of the generator and builds the centring, scaling
+and translation matrices. The plan's matrix equals translation times scaling times centring.
+The seed is required to give a scale more than 0.05 from 1, because at scale 1 the product is
+the same in any order.
+
+### PlanConsumesExactlyThreeDraws
+
+After `plan_affine` the generator equals a copy advanced by three draws.
+
+### PlanCarriesSizesBorderValueAndFilter
+
+The plan holds the source size, the output size, the border value 37 and the filter fields of
+the settings.
+
+### DrawnParametersStayInRangeAndCentreOnTheirMeans
+
+Over 20000 plans from 200 seeds, the scale lies in [0.5, 1.5) and each translation in [0.4,
+0.6] of its output side. The means are 1 within 0.012 and 0.5 within 0.0025, the extremes come
+within 0.01 and 0.002 of the range ends, and the x and y fractions are within 1e-6 of each
+other in fewer than 1 percent of the plans, so each axis has its own draw.
+
+### PlanRejectsSettingsAndSizesOutsideTheirRanges
+
+A scale half-range of 1, -0.1 or NaN and a translate half-range of 0.6 or -0.1 throw with
+"validate_affine" or the field name. A source of 0 by 16 and an output of 16 by 0 throw with
+"plan_affine" and the size. No rejected call makes a draw, and the default settings pass.
+
+### IdentityPlanLeavesTheImageUnchanged
+
+With both ranges at 0 and equal source and output sizes, the warped image has the source's
+bytes.
+
+### IdentityPlanLeavesBoxesUnchanged
+
+Under the same plan three boxes keep their classes and their edges.
+
+### TranslationMovesPixelsAndFillsTheUncoveredBorder
+
+A 3 by 4 source shifted by (2, 1) into a 5 by 6 output puts source pixel (y - 1, x - 2) at
+(y, x) and fills every other pixel with 114.
+
+### ScaleByTwoInterpolatesAndFadesIntoTheBorder
+
+A 2 by 2 image scaled by 2 with border value 100 gives the sixteen bytes the case lists. Odd
+output coordinates fall halfway between two source pixels, and the last row and column blend
+with the border.
+
+### HalfPixelBlendRoundsToNearest
+
+A row (10, 13) shifted by half a pixel gives 62, 12 and 64: the means 62, 11.5 and 63.5 with
+the border 114, rounded half up.
+
+### FractionRoundsToTheNearestOf2048Weights
+
+With an offset of 6141 / 8192 the fraction times 2048 is 512.75, so the weights are 1535 and
+513. The three output bytes are 90, 19 and 42, computed from those weights; the weights 1536
+and 512 give other bytes.
+
+### OutputFarFromTheSourceIsAllBorder
+
+A translation of (1000, -1000) leaves every output byte at the border value 9.
+
+### ImageWarpRejectsAPlanItCannotApply
+
+`apply_affine` on an image throws for a plan made for another source size, a matrix with an
+off-diagonal term, a diagonal term of 0, a matrix scale that is not the plan's scale, an
+infinite translation, a source without pixels, a source of five channels, the destination as
+its own source and a view of two rows of the destination. The aliased image keeps its bytes.
+
+### TranslationMovesBoxesByTheOffset
+
+A translation of (30, -10) maps (10, 20, 50, 60) to (40, 10, 80, 50).
+
+### ScaleMultipliesBoxCornersBeforeTheOffset
+
+Scale 2 with translation (10, -20) maps (5, 20, 25, 40) to (20, 20, 60, 60).
+
+### WarpedBoxIsTheHullOfItsFourWarpedCorners
+
+The case maps the four corners of a box through the plan's matrix and takes their hull. The
+warped box equals the hull and the literal (30, 40, 80, 90).
+
+### BoxesAreClippedThenFilteredAndSurvivorsKeepTheirOrder
+
+Five 40 by 40 boxes are shifted right by 80 in a 100 px wide output, which leaves widths of 10,
+5, 3, 2 and 0 inside it. The first two remain, in order, clipped to x2 = 100. Width 3 fails the
+area ratio at 0.075, width 2 fails the minimum side and width 0 fails both.
+
+### FilterComparesAgainstTheSourceBoxTimesTheScale
+
+At scale 0.25 a 40 by 40 box becomes 10 by 10 and is kept: its ratio is 1 against the scaled
+box and 0.0625 against the unscaled one. At scale 2 a 20 by 20 box that keeps 3 by 40 inside
+the output is removed: its ratio is 0.075 against the scaled box and 0.3 against the unscaled
+one.
+
+### BoxWarpUsesThePlansFilter
+
+A 4 px wide box is kept with the default filter and removed when the plan's `min_side` is 4.
+
+### BoxWarpRejectsARotatedMatrixAndAScaleThatIsNotThePlans
+
+`apply_affine` on labels throws for an off-diagonal matrix term and for a matrix scale that is
+not the plan's scale.
+
+### FiltersDefaultToTheBoxAndThePolygonAreaRatios
+
+The settings and a plan made from them have `filter.min_area_ratio` 0.10 and
+`polygon_filter.min_area_ratio` 0.01, and a default `AffinePlan` has the second value too.
+
+### PolygonVerticesAreScaledThenTranslated
+
+Scale 2 with translation (10, -5) maps the vertices (5, 10), (25, 12) and (15, 30) to (20, 15),
+(60, 19) and (40, 55), and the box to (20, 15, 60, 55).
+
+### PolygonObjectTakesTheBoxOfItsVisiblePart
+
+A triangle that reaches outside a 100 by 80 output gets the box (0, 0, 36.666664, 33), the
+reference's `segment2box` result. The same bounds without a polygon are clipped to
+(0, 0, 70, 60).
+
+### WarpedPolygonIsClampedToItsNewBox
+
+The same triangle's vertices become (0, 0), (36.666664, 0) and (0, 33): each is clamped to the
+box rebuilt from the polygon.
+
+### WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOutside
+
+In float the edge from x = -0.03 to x = 0.25 crosses x = 0 at -1.86e-9. The box's x1 is exactly
+0, and every vertex lies inside the output and between the box's x1 and x2.
+
+### PolygonObjectIsFilteredAtTheLowerAreaRatio
+
+A box that keeps an area ratio of 0.075 is kept when its object has a polygon and removed when
+it has none.
+
+### PolygonWarpUsesThePlansPolygonFilter
+
+The same object is removed when `polygon_filter.min_area_ratio` is 0.08, with
+`filter.min_area_ratio` set to 0. The polygon filter decides for an object with a polygon.
+
+### PolygonOutsideTheOutputDropsItsObject
+
+With a translation of 500, the object whose polygon leaves the output is removed and the one
+the translation moves into it is kept, with class 1 and the box (40, 10, 80, 50).
+
+## test_imaging_boxes.cpp
+
+Tests the two box forms, their conversions and the candidate filter.
+
+This file needs no device. `Unit_ImagingBoxes` covers `include/SushiAI/imaging/boxes.hpp`: a
+`NormalizedBox` is a centre and an extent in fractions of the image, a `PixelBox` is two corners
+in pixels, and `is_box_candidate` decides whether a box survives an augmentation.
+
+### Tolerances and K_SIZE
+
+`K_PIXEL_TOLERANCE` is 1e-3 px and `K_FRACTION_TOLERANCE` is 1e-6 of the image.
+`K_EPSILON_TOLERANCE` is 1e-22, for the filter's default epsilon of 1e-16. `K_SIZE` is 480 rows
+by 640 columns, the size the hand cases use.
+
+### expect_pixel_box
+
+`expect_pixel_box` compares the four corners of a `PixelBox` within `K_PIXEL_TOLERANCE`.
+
+### expect_normalized_box
+
+`expect_normalized_box` compares the four values of a `NormalizedBox` within
+`K_FRACTION_TOLERANCE`.
+
+### box_of_sides
+
+`box_of_sides` returns a box with its left top corner at the origin and the given width and
+height.
+
+### ToPixelBoxPlacesCornersFromCentreAndExtent
+
+The normalized box (0.5, 0.25, 0.5, 0.25) in `K_SIZE` is the pixel box (160, 60, 480, 180).
+
+### ToPixelBoxUsesWidthForXAndHeightForY
+
+A box covering a 100 by 200 image is (0, 0, 200, 100). The two sides differ, so a conversion
+that swapped them gives other corners.
+
+### ToPixelBoxDoesNotClip
+
+A box centred on the left edge converts to (-50, 75, 50, 125). The conversion leaves the
+negative corner as it is.
+
+### ToNormalizedBoxDividesCentreAndExtentByTheImageSize
+
+The pixel box (160, 60, 480, 180) in `K_SIZE` is the normalized box (0.5, 0.25, 0.5, 0.25).
+
+### NormalizedToPixelAndBackReturnsTheBox
+
+Four normalized boxes, one of them all zeros, come back from the two conversions within
+`K_FRACTION_TOLERANCE`.
+
+### PixelToNormalizedAndBackReturnsTheBox
+
+The pixel box (12.5, 7.25, 630, 471.75) comes back within `K_PIXEL_TOLERANCE`.
+
+### ScaleBoxMultipliesEachAxisByItsOwnFactor
+
+`scale_box` by 2 across and 0.5 down maps (10, 20, 30, 40) to (20, 10, 60, 20).
+
+### TranslateBoxAddsEachAxisItsOwnOffset
+
+`translate_box` by 5 across and -25 down maps (10, 20, 30, 40) to (15, -5, 35, 15).
+
+### ClipBoxClampsEachEdgeToTheImage
+
+`clip_box` maps (-10, 20, 700, 500) in `K_SIZE` to (0, 20, 640, 480).
+
+### ClipBoxLeavesABoxInsideTheImageAlone
+
+The box (0, 0, 640, 480) is unchanged.
+
+### ClipBoxCollapsesABoxOutsideTheImageOntoTheEdge
+
+A box to the right of the image clips to (640, 10, 640, 20) and one above it to
+(10, 0, 20, 0). Both have area 0.
+
+### BoxAreaIsWidthTimesHeight
+
+`box_area` of (1, 2, 4, 6) is 12.
+
+### PolygonFilterLowersOnlyTheAreaRatioToOneHundredth
+
+`make_polygon_filter` returns a `CandidateFilter` whose `min_area_ratio` is 0.01, which is
+`K_POLYGON_MIN_AREA_RATIO`. Its `min_side`, `max_aspect_ratio` and `epsilon` equal those of a
+default filter.
+
+### PolygonFilterKeepsABoxThePlainFilterRejects
+
+A box that goes from 100 by 100 to 50 by 10 keeps 5 percent of its area. The default filter
+rejects it and the polygon filter keeps it.
+
+### CandidateFilterDefaultsAreTheReferenceThresholds
+
+A default `CandidateFilter` has `min_side` 2, `max_aspect_ratio` 100, `min_area_ratio` 0.10 and
+`epsilon` 1e-16.
+
+### CandidateNeedsAWidthAboveTheMinimumSide
+
+A width of 2 is rejected and a width of 2.25 is kept. The comparison is strict.
+
+### CandidateNeedsAHeightAboveTheMinimumSide
+
+A height of 2 is rejected and a height of 2.25 is kept.
+
+### CandidateNeedsMoreThanTheMinimumAreaRatio
+
+Against a 100 by 100 box, a 10 by 100 box has a ratio of 0.10 in float and is rejected. A width
+of 10.5 is kept and a width of 9.5 is rejected.
+
+### CandidateAreaRatioFollowsTheFilterField
+
+With `min_area_ratio` set to 0.01, the 10 by 100 box is kept and a 10 by 10 box, whose ratio is
+0.01, is rejected.
+
+### CandidateNeedsAnAspectRatioBelowTheMaximum
+
+A 300 by 3 box and a 3 by 300 box have an aspect ratio of 100 in float and are rejected. Boxes
+of 297 by 3 and 3 by 297 are kept. The filter takes the larger of the two ratios.
+
+### CandidateMeasuresSidesNotPositions
+
+A 50 by 40 box moved to another position is kept. The filter reads widths and heights and no
+coordinate.
+
+### CandidateEpsilonIsAddedToTheAreaBefore
+
+With `epsilon` 100 and `min_area_ratio` 0.6, a 10 by 10 box against itself has the ratio
+100 / (100 + 100), which is 0.5, and is rejected. Without the epsilon in the denominator the
+ratio is 1.
+
+### CandidateEpsilonIsAddedToTheHeightOfAWideBox
+
+With `epsilon` 1, a 300 by 3 box has the ratio 300 / (3 + 1), which is 75, and is kept.
+
+### CandidateEpsilonIsAddedToTheWidthOfATallBox
+
+With `epsilon` 1, a 3 by 300 box has the ratio 75 and is kept.
+
+### CandidateWithAnEmptyBeforeBoxIsKeptAndAnEmptyAfterBoxIsNot
+
+An empty box before and a 10 by 10 box after is kept. A 10 by 10 box before and an empty box
+after is rejected.
+
+## test_imaging_flip.cpp
+
+Tests the plan and the application of the horizontal flip to an image and its labels.
+
+This file needs no device. `Unit_ImagingFlip` covers `include/SushiAI/imaging/flip.hpp`.
+`plan_flip` makes the one random draw and records the decision in a `FlipPlan`; `apply_flip`
+then mirrors an image or a label set from the plan and draws nothing.
+
+### Constants
+
+`K_BOX_TOLERANCE` is 1e-4 px. `K_SEED_COUNT` is 10000, the seeds 0 to 9999 a statistical case
+draws from. `K_FREQUENCY_TOLERANCE` is 0.03, six standard deviations of a frequency of 0.5 over
+10000 draws.
+
+### make_counted_image
+
+`make_counted_image` returns an image whose byte at offset i is i modulo 256.
+
+### expect_same_image
+
+`expect_same_image` expects two images to have the same size, channel count and bytes.
+
+### expect_box
+
+`expect_box` compares the four coordinates of two boxes within `K_BOX_TOLERANCE`.
+
+### PlanRecordsTheSizeAndMakesExactlyOneDraw
+
+The plan holds the source size 480 by 640. Its `is_flipped` equals one `bernoulli` draw of a
+second generator with the same seed, and the two generators are equal afterwards.
+
+### ProbabilityZeroNeverFlipsAndOneAlwaysFlips
+
+Over 10000 seeds, probability 0 never flips and probability 1 always does, and both leave the
+generator in the same state.
+
+### DefaultProbabilityFlipsAboutHalfOfTheSeeds
+
+With the default settings the flip frequency over 10000 seeds is 0.5 within
+`K_FREQUENCY_TOLERANCE`.
+
+### PlanRejectsAProbabilityOutsideZeroToOne
+
+Probabilities of 1.5 and -0.1 throw with a message containing "validate_flip" and
+"probability", and the generator is unchanged.
+
+### PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw
+
+A NaN probability throws and the generator is unchanged.
+
+### PlanRejectsASideThatIsNotPositiveBeforeAnyDraw
+
+Sizes of 0 by 8 and 8 by -2 throw with a message containing "plan_flip", "source size" and the
+size, and the generator is unchanged.
+
+### SourceWithoutPixelsIsRejected
+
+`apply_flip` on a default `ImageView` throws with "apply_flip" and "no pixels".
+
+### DestinationThatIsTheSourceIsRejected
+
+`apply_flip` with the image as both source and destination throws with "destination holds the
+source's pixels", and the image is unchanged.
+
+### ViewInsideTheDestinationIsRejected
+
+A view of three rows of the destination is refused with the same message, and the image is
+unchanged.
+
+### FlippedImageHoldsEachRowInReverseColumnOrder
+
+For a 2 by 3 image of three channels, pixel x of each destination row equals pixel 2 - x of the
+source row, channel by channel. The first pixel of row 0 is bytes 6, 7, 8: the pixels are
+reversed and the channels inside a pixel are not.
+
+### UnflippedImageIsCopiedUnchanged
+
+A plan with `is_flipped` false copies the source.
+
+### FlippingAnImageTwiceRestoresIt
+
+A 4 by 7 image of three channels and a 3 by 4 image of one channel both come back after two
+flips.
+
+### ImageOfAnotherSizeThanThePlanIsRejected
+
+A 2 by 3 source with a plan for 2 by 4 or for 5 by 3 throws with a message naming the plan's
+size and "2x3".
+
+### FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder
+
+In a 640 px wide image the box (100, 50, 300, 200) becomes (340, 50, 540, 200), and a box
+spanning the whole width is unchanged. Classes and order are kept, and x1 stays at or below x2.
+
+### UnflippedBoxesAreReturnedUnchanged
+
+An unflipped plan returns the labels as they are.
+
+### FlippingBoxesTwiceRestoresThem
+
+Two boxes come back after two flips within `K_BOX_TOLERANCE`.
+
+### FlippedPolygonMirrorsEveryVertexAboutTheWidth
+
+In a 640 px wide image the vertices at x = 100, 300 and 150.5 move to 540, 340 and 489.5, and
+every y is kept. An object without a polygon still has none.
+
+### UnflippedPolygonIsReturnedUnchanged
+
+An unflipped plan returns the polygon's vertices as they are.
+
+### ValidateAcceptsZeroAndOne
+
+`validate_flip` does not throw for probability 0, 1 or the default.
+
+## test_imaging_gray.cpp
+
+Tests the expansion of a one-channel image to three equal channels.
+
+This file needs no device. `Unit_ImagingGray` covers `expand_gray` of
+`include/SushiAI/imaging/gray.hpp`.
+
+### make_counted
+
+`make_counted` returns an image whose byte at offset i is 17 * i + 3 modulo 256.
+
+### ExpandCopiesEachLevelIntoThreeChannels
+
+A 3 by 5 grey image expands to a 3 by 5 image of `K_RGB_CHANNELS` channels, and all three
+channels of every pixel hold the pixel's grey level.
+
+### ExpandRewritesAReusedDestination
+
+A destination that was 9 by 9 with four channels and filled with 255 becomes 2 by 2 with three
+channels, and every byte holds its pixel's grey level.
+
+### ExpandRejectsASourceThatIsNotGrey
+
+Sources of three and of four channels throw with "expand_gray" and the channel count.
+`K_GRAY_CHANNELS` is 1.
+
+### ExpandRejectsASourceWithoutPixelsAndOneInTheDestination
+
+An empty view throws with "no pixels". The destination's own view, and a view of two of its
+rows, throw with "destination holds the source's pixels". The image keeps its size, channel
+count and bytes.
+
+## test_imaging_hsv.cpp
+
+Tests the hue, saturation and value jitter: its plan, its tables and both colour conversions.
+
+This file needs no device. `Unit_ImagingHsv` covers `include/SushiAI/imaging/hsv.hpp`.
+`plan_hsv` draws three gains, `make_hsv_tables` turns a plan into three 256-entry tables, and
+`apply_hsv` converts each pixel with `to_hsv`, looks it up and converts back with `to_rgb`. Hue
+runs over `K_HUE_STEPS` (180) steps and every level is an integer, so the expected colours are
+exact and a comment in the case derives them.
+
+### Constants
+
+`K_SEED_COUNT` is 10000, the seeds a statistical case draws from. `K_ROUND_TRIP_LEVELS` is 4,
+the largest level error of `to_hsv` followed by `to_rgb`. `K_SWEEP_STEP` is 5, the step between
+the levels of the colour sweep.
+
+### make_row and pixel_at
+
+`make_row` returns a one-row RGB image of the given pixels, and `pixel_at` returns the pixel at
+a column of such an image.
+
+### jitter
+
+`jitter` applies a plan to a single pixel through `apply_hsv` and returns the result.
+
+### expect_rgb and expect_hsv
+
+`expect_rgb` and `expect_hsv` compare the three levels of a pixel for equality.
+
+### level_distance
+
+`level_distance` returns the absolute difference of two levels.
+
+### PlanDrawsHueThenSaturationThenValueAndNothingMore
+
+The plan's three gains equal three `uniform(-1, 1)` draws of a second generator, each times its
+setting, in the order hue, saturation, value. The comparison is exact, and the two generators
+are equal afterwards.
+
+### DrawnGainsStayInsideTheConfiguredRangesOverManySeeds
+
+Over 10000 seeds every drawn gain lies in [-gain, gain). The smallest of each is below -0.9
+times its gain and the largest above 0.9 times it, so the draws cover the range.
+
+### ZeroGainsDrawThreeTimesAndGiveAZeroPlan
+
+With three gains of 0 the plan is three zeros and the generator has advanced by three draws.
+The draw count does not depend on the settings.
+
+### PlanRejectsANegativeGain
+
+A saturation gain of -0.5 throws with "validate_hsv" and "gain", and the generator is
+unchanged.
+
+### PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw
+
+An infinite hue gain and a NaN value gain throw, and the generator is unchanged.
+
+### SourceWithoutPixelsIsRejected
+
+`apply_hsv` on a default view throws with "apply_hsv" and "no pixels".
+
+### DestinationThatIsTheSourceIsRejected
+
+`apply_hsv` with the image as source and destination throws with "destination holds the
+source's pixels", and both pixels are unchanged.
+
+### ViewInsideTheDestinationIsRejected
+
+A view of the destination's second pixel is refused with the same message, and the image keeps
+its size and pixels.
+
+### ZeroPlanGivesIdentityTables
+
+For a zero plan the saturation and value tables map every level to itself. The hue table maps
+x to x below 180 and to x - 180 from 180 up.
+
+### HueTableShiftsByAFractionOfATurnAndWrapsBothWays
+
+A hue gain of 0.25 shifts by 45 steps: 0 maps to 45, 134 to 179 and 135 to 0. A gain of -0.25
+maps 0 to 135 and 45 to 0. Every entry of both tables is below 180.
+
+### SaturationAndValueTablesScaleTruncateAndClamp
+
+A saturation gain of 0.5 multiplies by 1.5: 3 maps to 4, which is 4.5 truncated, and 170 and
+above map to 255. A value gain of 0.25 multiplies by 1.25: 203 maps to 253 and 204 to 255. A
+saturation gain of -0.5 maps 255 to 127, and a value gain of -2 maps every level to 0.
+
+### PrimaryColoursHaveHuesSixtyStepsApart
+
+`to_hsv` gives red, green and blue the hues 0, 60 and 120 at saturation 255 and value 255.
+
+### GreyHasHueZeroAndBlackHasSaturationZero
+
+Black, a mid grey and white have hue 0 and saturation 0, and their value is their level.
+
+### MixedColourConvertsToTheHandComputedLevels
+
+(100, 50, 50) converts to hue 0, saturation 128, value 100. (200, 100, 50) converts to hue 10,
+saturation 191, value 200. The comments give the integer arithmetic.
+
+### EachSectorConvertsBackToTheHandComputedColour
+
+`to_rgb` is checked at eight HSV values, one or more in each of the six hue sectors, among them
+hue 178 in the last sector and a colour that is not fully saturated.
+
+### PureHueShiftOnRedGivesTheHandComputedColours
+
+Red with a hue gain of 0.25 becomes (128, 255, 0), with -0.25 it becomes (128, 0, 255) and with
+0.5 it becomes (0, 255, 255).
+
+### ValueGainClampsAtFullAndAtZero
+
+(100, 50, 50) with a value gain of 2 becomes (255, 127, 127), and with -2 it becomes black.
+
+### SaturationGainClampsAtFullAndAtZero
+
+(100, 50, 50) with a saturation gain of 2 becomes (100, 0, 0), and with -2 it becomes the grey
+(100, 100, 100).
+
+### WhiteStaysWhiteUnderASaturationGain
+
+White with a hue gain of 0.3 and a saturation gain of 0.7 stays white. Its saturation is 0, and
+0 times any factor is 0.
+
+### ZeroPlanIsTheIdentityOnGreysPrimariesAndSecondaries
+
+A zero plan returns nine colours unchanged: three greys, the three primaries and the three
+secondaries.
+
+### ZeroPlanCopiesColoursTheRoundTripWouldChange
+
+`to_rgb(to_hsv(.))` changes the blue level of (12, 200, 99) to 100 and of (250, 3, 180) to 176,
+which the case asserts first. A zero plan returns both colours unchanged, so `apply_hsv` copies
+the image for an identity plan and does not send it through the conversion.
+
+### PlanOfZeroGainsCopiesTheImage
+
+Over 64 seeds a plan drawn from three zero gains satisfies `is_hsv_identity`, and the same two
+colours come back unchanged.
+
+### PlanWithOneGainAwayFromZeroIsNotAnIdentity
+
+`is_hsv_identity` is true for a zero plan and for one with negative zeros, and false when any
+one gain is 1e-6 or -1e-6. A value gain of 1e-6 changes no table entry, and (12, 200, 99) still
+comes back as (12, 200, 100): the image went through the conversion.
+
+### ValidateAcceptsZeroGainsAndTheDefaults
+
+`validate_hsv` does not throw for three zero gains or for the defaults.
+
+### RoundTripMovesNoLevelByMoreThanItsBound
+
+Over a sweep of every fifth level on each channel, `to_hsv` gives a hue below 180 and `to_rgb`
+of it differs from the original by at most `K_ROUND_TRIP_LEVELS` on any channel.
+
+### ImageWithoutThreeChannelsIsCopiedUnchanged
+
+A one-channel image with a plan that is not the identity comes back with the same size, one
+channel and the same bytes.
+
+### SamePlanGivesTheSameImageTwice
+
+Two applications of one plan to one image give the same bytes.
+
+## test_imaging_image.cpp
+
+Tests the owned image, the view over foreign pixels and the checks both share.
+
+This file needs no device. `Unit_ImagingImage` covers `include/SushiAI/imaging/image.hpp`:
+`ImageSize`, `ImageView`, `Image`, `overlaps` and `check_source`. Pixels are bytes in
+height, width, channel order.
+
+Eleven `static_assert` lines at file scope hold the parts that are constant expressions:
+equality of `ImageSize`, `is_valid_side`, `is_valid_size` and `is_valid_channel_count` at both
+ends of their ranges and one past each, and `row_bytes()` and `byte_count()` of a view.
+
+### write_offsets
+
+`write_offsets` writes each byte's own offset, modulo 251, into an image.
+
+### ImageSizeComparesHeightAndWidth
+
+Two sizes are equal when both sides are, and 3 by 4 differs from 4 by 3.
+
+### ADefaultImageHasNoPixels
+
+A default `Image` has height, width, channel count, row bytes, byte count and allocated bytes
+of 0.
+
+### AConstructedImageReportsItsExtents
+
+An image of 4 by 6 with three channels reports those extents, 18 row bytes and 72 bytes, and
+its data pointer is not null.
+
+### AConstructedImageIsZero
+
+Every byte of a constructed image is 0.
+
+### TheLargestSideAndChannelCountAreAccepted
+
+An image of `K_MAX_IMAGE_SIDE` by 1 and one of 1 by `K_MAX_IMAGE_SIDE` with `K_MAX_CHANNELS`
+channels are constructed and report their byte counts.
+
+### ConstructionRejectsAHeightOutsideItsBounds
+
+Heights of 0, -2 and 16385 throw with a message containing "Image:" and the size.
+
+### ConstructionRejectsAWidthOutsideItsBounds
+
+Widths of 0, -7 and 16385 throw with a message containing "Image:" and the size.
+
+### ConstructionRejectsAChannelCountOutsideItsBounds
+
+Channel counts of 0, -1 and 5 throw with a message containing "Image:" and the count; the
+first also contains "[1, 4]".
+
+### RowsStartOneRowOfBytesApart
+
+`row(y)` of the image, of a const reference to it and of its view all equal the data pointer
+plus 15 * y for a 5 px wide image of three channels.
+
+### AByteWrittenThroughARowIsReadAtItsHwcOffset
+
+A byte written at row 2, column 1, channel 2 of a 3 by 4 image is byte 29 of the data, and
+every other byte is 0.
+
+### FillSetsEveryByte
+
+`fill(114)` sets every byte to 114.
+
+### FillOnAnEmptyImageDoesNothing
+
+`fill` on a default image leaves the byte count at 0.
+
+### ResetGivesTheImageNewExtents
+
+`reset` to 5 by 3 with four channels gives 12 row bytes and 60 bytes, and every byte of the new
+extent can be written and read back.
+
+### ResetOnADefaultImageAllocates
+
+`reset` on a default image gives a data pointer that is not null and 18 bytes.
+
+### ResetKeepsTheAllocationWhenItIsLargeEnough
+
+An 8 by 8 image of three channels keeps its data pointer through a reset to 6 bytes and through
+one to 192 bytes, the count it was constructed with.
+
+### ResetRejectsTheBoundsTheConstructorRejects
+
+`reset` throws for a height of 0, a width of 16385 and five channels, with a message
+containing "Image::reset".
+
+### ARejectedResetLeavesTheImageAsItWas
+
+After a `reset` that throws, the image has its size, channel count, data pointer and bytes.
+
+### AViewOfAnImageDescribesTheSamePixels
+
+`view()` has the image's data pointer, size, channel count, row bytes and byte count.
+
+### ADefaultViewIsEmpty
+
+A default `ImageView` has a null pointer, size 0 by 0 and no bytes.
+
+### AViewOverForeignBytesAddressesThemInHwcOrder
+
+A view over a twelve-byte array as 2 by 3 with two channels has 6 row bytes, and row 1,
+column 2, channel 1 is byte 11.
+
+### ACopyOwnsItsOwnPixels
+
+A copy has another data pointer, and filling the copy leaves the original's bytes as they
+were.
+
+### AllocatedBytesKeepsTheLargestSizeTheImageHad
+
+After a reset from 48 bytes to 4, `byte_count()` is 4 and `allocated_bytes()` is 48.
+
+### OverlapsFindsTheWholeImageAndAViewInsideIt
+
+`overlaps` is true for the image's own view, for a view of two of its rows and for a view of
+its last byte.
+
+### OverlapsIsFalseForBytesOfAnotherContainer
+
+A view over an array the image does not own does not overlap it.
+
+### OverlapsCountsTheAllocationBeyondTheCurrentSize
+
+A view of the last row of a 4 by 4 image still overlaps it after the image is reset to one
+byte. The test is against the allocation and not the current size.
+
+### OverlapsIsFalseForSeparateOrEmptyOperands
+
+`overlaps` is false for two separate images, for a default view, for an unallocated image, and
+for views with a height of 0 or no channels.
+
+### CheckSourceAcceptsAViewOfAnotherImage
+
+`check_source` does not throw for a view of another image, with an allocated or an unallocated
+destination.
+
+### CheckSourceRejectsEachFaultUnderTheCallersName
+
+`check_source` throws with the caller's name as prefix for a view without pixels, a height of
+0, a width of 16385, five channels, the destination's own view and a view of two of its rows.
+
+## test_imaging_label_set.cpp
+
+Tests the label set that holds classes, boxes and polygons in step, and its conversions.
+
+This file needs no device. `Unit_ImagingLabelSet` covers
+`include/SushiAI/imaging/label_set.hpp`. `Labels` holds pixel boxes and `FileLabels` holds
+normalized boxes; both keep one class, one box and one polygon per object, and a polygon may be
+empty.
+
+### Tolerances and K_SIZE
+
+`K_PIXEL_TOLERANCE` is 1e-3 px, `K_FRACTION_TOLERANCE` is 1e-6 of the image, and `K_SIZE` is
+480 rows by 640 columns.
+
+### expect_pixel_box, expect_normalized_box and expect_point
+
+The three helpers compare a `PixelBox`, a `NormalizedBox` and a `Point` with expected values.
+`expect_point` takes its tolerance as an argument.
+
+### make_diagonal
+
+`make_diagonal` returns a polygon of a given number of vertices spread along the diagonal from
+(0, 0) towards (1, 1).
+
+### DefaultSetHoldsNoObject
+
+A default `Labels` is empty, has size 0 and has no class, box or polygon.
+
+### ConstructorsRejectListsOfDifferentLengths
+
+Two classes with one box, one class with two boxes, two objects with one polygon, and no class
+with one box all throw with a message containing "LabelSet" and the two counts.
+
+### SetWithoutPolygonsHoldsOneEmptyPolygonPerObject
+
+A set built from two classes and two boxes has two polygons, both empty.
+
+### AddAppendsOneEntryToEachList
+
+`add` with and without a polygon grows the classes, the boxes and the polygons together. The
+object added without one has an empty polygon.
+
+### KeepIfRemovesAnObjectFromAllThreeLists
+
+`keep_if` with a predicate that keeps even classes leaves classes 2 and 4 with their own boxes
+and polygons.
+
+### ToPixelLabelsKeepsClassesAndOrder
+
+`to_pixel_labels` converts three normalized boxes in `K_SIZE` and keeps the classes 7, 2, 7 in
+order.
+
+### ToPixelLabelsScalesVerticesByWidthAndHeight
+
+A vertex at (0.25, 0.25) becomes (160, 120): x is multiplied by the width and y by the height.
+An empty polygon stays empty.
+
+### ToNormalizedLabelsKeepsClassesAndOrder
+
+`to_normalized_labels` converts two pixel boxes and the vertices of one polygon, and keeps
+classes and order.
+
+### LabelConversionsOfABackgroundImageAreEmpty
+
+Both conversions of an empty set are empty.
+
+### ClipLabelsClipsBoxesAndVerticesAndRemovesNone
+
+`clip_labels` clips each box to the image and clamps each vertex onto it. A box wholly outside
+collapses to zero width and stays in the set.
+
+### RemoveEmptyBoxesDropsZeroAreaAndKeepsOrderClassesAndPolygons
+
+Of five objects, the two with zero width or zero height are removed. The classes 10, 12 and 14
+remain in order with their boxes and polygons.
+
+### RemoveEmptyBoxesDropsABoxOfNegativeArea
+
+A box whose x1 is above its x2 is removed.
+
+### ResamplePolygonsGivesEachPolygonAThousandPoints
+
+`resample_polygons` gives a triangle and a polygon of 40 vertices `K_POLYGON_POINTS` points
+each. An empty polygon stays empty, and classes and boxes are unchanged.
+
+### ResamplePolygonsUsesTheLongestPolygonPlusOneAboveAThousand
+
+With one polygon of 1200 vertices in the set, both polygons are resampled to 1201 points.
+
+### ResamplePolygonsLeavesASetWithoutPolygonsAlone
+
+A set whose one polygon is empty comes back with the polygon empty and the box unchanged.
+
+## test_imaging_labels.cpp
+
+Tests the parser of a label file's text.
+
+This file needs no device and reads no file. `Unit_ImagingLabels` passes strings to
+`parse_label_text` of `include/SushiAI/imaging/labels.hpp`. A row is a class and four
+normalized box values, or a class and the x, y pairs of a polygon. The refusal cases check that
+the message names the line and quotes the field.
+
+### K_CLASS_COUNT and K_FRACTION_TOLERANCE
+
+`K_CLASS_COUNT` is 80, the class count the cases parse with. `K_FRACTION_TOLERANCE` is 1e-7,
+the tolerance of a parsed value.
+
+### expect_box
+
+`expect_box` compares the four values of a `NormalizedBox` within `K_FRACTION_TOLERANCE`.
+
+### ParsesBoxRowsInFileOrder
+
+Two rows give two objects, with classes 0 and 3 and the four values of each row.
+
+### EmptyTextIsABackgroundImage
+
+An empty string gives an empty set.
+
+### TextOfBlankLinesIsABackgroundImage
+
+Text of newlines, spaces, a tab and carriage returns gives an empty set.
+
+### AcceptsTabsRepeatedSpacesAndBlankLinesBetweenRows
+
+Rows with leading spaces, tabs, repeated spaces, a blank line between them and no final newline
+parse to two objects.
+
+### AcceptsCarriageReturnLineEndings
+
+Rows ended by "\r\n" and by a lone "\r" parse to three objects.
+
+### AcceptsVerticalTabAndFormFeedLineEndings
+
+A vertical tab and a form feed each end a row.
+
+### AcceptsTheSeparatorBytesAsLineEndings
+
+The bytes 0x1c, 0x1d and 0x1e each end a row: four rows separated by them parse to four
+objects.
+
+### AcceptsTheUnitSeparatorByteBetweenFields
+
+The byte 0x1f separates fields, alone or repeated.
+
+### AcceptsExponentsBareDecimalPointsAndAPlusSign
+
+"+7.0 5e-1 .5 2.5E-1 +0.125" parses to class 7 and the box (0.5, 0.5, 0.25, 0.125).
+
+### RejectsARowOfFourColumns
+
+A row of four columns throws with "parse_label_text: line 1", "5 columns" and "this row has 4".
+
+### RejectsARowOfSixColumns
+
+A row of six columns throws with "5 columns" and "this row has 6".
+
+### RejectsARowOfOneColumn
+
+A row of one column throws with "this row has 1".
+
+### NamesTheLineOfTheRejectedRow
+
+A short row after one row and one blank line is reported as "line 3". Blank lines count.
+
+### RejectsAFieldThatIsNotANumber
+
+The field "abc" throws with "'abc'" and "not a number".
+
+### RejectsAFieldWithCharactersAfterTheNumber
+
+The field "0.5x" throws with "'0.5x'".
+
+### RejectsADecimalComma
+
+The field "0,5" throws with "'0,5'".
+
+### RejectsADoubledSign
+
+The field "+-0.5" throws with "'+-0.5'".
+
+### RejectsNotANumberAndInfinity
+
+The fields "nan", "inf" and "1e999" each throw with the field quoted.
+
+### RejectsAFiniteValueAboveTheFloatRange
+
+The field "1e39", finite as a double and not as a float, throws with "not a finite number".
+
+### RejectsANonzeroValueBelowTheSmallestNormalDouble
+
+The fields "1e-310" and "1e-999" throw with the field quoted.
+
+### AcceptsZeroAndTheSmallestNormalDouble
+
+"0.0" and "2.2250738585072014e-308" are accepted and both store 0 within the tolerance.
+
+### RejectsACoordinateBelowTheTolerance
+
+Values of -0.02 and -0.5 throw with "negative".
+
+### RejectsACoordinateAboveTheTolerance
+
+Values of 1.02 and 640 throw with "above". The second is a pixel value in a file that must hold
+fractions.
+
+### StoresACoordinateInsideTheToleranceUnclipped
+
+Values of 1.005 and -0.005 are stored as they are.
+
+### AcceptsACoordinateOnEitherToleranceBound
+
+Values of 1.01 and -0.01 are accepted and stored as they are.
+
+### RejectsANegativeClass
+
+Class -1 throws with "class" and "negative".
+
+### RejectsAClassWithAFraction
+
+Class 1.5 throws with "class" and "whole number".
+
+### RejectsAClassAtOrAboveTheClassCount
+
+Class 80 of 80 throws with "out of range" and "80 classes", and class 1 of 1 with "1 classes".
+
+### AcceptsTheLastClass
+
+Class 79 of 80 is accepted.
+
+### RemovesRepeatedRowsKeepingTheFirstAndTheFileOrder
+
+Five rows of which two repeat earlier ones give three objects, with classes 5, 2, 9 in file
+order.
+
+### RemovesARowThatRepeatsAnotherInADifferentSpelling
+
+"5.0 5e-1 0.50 .25 0.250" repeats "5 0.5 0.5 0.25 0.25" and is removed. Rows are compared by
+value and not by text.
+
+### KeepsRowsThatDifferInOneValue
+
+Three rows that differ in the class or in one box value are all kept.
+
+### ReducesAPolygonRowToTheBoxAroundItsPoints
+
+A row of three points gives the box (0.5, 0.5, 0.5, 0.5) around them.
+
+### KeepsThePointsOfAPolygonRowInFileOrder
+
+A row of five points gives a polygon of those five points in file order.
+
+### GivesABoxRowNoPolygon
+
+Each object of two box rows has an empty polygon.
+
+### ReducesAPolygonOfManyPointsToItsBounds
+
+The five points of the earlier case give the box (0.5, 0.375, 0.75, 0.5).
+
+### RejectsABoxRowInAPolygonFile
+
+A box row after a polygon row throws with "line 2" and "polygon".
+
+### RejectsAPolygonRowWithAHalfPoint
+
+A polygon row of eight columns throws with "polygon" and "this row has 8".
+
+### RejectsAPolygonRowOfFewerThanThreePoints
+
+A row of three columns in a polygon file throws with "line 2", "three points" and "this row
+has 3".
+
+### RejectsAPolygonWhoseBoxLeavesTheImage
+
+A polygon with a vertex at x = 1.5 throws with "above".
+
+### RemovesARepeatedPolygonAndKeepsOneWithTheSameBox
+
+Of three polygon rows the second repeats the first and is removed. The third has other points
+and the same box, and is kept: both remaining boxes are (0.5, 0.5, 0.5, 0.5) and their second
+vertices differ.
+
+## test_imaging_letterbox.cpp
+
+Tests the plan and the application of the letterbox to an image and its labels.
+
+This file needs no device. `Unit_ImagingLetterbox` covers
+`include/SushiAI/imaging/letterbox.hpp`. `plan_letterbox` computes the ratio, the resized size
+and the four paddings, and draws no random number. `apply_letterbox` resizes with
+`resize_bilinear` of `include/SushiAI/imaging/resize.hpp`, pads, and moves boxes and polygons
+by the same plan.
+
+### K_BOX_TOLERANCE
+
+`K_BOX_TOLERANCE` is 1e-4 px.
+
+### make_counted_image and make_flat_image
+
+`make_counted_image` returns an image whose byte at offset i is a first value plus i, modulo
+256. `make_flat_image` returns an image with every byte at one level.
+
+### is_content
+
+`is_content` reports whether a pixel of the target lies inside the plan's resized image.
+
+### expect_two_levels
+
+`expect_two_levels` expects every content byte of an image to be one level and every padding
+byte another.
+
+### WideImageIsPaddedAboveAndBelowWithTheOddRowBelow
+
+A 50 by 200 source in a 100 by 100 target has ratio 0.5 and resizes to 25 by 100. The 75 rows
+of padding split into 37 above and 38 below, and the plan records the source and target sizes.
+
+### TallImageIsPaddedLeftAndRightWithTheOddColumnRight
+
+A 200 by 50 source resizes to 100 by 25 with 37 columns left and 38 right.
+
+### ExactFitHasRatioOneAndNoPadding
+
+A 64 by 64 source in a 64 by 64 target has ratio 1 and four paddings of 0.
+
+### SmallImageIsOnlyPaddedUnlessScaleUpIsSet
+
+A 20 by 40 source in an 80 by 80 target keeps its size by default, with paddings 30, 30, 20,
+20. With `scale_up` set the ratio is 2, the resized size is 40 by 80 and the paddings are 20
+above and below.
+
+### ResizedSideRoundsAHalfToTheEvenInteger
+
+At ratio 0.5 a height of 5 resizes to 2 and a height of 7 to 4: 2.5 and 3.5 round to the even
+integer.
+
+### RectangularStrideTargetPadsOnlyTheShortAxis
+
+A 480 by 640 source in a 512 by 640 target has ratio 1 and 16 rows above and below.
+
+### PlanCopiesThePaddingValueOfTheSettings
+
+The plan's `padding_value` is that of the settings, at the default and at 7.
+
+### PlanRejectsASideThatIsNotPositive
+
+A source of 0 by 8 and a target of 8 by -1 throw with "plan_letterbox" and the size.
+
+### PlanRejectsASideAboveTheImageBound
+
+A source height and a target width of 16385 throw with the size and "16384".
+
+### ValidateAcceptsEverySetting
+
+`validate_letterbox` does not throw with `scale_up` set and a padding value of 255, or for the
+defaults.
+
+### PlanRejectsAResizedSideOfZeroPixels
+
+A 1 by 1000 source in an 8 by 8 target resizes to a height of 0, and the plan throws with "zero
+pixels".
+
+### ImageWithoutResizeKeepsItsPixelsInsideThePadding
+
+A 2 by 4 source in a 4 by 6 target is placed at row 1, column 1. Every content byte equals the
+source byte and every other byte is the padding value.
+
+### ExactFitCopiesEveryPixel
+
+A plan without resize or padding copies the source.
+
+### WideImageIsResizedThenPaddedWithTheFillValue
+
+A flat 50 by 200 image at level 200 gives a 100 by 100 result that is 200 inside the content
+rectangle and 114, the default padding value, outside it.
+
+### TallImageIsResizedThenPaddedWithACustomFillValue
+
+A flat one-channel 200 by 50 image at level 33 with a padding value of 7 gives 33 inside and 7
+outside.
+
+### ResizedContentEqualsTheBilinearResizeOfTheSource
+
+For a counted 50 by 200 image, every content byte equals the byte `resize_bilinear` gives for
+the plan's resized size, and every padding byte is 114. The case also expects the content not
+to be flat, since a flat rectangle cannot tell a resize from a fill.
+
+### SourceWithoutPixelsIsRejected
+
+`apply_letterbox` on a default view throws with "apply_letterbox" and "no pixels".
+
+### DestinationThatIsTheSourceIsRejected
+
+`apply_letterbox` with the image as source and destination throws with "destination holds the
+source's pixels", and the image keeps its size.
+
+### ViewInsideTheDestinationIsRejected
+
+A view of two rows of the destination is refused with the same message, and the image keeps its
+size and its bytes.
+
+### ResizedContentBesideSidePaddingEqualsTheBilinearResize
+
+A counted 200 by 50 image in a 100 by 101 target has 38 columns of padding on each side. The
+destination starts as a 120 by 120 image filled with 255. After the call no byte differs from
+the bilinear resize placed between two bands of 114.
+
+### DestinationIsFullyRewrittenWhenItIsReused
+
+A destination that was 9 by 9 and filled with 255 becomes 4 by 6 with content 50 and padding
+114.
+
+### ImageOfAnotherSizeThanThePlanIsRejected
+
+A 2 by 4 source with a plan made for 4 by 4 throws with "plan was made for".
+
+### PlanWhosePaddingsDoNotTileTheTargetIsRejected
+
+A plan whose right padding is raised by 1 throws with "tile".
+
+### BoxesMoveByTheRatioThenTheLeftAndTopPadding
+
+In the tall plan a box maps by x * 0.5 + 37 and y * 0.5, and in the wide plan by x * 0.5 and
+y * 0.5 + 37. Classes and order are kept.
+
+### BoxesOutsideTheImageAreNeitherClippedNorRemoved
+
+A box that extends past the source and a box of zero size are both moved by the plan and kept.
+
+### ExactFitLeavesBoxesWhereTheyWere
+
+With ratio 1 and no padding a box keeps its four coordinates.
+
+### PolygonMovesByTheRatioThenTheLeftAndTopPadding
+
+In the tall plan the vertices (10, 20), (30, 40) and (-4, 210) move to (42, 10), (52, 20) and
+(35, 105). An object without a polygon still has none.
+
+## test_imaging_mosaic.cpp
+
+Tests the draw, the plan and the application of the four-image mosaic.
+
+This file needs no device. `Unit_ImagingMosaic` covers `include/SushiAI/imaging/mosaic.hpp`.
+`draw_mosaic` asks a `PartnerSource` for three partners, draws the gate and then the centre.
+`plan_mosaic` turns a centre and four patch sizes into four placements on a canvas of twice the
+image size. `apply_mosaic` copies the patches onto the canvas, or shifts, joins, clips and
+prunes their labels. The two placement tables are lines 525 to 538 of the reference's
+`data/augment.py`, worked by hand.
+
+### K_SIDE and K_BOX_TOLERANCE
+
+`K_SIDE` is 8, the image size of the hand cases, so the canvas is 16 by 16. `K_BOX_TOLERANCE`
+is 1e-4 px.
+
+### PatchSizes and Placements
+
+`PatchSizes` holds four `ImageSize` values and `Placements` holds four `MosaicPlacement`
+values, patch 0 first.
+
+### The low centre
+
+`K_LOW_CENTER_X` and `K_LOW_CENTER_Y` are 5 and 11, a centre that cuts patch 0 on the left and
+patches 2 and 3 at the bottom. `K_LOW_SIZES` are the patch sizes used with it; patch 1 is
+shorter and patch 2 narrower than the others. `K_LOW_PLACEMENTS` are the four expected
+placements.
+
+### The high centre
+
+`K_HIGH_CENTER_X` and `K_HIGH_CENTER_Y` are 10 and 6, a centre that cuts patches 0 and 1 at the
+top and patches 1 and 3 on the right. `K_HIGH_SIZES` are four 8 by 8 patches and
+`K_HIGH_PLACEMENTS` are the four expected placements.
+
+### make_draw
+
+`make_draw` returns an enabled `MosaicDraw` with a given centre and the partners 0, 0, 0.
+
+### make_constant and make_textured
+
+`make_constant` returns a three-channel image of one colour. `make_textured` returns one whose
+every byte depends on its row, column, channel and a salt, so a copy from the wrong position
+shows.
+
+### view_all
+
+`view_all` returns the views of four images in patch order.
+
+### count_wrong_bytes
+
+`count_wrong_bytes` counts the canvas bytes that differ from what four placements name: the
+patch byte at the placement's offset inside a placement, and the fill value elsewhere.
+
+### expect_placements
+
+`expect_placements` compares all ten fields of a plan's four placements with the expected ones.
+
+### expect_box and expect_point
+
+`expect_box` and `expect_point` compare a box and a vertex within `K_BOX_TOLERANCE`.
+
+### RecordingPartners
+
+`RecordingPartners` is a `PartnerSource` that returns the partners 4, 5 and 6, makes no draw
+and records every index it is asked for.
+
+### pixel_at
+
+`pixel_at` returns the three bytes of one canvas pixel.
+
+### SettingsDefaultToTheReferenceProbabilityAndFill
+
+Default `MosaicSettings` have probability 1 and fill value 114, and `K_MOSAIC_PATCHES` is 4.
+
+### DrawMakesPartnersThenGateThenRowThenColumn
+
+With a `DatasetPartners` of 1000 and image size 640, the draw equals a replay on a copied
+generator: three `index(1000)` draws, one `bernoulli(1)`, then `uniform(320, 960)` truncated
+for the centre row and again for the centre column. The generators are equal afterwards, so
+the call makes six draws.
+
+### DisabledDrawMakesFourDrawsAndLeavesTheFieldsZero
+
+With probability 0 the draw is disabled, its partners and centre are 0, and the generator has
+advanced by four draws: the three partners and the gate.
+
+### CentreStaysInTheReferenceRangeOverManySeeds
+
+Over 5000 seeds at image size 640 both centre coordinates lie in 320 to 959. Their mean is
+639.5 within 10, the smallest is at most 330 and the largest at least 949.
+
+### CentreOfAnOddSizeUsesTheFlooredBorder
+
+At image size 5 the centre lies in 3 to 6 and all four values occur over 400 seeds. The
+reference computes the border as -5 // 2, which is -3, so the range is `int(uniform(3, 7))`.
+
+### PartnersCoverThePoolAndNeverLeaveIt
+
+Over 300 seeds and a pool of 7, every partner is below 7 and every index occurs.
+
+### GateOpensWithItsProbability
+
+At probability 0.25 the draw is enabled for 0.25 of 4000 seeds, within 0.04.
+
+### PlanCutsPatchesAtTheLeftAndBottomEdges
+
+`plan_mosaic` for the low centre gives `K_LOW_PLACEMENTS` and records the image size.
+
+### PlanCutsPatchesAtTheTopAndRightEdges
+
+`plan_mosaic` for the high centre gives `K_HIGH_PLACEMENTS`.
+
+### PlanCarriesTheFillValueOfTheSettings
+
+The plan's `fill_value` is 9 when the settings say 9 and 114 by default.
+
+### CanvasIsTwiceTheSizeAndFilledWhereNoPatchLands
+
+The canvas is 16 by 16 with three channels. Its two outer corners, a pixel in the row above the
+shorter patch 1 and a pixel in the column left of the narrower patch 2 hold the fill value.
+
+### EachColourLandsInItsQuadrantAroundTheCentre
+
+Four patches of one colour each are placed around the low centre. The four pixels that meet at
+the centre are red, green, blue and yellow, in patch order, and `count_wrong_bytes` is 0.
+
+### CutPatchesKeepThePixelsNearestTheCentre
+
+Four textured patches around the high centre with fill value 3 give a canvas with no wrong
+byte. The texture makes the test fail for a patch copied from its far corner.
+
+### ApplyOverwritesWhatTheDestinationHeld
+
+A destination that was 40 by 40 and filled with 200 becomes the 16 by 16 canvas with no wrong
+byte.
+
+### LabelsAreShiftedJoinedInPatchOrderClippedAndPruned
+
+Five boxes in patches 0, 1 and 3 are shifted by their placements' offsets and joined in patch
+order. The second box of patch 0 lies wholly left of the canvas, has no area after the clip and
+is removed. The four that remain have the classes 3, 2, 7, 5 and the boxes the case lists.
+
+### LabelsOfFourBackgroundPatchesAreEmpty
+
+Four empty label sets join to an empty one.
+
+### DrawRejectsANonPositiveSizeBeforeAnyDraw
+
+Image sizes of 0 and -4 throw with "validate_mosaic_size" and the value, and the generator is
+unchanged.
+
+### PlanRejectsADisabledDrawAndAnEmptyPatch
+
+`plan_mosaic` throws for a disabled draw ("not enabled"), for a patch of height 0 ("patch 2")
+and for a centre column of 17 on a 16 px canvas ("centre").
+
+### ApplyRejectsPatchesThePlanWasNotMadeFor
+
+`apply_mosaic` throws for a one-channel patch among three-channel ones ("patch 1", "channels")
+and for a patch of another size than the plan's ("patch 3").
+
+### DrawnCentreIsWhereTheFourColoursMeet
+
+Over 32 seeds the case draws, plans and applies a mosaic of four 8 by 8 patches of one colour
+each. The centre lies in 4 to 11, and the four pixels around it are red, green, blue and
+yellow. The draw and the plan therefore agree on which coordinate is the row.
+
+### DrawRejectsAProbabilityOutsideZeroToOne
+
+Probabilities of 1.5, -0.25 and NaN throw with "validate_mosaic" and "probability", the
+default settings pass `validate_mosaic`, and the generator is unchanged.
+
+### DrawRejectsASizeWhoseCanvasIsTooLarge
+
+An image size of 8193, whose canvas would exceed `K_MAX_IMAGE_SIDE`, throws with "image_size of
+8193" and "[1, 8192]". An image size of 8192 is accepted.
+
+### DrawAsksThePartnerSourceForEverySample
+
+With a `RecordingPartners`, one draw with the gate open and one with it closed record the
+indices 17 and 23. The open draw holds the partners 4, 5, 6 and the closed one 0, 0, 0.
+
+### PolygonsAreShiftedClampedAndPrunedWithTheirObjects
+
+Polygons move with their patch, by (-3, 3) for patch 0 and (5, 11) for patch 3, and are clamped
+to the 16 by 16 canvas. The object whose box leaves the canvas is removed with its polygon, and
+the object without a polygon still has none.
+
+### PlanRejectsASizeOutOfRangeAndAPatchSideAboveTheLimit
+
+`plan_mosaic` throws for an image size of 0 and of 8193 ("image_size") and for a patch height
+of 16385 ("patch 1").
+
+### ApplyRejectsAPlanWithoutAValidSizeForPixelsAndForLabels
+
+Both forms of `apply_mosaic` throw with "image_size" for a default plan and for one whose image
+size is 8193.
+
+### ApplyRejectsAPatchWithoutPixels
+
+A default view as patch 2 throws with "apply_mosaic: patch 2" and "no pixels".
+
+### ApplyRejectsAPatchThatLiesAnywhereInTheDestination
+
+A patch that views the start of the destination, and one that views its row 20, throw with
+"destination holds the source's pixels" under the patch's number. The destination keeps its
+40 by 40 size and its bytes.
+
+### ApplyRejectsAPlacementOutsideTheCanvasAndOneThatResamples
+
+A placement whose `canvas_x2` is 17 throws with "patch 1" and "outside a canvas". A placement
+whose patch span is one pixel narrower than its canvas span throws with "patch 3" and
+"resamples nothing".
+
+## test_imaging_partners.cpp
+
+Tests the two sources of a mosaic's three partner images.
+
+This file needs no device. `Unit_ImagingPartners` covers `DatasetPartners` of
+`include/SushiAI/imaging/dataset_partners.hpp`, which draws partners from the whole dataset,
+and `RecentPartners` of `include/SushiAI/imaging/recent_partners.hpp`, which draws them from a
+buffer of recently seen indices.
+
+### buffer_after
+
+`buffer_after` passes a list of indices to `RecentPartners::choose`, one by one with a
+generator seeded 1, and returns the buffer, oldest first.
+
+### DatasetSourceReturnsThreeIndexDrawsInOrder
+
+`choose` on a dataset of 1000 returns three values equal to three `index(1000)` draws of a copy
+of the generator, in draw order, and the two generators are equal afterwards.
+
+### DatasetSourceCoversTheDatasetAndNeverLeavesIt
+
+Over 300 seeds and a dataset of 7, every partner is below 7 and every index is a partner at
+least once.
+
+### DatasetSourceKeepsNoStateBetweenSamples
+
+A source that already answered two calls and a new source return the same partners for the
+same index and seed.
+
+### DatasetSourceRejectsSizesAndIndicesOutOfRange
+
+A dataset size of 0 and one above the largest `uint32` throw, and the largest `uint32` is
+accepted. `choose(4)` on a dataset of 4 throws with "index 4" and makes no draw.
+
+### RecentCapacityIsTheSmallestOfItsThreeBounds
+
+`recent_capacity` is 5 for a dataset of 5, 128 for a batch of 16 and 1000 for a batch of 200:
+the smallest of the dataset size, `K_RECENT_BATCHES` (8) batches and `K_RECENT_LIMIT` (1000).
+
+### RecentSourceGivesTheFirstSampleItselfThreeTimes
+
+The first call, for index 42, returns 42 three times, and the buffer holds 42.
+
+### RecentSourceEvictsTheOldestIndexAtCapacity
+
+With capacity 3 the buffer goes {0, 1}, {1, 2}, {2, 0}. With capacity 2 it holds one index at a
+time. The reference removes the oldest entry when the buffer has more than one entry and has
+reached its capacity, so a full buffer holds capacity minus one indices.
+
+### RecentSourceDoesNotAddAnIndexItAlreadyHolds
+
+After the indices 7, 9, 7, 7, 9 the buffer is {7, 9}.
+
+### RecentSourceOfOneImageNeverEmptiesItsBuffer
+
+With a dataset of one image, two calls both return 0 three times and the buffer holds 0.
+
+### RecentSourceHoldsTheLastIndicesOfALongRun
+
+With capacity 16, after the indices 0 to 19 the buffer holds 15 indices, from 5 to 19.
+
+### RecentSourceDrawsThreeEntriesOfItsBuffer
+
+After 40 earlier indices and the index 500, the buffer has 41 entries. Each partner is the
+buffer entry that one `index(41)` draw of a copied generator names, in draw order, and the
+source makes three draws.
+
+### RecentSourceCoversItsBuffer
+
+With the indices 10 to 14 buffered, over 200 seeds every partner is one of them and each is
+drawn at least once.
+
+### RecentSourceRejectsSizesAndIndicesOutOfRange
+
+A dataset size of 0 and batch sizes of 0 and -3 throw. `choose(4)` on a dataset of 4 throws
+with "index 4", makes no draw and leaves the buffer empty.
+
+## test_imaging_pipeline.cpp
+
+Tests the training and the validation pipeline that compose the imaging transforms into a
+sample.
+
+This file needs no device and reads no file. `Unit_ImagingPipeline` covers
+`include/SushiAI/imaging/pipeline.hpp`. A `TrainingPipeline` loads an image from a
+`SampleSource`, draws and applies mosaic, affine, colour jitter and flip, and returns a
+`TrainingTrace` of the plans it used. A `ValidationPipeline` resizes the long side and
+letterboxes. The cases replay a sample's draws on a copy of its generator and rebuild the
+sample from the trace with the transform functions, so the pipeline is compared with its parts
+and not with stored images.
+
+### Constants
+
+`K_SIDE` is 32, the training size of the cases, so a mosaic canvas is 64 by 64.
+`K_REPLAY_TOLERANCE` is 0: a replayed draw repeats the same arithmetic. `K_BOX_TOLERANCE` is
+1e-4 px. `K_MIN_SCALE_GAP` is 2^-24, one step of the 24-bit uniform over the default scale
+range of width 1.
+
+### MemorySource
+
+`MemorySource` is a `SampleSource` that holds images and labels in memory and records the index
+of every `load`. `loads` returns the recorded indices and `clear_loads` forgets them.
+
+### FixedPartners
+
+`FixedPartners` is a `PartnerSource` that returns the three partners it was constructed with
+and makes no draw.
+
+### make_textured, make_constant and make_flat
+
+`make_textured` returns a three-channel image whose every byte depends on its row, column,
+channel and a salt. `make_constant` returns a three-channel image of one colour. `make_flat`
+returns an image of a given channel count with every byte at one level.
+
+### one_object
+
+`one_object` returns the `FileLabels` of one object of a given class and box.
+
+### fill_source
+
+`fill_source` adds five textured images to a source: 32 by 64, 64 by 64, 64 by 32, 16 by 32 and
+32 by 32. The first four carry one object each and the last carries none.
+
+### make_settings
+
+`make_settings` returns default `TrainingSettings` with the image size `K_SIDE`.
+
+### make_still_settings
+
+`make_still_settings` returns settings under which nothing moves: one epoch with
+`close_mosaic` 1, so epoch 0 has no mosaic, affine ranges of 0, HSV gains of 0 and a flip
+probability of 0.
+
+### whole_dataset
+
+`whole_dataset` returns a `DatasetPartners` over every image of a source.
+
+### images_match
+
+`images_match` returns a GoogleTest assertion result that says whether two images have the same
+size, channel count and bytes, and how they differ when they do not.
+
+### expect_same_labels
+
+`expect_same_labels` expects two label sets to hold the same classes, box edges and polygon
+vertices at `K_REPLAY_TOLERANCE`.
+
+### expect_same_affine and expect_same_hsv
+
+`expect_same_affine` compares the sizes and the three drawn values of two `AffinePlan` objects.
+`expect_same_hsv` compares the three gains of two `HsvPlan` objects.
+
+### load_patch
+
+`load_patch` loads one image the way a pipeline does: `resize_long_side` to `K_SIDE`,
+`expand_gray` when the image has one channel, and `to_pixel_labels` of the resampled polygons.
+
+### compose_from_trace
+
+`compose_from_trace` builds a sample from a `TrainingTrace` by calling the transforms in the
+reference's order, mosaic, affine, colour jitter, flip (`data/augment.py`, lines 2870 to 2912),
+each with the plan the trace holds.
+
+### SettingsDefaultToTheReferenceRun
+
+Default `TrainingSettings` have image size 640, 100 epochs, `close_mosaic` 10, batch size 16
+and seed 0. Default `ValidationSettings` have image size 640 and a letterbox that does not
+scale up.
+
+### MosaicClosesForTheLastTenEpochsOfAHundred
+
+`is_mosaic_closed` is false for epochs 0 and 89 of 100 with `close_mosaic` 10 and true for 90
+and 99. With `close_mosaic` 0 it is false for epoch 99, and with 5 epochs and `close_mosaic`
+10 it is true for epoch 0.
+
+### SampleRandomDerivesFromTheSeedTheEpochAndTheIndex
+
+`make_sample_random(2026, 3, 17)` equals `Random(2026).derive(3).derive(17)`. Another seed,
+epoch or index gives another generator, and so do the epoch and the index swapped.
+
+### TrainingDrawsMosaicThenAffineThenHsvThenFlip
+
+The trace of sample 2 in epoch 5 equals a replay on `make_sample_random(41, 5, 2)`:
+`draw_mosaic`, then `plan_affine` from the 64 by 64 canvas to 32 by 32, then `plan_hsv`, then
+`plan_flip`.
+
+### TrainingLoadsTheSampleThenItsPartnersInDrawOrder
+
+The source records four loads: index 3, then the trace's three partners in order.
+
+### TrainingAppliesItsPlansInTheReferenceOrder
+
+For every index of the source in epochs 0 and 1, the sample's image and labels equal what
+`compose_from_trace` builds from the trace.
+
+### TrainingAppliesAForcedFlipAndSkipsAForbiddenOne
+
+Two pipelines with one seed and flip probabilities of 1 and 0 give images that are mirrors of
+each other, pixel for pixel. The flipped sample also equals `compose_from_trace` of its trace.
+
+### TrainingProducesTheTrainingSizeAndTheSizesOfItsOwnImage
+
+The sample is 32 by 32 with `K_RGB_CHANNELS` channels. `original_size` is 32 by 64, the stored
+size of image 0, and `loaded_size` is 16 by 32, its size after the long-side resize. The affine
+plan maps 64 by 64 to 32 by 32.
+
+### MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTrainingSize
+
+Four 32 by 32 images each carry a box over the whole image, and the affine ranges are 0, so
+the warp shows canvas rows and columns 16 to 48. Over eight seeds every box of the sample lies
+inside the 32 by 32 output with positive width and height, and exactly one box equals the
+quadrant that is at least 16 by 16, computed from the trace's centre.
+
+### ClosedEpochSkipsTheMosaicAndItsDraws
+
+With 10 epochs and `close_mosaic` 3, epoch 7 is closed. The trace says so, the mosaic is not
+enabled, the source records one load, and the affine, HSV and flip plans equal a replay that
+starts with `plan_affine` on the sample's generator. No mosaic draw precedes them. The sample
+equals `compose_from_trace`.
+
+### SampleWithoutMosaicKeepsTheBoxOfItsOwnImage
+
+In a closed epoch with affine ranges of 0, the box (8, 4, 24, 12) of the 16 by 32 loaded image
+becomes (8, 12, 24, 20) in the 32 by 32 output: the image is centred, which adds 8 to y. The
+box is symmetric about the centre column, so a flip leaves it where it is.
+
+### EpochBeforeTheClosedOnesStillMakesAMosaic
+
+Epoch 6 of the same settings is open: the mosaic is enabled and the source records four loads.
+
+### ClosedGateInAnOpenEpochWarpsTheLoadedImage
+
+With a mosaic probability of 0 in an open epoch, the trace is not closed and the mosaic is not
+enabled. The affine plan's source is the 32 by 16 loaded image, the source records one load,
+and the sample equals `compose_from_trace`.
+
+### SampleDependsOnTheSeedTheEpochAndTheIndexAlone
+
+The same seed, epoch and index give the same image, labels, affine plan and partners a second
+time. Another seed and another epoch each give another image and an affine scale that differs
+by more than `K_MIN_SCALE_GAP`.
+
+### EarlierSamplesDoNotShiftTheDrawsOfALaterOne
+
+A pipeline that already made a mosaic sample and a closed-epoch sample, which differ by six
+draws, gives the same sample for index 0 of epoch 0 as a new pipeline does.
+
+### DefaultPartnersComeFromTheImagesThePipelineLoaded
+
+A pipeline built without a partner source gives the first sample, index 3, the partners
+3, 3, 3. The second sample's partners are each 3 or 1, the two indices loaded so far.
+
+### GivenPartnerSourceChoosesThePartners
+
+With `FixedPartners` of 4, 4, 0 the trace holds those partners and the source records the loads
+2, 4, 4, 0.
+
+### TrainingRejectsEverySettingOutOfRangeAtConstruction
+
+Constructing a `TrainingPipeline` throws for an image size of 0 or 8193, 0 epochs, a
+`close_mosaic` of -1, a batch size of 0, a mosaic probability of 1.5, an affine scale range of
+1, a negative HSV gain and a NaN flip probability, each under the name of the validator that
+found it. No rejected construction loads an image, and `validate_training` accepts the test
+settings.
+
+### TrainingRejectsAnEmptySourceAndANullPartnerSource
+
+An empty source throws with "TrainingPipeline" and "no image", with or without a partner
+source. A null partner source throws with "partner source is null".
+
+### TrainingRejectsIndicesAndEpochsOutsideTheirRange
+
+`make_sample` throws for index 5 of five images and for epochs -1 and 100 of 100.
+
+### TrainingExpandsAGreyImageToRgb
+
+A one-channel image at level 77 under the still settings gives a 32 by 32 sample of three
+channels whose centre pixel is (77, 77, 77).
+
+### TrainingComposesAMosaicOfGreyAndColourImages
+
+A source of two one-channel images and one colour image, with fixed partners, gives a
+three-channel 32 by 32 sample that equals `compose_from_trace`.
+
+### TrainingRejectsAnImageOfFourChannels
+
+A four-channel image throws from `make_sample` with "4 channels" and "image 0".
+
+### TrainingCarriesAPolygonAndTakesTheBoxFromIt
+
+Under the still settings a triangle in a 32 by 32 image keeps its place. The sample's one
+object has class 5, the box (8, 8, 24, 24) and a polygon of `K_POLYGON_POINTS` points that
+starts at (8, 8).
+
+### ValidationResizesTheLongSideThenOnlyPads
+
+An 8 by 16 image of one colour is loaded as 16 by 32 and letterboxed into 32 by 32 with ratio 1
+and 8 rows above and below. The sample's rows 8 to 23 hold the colour and the other rows hold
+114. The source records one load.
+
+### ValidationMovesBoxesByThePaddingWithoutClipping
+
+The box (8, 4, 24, 12) of the loaded image becomes (8, 12, 24, 20): the top padding adds 8 to
+y.
+
+### ValidationIntoARectangularTargetAddsNoPadding
+
+With a 16 by 32 target for a 16 by 32 image the four paddings are 0 and the sample's image
+equals the source image.
+
+### ValidationRepeatsItsSampleAfterAnotherIndex
+
+Sample 0 made again after sample 2 has the same image and labels as the first time, and sample
+2 has another image.
+
+### ValidationExpandsAGreyImageToRgb
+
+A one-channel 8 by 16 image at level 61 gives a three-channel 32 by 32 sample with 61 in the
+content rows and 114 in the padding.
+
+### ValidationCarriesAPolygonThroughTheLetterbox
+
+A triangle's polygon is resampled to `K_POLYGON_POINTS` points, and its first vertex, (8, 4) on
+the loaded image, becomes (8, 12).
+
+### ValidationRejectsSettingsAndIndicesOutsideTheirRange
+
+Constructing a `ValidationPipeline` throws for an image size of 0 ("validate_validation") and
+for an empty source ("no image"). `make_sample` throws for index 9 of five images.
+
+## test_imaging_polygon.cpp
+
+Tests polygon resampling, mapping, clamping, the point test and the visible box.
+
+This file needs no device. `Unit_ImagingPolygon` covers
+`include/SushiAI/imaging/polygon.hpp`. The expected vertices and boxes are the outputs of the
+reference's `resample_segments` and `segment2box` on the same inputs, written as literals; a
+comment in each case names the call.
+
+### Tolerances and K_IMAGE
+
+`K_POINT_TOLERANCE` is 1e-6, for a resampled coordinate of magnitude up to 4.
+`K_BOX_TOLERANCE` is 1e-4 px, for a box edge up to 100. `K_IMAGE` is 80 rows by 100 columns.
+
+### expect_polygon
+
+`expect_polygon` compares a polygon with a flat list of expected x, y values.
+
+### expect_box
+
+`expect_box` compares the four edges of a `PixelBox` within `K_BOX_TOLERANCE`.
+
+### make_square, make_triangle and make_hexagon
+
+`make_square` returns the square from (0, 0) to (4, 4). `make_triangle` returns a triangle in
+fractions of an image. `make_hexagon` returns six vertices with integer coordinates.
+
+### PointCountIsAThousandOrTheLongestPlusOne
+
+`K_POLYGON_POINTS` is 1000. `resampled_point_count` is 1000 for a longest polygon of 0, 3 or
+1000 vertices and 1002 for 1001.
+
+### ResampleMergesTheVerticesWithEvenPositions
+
+The square resampled to 8 and to 11 points keeps its four vertices and gains the evenly spaced
+positions between them.
+
+### ResampleToOneMoreThanTheClosedLengthRepeatsTheFirstVertex
+
+The square resampled to 6 points gains one point, at the first vertex.
+
+### ResampleInterpolatesAlongTheEdges
+
+The triangle resampled to 9 points holds interpolated points such as (0.55, 0.275) on its first
+edge.
+
+### ResampleOfALongPolygonTakesEvenPositionsOnly
+
+The hexagon, closed, has seven points. Resampled to 4 it gives every second vertex and the
+first again; resampled to 7 it gives the six vertices and the first again.
+
+### ResampleLeavesAPolygonOfTheCountAndAnEmptyOneAlone
+
+The triangle resampled to 3 points is unchanged, and an empty polygon stays empty.
+
+### ResampleToAThousandPointsKeepsTheOutline
+
+The triangle resampled to 1000 points has 1000 points, starts and ends at x = 0.1, and has the
+bounds (0.1, 0.2, 0.7, 0.9).
+
+### ResampleRejectsACountOfZero
+
+A count of 0 throws with "resample_polygon" and "point count of 0".
+
+### MapScalesThenTranslatesEachAxis
+
+`map_polygon` with scales 2 and 0.5 and offsets 10 and -1 maps the square to the corners
+(10, -1), (18, -1), (18, 1), (10, 1).
+
+### ClampMovesVerticesOntoTheBounds
+
+`clamp_polygon` to the box (0, 0, 4, 5) moves each coordinate outside onto the nearest bound
+and leaves the vertex inside alone.
+
+### PointInsideOrOnTheOutlineIsInside
+
+`is_point_inside` is true for the centre of the square, a point on an edge and two vertices.
+
+### PointOutsideIsOutside
+
+`is_point_inside` is false for four points outside the square, for a point in the notch of a
+concave polygon and for any point against an empty polygon. Two other points of the concave
+polygon are inside.
+
+### VisibleBoxOfAPolygonInsideTheImageIsItsBounds
+
+A triangle inside `K_IMAGE` has the visible box (10, 20, 50, 60).
+
+### VisibleBoxOfAPolygonOutsideTheImageIsZero
+
+A triangle above and left of the image, one to its right and an empty polygon each give four
+zeros.
+
+### VisibleBoxUsesTheCrossingsOfTheImageLines
+
+A triangle crossing the top and left edges gives (0, 0, 60, 50), and one crossing the right
+and bottom edges gives (90, 70, 100, 80).
+
+### VisibleBoxIncludesTheImageCornersThePolygonContains
+
+A triangle that contains the image's origin gives (0, 0, 36.666664, 33), and a square around
+the whole image gives the image, (0, 0, 100, 80).
+
+## test_imaging_random.cpp
+
+Tests the generator every augmentation draws from.
+
+This file needs no device. `Unit_ImagingRandom` covers `Random` of
+`include/SushiAI/imaging/random.hpp`: a 64-bit counter advanced by `K_INCREMENT` and passed
+through `mix`. The first cases follow the arithmetic by hand, with each intermediate value as a
+literal, so the sequence is fixed by this file and not by a second copy of the code. The
+statistical cases use one seed and state their bound as a multiple of the standard error.
+
+### Constants
+
+`K_SEED` is 2026, the seed of every statistical case. `K_SAMPLES` is 65536. `K_UNIFORM_VALUES`
+is 2^24, the number of values `uniform()` can return.
+
+### MixFollowsTheFinaliserStepByStep
+
+For the value 0x9E3779B97F4A7C15 the case asserts each of the five steps of `mix`: the shift by
+30 and xor, the product with `K_FIRST_MULTIPLIER`, the shift by 27 and xor, the product with
+`K_SECOND_MULTIPLIER` and the shift by 31 and xor. `mix` returns the last literal.
+
+### MixOfTheSecondCounterFollowsTheFinaliserStepByStep
+
+The same five steps for 0x3C6EF372FE94F82A, the second counter of seed 0.
+
+### SeedZeroReproducesTheHandComputedSequence
+
+The first four `next_u64` values of seed 0 are the literals the case lists, and the counter
+after draw n is n times `K_INCREMENT` modulo 2^64.
+
+### TheCounterStartsAtTheSeed
+
+`state()` of a new generator is its seed. The first draw of seed 42 is
+`mix(42 + K_INCREMENT)`, and the counter is then `42 + K_INCREMENT`.
+
+### NextU32IsTheHighHalfOfOneDraw
+
+The first two `next_u32` values of seed 0 are the high 32 bits of its first two draws, and two
+calls advance the counter twice.
+
+### UniformIsTheTop24BitsScaledByTwoToTheMinus24
+
+The first three `uniform()` values of seed 0 are 14819496, 7239838 and 443485 over 2^24, the
+top 24 bits of each draw.
+
+### UniformStaysInTheHalfOpenUnitInterval
+
+65536 draws are all at or above 0 and below 1.
+
+### UniformHasTheMeanAndVarianceOfAUniformVariable
+
+Over 65536 draws the mean is 0.5 within 0.006 and the variance 1/12 within 0.0015, five
+standard errors each.
+
+### RangedUniformMapsTheUnitDrawLinearly
+
+`uniform(-1, 1)` and `uniform(0.5, 1.5)` of seed 0 return `low + (high - low) * u` for the
+first two unit draws, as exact floats, and make one draw each.
+
+### RangedUniformStaysInItsHalfOpenInterval
+
+65536 draws of `uniform(0.4, 0.6)` are all at or above 0.4 and below 0.6.
+
+### RangedUniformNeverReturnsItsUpperBound
+
+With `high` the float after `low`, 1024 draws all return `low`. A sum that rounds up to `high`
+is brought back.
+
+### RangedUniformOverAnEmptyRangeStillDraws
+
+`uniform(0.25, 0.25)` returns 0.25 and advances the generator by one draw.
+
+### IndexIsTheHighWordOfTheProduct
+
+`index(10)` of seed 0 returns 8, 4 and 0: the high 32 bits of each 32-bit draw times 10.
+
+### IndexOfOneIsAlwaysZeroAndStillDraws
+
+64 calls of `index(1)` return 0 and advance the generator 64 times.
+
+### IndexStaysBelowTheCountAndFillsEveryBucketEvenly
+
+70000 draws of `index(7)` are all below 7, and each bucket holds 10000 within 500, above five
+standard deviations of 93. `K_BUCKETS` and `K_DRAWS` are local to the case.
+
+### IndexReachesTheLargestCount
+
+`index(0xFFFFFFFF)` of seed 0 returns 0xE220A838.
+
+### BernoulliComparesOneUniformDrawWithTheProbability
+
+`bernoulli(0.5)` of seed 0 returns false, true, true for the unit draws 0.8833, 0.4315 and
+0.0264, one draw per call.
+
+### BernoulliNeverSucceedsAtZeroAndAlwaysSucceedsAtOne
+
+Over 65536 draws, probability 0 never succeeds and probability 1 always does, and both make
+one draw per call.
+
+### AZeroDrawIsTheLowerBoundAndFailsAZeroProbability
+
+`mix(0)` is 0, so a seed of minus `K_INCREMENT` makes the first draw 64 zero bits. `uniform()`
+returns 0, `bernoulli(0)` returns false and `uniform(0.4, 0.6)` returns 0.4. A draw of exactly
+0 does not pass a probability of 0.
+
+### BernoulliSucceedsAtTheRateOfItsProbability
+
+Over 65536 draws `bernoulli(0.25)` succeeds at a rate of 0.25 within 0.01.
+
+### DeriveStartsAtTheMixOfTheStateAndTheKeyedMix
+
+`Random(0).derive(0).state()` is 0x48218226FF3CD4BF. The case follows the five steps of `mix`
+from the keyed value 0xE220A8397B1DCDAF.
+
+### DeriveDependsOnTheKeyAndOnTheParentState
+
+`Random(0).derive(1)` and `Random(7).derive(5)` have the two states the case lists. Two keys
+of one parent give different generators, and so does one key of two parents.
+
+### DeriveLeavesTheParentUntouched
+
+After `derive(3)` the parent's state is its seed, the child differs from the parent, and a
+second `derive(3)` equals the first.
+
+### ACopyReplaysTheSequenceFromThePointOfTheCopy
+
+A copy taken after one draw equals the original, and their next 16 draws are equal.
+
+### EqualityComparesTheCounter
+
+Two generators of one seed are equal, and are unequal after one of them draws.
+
+## test_imaging_raw_cache.cpp
+
+Tests the raw image file: its bytes, its header checks and its file reader and writer.
+
+This file needs no device. `Unit_ImagingRawCache` covers
+`include/SushiAI/imaging/raw_cache.hpp`. A file is a 24-byte header of six little-endian
+32-bit words (magic, version, height, width, channel count, channel order) followed by the
+pixels. Most cases read and write string streams. The cases from ImageRoundTripsThroughAFile on
+write files in a directory of their own under the system's temporary directory, which
+`ScratchDirectory` creates empty and removes when the case ends.
+
+### K_RGB
+
+`K_RGB` is 1, the channel order word of an RGB file.
+
+### append_u32
+
+`append_u32` appends a value to a byte string as four little-endian bytes.
+
+### header_bytes and layout_bytes
+
+`header_bytes` returns the 24 header bytes for six given fields. `layout_bytes` returns them
+for `K_RAW_IMAGE_MAGIC`, `K_RAW_IMAGE_VERSION` and a given height, width, channel count and
+order.
+
+### make_image
+
+`make_image` returns an image whose byte at offset i is 7 * i + 3 modulo 256.
+
+### bytes_of
+
+`bytes_of` returns a copy of an image's bytes.
+
+### written_bytes
+
+`written_bytes` returns the bytes `write_raw_image` produces for an image.
+
+### expect_untouched
+
+`expect_untouched` expects an image to be 1 by 1 with one channel still, the destination a
+failed read must not replace.
+
+### ScratchDirectory
+
+`ScratchDirectory` owns one directory under `std::filesystem::temp_directory_path()`. It
+removes what the path held and creates the directory in its constructor, and removes it in its
+destructor. `write` puts bytes in a file of the directory and `file` returns a path inside it.
+The class cannot be copied or moved.
+
+### WriterEmitsTheDocumentedBytes
+
+A 1 by 2 RGB image is written as "SAIM", the words 1, 1, 2, 3, 1 and the six pixel bytes. The
+case lists all thirty bytes.
+
+### HeaderSizeAndMagicMatchTheDocumentedLayout
+
+`K_RAW_IMAGE_HEADER_BYTES` is 24 and the first four header bytes are "SAIM".
+
+### RgbImageRoundTripsThroughAStream
+
+A 5 by 7 RGB image written and read back has the header fields 5, 7, 3 and
+`ChannelOrder::Rgb`, `pixel_bytes()` of 105 and the same bytes.
+
+### GrayImageRoundTripsThroughAStream
+
+A 4 by 3 one-channel image round-trips with `ChannelOrder::Gray`.
+
+### BgrFileIsWrittenAsGivenAndReadAsRgb
+
+Written with `ChannelOrder::Bgr`, the pixel bytes 1 to 6 are stored as given. Read back they
+are 3, 2, 1, 6, 5, 4: the reader swaps the first and third channel so the image is RGB.
+
+### ReadReusesADestinationOfAnotherSize
+
+A destination that was 9 by 9 with one channel becomes 2 by 2 with three channels and holds the
+file's bytes.
+
+### HeaderRejectsAWrongMagic
+
+A header that starts with the PNG signature bytes throws with "magic" and "not a raw image
+file".
+
+### HeaderRejectsANewerVersionAndNamesBoth
+
+Version 2 throws with "format version 2" and "reads version 1".
+
+### HeaderRejectsVersionZero
+
+Version 0 throws with "format version 0" and "reads version 1".
+
+### HeaderRejectsATruncatedHeader
+
+A stream of 23 bytes throws with "header ended" and "23 of 24".
+
+### HeaderRejectsAnEmptyStream
+
+An empty stream throws with "header ended" and "0 of 24".
+
+### HeaderRejectsAZeroHeight
+
+A height of 0 throws with "height 0" and "16384".
+
+### HeaderRejectsAZeroWidth
+
+A width of 0 throws with "width 0" and "16384".
+
+### HeaderRejectsAHeightAboveTheLimit
+
+A height of 16385 throws with "height 16385".
+
+### HeaderRejectsAWidthAboveTheLimit
+
+A width of 16385 throws with "width 16385".
+
+### HeaderAcceptsBothSidesAtTheLimit
+
+A 16384 by 16384 RGB header is accepted, and `pixel_bytes()` is 805306368.
+
+### HeaderRejectsExtentsWhoseProductWouldOverflow
+
+Extents of 0xFFFFFFFF throw with "height 4294967295". The extent is checked before any product
+is formed.
+
+### HeaderRejectsAnExtentWithTheSignBitSet
+
+A width of 0x80000001 throws with "width 2147483649". The word is read as unsigned and is not
+taken for a negative number.
+
+### HeaderRejectsAnUnknownChannelOrder
+
+A channel order of 3 throws with "channel order 3" and "unknown".
+
+### HeaderRejectsThreeChannelsInAGrayFile
+
+Three channels with order 0 throw with "channel count 3" and "channel order 0".
+
+### HeaderRejectsOneChannelInAnRgbFile
+
+One channel with order 1 throws with "channel count 1" and "channel order 1".
+
+### HeaderRejectsFourChannels
+
+Four channels throw with "channel count 4".
+
+### HeaderRejectsZeroChannels
+
+Zero channels with order 2 throw with "channel count 0" and "channel order 2".
+
+### PixelsRejectAStreamThatEndsEarly
+
+A stream one byte short of its pixels throws with "pixels ended" and "11 of 12".
+
+### PixelsRejectAHeaderTheReaderDidNotValidate
+
+`read_raw_image_pixels` given a hand-built header of height 0 throws with "height 0" and leaves
+the destination as it was.
+
+### WriterRejectsAnEmptyView
+
+A default view throws with "no pixels" and nothing is written.
+
+### WriterRejectsAChannelCountThatDoesNotFitTheOrder
+
+One channel with `Rgb` or `Bgr` and three channels with `Gray` throw with the channel count,
+and nothing is written.
+
+### WriterRejectsASideAboveTheLimit
+
+A view 16385 px wide throws with "width 16385" and nothing is written.
+
+### WriterReportsAFailedStream
+
+Writing to a stream whose bad bit is set throws with "stream failed".
+
+### ImageRoundTripsThroughAFile
+
+A 6 by 4 RGB image written with `write_raw_image_file` gives a file of 24 + 72 bytes, and
+`read_raw_image_file` returns the same extents and bytes.
+
+### FileWriterReplacesALongerFile
+
+Writing a 1 by 1 image over a file that held an 8 by 8 one leaves a file of 24 + 3 bytes that
+reads back as the 1 by 1 image.
+
+### FileWriterLeavesTheFileAloneWhenItRejectsTheImage
+
+A write that throws for its channel count leaves an existing four-byte file at four bytes. The
+image is checked before the file is opened.
+
+### FileWriterRejectsAPathItCannotOpen
+
+A path inside a directory that does not exist throws with "cannot open".
+
+### FileReaderRejectsAMissingFile
+
+A missing file throws with "cannot open" and the file name, and the destination is untouched.
+
+### FileReaderRejectsATruncatedHeader
+
+A file of 10 bytes throws with "header ended" and "10 of 24", and the destination is untouched.
+
+### FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination
+
+A file one byte short throws with "holds 35 bytes" and "declares 36", and the destination is
+untouched.
+
+### FileReaderRejectsTrailingBytesBeforeResettingTheDestination
+
+A file with one byte after its pixels throws with "holds 37 bytes" and "declares 36", and the
+destination is untouched.
+
+### FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold
+
+A file that is only a header declaring 16384 by 16384 pixels throws with "holds 24 bytes" and
+"declares 805306392". The destination is untouched, so the reader compares the file size with
+the header before it allocates.
+
+### FileReaderRejectsAMalformedHeaderBeforeResettingTheDestination
+
+A file whose header has extents of 0xFFFFFFFF throws with "height 4294967295", and the
+destination is untouched.
+
+## test_imaging_rectangle.cpp
+
+Tests the plan that orders a dataset by aspect ratio and gives each batch one shape.
+
+This file needs no device. `Unit_ImagingRectangle` covers
+`include/SushiAI/imaging/rectangle.hpp`. The expected shapes are what lines 405 to 427 of the
+reference's `data/base.py` give for the same sizes.
+
+### make_sizes
+
+`make_sizes` returns seven image sizes with height over width below, at and above 1. Images 0
+and 5 share the ratio 0.75.
+
+### make_settings
+
+`make_settings` returns `RectangleSettings` with a batch size, an image size and a pad, at the
+default stride of 32.
+
+### SettingsDefaultToTheReferenceValidationRun
+
+Default settings are image size 640, batch size 32, stride 32 and pad 0.5.
+
+### OrderRisesWithTheAspectRatioAndKeepsTies
+
+`plan_rectangular_batches` orders the seven images as 6, 3, 0, 5, 2, 1, 4. Images 0 and 5 keep
+their dataset order.
+
+### ShapesMatchTheReferenceArithmetic
+
+With batch 3 and pad 0.5 the shapes are 512 by 672, 672 by 672 and 672 by 448. With batch 2 and
+pad 0 they are 448 by 640, 480 by 640, 640 by 640 and 640 by 448. With one batch of 7 at image
+size 320 the shape is 352 by 352.
+
+### ShapeAtNamesTheBatchOfAPosition
+
+`shape_at` returns the first batch's shape for positions 0 and 2, the second's for position 3
+and the third's for position 6.
+
+### EverySideIsAMultipleOfTheStride
+
+With stride 64 and image size 600, both sides of all four shapes are multiples of 64 and at
+least 64.
+
+### OneWideImageGivesOneWideShape
+
+One 480 by 640 image gives the order {0} and the shape 512 by 672:
+ceil(0.75 * 640 / 32 + 0.5) * 32 and ceil(20.5) * 32.
+
+### RejectsSettingsAndSizesOutsideTheirRanges
+
+`validate_rectangle` throws for a batch size, a stride or an image size of 0 and for a pad that
+is negative or NaN. `plan_rectangular_batches` throws for an empty size list ("no image") and
+for a size of 0 by 500 ("image 2", "0x500"). Default settings pass.
+
+### RejectsAShapeAboveTheImageBound
+
+An image size of `K_MAX_IMAGE_SIDE` with pad 0.5 gives a side above the bound, and the call
+throws with "batch side" and "16384".
+
+## test_imaging_resize.cpp
+
+Tests the bilinear resize and the fit of an image's long side.
+
+This file needs no device. `Unit_ImagingResize` covers `include/SushiAI/imaging/resize.hpp`:
+`resize_bilinear`, `fit_long_side` and `resize_long_side`. The kernel samples at pixel centres
+with weights rounded to `K_BILINEAR_WEIGHT_BITS` bits and rounds its result half up. The first
+cases compare whole images with values a comment derives.
+
+### Bytes
+
+`Bytes` is a vector of bytes, an image's contents in height, width, channel order.
+
+### make_image and bytes_of
+
+`make_image` returns an image holding the given bytes, and `bytes_of` returns an image's bytes.
+
+### resized_bytes
+
+`resized_bytes` resizes a one-channel source to a size and returns the bytes. It also expects
+the destination to have that size and one channel.
+
+### WeightBitsGiveAWeightSumOf2048
+
+`1 << K_BILINEAR_WEIGHT_BITS` is 2048.
+
+### TwoByTwoToFourByFourMatchesTheHandComputedImage
+
+Along one axis the four outputs of a pair (a, b) are a, (3a + b) / 4, (a + 3b) / 4 and b. The
+case lists all sixteen output bytes, among them 58.75 rounded to 59 and 76.25 rounded to 76.
+
+### FourByFourToTwoByTwoAveragesEachTwoByTwoBlock
+
+Each output reads position 0.5 or 2.5 on both axes, so it is the mean of a 2 by 2 block. The
+sums 142, 220, 460 and 541 give 36, 55, 115 and 135: 35.5 rounds up and 135.25 rounds down.
+
+### ResizeToTheSameSizeCopiesEveryPixel
+
+A 3 by 3 image resized to 3 by 3 is unchanged.
+
+### AnEnlargedRowClampsAtBothEdges
+
+A row (10, 250) enlarged to four columns starts at 10 and ends at 250. Its outer columns read
+positions outside the two pixel centres.
+
+### AReducedRowUsesWeightsRoundedToElevenBits
+
+Eight columns reduced to three read positions 0.8333, 3.5 and 6.1667, with upper weights 1707,
+1024 and 341 of 2048. The case computes the three bytes from those weights, checks they are 3,
+41 and 209, and compares the resize with them.
+
+### EachChannelIsInterpolatedOnItsOwn
+
+A two-pixel row of three channels enlarged to four pixels gives each channel the values of its
+own pair. Channel 2 falls from 255 to 3 while the others rise.
+
+### AConstantImageStaysConstantWhenEnlarged
+
+A 5 by 7 image of the colour (17, 114, 255) enlarged to 13 by 23 holds that colour in every
+pixel.
+
+### AConstantImageStaysConstantWhenReduced
+
+A 31 by 17 image at level 201 reduced to 4 by 5 holds 201 in every byte.
+
+### AHorizontalGradientStaysMonotoneAtEveryWidth
+
+A rising row of eight levels resized to every width from 1 to 40 never falls from one column to
+the next.
+
+### AnEnlargedGradientKeepsItsEndValues
+
+The same row enlarged to 20 columns starts at 0 and ends at 255.
+
+### AVerticalGradientStaysMonotoneAndRowsStayUniform
+
+A 4 by 3 image whose rows are each one level is resized to every height from 1 to 17 at width
+5. Every output row is one level, and the levels never fall from one row to the next.
+
+### TheDestinationIsResetToTheRequestedSizeAndChannels
+
+A destination that was 9 by 9 with one channel becomes 2 by 2 with the source's three channels.
+
+### ResizeRejectsASourceWithoutPixels
+
+`resize_bilinear` on a default view throws with "resize_bilinear", "source" and "no pixels".
+
+### ResizeRejectsASizeOutsideTheImageBounds
+
+Destination sizes of 0 by 2, 2 by -1 and 2 by 16385 throw with "destination size" and the size.
+
+### ResizeRejectsASourceWithExtentsOutsideTheImageBounds
+
+A source view of 0 by 2, of 2 by 16385 and of five channels throws with "source size" or
+"source channel count".
+
+### ResizeRejectsADestinationThatHoldsTheSource
+
+`resize_bilinear` with the image as source and destination throws with "destination holds the
+source's pixels". The image is still 2 by 2 with its bytes, so the refusal comes before the
+reset.
+
+### FitLongSideLeavesAnImageWhoseLongSideAlreadyFits
+
+`fit_long_side` at 640 returns 480 by 640, 640 by 427 and 640 by 640 unchanged.
+
+### FitLongSideReducesALargeImage
+
+1080 by 1920 becomes 360 by 640, and 1920 by 1080 becomes 640 by 360.
+
+### FitLongSideEnlargesASmallImage
+
+100 by 50 becomes 640 by 320, and 500 by 375 becomes 640 by 480.
+
+### FitLongSideRoundsTheShortSideUp
+
+333 by 500 becomes 427 by 640, 7 by 3 becomes 640 by 275 and 3 by 1000 becomes 2 by 640: the
+short side is the ceiling of 426.24, 274.29 and 1.92.
+
+### FitLongSideCapsBothSidesAtTheImageSize
+
+1281 by 1280 becomes 640 by 640. The short side would be the ceiling of 639.5.
+
+### FitLongSideAlwaysPutsTheLongSideAtTheImageSize
+
+Over heights and widths from 1 to 1499 in steps of 7 and 11, the long side of the result is 640
+and the short side lies in [1, 640].
+
+### ResizeLongSideCopiesAnImageThatAlreadyFits
+
+A 2 by 4 image with image size 4 comes out as a 2 by 4 image with the same bytes under another
+data pointer. The destination, which was 3 by 3 with three channels, takes the source's one
+channel.
+
+### ResizeLongSideEnlargesToTheFittedSize
+
+A 1 by 2 image with image size 4 becomes 2 by 4, and both rows are 0, 25, 75, 100.
+
+### ResizeLongSideReducesToTheFittedSize
+
+The 4 by 4 image of the block-average case with image size 2 becomes the 2 by 2 image 36, 55,
+115, 135.
+
+### ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds
+
+Image sizes of 0 and 16385 throw with "resize_long_side" and the value.
+
+### ResizeLongSideRejectsASourceWithoutPixels
+
+A default view throws with "resize_long_side" and "no pixels".
+
+### ResizeLongSideRejectsADestinationThatHoldsTheSource
+
+The image as source and destination throws with "destination holds the source's pixels".
+
+### ResizesRejectAViewInsideTheDestination
+
+`resize_bilinear` and `resize_long_side` both refuse a view of two rows of the destination, and
+the image keeps its size and its bytes.
+
+### ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds
+
+A source view of 0 by 2 and one of five channels throw with "source size" and "source channel
+count".
 
 ## test_ir.cpp
 
@@ -1418,6 +5137,184 @@ After `forward()` throws for a slope of 1, the node count and the value count ar
 `parameter_count` is 0 before a trace. After one the walk visits nothing and
 `parameter_elements` is 0.
 
+## test_loss_roots.cpp
+
+Tests which values differentiation accepts as a loss, the seed it emits and the STOP_GRADIENT
+barrier.
+
+This file needs no device. Every case in `Unit_LossRoots` builds a host-side graph, calls
+`Autograd::differentiate` and reads the appended nodes or the error. A root produced by
+NLL_LOSS is seeded by that operation's own rule. Any other one-element root of a real floating
+type whose producer has a rule gets a CONSTANT of 1 as its gradient. Most refusal cases also
+check that the node count is unchanged, so a refused call leaves the graph as it was.
+
+### Constants
+
+`K_ATTRIBUTE_TOLERANCE` is 1e-12, the error allowed on an attribute a rule copies from the
+forward node. `K_TERM_WEIGHT` is 2.0, the factor of the SCALE term in `WeightedSum`.
+`K_ROOT_WEIGHT` is 0.5, the factor of the SCALE that ends a loss in the cases that need one.
+
+### op_names
+
+`op_names` returns the operation names of the nodes from a given index to the end. A case
+passes the forward node count, so the list covers the appended nodes.
+
+### count_op
+
+`count_op` counts the nodes of one operation in the whole graph.
+
+### differentiate
+
+The file-local `differentiate` wraps `Autograd::differentiate` so that a case passes its `wrt`
+list as a vector. The seed factor defaults to `NO_VALUE` and the provenance to null.
+
+### WeightedSum
+
+`WeightedSum` holds the loss `K_TERM_WEIGHT * a + b * c` over three one-element parameters:
+a SCALE, a MUL and the ADD of the two. It keeps the ids of the parameters and of the three
+results.
+
+### ASumOfTwoTermsEndingInAddReachesEveryParameter
+
+The root is the ADD. Four nodes are appended: CONSTANT, MUL, MUL, SCALE. The CONSTANT is the
+seed. The two MUL nodes read the seed with `c` and with `b`, and produce the gradients of `b`
+and `c`. The SCALE reads the seed with the factor `K_TERM_WEIGHT` and produces the gradient of
+`a`. All three gradients have the lifetime GRADIENT.
+
+### ASumOfTwoTermsEndingInScaleReachesEveryParameter
+
+The root is a SCALE of the sum by `K_ROOT_WEIGHT`. The appended nodes are CONSTANT, SCALE, MUL,
+MUL, SCALE. The first SCALE reads the seed with the factor `K_ROOT_WEIGHT`, and the three nodes
+after it read that SCALE's result, so both terms under the root receive the scaled seed. No
+gradient is `NO_VALUE`.
+
+### TheSeedIsAConstantOneShapedAndTypedLikeTheRoot
+
+The root is a FLOAT64 [1, 1, 1, 1] value tagged NCHW. The first appended node is a CONSTANT
+with no input and the value 1 in attribute slot 0, and its result is [1, 1, 1, 1], FLOAT64 and
+NCHW. The graph holds one CONSTANT, no ZERO and no EXP.
+
+### TheSeedFactorMultipliesTheSeedOnce
+
+With a seed factor, the appended nodes are CONSTANT, DYNAMIC_SCALE, MUL, MUL, SCALE. The
+DYNAMIC_SCALE reads the CONSTANT and the factor, the graph holds one DYNAMIC_SCALE, and the
+three rule nodes read its result.
+
+### ANonScalarRootThrowsNamingItsShape
+
+A [4, 3] root throws with a message containing "needs a scalar to differentiate" and "[4, 3]".
+
+### ALeafRootThrowsNamingTheLeaf
+
+A parameter passed as the root throws with a message containing "it is a leaf" and
+"sushiai.leaf".
+
+### ARootThatNeedsNoGradientThrowsNamingTheCause
+
+The root is an ADD of two inputs and the requested parameter is not read by it. The message
+contains "requires no gradient" and "sushiai.add".
+
+### ARootWhoseProducerHasNoRuleThrowsNamingTheOperation
+
+The root is a DYNAMIC_SCALE of a parameter. The message contains "no backward rule" and
+"sushiai.dynamic_scale".
+
+### ARootThatIsNotTheFirstResultThrowsNamingTheProducer
+
+The root is the index result of a MAXPOOL2D, its second output. The message contains "not the
+first result" and "sushiai.maxpool2d".
+
+### ARootThatIsNotRealFloatingThrowsNamingItsType
+
+The root is a SCALE of an INT32 parameter. The message contains "element type is int32" and
+"sushiai.scale".
+
+### AFusedCrossEntropyRootEmitsNoSeedNode
+
+A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` appends EXP, SUB, SCALE, SUM_ROWS,
+MATMUL, MATMUL, RELU_BACKWARD, SUM_ROWS, MATMUL. The graph holds no ZERO and no CONSTANT: the
+fused rule starts from the root's implicit gradient and needs no seed node.
+
+### AnUnfusedNllLossRootEmitsNoSeedNode
+
+NLL_LOSS over a RELU result appends SCALE then RELU_BACKWARD. The SCALE reads the targets
+alone, so no seed node precedes it.
+
+### AnNllLossRootAppliesTheSeedFactorInItsOwnRule
+
+With a seed factor, a LOG_SOFTMAX and NLL_LOSS pair appends EXP, SUB, SCALE, DYNAMIC_SCALE, and
+the result of the DYNAMIC_SCALE is the gradient of `x`.
+
+### StopGradientEmitsAnIdentityShapedLikeItsOperand
+
+`stop_gradient` of a FLOAT64 NCHW value writes one STOP_GRADIENT node that reads the operand.
+The result has the operand's shape and is FLOAT64 and NCHW, and `finalise()` accepts the graph.
+
+### StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable
+
+`Ops::STOP_GRADIENT` has `blocks_gradient` true and `differentiable` false.
+`Ops::is_gradient_barrier` is true for it and false for RESHAPE, and its name is
+"sushiai.stop_gradient".
+
+### RequiresGradDoesNotCrossStopGradient
+
+After `finalise()`, a parameter requires a gradient and so does a SCALE that reads it. The
+STOP_GRADIENT result and a SCALE that reads that result do not.
+
+### StopGradientBlocksAParameterReachableOnlyThroughIt
+
+The loss is `stop_gradient(scale(blocked)) * open`. Differentiation does not throw and appends
+CONSTANT and MUL. The gradient of `blocked` is `NO_VALUE`, and the gradient of `open` is the
+MUL of the seed and the stopped value.
+
+### AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradient
+
+The loss is `stop_gradient(x) * x`. The appended nodes are CONSTANT and MUL, the MUL reads the
+seed and the stopped value, and its result is the gradient of `x`. The graph holds no
+ACCUMULATE, so the stopped path contributes nothing to the sum.
+
+### ALossReachableOnlyThroughStopGradientThrowsNamingTheBarrier
+
+The root is a SCALE of `stop_gradient(x)`. The message contains "requires no gradient" and
+"sushiai.scale".
+
+### AStopGradientRootThrowsForRequiringNoGradient
+
+The root is the STOP_GRADIENT result. The message contains "requires no gradient" and
+"sushiai.stop_gradient".
+
+### AContributionToAStopGradientResultIsDroppedWithoutAskingForARule
+
+The graph is that of StopGradientBlocksAParameterReachableOnlyThroughIt, with `requires_grad`
+of the stopped value set by hand after the graph is built. `finalise()` only sets the flag, so
+the hand-set value survives it and MUL's rule contributes a gradient to the stopped value.
+Differentiation does not throw. It appends CONSTANT, MUL, MUL, the gradient of `blocked` is
+`NO_VALUE`, and no appended node has the STOP_GRADIENT node as its origin in the `Provenance`.
+The reverse walk steps over the barrier and asks no rule of it.
+
+### TheSeedNodesHaveTheRootProducerAsOrigin
+
+`WeightedSum` is differentiated with a seed factor and a `Provenance`. Five nodes are appended.
+The origin of the CONSTANT and of the DYNAMIC_SCALE is the ADD that produces the root. The
+origin of the two MUL nodes is the forward MUL, and the origin of the SCALE is the forward
+SCALE.
+
+### AConstantRootThrowsForRequiringNoGradient
+
+The root is a `constant_like` of a parameter. The message contains "requires no gradient" and
+"sushiai.constant".
+
+### AComparisonRootThrowsForRequiringNoGradient
+
+The root is `less_equal(x, bound)` over a parameter. The message contains "requires no
+gradient" and "sushiai.less_equal".
+
+### RequiresGradCrossesNoGradientBarrier
+
+After `finalise()`, a LESS_EQUAL mask over a parameter, a CONSTANT, a ZERO and the MUL of the
+mask with the CONSTANT require no gradient. The MUL of the mask with the parameter does,
+through its second operand.
+
 ## test_loss_scaling.cpp
 
 Tests the dynamic loss-scaling rule on LossScaleState, with no device involved.
@@ -1864,6 +5761,51 @@ therefore a bit-identical substitution, not an approximation, and it is the same
 table already records for RELU. It is what makes the fold free: an ordinary use count licenses
 it with no activation-specific knowledge in the fusion pass.
 
+### EveryElementwiseAndSelectionIdentityIsListedInAll
+
+`Ops::name_of` resolves DIV, MINIMUM, MAXIMUM, ABS, ATAN, LESS_EQUAL, SELECT, SILU,
+SILU_BACKWARD, SOFTPLUS and SOFTPLUS_BACKWARD to a name other than "sushiai.unknown". The
+reason is the one EverySpatialIdentityIsListedInAll gives.
+
+### TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable
+
+`differentiable` is true for DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS, SELECT and SILU, and
+false for LESS_EQUAL, SILU_BACKWARD and SOFTPLUS_BACKWARD.
+
+### TheGradientBarriersAreTheFourIdentitiesThatPassNoGradient
+
+`Ops::is_gradient_barrier` is true for ZERO, CONSTANT, LESS_EQUAL and STOP_GRADIENT. Over every
+row of `Ops::ALL` it equals the row's `blocks_gradient` flag, and exactly four rows carry the
+flag. A fifth barrier therefore fails the count until the list in this test names it.
+
+### NoGradientBarrierIsFlaggedDifferentiable
+
+No row of `Ops::ALL` has both `differentiable` and `blocks_gradient` set.
+
+### LeafCastAndTheGradientOperationsAreNotGradientBarriers
+
+`is_gradient_barrier` is false for LEAF, CAST, DYNAMIC_SCALE, LOG_SOFTMAX, RELU_BACKWARD,
+SILU_BACKWARD, SOFTPLUS_BACKWARD, MAXPOOL2D_BACKWARD, BATCHNORM2D_BACKWARD,
+BATCHNORM_UPDATE_STATS, GEMM_BIAS, EXP_SUB_SCALE and ADAMW_UPDATE, and for the foreign identity
+0xDEADBEEF. These either pass a gradient or throw when one reaches them. Marking one as a
+barrier would turn that throw into a gradient that is dropped without a message.
+
+### SiluDifferentiatesAtItsInput
+
+The `Ops::ACTIVATIONS` row of SILU names SILU_BACKWARD as its gradient and
+`GradientSource::INPUT` as its source, and `activation_survives_fusion(SILU)` is false.
+
+### SoftplusDifferentiatesAtItsInput
+
+The row of SOFTPLUS names SOFTPLUS_BACKWARD and `GradientSource::INPUT`, and
+`activation_survives_fusion(SOFTPLUS)` is false.
+
+### IsActivationBackwardAcceptsOnlyTheTablesGradientColumn
+
+For every row of `Ops::ACTIVATIONS`, `is_activation_backward` is true for the row's `backward`
+identity and false for its `forward` one. Over `Ops::ALL` it accepts as many identities as the
+table has rows.
+
 ## test_precision.cpp
 
 Tests the mixed-precision policy and where the cast insertion pass places its casts.
@@ -1924,6 +5866,10 @@ consistent and not merely quiet.
 The twenty spatial and CV identities are in `stays` because none of them is a GEMM epilogue or
 an activation this policy folds. Each gets the same safe default as everything else nobody has
 special-cased: it stays at the graph's own precision.
+
+SILU, SILU_BACKWARD, SOFTPLUS and SOFTPLUS_BACKWARD are in `stays`. SILU and SOFTPLUS read
+their input, so neither they nor their gradients narrow. DIV, MINIMUM, MAXIMUM, ABS, ATAN,
+LESS_EQUAL, SELECT, STOP_GRADIENT and CONSTANT are in `stays` under the same default.
 
 The closing `EXPECT_EQ` on the two list sizes holds because every identity is accounted for by
 `narrows` or by `stays`. A new operation cannot join the enum without someone deciding which
@@ -2428,6 +6374,23 @@ gradient runs would then depend on the order in which two domains happened to be
 
 The split is a move, not a rewrite. These fourteen rules were the table before it, and every
 one must still resolve.
+
+### NoGradientBarrierHasARule
+
+For every row of `Ops::ALL` with `blocks_gradient` set, `Autograd::has_rule` and
+`Autograd::has_backward_rule` are both false. The loop counts the rows it checked and expects
+4, so it cannot pass by checking none.
+
+### TheComparisonIsABarrierWithoutARule
+
+`Ops::LESS_EQUAL` has `differentiable` false and `blocks_gradient` true, and
+`Autograd::has_rule` is false for it.
+
+### EveryActivationRowHasARuleForItsForwardIdentityOnly
+
+For every row of `Ops::ACTIVATIONS`, `Autograd::has_rule` is true for the `forward` identity
+and false for the `backward` one. `Autograd::ACTIVATION_RULES` has as many entries as
+`Ops::ACTIVATIONS` has rows.
 
 ## test_scope_partitioner.cpp
 
