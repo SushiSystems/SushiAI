@@ -1,6 +1,19 @@
 # Error contract and naming wave
 
-**Status:** Draft for owner review. Nothing here is implemented.
+**Status:** Approved in outline on 2026-10-07; see "Decided" below. Nothing here is implemented.
+
+## Decided
+
+The owner ruled on three of the decisions of section 9 on 2026-10-07 and left the rest to the
+engineer, who takes the recommendation written beside each. Section 9 still states the options.
+
+| Decision | Outcome | By |
+| --- | --- | --- |
+| D1, a wrong model written in C++ | Content is a status, from JSON and from C++ alike; a bad handle, a wrong call order and broken internal state are fatal | Owner |
+| D6, gradient-rule signature | Rules stay `void`; a refusal inside a rule is marked in the graph and `differentiate()` returns it. A signed departure from "every operation that can fail returns a status": the public boundary is `differentiate()`, not a rule | Owner |
+| D11, sibling enumerators | SushiBLAS v0.1.0 is asked to rename the enumerators of `DataType`, `Layout` and `ExecutionMode` to PascalCase; the request was sent to the sushiblas session, with D17's other two requests | Owner |
+| D2 to D5, D7 to D10, D12 to D16 | The recommendation of section 9 in each case | Engineer |
+| D7, death tests | Taken with its condition: the start-up time of one death test is measured at the owner's first build before the fatal-class tests are written in bulk | Engineer |
 
 Stage 2 of the programme (`docs/design/PROGRAMME.md:46`) ends when no exception crosses the public
 surface and the library has one naming form. Stage 1, the SushiBLAS v0.1.0 migration, touches the

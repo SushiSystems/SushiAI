@@ -25,8 +25,8 @@ Each was made by the owner on 2026-10-07.
 | Eager surface | It must not break after it ships. What a caller writes (`Session`, `Step`, `Scope`) is the public surface; the units behind it are not promised |
 | Python front end | Not now |
 | First tag | 0.1.0, when the YOLO26 programme is finished |
-| Error contract | Status values everywhere: every operation that can fail returns a status, and no exception crosses the public surface |
-| Naming | The `cpp-code-style` rule for the whole library, applied in one wave: `K_` constants, PascalCase enumerators, no `I` prefix |
+| Error contract | Status values everywhere: every operation that can fail returns a status, and no exception crosses the public surface. A wrong model is a status whether it comes from JSON or from C++; a programmer's misuse is fatal. Gradient rules stay `void` and `differentiate()` returns the failure |
+| Naming | The `cpp-code-style` rule for the whole library, applied in one wave: `K_` constants, PascalCase enumerators, no `I` prefix; SushiBLAS v0.1.0 is asked to rename its `DataType`, `Layout` and `ExecutionMode` enumerators the same way |
 | Builds | The owner builds and tests, once the programme's code is written. Until then work is checked by reading and by single-file syntax checks |
 | Sibling repositories | SushiRuntime and SushiBLAS become public; CI access follows from that and is not this programme's work |
 | YOLO26 scope | Training from scratch and the forward pass. Depthwise convolution in SushiBLAS. Mixed precision in the first run, parity checks in fp32 |
@@ -43,8 +43,8 @@ Each was made by the owner on 2026-10-07.
 | --- | --- | --- | --- |
 | 0 | The owner's build | The tree builds, the suites pass on a named device, and the "No kernel named" failure in the test logs is explained | `REMAINING_WORK.md`, first section |
 | 1 | SushiBLAS v0.1.0 migration | Every call site uses the recorder, the lowering is per-domain tables, `TensorPool` has its own header | sushiblas: `docs/agent/2026_10_07_V010/` |
-| 2 | Error contract and naming | No exception crosses the public surface; one naming form | not written |
-| 3 | Convolutional networks | A CNN trains on MNIST from a JSON file; batch normalisation, multi-input layers and a rank-4 input exist | `docs/agent/2026_10_07_CV_CLOSE/SPEC.md` |
+| 2 | Error contract and naming | No exception crosses the public surface; one naming form | `docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md` |
+| 3 | Convolutional networks | A CNN trains on MNIST from a JSON file; batch normalisation, multi-input layers and a rank-4 input exist | `docs/agent/2026_10_07_CV_CLOSE/SPEC.md`, `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md` |
 | 4 | Eager front end | A model traced under scopes trains to the same loss as the compiled path, and a changed scope rebuilds only its own regions | `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md` |
 | 5 | YOLO26 | Stages a to e of its map: body forward, imported-weight parity, loss parity, overfit, full run | `docs/agent/2026_10_07_YOLO26/SPEC.md` |
 | 6 | Release 0.1.0 | The readiness list is closed | `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` |
