@@ -26,13 +26,16 @@
  */
 
 #include <algorithm>
+#include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/precision.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
@@ -60,6 +63,56 @@ namespace
             std::count_if(graph.nodes().begin(), graph.nodes().end(),
                           [op](const Graph::Node& node) { return node.op == op; }));
     }
+
+    /** @brief Bounds the error allowed on an attribute that a rule writes as an exact constant. */
+    constexpr double K_ATTRIBUTE_TOLERANCE = 1e-12;
+
+    /** @brief Counts the rules that no finite-difference case names; an entry is a visible edit. */
+    constexpr std::size_t K_UNPROVEN_RULES = 8;
+
+    /** @brief Names one forward operation and how to emit it over two parameters. */
+    struct ForwardCase
+    {
+        std::string_view name;                                        /**< @brief Failure label. */
+        ValueId (*emit)(const GraphBuilder&, ValueId a, ValueId b);   /**< @brief The emitter. */
+    };
+
+    /** @brief Holds what differentiating one operation under an NLL_LOSS root appended. */
+    struct Appended
+    {
+        std::size_t first = 0;            /**< @brief Index of the first appended node. */
+        ValueId seed = NO_VALUE;          /**< @brief Gradient the tested operation receives. */
+        std::vector<ValueId> gradients;   /**< @brief One entry per requested value. */
+    };
+
+    /**
+     * @brief Differentiates nll_loss(@p result, targets) with respect to @p wrt.
+     * @param result A rank-2 FLOAT32 value; its producer is the operation under test.
+     * @return The appended range; its first node is the SCALE that NLL_LOSS's rule emits.
+     */
+    Appended differentiate_through(Graph::Graph& graph, ValueId result,
+                                   const std::vector<ValueId>& wrt)
+    {
+        const GraphBuilder builder(graph);
+        const ValueId targets = builder.input(graph.value(result).shape, "targets");
+        const ValueId loss = builder.nll_loss(result, targets);
+
+        Appended appended;
+        appended.first = graph.node_count();
+        appended.gradients = Autograd::differentiate(
+            graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+
+        if (graph.node_count() > appended.first)
+            appended.seed = graph.nodes()[appended.first].outputs.at(0);
+        return appended;
+    }
+
+    /** @brief Returns the node @p offset places after the first appended one. */
+    const Graph::Node& appended_node(const Graph::Graph& graph, const Appended& appended,
+                                     std::size_t offset)
+    {
+        return graph.nodes().at(appended.first + offset);
+    }
 }
 
 TEST(Unit_Backward, EveryImplementedOperationHasARule)
@@ -86,6 +139,23 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::SLICE_CHANNELS.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::BATCHNORM2D.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::CHANNEL_AFFINE.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::DIV.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MINIMUM.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MAXIMUM.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::ABS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::ATAN.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SOFTPLUS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SELECT.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SILU.id));
+
+    // A gradient barrier is stepped over by the reverse walk, so no rule is ever asked of it.
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::LESS_EQUAL.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::CONSTANT.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::STOP_GRADIENT.id));
+
+    // An activation gradient has no rule; a second differentiation over it throws.
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::SILU_BACKWARD.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::SOFTPLUS_BACKWARD.id));
 
     // Running statistics are a buffer, not a gradient path; see tests/functional/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_UPDATE_STATS.id));
@@ -155,10 +225,28 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
     };
 
+    // No finite-difference case names these rules; an entry leaves this list when one does.
+    const std::vector<OpID> unproven = {
+        Ops::DIV.id, Ops::MINIMUM.id, Ops::MAXIMUM.id, Ops::ABS.id, Ops::ATAN.id,
+        Ops::SOFTPLUS.id, Ops::SELECT.id, Ops::SILU.id,
+    };
+
+    EXPECT_EQ(unproven.size(), K_UNPROVEN_RULES)
+        << "the unproven list changed size; a rule may join it only with K_UNPROVEN_RULES edited";
+
     for (const Proven& entry : ledger)
+    {
         EXPECT_TRUE(Autograd::has_backward_rule(entry.op))
             << Ops::name_of(entry.op) << " lost its rule, but " << entry.proof
             << " still claims to prove it";
+        EXPECT_EQ(std::count(unproven.begin(), unproven.end(), entry.op), 0)
+            << Ops::name_of(entry.op) << " is named by " << entry.proof
+            << " and still listed as unproven";
+    }
+
+    for (OpID op : unproven)
+        EXPECT_TRUE(Autograd::has_backward_rule(op))
+            << Ops::name_of(op) << " is listed as unproven but has no rule";
 
     for (const Ops::OpName& declared : Ops::ALL)
     {
@@ -168,12 +256,14 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
                                         [&declared](const Proven& entry)
                                         {
                                             return entry.op == declared.id;
-                                        });
+                                        })
+                         || std::count(unproven.begin(), unproven.end(), declared.id) > 0;
 
         EXPECT_TRUE(listed)
-            << declared.name << " gained a backward rule with no entry in this ledger. Add a "
-               "FLOAT64 finite-difference case to test_autograd_numeric.cpp and name it here - "
-               "an unverified rule trains a model slightly wrong and fails nothing.";
+            << declared.name << " has a backward rule named by neither the ledger nor the "
+               "unproven list. Add a FLOAT64 finite-difference case to "
+               "test_autograd_numeric.cpp and name it in the ledger - an unverified rule trains "
+               "a model slightly wrong and fails nothing.";
     }
 }
 
@@ -388,4 +478,567 @@ TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairSaysSoClearly)
     EXPECT_THROW((void)Autograd::differentiate(
                      graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
                  Error);
+}
+
+/** @brief Tests that DIV's rule divides dy by the divisor and reuses the forward quotient. */
+TEST(Unit_Backward, DivReadsItsDivisorAndItsOwnQuotient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId c = builder.div(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {a, b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.div",
+        "sushiai.mul",
+        "sushiai.scale",
+    }));
+
+    const Graph::Node& quotient = appended_node(graph, appended, 1);
+    const Graph::Node& product = appended_node(graph, appended, 2);
+    const Graph::Node& negated = appended_node(graph, appended, 3);
+
+    EXPECT_EQ(quotient.inputs, (std::vector<ValueId>{appended.seed, b}));
+    EXPECT_EQ(product.inputs, (std::vector<ValueId>{quotient.outputs.at(0), c}));
+    EXPECT_EQ(negated.inputs, (std::vector<ValueId>{product.outputs.at(0)}));
+    EXPECT_NEAR(negated.attributes.get(0), -1.0, K_ATTRIBUTE_TOLERANCE);
+
+    EXPECT_EQ(appended.gradients.at(0), quotient.outputs.at(0));
+    EXPECT_EQ(appended.gradients.at(1), negated.outputs.at(0));
+}
+
+/** @brief Tests that DIV's rule emits no divisor gradient when only the dividend needs one. */
+TEST(Unit_Backward, DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId b = builder.input(Shape{4, 3}, "b");
+    const ValueId c = builder.div(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {a});
+
+    EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.div",
+    }));
+}
+
+/** @brief Tests that DIV's rule emits the divisor gradient alone when the dividend needs none. */
+TEST(Unit_Backward, DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.input(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId c = builder.div(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.div",
+        "sushiai.mul",
+        "sushiai.scale",
+    }));
+
+    const Graph::Node& quotient = appended_node(graph, appended, 1);
+    const Graph::Node& product = appended_node(graph, appended, 2);
+    const Graph::Node& negated = appended_node(graph, appended, 3);
+
+    EXPECT_EQ(quotient.inputs, (std::vector<ValueId>{appended.seed, b}));
+    EXPECT_EQ(product.inputs, (std::vector<ValueId>{quotient.outputs.at(0), c}));
+    EXPECT_EQ(appended.gradients.at(0), negated.outputs.at(0));
+}
+
+/** @brief Tests that MINIMUM's rule masks by a <= b, so a tie sends dy to the first operand. */
+TEST(Unit_Backward, MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId c = builder.minimum(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {a, b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.less_equal",
+        "sushiai.zero",
+        "sushiai.select",
+        "sushiai.select",
+    }));
+
+    const Graph::Node& mask = appended_node(graph, appended, 1);
+    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const Graph::Node& to_first = appended_node(graph, appended, 3);
+    const Graph::Node& to_second = appended_node(graph, appended, 4);
+
+    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{a, b}));
+    EXPECT_EQ(to_first.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(to_second.inputs, (std::vector<ValueId>{mask.outputs.at(0), zero, appended.seed}));
+
+    EXPECT_EQ(appended.gradients.at(0), to_first.outputs.at(0));
+    EXPECT_EQ(appended.gradients.at(1), to_second.outputs.at(0));
+}
+
+/** @brief Tests that MAXIMUM's rule masks by b <= a, so a tie sends dy to the first operand. */
+TEST(Unit_Backward, MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId c = builder.maximum(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {a, b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.less_equal",
+        "sushiai.zero",
+        "sushiai.select",
+        "sushiai.select",
+    }));
+
+    const Graph::Node& mask = appended_node(graph, appended, 1);
+    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const Graph::Node& to_first = appended_node(graph, appended, 3);
+    const Graph::Node& to_second = appended_node(graph, appended, 4);
+
+    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{b, a}));
+    EXPECT_EQ(to_first.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(to_second.inputs, (std::vector<ValueId>{mask.outputs.at(0), zero, appended.seed}));
+
+    EXPECT_EQ(appended.gradients.at(0), to_first.outputs.at(0));
+    EXPECT_EQ(appended.gradients.at(1), to_second.outputs.at(0));
+}
+
+/** @brief Tests that MINIMUM's rule emits one SELECT when one operand needs a gradient. */
+TEST(Unit_Backward, MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.input(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId c = builder.minimum(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.less_equal",
+        "sushiai.zero",
+        "sushiai.select",
+    }));
+
+    const ValueId mask = appended_node(graph, appended, 1).outputs.at(0);
+    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    EXPECT_EQ(appended_node(graph, appended, 3).inputs,
+              (std::vector<ValueId>{mask, zero, appended.seed}));
+}
+
+/** @brief Tests that MAXIMUM's rule emits one SELECT when only the first operand needs one. */
+TEST(Unit_Backward, MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId b = builder.input(Shape{4, 3}, "b");
+    const ValueId c = builder.maximum(a, b);
+
+    const Appended appended = differentiate_through(graph, c, {a});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.less_equal",
+        "sushiai.zero",
+        "sushiai.select",
+    }));
+
+    const Graph::Node& mask = appended_node(graph, appended, 1);
+    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const Graph::Node& to_first = appended_node(graph, appended, 3);
+
+    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{b, a}));
+    EXPECT_EQ(to_first.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(appended.gradients.at(0), to_first.outputs.at(0));
+}
+
+/** @brief Tests that ABS's rule multiplies dy by [0 <= x] - [x <= 0], which is 0 at x = 0. */
+TEST(Unit_Backward, AbsMultipliesByASignThatIsZeroAtZero)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId y = builder.abs(x);
+
+    const Appended appended = differentiate_through(graph, y, {x});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.zero",
+        "sushiai.less_equal",
+        "sushiai.less_equal",
+        "sushiai.sub",
+        "sushiai.mul",
+    }));
+
+    const ValueId zero = appended_node(graph, appended, 1).outputs.at(0);
+    const Graph::Node& not_negative = appended_node(graph, appended, 2);
+    const Graph::Node& not_positive = appended_node(graph, appended, 3);
+    const Graph::Node& sign = appended_node(graph, appended, 4);
+    const Graph::Node& dx = appended_node(graph, appended, 5);
+
+    EXPECT_EQ(graph.value(zero).shape, graph.value(x).shape);
+    EXPECT_EQ(not_negative.inputs, (std::vector<ValueId>{zero, x}));
+    EXPECT_EQ(not_positive.inputs, (std::vector<ValueId>{x, zero}));
+    EXPECT_EQ(sign.inputs,
+              (std::vector<ValueId>{not_negative.outputs.at(0), not_positive.outputs.at(0)}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, sign.outputs.at(0)}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+}
+
+/** @brief Tests that ATAN's rule divides dy by x*x plus a CONSTANT one shaped like the input. */
+TEST(Unit_Backward, AtanDividesByOnePlusTheSquaredInput)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId y = builder.atan(x);
+
+    const Appended appended = differentiate_through(graph, y, {x});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.mul",
+        "sushiai.constant",
+        "sushiai.add",
+        "sushiai.div",
+    }));
+
+    const Graph::Node& squared = appended_node(graph, appended, 1);
+    const Graph::Node& one = appended_node(graph, appended, 2);
+    const Graph::Node& denominator = appended_node(graph, appended, 3);
+    const Graph::Node& dx = appended_node(graph, appended, 4);
+
+    EXPECT_EQ(squared.inputs, (std::vector<ValueId>{x, x}));
+    EXPECT_TRUE(one.inputs.empty());
+    EXPECT_NEAR(one.attributes.get(0), 1.0, K_ATTRIBUTE_TOLERANCE);
+    EXPECT_EQ(graph.value(one.outputs.at(0)).shape, graph.value(x).shape);
+    EXPECT_EQ(graph.value(one.outputs.at(0)).dtype, graph.value(x).dtype);
+    EXPECT_EQ(denominator.inputs,
+              (std::vector<ValueId>{squared.outputs.at(0), one.outputs.at(0)}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, denominator.outputs.at(0)}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+}
+
+/** @brief Tests that SOFTPLUS's rule emits one SOFTPLUS_BACKWARD over dy and the forward input. */
+TEST(Unit_Backward, SoftplusBackwardReadsTheForwardInputNotTheOutput)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId y = builder.softplus(x);
+
+    const Appended appended = differentiate_through(graph, y, {x});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.softplus_backward",
+    }));
+
+    const Graph::Node& dx = appended_node(graph, appended, 1);
+    EXPECT_NE(x, y);
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, x}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+}
+
+/** @brief Tests that SILU's rule emits one SILU_BACKWARD over dy and the forward input. */
+TEST(Unit_Backward, SiluBackwardReadsTheForwardInputNotTheOutput)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId y = builder.silu(x);
+
+    const Appended appended = differentiate_through(graph, y, {x});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.silu_backward",
+    }));
+
+    const Graph::Node& dx = appended_node(graph, appended, 1);
+    EXPECT_NE(x, y);
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, x}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+}
+
+/** @brief Tests that SELECT's rule gives dy to a under the condition and to b elsewhere. */
+TEST(Unit_Backward, SelectRoutesItsGradientByItsOwnCondition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId condition = builder.input(Shape{4, 3}, "condition");
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId y = builder.select(condition, a, b);
+
+    const Appended appended = differentiate_through(graph, y, {a, b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.zero",
+        "sushiai.select",
+        "sushiai.select",
+    }));
+
+    const ValueId zero = appended_node(graph, appended, 1).outputs.at(0);
+    const Graph::Node& to_a = appended_node(graph, appended, 2);
+    const Graph::Node& to_b = appended_node(graph, appended, 3);
+
+    EXPECT_EQ(to_a.inputs, (std::vector<ValueId>{condition, appended.seed, zero}));
+    EXPECT_EQ(to_b.inputs, (std::vector<ValueId>{condition, zero, appended.seed}));
+    EXPECT_EQ(appended.gradients.at(0), to_a.outputs.at(0));
+    EXPECT_EQ(appended.gradients.at(1), to_b.outputs.at(0));
+}
+
+/** @brief Tests that SELECT's rule emits one SELECT when only the second branch needs one. */
+TEST(Unit_Backward, SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId condition = builder.input(Shape{4, 3}, "condition");
+    const ValueId a = builder.input(Shape{4, 3}, "a");
+    const ValueId b = builder.parameter(Shape{4, 3}, "b");
+    const ValueId y = builder.select(condition, a, b);
+
+    const Appended appended = differentiate_through(graph, y, {b});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.zero",
+        "sushiai.select",
+    }));
+
+    const ValueId zero = appended_node(graph, appended, 1).outputs.at(0);
+    const Graph::Node& to_b = appended_node(graph, appended, 2);
+
+    EXPECT_EQ(to_b.inputs, (std::vector<ValueId>{condition, zero, appended.seed}));
+    EXPECT_EQ(appended.gradients.at(0), to_b.outputs.at(0));
+}
+
+/** @brief Tests that SELECT's rule emits nothing when only its condition needs a gradient. */
+TEST(Unit_Backward, SelectGivesItsConditionNoGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId condition = builder.parameter(Shape{4, 3}, "condition");
+    const ValueId a = builder.input(Shape{4, 3}, "a");
+    const ValueId b = builder.input(Shape{4, 3}, "b");
+    const ValueId y = builder.select(condition, a, b);
+
+    const Appended appended = differentiate_through(graph, y, {condition});
+
+    EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{"sushiai.scale"}));
+    EXPECT_EQ(appended.gradients.at(0), NO_VALUE);
+}
+
+/** @brief Tests that a comparison feeding a SELECT condition gives its operands no gradient. */
+TEST(Unit_Backward, AComparisonUnderASelectLeavesItsOperandsWithoutAGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId p = builder.parameter(Shape{4, 3}, "p");
+    const ValueId q = builder.input(Shape{4, 3}, "q");
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId y = builder.select(builder.less_equal(p, q), a, q);
+
+    const Appended appended = differentiate_through(graph, y, {p, a});
+
+    EXPECT_EQ(appended.gradients.at(0), NO_VALUE);
+    EXPECT_NE(appended.gradients.at(1), NO_VALUE);
+    EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.zero",
+        "sushiai.select",
+    }));
+}
+
+/** @brief Tests that a mask multiplied into a product receives no gradient node of its own. */
+TEST(Unit_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId p = builder.parameter(Shape{4, 3}, "p");
+    const ValueId q = builder.input(Shape{4, 3}, "q");
+    const ValueId a = builder.parameter(Shape{4, 3}, "a");
+    const ValueId mask = builder.less_equal(p, q);
+    const ValueId y = builder.mul(mask, a);
+
+    Appended appended;
+    ASSERT_NO_THROW(appended = differentiate_through(graph, y, {p, a}));
+
+    EXPECT_FALSE(graph.value(mask).requires_grad);
+    EXPECT_EQ(appended.gradients.at(0), NO_VALUE);
+    ASSERT_NE(appended.gradients.at(1), NO_VALUE);
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.mul",
+    }));
+
+    const Graph::Node& da = appended_node(graph, appended, 1);
+
+    EXPECT_EQ(da.inputs, (std::vector<ValueId>{appended.seed, mask}));
+    EXPECT_EQ(appended.gradients.at(1), da.outputs.at(0));
+}
+
+/** @brief Tests that a CONSTANT added to a parameter path receives no gradient node. */
+TEST(Unit_Backward, AConstantAddedToAParameterPathEmitsNothingForTheConstant)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId epsilon = builder.constant_like(x, 1e-7);
+    const ValueId y = builder.mul(builder.add(x, epsilon), epsilon);
+
+    Appended appended;
+    ASSERT_NO_THROW(appended = differentiate_through(graph, y, {x}));
+
+    EXPECT_FALSE(graph.value(epsilon).requires_grad);
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.mul",
+    }));
+
+    const Graph::Node& dx = appended_node(graph, appended, 1);
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, epsilon}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+}
+
+/** @brief Tests that MAXIMUM of x and a zero CONSTANT, in that order, sends a tie's dy to x. */
+TEST(Unit_Backward, MaximumOfXAndAZeroConstantRoutesATieToX)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId floor = builder.constant_like(x, 0.0);
+    const ValueId y = builder.maximum(x, floor);
+
+    const Appended appended = differentiate_through(graph, y, {x});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.less_equal",
+        "sushiai.zero",
+        "sushiai.select",
+    }));
+
+    const Graph::Node& mask = appended_node(graph, appended, 1);
+    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const Graph::Node& dx = appended_node(graph, appended, 3);
+
+    // The mask is [floor <= x], which holds at x = 0, so x takes dy there.
+    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{floor, x}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+}
+
+/** @brief Tests that MAXIMUM of a zero CONSTANT and x, the wide clamp, gives x nothing at a tie. */
+TEST(Unit_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATie)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{4, 3}, "x");
+    const ValueId floor = builder.constant_like(x, 0.0);
+    const ValueId y = builder.maximum(floor, x);
+
+    const Appended appended = differentiate_through(graph, y, {x});
+
+    ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.less_equal",
+        "sushiai.zero",
+        "sushiai.select",
+    }));
+
+    const Graph::Node& mask = appended_node(graph, appended, 1);
+    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const Graph::Node& dx = appended_node(graph, appended, 3);
+
+    // The mask is [x <= floor], which holds at x = 0, so x takes the zero branch there.
+    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{x, floor}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{mask.outputs.at(0), zero, appended.seed}));
+    EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
+
+    for (std::size_t i = 0; i < graph.node_count(); ++i)
+    {
+        const OpID op = graph.nodes()[i].op;
+        EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
+            << Ops::name_of(op) << " narrows, so the clamp would leave the loss's precision";
+    }
+}
+
+/** @brief Tests that no rule of the eight forward operations appends a node that narrows. */
+TEST(Unit_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
+{
+    const std::vector<ForwardCase> cases = {
+        {"div", [](const GraphBuilder& g, ValueId a, ValueId b) { return g.div(a, b); }},
+        {"minimum", [](const GraphBuilder& g, ValueId a, ValueId b) { return g.minimum(a, b); }},
+        {"maximum", [](const GraphBuilder& g, ValueId a, ValueId b) { return g.maximum(a, b); }},
+        {"abs", [](const GraphBuilder& g, ValueId a, ValueId) { return g.abs(a); }},
+        {"atan", [](const GraphBuilder& g, ValueId a, ValueId) { return g.atan(a); }},
+        {"softplus", [](const GraphBuilder& g, ValueId a, ValueId) { return g.softplus(a); }},
+        {"silu", [](const GraphBuilder& g, ValueId a, ValueId) { return g.silu(a); }},
+        {"select", [](const GraphBuilder& g, ValueId a, ValueId b)
+                   {
+                       return g.select(g.less_equal(a, b), a, b);
+                   }},
+    };
+
+    for (const ForwardCase& forward : cases)
+    {
+        SCOPED_TRACE(std::string(forward.name));
+
+        Graph::Graph graph;
+        const GraphBuilder builder(graph);
+        const ValueId a = builder.parameter(Shape{4, 3}, "a");
+        const ValueId b = builder.parameter(Shape{4, 3}, "b");
+
+        const Appended appended = differentiate_through(graph, forward.emit(builder, a, b), {a, b});
+
+        ASSERT_GT(graph.node_count(), appended.first + 1) << "the rule appended nothing";
+        for (std::size_t i = appended.first; i < graph.node_count(); ++i)
+        {
+            const OpID op = graph.nodes()[i].op;
+            EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
+                << Ops::name_of(op) << " narrows under the mixed-precision policy";
+        }
+    }
 }

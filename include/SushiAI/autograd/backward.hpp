@@ -50,8 +50,8 @@ namespace SushiAI
 
         /**
          * @brief Extends graph with reverse-mode gradients of loss.
-         * @param loss Scalar value being differentiated; must have one element.
-         * @param seed_factor Optional scaling scalar, or Graph::NO_VALUE.
+         * @param loss One-element result of an operation that has a backward rule; a leaf throws.
+         * @param seed_factor One-element value multiplied into the root gradient, or NO_VALUE.
          * @param provenance Filled with the origin of every appended node when not null.
          * @return Gradient ValueId per wrt entry, or Graph::NO_VALUE if unreachable.
          */

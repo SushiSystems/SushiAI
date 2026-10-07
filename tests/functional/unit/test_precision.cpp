@@ -184,6 +184,10 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::CONCAT_CHANNELS.id, Ops::SLICE_CHANNELS.id,
         Ops::BATCHNORM2D.id, Ops::BATCHNORM2D_BACKWARD.id,
         Ops::CHANNEL_AFFINE.id, Ops::BATCHNORM_UPDATE_STATS.id,
+        // SILU and SOFTPLUS read their input, so neither they nor their gradients narrow.
+        Ops::SILU.id, Ops::SILU_BACKWARD.id, Ops::SOFTPLUS.id, Ops::SOFTPLUS_BACKWARD.id,
+        Ops::DIV.id, Ops::MINIMUM.id, Ops::MAXIMUM.id, Ops::ABS.id, Ops::ATAN.id,
+        Ops::LESS_EQUAL.id, Ops::SELECT.id, Ops::STOP_GRADIENT.id, Ops::CONSTANT.id,
     };
 
     for (OpID op : stays)

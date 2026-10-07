@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -251,18 +252,66 @@ TEST(Unit_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
                     "needs a scalar to differentiate", "[4, 3]");
 }
 
-TEST(Unit_Diagnostics, ALossThatNoRuleCanSeedIsRejectedRatherThanReturningNothing)
+/** @brief Tests that a one-element root a differentiable operation produces is seeded. */
+TEST(Unit_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
 {
-    // A scalar loss no rule can seed is an error; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
     const ValueId x = builder.parameter(Shape{1, 4}, "x");
     const ValueId w = builder.input(Shape{4, 1}, "w");
     const ValueId scalar = builder.matmul(x, w);
+    const std::size_t forward_nodes = graph.node_count();
 
-    SA_EXPECT_ERROR(differentiate_wrt(graph, scalar, x),
-                    "sushiai.matmul", "NLL_LOSS", "CrossEntropyLoss");
+    const std::vector<ValueId> wrt = {x};
+    std::vector<ValueId> gradients;
+    ASSERT_NO_THROW(gradients = Autograd::differentiate(
+                        graph, scalar, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())));
+
+    ASSERT_EQ(graph.node_count(), forward_nodes + 2);
+    const Graph::Node& seed = graph.nodes()[forward_nodes];
+    const Graph::Node& dx = graph.nodes()[forward_nodes + 1];
+
+    EXPECT_EQ(seed.op, Ops::CONSTANT.id);
+    EXPECT_EQ(graph.value(seed.outputs.at(0)).shape, graph.value(scalar).shape);
+    EXPECT_EQ(dx.op, Ops::MATMUL.id);
+    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{seed.outputs.at(0), w}));
+
+    ASSERT_EQ(gradients.size(), 1u);
+    EXPECT_EQ(gradients[0], dx.outputs.at(0));
+    EXPECT_EQ(graph.value(gradients[0]).shape, graph.value(x).shape);
+}
+
+/** @brief Tests that a root no parameter reaches is refused with a message naming that cause. */
+TEST(Unit_Diagnostics, ARootThatRequiresNoGradientNamesItsProducerAndTheCause)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{1, 4}, "x");
+    const ValueId a = builder.input(Shape{1, 4}, "a");
+    const ValueId w = builder.input(Shape{4, 1}, "w");
+    const ValueId unreached = builder.matmul(a, w);
+    const ValueId stopped = builder.matmul(builder.stop_gradient(x), w);
+
+    SA_EXPECT_ERROR(differentiate_wrt(graph, unreached, x),
+                    "value 3", "sushiai.matmul", "requires no gradient");
+    SA_EXPECT_ERROR(differentiate_wrt(graph, stopped, x),
+                    "sushiai.matmul", "requires no gradient", "STOP_GRADIENT");
+}
+
+/** @brief Tests that a root whose producer has no backward rule is refused naming the producer. */
+TEST(Unit_Diagnostics, ARootWhoseProducerHasNoRuleNamesTheProducer)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.parameter(Shape{1}, "x");
+    const ValueId factor = builder.input(Shape{1}, "factor");
+    const ValueId scaled = builder.dynamic_scale(x, factor);
+
+    SA_EXPECT_ERROR(differentiate_wrt(graph, scaled, x),
+                    "sushiai.dynamic_scale", "has no backward rule", "autograd/rules/");
 }
 
 TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)

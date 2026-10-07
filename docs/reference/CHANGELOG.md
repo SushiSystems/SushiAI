@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-07 — autograd: Changed `differentiate` to seed any one-element root, where it accepted only an `NLL_LOSS` root (`differentiator.cpp`, `test_loss_roots.cpp`).
+- 2026-10-07 — graph: Added the operations DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS, SILU, SELECT, LESS_EQUAL, CONSTANT and STOP_GRADIENT with their rules; none has a lowering yet (`ops.hpp`, `builder.hpp`, `rules/elementwise.cpp`).
 - 2026-10-07 — docs: Excluded the Doxygen main page from the published pages, passed secrets to the called CI and pinned `docs bundle` with tests (`docs/publish.toml`, `release.yml`, `cli/tests/test_cli.py`).
 - 2026-10-07 — docs: Added the programme that replaces the roadmap, the YOLO26 requirements map and the 0.1.0 readiness report (`PROGRAMME.md`, `REMAINING_WORK.md`, `docs/agent/`).
 - 2026-10-07 — tools: Added the exporter that writes YOLO26 reference tensors from the pinned Ultralytics commit as SACP files (`export_yolo26_reference.py`, `tools/reference/README.md`).
