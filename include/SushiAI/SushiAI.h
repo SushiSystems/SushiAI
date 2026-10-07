@@ -128,6 +128,7 @@
 #include "imaging/polygon.hpp"
 #include "imaging/recent_partners.hpp"
 #include "imaging/rectangle.hpp"
+
 #include "eager/segment.hpp"
 #include "eager/scope_trace.hpp"
 #include "eager/scope.hpp"
