@@ -36,6 +36,7 @@ Each was made by the owner on 2026-10-07.
 | YOLO26 data | The default augmentation pipeline in full; images decoded once into a raw cache by a separate tool with libjpeg-turbo |
 | YOLO26 references | Produced by running the pinned Ultralytics commit, never stated |
 | Darknet-era YOLO | Ruled on 2026-10-09: the Darknet-era models run on the library, YOLOv3-tiny first, through one anchor-based detection unit; they are inside the feature freeze of 0.1.0 |
+| Domain modules | Ruled on 2026-10-09: a field of use is a top folder and its own library target; vision is the first; layers stay in `nn`. The design is [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md) |
 | Batch normalisation | The batch variance is an output of `K_BATCHNORM2D`; the running statistics are updated beside the graph |
 
 ## Stages
