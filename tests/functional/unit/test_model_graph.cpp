@@ -319,12 +319,13 @@ TEST(Unit_ModelGraph, ForwardReturnsTheSinglePublishedOutput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const std::size_t leaves = graph.node_count();
     const Graph::ValueId y = model.forward(Trace::evaluation(builder), x);
 
-    ASSERT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.nodes().front().op, Ops::K_RELU.id);
-    EXPECT_EQ(graph.nodes().front().outputs, (std::vector<Graph::ValueId>{y}));
-    EXPECT_EQ(graph.nodes().front().inputs, (std::vector<Graph::ValueId>{x}));
+    ASSERT_EQ(graph.node_count(), leaves + 1u);
+    EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_RELU.id);
+    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueId>{y}));
+    EXPECT_EQ(graph.nodes()[leaves].inputs, (std::vector<Graph::ValueId>{x}));
 }
 
 /** @brief Tests that forward refuses a model that publishes two outputs and names both. */
@@ -445,9 +446,10 @@ TEST(Unit_ModelGraph, TheInputCanBePublishedAsAnOutput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const std::size_t leaves = graph.node_count();
 
     EXPECT_EQ(model.forward(Trace::evaluation(builder), x), x);
-    EXPECT_EQ(graph.node_count(), 0u);
+    EXPECT_EQ(graph.node_count(), leaves);
 }
 
 /** @brief Tests that the walk names state "<prefix>.<node name>.<member>" in the order added. */
@@ -672,11 +674,12 @@ TEST(Unit_ModelGraph, PortSelectsANamedPortThatALaterNodeReads)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const std::size_t leaves = graph.node_count();
     static_cast<void>(model.forward(Trace::evaluation(builder), x));
 
-    ASSERT_EQ(graph.node_count(), 3u);
-    EXPECT_EQ(graph.nodes()[1].op, Ops::K_GELU.id);
-    EXPECT_EQ(graph.nodes()[2].inputs, graph.nodes()[1].outputs);
+    ASSERT_EQ(graph.node_count(), leaves + 3u);
+    EXPECT_EQ(graph.nodes()[leaves + 1u].op, Ops::K_GELU.id);
+    EXPECT_EQ(graph.nodes()[leaves + 2u].inputs, graph.nodes()[leaves + 1u].outputs);
 }
 
 /** @brief Tests that port lists the node's ports for an unknown name and refuses the input. */
@@ -709,14 +712,15 @@ TEST(Unit_ModelGraph, OutputPortsPublishesEveryPortUnderItsOwnName)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const std::size_t leaves = graph.node_count();
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             model.trace(Trace::evaluation(builder), x));
 
     ASSERT_EQ(outputs.all().size(), 2u);
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId low, outputs.at("low"));
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId high, outputs.at("high"));
-    EXPECT_EQ(graph.nodes()[0].outputs, (std::vector<Graph::ValueId>{low}));
-    EXPECT_EQ(graph.nodes()[1].outputs, (std::vector<Graph::ValueId>{high}));
+    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueId>{low}));
+    EXPECT_EQ(graph.nodes()[leaves + 1u].outputs, (std::vector<Graph::ValueId>{high}));
 }
 
 /** @brief Tests that output_ports publishes nothing when one of the port names is taken. */
@@ -788,12 +792,13 @@ TEST(Unit_ModelGraph, TraceRejectsAnInputOfAnotherSampleShape)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId wide = builder.input(Shape{4, 7}, "wide");
     const Graph::ValueId flat = builder.input(Shape{6}, "flat");
+    const std::size_t leaves = graph.node_count();
 
     SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), wide),
                       StatusCode::InvalidDescription, "the model input", "[6]", "[4, 7]");
     SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), flat),
                       StatusCode::InvalidDescription, "the model input", "[6]");
-    EXPECT_EQ(graph.node_count(), 0u);
+    EXPECT_EQ(graph.node_count(), leaves);
 }
 
 /** @brief Tests that a model with no published output fails the trace and emits no node. */
@@ -806,10 +811,11 @@ TEST(Unit_ModelGraph, TraceRejectsAModelThatPublishesNoOutput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const std::size_t leaves = graph.node_count();
 
     SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), x),
                       StatusCode::InvalidDescription, "publishes no output");
-    EXPECT_EQ(graph.node_count(), 0u);
+    EXPECT_EQ(graph.node_count(), leaves);
 }
 
 /** @brief Tests that add refuses a count of sources other than the node's input count. */
@@ -852,12 +858,13 @@ TEST(Unit_ModelGraph, AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const std::size_t leaves = graph.node_count();
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             built.model.trace(Trace::evaluation(builder), x));
 
-    ASSERT_EQ(graph.node_count(), 1u);
+    ASSERT_EQ(graph.node_count(), leaves + 1u);
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId activated, outputs.at("activated"));
-    EXPECT_EQ(graph.nodes().front().outputs, (std::vector<Graph::ValueId>{activated}));
+    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueId>{activated}));
 }
 
 /** @brief Tests that shape_of and node stop the process on a ref or an index out of range. */

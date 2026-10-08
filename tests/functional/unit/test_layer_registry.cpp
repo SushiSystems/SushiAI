@@ -657,10 +657,11 @@ TEST(Unit_LayerRegistry, ASiluRowTracesOneSiluNode)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{4, 8, 8, 2}, "inputs");
+    const std::size_t leaves = graph.node_count();
     const Graph::ValueId y = layer->forward(builder, x);
 
-    ASSERT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.nodes()[0].op, Ops::K_SILU.id);
+    ASSERT_EQ(graph.node_count(), leaves + 1u);
+    EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_SILU.id);
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 8, 8, 2}));
 }
 

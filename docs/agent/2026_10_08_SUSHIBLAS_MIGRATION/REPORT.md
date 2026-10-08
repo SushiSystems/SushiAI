@@ -1,5 +1,5 @@
 # SushiBLAS v0.1.0 migration report
-**Status:** Open — built once on 2026-10-09 with no error; no test has run
+**Status:** Open — built; 1794 of 1803 tests pass; one pinned reference moved
 
 ## Wave 1
 
@@ -930,3 +930,24 @@ Every unit had passed a single-file syntax check with the same flags and an `opu
 before the build, so the table says the two checks together left nothing for the compiler; it
 does not separate the models. Item 1 of section 7 of the design is confirmed. Items 2 to 16
 need a test run.
+
+## The first test run
+
+`sa run sushiai_tests -- --gtest_brief=1` on 2026-10-09, one process, 34 seconds, RTX 3080 Ti:
+1803 tests ran, 1794 passed, 9 failed, none skipped. The tree was rebuilt first against SushiBLAS
+`266eeb7`, whose `SB_BUILD_TESTS` keeps its 2044 tests out of this tree.
+
+| Failure | Cause | State |
+| --- | --- | --- |
+| Seven cases of `Unit_ModelGraph` and `Unit_LayerRegistry.ASiluRowTracesOneSiluNode` | The test counted nodes from zero, but `GraphBuilder::input` adds a `LEAF` node. Written with the model graph on 2026-10-07 and never run; the library is right | Expectations rebased on the node count taken after the inputs; syntax-checked, not rerun |
+| `Regression_LearningCurve.TheLossTrajectoryMatchesTheRecordedReference` | Step 0 is within tolerance; steps 1 to 10 fall faster than the reference of 2026-08-03 (step 6: 0.016 against 0.274) | Open. The reference is a golden and was not touched |
+
+None of the nine is in a unit a `haiku` implementer wrote for this migration: eight are test
+defects of the earlier model-graph work, and the ninth is a pinned number. The gradient checks,
+the fused-against-separate optimizer comparisons, compile-once, static memory, determinism and
+the loss-scaling suites pass, so the fourteen new lowerings that those suites reach and the
+recorder path ran correctly on the device. What moved the learning curve is not established:
+SushiBLAS changed how it reseeds and how many values a Philox block yields since the reference
+was recorded, which changes the initial weights and the synthetic data; the passing optimizer
+comparisons argue against a wrong update. A run of the old tree is the check that would settle
+it, and the old tree does not build against SushiBLAS v0.1.0.
