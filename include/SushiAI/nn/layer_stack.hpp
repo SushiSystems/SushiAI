@@ -21,7 +21,7 @@
 
 /**
  * @file layer_stack.hpp
- * @brief Declares runtime sequential layer container executing ILayer instances.
+ * @brief Declares runtime sequential layer container executing Layer instances.
  * @author Mustafa Garip
  */
 
@@ -37,7 +37,7 @@
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
 
@@ -64,7 +64,7 @@ namespace SushiAI
                  * @throws Error If @p layer is null - a null entry would trace
                  *         as a silent identity rather than failing.
                  */
-                void push(std::unique_ptr<ILayer> layer);
+                void push(std::unique_ptr<Layer> layer);
 
                 /** @brief No parameters of its own; the layers own them all. */
                 static constexpr auto fields() { return std::tuple<>{}; }
@@ -119,10 +119,10 @@ namespace SushiAI
                  * @return The layer; owned by the stack.
                  * @throws Error If @p index is out of range.
                  */
-                ILayer& layer(std::size_t index) const;
+                Layer& layer(std::size_t index) const;
 
             private:
-                std::vector<std::unique_ptr<ILayer>> layers_;
+                std::vector<std::unique_ptr<Layer>> layers_;
         };
 
         // Invariant: Verifies LayerStack module and parameter walk contracts at declaration scope.
@@ -135,7 +135,7 @@ namespace SushiAI
                       "LayerStack must be enumerated through its own walk");
         static_assert(!ModuleContainer<LayerStack>,
                       "LayerStack must not also look like a container: its children are "
-                      "all ILayer&, so a container walk over it would find no parameters "
+                      "all Layer&, so a container walk over it would find no parameters "
                       "and report no error");
 
     } // namespace NN

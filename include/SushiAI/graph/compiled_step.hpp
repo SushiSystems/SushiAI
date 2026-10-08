@@ -40,8 +40,8 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 
 namespace SushiAI
 {

@@ -31,6 +31,7 @@
 
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/seam.hpp>
+#include <SushiAI/graph/lowering.hpp>
 
 namespace SushiAI
 {

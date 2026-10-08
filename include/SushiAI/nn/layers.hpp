@@ -180,7 +180,7 @@ namespace SushiAI
         /**
          * @class Sequential
          * @brief Applies layers in sequence and indexes parameter paths.
-         * @tparam Ls Layer types in forward application order.
+         * @tparam Ls Module types in forward application order.
          */
         template<typename... Ls>
         class Sequential
@@ -268,7 +268,7 @@ namespace SushiAI
 
                 /**
                  * @brief Applies @p visitor to each child with its index.
-                 * @param visitor Called as visitor(std::size_t index, Layer& child).
+                 * @param visitor Called as visitor(std::size_t index, auto& child).
                  */
                 template<typename Fn>
                 void visit_children(Fn&& visitor)

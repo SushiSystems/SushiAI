@@ -21,7 +21,7 @@
 
 /**
  * @file layer_node.hpp
- * @brief Declares LayerNode, which presents a run-time ILayer as a one-in one-out node.
+ * @brief Declares LayerNode, which presents a run-time Layer as a one-in one-out node.
  * @author Mustafa Garip
  */
 
@@ -34,14 +34,14 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/node.hpp>
 
 namespace SushiAI
 {
     namespace NN
     {
-        /** @brief Presents a run-time ILayer as a one-in one-out node. */
+        /** @brief Presents a run-time Layer as a one-in one-out node. */
         class LayerNode final : public Node
         {
             public:
@@ -49,7 +49,7 @@ namespace SushiAI
                  * @brief Takes ownership of @p layer and declares the one port it produces.
                  * @param layer The layer to present; a null pointer is fatal.
                  */
-                explicit LayerNode(std::unique_ptr<ILayer> layer);
+                explicit LayerNode(std::unique_ptr<Layer> layer);
 
                 /**
                  * @brief Traces the layer through the trace's builder and appends its result.
@@ -69,14 +69,14 @@ namespace SushiAI
                 [[nodiscard]] SushiRuntime::span<const Port> ports() const noexcept override;
 
                 /** @brief Returns the wrapped layer. */
-                [[nodiscard]] ILayer& layer() noexcept;
+                [[nodiscard]] Layer& layer() noexcept;
 
                 /** @brief Returns the wrapped layer, read-only. */
-                [[nodiscard]] const ILayer& layer() const noexcept;
+                [[nodiscard]] const Layer& layer() const noexcept;
 
             private:
                 /** @brief Holds the wrapped layer; never null. */
-                std::unique_ptr<ILayer> layer_;
+                std::unique_ptr<Layer> layer_;
 
                 /** @brief Holds the one port forward() appends to. */
                 Port port_;

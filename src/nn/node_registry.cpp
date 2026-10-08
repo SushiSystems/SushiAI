@@ -36,7 +36,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_node.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
@@ -97,7 +97,7 @@ namespace SushiAI
                            "{} reads {} values, but a '{}' layer reads one", context,
                            inputs.size(), entry.type);
 
-                SA_TRY_ASSIGN(std::unique_ptr<ILayer> layer, Detail::bridge_throwing([&]()
+                SA_TRY_ASSIGN(std::unique_ptr<Layer> layer, Detail::bridge_throwing([&]()
                 {
                     return entry.make(inputs[0], attributes, context);
                 }));

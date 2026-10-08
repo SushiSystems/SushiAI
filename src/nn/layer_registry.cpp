@@ -204,12 +204,12 @@ namespace SushiAI
             }
 
             /**
-             * @brief Asks @p layer for its output shape and wraps both as an ILayer.
+             * @brief Asks @p layer for its output shape and wraps both as a Layer.
              * @param input The per-sample shape entering @p layer.
              * @param context Prefixes the layer's own complaint about @p input or its settings.
              */
             template<typename L>
-            std::unique_ptr<ILayer> adapt(L layer, const Shape& input, std::string_view context)
+            std::unique_ptr<Layer> adapt(L layer, const Shape& input, std::string_view context)
             {
                 Shape output;
                 try
@@ -226,7 +226,7 @@ namespace SushiAI
 
             /** @brief Builds a layer of type @p L that accepts no key. */
             template<typename L>
-            std::unique_ptr<ILayer> make_keyless(const Shape& input,
+            std::unique_ptr<Layer> make_keyless(const Shape& input,
                                                  const Config::Value& attributes,
                                                  std::string_view context)
             {
@@ -236,7 +236,7 @@ namespace SushiAI
 
             /** @brief Builds a pooling layer of type @p Pool from the keys both pools share. */
             template<typename Pool>
-            std::unique_ptr<ILayer> make_pool(const Shape& input,
+            std::unique_ptr<Layer> make_pool(const Shape& input,
                                               const Config::Value& attributes,
                                               std::string_view context)
             {
@@ -277,7 +277,7 @@ namespace SushiAI
             }
         }
 
-        std::unique_ptr<ILayer> make_linear(const Shape& input,
+        std::unique_ptr<Layer> make_linear(const Shape& input,
                                             const Config::Value& attributes,
                                             std::string_view context)
         {
@@ -297,35 +297,35 @@ namespace SushiAI
             return adapt(Linear{input[0], units, use_bias}, input, context);
         }
 
-        std::unique_ptr<ILayer> make_gelu(const Shape& input,
+        std::unique_ptr<Layer> make_gelu(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
             return make_keyless<GELU>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_relu(const Shape& input,
+        std::unique_ptr<Layer> make_relu(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
             return make_keyless<ReLU>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_tanh(const Shape& input,
+        std::unique_ptr<Layer> make_tanh(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
             return make_keyless<Tanh>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_sigmoid(const Shape& input,
+        std::unique_ptr<Layer> make_sigmoid(const Shape& input,
                                              const Config::Value& attributes,
                                              std::string_view context)
         {
             return make_keyless<Sigmoid>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_leaky_relu(const Shape& input,
+        std::unique_ptr<Layer> make_leaky_relu(const Shape& input,
                                                 const Config::Value& attributes,
                                                 std::string_view context)
         {
@@ -337,7 +337,7 @@ namespace SushiAI
             return adapt(layer, input, context);
         }
 
-        std::unique_ptr<ILayer> make_unflatten(const Shape& input,
+        std::unique_ptr<Layer> make_unflatten(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context)
         {
@@ -351,7 +351,7 @@ namespace SushiAI
             return adapt(layer, input, context);
         }
 
-        std::unique_ptr<ILayer> make_conv2d(const Shape& input,
+        std::unique_ptr<Layer> make_conv2d(const Shape& input,
                                             const Config::Value& attributes,
                                             std::string_view context)
         {
@@ -380,35 +380,35 @@ namespace SushiAI
             return adapt(std::move(layer), input, context);
         }
 
-        std::unique_ptr<ILayer> make_maxpool2d(const Shape& input,
+        std::unique_ptr<Layer> make_maxpool2d(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context)
         {
             return make_pool<MaxPool2d>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_avgpool2d(const Shape& input,
+        std::unique_ptr<Layer> make_avgpool2d(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context)
         {
             return make_pool<AvgPool2d>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_global_avgpool(const Shape& input,
+        std::unique_ptr<Layer> make_global_avgpool(const Shape& input,
                                                     const Config::Value& attributes,
                                                     std::string_view context)
         {
             return make_keyless<GlobalAvgPool>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_flatten(const Shape& input,
+        std::unique_ptr<Layer> make_flatten(const Shape& input,
                                              const Config::Value& attributes,
                                              std::string_view context)
         {
             return make_keyless<Flatten>(input, attributes, context);
         }
 
-        std::unique_ptr<ILayer> make_upsample(const Shape& input,
+        std::unique_ptr<Layer> make_upsample(const Shape& input,
                                               const Config::Value& attributes,
                                               std::string_view context)
         {
@@ -420,7 +420,7 @@ namespace SushiAI
             return adapt(layer, input, context);
         }
 
-        std::unique_ptr<ILayer> make_silu(const Shape& input,
+        std::unique_ptr<Layer> make_silu(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
@@ -451,7 +451,7 @@ namespace SushiAI
                 const LayerEntry& entry =
                     Config::find_entry(K_LAYER_REGISTRY, spec.type, "layer type");
 
-                std::unique_ptr<ILayer> layer = entry.make(shape, spec.attributes, context);
+                std::unique_ptr<Layer> layer = entry.make(shape, spec.attributes, context);
 
                 // Invariant: the next factory receives this layer's per-sample output shape.
                 shape = layer->output_shape();

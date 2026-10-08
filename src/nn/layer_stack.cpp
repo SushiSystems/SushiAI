@@ -33,7 +33,7 @@ namespace SushiAI
 {
     namespace NN
     {
-        void LayerStack::push(std::unique_ptr<ILayer> layer)
+        void LayerStack::push(std::unique_ptr<Layer> layer)
         {
             SA_THROW_IF(layer == nullptr,
                         "a null layer was pushed onto a LayerStack at index {}",
@@ -47,7 +47,7 @@ namespace SushiAI
                         "this LayerStack holds no layers, so it would trace as the "
                         "identity function rather than as a model");
 
-            for (const std::unique_ptr<ILayer>& layer : layers_)
+            for (const std::unique_ptr<Layer>& layer : layers_)
                 x = layer->forward(builder, x);
             return x;
         }
@@ -78,7 +78,7 @@ namespace SushiAI
             return output_shape();
         }
 
-        ILayer& LayerStack::layer(std::size_t index) const
+        Layer& LayerStack::layer(std::size_t index) const
         {
             SA_THROW_IF(index >= layers_.size(),
                         "layer {} is out of range; this LayerStack holds {}",

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* ilayer.hpp                                                             */
+/* layer.hpp                                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file ilayer.hpp
+ * @file layer.hpp
  * @brief Declares runtime-polymorphic layer interfaces and adapters.
  * @author Mustafa Garip
  */
@@ -42,13 +42,13 @@ namespace SushiAI
     namespace NN
     {
         /**
-         * @class ILayer
+         * @class Layer
          * @brief One layer of a model whose architecture came from a file.
          */
-        class ILayer
+        class Layer
         {
             public:
-                virtual ~ILayer() = default;
+                virtual ~Layer() = default;
 
                 /**
                  * @brief Traces the layer, declaring its parameters on first call.
@@ -158,11 +158,11 @@ namespace SushiAI
 
         /**
          * @class LayerAdapter
-         * @brief Adapts a compile-time Module to the runtime ILayer interface.
+         * @brief Adapts a compile-time Module to the runtime Layer interface.
          * @tparam L Wrapped layer type satisfying the Module contract.
          */
         template<typename L>
-        class LayerAdapter final : public ILayer
+        class LayerAdapter final : public Layer
         {
             public:
                 static_assert(Module<L>,

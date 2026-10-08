@@ -40,7 +40,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/buffer.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include "../../common/test_status.hpp"

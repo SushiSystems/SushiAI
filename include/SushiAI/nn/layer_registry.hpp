@@ -34,7 +34,7 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/shape.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 
 namespace SushiAI
@@ -48,7 +48,7 @@ namespace SushiAI
          * @param context What to call this layer in a diagnostic, e.g. "layer 3 'linear'".
          * @return The layer.
          */
-        using LayerFactory = std::unique_ptr<ILayer> (*)(const Shape& input,
+        using LayerFactory = std::unique_ptr<Layer> (*)(const Shape& input,
                                                          const Config::Value& attributes,
                                                          std::string_view context);
 
@@ -72,7 +72,7 @@ namespace SushiAI
          * @throws Error If @p input is not rank 1, a key is unknown, "units" is absent, or it
          *         is not positive.
          */
-        std::unique_ptr<ILayer> make_linear(const Shape& input,
+        std::unique_ptr<Layer> make_linear(const Shape& input,
                                             const Config::Value& attributes,
                                             std::string_view context);
 
@@ -84,27 +84,27 @@ namespace SushiAI
          * @return The layer.
          * @throws Error If any key is present.
          */
-        std::unique_ptr<ILayer> make_gelu(const Shape& input,
+        std::unique_ptr<Layer> make_gelu(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context);
 
         /** @brief Builds a @c ReLU, which takes no key. */
-        std::unique_ptr<ILayer> make_relu(const Shape& input,
+        std::unique_ptr<Layer> make_relu(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context);
 
         /** @brief Builds a @c Tanh, which takes no key. */
-        std::unique_ptr<ILayer> make_tanh(const Shape& input,
+        std::unique_ptr<Layer> make_tanh(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context);
 
         /** @brief Builds a @c Sigmoid, which takes no key. */
-        std::unique_ptr<ILayer> make_sigmoid(const Shape& input,
+        std::unique_ptr<Layer> make_sigmoid(const Shape& input,
                                              const Config::Value& attributes,
                                              std::string_view context);
 
         /** @brief Builds a @c LeakyReLU from an optional "slope", 0.01 when absent. */
-        std::unique_ptr<ILayer> make_leaky_relu(const Shape& input,
+        std::unique_ptr<Layer> make_leaky_relu(const Shape& input,
                                                 const Config::Value& attributes,
                                                 std::string_view context);
 
@@ -112,7 +112,7 @@ namespace SushiAI
          * @brief Builds an @c Unflatten from "height", "width" and "channels", all required.
          * @param input The predecessor's per-sample shape; must be [height * width * channels].
          */
-        std::unique_ptr<ILayer> make_unflatten(const Shape& input,
+        std::unique_ptr<Layer> make_unflatten(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context);
 
@@ -123,7 +123,7 @@ namespace SushiAI
          * @param attributes "kernel", "stride", "padding" and "dilation" each hold an integer
          *        or a two-entry [h, w] array.
          */
-        std::unique_ptr<ILayer> make_conv2d(const Shape& input,
+        std::unique_ptr<Layer> make_conv2d(const Shape& input,
                                             const Config::Value& attributes,
                                             std::string_view context);
 
@@ -133,7 +133,7 @@ namespace SushiAI
          * @param attributes "stride" defaults to "kernel"; each key holds an integer or a
          *        two-entry [h, w] array.
          */
-        std::unique_ptr<ILayer> make_maxpool2d(const Shape& input,
+        std::unique_ptr<Layer> make_maxpool2d(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context);
 
@@ -143,7 +143,7 @@ namespace SushiAI
          * @param attributes "stride" defaults to "kernel"; each key holds an integer or a
          *        two-entry [h, w] array.
          */
-        std::unique_ptr<ILayer> make_avgpool2d(const Shape& input,
+        std::unique_ptr<Layer> make_avgpool2d(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context);
 
@@ -151,7 +151,7 @@ namespace SushiAI
          * @brief Builds a @c GlobalAvgPool, which takes no key.
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
-        std::unique_ptr<ILayer> make_global_avgpool(const Shape& input,
+        std::unique_ptr<Layer> make_global_avgpool(const Shape& input,
                                                     const Config::Value& attributes,
                                                     std::string_view context);
 
@@ -159,7 +159,7 @@ namespace SushiAI
          * @brief Builds a @c Flatten, which takes no key.
          * @param input The predecessor's per-sample shape, of rank 1 or more.
          */
-        std::unique_ptr<ILayer> make_flatten(const Shape& input,
+        std::unique_ptr<Layer> make_flatten(const Shape& input,
                                              const Config::Value& attributes,
                                              std::string_view context);
 
@@ -167,12 +167,12 @@ namespace SushiAI
          * @brief Builds an @c Upsample2d from an optional "scale", 2 when absent.
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
-        std::unique_ptr<ILayer> make_upsample(const Shape& input,
+        std::unique_ptr<Layer> make_upsample(const Shape& input,
                                               const Config::Value& attributes,
                                               std::string_view context);
 
         /** @brief Builds a @c SiLU, which takes no key. */
-        std::unique_ptr<ILayer> make_silu(const Shape& input,
+        std::unique_ptr<Layer> make_silu(const Shape& input,
                                           const Config::Value& attributes,
                                           std::string_view context);
 

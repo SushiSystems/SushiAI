@@ -53,10 +53,10 @@ namespace
     constexpr int64_t K_OUT_FEATURES = 5;
 
     /**
-     * @struct Layer
+     * @struct LinearTrace
      * @brief One traced affine layer, with the ids a test wants to name.
      */
-    struct Layer
+    struct LinearTrace
     {
         ValueId x = Graph::K_NO_VALUE;
         ValueId weight = Graph::K_NO_VALUE;
@@ -66,9 +66,9 @@ namespace
     };
 
     /** @brief Emits x -> matmul -> bias_add, the shape every case below builds on. */
-    Layer trace_linear(const GraphBuilder& builder)
+    LinearTrace trace_linear(const GraphBuilder& builder)
     {
-        Layer layer;
+        LinearTrace layer;
         layer.x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
         layer.weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
         layer.bias = builder.parameter(Shape{K_OUT_FEATURES}, "b");
@@ -153,7 +153,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
 
     const std::vector<ValueId> observed{layer.biased};
     FusionOptions options;
@@ -190,7 +190,7 @@ TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
     // The matcher walks roots in reverse; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     const ValueId activated = builder.relu(layer.biased);
 
     const std::vector<ValueId> observed{activated};
@@ -258,7 +258,7 @@ TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
 
     // The MATMUL result has a second reader; see tests/functional/unit/README.md.
     const ValueId also = builder.scale(layer.product, 2.0);
@@ -279,7 +279,7 @@ TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     const ValueId activated = builder.relu(layer.biased);
 
     // The training loop reads `biased` after every replay; see tests/functional/unit/README.md.
@@ -323,7 +323,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     // The fused node keeps writing the pre-activation; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
 
     const ValueId activated = builder.gelu(layer.biased);
     const ValueId upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
@@ -371,7 +371,7 @@ TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
     // A reader before the fused node would break the order; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
 
     // Emitted *before* the GELU, unlike the backward node in the case above.
     const ValueId early = builder.scale(layer.biased, 2.0);
@@ -405,7 +405,7 @@ TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
     // A spilled pre-activation may be named as observed; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     const ValueId activated = builder.gelu(layer.biased);
 
     const std::vector<ValueId> observed{layer.biased, activated};
@@ -424,7 +424,7 @@ TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
     // A spill licenses one interior value and no other; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
 
     const ValueId also = builder.scale(layer.product, 2.0);
     const ValueId activated = builder.gelu(layer.biased);
@@ -444,7 +444,7 @@ TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     const ValueId activated = builder.gelu(layer.biased);
 
     const std::vector<ValueId> observed{activated};
@@ -470,7 +470,7 @@ TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
     // ReLU's gradient reads its own result, so it folds; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
 
     const ValueId activated = builder.relu(layer.biased);
     const ValueId upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
@@ -491,7 +491,7 @@ TEST_F(Unit_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     (void)builder.relu(layer.biased);
 
     const std::size_t nodes = graph.node_count();
@@ -513,7 +513,7 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     const ValueId activated = builder.relu(layer.biased);
 
     const std::vector<ValueId> observed{activated};
@@ -535,7 +535,7 @@ TEST_F(Unit_Fusion, ValueIdsAndTheirDescriptionsSurviveTheRewrite)
     // Value ids and descriptions survive the rewrite; see tests/functional/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     (void)builder.relu(layer.biased);
 
     std::vector<Shape> shapes;
@@ -565,7 +565,7 @@ TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const Layer first = trace_linear(builder);
+    const LinearTrace first = trace_linear(builder);
     const ValueId hidden = builder.relu(first.biased);
     const ValueId weight = builder.parameter(Shape{K_OUT_FEATURES, K_OUT_FEATURES}, "w2");
     const ValueId bias = builder.parameter(Shape{K_OUT_FEATURES}, "b2");
@@ -588,7 +588,7 @@ TEST_F(Unit_Fusion, TheReportNamesEverySubtreeItCollapsed)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Layer layer = trace_linear(builder);
+    const LinearTrace layer = trace_linear(builder);
     (void)builder.relu(layer.biased);
 
     const FusionReport report = Graph::fuse(graph, FusionOptions{});

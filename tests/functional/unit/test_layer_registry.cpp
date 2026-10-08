@@ -45,7 +45,7 @@
 #include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/flatten.hpp>
 #include <SushiAI/nn/global_avg_pool.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 #include <SushiAI/nn/layers.hpp>
@@ -120,7 +120,7 @@ namespace
     }
 
     /** @brief Builds the layer @p type names from @p attributes, as "layer 0 '<type>'". */
-    std::unique_ptr<NN::ILayer> make_layer(std::string_view type, std::string_view attributes,
+    std::unique_ptr<NN::Layer> make_layer(std::string_view type, std::string_view attributes,
                                            const Shape& input)
     {
         const NN::LayerEntry& entry =
@@ -131,7 +131,7 @@ namespace
 
     /** @brief Returns the layer of type @p L that @p layer wraps, or null when it wraps another. */
     template<typename L>
-    const L* wrapped(const std::unique_ptr<NN::ILayer>& layer)
+    const L* wrapped(const std::unique_ptr<NN::Layer>& layer)
     {
         const auto* adapter = dynamic_cast<const NN::LayerAdapter<L>*>(layer.get());
         if (adapter == nullptr)
@@ -169,9 +169,9 @@ namespace
     {
         SCOPED_TRACE(std::string(type));
 
-        const std::unique_ptr<NN::ILayer> from_integer =
+        const std::unique_ptr<NN::Layer> from_integer =
             make_layer(type, R"({"kernel": 3})", image);
-        const std::unique_ptr<NN::ILayer> from_pair =
+        const std::unique_ptr<NN::Layer> from_pair =
             make_layer(type, R"({"kernel": [3, 3]})", image);
         const Pool* integer_pool = wrapped<Pool>(from_integer);
         const Pool* pair_pool = wrapped<Pool>(from_pair);
@@ -243,7 +243,7 @@ TEST(Unit_LayerRegistry, EachFactoryBuildsFromAMinimalObject)
     {
         SCOPED_TRACE(std::string(minimal.type));
 
-        const std::unique_ptr<NN::ILayer> layer =
+        const std::unique_ptr<NN::Layer> layer =
             make_layer(minimal.type, minimal.attributes, minimal.input);
 
         ASSERT_NE(layer, nullptr);
@@ -291,7 +291,7 @@ TEST(Unit_LayerRegistry, EachFactoryRejectsAnUnknownKey)
 /** @brief Tests that a model file cannot set a convolution's input channel count. */
 TEST(Unit_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
 {
-    const std::unique_ptr<NN::ILayer> layer =
+    const std::unique_ptr<NN::Layer> layer =
         make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{8, 8, 7});
     const NN::Conv2d* conv = wrapped<NN::Conv2d>(layer);
 
@@ -315,7 +315,7 @@ TEST(Unit_LayerRegistry, Conv2dRefusesAnInputThatIsNotAnImage)
 /** @brief Tests that a convolution defaults to stride 1, no padding, dilation 1 and a bias. */
 TEST(Unit_LayerRegistry, Conv2dDefaultsItsOptionalKeys)
 {
-    const std::unique_ptr<NN::ILayer> layer =
+    const std::unique_ptr<NN::Layer> layer =
         make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{8, 8, 2});
     const NN::Conv2d* conv = wrapped<NN::Conv2d>(layer);
 
@@ -332,7 +332,7 @@ TEST(Unit_LayerRegistry, Conv2dDefaultsItsOptionalKeys)
 /** @brief Tests that a convolution stores every key the model file sets. */
 TEST(Unit_LayerRegistry, Conv2dReadsEveryKeyItAccepts)
 {
-    const std::unique_ptr<NN::ILayer> layer = make_layer(
+    const std::unique_ptr<NN::Layer> layer = make_layer(
         "conv2d",
         R"({"filters": 5, "kernel": [3, 5], "stride": [2, 1], "padding": [1, 2],
             "dilation": [1, 2], "use_bias": false})",
@@ -362,17 +362,17 @@ TEST(Unit_LayerRegistry, AKernelAsAnIntegerAndAsAPairAgree)
         SCOPED_TRACE(std::string(type));
         const std::string filters = (type == "conv2d") ? R"("filters": 5, )" : "";
 
-        const std::unique_ptr<NN::ILayer> from_integer =
+        const std::unique_ptr<NN::Layer> from_integer =
             make_layer(type, "{" + filters + R"("kernel": 3})", image);
-        const std::unique_ptr<NN::ILayer> from_pair =
+        const std::unique_ptr<NN::Layer> from_pair =
             make_layer(type, "{" + filters + R"("kernel": [3, 3]})", image);
 
         EXPECT_EQ(from_integer->output_shape(), from_pair->output_shape());
     }
 
-    const std::unique_ptr<NN::ILayer> from_integer =
+    const std::unique_ptr<NN::Layer> from_integer =
         make_layer("conv2d", R"({"filters": 5, "kernel": 3})", image);
-    const std::unique_ptr<NN::ILayer> from_pair =
+    const std::unique_ptr<NN::Layer> from_pair =
         make_layer("conv2d", R"({"filters": 5, "kernel": [3, 3]})", image);
     const NN::Conv2d* integer_conv = wrapped<NN::Conv2d>(from_integer);
     const NN::Conv2d* pair_conv = wrapped<NN::Conv2d>(from_pair);
@@ -409,7 +409,7 @@ TEST(Unit_LayerRegistry, APoolStrideDefaultsToItsKernel)
 {
     const Shape image{12, 12, 2};
 
-    const std::unique_ptr<NN::ILayer> defaulted =
+    const std::unique_ptr<NN::Layer> defaulted =
         make_layer("maxpool2d", R"({"kernel": [2, 3]})", image);
     const NN::MaxPool2d* max_pool = wrapped<NN::MaxPool2d>(defaulted);
     ASSERT_NE(max_pool, nullptr);
@@ -419,7 +419,7 @@ TEST(Unit_LayerRegistry, APoolStrideDefaultsToItsKernel)
     EXPECT_EQ(max_pool->geometry.pad_left, 0);
     EXPECT_EQ(defaulted->output_shape(), (Shape{6, 4, 2}));
 
-    const std::unique_ptr<NN::ILayer> spelled =
+    const std::unique_ptr<NN::Layer> spelled =
         make_layer("avgpool2d", R"({"kernel": 3, "stride": 1, "padding": 1})", image);
     const NN::AvgPool2d* avg_pool = wrapped<NN::AvgPool2d>(spelled);
     ASSERT_NE(avg_pool, nullptr);
@@ -533,17 +533,17 @@ TEST(Unit_LayerRegistry, UpsampleRejectsAScaleBelowOne)
 /** @brief Tests that leaky_relu and upsample use 0.01 and 2 until the model file sets a value. */
 TEST(Unit_LayerRegistry, LeakyReluAndUpsampleReadTheirOptionalKey)
 {
-    const std::unique_ptr<NN::ILayer> default_leaky = make_layer("leaky_relu", "{}", Shape{6});
-    const std::unique_ptr<NN::ILayer> steep_leaky =
+    const std::unique_ptr<NN::Layer> default_leaky = make_layer("leaky_relu", "{}", Shape{6});
+    const std::unique_ptr<NN::Layer> steep_leaky =
         make_layer("leaky_relu", R"({"slope": 0.25})", Shape{6});
     ASSERT_NE(wrapped<NN::LeakyReLU>(default_leaky), nullptr);
     ASSERT_NE(wrapped<NN::LeakyReLU>(steep_leaky), nullptr);
     EXPECT_DOUBLE_EQ(wrapped<NN::LeakyReLU>(default_leaky)->slope, 0.01);
     EXPECT_DOUBLE_EQ(wrapped<NN::LeakyReLU>(steep_leaky)->slope, 0.25);
 
-    const std::unique_ptr<NN::ILayer> default_upsample =
+    const std::unique_ptr<NN::Layer> default_upsample =
         make_layer("upsample", "{}", Shape{4, 4, 2});
-    const std::unique_ptr<NN::ILayer> triple_upsample =
+    const std::unique_ptr<NN::Layer> triple_upsample =
         make_layer("upsample", R"({"scale": 3})", Shape{4, 4, 2});
     EXPECT_EQ(default_upsample->output_shape(), (Shape{8, 8, 2}));
     EXPECT_EQ(triple_upsample->output_shape(), (Shape{12, 12, 2}));
@@ -652,7 +652,7 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
 /** @brief Tests that a silu row traces one SILU node that keeps the input's shape. */
 TEST(Unit_LayerRegistry, ASiluRowTracesOneSiluNode)
 {
-    const std::unique_ptr<NN::ILayer> layer = make_layer("silu", "{}", Shape{8, 8, 2});
+    const std::unique_ptr<NN::Layer> layer = make_layer("silu", "{}", Shape{8, 8, 2});
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
