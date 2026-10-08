@@ -1,5 +1,5 @@
 # SushiBLAS v0.1.0 migration report
-**Status:** Open — waves 1 to 9 written, nothing built; the owner's build closes it
+**Status:** Open — built once on 2026-10-09 with no error; no test has run
 
 ## Wave 1
 
@@ -914,3 +914,19 @@ Not done: I did not check the 28 wave-9 files for discarded `Status` or `Result`
 No reviewer of waves 1 to 8 changed a call, a task count or a failure text; the repairs were
 comment length, line width, include order and one missing include. Compile and test results per
 unit are added here after the owner's build.
+
+## The first build
+
+The owner allowed one build. `sa build` (release, `-Wall -Wextra -Werror -pedantic`) ran on
+2026-10-09 at HEAD `7f79cab` against SushiBLAS `a977291`: 576 steps, exit 0, no error line.
+`build/src/sushiai.lib` and `build/tests/sushiai_tests.exe` were linked. No test was run.
+
+| Model | Units of waves 1 to 9 | Compile errors at the first build |
+| --- | --- | --- |
+| `haiku` | 37 | 0 |
+| `opus` `low` | 19 | 0 |
+
+Every unit had passed a single-file syntax check with the same flags and an `opus` `low` review
+before the build, so the table says the two checks together left nothing for the compiler; it
+does not separate the models. Item 1 of section 7 of the design is confirmed. Items 2 to 16
+need a test run.
