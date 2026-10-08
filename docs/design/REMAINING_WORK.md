@@ -33,9 +33,11 @@ The library, the applications, the examples and the tests were moved on 2026-10-
 design is `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/SPEC.md`; section 7 of it lists the sixteen
 things the first build has to confirm, and `REPORT.md` beside it holds each wave's review.
 
-- **Settle the learning-curve reference.** On 2026-10-09, 1794 of 1803 tests passed. The pinned
-  trajectory of `test_learning_curve.cpp` no longer matches from step 1 on; the owner decides
-  whether it is re-recorded. Eight node-count expectations were corrected and wait for a rerun.
+- **Rerun the suite.** On 2026-10-09, 1794 of 1803 tests passed. Eight node-count expectations
+  were corrected and the learning-curve reference was re-recorded; neither has been rerun.
+- **Make the learning-curve reference pin its tail.** From step 6 on the loss is under the
+  absolute tolerance of 0.02, so those values hold little; a relative tolerance or a lower
+  learning rate would.
 - **The model graph's engine units** (M31 to M34 of the design): `ModelState`, `initialize` over
   it, buffers in the checkpoint, the step builders over `ModelOutputs`, and both applications on
   `build_model`. Their design is `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`.

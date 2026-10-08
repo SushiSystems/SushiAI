@@ -951,3 +951,27 @@ SushiBLAS changed how it reseeds and how many values a Philox block yields since
 was recorded, which changes the initial weights and the synthetic data; the passing optimizer
 comparisons argue against a wrong update. A run of the old tree is the check that would settle
 it, and the old tree does not build against SushiBLAS v0.1.0.
+
+## The learning-curve reference
+
+The owner approved the new trajectory on 2026-10-09 and asked for the cause.
+
+- SushiBLAS commit `7e7bd59` of 2026-10-07, "draw four values per Philox block", changed the
+  random stream after the reference of 2026-08-03 was recorded. `docs/design/REMAINING_WORK.md`
+  had named this test as one the change could move.
+- The order of draws in SushiAI did not change: the diff of `src/data/dataset.cpp` and
+  `src/nn/init.cpp` between `7be22fa` and the migrated tree keeps the seed call, the class-means
+  draw, the per-batch product, noise draw and addition, and every initialiser formula.
+- Step 0 is 1.386294, ln 4, in both runs, so the zeroed last layer and the loss are unchanged;
+  the curves part at the first update, where the drawn first-layer weights and inputs enter.
+- The suites that pass exclude a wrong update: the numeric gradient checks, and the comparison
+  of the fused SGD and AdamW kernels with the separate ones built from BLAS calls.
+
+The reference in `test_learning_curve.cpp` is the trajectory of that run. Not done: a run of the
+pre-migration tree against the new generator, which would isolate the generator alone; that tree
+does not compile against SushiBLAS v0.1.0. A weakness the new numbers bring: from step 6 on the
+loss is below the absolute tolerance of 0.02, so the last ten values pin little.
+
+A rebuild and rerun to confirm the eight corrected expectations and the new reference was
+started and stopped: a SushiBLAS build from another session was running at the same time and the
+SushiBLAS working tree held uncommitted changes. The confirmation is open.
