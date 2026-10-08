@@ -5,26 +5,27 @@ constant	ACTIVATIONS	K_ACTIVATIONS	include/SushiAI/core/ops.hpp	10	22	rename
 constant	ACTIVATION_RULES	K_ACTIVATION_RULES	include/SushiAI/autograd/rules/activation.hpp	4	5	rename	
 constant	ADAMW_KEYS	K_ADAMW_KEYS	src/optim/optimizer_registry.cpp	2	0	rename	
 constant	ADAMW_UPDATE	K_ADAMW_UPDATE	include/SushiAI/core/ops.hpp	7	7	rename	
-constant	ADD	K_ADD	include/SushiAI/core/ops.hpp	22	27	rename	
+constant	ADD	K_ADD	include/SushiAI/core/ops.hpp	49	54	rename	
 constant	ALL	K_ALL	include/SushiAI/core/ops.hpp; tests/functional/unit/test_fusion.cpp	30	37	rename	
 constant	ATAN	K_ATAN	include/SushiAI/core/ops.hpp	10	16	rename	
 constant	AVGPOOL2D	K_AVGPOOL2D	include/SushiAI/core/ops.hpp	10	9	rename	
 constant	AVGPOOL2D_BACKWARD	K_AVGPOOL2D_BACKWARD	include/SushiAI/core/ops.hpp	7	4	rename	
-constant	BATCH	K_BATCH	tests/functional/integration/test_mixed_precision.cpp; tests/functional/regression/test_compile_once.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp	43	2	rename	
+constant	BATCH	K_BATCH	tests/functional/integration/test_mixed_precision.cpp; tests/functional/regression/test_compile_once.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp	43	2	by_hand	K_BATCH is already a token
 constant	BATCHES	K_BATCHES	tests/functional/regression/test_compile_once.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp	27	0	rename	
-constant	BATCHNORM2D	K_BATCHNORM2D	include/SushiAI/core/ops.hpp	11	30	rename	
-constant	BATCHNORM2D_BACKWARD	K_BATCHNORM2D_BACKWARD	include/SushiAI/core/ops.hpp	7	6	rename	
+constant	BATCHNORM2D	K_BATCHNORM2D	include/SushiAI/core/ops.hpp	46	66	rename	
+constant	BATCHNORM2D_BACKWARD	K_BATCHNORM2D_BACKWARD	include/SushiAI/core/ops.hpp	9	7	rename	
+constant	BATCHNORM_FOLD	K_BATCHNORM_FOLD	include/SushiAI/core/ops.hpp	19	28	rename	
 constant	BATCHNORM_UPDATE_STATS	K_BATCHNORM_UPDATE_STATS	include/SushiAI/core/ops.hpp	7	22	rename	
-constant	BIAS_ADD	K_BIAS_ADD	include/SushiAI/core/ops.hpp	27	30	rename	
+constant	BIAS_ADD	K_BIAS_ADD	include/SushiAI/core/ops.hpp	29	36	rename	
 constant	CAPACITY	K_CAPACITY	include/SushiAI/graph/ir.hpp	7	22	rename	
-constant	CAST	K_CAST	include/SushiAI/core/ops.hpp	13	12	rename	
+constant	CAST	K_CAST	include/SushiAI/core/ops.hpp	14	13	rename	
 constant	CATALOG	K_CATALOG	src/graph/fusion.cpp	13	5	rename	
-constant	CHANNEL_AFFINE	K_CHANNEL_AFFINE	include/SushiAI/core/ops.hpp	11	18	rename	
+constant	CHANNEL_AFFINE	K_CHANNEL_AFFINE	include/SushiAI/core/ops.hpp	15	24	rename	
 constant	CHECKPOINT_MAGIC	K_CHECKPOINT_MAGIC	include/SushiAI/io/checkpoint_format.hpp	4	1	rename	
 constant	CHECKPOINT_VERSION	K_CHECKPOINT_VERSION	include/SushiAI/io/checkpoint_format.hpp	4	1	rename	
 constant	CLASSES	K_CLASSES	tests/functional/integration/test_mixed_precision.cpp; tests/functional/regression/test_compile_once.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp; tests/functional/unit/test_precision.cpp	85	1	by_hand	K_CLASSES is already a token
 constant	COL2IM	K_COL2IM	include/SushiAI/core/ops.hpp	8	14	rename	
-constant	CONCAT_CHANNELS	K_CONCAT_CHANNELS	include/SushiAI/core/ops.hpp	10	14	rename	
+constant	CONCAT_CHANNELS	K_CONCAT_CHANNELS	include/SushiAI/core/ops.hpp	27	30	rename	
 constant	CONSTANT	K_CONSTANT	include/SushiAI/core/ops.hpp	12	48	rename	
 constant	DATASET_REGISTRY	K_DATASET_REGISTRY	include/SushiAI/data/dataset.hpp	6	10	rename	
 constant	DATA_KEYS	K_DATA_KEYS	src/config/train_config.cpp	2	0	rename	
@@ -41,25 +42,27 @@ constant	EXACT_STEPS	K_EXACT_STEPS	tests/functional/regression/test_loss_scaling
 constant	EXP	K_EXP	include/SushiAI/core/ops.hpp	15	14	rename	
 constant	EXP_SUB_SCALE	K_EXP_SUB_SCALE	include/SushiAI/core/ops.hpp	8	3	rename	
 constant	FEATURES	K_FEATURES	tests/functional/integration/test_mixed_precision.cpp; tests/functional/regression/test_compile_once.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp	81	0	rename	
-constant	GELU	K_GELU	include/SushiAI/core/ops.hpp	58	74	rename	
+constant	GELU	K_GELU	include/SushiAI/core/ops.hpp	65	82	rename	
 constant	GELU_BACKWARD	K_GELU_BACKWARD	include/SushiAI/core/ops.hpp	10	4	rename	
 constant	GEMM_BIAS	K_GEMM_BIAS	include/SushiAI/core/ops.hpp	10	12	rename	
 constant	GEMM_BIAS_GELU	K_GEMM_BIAS_GELU	include/SushiAI/core/ops.hpp	9	27	rename	
-constant	GEMM_BIAS_RELU	K_GEMM_BIAS_RELU	include/SushiAI/core/ops.hpp	9	6	rename	
+constant	GEMM_BIAS_RELU	K_GEMM_BIAS_RELU	include/SushiAI/core/ops.hpp	10	7	rename	
 constant	GEMM_BIAS_SIGMOID	K_GEMM_BIAS_SIGMOID	include/SushiAI/core/ops.hpp	8	2	rename	
 constant	GEMM_BIAS_TANH	K_GEMM_BIAS_TANH	include/SushiAI/core/ops.hpp	8	2	rename	
-constant	GOOD_MODEL	K_GOOD_MODEL	tests/functional/unit/test_config.cpp	4	0	rename	
+constant	GOOD_MODEL	K_GOOD_MODEL	tests/functional/unit/test_config.cpp	5	1	rename	
 constant	GOOD_TRAIN	K_GOOD_TRAIN	tests/functional/unit/test_config.cpp	3	0	rename	
 constant	GRAD_SEED	K_GRAD_SEED	tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_loss_scaling.cpp	4	0	rename	
-constant	HIDDEN	K_HIDDEN	tests/functional/integration/test_mixed_precision.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp; tests/functional/unit/test_precision.cpp	86	0	rename	
+constant	HIDDEN	K_HIDDEN	tests/functional/integration/test_mixed_precision.cpp; tests/functional/regression/test_determinism.cpp; tests/functional/regression/test_fused_optimizer.cpp; tests/functional/regression/test_fusion_numerics.cpp; tests/functional/regression/test_learning_curve.cpp; tests/functional/regression/test_loss_scaling.cpp; tests/functional/regression/test_mixed_precision.cpp; tests/functional/regression/test_static_memory.cpp; tests/functional/unit/test_precision.cpp	92	0	rename	
+constant	HasHalfModalPair	HasHalfModalPair	include/SushiAI/nn/trace.hpp	6	1	excluded	D12: a trait variable template keeps its type-like name
+constant	HasModalMemberAndForward	HasModalMemberAndForward	include/SushiAI/nn/trace.hpp	6	1	excluded	D12: a trait variable template keeps its type-like name
 constant	IM2COL	K_IM2COL	include/SushiAI/core/ops.hpp	13	51	rename	
 constant	INPUT_KEYS	K_INPUT_KEYS	src/config/model_config.cpp	2	0	rename	
 constant	IN_DIM	K_IN_DIM	tests/functional/regression/test_fusion_numerics.cpp	8	0	rename	
-constant	IN_FEATURES	K_IN_FEATURES	tests/functional/unit/test_fusion.cpp; tests/functional/unit/test_precision.cpp	10	0	rename	
+constant	IN_FEATURES	K_IN_FEATURES	tests/functional/unit/test_fusion.cpp; tests/functional/unit/test_precision.cpp	14	0	rename	
 constant	KNOWN_DTYPES	K_KNOWN_DTYPES	src/io/checkpoint_format.cpp	3	1	rename	
-constant	LAYER_REGISTRY	K_LAYER_REGISTRY	include/SushiAI/nn/layer_registry.hpp	8	21	rename	
+constant	LAYER_REGISTRY	K_LAYER_REGISTRY	include/SushiAI/nn/layer_registry.hpp	16	35	rename	
 constant	LAYOUT_CONVERT	K_LAYOUT_CONVERT	include/SushiAI/core/ops.hpp	9	33	rename	
-constant	LEAF	K_LEAF	include/SushiAI/core/ops.hpp	32	40	rename	
+constant	LEAF	K_LEAF	include/SushiAI/core/ops.hpp	34	41	rename	
 constant	LEAKY_RELU	K_LEAKY_RELU	include/SushiAI/core/ops.hpp	12	26	rename	
 constant	LEAKY_RELU_BACKWARD	K_LEAKY_RELU_BACKWARD	include/SushiAI/core/ops.hpp	8	7	rename	
 constant	LEARNING_RATE	K_LEARNING_RATE	tests/functional/regression/test_learning_curve.cpp	2	0	rename	
@@ -70,30 +73,31 @@ constant	LOG_SOFTMAX	K_LOG_SOFTMAX	include/SushiAI/core/ops.hpp	13	25	rename
 constant	LOG_SOFTMAX_RULE	K_LOG_SOFTMAX_RULE	src/autograd/differentiator.cpp	3	1	rename	
 constant	LOSS_RULES	K_LOSS_RULES	include/SushiAI/autograd/rules/loss.hpp	3	2	rename	
 constant	LOSS_TOLERANCE	K_LOSS_TOLERANCE	tests/functional/regression/test_learning_curve.cpp	3	1	rename	
-constant	MATMUL	K_MATMUL	include/SushiAI/core/ops.hpp	42	55	rename	
+constant	MATMUL	K_MATMUL	include/SushiAI/core/ops.hpp	56	71	rename	
 constant	MAXIMUM	K_MAXIMUM	include/SushiAI/core/ops.hpp	10	18	rename	
-constant	MAXPOOL2D	K_MAXPOOL2D	include/SushiAI/core/ops.hpp	10	17	rename	
+constant	MAXPOOL2D	K_MAXPOOL2D	include/SushiAI/core/ops.hpp	17	23	rename	
 constant	MAXPOOL2D_BACKWARD	K_MAXPOOL2D_BACKWARD	include/SushiAI/core/ops.hpp	9	8	rename	
 constant	MAX_CHAIN	K_MAX_CHAIN	src/graph/fusion.cpp	8	0	rename	
 constant	MAX_NAME_LENGTH	K_MAX_NAME_LENGTH	include/SushiAI/io/checkpoint_format.hpp	5	2	rename	
-constant	MAX_RANK	K_MAX_RANK	include/SushiAI/core/common.hpp	13	7	rename	
+constant	MAX_RANK	K_MAX_RANK	include/SushiAI/core/common.hpp	16	8	rename	
 constant	MAX_TENSOR_COUNT	K_MAX_TENSOR_COUNT	include/SushiAI/io/checkpoint_format.hpp	6	5	rename	
 constant	MINIMUM	K_MINIMUM	include/SushiAI/core/ops.hpp	10	18	rename	
 constant	MODEL_JSON	K_MODEL_JSON	tests/functional/integration/test_checkpoint.cpp	2	0	rename	
 constant	MODEL_KEYS	K_MODEL_KEYS	src/config/model_config.cpp	2	0	rename	
-constant	MODEL_VERSION	K_MODEL_VERSION	include/SushiAI/config/model_config.hpp	2	3	rename	
+constant	MODEL_VERSION	K_MODEL_VERSION	include/SushiAI/config/model_config.hpp	5	6	rename	
 constant	MOMENTUM	K_MOMENTUM	tests/functional/regression/test_learning_curve.cpp	5	1	by_hand	an unscoped enum also declares it
 constant	MUL	K_MUL	include/SushiAI/core/ops.hpp	12	45	rename	
-constant	Module	Module	include/SushiAI/nn/module.hpp	29	54	excluded	D12: a trait variable template keeps its type-like name
-constant	ModuleContainer	ModuleContainer	include/SushiAI/nn/module.hpp	14	15	excluded	D12: a trait variable template keeps its type-like name
-constant	N	K_N	tests/package/main.cpp	29	195	by_hand	too short for a whole-word replacement; renamed by hand
+constant	ModalModule	ModalModule	include/SushiAI/nn/trace.hpp	12	12	excluded	D12: a trait variable template keeps its type-like name
+constant	Module	Module	include/SushiAI/nn/module.hpp	49	73	excluded	D12: a trait variable template keeps its type-like name
+constant	ModuleContainer	ModuleContainer	include/SushiAI/nn/module.hpp	18	20	excluded	D12: a trait variable template keeps its type-like name
+constant	N	K_N	tests/package/main.cpp	33	204	by_hand	too short for a whole-word replacement; renamed by hand
 constant	NLL_LOSS	K_NLL_LOSS	include/SushiAI/core/ops.hpp	13	44	rename	
 constant	NONE	K_NONE	src/train/objective.cpp	2	0	rename	
-constant	NORM_RULES	K_NORM_RULES	include/SushiAI/autograd/rules/norm.hpp	3	3	rename	
+constant	NORM_RULES	K_NORM_RULES	include/SushiAI/autograd/rules/norm.hpp	4	4	rename	
 constant	NO_ARENA	K_NO_ARENA	include/SushiAI/graph/memory_plan.hpp	7	0	rename	
-constant	NO_NODE	K_NO_NODE	include/SushiAI/graph/ir.hpp	58	1	rename	
+constant	NO_NODE	K_NO_NODE	include/SushiAI/graph/ir.hpp	62	2	rename	
 constant	NO_SPILL	K_NO_SPILL	src/graph/fusion.cpp	11	0	rename	
-constant	NO_VALUE	K_NO_VALUE	include/SushiAI/graph/ir.hpp	218	42	rename	
+constant	NO_VALUE	K_NO_VALUE	include/SushiAI/graph/ir.hpp	251	56	rename	
 constant	OBJECTIVE_REGISTRY	K_OBJECTIVE_REGISTRY	include/SushiAI/train/objective.hpp	4	5	rename	
 constant	OFFSET_COUNT	K_OFFSET_COUNT	tests/functional/unit/test_checkpoint_format.cpp	2	0	rename	
 constant	OFFSET_DTYPE	K_OFFSET_DTYPE	tests/functional/unit/test_checkpoint_format.cpp	2	0	rename	
@@ -104,7 +108,7 @@ constant	OFFSET_RANK	K_OFFSET_RANK	tests/functional/unit/test_checkpoint_format.
 constant	OFFSET_VERSION	K_OFFSET_VERSION	tests/functional/unit/test_checkpoint_format.cpp	2	0	rename	
 constant	OPTIMIZER_REGISTRY	K_OPTIMIZER_REGISTRY	include/SushiAI/optim/optimizer_registry.hpp	4	4	rename	
 constant	OUT_DIM	K_OUT_DIM	tests/functional/regression/test_fusion_numerics.cpp	8	0	rename	
-constant	OUT_FEATURES	K_OUT_FEATURES	tests/functional/unit/test_fusion.cpp	14	0	rename	
+constant	OUT_FEATURES	K_OUT_FEATURES	tests/functional/unit/test_fusion.cpp	16	0	rename	
 constant	OVERFLOWING_SCALE	K_OVERFLOWING_SCALE	tests/functional/regression/test_loss_scaling.cpp	6	2	by_hand	K_OVERFLOWING_SCALE is already a token
 constant	OVERFLOW_EPOCHS	K_OVERFLOW_EPOCHS	tests/functional/regression/test_loss_scaling.cpp	4	0	rename	
 constant	PACKABLE	K_PACKABLE	src/graph/memory_plan.cpp	2	0	rename	
@@ -117,14 +121,14 @@ constant	REASON_DECLARED	K_REASON_DECLARED	src/graph/precision.cpp	3	0	rename
 constant	REASON_EPILOGUE	K_REASON_EPILOGUE	src/graph/precision.cpp	2	0	rename	
 constant	REASON_FLOPS	K_REASON_FLOPS	src/graph/precision.cpp	2	0	rename	
 constant	REFERENCE	K_REFERENCE	tests/functional/regression/test_learning_curve.cpp	4	0	rename	
-constant	RELU	K_RELU	include/SushiAI/core/ops.hpp	45	32	rename	
+constant	RELU	K_RELU	include/SushiAI/core/ops.hpp	47	35	rename	
 constant	RELU_BACKWARD	K_RELU_BACKWARD	include/SushiAI/core/ops.hpp	8	8	rename	
 constant	REMAT_NAME	K_REMAT_NAME	src/graph/rematerialise.cpp	2	0	rename	
-constant	RESHAPE	K_RESHAPE	include/SushiAI/core/ops.hpp	12	30	rename	
+constant	RESHAPE	K_RESHAPE	include/SushiAI/core/ops.hpp	12	32	rename	
 constant	RINGS_KEYS	K_RINGS_KEYS	src/data/dataset.cpp	2	0	rename	
-constant	ROWS	K_ROWS	tests/functional/regression/test_fusion_numerics.cpp; tests/functional/unit/test_fusion.cpp; tests/functional/unit/test_precision.cpp	23	0	rename	
+constant	ROWS	K_ROWS	tests/functional/regression/test_fusion_numerics.cpp; tests/functional/unit/test_fusion.cpp; tests/functional/unit/test_precision.cpp	25	0	rename	
 constant	RULES	K_RULES	include/SushiAI/autograd/rules/all.hpp	10	14	rename	
-constant	SCALE	K_SCALE	include/SushiAI/core/ops.hpp	14	60	rename	
+constant	SCALE	K_SCALE	include/SushiAI/core/ops.hpp	14	71	rename	
 constant	SELECT	K_SELECT	include/SushiAI/core/ops.hpp	10	36	rename	
 constant	SGD_KEYS	K_SGD_KEYS	src/optim/optimizer_registry.cpp	2	0	rename	
 constant	SGD_MOMENTUM	K_SGD_MOMENTUM	examples/demo_mlp.cpp	3	0	rename	
@@ -132,16 +136,16 @@ constant	SGD_UPDATE	K_SGD_UPDATE	include/SushiAI/core/ops.hpp	6	7	rename
 constant	SHAPE_RULES	K_SHAPE_RULES	include/SushiAI/autograd/rules/shape.hpp	3	4	rename	
 constant	SIGMOID	K_SIGMOID	include/SushiAI/core/ops.hpp	16	8	rename	
 constant	SIGMOID_BACKWARD	K_SIGMOID_BACKWARD	include/SushiAI/core/ops.hpp	6	3	rename	
-constant	SILU	K_SILU	include/SushiAI/core/ops.hpp	14	29	rename	
+constant	SILU	K_SILU	include/SushiAI/core/ops.hpp	29	44	rename	
 constant	SILU_BACKWARD	K_SILU_BACKWARD	include/SushiAI/core/ops.hpp	10	16	rename	
-constant	SLICE_CHANNELS	K_SLICE_CHANNELS	include/SushiAI/core/ops.hpp	9	12	rename	
+constant	SLICE_CHANNELS	K_SLICE_CHANNELS	include/SushiAI/core/ops.hpp	14	17	rename	
 constant	SOFTPLUS	K_SOFTPLUS	include/SushiAI/core/ops.hpp	14	24	rename	
 constant	SOFTPLUS_BACKWARD	K_SOFTPLUS_BACKWARD	include/SushiAI/core/ops.hpp	10	17	rename	
 constant	SPATIAL_MEAN	K_SPATIAL_MEAN	include/SushiAI/core/ops.hpp	11	12	rename	
 constant	SPATIAL_MEAN_BACKWARD	K_SPATIAL_MEAN_BACKWARD	include/SushiAI/core/ops.hpp	6	8	rename	
 constant	SPATIAL_RULES	K_SPATIAL_RULES	include/SushiAI/autograd/rules/spatial.hpp	3	6	rename	
 constant	STEPS	K_STEPS	tests/functional/regression/test_fused_optimizer.cpp	2	0	rename	
-constant	STOP_GRADIENT	K_STOP_GRADIENT	include/SushiAI/core/ops.hpp	11	31	rename	
+constant	STOP_GRADIENT	K_STOP_GRADIENT	include/SushiAI/core/ops.hpp	11	34	rename	
 constant	SUB	K_SUB	include/SushiAI/core/ops.hpp	16	21	rename	
 constant	SUM_ROWS	K_SUM_ROWS	include/SushiAI/core/ops.hpp	13	7	rename	
 constant	TANH	K_TANH	include/SushiAI/core/ops.hpp	19	9	rename	
@@ -150,17 +154,19 @@ constant	TASK_NAME	K_TASK_NAME	src/graph/lowering.cpp; src/optim/adamw.cpp; src/
 constant	TRAIN_KEYS	K_TRAIN_KEYS	src/config/train_config.cpp	2	0	rename	
 constant	TRAIN_VERSION	K_TRAIN_VERSION	include/SushiAI/config/train_config.hpp	2	1	rename	
 constant	TWO_PI	K_TWO_PI	src/data/dataset.cpp	2	0	rename	
-constant	UPSAMPLE2D	K_UPSAMPLE2D	include/SushiAI/core/ops.hpp	10	12	rename	
+constant	TraceModule	TraceModule	include/SushiAI/nn/trace.hpp	26	24	excluded	D12: a trait variable template keeps its type-like name
+constant	Traceable	Traceable	include/SushiAI/nn/trace.hpp	11	10	excluded	D12: a trait variable template keeps its type-like name
+constant	UPSAMPLE2D	K_UPSAMPLE2D	include/SushiAI/core/ops.hpp	11	13	rename	
 constant	UPSAMPLE2D_BACKWARD	K_UPSAMPLE2D_BACKWARD	include/SushiAI/core/ops.hpp	6	4	rename	
 constant	USAGE	K_USAGE	apps/inference.cpp; apps/train.cpp; examples/demo_mlp.cpp	6	0	rename	
 constant	ZERO	K_ZERO	include/SushiAI/core/ops.hpp	12	40	rename	
 constant	domains	K_DOMAINS	tests/functional/unit/test_rule_table.cpp	2	6	by_hand	lower-case today, so the same word may name a variable; renamed by hand
 constant	kClasses	K_CLASSES	tests/functional/regression/test_log_softmax_stability.cpp	12	0	by_hand	lower-case today, so the same word may name a variable; renamed by hand
-enum_underlying	ActivationKind	ActivationKind : std::uint8_t	examples/demo_mlp.cpp	6	2	by_hand	SPEC 2.13: the type is added by hand; 2 enumerators
-enum_underlying	OptimizerKind	OptimizerKind : std::uint8_t	examples/demo_mlp.cpp	9	1	by_hand	SPEC 2.13: the type is added by hand; 2 enumerators
+enum_underlying	ActivationKind	ActivationKind : std::uint8_t	examples/demo_mlp.cpp	6	3	by_hand	SPEC 2.13: the type is added by hand; 2 enumerators
+enum_underlying	OptimizerKind	OptimizerKind : std::uint8_t	examples/demo_mlp.cpp	9	3	by_hand	SPEC 2.13: the type is added by hand; 2 enumerators
 enum_underlying	OptimizerPlacement	OptimizerPlacement : std::uint8_t	include/SushiAI/train/trainer.hpp	12	4	by_hand	SPEC 2.13: the type is added by hand; 2 enumerators
 enum_underlying	UpdateKernel	UpdateKernel : std::uint8_t	include/SushiAI/optim/optimizer.hpp	31	6	by_hand	SPEC 2.13: the type is added by hand; 2 enumerators
-enumerator	ActivationKind::GELU	ActivationKind::Gelu	examples/demo_mlp.cpp	3	0	rename	
+enumerator	ActivationKind::GELU	ActivationKind::Gelu	examples/demo_mlp.cpp	3	1	rename	
 enumerator	ActivationKind::RELU	ActivationKind::Relu	examples/demo_mlp.cpp	3	0	rename	
 enumerator	FusedForm::EXP_SUB_SCALE	FusedForm::ExpSubScale	include/SushiAI/graph/fusion.hpp	11	0	rename	
 enumerator	FusedForm::GEMM_BIAS	FusedForm::GemmBias	include/SushiAI/graph/fusion.hpp	18	0	rename	
@@ -180,59 +186,62 @@ enumerator	GradientSource::INPUT	GradientSource::Input	include/SushiAI/core/ops.
 enumerator	GradientSource::OUTPUT	GradientSource::Output	include/SushiAI/core/ops.hpp	8	7	rename	
 enumerator	InitFamily::KAIMING	InitFamily::Kaiming	include/SushiAI/nn/init.hpp	3	0	rename	
 enumerator	InitFamily::XAVIER	InitFamily::Xavier	include/SushiAI/nn/init.hpp	1	0	rename	
-enumerator	Kind::ARRAY	Kind::Array	include/SushiAI/config/value.hpp	5	0	rename	
-enumerator	Kind::BOOL	Kind::Bool	include/SushiAI/config/value.hpp	4	0	rename	
-enumerator	Kind::INT	Kind::Int	include/SushiAI/config/value.hpp	6	1	rename	
+enumerator	Kind::ARRAY	Kind::Array	include/SushiAI/config/value.hpp	6	0	rename	
+enumerator	Kind::BOOL	Kind::Bool	include/SushiAI/config/value.hpp	6	0	rename	
+enumerator	Kind::INT	Kind::Int	include/SushiAI/config/value.hpp	10	1	rename	
 enumerator	Kind::NUL	Kind::Null	include/SushiAI/config/value.hpp	4	3	rename	
-enumerator	Kind::OBJECT	Kind::Object	include/SushiAI/config/value.hpp	12	1	rename	
-enumerator	Kind::REAL	Kind::Real	include/SushiAI/config/value.hpp	4	1	rename	
-enumerator	Kind::STRING	Kind::String	include/SushiAI/config/value.hpp	4	0	rename	
-enumerator	Lifetime::ACTIVATION	Lifetime::Activation	include/SushiAI/graph/ir.hpp	89	25	rename	
-enumerator	Lifetime::GRADIENT	Lifetime::Gradient	include/SushiAI/graph/ir.hpp	8	1	rename	
-enumerator	Lifetime::INPUT	Lifetime::Input	include/SushiAI/graph/ir.hpp	17	0	rename	
-enumerator	Lifetime::OPTIMIZER_STATE	Lifetime::OptimizerState	include/SushiAI/graph/ir.hpp	5	0	rename	
-enumerator	Lifetime::PARAMETER	Lifetime::Parameter	include/SushiAI/graph/ir.hpp	12	2	rename	
-enumerator	Lifetime::SCRATCH	Lifetime::Scratch	include/SushiAI/graph/ir.hpp	11	3	rename	
+enumerator	Kind::OBJECT	Kind::Object	include/SushiAI/config/value.hpp	18	1	rename	
+enumerator	Kind::REAL	Kind::Real	include/SushiAI/config/value.hpp	5	1	rename	
+enumerator	Kind::STRING	Kind::String	include/SushiAI/config/value.hpp	7	0	rename	
+enumerator	Lifetime::ACTIVATION	Lifetime::Activation	include/SushiAI/graph/ir.hpp	95	25	rename	
+enumerator	Lifetime::BUFFER	Lifetime::Buffer	include/SushiAI/graph/ir.hpp	16	6	rename	
+enumerator	Lifetime::GRADIENT	Lifetime::Gradient	include/SushiAI/graph/ir.hpp	10	1	rename	
+enumerator	Lifetime::INPUT	Lifetime::Input	include/SushiAI/graph/ir.hpp	19	0	rename	
+enumerator	Lifetime::OPTIMIZER_STATE	Lifetime::OptimizerState	include/SushiAI/graph/ir.hpp	6	0	rename	
+enumerator	Lifetime::PARAMETER	Lifetime::Parameter	include/SushiAI/graph/ir.hpp	14	2	rename	
+enumerator	Lifetime::SCRATCH	Lifetime::Scratch	include/SushiAI/graph/ir.hpp	12	3	rename	
 enumerator	Nonlinearity::LEAKY_RELU	Nonlinearity::LeakyRelu	include/SushiAI/nn/init.hpp	2	0	rename	
 enumerator	Nonlinearity::LINEAR	Nonlinearity::Linear	include/SushiAI/nn/init.hpp	2	0	rename	
 enumerator	Nonlinearity::RELU	Nonlinearity::Relu	include/SushiAI/nn/init.hpp	3	0	rename	
 enumerator	Nonlinearity::SIGMOID	Nonlinearity::Sigmoid	include/SushiAI/nn/init.hpp	2	0	rename	
 enumerator	Nonlinearity::TANH	Nonlinearity::Tanh	include/SushiAI/nn/init.hpp	2	0	rename	
 enumerator	OptimizerKind::ADAMW	OptimizerKind::Adamw	examples/demo_mlp.cpp	3	0	rename	
-enumerator	OptimizerKind::SGD	OptimizerKind::Sgd	examples/demo_mlp.cpp	6	0	rename	
+enumerator	OptimizerKind::SGD	OptimizerKind::Sgd	examples/demo_mlp.cpp	6	1	rename	
 enumerator	OptimizerPlacement::IN_PLAN	OptimizerPlacement::InPlan	include/SushiAI/train/trainer.hpp	5	0	rename	
 enumerator	OptimizerPlacement::PER_STEP	OptimizerPlacement::PerStep	include/SushiAI/train/trainer.hpp	6	1	rename	
-enumerator	ParameterRole::BIAS	ParameterRole::Bias	include/SushiAI/nn/module.hpp	9	3	rename	
-enumerator	ParameterRole::WEIGHT	ParameterRole::Weight	include/SushiAI/nn/module.hpp	8	4	rename	
-enumerator	TensorLayout::NCHW	TensorLayout::Nchw	include/SushiAI/graph/ir.hpp	57	5	rename	
-enumerator	TensorLayout::NHWC	TensorLayout::Nhwc	include/SushiAI/graph/ir.hpp	46	5	rename	
+enumerator	ParameterRole::BIAS	ParameterRole::Bias	include/SushiAI/nn/module.hpp	18	5	rename	
+enumerator	ParameterRole::SCALE	ParameterRole::Scale	include/SushiAI/nn/module.hpp	9	4	rename	
+enumerator	ParameterRole::WEIGHT	ParameterRole::Weight	include/SushiAI/nn/module.hpp	20	6	rename	
+enumerator	TensorLayout::NCHW	TensorLayout::Nchw	include/SushiAI/graph/ir.hpp	62	5	rename	
+enumerator	TensorLayout::NHWC	TensorLayout::Nhwc	include/SushiAI/graph/ir.hpp	48	6	rename	
 enumerator	UpdateKernel::FUSED	UpdateKernel::Fused	include/SushiAI/optim/optimizer.hpp	15	0	rename	
 enumerator	UpdateKernel::SEPARATE	UpdateKernel::Separate	include/SushiAI/optim/optimizer.hpp	9	3	rename	
 interface	IFusionSelector	FusionSelector	include/SushiAI/graph/fusion_selector.hpp	11	2	rename	
-interface	ILayer	Layer	include/SushiAI/nn/ilayer.hpp	60	49	by_hand	Layer is already a token 18 times; include/SushiAI/nn/ilayer.hpp moves by hand with its type
+interface	ILayer	Layer	include/SushiAI/nn/ilayer.hpp	75	55	by_hand	Layer is already a token 18 times; include/SushiAI/nn/ilayer.hpp moves by hand with its type
 interface	IObjective	Objective	include/SushiAI/train/objective.hpp	11	34	rename	
 interface	IPrecisionPolicy	PrecisionPolicy	include/SushiAI/graph/precision.hpp	17	7	rename	
-interface	IStepRecorder	StepRecorder	include/SushiAI/graph/step_recorder.hpp	7	6	rename	
-macro	SA_ANNOTATE	SA_ANNOTATE	include/SushiAI/core/status.hpp	2	5	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_ASSERT	SA_ASSERT	include/SushiAI/core/check.hpp	4	4	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_ASSERT_OK_AND_ASSIGN	SA_ASSERT_OK_AND_ASSIGN	tests/common/test_status.hpp	8	6	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+interface	IStepRecorder	StepRecorder	include/SushiAI/graph/step_recorder.hpp	17	9	rename	
+macro	SA_ANNOTATE	SA_ANNOTATE	include/SushiAI/core/status.hpp	16	7	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_ASSERT	SA_ASSERT	include/SushiAI/core/check.hpp	4	6	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_ASSERT_OK_AND_ASSIGN	SA_ASSERT_OK_AND_ASSIGN	tests/common/test_status.hpp	124	7	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SA_DETAIL_ASSERT_OK_AND_ASSIGN	SA_DETAIL_ASSERT_OK_AND_ASSIGN	tests/common/test_status.hpp	2	0	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SA_DETAIL_JOIN	SA_DETAIL_JOIN	include/SushiAI/core/result.hpp	3	1	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SA_DETAIL_JOIN_TOKENS	SA_DETAIL_JOIN_TOKENS	include/SushiAI/core/result.hpp	2	1	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SA_DETAIL_TRY_ASSIGN	SA_DETAIL_TRY_ASSIGN	include/SushiAI/core/result.hpp	2	1	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_EXPECT_ERROR	SA_EXPECT_ERROR	tests/common/test_throws.hpp	494	9	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_EXPECT_FAILURE	SA_EXPECT_FAILURE	tests/common/test_status.hpp	30	5	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_EXPECT_FATAL	SA_EXPECT_FATAL	tests/common/test_status.hpp	12	4	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_EXPECT_OK	SA_EXPECT_OK	tests/common/test_status.hpp	8	2	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_FAIL_IF	SA_FAIL_IF	include/SushiAI/core/status.hpp	4	11	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_FATAL	SA_FATAL	include/SushiAI/core/check.hpp	2	5	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_FATAL_IF	SA_FATAL_IF	include/SushiAI/core/check.hpp	9	14	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_OPEN_REFERENCE_OR_SKIP	SA_OPEN_REFERENCE_OR_SKIP	tests/common/reference_fixture.hpp	11	0	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_READ_REFERENCE_OR_FAIL	SA_READ_REFERENCE_OR_FAIL	tests/common/reference_fixture.hpp	24	1	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_REFUSE_IF	SA_REFUSE_IF	include/SushiAI/graph/traced.hpp	2	14	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_THROW_IF	SA_THROW_IF	include/SushiAI/core/common.hpp	552	93	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_TRY	SA_TRY	include/SushiAI/core/status.hpp	5	14	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
-macro	SA_TRY_ASSIGN	SA_TRY_ASSIGN	include/SushiAI/core/result.hpp	6	19	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_EXPECT_ERROR	SA_EXPECT_ERROR	tests/common/test_throws.hpp	555	9	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_EXPECT_FAILURE	SA_EXPECT_FAILURE	tests/common/test_status.hpp	164	7	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_EXPECT_FATAL	SA_EXPECT_FATAL	tests/common/test_status.hpp	27	6	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_EXPECT_OK	SA_EXPECT_OK	tests/common/test_status.hpp	112	4	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_FAIL_IF	SA_FAIL_IF	include/SushiAI/core/status.hpp	60	15	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_FATAL	SA_FATAL	include/SushiAI/core/check.hpp	4	6	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_FATAL_IF	SA_FATAL_IF	include/SushiAI/core/check.hpp	28	15	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_FIND_REPOSITORY_OR_SKIP	SA_FIND_REPOSITORY_OR_SKIP	tests/functional/unit/test_node_registry.cpp	7	2	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_OPEN_REFERENCE_OR_SKIP	SA_OPEN_REFERENCE_OR_SKIP	tests/common/reference_fixture.hpp	12	0	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_READ_REFERENCE_OR_FAIL	SA_READ_REFERENCE_OR_FAIL	tests/common/reference_fixture.hpp	29	1	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_REFUSE_IF	SA_REFUSE_IF	include/SushiAI/graph/builder.hpp	3	18	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_THROW_IF	SA_THROW_IF	include/SushiAI/core/common.hpp	594	104	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_TRY	SA_TRY	include/SushiAI/core/status.hpp	37	18	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
+macro	SA_TRY_ASSIGN	SA_TRY_ASSIGN	include/SushiAI/core/result.hpp	70	30	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SUSHIAI_VERSION	SUSHIAI_VERSION	include/SushiAI/version.hpp	2	0	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SUSHIAI_VERSION_ENCODE	SUSHIAI_VERSION_ENCODE	include/SushiAI/version.hpp	3	0	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 macro	SUSHIAI_VERSION_MAJOR	SUSHIAI_VERSION_MAJOR	include/SushiAI/version.hpp	3	0	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
@@ -241,11 +250,11 @@ macro	SUSHIAI_VERSION_PATCH	SUSHIAI_VERSION_PATCH	include/SushiAI/version.hpp	3	
 macro	SUSHIAI_VERSION_STRING	SUSHIAI_VERSION_STRING	include/SushiAI/version.hpp	3	3	excluded	already prefixed; D12 keeps SUSHIAI_VERSION_*
 sibling_enumerator	DType::COMPLEX32	DType::Complex32	(sibling)	7	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
 sibling_enumerator	DType::COMPLEX64	DType::Complex64	(sibling)	3	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
-sibling_enumerator	DType::FLOAT32	DType::Float32	(sibling)	161	12	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
-sibling_enumerator	DType::FLOAT64	DType::Float64	(sibling)	104	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
-sibling_enumerator	DType::HALF	DType::Half	(sibling)	27	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
-sibling_enumerator	DType::INT32	DType::Int32	(sibling)	6	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
-sibling_enumerator	DType::INT64	DType::Int64	(sibling)	20	2	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
+sibling_enumerator	DType::FLOAT32	DType::Float32	(sibling)	177	13	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
+sibling_enumerator	DType::FLOAT64	DType::Float64	(sibling)	135	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
+sibling_enumerator	DType::HALF	DType::Half	(sibling)	30	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
+sibling_enumerator	DType::INT32	DType::Int32	(sibling)	7	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
+sibling_enumerator	DType::INT64	DType::Int64	(sibling)	22	2	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
 sibling_enumerator	ExecutionMode::AUTO	ExecutionMode::Auto	(sibling)	4	0	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
 sibling_enumerator	ExecutionMode::FORCE_REFERENCE	ExecutionMode::ForceReference	(sibling)	2	1	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
 sibling_enumerator	ExecutionMode::VERIFY	ExecutionMode::Verify	(sibling)	2	5	sibling	D11: SushiBLAS v0.1.0 is asked to rename it; it follows the sibling
@@ -262,11 +271,14 @@ string_spelling	adamw	adamw	include/SushiAI/optim/optimizer_registry.hpp	10	0	ex
 string_spelling	add	add	src/graph/builder.cpp	1	0	excluded	a string spells ADD; literals, JSON and flags are never rewritten
 string_spelling	all	all	cli/tests/test_cli.py	4	0	excluded	a string spells ALL; literals, JSON and flags are never rewritten
 string_spelling	atan	atan	tests/functional/unit/test_backward.cpp	2	0	excluded	a string spells ATAN; literals, JSON and flags are never rewritten
-string_spelling	avgpool2d	avgpool2d	include/SushiAI/nn/layer_registry.hpp	16	0	excluded	a string spells AVGPOOL2D; literals, JSON and flags are never rewritten
+string_spelling	avgpool2d	avgpool2d	include/SushiAI/nn/layer_registry.hpp	18	0	excluded	a string spells AVGPOOL2D; literals, JSON and flags are never rewritten
 string_spelling	batches	batches	src/data/dataset.cpp	7	0	excluded	a string spells BATCHES; literals, JSON and flags are never rewritten
+string_spelling	batchnorm2d	batchnorm2d	include/SushiAI/nn/node_registry.hpp	4	0	excluded	a string spells BATCHNORM2D; literals, JSON and flags are never rewritten
 string_spelling	batchnorm2d_backward	batchnorm2d_backward	src/graph/builder.cpp	1	0	excluded	a string spells BATCHNORM2D_BACKWARD; literals, JSON and flags are never rewritten
-string_spelling	bias	bias	include/SushiAI/nn/conv2d.hpp	14	0	excluded	a string spells ParameterRole::BIAS; literals, JSON and flags are never rewritten
+string_spelling	batchnorm_fold	batchnorm_fold	tests/functional/unit/test_spatial_shapes.cpp	7	0	excluded	a string spells BATCHNORM_FOLD; literals, JSON and flags are never rewritten
+string_spelling	bias	bias	include/SushiAI/nn/batch_norm2d.hpp	18	0	excluded	a string spells ParameterRole::BIAS; literals, JSON and flags are never rewritten
 string_spelling	bias_add	bias_add	src/graph/builder.cpp	1	0	excluded	a string spells BIAS_ADD; literals, JSON and flags are never rewritten
+string_spelling	buffer	buffer	include/SushiAI/graph/ir.hpp	3	0	excluded	a string spells Lifetime::BUFFER; literals, JSON and flags are never rewritten
 string_spelling	cast	cast	include/SushiAI/graph/builder.hpp	1	0	excluded	a string spells CAST; literals, JSON and flags are never rewritten
 string_spelling	col2im	col2im	src/autograd/rules/spatial.cpp	3	0	excluded	a string spells COL2IM; literals, JSON and flags are never rewritten
 string_spelling	constant	constant	src/graph/builder.cpp	2	0	excluded	a string spells CONSTANT; literals, JSON and flags are never rewritten
@@ -275,51 +287,54 @@ string_spelling	dynamic_scale	dynamic_scale	include/SushiAI/graph/builder.hpp	1	
 string_spelling	elements	elements	tests/functional/integration/test_resilience.cpp	1	0	excluded	a string spells ELEMENTS; literals, JSON and flags are never rewritten
 string_spelling	epochs	epochs	src/config/train_config.cpp	8	0	excluded	a string spells EPOCHS; literals, JSON and flags are never rewritten
 string_spelling	exp_sub_scale	exp_sub_scale	include/SushiAI/graph/fusion.hpp	1	0	excluded	a string spells EXP_SUB_SCALE; literals, JSON and flags are never rewritten
-string_spelling	features	features	src/config/model_config.cpp	7	0	excluded	a string spells FEATURES; literals, JSON and flags are never rewritten
+string_spelling	features	features	src/config/model_config.cpp	19	0	excluded	a string spells FEATURES; literals, JSON and flags are never rewritten
 string_spelling	fused	fused	tests/functional/regression/test_loss_scaling.cpp	1	0	excluded	a string spells UpdateKernel::FUSED; literals, JSON and flags are never rewritten
-string_spelling	gelu	gelu	include/SushiAI/nn/layer_registry.hpp	11	0	excluded	a string spells GELU; literals, JSON and flags are never rewritten
+string_spelling	gelu	gelu	include/SushiAI/nn/layer_registry.hpp	13	0	excluded	a string spells GELU; literals, JSON and flags are never rewritten
 string_spelling	gradient	gradient	include/SushiAI/graph/ir.hpp	3	0	excluded	a string spells Lifetime::GRADIENT; literals, JSON and flags are never rewritten
-string_spelling	hidden	hidden	examples/demo_mlp.cpp	2	0	excluded	a string spells HIDDEN; literals, JSON and flags are never rewritten
+string_spelling	hidden	hidden	src/nn/blocks/bottleneck.cpp	15	0	excluded	a string spells HIDDEN; literals, JSON and flags are never rewritten
 string_spelling	im2col	im2col	src/autograd/rules/spatial.cpp	5	0	excluded	a string spells IM2COL; literals, JSON and flags are never rewritten
-string_spelling	input	input	include/SushiAI/graph/ir.hpp	6	0	excluded	a string spells GradientSource::INPUT; literals, JSON and flags are never rewritten
+string_spelling	input	input	include/SushiAI/graph/ir.hpp	12	0	excluded	a string spells GradientSource::INPUT; literals, JSON and flags are never rewritten
 string_spelling	layout_convert	layout_convert	src/graph/builder.cpp	1	0	excluded	a string spells LAYOUT_CONVERT; literals, JSON and flags are never rewritten
 string_spelling	leaf	leaf	tests/functional/unit/test_diagnostics.cpp	2	0	excluded	a string spells LEAF; literals, JSON and flags are never rewritten
-string_spelling	leaky_relu	leaky_relu	include/SushiAI/nn/layer_registry.hpp	7	0	excluded	a string spells LEAKY_RELU; literals, JSON and flags are never rewritten
+string_spelling	leaky_relu	leaky_relu	include/SushiAI/nn/layer_registry.hpp	9	0	excluded	a string spells LEAKY_RELU; literals, JSON and flags are never rewritten
 string_spelling	learning_rate	learning_rate	src/optim/optimizer_registry.cpp	8	0	excluded	a string spells LEARNING_RATE; literals, JSON and flags are never rewritten
 string_spelling	less_equal	less_equal	src/graph/builder.cpp	2	0	excluded	a string spells LESS_EQUAL; literals, JSON and flags are never rewritten
-string_spelling	linear	linear	include/SushiAI/nn/layer_registry.hpp	16	0	excluded	a string spells Nonlinearity::LINEAR; literals, JSON and flags are never rewritten
+string_spelling	linear	linear	include/SushiAI/nn/layer_registry.hpp	20	0	excluded	a string spells Nonlinearity::LINEAR; literals, JSON and flags are never rewritten
 string_spelling	log_softmax	log_softmax	src/graph/builder.cpp	5	0	excluded	a string spells LOG_SOFTMAX; literals, JSON and flags are never rewritten
 string_spelling	matmul	matmul	src/graph/builder.cpp	2	0	excluded	a string spells MATMUL; literals, JSON and flags are never rewritten
 string_spelling	maximum	maximum	src/graph/builder.cpp	3	0	excluded	a string spells MAXIMUM; literals, JSON and flags are never rewritten
-string_spelling	maxpool2d	maxpool2d	include/SushiAI/nn/layer_registry.hpp	20	0	excluded	a string spells MAXPOOL2D; literals, JSON and flags are never rewritten
+string_spelling	maxpool2d	maxpool2d	include/SushiAI/nn/layer_registry.hpp	22	0	excluded	a string spells MAXPOOL2D; literals, JSON and flags are never rewritten
 string_spelling	minimum	minimum	src/graph/builder.cpp	3	0	excluded	a string spells MINIMUM; literals, JSON and flags are never rewritten
 string_spelling	mul	mul	src/graph/builder.cpp	1	0	excluded	a string spells MUL; literals, JSON and flags are never rewritten
 string_spelling	nchw	nchw	tests/functional/unit/test_elementwise_ops.cpp	1	0	excluded	a string spells TensorLayout::NCHW; literals, JSON and flags are never rewritten
-string_spelling	nhwc	nhwc	tests/functional/unit/test_avg_pool2d.cpp	8	0	excluded	a string spells TensorLayout::NHWC; literals, JSON and flags are never rewritten
+string_spelling	nhwc	nhwc	tests/functional/unit/test_avg_pool2d.cpp	10	0	excluded	a string spells TensorLayout::NHWC; literals, JSON and flags are never rewritten
 string_spelling	nll_loss	nll_loss	src/graph/builder.cpp	3	0	excluded	a string spells NLL_LOSS; literals, JSON and flags are never rewritten
-string_spelling	none	none	include/SushiAI/graph/fusion.hpp	1	0	excluded	a string spells NONE; literals, JSON and flags are never rewritten
+string_spelling	none	none	include/SushiAI/graph/fusion.hpp	4	0	excluded	a string spells NONE; literals, JSON and flags are never rewritten
+string_spelling	object	object	tests/functional/unit/test_config.cpp	1	0	excluded	a string spells Kind::OBJECT; literals, JSON and flags are never rewritten
 string_spelling	optimizer_state	optimizer_state	include/SushiAI/graph/ir.hpp	1	0	excluded	a string spells Lifetime::OPTIMIZER_STATE; literals, JSON and flags are never rewritten
+string_spelling	output	output	include/SushiAI/nn/node.hpp	13	0	excluded	a string spells GradientSource::OUTPUT; literals, JSON and flags are never rewritten
 string_spelling	parameter	parameter	include/SushiAI/graph/ir.hpp	2	0	excluded	a string spells Lifetime::PARAMETER; literals, JSON and flags are never rewritten
 string_spelling	per_step	per_step	tests/functional/regression/test_fused_optimizer.cpp	1	0	excluded	a string spells OptimizerPlacement::PER_STEP; literals, JSON and flags are never rewritten
 string_spelling	prefix	prefix	tests/functional/unit/test_status.cpp	2	0	excluded	a string spells PREFIX; literals, JSON and flags are never rewritten
-string_spelling	relu	relu	include/SushiAI/nn/layer_registry.hpp	6	0	excluded	a string spells RELU; literals, JSON and flags are never rewritten
+string_spelling	relu	relu	include/SushiAI/nn/layer_registry.hpp	9	0	excluded	a string spells RELU; literals, JSON and flags are never rewritten
 string_spelling	reshape	reshape	src/graph/builder.cpp	1	0	excluded	a string spells RESHAPE; literals, JSON and flags are never rewritten
-string_spelling	scale	scale	src/graph/builder.cpp	8	0	excluded	a string spells SCALE; literals, JSON and flags are never rewritten
+string_spelling	scale	scale	src/graph/builder.cpp	15	0	excluded	a string spells SCALE; literals, JSON and flags are never rewritten
 string_spelling	scratch	scratch	include/SushiAI/graph/ir.hpp	1	0	excluded	a string spells Lifetime::SCRATCH; literals, JSON and flags are never rewritten
 string_spelling	select	select	src/graph/builder.cpp	4	0	excluded	a string spells SELECT; literals, JSON and flags are never rewritten
 string_spelling	sgd	sgd	include/SushiAI/optim/optimizer_registry.hpp	5	0	excluded	a string spells OptimizerKind::SGD; literals, JSON and flags are never rewritten
-string_spelling	sigmoid	sigmoid	include/SushiAI/nn/layer_registry.hpp	3	0	excluded	a string spells SIGMOID; literals, JSON and flags are never rewritten
-string_spelling	silu	silu	tests/functional/unit/test_backward.cpp	2	0	excluded	a string spells SILU; literals, JSON and flags are never rewritten
+string_spelling	sigmoid	sigmoid	include/SushiAI/nn/layer_registry.hpp	5	0	excluded	a string spells SIGMOID; literals, JSON and flags are never rewritten
+string_spelling	silu	silu	include/SushiAI/nn/layer_registry.hpp	11	0	excluded	a string spells SILU; literals, JSON and flags are never rewritten
 string_spelling	softplus	softplus	tests/functional/unit/test_backward.cpp	2	0	excluded	a string spells SOFTPLUS; literals, JSON and flags are never rewritten
 string_spelling	spatial_mean	spatial_mean	src/graph/builder.cpp	1	0	excluded	a string spells SPATIAL_MEAN; literals, JSON and flags are never rewritten
 string_spelling	stop_gradient	stop_gradient	tests/functional/unit/test_diagnostics.cpp	1	0	excluded	a string spells STOP_GRADIENT; literals, JSON and flags are never rewritten
+string_spelling	string	string	tests/functional/unit/test_block_c3k2.cpp	2	0	excluded	a string spells Kind::STRING; literals, JSON and flags are never rewritten
 string_spelling	sub	sub	src/graph/builder.cpp	1	0	excluded	a string spells SUB; literals, JSON and flags are never rewritten
 string_spelling	sum_rows	sum_rows	src/graph/builder.cpp	1	0	excluded	a string spells SUM_ROWS; literals, JSON and flags are never rewritten
-string_spelling	tanh	tanh	include/SushiAI/nn/layer_registry.hpp	3	0	excluded	a string spells TANH; literals, JSON and flags are never rewritten
+string_spelling	tanh	tanh	include/SushiAI/nn/layer_registry.hpp	5	0	excluded	a string spells TANH; literals, JSON and flags are never rewritten
 string_spelling	upsample2d	upsample2d	src/graph/builder.cpp	11	0	excluded	a string spells UPSAMPLE2D; literals, JSON and flags are never rewritten
 string_spelling	upsample2d_backward	upsample2d_backward	src/graph/builder.cpp	1	0	excluded	a string spells UPSAMPLE2D_BACKWARD; literals, JSON and flags are never rewritten
-string_spelling	weight	weight	include/SushiAI/nn/conv2d.hpp	31	0	excluded	a string spells ParameterRole::WEIGHT; literals, JSON and flags are never rewritten
-type_name	GELU	GELU	include/SushiAI/nn/layers.hpp	58	74	excluded	a type; ActivationKind::GELU changes in its qualified form only
-type_name	SGD	SGD	include/SushiAI/optim/sgd.hpp	37	26	excluded	a type; OptimizerKind::SGD changes in its qualified form only
-unscoped_enum	Scalar		src/optim/adamw.cpp	2	2	by_hand	SPEC 2.13: an unscoped enum becomes K_ constants by hand: DECAY_FACTOR, BETA1, ONE_MINUS_BETA1, BETA2, ONE_MINUS_BETA2, INVERSE_BC2, EPSILON, STEP_SIZE, INVERSE_LOSS_SCALE, SCALAR_COUNT
-unscoped_enum	Scalar		src/optim/sgd.cpp	2	2	by_hand	SPEC 2.13: an unscoped enum becomes K_ constants by hand: NEG_LEARNING_RATE, MOMENTUM, WEIGHT_DECAY, RETAINED, FIRST_STEP, NESTEROV, INVERSE_LOSS_SCALE, SCALAR_COUNT
+string_spelling	weight	weight	include/SushiAI/nn/batch_norm2d.hpp	45	0	excluded	a string spells ParameterRole::WEIGHT; literals, JSON and flags are never rewritten
+type_name	GELU	GELU	include/SushiAI/nn/layers.hpp	65	82	excluded	a type; ActivationKind::GELU changes in its qualified form only
+type_name	SGD	SGD	include/SushiAI/optim/sgd.hpp	37	31	excluded	a type; OptimizerKind::SGD changes in its qualified form only
+unscoped_enum	Scalar		src/optim/adamw.cpp	2	3	by_hand	SPEC 2.13: an unscoped enum becomes K_ constants by hand: DECAY_FACTOR, BETA1, ONE_MINUS_BETA1, BETA2, ONE_MINUS_BETA2, INVERSE_BC2, EPSILON, STEP_SIZE, INVERSE_LOSS_SCALE, SCALAR_COUNT
+unscoped_enum	Scalar		src/optim/sgd.cpp	2	3	by_hand	SPEC 2.13: an unscoped enum becomes K_ constants by hand: NEG_LEARNING_RATE, MOMENTUM, WEIGHT_DECAY, RETAINED, FIRST_STEP, NESTEROV, INVERSE_LOSS_SCALE, SCALAR_COUNT
