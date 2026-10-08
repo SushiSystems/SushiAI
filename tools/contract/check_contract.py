@@ -29,15 +29,7 @@ K_SITE_TABLE = Path("tools/contract/site_classes.tsv")
 K_SOURCE_ROOTS = ("include", "src", "apps", "examples")
 K_LIBRARY_ROOTS = ("include", "src")
 K_SOURCE_SUFFIXES = (".hpp", ".cpp", ".h", ".inl")
-K_FROZEN = (
-    "src/graph/lowering.cpp",
-    "include/SushiAI/graph/lowering.hpp",
-    "src/graph/compiled_step.cpp",
-    "src/optim/",
-    "src/nn/init.cpp",
-    "src/data/",
-    "src/train/",
-)
+K_FROZEN: tuple[str, ...] = ()
 K_COLUMNS = (
     "file", "line", "function", "kind", "message_head", "cause", "mechanism", "open_question",
     "reason",

@@ -12,6 +12,7 @@ import io
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -137,10 +138,14 @@ class SiteScannerTest(unittest.TestCase):
         text = "const int limit = 1'000'000;\n" + K_ONE_SITE
         self.assertEqual(len(find_sites("src/core/a.cpp", text)), 1)
 
+K_TEST_FROZEN = ("src/graph/lowering.cpp", "src/optim/")
+K_FROZEN_NAME = "contract.check_contract.K_FROZEN"
+
 
 class PathTest(unittest.TestCase):
     """Checks the frozen list and the module of a path."""
 
+    @mock.patch(K_FROZEN_NAME, K_TEST_FROZEN)
     def test_names_frozen_files_and_folders(self) -> None:
         """Treats a listed file and every file under a listed folder as frozen."""
         self.assertTrue(is_frozen("src/graph/lowering.cpp"))
@@ -210,6 +215,7 @@ class RatchetTest(unittest.TestCase):
             repository = _repository(folder, {"src/core/a.cpp": K_ONE_SITE}, rows)
             self.assertEqual(len(list(rule_ratchet(repository))), 1)
 
+    @mock.patch(K_FROZEN_NAME, K_TEST_FROZEN)
     def test_only_notes_a_frozen_file(self) -> None:
         """Leaves a frozen file to the note and out of the failing rules."""
         with tempfile.TemporaryDirectory() as folder:
@@ -378,6 +384,7 @@ class NoteTest(unittest.TestCase):
 class ExitCodeTest(unittest.TestCase):
     """Checks what the command line returns."""
 
+    @mock.patch(K_FROZEN_NAME, K_TEST_FROZEN)
     def test_exits_clean_when_the_table_covers_the_tree(self) -> None:
         """Returns 0 for a tree whose only remarks are notes."""
         files = {
