@@ -49,8 +49,8 @@ namespace
     constexpr std::size_t OFFSET_RANK         = 28;
     constexpr std::size_t OFFSET_FIRST_DIM    = 32;
 
-    const std::vector<float> WEIGHT{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
-    const std::vector<float> BIAS{7.0f, 8.0f};
+    const std::vector<float> K_WEIGHT{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    const std::vector<float> K_BIAS{7.0f, 8.0f};
 
     /** @brief A well-formed two-tensor checkpoint, as bytes. */
     std::string sample_stream()
@@ -58,9 +58,9 @@ namespace
         std::ostringstream out;
         CheckpointWriter writer(out, 2);
         writer.write(TensorRecord{"0.weight", SushiAI::DType::FLOAT32, SushiAI::Shape{2, 3}},
-                     WEIGHT.data());
+                     K_WEIGHT.data());
         writer.write(TensorRecord{"0.bias", SushiAI::DType::FLOAT32, SushiAI::Shape{2}},
-                     BIAS.data());
+                     K_BIAS.data());
         writer.finish();
         return out.str();
     }
@@ -112,7 +112,7 @@ TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
 
     std::vector<float> weight_payload(6, 0.0f);
     reader.read_payload(weight, weight_payload.data());
-    EXPECT_EQ(weight_payload, WEIGHT);
+    EXPECT_EQ(weight_payload, K_WEIGHT);
 
     const TensorRecord bias = reader.next();
     EXPECT_EQ(bias.name, "0.bias");
@@ -120,7 +120,7 @@ TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
 
     std::vector<float> bias_payload(2, 0.0f);
     reader.read_payload(bias, bias_payload.data());
-    EXPECT_EQ(bias_payload, BIAS);
+    EXPECT_EQ(bias_payload, K_BIAS);
 
     EXPECT_EQ(reader.read_count(), 2u);
 }
@@ -130,7 +130,7 @@ TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
     // The recorded shape separates [2, 3] from [3, 2]; see tests/functional/unit/README.md.
     std::ostringstream out;
     CheckpointWriter writer(out, 1);
-    writer.write(TensorRecord{"w", SushiAI::DType::FLOAT32, SushiAI::Shape{2, 3}}, WEIGHT.data());
+    writer.write(TensorRecord{"w", SushiAI::DType::FLOAT32, SushiAI::Shape{2, 3}}, K_WEIGHT.data());
     writer.finish();
 
     std::istringstream in(out.str());
@@ -204,11 +204,11 @@ TEST(Unit_CheckpointFormat, RejectsMoreRecordsThanDeclared)
 {
     std::ostringstream out;
     CheckpointWriter writer(out, 2);
-    writer.write(TensorRecord{"a", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, BIAS.data());
-    writer.write(TensorRecord{"b", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, BIAS.data());
+    writer.write(TensorRecord{"a", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data());
+    writer.write(TensorRecord{"b", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data());
 
     SA_EXPECT_ERROR(
-        writer.write(TensorRecord{"c", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, BIAS.data()),
+        writer.write(TensorRecord{"c", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data()),
         "declared 2", "'c'");
 }
 
@@ -216,7 +216,7 @@ TEST(Unit_CheckpointFormat, RejectsFewerRecordsThanDeclared)
 {
     std::ostringstream out;
     CheckpointWriter writer(out, 2);
-    writer.write(TensorRecord{"a", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, BIAS.data());
+    writer.write(TensorRecord{"a", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data());
 
     SA_EXPECT_ERROR(writer.finish(), "declared 2", "1 were written");
 }
