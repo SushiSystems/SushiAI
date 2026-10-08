@@ -77,7 +77,7 @@ namespace SushiAI
                                             std::string_view context);
 
         /**
-         * @brief Builds a @c K_GELU, which takes no keys at all.
+         * @brief Builds a @c GELU, which takes no keys at all.
          * @param input The predecessor's per-sample shape; the activation preserves it.
          * @param attributes The layer's keys; any key whatsoever is an error.
          * @param context What to call this layer in a diagnostic.

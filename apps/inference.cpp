@@ -21,18 +21,22 @@
 
 /**
  * @file inference.cpp
- * @brief Runs `sushiai inference`: evaluates a trained checkpoint over a dataset, forward pass only.
+ * @brief Runs `sushiai inference`: evaluates a checkpoint over a dataset, forward pass only.
  * @author Mustafa Garip
  * @see apps/README.md, "inference.cpp".
  */
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -61,21 +65,18 @@ namespace
             if (row[i] > row[best]) best = i;
         return best;
     }
-}
 
-/** @brief Runs the inference driver and returns its exit code. */
-int main(int argc, char** argv)
-{
-    try
+    /** @brief Evaluates the checkpoint the arguments name and prints the report. */
+    [[nodiscard]] sa::Status run(int argc, char** argv)
     {
         if (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
         {
             std::cout << K_USAGE;
-            return EXIT_SUCCESS;
+            return sa::Status();
         }
 
-        SA_THROW_IF(argc != 4,
-                    "usage: sushiai inference <model.json> <model.ckpt> <eval.json>");
+        SA_FAIL_IF(argc != 4, sa::StatusCode::InvalidDescription,
+                   "usage: sushiai inference <model.json> <model.ckpt> <eval.json>");
 
         const std::filesystem::path model_path = argv[1];
         const std::filesystem::path checkpoint_path = argv[2];
@@ -87,16 +88,17 @@ int main(int argc, char** argv)
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
 
-        const std::unique_ptr<sa::Data::Dataset> dataset =
-            sa::Data::make_dataset(engine, data_spec.type, data_spec.attributes,
-                                   "the data block");
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Data::Dataset> dataset,
+                      sa::Data::make_dataset(engine, data_spec.type, data_spec.attributes,
+                                             "the data block"));
 
-        SA_THROW_IF(dataset->input_dim() != model_spec.input_features,
-                    "'{}' declares {} input features, but the '{}' data supplies {}",
-                    model_path.string(), model_spec.input_features,
-                    dataset->name(), dataset->input_dim());
+        SA_FAIL_IF(dataset->input_dim() != model_spec.input_features,
+                   sa::StatusCode::InvalidDescription,
+                   "'{}' declares {} input features, but the '{}' data supplies {}",
+                   model_path.string(), model_spec.input_features,
+                   dataset->name(), dataset->input_dim());
 
-        // Only the forward pass is traced: no loss, no backward pass, no optimizer; see apps/README.md.
+        // Only the forward pass is traced: no loss, no backward, no optimizer; see apps/README.md.
         sa::NN::LayerStack model = sa::NN::build_layer_stack(model_spec);
         const int64_t rows = dataset->batch_size();
         const int64_t outputs = model.output_features();
@@ -108,10 +110,11 @@ int main(int argc, char** argv)
         const sa::Graph::ValueId output = model.forward(builder, input);
 
         sa::Graph::TensorPool pool(engine);
-        pool.materialise_leaves(graph);
-        sa::IO::load_checkpoint(checkpoint_path, model, pool);
+        SA_TRY(pool.materialise_leaves(graph));
+        SA_TRY(sa::IO::load_checkpoint(checkpoint_path, model, pool));
 
-        sa::Graph::CompiledStep step(engine, graph, pool);
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Graph::CompiledStep> step,
+                      sa::Graph::CompiledStep::compile(engine, graph, pool));
 
         std::cout << "sushiai inference\n"
                   << "----------------------------------------------------------------\n"
@@ -121,7 +124,7 @@ int main(int argc, char** argv)
                   << SushiBLAS::Core::format("Data       : {} ({} x {})\n\n",
                                              dataset->name(), dataset->batch_count(), rows);
 
-        // Top-1 agreement is reported only when the output width equals the class count; see apps/README.md.
+        // Top-1 agreement needs an output width equal to the class count; see apps/README.md.
         const bool labelled = model.output_features() == dataset->num_classes();
 
         std::vector<std::size_t> predicted_counts(static_cast<std::size_t>(outputs), 0);
@@ -133,14 +136,15 @@ int main(int argc, char** argv)
             const sa::Data::Batch& batch = dataset->batch(b);
             SushiBLAS::Tensor& destination = pool.tensor(input);
 
-            SA_THROW_IF(batch.inputs.num_elements != destination.num_elements,
-                        "batch {} holds {} input elements but the compiled step expects {}",
-                        b, batch.inputs.num_elements, destination.num_elements);
+            SA_FAIL_IF(batch.inputs.num_elements != destination.num_elements,
+                       sa::StatusCode::InvalidDescription,
+                       "batch {} holds {} input elements but the compiled step expects {}",
+                       b, batch.inputs.num_elements, destination.num_elements);
 
             std::memcpy(destination.data(), batch.inputs.data(),
                         static_cast<std::size_t>(batch.inputs.num_elements) * sizeof(float));
 
-            step.run();
+            SA_TRY(step->run());
 
             const float* scores = pool.tensor(output).data_as<float>();
             for (int64_t r = 0; r < rows; ++r)
@@ -173,10 +177,26 @@ int main(int argc, char** argv)
                 "is not comparable and is not reported.\n",
                 outputs, dataset->num_classes());
 
-        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", step.compile_count());
-        if (step.compile_count() != 1)
-        {
+        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", step->compile_count());
+        if (step->compile_count() != 1)
             std::cerr << "The step must be compiled exactly once.\n";
+
+        SA_FAIL_IF(step->compile_count() != 1, sa::StatusCode::InvalidDescription,
+                   "the step was compiled {} times", step->compile_count());
+
+        return sa::Status();
+    }
+} // namespace
+
+/** @brief Runs the inference driver and returns its exit code. */
+int main(int argc, char** argv)
+{
+    try
+    {
+        const sa::Status status = run(argc, argv);
+        if (!status.is_ok())
+        {
+            std::cerr << "sushiai inference failed: " << status.message() << "\n";
             return EXIT_FAILURE;
         }
 

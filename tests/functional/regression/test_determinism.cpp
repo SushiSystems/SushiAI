@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -83,9 +84,10 @@ namespace
 
     /**
      * @brief Trains an MLP from scratch on a fresh Engine and reports the result.
+     * @return The run, or the first failure of a library call.
      * @see tests/functional/regression/README.md
      */
-    RunResult train_once(int64_t epochs, bool use_adam)
+    [[nodiscard]] Result<RunResult> train_once(int64_t epochs, bool use_adam)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -93,34 +95,44 @@ namespace
         Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                      Train::bind_parameters(built, pool));
+        SA_TRY(NN::initialize(engine, model, pool));
 
-        const Data::SyntheticClassification dataset(engine, data_options());
+        SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                      Data::SyntheticClassification::make(engine, data_options()));
 
         std::unique_ptr<Optim::Optimizer> optimizer;
         if (use_adam)
         {
             Optim::AdamWOptions adam;
             adam.learning_rate = 0.02;
-            optimizer = std::make_unique<Optim::AdamW>(engine, slots, adam);
+            SA_TRY_ASSIGN(optimizer, Optim::AdamW::make(engine, slots, adam));
         }
         else
         {
             Optim::SGDOptions sgd;
             sgd.learning_rate = 0.15;
             sgd.momentum = 0.9;
-            optimizer = std::make_unique<Optim::SGD>(engine, slots, sgd);
+            SA_TRY_ASSIGN(optimizer, Optim::SGD::make(engine, slots, sgd));
         }
 
         Train::TrainerOptions options;
         options.track_accuracy = false;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, *optimizer, options);
+        SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                           options));
 
         RunResult result;
         for (int64_t epoch = 0; epoch < epochs; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
-                result.losses.push_back(trainer.run_step(dataset.batch(batch)).loss);
+        {
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
+            {
+                SA_TRY_ASSIGN(const Train::StepMetrics metrics,
+                              trainer->run_step(dataset->batch(batch)));
+                result.losses.push_back(metrics.loss);
+            }
+        }
 
         for (const Optim::ParameterSlot& slot : slots)
         {
@@ -162,8 +174,8 @@ namespace
  */
 TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
 {
-    const RunResult first = train_once(2, false);
-    const RunResult second = train_once(2, false);
+    SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(2, false));
+    SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(2, false));
 
     ASSERT_FALSE(first.losses.empty());
     expect_identical(first, second);
@@ -175,8 +187,8 @@ TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
  */
 TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
 {
-    const RunResult first = train_once(2, true);
-    const RunResult second = train_once(2, true);
+    SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(2, true));
+    SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(2, true));
 
     expect_identical(first, second);
 }
@@ -187,7 +199,9 @@ TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
  */
 TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 {
-    const auto initialise = []()
+    using Weights = std::vector<std::vector<unsigned char>>;
+
+    const auto initialise = []() -> Result<Weights>
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -195,17 +209,19 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
         Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                      Train::bind_parameters(built, pool));
+        SA_TRY(NN::initialize(engine, model, pool));
 
-        std::vector<std::vector<unsigned char>> weights;
+        Weights weights;
         for (const Optim::ParameterSlot& slot : slots)
             weights.push_back(SaTest::read_tensor_bytes(slot.parameter));
+
         return weights;
     };
 
-    const std::vector<std::vector<unsigned char>> first = initialise();
-    const std::vector<std::vector<unsigned char>> second = initialise();
+    SA_ASSERT_OK_AND_ASSIGN(const Weights first, initialise());
+    SA_ASSERT_OK_AND_ASSIGN(const Weights second, initialise());
 
     ASSERT_EQ(first.size(), second.size());
     for (std::size_t i = 0; i < first.size(); ++i)
@@ -222,22 +238,24 @@ TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::context());
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::context());
 
-    const Data::SyntheticClassification first(first_engine, data_options());
-    const Data::SyntheticClassification second(second_engine, data_options());
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> first,
+                            Data::SyntheticClassification::make(first_engine, data_options()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> second,
+                            Data::SyntheticClassification::make(second_engine, data_options()));
 
-    ASSERT_EQ(first.batch_count(), second.batch_count());
+    ASSERT_EQ(first->batch_count(), second->batch_count());
 
-    for (std::size_t b = 0; b < first.batch_count(); ++b)
+    for (std::size_t b = 0; b < first->batch_count(); ++b)
     {
-        const std::vector<unsigned char> a = SaTest::read_tensor_bytes(first.batch(b).inputs);
-        const std::vector<unsigned char> c = SaTest::read_tensor_bytes(second.batch(b).inputs);
+        const std::vector<unsigned char> a = SaTest::read_tensor_bytes(first->batch(b).inputs);
+        const std::vector<unsigned char> c = SaTest::read_tensor_bytes(second->batch(b).inputs);
         EXPECT_EQ(SaTest::first_difference(a, c), a.size()) << "inputs of batch " << b;
 
-        const std::vector<unsigned char> t = SaTest::read_tensor_bytes(first.batch(b).targets);
-        const std::vector<unsigned char> u = SaTest::read_tensor_bytes(second.batch(b).targets);
+        const std::vector<unsigned char> t = SaTest::read_tensor_bytes(first->batch(b).targets);
+        const std::vector<unsigned char> u = SaTest::read_tensor_bytes(second->batch(b).targets);
         EXPECT_EQ(SaTest::first_difference(t, u), t.size()) << "targets of batch " << b;
 
-        EXPECT_EQ(first.batch(b).labels, second.batch(b).labels) << "labels of batch " << b;
+        EXPECT_EQ(first->batch(b).labels, second->batch(b).labels) << "labels of batch " << b;
     }
 }
 
@@ -253,21 +271,26 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(engine, model, pool));
 
-    const Data::SyntheticClassification dataset(engine, data_options());
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(engine, data_options()));
 
     Optim::SGDOptions frozen;
     frozen.learning_rate = 0.0;
-    Optim::SGD optimizer(engine, slots, frozen);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(engine, slots, frozen));
 
     Train::TrainerOptions options;
     options.track_accuracy = false;
-    Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
     // A zero learning rate keeps the parameters fixed; see tests/functional/regression/README.md.
-    trainer.run_step(dataset.batch(0));
+    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
 
     std::vector<std::vector<unsigned char>> reference;
     for (const Optim::ParameterSlot& slot : slots)
@@ -275,7 +298,7 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
 
     for (int replay = 1; replay < 6; ++replay)
     {
-        trainer.run_step(dataset.batch(0));
+        SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
 
         for (std::size_t i = 0; i < slots.size(); ++i)
         {

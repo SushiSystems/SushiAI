@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -80,36 +81,56 @@ namespace
         std::size_t arena_count = 0;
     };
 
+    /** @brief Returns fusion options with fusion off, the graph the planner's saving is about. */
+    Graph::FusionOptions unfused()
+    {
+        Graph::FusionOptions options;
+        options.enabled = false;
+        return options;
+    }
+
     /**
      * @brief Trains the same MLP, with the planner on or off.
+     * @return The trained model and its memory figures, or the first failure of a library call.
      * @see tests/functional/regression/README.md
      */
-    Outcome train(SushiBLAS::Engine& engine, bool packed, Graph::FusionOptions fusion = {})
+    [[nodiscard]] Result<Outcome> train(SushiBLAS::Engine& engine, bool packed,
+                                        Graph::FusionOptions fusion = {})
     {
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         Train::TrainingGraph built = Train::build_classifier(
             model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, fusion);
 
         TensorPool pool(engine);
-        if (!packed) pool.adopt(MemoryPlan{});
+        if (!packed)
+            SA_TRY(pool.adopt(MemoryPlan{}));
 
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                      Train::bind_parameters(built, pool));
+        SA_TRY(NN::initialize(engine, model, pool));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
-        Optim::AdamW optimizer(engine, slots, adam);
+        SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                      Optim::AdamW::make(engine, slots, adam));
 
         Train::TrainerOptions options;
         options.track_accuracy = false;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                           options));
 
-        const Data::SyntheticClassification dataset(engine, data_options());
+        SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                      Data::SyntheticClassification::make(engine, data_options()));
 
         Outcome run;
         for (int epoch = 0; epoch < 3; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
-                run.losses.push_back(trainer.run_step(dataset.batch(batch)).loss);
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
+            {
+                SA_TRY_ASSIGN(const Train::StepMetrics metrics,
+                              trainer->run_step(dataset->batch(batch)));
+                run.losses.push_back(metrics.loss);
+            }
 
         for (const Optim::ParameterSlot& slot : slots)
         {
@@ -125,7 +146,7 @@ namespace
 }
 
 /**
- * @brief Tests that twelve steps after the first leave the context's live allocation count unchanged.
+ * @brief Tests that twelve steps after the first leave the live allocation count unchanged.
  * @see tests/functional/regression/README.md
  */
 TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
@@ -139,21 +160,26 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
     ASSERT_TRUE(pool.has_plan());
     ASSERT_GT(pool.arenas().arena_count(), 0u) << "nothing was packed, so this proves nothing";
 
-    Optim::AdamW optimizer(*engine, slots, Optim::AdamWOptions{});
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
 
     Train::TrainerOptions options;
     options.track_accuracy = false;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Train::Trainer> trainer,
+        Train::Trainer::make(*engine, built.graph, pool, built.spec, *optimizer, options));
 
-    const Data::SyntheticClassification dataset(*engine, data_options());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(*engine, data_options()));
 
-    trainer.run_step(dataset.batch(0));
+    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
     engine->get_context().wait_all();
 
     const std::int32_t baseline = live_allocations();
@@ -161,7 +187,8 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 
     for (int step = 1; step <= 12; ++step)
     {
-        trainer.run_step(dataset.batch(static_cast<std::size_t>(step) % K_BATCHES));
+        SA_EXPECT_OK(
+            trainer->run_step(dataset->batch(static_cast<std::size_t>(step) % K_BATCHES)));
         engine->get_context().wait_all();
 
         EXPECT_EQ(live_allocations(), baseline)
@@ -171,14 +198,6 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
     }
 }
 
-/** @brief The unfused graph - the one the planner's saving is a claim about. */
-Graph::FusionOptions unfused()
-{
-    Graph::FusionOptions options;
-    options.enabled = false;
-    return options;
-}
-
 /**
  * @brief Tests that packing allocates fewer bytes than no plan on the unfused graph.
  * @see tests/functional/regression/README.md
@@ -186,19 +205,19 @@ Graph::FusionOptions unfused()
 TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 {
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::context());
-    const Outcome unplanned = train(unplanned_engine, false, unfused());
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome unplanned, train(unplanned_engine, false, unfused()));
 
     SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::context());
-    const Outcome planned = train(planned_engine, true, unfused());
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome planned, train(planned_engine, true, unfused()));
 
     EXPECT_EQ(unplanned.arena_count, 0u);
     EXPECT_GT(planned.arena_count, 0u);
 
-    // Both pools built the same tensors, so the counterfactual is identical...
+    // Both pools built the same tensors, so the unpacked figure is the same.
     EXPECT_EQ(planned.unpacked_bytes, unplanned.unpacked_bytes);
     EXPECT_EQ(unplanned.allocated_bytes, unplanned.unpacked_bytes);
 
-    // ...and the planned one actually holds less of it.
+    // The planned pool holds fewer bytes than the unplanned one.
     EXPECT_LT(planned.allocated_bytes, unplanned.allocated_bytes)
         << "planned " << planned.allocated_bytes << " bytes against an unplanned "
         << unplanned.allocated_bytes;
@@ -211,13 +230,13 @@ TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
 {
     SushiBLAS::Engine fused_engine(SaTest::TestEnvironment::context());
-    const Outcome fused = train(fused_engine, true);
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome fused, train(fused_engine, true));
 
     SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::context());
-    const Outcome planned = train(planned_engine, true, unfused());
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome planned, train(planned_engine, true, unfused()));
 
     SushiBLAS::Engine loose_engine(SaTest::TestEnvironment::context());
-    const Outcome loose = train(loose_engine, false, unfused());
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome loose, train(loose_engine, false, unfused()));
 
     EXPECT_LT(fused.unpacked_bytes, planned.unpacked_bytes)
         << "fusion did not remove any intermediate at all";
@@ -240,10 +259,10 @@ TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
 TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
 {
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::context());
-    const Outcome unplanned = train(unplanned_engine, false);
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome unplanned, train(unplanned_engine, false));
 
     SushiBLAS::Engine planned_engine(SaTest::TestEnvironment::context());
-    const Outcome planned = train(planned_engine, true);
+    SA_ASSERT_OK_AND_ASSIGN(const Outcome planned, train(planned_engine, true));
 
     ASSERT_EQ(planned.names, unplanned.names);
     ASSERT_EQ(planned.losses.size(), unplanned.losses.size());
@@ -275,21 +294,22 @@ TEST_F(Regression_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
     const ValueId sum = builder.add(zeros, x);
 
     TensorPool pool(*engine);
-    pool.adopt(MemoryPlan::build(graph));
-    pool.materialise_leaves(graph);
+    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(graph)));
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
 
     const std::vector<double> input{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
     SaTest::write_tensor(pool.tensor(x), input);
 
-    Graph::CompiledStep step(*engine, graph, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Graph::CompiledStep> step,
+                            Graph::CompiledStep::compile(*engine, graph, pool));
 
-    step.run();
+    SA_EXPECT_OK(step->run());
     EXPECT_EQ(SaTest::read_tensor(pool.tensor(sum)), input);
 
     // Stand in for "a later value was given these bytes".
     SaTest::write_tensor(pool.tensor(zeros), std::vector<double>(12, 999.0));
 
-    step.run();
+    SA_EXPECT_OK(step->run());
     EXPECT_EQ(SaTest::read_tensor(pool.tensor(sum)), input)
         << "the ZERO buffer was not refilled, so its bytes cannot be reused by anything";
 }

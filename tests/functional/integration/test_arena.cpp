@@ -29,7 +29,8 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include "../../common/test_throws.hpp"
+#include <SushiBLAS/engine/blas.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -45,6 +46,9 @@ using Graph::ValueId;
 namespace
 {
     class Integration_Arena : public SaTest::EngineTest {};
+
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    using Integration_ArenaDeathTest = Integration_Arena;
 
     /** @brief x -> a -> b -> c, whose middle values are packed into one arena. */
     struct Chain
@@ -73,7 +77,7 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
     ASSERT_TRUE(plan.is_packed(chain.b));
     ASSERT_NE(plan.placement(chain.a).offset, plan.placement(chain.b).offset);
 
-    const ArenaSet arenas(*engine, plan);
+    SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(*engine, plan));
     ASSERT_EQ(arenas.arena_count(), 1u);
 
     const SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
@@ -100,7 +104,8 @@ TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
 {
     // Each view writes only its own bytes; see tests/functional/integration/README.md.
     const Chain chain;
-    const ArenaSet arenas(*engine, MemoryPlan::build(chain.graph));
+    SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas,
+                            ArenaSet::make(*engine, MemoryPlan::build(chain.graph)));
 
     SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
     SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
@@ -110,8 +115,9 @@ TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     SaTest::write_tensor(first, ones);
     SaTest::write_tensor(second, twos);
 
-    engine->blas().scal(3.0f, first);
-    engine->blas().scal(5.0f, second);
+    SushiBLAS::BLASOps blas(*engine);
+    blas.scal(3.0f, first);
+    blas.scal(5.0f, second);
     flush();
 
     for (double value : SaTest::read_tensor(first)) EXPECT_DOUBLE_EQ(value, 3.0);
@@ -122,7 +128,7 @@ TEST_F(Integration_Arena, AViewAddressesItsOwnElements)
 {
     const Chain chain;
     const MemoryPlan plan = MemoryPlan::build(chain.graph);
-    const ArenaSet arenas(*engine, plan);
+    SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(*engine, plan));
 
     const SushiBLAS::Tensor view = arenas.view(chain.b, Shape{16}, DType::Float32);
     const std::size_t offset = plan.placement(chain.b).offset;
@@ -133,22 +139,23 @@ TEST_F(Integration_Arena, AViewAddressesItsOwnElements)
               static_cast<std::ptrdiff_t>(offset));
 }
 
-TEST_F(Integration_Arena, AnOffsetThatIsNotAWholeNumberOfElementsIsRefused)
+TEST_F(Integration_ArenaDeathTest, AnOffsetThatIsNotAWholeNumberOfElementsIsRefused)
 {
-    const auto arena = allocate_arena(*engine, 256);
+    SA_ASSERT_OK_AND_ASSIGN(const auto arena, allocate_arena(*engine, 256));
 
     // A float64 view needs a whole-element offset; see tests/functional/integration/README.md.
-    SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 4, Shape{2}, DType::Float64),
+    SA_EXPECT_FATAL((void)view_tensor(*engine, arena, 4, Shape{2}, DType::Float64),
                     "counts elements");
 
-    // The same offset is perfectly fine for float32.
-    EXPECT_NO_THROW((void)view_tensor(*engine, arena, 4, Shape{2}, DType::Float32));
+    // Four bytes are one float32 element, so the same offset is a valid float32 start.
+    const SushiBLAS::Tensor view = view_tensor(*engine, arena, 4, Shape{2}, DType::Float32);
+    EXPECT_EQ(view.storage_offset, int64_t{1});
 }
 
-TEST_F(Integration_Arena, AViewThatWouldRunPastTheArenaIsRefused)
+TEST_F(Integration_ArenaDeathTest, AViewThatWouldRunPastTheArenaIsRefused)
 {
-    const auto arena = allocate_arena(*engine, 128);
-    SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 64, Shape{64}, DType::Float32),
+    SA_ASSERT_OK_AND_ASSIGN(const auto arena, allocate_arena(*engine, 128));
+    SA_EXPECT_FATAL((void)view_tensor(*engine, arena, 64, Shape{64}, DType::Float32),
                     "run past the end");
 }
 
@@ -179,7 +186,7 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     const MemoryPlan plan = MemoryPlan::build(graph, options);
     ASSERT_EQ(plan.arenas().size(), 1u) << "both are activations, so both are in one arena";
 
-    const ArenaSet arenas(*engine, plan);
+    SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(*engine, plan));
 
     SushiBLAS::Tensor as_float = arenas.view(narrow, Shape{5}, DType::Float32);
     SushiBLAS::Tensor as_double = arenas.view(wide, Shape{3}, DType::Float64);
@@ -204,13 +211,13 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     EXPECT_EQ(SaTest::read_tensor(as_double), (std::vector<double>{-1.5, -2.5, -3.5}));
 }
 
-TEST_F(Integration_Arena, AdoptingASecondPlanIsRefused)
+TEST_F(Integration_ArenaDeathTest, AdoptingASecondPlanIsRefused)
 {
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
-    pool.adopt(MemoryPlan::build(chain.graph));
-    SA_EXPECT_ERROR(pool.adopt(MemoryPlan::build(chain.graph)), "already adopted");
+    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph)));
+    SA_EXPECT_FATAL((void)pool.adopt(MemoryPlan::build(chain.graph)), "already adopted");
 }
 
 TEST_F(Integration_Arena, TheEmptyPlanPacksNothing)
@@ -219,11 +226,13 @@ TEST_F(Integration_Arena, TheEmptyPlanPacksNothing)
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
-    pool.adopt(MemoryPlan{});
-    pool.materialise_leaves(chain.graph);
+    SA_EXPECT_OK(pool.adopt(MemoryPlan{}));
+    SA_EXPECT_OK(pool.materialise_leaves(chain.graph));
 
-    SushiBLAS::Tensor& a = pool.materialise(chain.a, chain.graph.value(chain.a));
-    SushiBLAS::Tensor& b = pool.materialise(chain.b, chain.graph.value(chain.b));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor& a,
+                            pool.materialise(chain.a, chain.graph.value(chain.a)));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor& b,
+                            pool.materialise(chain.b, chain.graph.value(chain.b)));
 
     EXPECT_TRUE(pool.has_plan());
     EXPECT_EQ(pool.arenas().arena_count(), 0u);
@@ -236,11 +245,13 @@ TEST_F(Integration_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
-    pool.adopt(MemoryPlan::build(chain.graph));
-    pool.materialise_leaves(chain.graph);
+    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph)));
+    SA_EXPECT_OK(pool.materialise_leaves(chain.graph));
 
-    SushiBLAS::Tensor& a = pool.materialise(chain.a, chain.graph.value(chain.a));
-    SushiBLAS::Tensor& b = pool.materialise(chain.b, chain.graph.value(chain.b));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor& a,
+                            pool.materialise(chain.a, chain.graph.value(chain.a)));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor& b,
+                            pool.materialise(chain.b, chain.graph.value(chain.b)));
 
     EXPECT_EQ(a.storage->allocation_base(), b.storage->allocation_base())
         << "two packed values must come out of the same allocation";

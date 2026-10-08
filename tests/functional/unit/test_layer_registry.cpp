@@ -258,7 +258,7 @@ TEST(Unit_LayerRegistry, EachKeyBuildsItsOwnLayerType)
     const Shape image{8, 8, 2};
 
     EXPECT_NE(wrapped<NN::Linear>(make_layer("linear", R"({"units": 5})", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::K_GELU>(make_layer("gelu", "{}", vector)), nullptr);
+    EXPECT_NE(wrapped<NN::GELU>(make_layer("gelu", "{}", vector)), nullptr);
     EXPECT_NE(wrapped<NN::ReLU>(make_layer("relu", "{}", vector)), nullptr);
     EXPECT_NE(wrapped<NN::Tanh>(make_layer("tanh", "{}", vector)), nullptr);
     EXPECT_NE(wrapped<NN::Sigmoid>(make_layer("sigmoid", "{}", vector)), nullptr);

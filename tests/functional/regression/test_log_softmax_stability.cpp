@@ -26,13 +26,17 @@
  * @see tests/functional/regression/README.md
  */
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -53,15 +57,13 @@ namespace
     constexpr int64_t K_CLASSES = 3;
 
     /** @brief `ln(1 + e^-1 + e^-2)`, the log-sum-exp of {a, a+1, a+2} minus `a + 2`. */
-    const double kLse = std::log(1.0 + std::exp(-1.0) + std::exp(-2.0));
+    const double K_LSE = std::log(1.0 + std::exp(-1.0) + std::exp(-2.0));
 
-    /**
-     * @brief The log-softmax of {a, a+1, a+2}, which does not depend on `a`.
-     */
-    const std::vector<double> kExpectedRow = {-2.0 - kLse, -1.0 - kLse, -kLse};
+    /** @brief The log-softmax of {a, a+1, a+2}, which does not depend on `a`. */
+    const std::vector<double> K_EXPECTED_ROW = {-2.0 - K_LSE, -1.0 - K_LSE, -K_LSE};
 
     /** @brief Every gap this file checks, in units of the logits themselves. */
-    const std::vector<double> kGaps = {0.0, 90.0, 100.0, 104.0, 200.0};
+    const std::vector<double> K_GAPS = {0.0, 90.0, 100.0, 104.0, 200.0};
 
     /**
      * @brief Two rows of logits whose maxima sit @p gap apart.
@@ -89,8 +91,10 @@ namespace
             for (std::size_t c = 0; c < static_cast<std::size_t>(K_CLASSES); ++c)
             {
                 const double value = got[row * static_cast<std::size_t>(K_CLASSES) + c];
-                if (!std::isfinite(value)) return std::numeric_limits<double>::infinity();
-                worst = std::max(worst, std::fabs(value - kExpectedRow[c]));
+                if (!std::isfinite(value))
+                    return std::numeric_limits<double>::infinity();
+
+                worst = std::max(worst, std::fabs(value - K_EXPECTED_ROW[c]));
             }
         }
         return worst;
@@ -103,7 +107,7 @@ namespace
  */
 TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
 {
-    for (double gap : kGaps)
+    for (double gap : K_GAPS)
     {
         SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
@@ -114,11 +118,12 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
         const ValueId l = builder.log_softmax(x);
 
         TensorPool pool(*engine);
-        pool.materialise_leaves(graph);
+        SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), logits_with_gap(gap));
 
-        CompiledStep step(*engine, graph, pool);
-        step.run();
+        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                                CompiledStep::compile(*engine, graph, pool));
+        SA_EXPECT_OK(step->run());
 
         const std::vector<double> got = read_tensor(pool.tensor(l));
         ASSERT_EQ(6u, got.size());
@@ -131,7 +136,7 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
                 << ". A row whose exponentials all underflow under the batch's "
                    "global maximum has a row sum of exactly zero, and log(0) "
                    "propagates as +inf through the final subtraction.";
-            EXPECT_NEAR(got[i], kExpectedRow[c], 1e-4)
+            EXPECT_NEAR(got[i], K_EXPECTED_ROW[c], 1e-4)
                 << "element " << i << " at a gap of " << gap
                 << "; worst error over the batch was " << worst_error(got);
         }
@@ -144,7 +149,7 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
  */
 TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
 {
-    for (double gap : kGaps)
+    for (double gap : K_GAPS)
     {
         SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
@@ -156,17 +161,18 @@ TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrec
         const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
 
         TensorPool pool(*engine);
-        pool.materialise_leaves(graph);
+        SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), logits_with_gap(gap));
         write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
 
-        CompiledStep step(*engine, graph, pool);
-        step.run();
+        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                                CompiledStep::compile(*engine, graph, pool));
+        SA_EXPECT_OK(step->run());
 
         const double got = read_tensor(pool.tensor(loss))[0];
         EXPECT_TRUE(std::isfinite(got))
             << "loss is " << got << " at a gap of " << gap;
-        EXPECT_NEAR(got, 2.0 + kLse, 1e-4) << "at a gap of " << gap;
+        EXPECT_NEAR(got, 2.0 + K_LSE, 1e-4) << "at a gap of " << gap;
     }
 }
 
@@ -180,7 +186,7 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
     const std::vector<double> softmax_row =
         {std::exp(-2.0) / mass, std::exp(-1.0) / mass, 1.0 / mass};
 
-    for (double gap : kGaps)
+    for (double gap : K_GAPS)
     {
         SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
@@ -197,12 +203,13 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
         ASSERT_NE(grads.at(0), Graph::K_NO_VALUE);
 
         TensorPool pool(*engine);
-        pool.materialise_leaves(graph);
+        SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), logits_with_gap(gap));
         write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
 
-        CompiledStep step(*engine, graph, pool);
-        step.run();
+        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                                CompiledStep::compile(*engine, graph, pool));
+        SA_EXPECT_OK(step->run());
 
         const std::vector<double> got = read_tensor(pool.tensor(grads[0]));
         ASSERT_EQ(6u, got.size());
@@ -232,7 +239,7 @@ TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
 {
     std::vector<double> baseline;
 
-    for (double gap : kGaps)
+    for (double gap : K_GAPS)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -241,11 +248,12 @@ TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
         const ValueId l = builder.log_softmax(x);
 
         TensorPool pool(*engine);
-        pool.materialise_leaves(graph);
+        SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), logits_with_gap(gap));
 
-        CompiledStep step(*engine, graph, pool);
-        step.run();
+        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                                CompiledStep::compile(*engine, graph, pool));
+        SA_EXPECT_OK(step->run());
 
         const std::vector<double> got = read_tensor(pool.tensor(l));
         if (baseline.empty())

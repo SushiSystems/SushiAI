@@ -1,5 +1,5 @@
 # SushiBLAS v0.1.0 migration report
-**Status:** Open — waves 1 to 8 written, nothing built
+**Status:** Open — waves 1 to 9 written, nothing built; the owner's build closes it
 
 ## Wave 1
 
@@ -745,3 +745,172 @@ M27, and opened the sibling headers for each name used.
 
 None for `src/train/trainer.cpp`.
 
+
+## Wave 9
+
+Applications, examples and tests, in four groups, each reviewed by an `opus` `low` reviewer whose
+reply follows, then one sweep over `apps/`, `examples/` and `tests/`. Nothing was built or run.
+
+### Group 1
+
+dispatch: apps/train.cpp — opus low, repaired
+dispatch: apps/inference.cpp — opus low, repaired
+dispatch: examples/demo_mlp.cpp — opus low, repaired
+dispatch: examples/example.cpp — haiku high, repaired
+dispatch: tests/package/main.cpp — haiku medium, passed
+dispatch: tests/functional/integration/test_engine_smoke.cpp — haiku medium, passed
+dispatch: tests/common/reference_fixture.hpp — opus low, passed
+dispatch: tests/common/test_utils.hpp — opus low, passed (no edit)
+
+Repairs:
+- train, example: `run` moved into the anonymous namespace, as in the other two.
+- train, inference, demo_mlp: missing standard includes added.
+- inference: the unprefixed `The step must be compiled exactly once.` is the first failure line again (SPEC M28), followed by the prefixed status line, as in train.
+- inference, demo_mlp, example: every line over 100 columns wrapped or reworded.
+
+Syntax check: `clang++ -fsyntax-only`, one file per invocation, with each entry's flags minus `-fsycl-targets`, `--cuda-path` and `--dependent-lib`. All eight exit 0 with no diagnostics. Nothing was built or run.
+
+Open:
+- `tests/common/reference_fixture.hpp:98`, `:100`, `:183` keep `SA_THROW_IF`.
+- (e) fails: `git status --short` lists paths outside wave 9 that I did not touch: 6 headers under `include/SushiAI/`, 12 sources under `src/`, `docs/guides/CLI_GUIDE.md` and `SPEC.md`.
+
+Library defect: `include/SushiAI/nn/layers.hpp:118` names a type `K_GELU`, the constant prefix on a struct; `demo_mlp.cpp` has to spell `sa::NN::K_GELU{}`.
+
+Scratchpad: 172K, nothing written by me.
+
+### Group 2
+
+dispatch: tests/functional/unit/test_step_recorder.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_fusion_numerics.cpp — opus low, repaired
+dispatch: tests/functional/regression/test_fused_optimizer.cpp — opus low, repaired
+dispatch: tests/functional/integration/test_resilience.cpp — opus low, repaired
+dispatch: tests/functional/integration/test_forward.cpp — opus low, repaired
+dispatch: tests/functional/unit/test_checkpoint_format.cpp — haiku high, repaired
+
+Repairs:
+- All nine fatal cases now sit in `*DeathTest` suites.
+- The step recorder fixture is `Unit_StepRecorder` again, so test IDs stay.
+- `train` in `test_fusion_numerics.cpp` fills an out-parameter under `ASSERT_NO_FATAL_FAILURE`, as its sibling does; the wrapper that carried on after a fatal failure is gone.
+- One 104-column line wrapped in `test_fused_optimizer.cpp`.
+
+Syntax check: `clang++.exe <entry flags, minus -o/-c and --dependent-lib> -fsyntax-only <file>`, six separate runs, each `exit=0` with no output. Nothing was built or run; death patterns are unverified.
+
+Open:
+- (e) fails: `git status --short` lists 18 library files under `include/` and `src/`, not mine.
+- `tests/functional/*/README.md` do not name the new `*DeathTest` suites; outside my file list.
+- `test_resilience.cpp:134`: `NoBatches::batch` keeps `SA_THROW_IF`; `Dataset::batch` returns a reference.
+- `test_fusion_numerics.cpp`: ten lines over 100 columns, already in HEAD.
+- Comments on unchanged lines were not reviewed.
+
+Library defect:
+- `src/train/trainer.cpp:144-145`: the message names `UpdateKernel::FUSED` and `OptimizerPlacement::PER_STEP`; the enumerators are `Fused` and `PerStep`. `test_fused_optimizer.cpp` pins `"PER_STEP"`.
+
+Scratchpad: 180K, none mine.
+
+### Group 3
+
+dispatch: tests/functional/integration/test_arena.cpp — haiku high, repaired
+dispatch: tests/functional/integration/test_autograd_numeric.cpp — haiku high, repaired
+dispatch: tests/functional/integration/test_checkpoint.cpp — haiku high, open
+dispatch: tests/functional/integration/test_mixed_precision.cpp — haiku high, passed
+dispatch: tests/functional/integration/test_registries.cpp — haiku high, repaired
+dispatch: tests/functional/integration/test_rematerialise.cpp — haiku high, passed
+dispatch: tests/functional/integration/test_training.cpp — haiku high, passed
+
+Repairs:
+- test_arena.cpp: the three `SA_EXPECT_FATAL` cases moved to `Integration_ArenaDeathTest`, an alias of the fixture. The vacuous `EXPECT_NO_THROW` now checks `storage_offset == 1`.
+- test_autograd_numeric.cpp: added `<utility>`; the 101-column line is wrapped.
+- test_registries.cpp:167: the comment said "throws" for a status site.
+
+Open:
+- test_checkpoint.cpp:214, :228, :241, :255: four test names still say "Throws" for `StatusCode::Incompatible` sites. `tests/functional/integration/README.md:326` and `:331` head sections by those names, and that file is outside my list.
+- `tests/functional/integration/README.md:16-61` does not name the new `Integration_ArenaDeathTest` suite.
+
+Library defects: none found.
+
+Checks:
+- (d) `clang++.exe -fsyntax-only <entry flags> <file>`, `-o`/`-c` removed, one file per run: all seven gave exit 0 with no output.
+- (e) `git status --short` now also lists 18 files under `include/` and `src/` (for example `src/train/trainer.cpp`) and three more regression tests. They appeared during this session and I did not write them.
+- Nothing was built or run.
+
+Scratchpad: 176K; my one script is deleted.
+
+### Group 4
+
+dispatch: tests/functional/regression/test_compile_once.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_determinism.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_learning_curve.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_log_softmax_stability.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_loss_scaling.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_mixed_precision.cpp — haiku high, repaired
+dispatch: tests/functional/regression/test_static_memory.cpp — haiku high, repaired
+
+Repairs:
+- `train_once`, `train_scaled`, `train` and both lambdas now return `[[nodiscard]] Result<T>` through `SA_TRY`, like the two sibling helpers. `train_scaled` callers previously ran on after a failure.
+- Over-wide lines are wrapped, trailing `//` comments moved to their own lines, and same-line `if` bodies split.
+- `kLse`, `kExpectedRow`, `kGaps` became `K_LSE`, `K_EXPECTED_ROW`, `K_GAPS`.
+- Two tests gained their missing `@brief`.
+
+No test was deleted and no pinned number changed; test counts match HEAD (4, 5, 2, 4, 8, 5, 5).
+
+Verification: `clang++.exe <entry flags> -fsyntax-only <file>` run seven times, one file each, printed `EXIT=0` with no diagnostics. `check_source_comments.py tests/functional/regression` exited 0. Nothing was built or run.
+
+Open in these files: none.
+
+`git status --short` outside wave 9: `docs/guides/CLI_GUIDE.md` (modified) and `docs/agent/2026_10_05_ESTATE_AUDIT/` (untracked). Commit 464ee2a landed during this review.
+
+Library defect: `include/SushiAI/nn/layers.hpp:118` names a type `struct K_GELU`; `K_` belongs to constants.
+
+Scratchpad: 76K; my one script is deleted.
+
+### Sweep
+
+**Edited (1 file)**
+
+- `D:\Projects\sushiai\tests\functional\unit\test_loss_scaling.cpp`: it built `LossScaleState{options}` through the constructor that is now private. Eight constructions became `SA_ASSERT_OK_AND_ASSIGN(..., LossScaleState::make(...))`. Five `SA_EXPECT_ERROR` expectations became `SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription, ...)`; the sites are `status` rows in `site_classes.tsv`. The include `test_throws.hpp` became `test_status.hpp`.
+
+**Found and left**
+
+- `TensorPool pool(engine)` in apps, examples and tests: the constructor is unchanged, and `SushiAI.h` includes `graph/tensor_pool.hpp`.
+- `tests/functional/unit/test_objective.cpp`: `Train::build_graph` and `make_objective` still return values and still throw, so `SA_EXPECT_ERROR` stays.
+- `test_concat.cpp`, `test_node.cpp`, `test_model_graph.cpp`, `test_node_registry.cpp`: they already use the `Result` factories.
+- `tests/common/test_utils.hpp`: no edit, as section 2.4 rules.
+- The searches for facade accessors, `get_graph`, argument-less `record_into_step()`, `SA_THROW_IF` in apps and examples, and the ten public constructors returned no code hits.
+
+Not done: I did not check the 28 wave-9 files for discarded `Status` or `Result` values, and I did not syntax-check them.
+
+**READMEs with old spellings (not edited)**
+
+- `tests/functional/unit/README.md`: about 101 lines (`DType::FLOAT32`, `FLOAT64`, `Lifetime::BUFFER`, `Ops::ALL`, `NN::LAYER_REGISTRY`), plus 5 lines naming an old accessor or `record_into_step()`.
+- `tests/functional/integration/README.md`: 6 lines (`FLOAT64`, `HALF`, `INT64`, `Data::DATASET_REGISTRY`).
+- `tests/functional/regression/README.md`: 4 lines (`FORCE_REFERENCE`, `VERIFY`, `FusedForm::GEMM_BIAS_GELU`, `FLOAT32`).
+- `tests/common/README.md` and `tests/package/README.md`: none.
+
+**Library defects:** none found.
+
+**Syntax check**
+
+`clang++.exe <flags of the file's compile_commands.json entry, minus -o/-c and the SYCL target and CUDA path flags> -fsyntax-only tests/functional/unit/test_loss_scaling.cpp` printed no error or warning line and ended with `exit 0`.
+
+**Scratchpad:** 76K, none of it written by me; nothing to delete.
+
+### After the waves
+
+- The naming wave of `7be22fa` had renamed the layer type `NN::GELU` to `K_GELU`, because the
+  operation constant `Ops::GELU` has the same spelling. The type is `GELU` again in eleven files.
+- The trainer's message named `UpdateKernel::FUSED` and `OptimizerPlacement::PER_STEP`; it names
+  `Fused` and `PerStep`, and `test_fused_optimizer.cpp` pins `PerStep`.
+- Commit `464ee2a` applied rule 10 of the design (a host `std::bad_alloc` is `OutOfMemory`),
+  restored the refusal of a second `CONCAT_CHANNELS` result, and made the two checkpoint stream
+  classes `final`.
+
+### Measured: the model of a unit and what its reviewer did
+
+| Model | Units | Passed untouched | Repaired | Left open |
+| --- | --- | --- | --- | --- |
+| `haiku` (waves 1 to 8) | 21 | 1 | 20 | 0 |
+| `opus` `low` (waves 1 to 8) | 6 | 1 | 5 | 0 |
+
+No reviewer of waves 1 to 8 changed a call, a task count or a failure text; the repairs were
+comment length, line width, include order and one missing include. Compile and test results per
+unit are added here after the owner's build.

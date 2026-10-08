@@ -27,9 +27,11 @@
  */
 
 #include <cmath>
+#include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -82,38 +84,46 @@ namespace
      * @brief Trains the same model, data and seed under @p precision.
      * @see tests/functional/regression/README.md
      */
-    TrainingRun train(SushiBLAS::Engine& engine, const Graph::PrecisionPolicy* precision)
+    [[nodiscard]] Result<TrainingRun> train(SushiBLAS::Engine& engine,
+                                            const Graph::PrecisionPolicy* precision)
     {
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
         Train::TrainingGraph built = Train::build_classifier(
-            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, precision);
+            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
+            precision);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                      Train::bind_parameters(built, pool));
+        SA_TRY(NN::initialize(engine, model, pool));
 
-        Optim::AdamW optimizer(engine, slots, optimizer_options());
+        SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                      Optim::AdamW::make(engine, slots, optimizer_options()));
 
         Train::TrainerOptions options;
         options.precision = precision;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                           options));
 
         Data::SyntheticOptions data;
         data.batch_size = K_BATCH;
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
-        const Data::SyntheticClassification dataset(engine, data);
+        SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                      Data::SyntheticClassification::make(engine, data));
 
         TrainingRun result;
         result.casts = built.casts.count();
-        result.operations = trainer.step().operation_count();
+        result.operations = trainer->step().operation_count();
 
         for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
-                const Train::StepMetrics metrics = trainer.run_step(dataset.batch(batch));
+                SA_TRY_ASSIGN(const Train::StepMetrics metrics,
+                              trainer->run_step(dataset->batch(batch)));
                 result.losses.push_back(metrics.loss);
                 result.accuracy = metrics.accuracy;
             }
@@ -129,10 +139,14 @@ namespace
     }
 }
 
+/**
+ * @brief Tests that every master weight and gradient is float32 after a mixed-precision run.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
 {
     const MixedPrecisionPolicy precision;
-    const TrainingRun mixed = train(*engine, &precision);
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
 
     ASSERT_FALSE(mixed.master_dtypes.empty());
     ASSERT_GT(mixed.casts, 0u) << "nothing was narrowed, so nothing was being guarded";
@@ -155,8 +169,8 @@ TEST_F(Regression_MixedPrecision, TheFp32PolicyIsIndistinguishableFromNoPolicyAt
 {
     const UniformPrecisionPolicy single;
 
-    const TrainingRun none = train(*engine, nullptr);
-    const TrainingRun explicit_fp32 = train(*engine, &single);
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun none, train(*engine, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun explicit_fp32, train(*engine, &single));
 
     EXPECT_EQ(none.casts, 0u);
     EXPECT_EQ(explicit_fp32.casts, 0u);
@@ -175,8 +189,8 @@ TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructu
 {
     const MixedPrecisionPolicy precision;
 
-    const TrainingRun fp32 = train(*engine, nullptr);
-    const TrainingRun mixed = train(*engine, &precision);
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun fp32, train(*engine, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
 
     EXPECT_EQ(mixed.operations, fp32.operations + mixed.casts)
         << "mixed precision changed the plan by more than the conversions it added";
@@ -190,8 +204,8 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
 {
     const MixedPrecisionPolicy precision;
 
-    const TrainingRun fp32 = train(*engine, nullptr);
-    const TrainingRun mixed = train(*engine, &precision);
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun fp32, train(*engine, nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
 
     ASSERT_EQ(fp32.losses.size(), mixed.losses.size());
     ASSERT_GT(mixed.casts, 0u);
@@ -218,15 +232,18 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
  */
 TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
 {
-    using GeluMlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
+    using GeluMlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    GeluMlp wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    GeluMlp narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    GeluMlp wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{},
+                       NN::Linear{K_HIDDEN, K_CLASSES});
+    GeluMlp narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{},
+                         NN::Linear{K_HIDDEN, K_CLASSES});
 
     const MixedPrecisionPolicy precision;
 
     const Train::TrainingGraph wide = Train::build_classifier(
-        wide_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, nullptr);
+        wide_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
+        nullptr);
     const Train::TrainingGraph narrow = Train::build_classifier(
         narrow_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
         &precision);

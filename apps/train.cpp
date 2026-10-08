@@ -26,11 +26,15 @@
  * @see apps/README.md, "train.cpp".
  */
 
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -50,20 +54,21 @@ namespace
         "  train.json names the architecture file, the objective, the data, the\n"
         "  optimizer, the epoch count and where to write the checkpoint. Paths\n"
         "  inside it resolve against its own directory.\n";
-}
 
-/** @brief Runs the training driver and returns its exit code. */
-int main(int argc, char** argv)
-{
-    try
+    /**
+     * @brief Trains the model the configuration at `argv[1]` describes.
+     * @return Success, or the first failure a step of the run returned.
+     */
+    [[nodiscard]] sa::Status run(int argc, char** argv)
     {
         if (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
         {
             std::cout << K_USAGE;
-            return EXIT_SUCCESS;
+            return sa::Status();
         }
 
-        SA_THROW_IF(argc != 2, "usage: sushiai train <train.json>");
+        SA_FAIL_IF(argc != 2, sa::StatusCode::InvalidDescription,
+                   "usage: sushiai train <train.json>");
 
         const sa::Config::TrainSpec spec = sa::Config::load_train(argv[1]);
         const sa::Config::ModelSpec model_spec = sa::Config::load_model(spec.model_path);
@@ -73,13 +78,15 @@ int main(int argc, char** argv)
 
         // Everything below is selected by a string, not named by a type; see apps/README.md.
 
-        const std::unique_ptr<sa::Data::Dataset> dataset =
-            sa::Data::make_dataset(engine, spec.data.type, spec.data.attributes, "the data block");
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Data::Dataset> dataset,
+                      sa::Data::make_dataset(engine, spec.data.type, spec.data.attributes,
+                                             "the data block"));
 
-        SA_THROW_IF(dataset->input_dim() != model_spec.input_features,
-                    "'{}' declares {} input features, but the '{}' data supplies {}",
-                    spec.model_path.string(), model_spec.input_features,
-                    dataset->name(), dataset->input_dim());
+        SA_FAIL_IF(dataset->input_dim() != model_spec.input_features,
+                   sa::StatusCode::InvalidDescription,
+                   "'{}' declares {} input features, but the '{}' data supplies {}",
+                   spec.model_path.string(), model_spec.input_features,
+                   dataset->name(), dataset->input_dim());
 
         sa::NN::LayerStack model = sa::NN::build_layer_stack(model_spec);
 
@@ -93,20 +100,22 @@ int main(int argc, char** argv)
                                    dataset->input_dim());
 
         sa::Graph::TensorPool pool(engine);
-        std::vector<sa::Optim::ParameterSlot> parameters =
-            sa::Train::bind_parameters(built, pool);
-        sa::NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
+                      sa::Train::bind_parameters(built, pool));
+        SA_TRY(sa::NN::initialize(engine, model, pool));
 
-        const std::unique_ptr<sa::Optim::Optimizer> optimizer =
-            sa::Optim::make_optimizer(engine, spec.optimizer_type, parameters,
-                                      spec.optimizer_attributes, "the optimizer block");
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Optim::Optimizer> optimizer,
+                      sa::Optim::make_optimizer(engine, spec.optimizer_type, parameters,
+                                                spec.optimizer_attributes, "the optimizer block"));
 
         sa::Train::TrainerOptions options;
         options.epochs = 1;
-        // The objective owns the metric, so the trainer's own accuracy path is off; see apps/README.md.
+        // The objective owns the metric, so the trainer's accuracy path is off; see apps/README.md.
         options.track_accuracy = false;
 
-        sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, *optimizer, options);
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::Trainer> trainer,
+                      sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                               options));
 
         std::cout << "sushiai train\n"
                   << "----------------------------------------------------------------\n"
@@ -125,7 +134,7 @@ int main(int argc, char** argv)
                                              built.graph.node_count(), built.graph.value_count())
                   << SushiBLAS::Core::format("Schedule   : {} epochs\n\n", spec.epochs);
 
-        // The loop calls run_step so the metric printed is the one the objective offers; see apps/README.md.
+        // The loop calls run_step so the metric printed is the objective's own; see apps/README.md.
         for (int64_t epoch = 1; epoch <= spec.epochs; ++epoch)
         {
             double last_loss = 0.0;
@@ -134,7 +143,8 @@ int main(int argc, char** argv)
             for (std::size_t b = 0; b < dataset->batch_count(); ++b)
             {
                 const sa::Data::Batch& batch = dataset->batch(b);
-                last_loss = trainer.run_step(batch).loss;
+                SA_TRY_ASSIGN(const sa::Train::StepMetrics metrics, trainer->run_step(batch));
+                last_loss = metrics.loss;
                 last_metric = objective->score(batch, pool.tensor(built.spec.logits));
             }
 
@@ -153,19 +163,35 @@ int main(int argc, char** argv)
         }
 
         // A CTest case pins this line, in the shape `sa demo mlp` prints it; see apps/README.md.
-        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", trainer.compile_count());
-        if (trainer.compile_count() != 1)
-        {
+        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", trainer->compile_count());
+        if (trainer->compile_count() != 1)
             std::cerr << "The step must be compiled exactly once.\n";
-            return EXIT_FAILURE;
-        }
+
+        SA_FAIL_IF(trainer->compile_count() != 1, sa::StatusCode::InvalidDescription,
+                   "the step was compiled {} times", trainer->compile_count());
 
         if (!spec.checkpoint.empty())
         {
-            sa::IO::save_checkpoint(spec.checkpoint, model, pool, engine);
+            SA_TRY(sa::IO::save_checkpoint(spec.checkpoint, model, pool, engine));
             std::cout << SushiBLAS::Core::format("wrote {} ({} scalars)\n",
                                                  spec.checkpoint.string(),
                                                  sa::NN::parameter_elements(model));
+        }
+
+        return sa::Status();
+    }
+} // namespace
+
+/** @brief Runs the training driver and returns its exit code. */
+int main(int argc, char** argv)
+{
+    try
+    {
+        const sa::Status status = run(argc, argv);
+        if (!status.is_ok())
+        {
+            std::cerr << "sushiai train failed: " << status.message() << "\n";
+            return EXIT_FAILURE;
         }
 
         return EXIT_SUCCESS;

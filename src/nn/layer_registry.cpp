@@ -301,7 +301,7 @@ namespace SushiAI
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
-            return make_keyless<K_GELU>(input, attributes, context);
+            return make_keyless<GELU>(input, attributes, context);
         }
 
         std::unique_ptr<ILayer> make_relu(const Shape& input,

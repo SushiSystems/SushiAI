@@ -32,6 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
@@ -54,16 +55,17 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
     Data::RingsOptions options;
     options.batch_size = 32;
     options.batches = 4;
-    const Data::Rings dataset(*engine, options);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
+                            Data::Rings::make(*engine, options));
 
-    EXPECT_EQ(dataset.name(), "rings");
-    EXPECT_EQ(dataset.input_dim(), 6);          // x, y and four distractors
-    EXPECT_EQ(dataset.num_classes(), 4);
-    EXPECT_EQ(dataset.batch_count(), 4u);
+    EXPECT_EQ(dataset->name(), "rings");
+    EXPECT_EQ(dataset->input_dim(), 6);         // x, y and four distractors
+    EXPECT_EQ(dataset->num_classes(), 4);
+    EXPECT_EQ(dataset->batch_count(), 4u);
 
     // Round-robin labels balance every batch; see tests/functional/integration/README.md.
     std::vector<int> counts(4, 0);
-    for (int32_t label : dataset.batch(0).labels) ++counts[static_cast<std::size_t>(label)];
+    for (int32_t label : dataset->batch(0).labels) ++counts[static_cast<std::size_t>(label)];
     EXPECT_EQ(counts, (std::vector<int>{8, 8, 8, 8}));
 }
 
@@ -74,11 +76,12 @@ TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
     options.batch_size = 64;
     options.batches = 1;
     options.position_noise = 0.0;               // no jitter, so the bands are exact
-    const Data::Rings dataset(*engine, options);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
+                            Data::Rings::make(*engine, options));
 
-    const Data::Batch& batch = dataset.batch(0);
+    const Data::Batch& batch = dataset->batch(0);
     const float* x = batch.inputs.data_as<float>();
-    const int64_t features = dataset.input_dim();
+    const int64_t features = dataset->input_dim();
 
     for (std::size_t r = 0; r < batch.labels.size(); ++r)
     {
@@ -94,11 +97,12 @@ TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
 
 TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 {
-    const std::unique_ptr<Data::Dataset> dataset = Data::make_dataset(
-        *engine, "rings",
-        attributes_from(R"({"batch_size": 16, "batches": 2, "classes": 3,
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Data::Dataset> dataset,
+        Data::make_dataset(*engine, "rings",
+                           attributes_from(R"({"batch_size": 16, "batches": 2, "classes": 3,
                             "distractors": 1, "seed": 7})"),
-        "data");
+                           "data"));
 
     EXPECT_EQ(dataset->batch_size(), 16);
     EXPECT_EQ(dataset->batch_count(), 2u);
@@ -116,8 +120,8 @@ TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
                                   "data");
     };
 
-    const std::unique_ptr<Data::Dataset> first = build();
-    const std::unique_ptr<Data::Dataset> second = build();
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> first, build());
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> second, build());
 
     const float* a = first->batch(0).inputs.data_as<float>();
     const float* b = second->batch(0).inputs.data_as<float>();
@@ -142,10 +146,9 @@ TEST_F(Integration_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
 
 TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(*engine, "rings",
-                                 attributes_from(R"({"batch_size": 0})"), "data"),
-        "positive");
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(*engine, "rings", attributes_from(R"({"batch_size": 0})"), "data"),
+        StatusCode::InvalidDescription, "positive");
 }
 
 /** @brief Tests that the dataset registry carries a row named "mnist". */
@@ -161,26 +164,28 @@ TEST_F(Integration_Registries, TheDatasetRegistryListsMnist)
         "'mnist'");
 }
 
-/** @brief Tests that "mnist" throws, naming the directory and its files, when they are absent. */
+/** @brief Tests that "mnist" fails, naming the directory and its files, when they are absent. */
 TEST_F(Integration_Registries, MnistRefusesADirectoryWithoutTheFiles)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(*engine, "mnist",
-                                 attributes_from(R"({"directory": "sushiai_absent_mnist"})"),
-                                 "data"),
-        "data", "sushiai_absent_mnist", "MNIST train split", "train-images-idx3-ubyte, labels",
-        "train-labels-idx1-ubyte", "t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte");
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(*engine, "mnist",
+                           attributes_from(R"({"directory": "sushiai_absent_mnist"})"),
+                           "data"),
+        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST train split",
+        "train-images-idx3-ubyte, labels", "train-labels-idx1-ubyte", "t10k-images-idx3-ubyte",
+        "t10k-labels-idx1-ubyte");
 }
 
 /** @brief Tests that the "test" split of "mnist" looks for the t10k file pair. */
 TEST_F(Integration_Registries, MnistTestSplitLooksForTheT10kFiles)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(
             *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "test"})"),
             "data"),
-        "data", "sushiai_absent_mnist", "MNIST test split", "t10k-images-idx3-ubyte, labels");
+        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST test split",
+        "t10k-images-idx3-ubyte, labels");
 }
 
 /** @brief Tests that "mnist" throws when the required "directory" key is absent. */
@@ -206,32 +211,38 @@ TEST_F(Integration_Registries, AnUnknownMnistKeyIsRejectedByItsOwnFactory)
 /** @brief Tests that "mnist" rejects a split other than "train" or "test". */
 TEST_F(Integration_Registries, MnistRefusesASplitItDoesNotKnow)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(
             *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "validation"})"),
             "data"),
-        "data", "'split'", "'validation'", "'train'", "'test'");
+        StatusCode::InvalidDescription, "data", "'split'", "'validation'", "'train'", "'test'");
 }
 
 TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
 {
     // One real slot backs the optimizer state; see tests/functional/integration/README.md.
     const int64_t dims[1] = {4};
+    const SushiRuntime::span<const int64_t> shape(dims, 1);
     Optim::ParameterSlot slot;
     slot.name = "0.weight";
-    slot.parameter = allocate_tensor(*engine, SushiRuntime::span<const int64_t>(dims, 1));
-    slot.gradient = allocate_tensor(*engine, SushiRuntime::span<const int64_t>(dims, 1));
+    SA_ASSERT_OK_AND_ASSIGN(slot.parameter, allocate_tensor(*engine, shape));
+    SA_ASSERT_OK_AND_ASSIGN(slot.gradient, allocate_tensor(*engine, shape));
 
-    const std::unique_ptr<Optim::Optimizer> adam = Optim::make_optimizer(
-        *engine, "adamw", {slot},
-        attributes_from(R"({"learning_rate": 0.003, "weight_decay": 0.02})"), "optimizer");
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Optim::Optimizer> adam,
+        Optim::make_optimizer(
+            *engine, "adamw", {slot},
+            attributes_from(R"({"learning_rate": 0.003, "weight_decay": 0.02})"),
+            "optimizer"));
     EXPECT_TRUE(adam->is_replay_invariant());
 
-    const std::unique_ptr<Optim::Optimizer> sgd = Optim::make_optimizer(
-        *engine, "sgd", {slot},
-        attributes_from(R"({"learning_rate": 0.1, "momentum": 0.9, "nesterov": true})"),
-        "optimizer");
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Optim::Optimizer> sgd,
+        Optim::make_optimizer(
+            *engine, "sgd", {slot},
+            attributes_from(R"({"learning_rate": 0.1, "momentum": 0.9, "nesterov": true})"),
+            "optimizer"));
     EXPECT_TRUE(sgd->is_replay_invariant());
 }
 

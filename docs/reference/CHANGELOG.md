@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-08 — tests: Moved the applications, the examples and 29 test files onto the status-returning factories and the v0.1.0 recorder (`apps/train.cpp`, `examples/demo_mlp.cpp`, `test_status.hpp`).
 - 2026-10-08 — graph: Replaced the lowering chain with eight per-domain tables of 62 rows and added the rows of 14 operations that had none (`graph/lowering/`, `all.hpp`, `LoweringContext`).
 - 2026-10-08 — core: Added the seam that turns every SushiBLAS and SushiRuntime exception into a status, and moved recording onto the v0.1.0 recorder; breaks every throwing signature it replaced (`seam.hpp`).
 - 2026-10-08 — graph: Moved TensorPool to its own header and gave CompiledStep its own task graph and recorder (`tensor_pool.hpp`, `compiled_step.hpp`).

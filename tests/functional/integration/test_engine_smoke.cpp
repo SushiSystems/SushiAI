@@ -48,7 +48,7 @@ TEST(Integration_EngineSmoke, AxpyThroughSushiBLAS)
     q.memcpy(x.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
     q.memcpy(y.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
 
-    engine.blas().axpy(2.0f, x, y);
+    sb::BLASOps(engine).axpy(2.0f, x, y);
     engine.execute();
     ctx.wait_all();
 

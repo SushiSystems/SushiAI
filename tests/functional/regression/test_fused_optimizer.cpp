@@ -30,9 +30,10 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include "../../common/test_throws.hpp"
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -45,6 +46,9 @@ using Optim::UpdateKernel;
 namespace
 {
     class Regression_FusedOptimizer : public ::testing::Test {};
+
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    using Regression_FusedOptimizerDeathTest = Regression_FusedOptimizer;
 
     // 133 is not a multiple of the vector width; see tests/functional/regression/README.md.
     constexpr int64_t K_ELEMENTS = 133;
@@ -82,30 +86,34 @@ namespace
 
     /**
      * @brief Steps one optimizer over a fixed gradient sequence, standalone.
+     * @param bytes Receives the parameter's bytes after the last step.
      * @see tests/functional/regression/README.md
      */
     template<typename Make>
-    std::vector<unsigned char> drive(Make make, UpdateKernel kernel)
+    void drive(Make make, UpdateKernel kernel, std::vector<unsigned char>& bytes)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
-        SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
+        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                                allocate_tensor(engine, Shape{K_ELEMENTS}));
+        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                                allocate_tensor(engine, Shape{K_ELEMENTS}));
         SaTest::write_tensor(parameter, initial_parameter());
 
         std::vector<Optim::ParameterSlot> slots{
             Optim::ParameterSlot{"p", parameter, gradient},
         };
 
-        const std::unique_ptr<Optim::Optimizer> optimizer = make(engine, slots, kernel);
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
+                                make(engine, slots, kernel));
 
         for (int step = 0; step < K_STEPS; ++step)
         {
             SaTest::write_tensor(gradient, gradient_for(step));
-            optimizer->step();
+            SA_EXPECT_OK(optimizer->step());
         }
 
-        return SaTest::read_tensor_bytes(parameter);
+        bytes = SaTest::read_tensor_bytes(parameter);
     }
 
     /** @brief Builds an AdamW with @p options and the requested kernel. */
@@ -113,11 +121,13 @@ namespace
     {
         return [options](SushiBLAS::Engine& engine,
                          const std::vector<Optim::ParameterSlot>& slots,
-                         UpdateKernel kernel) -> std::unique_ptr<Optim::Optimizer>
+                         UpdateKernel kernel) -> Result<std::unique_ptr<Optim::Optimizer>>
         {
             Optim::AdamWOptions with_kernel = options;
             with_kernel.kernel = kernel;
-            return std::make_unique<Optim::AdamW>(engine, slots, with_kernel);
+            SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                          Optim::AdamW::make(engine, slots, with_kernel));
+            return std::unique_ptr<Optim::Optimizer>(std::move(optimizer));
         };
     }
 
@@ -126,11 +136,13 @@ namespace
     {
         return [options](SushiBLAS::Engine& engine,
                          const std::vector<Optim::ParameterSlot>& slots,
-                         UpdateKernel kernel) -> std::unique_ptr<Optim::Optimizer>
+                         UpdateKernel kernel) -> Result<std::unique_ptr<Optim::Optimizer>>
         {
             Optim::SGDOptions with_kernel = options;
             with_kernel.kernel = kernel;
-            return std::make_unique<Optim::SGD>(engine, slots, with_kernel);
+            SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
+                          Optim::SGD::make(engine, slots, with_kernel));
+            return std::unique_ptr<Optim::Optimizer>(std::move(optimizer));
         };
     }
 
@@ -138,8 +150,10 @@ namespace
     template<typename Make>
     void expect_kernels_agree(Make make, const std::string& what)
     {
-        const std::vector<unsigned char> fused = drive(make, UpdateKernel::Fused);
-        const std::vector<unsigned char> separate = drive(make, UpdateKernel::Separate);
+        std::vector<unsigned char> fused;
+        std::vector<unsigned char> separate;
+        ASSERT_NO_FATAL_FAILURE(drive(make, UpdateKernel::Fused, fused));
+        ASSERT_NO_FATAL_FAILURE(drive(make, UpdateKernel::Separate, separate));
 
         ASSERT_EQ(fused.size(), separate.size());
         EXPECT_EQ(SaTest::first_difference(fused, separate), fused.size())
@@ -184,9 +198,10 @@ namespace
 
     /**
      * @brief Trains the same MLP with AdamW, in the requested placement.
+     * @param run Receives the run; a default-constructed TrainedRun.
      * @see tests/functional/regression/README.md
      */
-    TrainedRun train(Train::OptimizerPlacement placement, UpdateKernel kernel)
+    void train(Train::OptimizerPlacement placement, UpdateKernel kernel, TrainedRun& run)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -194,28 +209,39 @@ namespace
         Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                                Train::bind_parameters(built, pool));
+        SA_EXPECT_OK(NN::initialize(engine, model, pool));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
         adam.kernel = kernel;
-        Optim::AdamW optimizer(engine, slots, adam);
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                                Optim::AdamW::make(engine, slots, adam));
 
         Train::TrainerOptions options;
         options.track_accuracy = false;
         options.optimizer_placement = placement;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_ASSERT_OK_AND_ASSIGN(
+            const std::unique_ptr<Train::Trainer> trainer,
+            Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer, options));
 
-        const Data::SyntheticClassification dataset(engine, data_options());
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                                Data::SyntheticClassification::make(engine, data_options()));
 
-        TrainedRun run;
-        run.optimizer_in_plan = trainer.optimizer_is_in_plan();
-        run.operations_per_step = trainer.fit(dataset).operations_per_step;
+        run.optimizer_in_plan = trainer->optimizer_is_in_plan();
+        SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
+        run.operations_per_step = report.operations_per_step;
 
         for (int64_t epoch = 1; epoch < 3; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
-                run.losses.push_back(trainer.run_step(dataset.batch(batch)).loss);
+        {
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
+            {
+                SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
+                                        trainer->run_step(dataset->batch(batch)));
+                run.losses.push_back(metrics.loss);
+            }
+        }
 
         for (const Optim::ParameterSlot& slot : slots)
         {
@@ -223,8 +249,7 @@ namespace
             run.parameters.push_back(SaTest::read_tensor_bytes(slot.parameter));
         }
 
-        run.compiles = trainer.compile_count();
-        return run;
+        run.compiles = trainer->compile_count();
     }
 
     /** @brief Asserts two runs agree byte for byte, naming where they do not. */
@@ -312,8 +337,12 @@ TEST_F(Regression_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExa
  */
 TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt)
 {
-    const TrainedRun folded = train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused);
-    const TrainedRun apart = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused);
+    TrainedRun folded;
+    TrainedRun apart;
+    ASSERT_NO_FATAL_FAILURE(
+        train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused, folded));
+    ASSERT_NO_FATAL_FAILURE(
+        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused, apart));
 
     ASSERT_TRUE(folded.optimizer_in_plan);
     ASSERT_FALSE(apart.optimizer_in_plan);
@@ -328,16 +357,24 @@ TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdate
  */
 TEST_F(Regression_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo)
 {
-    const TrainedRun fused = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused);
-    const TrainedRun separate = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Separate);
+    TrainedRun fused;
+    TrainedRun separate;
+    ASSERT_NO_FATAL_FAILURE(
+        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused, fused));
+    ASSERT_NO_FATAL_FAILURE(
+        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Separate, separate));
 
     expect_runs_agree(fused, separate, "the update's spelling");
 }
 
 TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
 {
-    const TrainedRun folded = train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused);
-    const TrainedRun apart = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused);
+    TrainedRun folded;
+    TrainedRun apart;
+    ASSERT_NO_FATAL_FAILURE(
+        train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused, folded));
+    ASSERT_NO_FATAL_FAILURE(
+        train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused, apart));
 
     EXPECT_EQ(folded.compiles, 1u);
     EXPECT_EQ(apart.compiles, 1u);
@@ -356,7 +393,7 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
 {
     constexpr std::size_t K_PARAMETERS = 3;
 
-    const auto count = [](UpdateKernel kernel, auto make) -> std::size_t
+    const auto count = [](UpdateKernel kernel, auto make, std::size_t& tasks)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -366,8 +403,12 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
 
         for (std::size_t i = 0; i < K_PARAMETERS; ++i)
         {
-            owned.push_back(allocate_tensor(engine, Shape{K_ELEMENTS}));
-            owned.push_back(allocate_tensor(engine, Shape{K_ELEMENTS}));
+            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                                    allocate_tensor(engine, Shape{K_ELEMENTS}));
+            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                                    allocate_tensor(engine, Shape{K_ELEMENTS}));
+            owned.push_back(parameter);
+            owned.push_back(gradient);
             SaTest::write_tensor(owned[owned.size() - 2], initial_parameter());
             SaTest::write_tensor(owned[owned.size() - 1], gradient_for(0));
             slots.push_back(Optim::ParameterSlot{
@@ -375,31 +416,38 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
             });
         }
 
-        const std::unique_ptr<Optim::Optimizer> optimizer = make(engine, slots, kernel);
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
+                                make(engine, slots, kernel));
 
         // The recorded tasks must be drained; see tests/functional/regression/README.md.
         optimizer->before_replay();
-        const std::size_t tasks = optimizer->record_into_step();
+        SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded,
+                                optimizer->record_into_step(engine.get_recorder()));
         engine.execute();
         engine.get_context().wait_all();
 
-        return tasks;
+        tasks = recorded;
     };
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.02;
     adam.weight_decay = 0.01;
 
-    EXPECT_EQ(count(UpdateKernel::Fused, adamw_factory(adam)), K_PARAMETERS);
-    EXPECT_EQ(count(UpdateKernel::Separate, adamw_factory(adam)), K_PARAMETERS * 12);
+    std::size_t tasks = 0;
+    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Fused, adamw_factory(adam), tasks));
+    EXPECT_EQ(tasks, K_PARAMETERS);
+    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Separate, adamw_factory(adam), tasks));
+    EXPECT_EQ(tasks, K_PARAMETERS * 12);
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
     sgd.momentum = 0.9;
 
     // Four is the floor for SGD, on its first step; see tests/functional/regression/README.md.
-    EXPECT_EQ(count(UpdateKernel::Fused, sgd_factory(sgd)), K_PARAMETERS);
-    EXPECT_EQ(count(UpdateKernel::Separate, sgd_factory(sgd)), K_PARAMETERS * 4);
+    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Fused, sgd_factory(sgd), tasks));
+    EXPECT_EQ(tasks, K_PARAMETERS);
+    ASSERT_NO_FATAL_FAILURE(count(UpdateKernel::Separate, sgd_factory(sgd), tasks));
+    EXPECT_EQ(tasks, K_PARAMETERS * 4);
 }
 
 /**
@@ -414,28 +462,31 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(engine, model, pool));
 
     Optim::AdamWOptions adam;
     adam.kernel = UpdateKernel::Separate;
-    Optim::AdamW optimizer(engine, slots, adam);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(engine, slots, adam));
 
-    EXPECT_FALSE(optimizer.is_replay_invariant());
+    EXPECT_FALSE(optimizer->is_replay_invariant());
 
     Train::TrainerOptions options;
     options.optimizer_placement = Train::OptimizerPlacement::InPlan;
 
-    SA_EXPECT_ERROR((void)Train::Trainer(engine, built.graph, pool, built.spec,
-                                         optimizer, options),
-                    "cannot be compiled into the step", "PER_STEP");
+    SA_EXPECT_FAILURE(Train::Trainer::make(engine, built.graph, pool, built.spec,
+                                           *optimizer, options),
+                      StatusCode::InvalidDescription,
+                      "cannot be compiled into the step", "PerStep");
 }
 
 /**
- * @brief Tests that step() reports an error on an optimizer already recorded into a compiled step.
+ * @brief Tests that step() stops the process on an optimizer already recorded into a compiled step.
  * @see tests/functional/regression/README.md
  */
-TEST_F(Regression_FusedOptimizer, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
+TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -443,32 +494,40 @@ TEST_F(Regression_FusedOptimizer, SteppingAnOptimizerThatIsAlreadyInThePlanIsRef
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(engine, model, pool));
 
-    Optim::AdamW optimizer(engine, slots, Optim::AdamWOptions{});
-    EXPECT_FALSE(optimizer.is_in_compiled_step());
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(engine, slots, Optim::AdamWOptions{}));
+    EXPECT_FALSE(optimizer->is_in_compiled_step());
 
-    Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer);
-    EXPECT_TRUE(optimizer.is_in_compiled_step());
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Train::Trainer> trainer,
+        Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer));
+    EXPECT_TRUE(optimizer->is_in_compiled_step());
 
-    const Data::SyntheticClassification dataset(engine, data_options());
-    trainer.run_step(dataset.batch(0));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(engine, data_options()));
+    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
 
-    SA_EXPECT_ERROR(optimizer.step(), "already recorded into a compiled step",
+    SA_EXPECT_FATAL((void)optimizer->step(), "already recorded into a compiled step",
                     "twice per batch");
 }
 
 /**
- * @brief Tests that step() reports an error when momentum is switched on after construction.
+ * @brief Tests that step() stops the process when momentum is switched on after construction.
  * @see tests/functional/regression/README.md
  */
-TEST_F(Regression_FusedOptimizer, TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored)
+TEST_F(Regression_FusedOptimizerDeathTest,
+       TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
     SaTest::write_tensor(parameter, initial_parameter());
     SaTest::write_tensor(gradient, gradient_for(0));
 
@@ -478,10 +537,11 @@ TEST_F(Regression_FusedOptimizer, TurningMomentumOnAfterConstructionIsRefusedRat
 
     Optim::SGDOptions options;
     options.learning_rate = 0.1;
-    Optim::SGD optimizer(engine, slots, options);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(engine, slots, options));
 
-    optimizer.step();
-    optimizer.options().momentum = 0.9;
+    SA_EXPECT_OK(optimizer->step());
+    optimizer->options().momentum = 0.9;
 
-    SA_EXPECT_ERROR(optimizer.step(), "no momentum buffer", "0.9");
+    SA_EXPECT_FATAL((void)optimizer->step(), "no momentum buffer", "0.9");
 }

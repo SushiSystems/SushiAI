@@ -34,7 +34,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "../../common/test_utils.hpp"
-#include "../../common/test_throws.hpp"
+#include "../../common/test_status.hpp"
 
 using namespace SushiAI;
 
@@ -53,11 +53,11 @@ namespace
     })";
 
     /** @brief The same architecture, spelled at compile time. */
-    using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     Mlp make_sequential()
     {
-        return Mlp(NN::Linear{6, 8}, NN::K_GELU{}, NN::Linear{8, 4});
+        return Mlp(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
     }
 
     NN::LayerStack make_stack()
@@ -85,12 +85,12 @@ namespace
                 (void)model_.forward(builder, x);
 
                 // One call allocates every leaf; see tests/functional/integration/README.md.
-                pool_.materialise_leaves(graph_);
+                SA_EXPECT_OK(pool_.materialise_leaves(graph_));
 
                 NN::InitPolicy policy;
                 policy.seed = seed;
                 policy.zero_final_layer = false;   // so every parameter carries real numbers
-                NN::initialize(engine, model_, pool_, policy);
+                SA_EXPECT_OK(NN::initialize(engine, model_, pool_, policy));
             }
 
             M& model() noexcept { return model_; }
@@ -168,13 +168,13 @@ TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
     Materialised<Mlp> trained(*engine, make_sequential(), 11);
     const std::vector<std::uint32_t> expected = trained.bits();
 
-    IO::save_checkpoint(file.path(), trained.model(), trained.pool(), *engine);
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), trained.model(), trained.pool(), *engine));
 
     // A different seed, so a load that did nothing at all would be visible.
     Materialised<Mlp> fresh(*engine, make_sequential(), 22);
     ASSERT_NE(fresh.bits(), expected);
 
-    IO::load_checkpoint(file.path(), fresh.model(), fresh.pool());
+    SA_EXPECT_OK(IO::load_checkpoint(file.path(), fresh.model(), fresh.pool()));
     EXPECT_EQ(fresh.bits(), expected);
 }
 
@@ -196,17 +196,18 @@ TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerSt
     ASSERT_NE(run_time.bits(), sequential_bits);
 
     // Sequential -> LayerStack
-    IO::save_checkpoint(from_sequential.path(), compile_time.model(),
-                        compile_time.pool(), *engine);
-    IO::load_checkpoint(from_sequential.path(), run_time.model(), run_time.pool());
+    SA_EXPECT_OK(IO::save_checkpoint(from_sequential.path(), compile_time.model(),
+                                     compile_time.pool(), *engine));
+    SA_EXPECT_OK(IO::load_checkpoint(from_sequential.path(), run_time.model(), run_time.pool()));
     EXPECT_EQ(run_time.bits(), sequential_bits);
 
     // The return trip loads into a third model; see tests/functional/integration/README.md.
     Materialised<Mlp> third(*engine, make_sequential(), 123);
     ASSERT_NE(third.bits(), sequential_bits);
 
-    IO::save_checkpoint(from_stack.path(), run_time.model(), run_time.pool(), *engine);
-    IO::load_checkpoint(from_stack.path(), third.model(), third.pool());
+    SA_EXPECT_OK(IO::save_checkpoint(from_stack.path(), run_time.model(), run_time.pool(),
+                                     *engine));
+    SA_EXPECT_OK(IO::load_checkpoint(from_stack.path(), third.model(), third.pool()));
     EXPECT_EQ(third.bits(), sequential_bits);
 }
 
@@ -217,11 +218,11 @@ TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyThrowsAndNamesIt)
     // A different architecture, so the file lacks 2.weight and 2.bias.
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 5);
-    IO::save_checkpoint(file.path(), shallow.model(), shallow.pool(), *engine);
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.model(), shallow.pool(), *engine));
 
     Materialised<Mlp> deep(*engine, make_sequential(), 6);
-    SA_EXPECT_ERROR(IO::load_checkpoint(file.path(), deep.model(), deep.pool()),
-                    "does not supply", "2.weight");
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), deep.model(), deep.pool()),
+                      StatusCode::Incompatible, "does not supply", "2.weight");
 }
 
 TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveThrowsAndNamesIt)
@@ -229,12 +230,12 @@ TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveThrowsAndNamesIt)
     const ScratchFile file("sushiai_extra.ckpt");
 
     Materialised<Mlp> deep(*engine, make_sequential(), 5);
-    IO::save_checkpoint(file.path(), deep.model(), deep.pool(), *engine);
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.model(), deep.pool(), *engine));
 
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 6);
-    SA_EXPECT_ERROR(IO::load_checkpoint(file.path(), shallow.model(), shallow.pool()),
-                    "2.weight", "which this model does not have");
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), shallow.model(), shallow.pool()),
+                      StatusCode::Incompatible, "2.weight", "which this model does not have");
 }
 
 TEST_F(Integration_Checkpoint, AShapeMismatchThrowsWithBothShapes)
@@ -244,11 +245,11 @@ TEST_F(Integration_Checkpoint, AShapeMismatchThrowsWithBothShapes)
     // Shapes are compared, not element counts; see tests/functional/integration/README.md.
     using OneLayer = NN::Sequential<NN::Linear>;
     Materialised<OneLayer> wide(*engine, OneLayer(NN::Linear{6, 8}), 5);
-    IO::save_checkpoint(file.path(), wide.model(), wide.pool(), *engine);
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.model(), wide.pool(), *engine));
 
     Materialised<OneLayer> narrow(*engine, OneLayer(NN::Linear{6, 4}), 6);
-    SA_EXPECT_ERROR(IO::load_checkpoint(file.path(), narrow.model(), narrow.pool()),
-                    "0.weight", "[8, 6]", "[4, 6]");
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), narrow.model(), narrow.pool()),
+                      StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
 }
 
 TEST_F(Integration_Checkpoint, ADuplicatedNameThrowsAndNamesTheDuplicate)
@@ -262,14 +263,19 @@ TEST_F(Integration_Checkpoint, ADuplicatedNameThrowsAndNamesTheDuplicate)
         const std::vector<float> weight(8 * 6, 1.0f);
         const std::vector<float> bias(8, 2.0f);
         std::ofstream out(file.path(), std::ios::binary);
-        IO::CheckpointWriter writer(out, 4);
-        writer.write(IO::TensorRecord{"0.weight", DType::Float32, Shape{8, 6}}, weight.data());
-        writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}}, bias.data());
-        writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}}, bias.data());
-        writer.write(IO::TensorRecord{"2.bias", DType::Float32, Shape{4}}, bias.data());
+        SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointWriter writer,
+                                IO::CheckpointWriter::create(out, 4));
+        SA_EXPECT_OK(writer.write(IO::TensorRecord{"0.weight", DType::Float32, Shape{8, 6}},
+                                  weight.data()));
+        SA_EXPECT_OK(writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}},
+                                  bias.data()));
+        SA_EXPECT_OK(writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}},
+                                  bias.data()));
+        SA_EXPECT_OK(writer.write(IO::TensorRecord{"2.bias", DType::Float32, Shape{4}},
+                                  bias.data()));
         writer.finish();
     }
 
-    SA_EXPECT_ERROR(IO::load_checkpoint(file.path(), model.model(), model.pool()),
-                    "supplies", "0.bias", "twice");
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), model.model(), model.pool()),
+                      StatusCode::Incompatible, "supplies", "0.bias", "twice");
 }
