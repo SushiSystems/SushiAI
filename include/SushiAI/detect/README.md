@@ -1,10 +1,10 @@
 # detect
 
 The parts of a detector's training and inference that run on the host over plain arrays: anchor
-grids, box coding, IoU, label assignment, the leaves a masked loss reads, both postprocess
-paths and the validation metric. Every unit is a function or a small class over `SushiRuntime::span` with the shape written
-in its comment. Nothing here reaches an engine, SYCL or `graph/lowering`, so every unit is tested
-without a device.
+grids, box coding, IoU, label assignment, the leaves a masked loss reads, both postprocess paths
+and the validation metric. Every unit is a function or a small class over `SushiRuntime::span`,
+with the shape written in its comment. Nothing here reaches an engine, SYCL or `graph/lowering`,
+so every unit is tested without a device.
 
 The module depends on `core` (`SA_THROW_IF`, `Error`). Nothing depends on it yet. It adds no IR
 operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of

@@ -34,9 +34,19 @@ feature that plan hasn't reached.
 - **Finite-difference gradient checking in FLOAT64** (`autograd/gradcheck.hpp`),
   full-Jacobian and randomised-directional, which is what the integration
   tier verifies every backward rule with.
-- **A lowering to SushiBLAS** (`graph/lowering.hpp`) — the only file in the
-  library that calls `SushiBLAS::Engine` — and `CompiledStep`, which makes
-  the compile-once/replay contract a type rather than a comment.
+- **A lowering to SushiBLAS** (`graph/lowering.hpp`, `graph/lowering/`): eight
+  per-domain tables (elementwise, linalg, activation, loss, shape, spatial,
+  norm, fused) that `lowering/all.hpp` composes into `K_LOWERINGS`, one row per
+  operation. `Lowering::record` hands each node to its row with a
+  `LoweringContext`, and a row reaches SushiBLAS only through a view built
+  from the step's `SushiBLAS::TaskRecorder`. `CompiledStep`
+  (`graph/compiled_step.hpp`) owns the `TaskGraph` and that recorder, compiles
+  once in `CompiledStep::compile` and replays in `run()`.
+- **One failure contract** (`core/status.hpp`, `core/result.hpp`,
+  `core/seam.hpp`): anything that allocates, records, compiles or runs returns
+  a `Status` or a `Result<T>`, and `core/seam.hpp` is where an exception of
+  SushiBLAS or SushiRuntime becomes a status. Graph building and
+  differentiation, which touch no device, throw `SushiAI::Error`.
 - **A fusion pass** (`graph/fusion.hpp`) — a catalog of recipes applied as a
   selector over the IR before lowering, reported per-run by `sa demo mlp` and
   switchable with `--fusion off` / `--no-fuse NAME`. One entry,
@@ -373,8 +383,8 @@ the IR, not a runtime switch: a per-operation policy
 (`graph/cast_insertion.hpp`) inserts explicit `CAST` nodes at every boundary
 so that every node's operands agree with its computed type by construction.
 The fp16 copy of a weight is a *derived* value with an activation lifetime;
-the master weight keeps its id, its `FLOAT32` dtype and its
-`Lifetime::PARAMETER`.
+the master weight keeps its id, its `DType::Float32` and its
+`Lifetime::Parameter`.
 
 Same command, same seed, `--epochs 8 --batches 16` on this machine:
 
@@ -451,11 +461,17 @@ sa test --suite integration
 sa test --suite regression
 sa test --suite all
 
+sa run sushiai_tests                                   # every case in one process
 sa run sushiai_tests -- --gtest_filter='Unit_Version.*'
 
 ctest --test-dir build -L unit
 ctest --test-dir build -L regression
 ```
+
+`sushiai_tests` is one binary holding all three tiers: 1803 cases in 121 suites
+on 2026-10-09. `sa test` runs the same cases through CTest, one process per
+case. SushiBLAS builds its own suite only when it is the top-level project
+(`SB_BUILD_TESTS`), so none of its tests are compiled or counted here.
 
 The `regression` tier pins guarantees whose failure is silent — today
 `compile_count() == 1` across repeated `fit()` calls, and the fact that every
@@ -468,37 +484,56 @@ replay actually dispatches instead of reporting complete over an unarmed plan
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
-sr::Execution::RuntimeContext ctx;
-sb::Engine engine(ctx);
+namespace sb = SushiBLAS;
 
-// A model is an aggregate list, not a registration ritual.
-sa::NN::Sequential model{
-    sa::NN::Linear{32, 128}, sa::NN::ReLU{}, sa::NN::Linear{128, 6},
-};
+sa::Status train()
+{
+    sr::Execution::RuntimeContext context;
+    sb::Engine engine(context);
 
-// Trace, add cross-entropy, differentiate, insert casts, fuse: all IR-to-IR,
-// no device work yet. The two trailing arguments default to "fuse everything"
-// and "one element type everywhere"; pass a sa::Graph::MixedPrecisionPolicy as
-// the last one for fp16 products with fp32 master weights.
-sa::Train::TrainingGraph built = sa::Train::build_classifier(model, 32, 32, 6);
+    // A model is an aggregate list, not a registration ritual.
+    sa::NN::Sequential model{
+        sa::NN::Linear{32, 128}, sa::NN::ReLU{}, sa::NN::Linear{128, 6},
+    };
 
-sa::Graph::TensorPool pool(engine);
-auto parameters = sa::Train::bind_parameters(built, pool);
-sa::NN::initialize(engine, model, pool);
+    // Trace, add cross-entropy, differentiate, insert casts, fuse: all IR-to-IR,
+    // no device work yet. The trailing arguments default to float32, every
+    // fusion and one element type everywhere; pass a pointer to a
+    // sa::Graph::MixedPrecisionPolicy as `precision` for fp16 products.
+    sa::Train::TrainingGraph built = sa::Train::build_classifier(model, 32, 32, 6);
 
-sa::Optim::AdamW optimizer(engine, parameters);
+    sa::Graph::TensorPool pool(engine);
+    SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
+                  sa::Train::bind_parameters(built, pool));
+    SA_TRY(sa::NN::initialize(engine, model, pool));
 
-// This constructor is where the one and only compile happens.
-sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer);
+    SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
+                  sa::Optim::AdamW::make(engine, std::move(parameters)));
 
-sa::Data::SyntheticClassification data(engine, {.batch_size = 32, .features = 32, .classes = 6});
-std::cout << trainer.fit(data).to_string();   // reports compiles: 1
+    // Trainer::make lowers and compiles; it is the only compile of the run.
+    SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
+                  sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer));
+
+    sa::Data::SyntheticOptions synthetic;
+    synthetic.features = 32;
+    synthetic.classes = 6;
+    SA_TRY_ASSIGN(std::unique_ptr<sa::Data::SyntheticClassification> data,
+                  sa::Data::SyntheticClassification::make(engine, synthetic));
+
+    SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*data));
+    std::cout << report.to_string();   // reports compiles: 1
+    return sa::Status();
+}
 ```
 
+Every step that allocates, compiles or runs returns a `Result` or a `Status`;
+`SA_TRY` and `SA_TRY_ASSIGN` return the failure to the caller.
+`examples/example.cpp` is this program in full.
+
 SushiAI writes no SYCL: no file here names a `sycl::` type or submits to a
-queue, every compute call goes through `SushiBLAS::sushiblas` (linked
-`PUBLIC`), and exactly one file (`src/graph/lowering.cpp`) turns IR into those
-calls. The optimizers do hand SushiBLAS a device functor for their fused
+queue, and every compute call goes through `SushiBLAS::sushiblas` (linked
+`PUBLIC`). The rows under `src/graph/lowering/` turn IR into those calls. The
+optimizers do hand SushiBLAS a device functor for their fused
 update — plain arithmetic that SushiBLAS's own elementwise seam inlines into
 its own kernel. See
 [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) for the full picture and
@@ -522,13 +557,15 @@ cmake/
 include/SushiAI/
   SushiAI.h              Master header — includes every public header
   version.hpp            SUSHIAI_VERSION_* macros
-  core/                  Vocabulary: common, ops, shape, allocation
+  core/                  Vocabulary: common, ops, shape, allocation; the failure
+                         contract: check, status, result, seam
   graph/                 The IR, its builder, the passes (planner, precision,
-                         casts, fusion), the lowering, CompiledStep
+                         casts, fusion), TensorPool, the lowering and its
+                         per-domain tables under lowering/, CompiledStep
   autograd/              Differentiation and gradient checking
   config/                Config::Value, the registry lookup, the three schemas
   nn/                    Parameters, the Module contract, layers, losses, init,
-                         and the runtime path: ILayer, LayerStack, the registry
+                         and the runtime path: Layer, LayerStack, the registries
   optim/                 SGD and AdamW, and the registry that selects them
   data/                  The Dataset seam, synthetic data, rings, MNIST
   io/                    The SACP checkpoint: the byte format, and the binding

@@ -22,8 +22,9 @@ empty checkout to a trained model.
 
 SushiAI is built on SushiBLAS's tensor and BLAS layer, and SushiBLAS runs on SushiRuntime's task
 graph. SushiAI writes no SYCL: no file names a `sycl::` type or submits to a queue, every
-compute call goes through `SushiBLAS::Engine`, and one file, `src/graph/lowering.cpp`, turns IR
-into those calls. The library target `SushiAI::sushiai` links `SushiRuntime::SushiRuntime` and
+compute call goes through SushiBLAS, and the eight per-domain tables under `src/graph/lowering/`
+turn IR into those calls, each through a view built from the step's `SushiBLAS::TaskRecorder`.
+The library target `SushiAI::sushiai` links `SushiRuntime::SushiRuntime` and
 `SushiBLAS::sushiblas` `PUBLIC`.
 
 The [glossary](../reference/GLOSSARY.md) defines SushiStack as the set of repositories
@@ -59,6 +60,7 @@ hub install-cli sushiai   # puts `sa` and `sushiai` on your PATH
 sa setup                  # provisions the toolchain and writes cli/config.local.toml
 sa build                  # release build, the default
 sa test                   # unit, integration and regression suites
+sa run sushiai_tests      # the same 1803 cases in one process
 ```
 
 `sa` and `sushiai` are the same program. If a sibling checkout cannot be found, `sa build` stops
@@ -138,6 +140,19 @@ against the configuration file's own directory. The
 
 A checkpoint written by a hand-written `Sequential` loads into a `LayerStack` built from the
 equivalent `model.json`, and the reverse.
+
+## How does a call report a failure?
+
+A call that allocates, records, compiles or runs returns a `Status` or a `Result<T>`
+(`core/status.hpp`, `core/result.hpp`). `AdamW`, `SGD`, `Trainer`, `LossScaler`, `StepScalars`
+and the datasets are built by a static `make`, `CompiledStep` by `compile`, and the checkpoint
+stream classes by `CheckpointWriter::create` and `CheckpointReader::open`; each returns a
+`Result`. `initialize`, `save_checkpoint` and `load_checkpoint` return a `Status`.
+`core/seam.hpp` turns an exception of SushiBLAS or SushiRuntime into a status.
+
+Code that touches no device still throws `SushiAI::Error`: the graph builder, `build_classifier`,
+`Autograd::differentiate` and `build_layer_stack`. Reading `value()` from a failed `Result` is a
+misuse and stops the process.
 
 ## Does SushiAI support mixed precision?
 

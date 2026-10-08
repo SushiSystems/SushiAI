@@ -19,11 +19,16 @@ Two error contracts meet in this module. `Buffer::define`, `Trace::update`, ever
 `ModelOutputs`, `ModelGraph`, the node factories, `make_node` and `build_model` return `Status`
 or `Result<T>` for a failure a description can cause, and stop the process for a misuse. The
 layer types, `LayerStack`, the layer factories and `build_layer_stack` throw `Error`.
-`throwing_bridge.hpp` is where the first kind calls the second.
+`ModuleNode` calls its layer through `Detail::bridge_throwing` in `throwing_bridge.hpp`, which
+turns the `Error` into a `Status`. Five sources catch an `Error` from a shape or window check they
+call and throw it again with the layer's name: `conv2d.cpp`, `max_pool2d.cpp`, `avg_pool2d.cpp`,
+`upsample2d.cpp` and the adapter in `layer_registry.cpp`.
 
 Every layer type and block has the same members: its fields, a static `fields()`, one of the
 three trace forms, `Shape output_shape(const Shape&) const`, and one `static_assert` on
-`Module`, `TraceModule` or `ModalModule`.
+`Module`, `TraceModule` or `ModalModule`. Two types differ. `CrossEntropyLoss` has a builder
+`forward` and none of the other members. `Concat` is a `Node` over several inputs and has no
+`output_shape`.
 
 | Header | Holds |
 | --- | --- |

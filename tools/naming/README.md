@@ -117,8 +117,10 @@ again.
 `--kind` applies the `rename` rows of one kind: `enumerator`, `constant`, `interface` or `macro`.
 The whole map is still read, so the rows left out keep protecting their enums and names.
 
-Run it at the freeze of SPEC section 5, three times in the order SPEC 2.13 fixes, each run on a
-clean tree and each as the only change of its commit:
+The rename has been applied: the tree carries the new names, and a dry run now refuses with
+`K_RULES exists; RULES cannot take it` and exit code 1. The commands below are the three
+applications in the order SPEC 2.13 fixes, each on a clean tree and each as the only change of
+its commit. They are the record of that rename, not a step to run on this tree:
 
 ```
 python tools/naming/apply_rename.py --kind enumerator

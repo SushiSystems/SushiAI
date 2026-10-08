@@ -51,8 +51,8 @@ It reads every `.hpp`, `.cpp`, `.h` and `.inl` file under `include/`, `src/`, `a
 `SA_THROW_IF` itself hold no site. Any other `#define` does: a macro that wraps `SA_THROW_IF` is
 a site of the file that defines it.
 
-`tests/` is not read. The test helpers that call `SA_THROW_IF` are converted by
-`convert_tests.py` of SPEC section 6 and are outside the ratchet.
+`tests/` is not read. The test helpers that call `SA_THROW_IF` are outside the ratchet.
+SPEC section 6 names `convert_tests.py` to convert them; that script is not in this folder yet.
 
 | Rule | Fails when |
 | --- | --- |

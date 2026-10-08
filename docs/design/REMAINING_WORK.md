@@ -36,25 +36,23 @@ things the first build has to confirm, and `REPORT.md` beside it holds each wave
 - **Run what the suite does not reach.** On 2026-10-09 all 1803 tests passed against SushiBLAS
   `7f04834`. The demo transcript, `sa train` on MNIST and a HALF comparison under
   `ForceReference` have not run.
-- **Make the learning-curve reference pin its tail.** From step 6 on the loss is under the
-  absolute tolerance of 0.02, so those values hold little; a relative tolerance or a lower
-  learning rate would.
-- **The model graph's engine units** (M31 to M34 of the design): `ModelState`, `initialize` over
-  it, buffers in the checkpoint, the step builders over `ModelOutputs`, and both applications on
-  `build_model`. Their design is `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`.
-- **Ask SushiBLAS for `Engine::discard_recorded()`.** Work that runs at once records on the
-  engine's own graph, and a failed recording leaves its earlier tasks there; today a failed
-  status from such a call means the `Engine` is discarded.
-- **Four `void` functions cannot report a failed host allocation**: `TensorPool::bind`, `alias`,
-  `request_constant` and `StepRecorderList::add`. Diagnostic strings built beside `Config` and
-  `Shape` calls are unguarded for the same reason, until those units return a status.
-- **Delete `Lowering::values_needing_own_allocation`** in its own change after the build; its
-  premise no longer holds.
+- **The model graph's engine units**: `ModelState`, `initialize` over it, buffers in the
+  checkpoint, the step builders over `ModelOutputs`, and both applications on `build_model`.
+  The plan, fifteen tasks in seven waves with fourteen open questions, is
+  `docs/agent/2026_10_07_MODEL_GRAPH/PLAN.md`.
+- **Finish the status contract.** 398 `SA_THROW_IF` sites in 66 files still throw
+  `SushiAI::Error` (the builder, the differentiator, `Config`, `build_layer_stack`,
+  `train/objective.cpp`), `nn/throwing_bridge.hpp` bridges eleven of them, and `Scope`'s
+  destructor can throw through `ScopeTrace::close()`. `docs/reference/KNOWN_ISSUES.md` lists them.
+- **Run on the device what was written on 2026-10-09 and not built**: the fourteen cases of
+  `test_lowered_operations.cpp`, the tail tolerance of the learning curve, the status-returning
+  `TensorPool::alias` and `request_constant`, the memory plan without
+  `values_needing_own_allocation` (its byte counts move), and the engine discard in the seam.
+- **Observe that a discarded recording releases storage and scratch.** SushiBLAS `494ff8e` adds
+  `Engine::discard_recorded()`; no test on either side watches the release.
+
 - **Decide whether `DeviceFusionSelector` still declines GEMM epilogues under `ForceReference`**
   once the build shows the fused and plain forms agree there.
-- **Name the death-test suites in the test READMEs**, and rename the four `test_checkpoint.cpp`
-  cases whose names still say "Throws" together with the README sections headed by them.
-
 - **State what the gradient check's reference mode proves.** The host reference path of v0.1.0
   shares the element functor with the SYCL path, so it separates launch and indexing errors and
   not an error in the functor's arithmetic.
@@ -100,10 +98,6 @@ reference exporter is `tools/reference/export_yolo26_reference.py`.
 Written and never run: the loss operations and their rules, any scalar loss root, stop-gradient,
 the `detect` module and the `imaging` module.
 
-- **Lowerings for thirteen operations.** K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS,
-  K_SOFTPLUS_BACKWARD, K_SILU, K_SILU_BACKWARD, K_SELECT, K_LESS_EQUAL, K_CONSTANT and K_STOP_GRADIENT have an
-  identity, an emitter and a rule and no lowering; `PLAN.md` names the SushiBLAS kernel for each.
-  They are written once, after the migration.
 - **The detection objective.** No code builds the loss graph of SPEC section 4 from the
   operations; `PLAN.md` walks each term on paper.
 - **Two-pass label assignment in the training loop**: a forward-only replay, the host assigner,

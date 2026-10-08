@@ -15,6 +15,8 @@ helpers in `SushiAI::Test` reachable from a test body.
 
 ## test_argmax_lifetime.cpp
 
+Suites: `Regression_ArgmaxLifetime`.
+
 K_MAXPOOL2D's argmax buffer has to survive from the forward node until K_MAXPOOL2D_BACKWARD reads it,
 and no test pinned that before this file.
 
@@ -62,6 +64,8 @@ made and not an opportunity it never had.
 
 ## test_compile_once.cpp
 
+Suites: `Regression_CompileOnce`.
+
 This file was the regression tier's first. It pins the two claims in this library whose failure is
 completely silent.
 
@@ -94,8 +98,8 @@ see a recompile hidden inside fit().
 
 This test looks at the CompiledStep defect from the outside. An unarmed plan's run() returns
 successfully having dispatched nothing, so the parameters never move and the loss goes flat. The
-defect shows from the second replay onward, because the first replay runs off the state the
-constructor captured.
+defect shows from the second replay onward, because the first replay runs off the state that
+compile captured.
 
 ### TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline
 
@@ -111,7 +115,8 @@ that ran is the contents of the output buffer.
 So the test first poisons the buffer with a value the graph cannot produce, and it asserts that the
 poison is gone. A run that dispatched nothing leaves the poison where it was.
 
-The test was verified by deleting capture_base_state() from CompiledStep's constructor. It then
+The test was verified by deleting the capture_base_state() call from the compile path in
+`src/graph/compiled_step.cpp`. It then
 fails on the first assertion and reports the poison still in place.
 
 The replay loop repeats the check three times. Each pass poisons the output again, changes the
@@ -136,6 +141,8 @@ scalar the optimizer reads per step. If that scalar ever became a compiled attri
 a recompile; ir.hpp's warning on Attributes says the same.
 
 ## test_determinism.cpp
+
+Suites: `Regression_Determinism`.
 
 This file tests bit-for-bit reproducibility from end to end.
 
@@ -199,6 +206,8 @@ The optimizer's learning rate is zero. That keeps the parameters fixed, so every
 state the one before it saw.
 
 ## test_fused_optimizer.cpp
+
+Suites: `Regression_FusedOptimizer`, `Regression_FusedOptimizerDeathTest`.
 
 This file is the gate on collapsing eleven launches per parameter into one.
 
@@ -341,6 +350,8 @@ fused path would have trained without momentum.
 
 ## test_fusion_numerics.cpp
 
+Suites: `Regression_Fusion`.
+
 This file is the gate on collapsing the forward and backward graph into fewer kernels.
 
 Fusion is a pure performance change over the only arithmetic in the library that nothing downstream
@@ -466,7 +477,8 @@ zero, so a sufficiently negative element separates them by about |x|.
 ### ASelectorRefusalStillFillsTheSpillAndMovesNoBit
 
 This test is the control for TheSpillHoldsThePreActivationItself. With the fused arm declined, the
-aux buffer is filled by a separate copy in Lowering::record_fused_gemm and not by the epilogue.
+aux buffer is filled by a separate copy in `record_fused_gemm` (`src/graph/lowering/fused.cpp`) and
+not by the epilogue.
 That is a different code path to the same buffer, and the gradients have to come out identical.
 Deleting either write makes this comparison fail.
 
@@ -501,7 +513,7 @@ meant two extra nodes. SushiBLAS's seam now takes the epilogue's own access set,
 The fused spelling carries a hazard the unfused one does not. The epilogue dereferences the bias
 from inside the GEMM kernel, and the optimizer rewrites that same bias inside the same compiled
 plan. SushiBLAS cannot see into the functor, so this library has to make the declaration:
-`gemm_epilogue(f).reads(bias)` in Lowering::record_fused_gemm.
+`gemm_epilogue(f).reads(bias)` in `record_fused_gemm`.
 
 The test asserts on `in_degree` and never on a loss. With no edge the two tasks may still come out
 in the right order on any given run, so a falling loss proves nothing about ordering, and this
@@ -562,6 +574,8 @@ for the same reason: both of its answers produce a plan that trains.
 
 ## test_learning_curve.cpp
 
+Suites: `Regression_LearningCurve`.
+
 This file holds the test that catches "everything passes and the model stops training".
 
 Every other test in the suite checks a property: this gradient matches a finite difference, that
@@ -580,7 +594,11 @@ recorded from a real run of this code. The tolerance carries the design of the t
   constant factor, or a backward rule reading the forward output where it needed the input, moves
   this trajectory by tenths.
 
-K_LOSS_TOLERANCE is 0.02, which sits between those two bounds. The shape assertions in
+The head steps, 0 to 5, use the absolute bound K_LOSS_TOLERANCE, 0.02, which sits between those
+two bounds. The tail steps, 6 to 15, use K_LOSS_RELATIVE_TOLERANCE, 2 per cent of each step's own
+reference. From step 6 on the reference values are below 0.02, so an absolute bound there would
+accept a loss ten times its reference: at step 15 the reference is 0.002215 and the bound is 0.02.
+The relative bound pins each tail step to its own magnitude. The shape assertions in
 TheTrajectoryHasTheShapeALearningModelHas (the exact ln(C) start, the per-epoch descent, the final
 value) hold even if a future toolchain widens the noise floor.
 
@@ -598,6 +616,8 @@ The descent is not monotone step by step, because each step sees a different bat
 mean must beat the mean of the epoch before it.
 
 ## test_log_softmax_stability.cpp
+
+Suites: `Regression_LogSoftmaxStability`.
 
 This file tests a log-softmax that was stabilised by the wrong maximum.
 
@@ -690,6 +710,8 @@ The gap cannot reach the answer, so any difference is a real one. A tolerance he
 the same mistake in miniature: a threshold wide enough to hide the thing under test.
 
 ## test_loss_scaling.cpp
+
+Suites: `Regression_LossScaling`.
 
 Every failure of loss scaling is silent, which is what puts this part of mixed precision in the
 regression tier.
@@ -811,6 +833,8 @@ silently.
 
 ## test_mixed_precision.cpp
 
+Suites: `Regression_MixedPrecision`.
+
 Every guarantee in this file fails silently, which is what puts these tests in the regression tier
 and not beside the integration tests. A run that reports success cannot catch any of them.
 
@@ -897,6 +921,8 @@ The last assertion is that the K_GELU is still in the graph and still in the mas
 other half of rule 5 and the reason the fold is refused.
 
 ## test_static_memory.cpp
+
+Suites: `Regression_StaticMemory`.
 
 The file tests four guarantees of the static memory planner whose failure would be silent: the loop
 still converges, the run still reports success, and nobody notices.
