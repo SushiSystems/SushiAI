@@ -30,7 +30,7 @@ paths are relative to `include/SushiAI/`.
 | Fusion catalog | The closed list of fused kernels this build contains (`Graph::FusedForm`, `graph/fusion.hpp`) |
 | Epilogue | Work folded into the end of a GEMM: the bias add and, for some entries, the activation |
 | Spill | The second value a fused GELU node writes, holding the pre-activation its gradient reads |
-| Rematerialisation | The pass that recomputes a stored `IM2COL` result at its later consumers (`graph/rematerialise.hpp`) |
+| Rematerialisation | The pass that recomputes a stored `K_IM2COL` result at its later consumers (`graph/rematerialise.hpp`) |
 | Step scalars | A small device-resident float vector the host rewrites each step, for numbers that change between replays (`Optim::StepScalars`) |
 
 ## Training
@@ -39,11 +39,11 @@ paths are relative to `include/SushiAI/`.
 | --- | --- |
 | Mixed precision | Running products in fp16 while the weights the optimizer updates stay in fp32 (`--precision mixed`) |
 | Master weights | The fp32 copy of each parameter in a mixed-precision run |
-| Precision policy | The object that picks each operation's element type (`Graph::IPrecisionPolicy`, `graph/precision.hpp`) |
+| Precision policy | The object that picks each operation's element type (`Graph::PrecisionPolicy`, `graph/precision.hpp`) |
 | Cast insertion | The pass that adds type conversions where a policy changes the element type (`graph/cast_insertion.hpp`) |
 | Loss scale | The factor the loss is multiplied by before the backward pass, so fp16 gradients do not underflow (`--loss-scale`) |
 | Loss scaler | The state machine that holds the scale, screens gradients for overflow and backs the scale off (`Optim::LossScaler`) |
-| Objective | What a model is trained to minimise (`Train::IObjective`) |
+| Objective | What a model is trained to minimise (`Train::Objective`) |
 | Objective leaves | The graph values an objective declared, by role (`Train::ObjectiveLeaves`) |
 | Layer stack | A sequential list of layers chosen at run time; it enumerates parameters as `Sequential` does (`NN::LayerStack`) |
 | SACP | The first four bytes of every checkpoint file, ASCII "SACP", and the name of the format; version 1 (`io/checkpoint_format.hpp`) |

@@ -127,7 +127,7 @@ python tools/naming/apply_rename.py --kind interface
 ```
 
 The three runs read the same map. Do not rebuild it between them. It does not move
-`nn/ilayer.hpp`, add an underlying type or rewrite an unscoped enum; those are the `by_hand` rows.
+`nn/layer.hpp`, add an underlying type or rewrite an unscoped enum; those are the `by_hand` rows.
 It does not compare the per-file token counts of safeguard 3, and it does not apply the inverse
 map to its own output, which SPEC 2.13 lists as safeguard 4.
 

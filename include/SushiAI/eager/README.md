@@ -54,9 +54,9 @@ change in one scope would rebuild its neighbour.
 
 Only the reverse walk knows which forward node a rule is running for, so `differentiate()` records
 it. Every node appended while the walk is at forward node `f` has origin `f`: the nodes `f`'s rule
-emits, and the `ACCUMULATE` nodes emitted when the gradients of `f`'s outputs are summed. An
-`ACCUMULATE` emitted by the closing read of a requested gradient has the producer of that value as
-its origin, which for a parameter is its `LEAF` node.
+emits, and the `K_ACCUMULATE` nodes emitted when the gradients of `f`'s outputs are summed. An
+`K_ACCUMULATE` emitted by the closing read of a requested gradient has the producer of that value as
+its origin, which for a parameter is its `K_LEAF` node.
 
 ## partition.hpp
 
@@ -82,10 +82,10 @@ gradients that the backward region of segment `k + 1` produced.
 For `k = m` the two keys coincide, so the last segment's forward and backward nodes share a region.
 When the caller scopes the loss, that region is the loss and the seed of its gradient.
 
-A backward node whose origin is a `LEAF` sums contributions from several segments. It takes the
+A backward node whose origin is a `K_LEAF` sums contributions from several segments. It takes the
 highest key among the regions of its operands' producers, so it runs after all of them.
 
-`LEAF` nodes get `K_NO_REGION`. The lowering records nothing for a leaf.
+`K_LEAF` nodes get `K_NO_REGION`. The lowering records nothing for a leaf.
 
 The optimizer key is `2m`.
 

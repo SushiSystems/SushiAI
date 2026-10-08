@@ -206,7 +206,7 @@ be held and rewritten.
 
 Gradient accumulation at a fan-out is tiered: zero contributors means no
 gradient value at all (a symbolic zero, not a materialised buffer), one
-means the gradient *is* that value, and two or more emit `ACCUMULATE` nodes
+means the gradient *is* that value, and two or more emit `K_ACCUMULATE` nodes
 in contributor order.
 
 ### 4.1 One translation unit per domain
@@ -245,12 +245,12 @@ this repository's own tests. So each domain's rules reach the table by being
 named in a file-scope `constexpr` array of `{OpID, function pointer}` that
 `all.hpp` concatenates. Missing one is a compile error in this repository, not
 a link-time absence in somebody else's. `core/ops.hpp`'s identity table and
-`graph/fusion.cpp`'s `CATALOG` are the same shape for the same reason.
+`graph/fusion.cpp`'s `K_CATALOG` are the same shape for the same reason.
 
 ### 4.2 Three invariants the IR proves rather than assumes
 
 **`TensorLayout`, proved by `Graph::prove_layout_uniformity()` (CV-4).** Every
-`Value` carries a `TensorLayout`, and `LAYOUT_CONVERT` is the only node allowed
+`Value` carries a `TensorLayout`, and `K_LAYOUT_CONVERT` is the only node allowed
 to have operands and results that disagree about it. `finalise()` closes the
 forward graph — it propagates `requires_grad` and then proves uniformity — so a
 builder-emitted graph that mixes NCHW into an NHWC chain fails there, naming
@@ -275,7 +275,7 @@ leaves (`input()`, `parameter()`), `layout_convert()` — which sets the tag
 itself, being the one node allowed to change it — and `zeros()`, whose node has
 no inputs and is therefore skipped by the per-node proof. A backward rule
 emitting zeros beside a real operand calls `zeros_like()` instead, since the
-exposure there is the *consumer*'s node, not `ZERO`'s.
+exposure there is the *consumer*'s node, not `K_ZERO`'s.
 
 `Lowering::record()` proves it once more before recording anything. That is the
 one gate every path passes through, so the pass-level proofs are
@@ -290,18 +290,18 @@ making that claim is in the rule table — the *proof*. They are apart because
 they must be: the assert needs to see the rule table, and `core/` cannot depend
 on `autograd/` without inverting the layering the whole tree is built on. The
 flag stays where the operation is declared; the check lives where the evidence
-is. `BATCHNORM_UPDATE_STATS` claims nothing and has no rule, because CV-7 keeps
+is. `K_BATCHNORM_UPDATE_STATS` claims nothing and has no rule, because CV-7 keeps
 a BatchNorm's running statistics out of the differentiated graph entirely — it
-is recorded into the training step beside the graph, the way `SGD_UPDATE` and
-`ADAMW_UPDATE` are, and it is correspondingly one of the three declared
+is recorded into the training step beside the graph, the way `K_SGD_UPDATE` and
+`K_ADAMW_UPDATE` are, and it is correspondingly one of the three declared
 identities with no case in `Lowering::record_node` — the other two being
-`SGD_UPDATE` and `ADAMW_UPDATE` themselves, for the same reason. All three
+`K_SGD_UPDATE` and `K_ADAMW_UPDATE` themselves, for the same reason. All three
 throw "No lowering for operation" if a node ever carries them, which is the
 correct answer rather than a missing case.
 
 **`graph/rematerialise.hpp` is deliberately not general (CV-10).**
 `rematerialise_im2col()` recomputes exactly one operation: it clones the
-`IM2COL` node in front of the backward consumer that reads its column matrix,
+`K_IM2COL` node in front of the backward consumer that reads its column matrix,
 demotes the stored value to `SCRATCH`, and stops. It is not a cost model, not a
 checkpointing framework, and not parameterised over which operations are cheap
 to recompute. A convolution's column matrix is `kernel_h*kernel_w` times its
@@ -311,7 +311,7 @@ pass would need a cost model nobody has measured, to serve cases nobody has.
 The clone copies the original's `Attributes` rather than rederiving them, for
 the reason the next paragraph gives.
 
-**`Attributes::CAPACITY` is 10, and the last two slots are not redundant.**
+**`Attributes::K_CAPACITY` is 10, and the last two slots are not redundant.**
 Slots 0–7 are a 2-D window's geometry — `kernel_h`, `kernel_w`, `stride_h`,
 `stride_w`, `dilation_h`, `dilation_w`, `pad_top`, `pad_left` — mirroring
 `Graph::ConvGeometry` field for field. Slots 8 and 9 are the output extents
@@ -324,7 +324,7 @@ it passes every shape check in the tree and gathers the wrong pixels. Storing
 what the host already computed is the fix, and A-8 ("never re-derive an output
 extent from geometry") is the rule it generalises to.
 
-`CAPACITY` is bounded by nothing outside SushiAI, and deliberately so.
+`K_CAPACITY` is bounded by nothing outside SushiAI, and deliberately so.
 `Lowering` reads slots with `get()` and hands the values straight to a
 SushiBLAS call, so no attribute is ever copied into SushiRuntime's fixed-width
 `TaskMetadata::params` array and `K_MAX_PARAMS` does not constrain it. The
@@ -374,7 +374,7 @@ non-overlapping `ResourceRegion`s and do not falsely serialise. That claim is
 checked directly in `tests/functional/integration/test_arena.cpp`.
 
 `Lowering::values_needing_own_allocation()` keeps the two reduction operands of
-`LOG_SOFTMAX` and `NLL_LOSS` out of the arena, and it is a **workaround whose
+`K_LOG_SOFTMAX` and `K_NLL_LOSS` out of the arena, and it is a **workaround whose
 premise no longer holds**. It was written when `Dispatch::execute_reduction`
 built its `ResourceRegion`s from raw `data()` pointers, so a reduction operand
 at a non-zero offset got *no* dependency edge at all. SushiBLAS fixed that —
@@ -389,7 +389,7 @@ rather than riding along with an unrelated one.
 `src/graph/lowering.cpp` is the only file that calls `SushiBLAS::Engine`. Its
 `TensorPool` asks the plan where each value goes: packed values become arena
 views, everything else gets its own `Storage`. The planner assumes **every
-node writes all of its outputs on every replay**, which is why `ZERO` records
+node writes all of its outputs on every replay**, which is why `K_ZERO` records
 its fill into the step rather than into the one-time constant queue.
 
 `graph/compiled_step.hpp` wraps the compile-once/replay contract in a type,
@@ -399,7 +399,7 @@ zero, so the run reports complete before any kernel has been dispatched and
 the step quietly does nothing. Doing both in the constructor makes that
 state unrepresentable.
 
-It also takes an optional `IStepRecorder` (`graph/step_recorder.hpp`) — work
+It also takes an optional `StepRecorder` (`graph/step_recorder.hpp`) — work
 that belongs to the step but has no IR node behind it, recorded after the
 lowering and before the one `compile()`, and driven around every replay. The
 optimizer's parameter update is what it exists for; see §5.1.
@@ -431,7 +431,7 @@ Two guarantees hold this down, both in the regression tier
 the separate operations agree **byte for byte** (they can, because the whole
 stack builds with `-ffp-contract=off` and every expression keeps the operand
 order of the kernel it replaced), and folding the update into the plan changes
-no number either. `UpdateKernel::SEPARATE` keeps the reference spelling
+no number either. `UpdateKernel::Separate` keeps the reference spelling
 reachable; asking a trainer to compile one in is a thrown error, never a quiet
 downgrade. So is calling `step()` on an optimizer a plan already owns: the
 update is invisible inside a replay, so a stray call would train at double the
@@ -473,7 +473,7 @@ work follows from that one fact:
 - **`graph/lowering.cpp` holds the functors**, because a functor inlined into a
   SushiBLAS kernel is device code.
 
-Adding a form is four mechanical edits: an identity, a `FusedForm`, a `CATALOG`
+Adding a form is four mechanical edits: an identity, a `FusedForm`, a `K_CATALOG`
 row, and a recorder. Nothing self-registers, for the same reason
 `autograd/rules/all.hpp`'s rule table does not (§4.1).
 
@@ -495,7 +495,7 @@ wrong, and each therefore a checked rule:
    so a pre-activation the gradient reads is simply a second consumer.
 
 That third point is where the per-activation decision lives, and it is a
-property of the op rather than a case inside the pass. `Ops::ACTIVATIONS` states
+property of the op rather than a case inside the pass. `Ops::K_ACTIVATIONS` states
 where each activation's gradient reads, once, and both the differentiation pass
 and the catalog's `static_assert` consult it:
 
@@ -520,7 +520,7 @@ already take the output, so GELU was the only one the use count genuinely
 refused.
 
 **The auxiliary-buffer GELU epilogue — cuBLASLt's `GELU_AUX_BIAS` shape — is
-implemented.** `FusedForm::GEMM_BIAS_GELU`'s epilogue stores the fully formed
+implemented.** `FusedForm::GemmBiasGelu`'s epilogue stores the fully formed
 pre-activation to a second buffer on its way past and then returns `gelu` of it,
 so the tensor `gelu_backward` differentiates at is written after all and the
 fold is exact rather than approximate.
@@ -530,7 +530,7 @@ wrong:
 
 - **The second output is the same value.** `Graph::Node::outputs` was already a
   vector; the fused node's `outputs[1]` is the very `ValueId` the absorbed
-  `BIAS_ADD` used to produce. So `gelu_backward` reads what it always read, no
+  `K_BIAS_ADD` used to produce. So `gelu_backward` reads what it always read, no
   backward rule changed, and no pass had to learn about a new tensor.
 - **Rule 1 is relaxed for exactly that value and nothing else.** A catalog entry
   names one `spill` step; the interior value at that step may have any number of
@@ -539,7 +539,7 @@ wrong:
 - **Order, not just liveness.** The fused node is emitted at the chain's root,
   later than the absorbed producer, so a consumer of the spilled value that sat
   between the two would read a value written after it.
-  `FusionDecline::SPILL_READ_TOO_EARLY` refuses that case; the training graph
+  `FusionDecline::SpillReadTooEarly` refuses that case; the training graph
   never hits it, because `gelu_backward` is appended after the forward pass.
 - **The write is declared.** `Dispatch::gemm_epilogue(f).reads(bias).writes(aux)`
   puts the spill in the GEMM task's own write set, so whatever reads it is
@@ -591,7 +591,7 @@ gradient's `exp/sub/scale` tail replaces five with one. Every fused form is
 compared byte for byte against the unfused spelling in
 `tests/functional/regression/test_fusion_numerics.cpp`, and
 `FusionOptions::enabled = false` keeps that reference reachable, exactly as
-`Optim::UpdateKernel::SEPARATE` does for the optimizer. The demo's loss
+`Optim::UpdateKernel::Separate` does for the optimizer. The demo's loss
 trajectory is identical to the last printed digit with the pass on and off.
 
 The wall clock has **two terms, and only one of them is an improvement**:
@@ -624,27 +624,27 @@ is a mechanical rewrite anybody can verify, and the **policy** is a set of
 judgements about numerics that has to be argued. Putting them in one file
 would mean the argument and the machinery move together.
 
-- `IPrecisionPolicy` answers, per operation, which element type it computes
+- `PrecisionPolicy` answers, per operation, which element type it computes
   in. `UniformPrecisionPolicy` — the default — answers "the graph's own
   type" to everything, so a graph built without a policy is byte-for-byte what
   it was before this existed. `MixedPrecisionPolicy` narrows two families and
-  nothing else: `MATMUL` and the fused GEMM forms, and the `BIAS_ADD` plus
+  nothing else: `K_MATMUL` and the fused GEMM forms, and the `K_BIAS_ADD` plus
   foldable activation those forms absorb.
 - `insert_casts()` reads the policy and rewrites the graph so every node's
-  operands and results carry its computed type, emitting an `Ops::CAST` node
+  operands and results carry its computed type, emitting an `Ops::K_CAST` node
   at each boundary. `find_dtype_mismatches()` states the resulting invariant
   as a function anyone can call — including after fusion, which is where it
   earns its keep.
 
 **Why the epilogue's precision is forced rather than chosen.** A
-`GEMM_BIAS_RELU` node applies its epilogue inside the GEMM's kernel, in the
-GEMM's element type. If the IR said `BIAS_ADD` computes in fp32, fusing it
+`K_GEMM_BIAS_RELU` node applies its epilogue inside the GEMM's kernel, in the
+GEMM's element type. If the IR said `K_BIAS_ADD` computes in fp32, fusing it
 into an fp16 GEMM would change the numbers — and §5.2 promises fusion changes
 none. So the policy does not get to pick for anything a catalog entry **will**
 absorb; it has to agree with the kernel that absorbs it.
 
 **`GELU` is the one place that rule meets a limit, and the resolution is the
-pass order.** Since `GEMM_BIAS_GELU` exists, a catalog entry *can* absorb GELU —
+pass order.** Since `K_GEMM_BIAS_GELU` exists, a catalog entry *can* absorb GELU —
 so "nothing folds it, therefore nothing forces its precision" is no longer an
 argument for anything. The reason it still stays wide is arithmetic and nothing
 else: the tanh approximation computes `x*x*x`, fp16's largest finite value is
@@ -654,31 +654,31 @@ symptom. (That last step is IEEE-754 arithmetic, not a figure measured here.)
 Loss scaling cannot reach it either, because it is a *forward* activation and
 the scale is applied to the backward seed.
 
-Keeping it wide makes `GEMM_BIAS_GELU` an **fp32-only catalog entry**, and that
+Keeping it wide makes `K_GEMM_BIAS_GELU` an **fp32-only catalog entry**, and that
 falls out of the pass order rather than needing a special case: the cast pass
-runs before fusion, so an activation the policy keeps wide gets a `CAST` between
-it and the narrowed `BIAS_ADD`, and a chain with a conversion in the middle
+runs before fusion, so an activation the policy keeps wide gets a `K_CAST` between
+it and the narrowed `K_BIAS_ADD`, and a chain with a conversion in the middle
 matches no entry. Under a narrowing policy a GELU layer therefore folds to
 `gemm+bias` and the activation runs on its own — exactly as it did before the
 entry existed — and `narrows_under_mixed_precision` answers false for both
-`GELU` and `GEMM_BIAS_GELU` so the two halves cannot drift.
+`K_GELU` and `K_GEMM_BIAS_GELU` so the two halves cannot drift.
 `Regression_MixedPrecision.AGeluLayerIsNotFoldedUnderANarrowingPolicy` pins it.
 
 **Where the pass runs, and why exactly there.** Between `differentiate()` and
 `fuse()`. After differentiation, because a backward node needs casting as much
 as a forward one and there are none to cast before the transform runs; before
-fusion, because a conversion dropped into the middle of a `MATMUL` →
-`BIAS_ADD` → `RELU` chain would break the chain the matcher is looking for.
+fusion, because a conversion dropped into the middle of a `K_MATMUL` →
+`K_BIAS_ADD` → `K_RELU` chain would break the chain the matcher is looking for.
 
 **Master weights.** A parameter keeps its id, its `FLOAT32` dtype and its
-`Lifetime::PARAMETER`; so does its gradient, and the optimizer is untouched.
+`Lifetime::Parameter`; so does its gradient, and the optimizer is untouched.
 The fp16 a GEMM reads is a *derived* value with an activation lifetime,
 produced by a cast and rewritten every replay because the parameter it reads
 changed. The rule the pass applies is one sentence — a value's element type
 follows its producer's computed type unless something outside the pass depends
 on it — and "outside" means a persistent lifetime class or a value the caller
 named as observed. The backward direction falls out of it: a gradient value is
-`Lifetime::GRADIENT`, so it is pinned, so an fp16 matmul writes a fresh narrow
+`Lifetime::Gradient`, so it is pinned, so an fp16 matmul writes a fresh narrow
 result and a cast widens it into the buffer the optimizer accumulates in.
 
 **What it is worth here: correctness, and nothing else.** This machine has no
@@ -690,7 +690,7 @@ right types, that the masters stay fp32, and that the model still learns — see
 for the measured loss curves both ways.
 
 **Loss scaling is here too, and it is `optim/loss_scaler.hpp`.** The backward
-seed is multiplied by a device-resident power of two (`Ops::DYNAMIC_SCALE`,
+seed is multiplied by a device-resident power of two (`Ops::K_DYNAMIC_SCALE`,
 emitted by `differentiate()`'s seed rule so it lands in topological position
 and before anything narrows); `reductions().count_nonfinite()` screens every
 gradient inside the same compiled plan; the fused update divides the scale back
@@ -717,12 +717,12 @@ header states what a whole-step skip would cost.
 `std::tuple<Ls...>`, its `fields()` is `static constexpr`, and the parameter
 walk over it is a template walk. A JSON file decides that list at run time. The
 two cannot be reconciled — one is a type, the other is data — so there is a
-second, runtime-polymorphic path: `nn/ilayer.hpp`'s `ILayer` and
+second, runtime-polymorphic path: `nn/layer.hpp`'s `Layer` and
 `nn/layer_stack.hpp`'s `LayerStack`.
 
 **In this architecture that path costs nothing.** `forward()` runs *once*, at
 trace time, to emit IR; the graph is compiled once and replayed (§1). A
-`std::vector<std::unique_ptr<ILayer>>` therefore adds no per-step work at all.
+`std::vector<std::unique_ptr<Layer>>` therefore adds no per-step work at all.
 The same design would be indefensible in an eager framework, where it would
 mean a virtual call per layer per step — the graph-native architecture is what
 pays for this feature.
@@ -734,7 +734,7 @@ this order: a type that enumerates itself through `walk_parameters`; a
 container that recurses through `visit_children`; a leaf that applies its
 `fields()` list. The first arm is what a runtime layer list needs, because
 `fields()` is static and returns member pointers of one concrete type, and a
-container walk over children that are all `ILayer&` would find no parameters
+container walk over children that are all `Layer&` would find no parameters
 *while reporting no error*.
 
 The arm is strictly additive — `layers.hpp` asserts that neither `Linear` nor
@@ -750,17 +750,17 @@ owning it and therefore allocates nothing.
 ```
 apps/train.cpp  (no type names; never edited again)
    |
-   +-- NN::LAYER_REGISTRY       "linear", "gelu", "relu", "tanh", "sigmoid",
+   +-- NN::K_LAYER_REGISTRY       "linear", "gelu", "relu", "tanh", "sigmoid",
    |                            "leaky_relu", "unflatten", "conv2d",
    |                            "maxpool2d", "avgpool2d", "global_avgpool",
    |                            "flatten", "upsample"
-   +-- Data::DATASET_REGISTRY   "rings", "mnist"
-   +-- Optim::OPTIMIZER_REGISTRY "adamw", "sgd"
-   +-- Train::OBJECTIVE_REGISTRY "cross_entropy"
+   +-- Data::K_DATASET_REGISTRY   "rings", "mnist"
+   +-- Optim::K_OPTIMIZER_REGISTRY "adamw", "sgd"
+   +-- Train::K_OBJECTIVE_REGISTRY "cross_entropy"
 ```
 
 Each is a file-scope `constexpr` array of `{name, factory function pointer}`,
-in the shape of `Ops::ALL` and the fusion `CATALOG`, and `"type"` is the
+in the shape of `Ops::K_ALL` and the fusion `K_CATALOG`, and `"type"` is the
 discriminator key in all four — so `Config::find_entry` is written once and
 serves all of them. **Nothing self-registers**, for the reason §4 gives for the
 backward-rule table.
@@ -771,16 +771,16 @@ unknown `type` or key is an **error listing what is available**, so a typed
 `"unitss": 256` cannot train silently against a default.
 
 The layer seam carries a per-sample `Shape`, batch axis excluded.
-`ILayer::output_shape()` in `include/SushiAI/nn/ilayer.hpp` is the virtual, and a
+`Layer::output_shape()` in `include/SushiAI/nn/layer.hpp` is the virtual, and a
 `LayerFactory` in `include/SushiAI/nn/layer_registry.hpp` receives the shape the
 layer before it reports, so a convolution, a pool and a flatten chain through
 `build_layer_stack` with no width restated in the file. `GraphBuilder::conv2d`
 in `include/SushiAI/graph/builder.hpp` owns the convolution's node sequence, a
-reshape of the rank-4 weight, IM2COL, MATMUL, an optional BIAS_ADD and a reshape
+reshape of the rank-4 weight, K_IM2COL, K_MATMUL, an optional K_BIAS_ADD and a reshape
 back to NHWC, and `NN::Conv2d` in `include/SushiAI/nn/conv2d.hpp` calls it and
 does not restate it.
 
-`Train::IObjective` is the seam that breaks the classifier lock-in:
+`Train::Objective` is the seam that breaks the classifier lock-in:
 `build_classifier` hardcoded `NN::CrossEntropyLoss`, and it is now a wrapper
 over `build_graph(module, objective, ...)`. `CrossEntropyObjective` emits the
 same operations in the same order as the code it replaced, which is why the
@@ -881,7 +881,7 @@ first.
 
 Open work is listed in one place,
 [`REMAINING_WORK.md`](../design/REMAINING_WORK.md): packing the lowering's scratch, the
-log-softmax and `NLL_LOSS` fusions, the two batch copies, the standalone `LOG_SOFTMAX` rule, the
+log-softmax and `K_NLL_LOSS` fusions, the two batch copies, the standalone `K_LOG_SOFTMAX` rule, the
 whole-step overflow skip, bfloat16, the `Dataset` and `Trainer` seams, and the demo's reference
 loss curve and timing table. What behaves wrongly or narrowly today, including why `gradcheck`
 does not verify a mixed-precision graph, is in

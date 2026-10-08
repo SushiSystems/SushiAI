@@ -362,7 +362,7 @@ Add to `include/SushiBLAS/engine/blas/utils.hpp` (currently an empty TODO header
   shape (one `add_task`, one `switch(dtype)` dispatching a generically-templated closure),
   generalized for level2/level3.
 - `dispatch_with_mode<T>(ExecutionMode, reference_fn, sycl_fn)` — collapses the
-  `FORCE_REFERENCE`/normal/`VERIFY` triad `gemm.cpp` hand-writes five times.
+  `ForceReference`/normal pair `gemm.cpp` hand-writes five times.
 - Loud failure for unsupported dtype/op combinations (P1 corollary) — a thrown error naming op and
   dtype, not `default: break;`.
 
@@ -535,13 +535,13 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   the caller, so an aux buffer the functor wrote would get no edge and its reader would race the
   write. SushiBLAS now takes the epilogue's access set —
   `Dispatch::gemm_epilogue(f).reads(t).writes(t)` — so the aux write is declarable. Everything this
-  entry then listed as outstanding landed as `FusedForm::GEMM_BIAS_GELU`, with one item resolving
+  entry then listed as outstanding landed as `FusedForm::GemmBiasGelu`, with one item resolving
   more cheaply than expected: the "backward rule reading the spill" turned out to need no new rule
   at all. Fusion runs *after* differentiation, so `gelu_backward` is already in the graph reading
   the pre-activation by id; making that same id the fused node's second output means the existing
   rule reads the spill without knowing anything changed. The `static_assert` did learn the
   distinction, and also checks that the entry spills the *right* step of the chain — spilling the
-  `MATMUL`'s result instead of the `BIAS_ADD`'s would be as silently wrong as spilling nothing.
+  `K_MATMUL`'s result instead of the `K_BIAS_ADD`'s would be as silently wrong as spilling nothing.
   The one thing the entry cannot do is run under a narrowing precision policy, and that is
   deliberate: see §25's precision note and `graph/precision.hpp` rule 5.
 - **That gap also used to cost one node per fused GEMM, and no longer does.** The epilogue's *bias*
@@ -551,8 +551,8 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   the seam now (`gemm_epilogue(f).reads(bias)`, per catalog arm), so the node, the counter and the
   `Ops::EPILOGUE_OPERANDS` identity are gone: 27 plan nodes per fused step become 25, with `ops per
   step` unchanged at 25.
-- **The largest remaining term is `LOG_SOFTMAX`'s nine calls**, and it is not a fusion-pass
-  problem: it needs the row-wise reduction SushiBLAS does not expose. `NLL_LOSS`'s three are
+- **The largest remaining term is `K_LOG_SOFTMAX`'s nine calls**, and it is not a fusion-pass
+  problem: it needs the row-wise reduction SushiBLAS does not expose. `K_NLL_LOSS`'s three are
   blocked the same way — the reduction seam takes no transform functor.
 
 ## 20. AI-4 — Mixed precision (plumbing now, payoff on future hardware)
@@ -567,13 +567,13 @@ tensor-core-capable hardware only.
 **Status (2026-08-03): both halves have landed.**
 
 Landed:
-- `graph/precision.hpp` — `IPrecisionPolicy`, injected the way `IFusionSelector` is, with a
+- `graph/precision.hpp` — `PrecisionPolicy`, injected the way `FusionSelector` is, with a
   `UniformPrecisionPolicy` default (so nothing that existed changed) and a
-  `MixedPrecisionPolicy` that narrows `MATMUL`, the fused GEMM forms, `BIAS_ADD` and the
+  `MixedPrecisionPolicy` that narrows `K_MATMUL`, the fused GEMM forms, `K_BIAS_ADD` and the
   foldable activations, and nothing else. The narrow type is a constructor parameter, so
   bfloat16 is a call-site change on the day `DataType` grows one.
 - `graph/cast_insertion.hpp` — the IR-to-IR pass, run between `differentiate()` and `fuse()`.
-  `Ops::CAST` lowers to SushiBLAS's new `elementwise().convert()`.
+  `Ops::K_CAST` lowers to SushiBLAS's new `elementwise().convert()`.
 - fp32 master weights, fp32 gradients, fp32 optimizer update — a parameter keeps its id, dtype
   and lifetime, and the fp16 a GEMM reads is a derived activation-lifetime value.
 - `--precision fp32|mixed` on `sa demo mlp`, `TrainerOptions::precision` as a pre-lowering check,
@@ -583,10 +583,10 @@ Landed in the second change (the numerics half):
 - `optim/loss_scaler.hpp` — `LossScaleState` (the host state machine, engine-free and
   unit-tested on its own) and `LossScaler` (its device-resident scale, its count buffer, and
   the `count_nonfinite` screens it records into the plan).
-- `Ops::DYNAMIC_SCALE` — `y = x * s[0]` with `s` a 1-element value. `SCALE`'s factor is an
+- `Ops::K_DYNAMIC_SCALE` — `y = x * s[0]` with `s` a 1-element value. `K_SCALE`'s factor is an
   `Attributes` slot and therefore a compile-time constant; this one is a second *operand*, so
   the scale changes between replays without recompiling. Emitted by `differentiate()`'s
-  NLL_LOSS seed rule, which is where the seed is built and therefore the one place the node
+  K_NLL_LOSS seed rule, which is where the seed is built and therefore the one place the node
   lands in topological position without re-routing anything.
 - `INVERSE_LOSS_SCALE` in both optimizers' `StepScalars`, applied before the decay and the
   moments; exactly `1.0f` when nothing is scaling, so an unscaled run is byte-identical.

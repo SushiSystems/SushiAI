@@ -15,7 +15,7 @@ helpers in `SushiAI::Test` reachable from a test body.
 
 ## test_argmax_lifetime.cpp
 
-MAXPOOL2D's argmax buffer has to survive from the forward node until MAXPOOL2D_BACKWARD reads it,
+K_MAXPOOL2D's argmax buffer has to survive from the forward node until K_MAXPOOL2D_BACKWARD reads it,
 and no test pinned that before this file.
 
 The gradchecks cover pooling, but they cannot see this defect. If the planner handed the argmax's
@@ -39,7 +39,7 @@ the assertion its meaning.
 
 `x` is declared as a parameter and not as an input. The pool's backward is only emitted when
 something upstream of it requires a gradient, and an input does not. Differentiating with respect
-to `x` is what puts MAXPOOL2D_BACKWARD in the graph.
+to `x` is what puts K_MAXPOOL2D_BACKWARD in the graph.
 
 Between the pool and its backward the test builds a spatial mean down to [2,1,1,4], a reshape to a
 matrix and a small model, so several activations are born and die while the argmax waits to be
@@ -53,7 +53,7 @@ answers false for an unpacked placement, so an argmax that had been given its ow
 satisfy every later assertion for a reason this test does not document.
 
 The `overlapping_neighbours` loop is the assertion the file exists for: every other buffer in the
-plan must miss the argmax entirely. Aliased names for the same bytes (ACCUMULATE) are not reuse, so
+plan must miss the argmax entirely. Aliased names for the same bytes (K_ACCUMULATE) are not reuse, so
 the loop compares by owning buffer and not by value id.
 
 `the_planner_reused_anything` is the non-vacuity check. It requires that the planner overlapped
@@ -141,7 +141,7 @@ This file tests bit-for-bit reproducibility from end to end.
 
 Reproducibility is the guarantee the stack is arranged around, and no test proved it before this
 file. SushiRuntime promises sushiruntime_deterministic_fp. autograd/tape.cpp sums a fan-out through
-an ordered ACCUMULATE chain and not through float atomics, and its own header says an atomic sum
+an ordered K_ACCUMULATE chain and not through float atomics, and its own header says an atomic sum
 "would break that quietly, showing up as a training run that cannot be reproduced rather than as a
 test failure". A claim whose failure mode is "not a test failure" needs a test, and the test has to
 compare bits. EXPECT_NEAR passes on a run that reorders a reduction, and reordering a reduction is
@@ -224,7 +224,7 @@ The tests make five claims, in file order:
    SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused and
    TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored.
 
-The helpers from `BATCH` to `expect_runs_agree` belong to claims 2 and 3, which train a whole model
+The helpers from `K_BATCH` to `expect_runs_agree` belong to claims 2 and 3, which train a whole model
 through the Trainer.
 
 ### Why byte for byte is the right bar
@@ -250,9 +250,9 @@ backward pass that produces its gradients, and a race that usually resolves the 
 like training. So the folded and unfolded placements are compared byte for byte too, and
 compile_count() is pinned at one with the optimizer inside the plan.
 
-### ELEMENTS
+### K_ELEMENTS
 
-`ELEMENTS` is 133, which is not a multiple of the 128-bit vector width. Both the wide pass and the
+`K_ELEMENTS` is 133, which is not a multiple of the 128-bit vector width. Both the wide pass and the
 scalar tail of Launch::zip_inplace therefore run on every call.
 
 ### gradient_for
@@ -381,7 +381,7 @@ If a comparison fails, the response is to find which expression moved, not to wi
 
 GELU's gradient differentiates at its input, so the epilogue that folds GELU has to write that
 input to an auxiliary buffer on its way past. cuBLASLt calls this GELU_AUX_BIAS; here it is
-FusedForm::GEMM_BIAS_GELU. Every way of getting it wrong is silent, and worse than the other
+FusedForm::GemmBiasGelu. Every way of getting it wrong is silent, and worse than the other
 activations: a forward pass that matches perfectly while the gradients are taken at the wrong point
 still converges, to a different place.
 
@@ -428,7 +428,7 @@ comparison.
 ### AGeluMlpTrainsIdenticallyFusedAndUnfused
 
 This test runs the GELU hazard end to end, and its claim is about the gradients and not the forward
-pass. A GEMM_BIAS_GELU that computed the right activation and spilled nothing would match the
+pass. A K_GEMM_BIAS_GELU that computed the right activation and spilled nothing would match the
 unfused forward exactly and still differentiate at the wrong tensor. Nothing would throw, no value
 would go non-finite, and the loss would still fall. What such a kernel could not do is land the
 parameters on the same bits after 24 AdamW steps, because a weight only moves by its gradient.
@@ -473,14 +473,14 @@ Deleting either write makes this comparison fail.
 ### DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt
 
 This is the A/B comparison the catalog entry was written against: the same model with the catalog
-row on and off. With the row off, the GELU is an ordinary IR node and the pre-activation is an
+row on and off. With the row off, the K_GELU is an ordinary IR node and the pre-activation is an
 ordinary value. With it on, the pre-activation is a second output of a fused GEMM, written from
 inside a device kernel. The parameters after 24 steps have to be the same bits, and they are the
 same bits only if the gradients were.
 
 Disabling the form costs two more kernels, as switching the ReLU form off does. The activation
 becomes an out-of-place IR node again, which is a copy and a gelu. The spill costs nothing on the
-unfused side, because the value the fused node spilled is the value BIAS_ADD writes anyway.
+unfused side, because the value the fused node spilled is the value K_BIAS_ADD writes anyway.
 
 ### TheFusedStepIssuesTenFewerKernelsPerStep
 
@@ -522,7 +522,7 @@ the pre-activation races the kernel that produced it. A race that usually resolv
 cannot be told apart from training, which is why this test also asserts on `in_degree` and never
 on a loss.
 
-The test emits a reader of the pre-activation after the GELU, the way the differentiation pass
+The test emits a reader of the pre-activation after the K_GELU, the way the differentiation pass
 emits gelu_backward.
 
 ### DisablingOneCatalogEntryLeavesTheRestAlone
@@ -547,7 +547,7 @@ arithmetic.
 
 ### AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory
 
-Under FORCE_REFERENCE and VERIFY the epilogue is invoked on the host by Kernels::Reference::gemm,
+Under ForceReference the epilogue is invoked on the host by Kernels::Reference::gemm,
 so any pointer it carries must be host-readable there. SushiAI's own allocations are shared USM and
 would be readable. A bound allocation need not be, and nothing in the selector can ask which kind
 it got.
@@ -580,7 +580,7 @@ recorded from a real run of this code. The tolerance carries the design of the t
   constant factor, or a backward rule reading the forward output where it needed the input, moves
   this trajectory by tenths.
 
-LOSS_TOLERANCE is 0.02, which sits between those two bounds. The shape assertions in
+K_LOSS_TOLERANCE is 0.02, which sits between those two bounds. The shape assertions in
 TheTrajectoryHasTheShapeALearningModelHas (the exact ln(C) start, the per-epoch descent, the final
 value) hold even if a future toolchain widens the noise floor.
 
@@ -724,9 +724,9 @@ scale of 2^20, which puts the fp32 logit gradient just past binary16's largest f
 65504. The cast into the backward matmul then produces infinities, which are real overflow and not
 a simulation of it.
 
-### OVERFLOWING_SCALE
+### K_OVERFLOWING_SCALE
 
-The logit gradient is about 1/BATCH, so a scale of 2^20 puts it at roughly 65536 in fp32, just past
+The logit gradient is about 1/K_BATCH, so a scale of 2^20 puts it at roughly 65536 in fp32, just past
 binary16's largest finite 65504. The backward matmul that sums over the batch takes it further. The
 scale was chosen to be recoverable as well as overflowing. The run in
 AnFp16OverflowIsDetectedAndBacksTheScaleOff has to reach a clean scale within its step budget,
@@ -878,11 +878,11 @@ graph/precision.hpp's rules 2 and 5 meet in this test, and it asserts that they 
 Rule 2 says a fused epilogue runs inside the GEMM's kernel in the GEMM's element type, so an
 activation the catalog folds has to compute in the GEMM's type or fusion would change the numbers.
 Rule 5 says GELU stays wide: the tanh approximation computes `x*x*x`, which overflows fp16 at |x|
-about 40.3. Since FusedForm::GEMM_BIAS_GELU exists, the two rules would contradict each other if
+about 40.3. Since FusedForm::GemmBiasGelu exists, the two rules would contradict each other if
 nothing kept them apart.
 
 The pass order keeps them apart, and it does so by structure. The cast pass runs before fusion, so
-an activation the policy keeps wide gets a CAST between it and the narrowed BIAS_ADD, and a chain
+an activation the policy keeps wide gets a K_CAST between it and the narrowed K_BIAS_ADD, and a chain
 with a conversion in the middle matches no catalog entry. Under fp32 the layer folds whole. Under a
 narrowing policy it falls back to gemm+bias and the GELU runs on its own, as it did before the
 entry existed.
@@ -893,7 +893,7 @@ in the suite would say so.
 The test also asserts that fusion did not stop altogether. The bias still folds on both layers, so
 the fallback is the shorter catalog entry and not an unfused graph.
 
-The last assertion is that the GELU is still in the graph and still in the master type. That is the
+The last assertion is that the K_GELU is still in the graph and still in the master type. That is the
 other half of rule 5 and the reason the fold is refused.
 
 ## test_static_memory.cpp
@@ -910,7 +910,7 @@ still converges, the run still reports success, and nobody notices.
    planner test that let fusion do its work first would be measuring the catalog.
 3. Packing changes no number. If it does, two values are aliasing that should not be, and the right
    response is to find them, not to record the reference again.
-4. A buffer the planner packed is rewritten every replay. A ZERO buffer that is filled once and
+4. A buffer the planner packed is rewritten every replay. A K_ZERO buffer that is filled once and
    then only read holds zeros for exactly one step and then whatever overwrote it. Such a model
    trains, badly, for ever.
 
@@ -967,7 +967,7 @@ overlap.
 
 ### APackedZeroBufferIsRefilledOnEveryReplay
 
-ZERO is the one operation whose output nothing else writes. It would work perfectly if it were
+K_ZERO is the one operation whose output nothing else writes. It would work perfectly if it were
 filled once outside the step, until the planner handed its bytes to a later value. The test
 corrupts the buffer from the host between two replays, which is what a reused arena slot does, and
 the second replay must still see zeros.

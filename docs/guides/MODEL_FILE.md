@@ -122,9 +122,9 @@ A `type` is looked up in two tables, and no type is in both.
 | Table | Types | A row reads |
 | --- | --- | --- |
 | `NN::K_NODE_REGISTRY` | `batchnorm2d`, `concat`, `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf` | One value; `concat` reads one or more |
-| `NN::LAYER_REGISTRY` | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu` | One value |
+| `NN::K_LAYER_REGISTRY` | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu` | One value |
 
-`build_model` reads both tables. `build_layer_stack` reads `LAYER_REGISTRY` only, so a chain of
+`build_model` reads both tables. `build_layer_stack` reads `K_LAYER_REGISTRY` only, so a chain of
 `conv` rows builds with `build_model`. A type in neither table fails with a message that lists
 both.
 

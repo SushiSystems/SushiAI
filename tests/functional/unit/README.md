@@ -68,7 +68,7 @@ tests.
 | [`test_layer_stack.cpp`](test_layer_stack.cpp) | The runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread. |
 | [`test_layout.cpp`](test_layout.cpp) | That every value carries a tensor layout and that the rebuilding passes keep it. |
 | [`test_leaky_relu.cpp`](test_leaky_relu.cpp) | The LeakyReLU layer's trace, shape inference and slope range. |
-| [`test_loss_roots.cpp`](test_loss_roots.cpp) | Which values differentiation accepts as a loss, the seed it emits and the STOP_GRADIENT barrier. |
+| [`test_loss_roots.cpp`](test_loss_roots.cpp) | Which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT barrier. |
 | [`test_loss_scaling.cpp`](test_loss_scaling.cpp) | The dynamic loss-scaling rule on LossScaleState, with no device involved. |
 | [`test_max_pool2d.cpp`](test_max_pool2d.cpp) | The MaxPool2d layer's trace, shape inference and rejections. |
 | [`test_memory_plan.cpp`](test_memory_plan.cpp) | That the memory planner never shares a byte between two values live together. |
@@ -83,7 +83,7 @@ tests.
 | [`test_precision.cpp`](test_precision.cpp) | The mixed-precision policy and where the cast insertion pass places its casts. |
 | [`test_provenance.cpp`](test_provenance.cpp) | The forward origin that differentiation records for every node it appends. |
 | [`test_region_signature.cpp`](test_region_signature.cpp) | The signature that `signature_of` computes for one region of a partition. |
-| [`test_rematerialise.cpp`](test_rematerialise.cpp) | The structure of the graph that the IM2COL rematerialisation pass rewrites. |
+| [`test_rematerialise.cpp`](test_rematerialise.cpp) | The structure of the graph that the K_IM2COL rematerialisation pass rewrites. |
 | [`test_result.cpp`](test_result.cpp) | Result, its reference form and SA_TRY_ASSIGN. |
 | [`test_rule_table.cpp`](test_rule_table.cpp) | That every domain's backward rules reach the combined table exactly once. |
 | [`test_scope_partitioner.cpp`](test_scope_partitioner.cpp) | The region keys ScopePartitioner gives the nodes of a differentiated graph. |
@@ -218,9 +218,9 @@ This file needs no device. Differentiation is an IR-to-IR transform, so what it 
 graph that can be inspected node by node with no hardware involved. That is why
 `include/SushiAI/graph/ir.hpp` insists that a backward rule emits IR and never device work.
 
-The cases from DivReadsItsDivisorAndItsOwnQuotient on each put one operation under an NLL_LOSS
+The cases from DivReadsItsDivisorAndItsOwnQuotient on each put one operation under an K_NLL_LOSS
 root and compare the appended nodes with a literal list of operation names. The first appended
-node is always the SCALE that NLL_LOSS's rule emits, and its result is the gradient the tested
+node is always the K_SCALE that K_NLL_LOSS's rule emits, and its result is the gradient the tested
 operation receives. The cases then check which operands each appended node reads, since a rule
 that emits the right operations over the wrong operands gives a graph of the same shape.
 
@@ -257,26 +257,26 @@ is the first result of the first appended node.
 
 ### EveryImplementedOperationHasARule
 
-`has_backward_rule` is true for DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS, SELECT and SILU.
+`has_backward_rule` is true for K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and K_SILU.
 
-`has_backward_rule` is false for LESS_EQUAL, CONSTANT and STOP_GRADIENT. Each is a gradient
+`has_backward_rule` is false for K_LESS_EQUAL, K_CONSTANT and K_STOP_GRADIENT. Each is a gradient
 barrier: the reverse walk steps over it, so no rule is ever asked of it.
 
-`has_backward_rule` is false for SILU_BACKWARD and SOFTPLUS_BACKWARD. An activation gradient
+`has_backward_rule` is false for K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD. An activation gradient
 has no rule, so a second differentiation over one throws.
 
-`has_backward_rule(BATCHNORM_UPDATE_STATS)` is false, and that is decision CV-7, not an
+`has_backward_rule(K_BATCHNORM_UPDATE_STATS)` is false, and that is decision CV-7, not an
 omission. A running mean is a buffer the training step writes beside the graph. No gradient
 flows through it.
 
-`has_backward_rule(BATCHNORM_FOLD)` is false too. The fold is the node an evaluation trace of
+`has_backward_rule(K_BATCHNORM_FOLD)` is false too. The fold is the node an evaluation trace of
 `NN::BatchNorm2d` emits, and DifferentiatingThroughBatchNormFoldFails holds what a gradient
 request through it does.
 
-`has_backward_rule` is false for LEAF and ZERO because both produce values from nothing. There
+`has_backward_rule` is false for K_LEAF and K_ZERO because both produce values from nothing. There
 is nothing upstream to hand a gradient to, so there is no rule to write.
 
-`has_backward_rule(CAST)` is false because of the order of the pipeline. Casts are inserted
+`has_backward_rule(K_CAST)` is false because of the order of the pipeline. Casts are inserted
 after differentiation (`include/SushiAI/graph/cast_insertion.hpp` says why), so no graph this
 transform sees can contain one. A graph that somehow did would fail loudly and name the
 operation. It would not differentiate a conversion whose precision the pass had not established
@@ -289,19 +289,19 @@ is the easy half. The half that rots is "every rule has been checked against a f
 difference". `differentiate()` picks up a rule added to a `src/autograd/rules/<domain>.cpp`
 table automatically, so a wrong rule produces a model that trains slightly worse and nothing
 anywhere fails. Listing the proof beside the rule makes the omission visible: the test's second
-loop, the one over `Ops::ALL`, fails when an operation gains a rule that nobody added a ledger
+loop, the one over `Ops::K_ALL`, fails when an operation gains a rule that nobody added a ledger
 line for.
 
 The named tests live in `tests/functional/integration/test_autograd_numeric.cpp` and all run in
 FLOAT64, for the reason `include/SushiAI/autograd/gradcheck.hpp` derives.
 
-The LOG_SOFTMAX entry names a message test. LOG_SOFTMAX's rule exists only to produce a good
+The K_LOG_SOFTMAX entry names a message test. K_LOG_SOFTMAX's rule exists only to produce a good
 error, so there is no gradient to verify and the message test is its proof.
 
-The `unproven` vector lists the eight rules no finite-difference case names: DIV, MINIMUM,
-MAXIMUM, ABS, ATAN, SOFTPLUS, SELECT and SILU. Its size must equal `K_UNPROVEN_RULES`, every
+The `unproven` vector lists the eight rules no finite-difference case names: K_DIV, K_MINIMUM,
+K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and K_SILU. Its size must equal `K_UNPROVEN_RULES`, every
 entry must have a rule, and no operation may appear in both the ledger and this list. The loop
-over `Ops::ALL` accepts a rule that either list names. An entry leaves `unproven` when a
+over `Ops::K_ALL` accepts a rule that either list names. An entry leaves `unproven` when a
 finite-difference case names its rule in the ledger.
 
 ### TwoLayerMlpProducesTheExpectedBackwardTopology
@@ -310,23 +310,23 @@ The `op_names` comparison expects the cross-entropy pair to be differentiated as
 rule: exp of the log-probabilities, minus the one-hot targets, scaled by 1/N. The chain then
 walks back through the second linear layer, the activation and the first linear layer.
 
-`count_op(graph, ACCUMULATE)` is 0 because every value in a plain feed-forward stack has
+`count_op(graph, K_ACCUMULATE)` is 0 because every value in a plain feed-forward stack has
 exactly one contributor, so the tiered accumulation emits nothing.
 
 ### TheInputIsNotDifferentiatedWhenItDoesNotRequireOne
 
-The backward pass holds one MATMUL, the weight gradient, which with the forward one makes the
-two the test counts. The input gradient would have been another MATMUL. It is skipped, not
+The backward pass holds one K_MATMUL, the weight gradient, which with the forward one makes the
+two the test counts. The input gradient would have been another K_MATMUL. It is skipped, not
 computed and discarded.
 
 ### FanOutEmitsAnAccumulateChain
 
 `x` feeds two branches, so its gradient has two contributors and the tiered accumulation drops
-to its ordered ACCUMULATE form.
+to its ordered K_ACCUMULATE form.
 
 ### ADisconnectedParameterGetsASymbolicZeroNotABuffer
 
-A zero gradient must cost nothing: no ZERO node, no allocation, no wasted kernel. Only the live
+A zero gradient must cost nothing: no K_ZERO node, no allocation, no wasted kernel. Only the live
 path emitted anything, and what it emitted is the loss gradient and the activation gradient.
 
 ### ADeadLossPathEmitsNothingAtAll
@@ -342,113 +342,113 @@ future operation added to the lowering but not to the rule table.
 
 ### LogSoftmaxOutsideTheFusedPairSaysSoClearly
 
-A RELU consumes the log-softmax result, so the cross-entropy fusion does not apply and the
+A K_RELU consumes the log-softmax result, so the cross-entropy fusion does not apply and the
 standalone rule has to refuse.
 
 ### DivReadsItsDivisorAndItsOwnQuotient
 
-For `c = a / b` with both operands parameters, the appended nodes are SCALE, DIV, MUL, SCALE.
-The DIV reads the seed and `b` and is the gradient of `a`. The MUL reads that quotient and the
-forward result `c`, and the last SCALE negates it with the factor -1 and is the gradient of
+For `c = a / b` with both operands parameters, the appended nodes are K_SCALE, K_DIV, K_MUL, K_SCALE.
+The K_DIV reads the seed and `b` and is the gradient of `a`. The K_MUL reads that quotient and the
+forward result `c`, and the last K_SCALE negates it with the factor -1 and is the gradient of
 `b`. The rule reuses `c` and does not divide by `b` a second time.
 
 ### DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient
 
-With `b` an input, the appended nodes are SCALE and DIV.
+With `b` an input, the appended nodes are K_SCALE and K_DIV.
 
 ### DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone
 
-With `a` an input, the appended nodes are still SCALE, DIV, MUL, SCALE, because the divisor's
+With `a` an input, the appended nodes are still K_SCALE, K_DIV, K_MUL, K_SCALE, because the divisor's
 gradient is computed from the quotient. The one returned gradient is the result of the last
-SCALE.
+K_SCALE.
 
 ### MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand
 
-For `minimum(a, b)` the appended nodes are SCALE, LESS_EQUAL, ZERO, SELECT, SELECT. The mask
-reads `a` then `b`. The first SELECT reads the mask, the seed and the zero and is the gradient
+For `minimum(a, b)` the appended nodes are K_SCALE, K_LESS_EQUAL, K_ZERO, K_SELECT, K_SELECT. The mask
+reads `a` then `b`. The first K_SELECT reads the mask, the seed and the zero and is the gradient
 of `a`; the second reads the mask, the zero and the seed and is the gradient of `b`. Where the
 operands are equal the mask holds, so the first operand takes the gradient.
 
 ### MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand
 
-For `maximum(a, b)` the node list is the same and the mask reads `b` then `a`. The two SELECT
-nodes read the same operands as in the MINIMUM case, so a tie again goes to the first operand.
+For `maximum(a, b)` the node list is the same and the mask reads `b` then `a`. The two K_SELECT
+nodes read the same operands as in the K_MINIMUM case, so a tie again goes to the first operand.
 
 ### MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient
 
-With `a` an input, one SELECT is appended, and it reads the mask, the zero and the seed.
+With `a` an input, one K_SELECT is appended, and it reads the mask, the zero and the seed.
 
 ### MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient
 
-With `b` an input, one SELECT is appended. The mask reads `b` then `a`, and the SELECT reads
+With `b` an input, one K_SELECT is appended. The mask reads `b` then `a`, and the K_SELECT reads
 the mask, the seed and the zero.
 
 ### AbsMultipliesByASignThatIsZeroAtZero
 
-For `abs(x)` the appended nodes are SCALE, ZERO, LESS_EQUAL, LESS_EQUAL, SUB, MUL. The ZERO has
+For `abs(x)` the appended nodes are K_SCALE, K_ZERO, K_LESS_EQUAL, K_LESS_EQUAL, K_SUB, K_MUL. The K_ZERO has
 the shape of `x`. The first mask reads the zero then `x`, the second reads `x` then the zero,
-the SUB reads the first mask then the second, and the MUL reads the seed and the difference.
+the K_SUB reads the first mask then the second, and the K_MUL reads the seed and the difference.
 The sign is `[0 <= x] - [x <= 0]`, which is 0 at x = 0.
 
 ### AtanDividesByOnePlusTheSquaredInput
 
-For `atan(x)` the appended nodes are SCALE, MUL, CONSTANT, ADD, DIV. The MUL reads `x` twice.
-The CONSTANT has no input, holds 1 and has the shape and element type of `x`. The ADD reads the
-square and the one, and the DIV reads the seed and that sum.
+For `atan(x)` the appended nodes are K_SCALE, K_MUL, K_CONSTANT, K_ADD, K_DIV. The K_MUL reads `x` twice.
+The K_CONSTANT has no input, holds 1 and has the shape and element type of `x`. The K_ADD reads the
+square and the one, and the K_DIV reads the seed and that sum.
 
 ### SoftplusBackwardReadsTheForwardInputNotTheOutput
 
-For `softplus(x)` one SOFTPLUS_BACKWARD is appended after the SCALE, and it reads the seed and
+For `softplus(x)` one K_SOFTPLUS_BACKWARD is appended after the K_SCALE, and it reads the seed and
 `x`. The case asserts that `x` and the forward result are different values first, so the
 operand check distinguishes the input from the output.
 
 ### SiluBackwardReadsTheForwardInputNotTheOutput
 
-For `silu(x)` one SILU_BACKWARD is appended after the SCALE, and it reads the seed and `x`.
+For `silu(x)` one K_SILU_BACKWARD is appended after the K_SCALE, and it reads the seed and `x`.
 
 ### SelectRoutesItsGradientByItsOwnCondition
 
-For `select(condition, a, b)` the appended nodes are SCALE, ZERO, SELECT, SELECT. The first
-SELECT reads the condition, the seed and the zero and is the gradient of `a`. The second reads
+For `select(condition, a, b)` the appended nodes are K_SCALE, K_ZERO, K_SELECT, K_SELECT. The first
+K_SELECT reads the condition, the seed and the zero and is the gradient of `a`. The second reads
 the condition, the zero and the seed and is the gradient of `b`.
 
 ### SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient
 
-With `a` an input, the appended nodes are SCALE, ZERO, SELECT, and the SELECT reads the
+With `a` an input, the appended nodes are K_SCALE, K_ZERO, K_SELECT, and the K_SELECT reads the
 condition, the zero and the seed.
 
 ### SelectGivesItsConditionNoGradient
 
-With the condition a parameter and both branches inputs, only the SCALE is appended and the
-condition's gradient is `NO_VALUE`.
+With the condition a parameter and both branches inputs, only the K_SCALE is appended and the
+condition's gradient is `K_NO_VALUE`.
 
 ### AComparisonUnderASelectLeavesItsOperandsWithoutAGradient
 
-The condition is `less_equal(p, q)` with `p` a parameter. The gradient of `p` is `NO_VALUE`,
-the gradient of the branch `a` exists, and the appended nodes are SCALE, ZERO, SELECT.
+The condition is `less_equal(p, q)` with `p` a parameter. The gradient of `p` is `K_NO_VALUE`,
+the gradient of the branch `a` exists, and the appended nodes are K_SCALE, K_ZERO, K_SELECT.
 
 ### AComparisonMultipliedIntoAProductEmitsNothingForTheMask
 
 For `mul(less_equal(p, q), a)` differentiation does not throw. The mask does not require a
-gradient, the gradient of `p` is `NO_VALUE`, and the appended nodes are SCALE and one MUL that
-reads the seed and the mask and is the gradient of `a`. MUL's rule emits no node for its mask
+gradient, the gradient of `p` is `K_NO_VALUE`, and the appended nodes are K_SCALE and one K_MUL that
+reads the seed and the mask and is the gradient of `a`. K_MUL's rule emits no node for its mask
 operand.
 
 ### AConstantAddedToAParameterPathEmitsNothingForTheConstant
 
 For `(x + epsilon) * epsilon`, with `epsilon` a `constant_like` of `x`, differentiation does
-not throw. The constant does not require a gradient, and the appended nodes are SCALE and one
-MUL that reads the seed and the constant and is the gradient of `x`.
+not throw. The constant does not require a gradient, and the appended nodes are K_SCALE and one
+K_MUL that reads the seed and the constant and is the gradient of `x`.
 
 ### MaximumOfXAndAZeroConstantRoutesATieToX
 
-For `maximum(x, floor)` with `floor` a zero CONSTANT, the mask reads `floor` then `x`, and the
-SELECT reads the mask, the seed and the zero. The mask `[floor <= x]` holds at x = 0, so `x`
+For `maximum(x, floor)` with `floor` a zero K_CONSTANT, the mask reads `floor` then `x`, and the
+K_SELECT reads the mask, the seed and the zero. The mask `[floor <= x]` holds at x = 0, so `x`
 takes the gradient there.
 
 ### MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATie
 
-For `maximum(floor, x)` the mask reads `x` then `floor`, and the SELECT reads the mask, the
+For `maximum(floor, x)` the mask reads `x` then `floor`, and the K_SELECT reads the mask, the
 zero and the seed. The mask `[x <= floor]` holds at x = 0, so `x` takes the zero branch there.
 The operand order of a clamp therefore decides its gradient at the bound. The case also checks
 that no node of the graph, forward or appended, narrows under the mixed-precision policy, so
@@ -458,25 +458,25 @@ the clamp stays in the loss's precision.
 
 For each of `div`, `minimum`, `maximum`, `abs`, `atan`, `softplus`, `silu` and a `select` on a
 `less_equal` mask, the case differentiates the operation over two parameters. The rule appends
-a node beyond the SCALE, and `Graph::narrows_under_mixed_precision` is false for every appended
+a node beyond the K_SCALE, and `Graph::narrows_under_mixed_precision` is false for every appended
 node.
 
 ### AGradientOnTheBatchVarianceOfBatchNormThrows
 
 `GraphBuilder::batchnorm2d` returns four values, and `batch_variance` is output 3 of the node.
-A loss built on a SCALE of that value is differentiated against gamma. `differentiate` throws
-with a message containing "BATCHNORM2D" and "saved statistics received a gradient".
+A loss built on a K_SCALE of that value is differentiated against gamma. `differentiate` throws
+with a message containing "K_BATCHNORM2D" and "saved statistics received a gradient".
 
 ### BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst
 
 A loss built on `sum_channels` of output 0 is differentiated against gamma and beta. Both
-gradients are values other than `NO_VALUE` and the graph holds one BATCHNORM2D_BACKWARD node.
+gradients are values other than `K_NO_VALUE` and the graph holds one K_BATCHNORM2D_BACKWARD node.
 Inputs 3 and 4 of that node are the saved mean and the saved inverse deviation. The batch
 variance is not among its operands.
 
 ### DifferentiatingThroughBatchNormFoldFails
 
-A loss built on a CHANNEL_AFFINE over the two results of `batchnorm_fold` is differentiated
+A loss built on a K_CHANNEL_AFFINE over the two results of `batchnorm_fold` is differentiated
 against gamma, a parameter. `differentiate` throws with a message containing "No backward
 rule" and "sushiai.batchnorm_fold".
 
@@ -492,9 +492,9 @@ the lifetime `GRADIENT`, and the buffer keeps the lifetime `BUFFER`.
 Tests BatchNorm2d's two trace forms and the running-statistic update.
 
 This file needs no device. `NN::BatchNorm2d` in `include/SushiAI/nn/batch_norm2d.hpp` is a
-modal layer. `trace_training` emits one BATCHNORM2D node and requests two buffer updates
+modal layer. `trace_training` emits one K_BATCHNORM2D node and requests two buffer updates
 through the trace. `trace_evaluation` reads the two running statistics as buffer leaves and
-emits a BATCHNORM_FOLD and a CHANNEL_AFFINE. Both forms record a refusal on the trace and
+emits a K_BATCHNORM_FOLD and a K_CHANNEL_AFFINE. Both forms record a refusal on the trace and
 return their input.
 
 The last two cases read `tests/fixtures/yolo26/batchnorm.sacp` through
@@ -575,8 +575,8 @@ one value. It is the statement of a death test.
 
 ### ATrainingTraceEmitsOneBatchNorm
 
-A training trace over [2, 2, 2, 3] emits one BATCHNORM2D node and no BATCHNORM_FOLD or
-CHANNEL_AFFINE. The graph gains three nodes: the two parameter leaves and the BATCHNORM2D. The
+A training trace over [2, 2, 2, 3] emits one K_BATCHNORM2D node and no K_BATCHNORM_FOLD or
+K_CHANNEL_AFFINE. The graph gains three nodes: the two parameter leaves and the K_BATCHNORM2D. The
 node reads the input, the weight's leaf and the bias's leaf, has four outputs of which the
 first is the returned value, and carries the epsilon 1e-3 in attribute 0.
 
@@ -599,8 +599,8 @@ For [2, 2, 2, 3] it is 8/7, and for [1, 20, 20, 128] it is 400/399.
 
 ### AnEvaluationTraceFoldsTheRunningStatistics
 
-An evaluation trace over [2, 4, 4, 3] emits one BATCHNORM_FOLD, one CHANNEL_AFFINE and no
-BATCHNORM2D, and the graph holds two buffer leaves. It gains six nodes: two parameter leaves,
+An evaluation trace over [2, 4, 4, 3] emits one K_BATCHNORM_FOLD, one K_CHANNEL_AFFINE and no
+K_BATCHNORM2D, and the graph holds two buffer leaves. It gains six nodes: two parameter leaves,
 two buffer leaves, the fold and the affine. The fold reads the weight, the bias, the running
 mean and the running variance in that order and carries the epsilon 1e-3. The affine reads the
 input and the fold's two outputs, and its output is the returned value of shape [2, 4, 4, 3].
@@ -661,7 +661,7 @@ type stays FLOAT32.
 
 ### TheScaleStartsAtOneAndTheShiftAtZero
 
-After a trace the weight has the role `ParameterRole::SCALE` and a constant fill of 1.0, and
+After a trace the weight has the role `ParameterRole::Scale` and a constant fill of 1.0, and
 the bias has the role `BIAS` and a constant fill of 0.0.
 
 ### TheFactoryReadsTheChannelsAndTheTwoConstants
@@ -689,8 +689,8 @@ process with a report containing "BatchNorm2d(3)", "value 7" and "holds 1 values
 
 ### TraceLayerPicksTheFormOfTheMode
 
-`NN::trace_layer` under a training trace leaves one BATCHNORM2D and no BATCHNORM_FOLD in its
-graph. Under an evaluation trace it leaves one BATCHNORM_FOLD and no BATCHNORM2D.
+`NN::trace_layer` under a training trace leaves one K_BATCHNORM2D and no K_BATCHNORM_FOLD in its
+graph. Under an evaluation trace it leaves one K_BATCHNORM_FOLD and no K_BATCHNORM2D.
 
 ### OutputShapeIsTheInputShape
 
@@ -720,7 +720,7 @@ variance on this case as 1.4e-5.
 Tests Bottleneck's trace, its state names against YOLO26n row 2, and its factory.
 
 This file needs no device. `NN::Bottleneck` in `include/SushiAI/nn/blocks/bottleneck.hpp` is
-two `Conv` blocks, `cv1` and `cv2`, and an optional ADD of the block's input to the second
+two `Conv` blocks, `cv1` and `cv2`, and an optional K_ADD of the block's input to the second
 one's result. `NN::make_bottleneck_node` builds the node of a `bottleneck` row.
 
 The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
@@ -762,7 +762,7 @@ prefix, in walk order.
 
 ### expect_norm_options
 
-`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+`expect_norm_options` expects the given epsilon in attribute 0 of every K_BATCHNORM2D node of a
 graph and the given momentum on every update of a list.
 
 ### OutputShapeKeepsTheExtentsAndSetsTheWidth
@@ -772,17 +772,17 @@ graph and the given momentum on every update of a list.
 ### AShortcutOverEqualWidthsAddsTheInput
 
 A training trace of `Bottleneck(16, 16, 8, true)` reports `adds_input` true and emits two
-MATMUL, two BATCHNORM2D, two SILU and one ADD. The ADD's first operand is the block's input and
-its second is produced by a SILU. Its output is the returned value, of shape [2, 4, 4, 16].
+K_MATMUL, two K_BATCHNORM2D, two K_SILU and one K_ADD. The K_ADD's first operand is the block's input and
+its second is produced by a K_SILU. Its output is the returned value, of shape [2, 4, 4, 16].
 
 ### NoShortcutTracesNoAdd
 
-With the shortcut argument false, `adds_input` is false and the trace holds two MATMUL and no
-ADD.
+With the shortcut argument false, `adds_input` is false and the trace holds two K_MATMUL and no
+K_ADD.
 
 ### AShortcutOverUnequalWidthsTracesNoAdd
 
-`Bottleneck(16, 24, 8, true)` reports `adds_input` false and traces no ADD, although a shortcut
+`Bottleneck(16, 24, 8, true)` reports `adds_input` false and traces no K_ADD, although a shortcut
 was asked for. The result has the shape [2, 4, 4, 24].
 
 ### StateMatchesManifestRow2Inner
@@ -800,13 +800,13 @@ order with the weight [16, 3, 3, 8] and the rest [16].
 ### TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue
 
 `make_bottleneck_node` over [4, 4, 16] with 16 filters and a hidden width of 8 has one port of
-shape [4, 4, 16]. Its training trace holds one ADD, so a row without `shortcut` adds its input.
+shape [4, 4, 16]. Its training trace holds one K_ADD, so a row without `shortcut` adds its input.
 The walk under "model.2.m.0" yields ten records; record 0 is the `cv1` weight [8, 3, 3, 16]
 and record 5 the `cv2` weight [16, 3, 3, 8].
 
 ### TheFactoryReadsTheShortcut
 
-With `"shortcut": false` the trace holds no ADD.
+With `"shortcut": false` the trace holds no K_ADD.
 
 ### TheFactoryRefusesARowThatDoesNotFit
 
@@ -820,7 +820,7 @@ The input shape [256] fails with "[256]" and "rank-3".
 
 ### TheFactoryHandsTheNormOptionsToBothNorms
 
-A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two BATCHNORM2D nodes and four
+A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two K_BATCHNORM2D nodes and four
 updates, and `expect_norm_options` finds those two values on all of them.
 
 ## test_block_c3k.cpp
@@ -829,7 +829,7 @@ Tests C3k's trace, its state names against YOLO26n row 6, and its factory.
 
 This file needs no device. `NN::C3k` in `include/SushiAI/nn/blocks/c3k.hpp` holds three `Conv`
 blocks, `cv1`, `cv2` and `cv3`, and a `ModuleList` of `Bottleneck`s named `m`. The cases show
-its trace: a chain of bottlenecks on one branch, `cv2` on the other, one CONCAT_CHANNELS of the
+its trace: a chain of bottlenecks on one branch, `cv2` on the other, one K_CONCAT_CHANNELS of the
 two, and `cv3` after it. `NN::make_c3k_node` builds the node of a `c3k` row.
 
 The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
@@ -871,7 +871,7 @@ prefix, in walk order.
 
 ### expect_norm_options
 
-`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+`expect_norm_options` expects the given epsilon in attribute 0 of every K_BATCHNORM2D node of a
 graph and the given momentum on every update of a list.
 
 ### OutputShapeKeepsTheExtentsAndSetsTheWidth
@@ -884,20 +884,20 @@ graph and the given momentum on every update of a list.
 
 ### ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat
 
-A training trace of `C3k(64, 64, 2, true)` over [2, 4, 4, 64] emits seven each of MATMUL,
-BATCHNORM2D and SILU, two ADD, one CONCAT_CHANNELS and no SLICE_CHANNELS. The list holds 14
+A training trace of `C3k(64, 64, 2, true)` over [2, 4, 4, 64] emits seven each of K_MATMUL,
+K_BATCHNORM2D and K_SILU, two K_ADD, one K_CONCAT_CHANNELS and no K_SLICE_CHANNELS. The list holds 14
 updates and the result has the shape [2, 4, 4, 64]. Seven is three `Conv` blocks of the C3k
 plus two in each of the two bottlenecks.
 
 ### TheJoinReadsTheChainThenTheSecondBranch
 
-The CONCAT_CHANNELS node has two inputs. The first is produced by an ADD, the end of the last
-bottleneck, and the second by a SILU, the end of `cv2`. Each is [2, 4, 4, 32] and the joined
+The K_CONCAT_CHANNELS node has two inputs. The first is produced by an K_ADD, the end of the last
+bottleneck, and the second by a K_SILU, the end of `cv2`. Each is [2, 4, 4, 32] and the joined
 value is [2, 4, 4, 64].
 
 ### NoShortcutTracesNoAdd
 
-With the shortcut argument false, an evaluation trace holds seven MATMUL and no ADD.
+With the shortcut argument false, an evaluation trace holds seven K_MATMUL and no K_ADD.
 
 ### TheHiddenWidthIsHalfTheOutputWidthRoundedDown
 
@@ -916,12 +916,12 @@ variance as buffers. The weights are [32, 1, 1, 64] for `cv1` and `cv2`, [64, 1,
 ### TheFactoryDefaultsToOneBottleneckWithAShortcut
 
 `make_c3k_node` over [4, 4, 64] with only 32 filters has one port of shape [4, 4, 32]. Its
-evaluation trace appends one [2, 4, 4, 32] value and holds five MATMUL and one ADD: one
+evaluation trace appends one [2, 4, 4, 32] value and holds five K_MATMUL and one K_ADD: one
 bottleneck that adds its input.
 
 ### TheFactoryReadsRepeatsAndShortcut
 
-With 64 filters, `repeats` 2 and `shortcut` false, the trace holds seven MATMUL and no ADD. The
+With 64 filters, `repeats` 2 and `shortcut` false, the trace holds seven K_MATMUL and no K_ADD. The
 walk under "model.6.m.0" yields 35 records, and record 30 is "model.6.m.0.m.1.cv2.conv.weight"
 [32, 3, 3, 32].
 
@@ -941,7 +941,7 @@ Two input shapes fail with a message containing "one input" and "2".
 
 ### TheFactoryHandsTheNormOptionsToEveryNorm
 
-A row with `repeats` 2, `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces seven BATCHNORM2D
+A row with `repeats` 2, `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces seven K_BATCHNORM2D
 nodes and 14 updates, and `expect_norm_options` finds those two values on all of them.
 
 ## test_block_c3k2.cpp
@@ -950,8 +950,8 @@ Tests C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factor
 
 This file needs no device. `NN::C3k2<Inner>` in `include/SushiAI/nn/blocks/c3k2.hpp` holds a
 stem `cv1`, a `ModuleList<Inner>` named `m` and a closing `cv2`. The cases show its trace: the
-stem's result is cut into two halves by two SLICE_CHANNELS, the inner blocks are chained off
-the second half, and one CONCAT_CHANNELS joins both halves and every inner block's result
+stem's result is cut into two halves by two K_SLICE_CHANNELS, the inner blocks are chained off
+the second half, and one K_CONCAT_CHANNELS joins both halves and every inner block's result
 before `cv2`. `Inner` is `Bottleneck` or `C3k`. `NN::make_c3k2_node` reads the row's `inner`
 key and selects a factory from `NN::K_C3K2_INNER`.
 
@@ -995,7 +995,7 @@ prefix, in walk order.
 
 ### expect_norm_options
 
-`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+`expect_norm_options` expects the given epsilon in attribute 0 of every K_BATCHNORM2D node of a
 graph and the given momentum on every update of a list.
 
 ### row2_records
@@ -1024,15 +1024,15 @@ Row 2 maps [160, 160, 32] to [160, 160, 64].
 
 ### Row2EmitsFourConvBlocksTwoSlicesAndOneConcat
 
-A training trace of row 2 over [2, 4, 4, 32] emits four each of MATMUL, BATCHNORM2D and SILU,
-two SLICE_CHANNELS, one ADD and one CONCAT_CHANNELS. The list holds eight updates, the result
+A training trace of row 2 over [2, 4, 4, 32] emits four each of K_MATMUL, K_BATCHNORM2D and K_SILU,
+two K_SLICE_CHANNELS, one K_ADD and one K_CONCAT_CHANNELS. The list holds eight updates, the result
 is [2, 4, 4, 64], and every norm carries `K_YOLO_NORM`.
 
 ### TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf
 
-The CONCAT_CHANNELS of row 2 has three inputs. The first two are produced by SLICE_CHANNELS
+The K_CONCAT_CHANNELS of row 2 has three inputs. The first two are produced by K_SLICE_CHANNELS
 nodes that read the same value, with the offsets 0 and 16 in attribute 0, and each is
-[2, 4, 4, 16]. The third is produced by the bottleneck's ADD, whose first operand is the second
+[2, 4, 4, 16]. The third is produced by the bottleneck's K_ADD, whose first operand is the second
 half. The joined value is [2, 4, 4, 48].
 
 ### TwoInnerBlocksAreChainedAndBothJoined
@@ -1043,8 +1043,8 @@ channels, and the second bottleneck's `cv1` weight is [8, 3, 3, 16].
 
 ### Row6EmitsNineConvBlocksAndTwoConcats
 
-A training trace of row 6 over [2, 4, 4, 128] emits nine each of MATMUL, BATCHNORM2D and SILU,
-two SLICE_CHANNELS, two ADD and two CONCAT_CHANNELS. The list holds 18 updates, the result is
+A training trace of row 6 over [2, 4, 4, 128] emits nine each of K_MATMUL, K_BATCHNORM2D and K_SILU,
+two K_SLICE_CHANNELS, two K_ADD and two K_CONCAT_CHANNELS. The list holds 18 updates, the result is
 [2, 4, 4, 128], every norm carries `K_YOLO_NORM`, and `output_shape([40, 40, 128])` is
 [40, 40, 128].
 
@@ -1065,29 +1065,29 @@ with `&NN::make_c3k2_of_c3k`.
 
 `make_c3k2_node` over [160, 160, 32] with 64 filters, hidden 16, one repeat, inner
 "bottleneck", shortcut true and the two norm keys has one port of shape [160, 160, 64]. Its
-training trace holds one ADD, four BATCHNORM2D and eight updates carrying `K_YOLO_NORM`, and
+training trace holds one K_ADD, four K_BATCHNORM2D and eight updates carrying `K_YOLO_NORM`, and
 its walk under "model.2" equals `row2_records()`.
 
 ### TheFactoryBuildsRow6
 
 `make_c3k2_node` over [40, 40, 128] with 128 filters, hidden 64, one repeat, inner "c3k",
 shortcut true and the two norm keys has a port of shape [40, 40, 128]. Its training trace
-holds two CONCAT_CHANNELS, two ADD, nine BATCHNORM2D and 18 updates carrying `K_YOLO_NORM`,
+holds two K_CONCAT_CHANNELS, two K_ADD, nine K_BATCHNORM2D and 18 updates carrying `K_YOLO_NORM`,
 and its walk under "model.6" equals `row6_records()`. The inner C3k therefore has two
 bottlenecks that add their input.
 
 ### TheFactoryReadsTheShortcutOfAC3kInnerBlock
 
-With inner "c3k" and shortcut false the evaluation trace holds nine MATMUL and no ADD.
+With inner "c3k" and shortcut false the evaluation trace holds nine K_MATMUL and no K_ADD.
 
 ### TheFactoryDefaultsToOneBottleneckWithAShortcut
 
-A row stating only 64 filters and hidden 16 traces four MATMUL, one ADD and one
-CONCAT_CHANNELS.
+A row stating only 64 filters and hidden 16 traces four K_MATMUL, one K_ADD and one
+K_CONCAT_CHANNELS.
 
 ### TheFactoryReadsRepeatsAndShortcut
 
-With `repeats` 3 and `shortcut` false the trace holds eight MATMUL and no ADD. The walk yields
+With `repeats` 3 and `shortcut` false the trace holds eight K_MATMUL and no K_ADD. The walk yields
 40 records: record 5 is "cv2.conv.weight" [64, 1, 1, 80] and record 30 is "m.2.cv1.conv.weight"
 [8, 3, 3, 16].
 
@@ -1172,24 +1172,24 @@ prefix, in walk order.
 
 ### ATrainingTraceEmitsConvolutionNormThenSilu
 
-A training trace of `Conv(3, 16, 3, 2)` over [2, 8, 8, 3] emits one MATMUL, one BATCHNORM2D
-and one SILU, in that order, and no BIAS_ADD. The SILU's output is the returned value, of
+A training trace of `Conv(3, 16, 3, 2)` over [2, 8, 8, 3] emits one K_MATMUL, one K_BATCHNORM2D
+and one K_SILU, in that order, and no K_BIAS_ADD. The K_SILU's output is the returned value, of
 shape [2, 4, 4, 16].
 
 ### ATrainingTraceCarriesTheNormOptions
 
-The BATCHNORM2D node carries the epsilon 1e-3 in attribute 0, and both requested updates carry
+The K_BATCHNORM2D node carries the epsilon 1e-3 in attribute 0, and both requested updates carry
 the momentum 0.03.
 
 ### AnEvaluationTraceFoldsTheNorm
 
-An evaluation trace emits one BATCHNORM_FOLD, one CHANNEL_AFFINE, one SILU and no BATCHNORM2D,
+An evaluation trace emits one K_BATCHNORM_FOLD, one K_CHANNEL_AFFINE, one K_SILU and no K_BATCHNORM2D,
 and returns a [2, 4, 4, 16] value.
 
 ### ConvLinearEmitsNoActivation
 
-A training trace of `ConvLinear(3, 16, 1, 1)` emits one BATCHNORM2D and no SILU. The returned
-value is output 0 of the BATCHNORM2D node.
+A training trace of `ConvLinear(3, 16, 1, 1)` emits one K_BATCHNORM2D and no K_SILU. The returned
+value is output 0 of the K_BATCHNORM2D node.
 
 ### StateMatchesManifestRow0
 
@@ -1206,7 +1206,7 @@ The walk of a block that was never traced is empty.
 `make_conv_node` over [640, 640, 3] with 16 filters, kernel 3, stride 2, `bn_epsilon` 0.001 and
 `bn_momentum` 0.03 returns a node with one port named `NN::K_SINGLE_PORT_NAME` of shape
 [320, 320, 16]. A training trace over [1, 640, 640, 3] appends one value of shape
-[1, 320, 320, 16], the BATCHNORM2D carries 1e-3, and the first update carries 0.03. The walk
+[1, 320, 320, 16], the K_BATCHNORM2D carries 1e-3, and the first update carries 0.03. The walk
 under "model.0" yields five records, the first "model.0.conv.weight" [16, 3, 3, 3] and the
 last "model.0.bn.running_var" [16].
 
@@ -1247,7 +1247,7 @@ Tests SPPF's trace, its state names against YOLO26n row 9, and its factory.
 This file needs no device. `NN::SPPF` in `include/SushiAI/nn/blocks/sppf.hpp` holds a
 `ConvLinear` named `cv1`, a `MaxPool2d` named `pool` and a `Conv` named `cv2`. The cases show
 its trace: `cv1` narrows the input, the pool is applied a number of times in a chain, one
-CONCAT_CHANNELS joins `cv1`'s result and every pooled value, `cv2` follows, and an optional ADD
+K_CONCAT_CHANNELS joins `cv1`'s result and every pooled value, `cv2` follows, and an optional K_ADD
 closes the block. `NN::make_sppf_node` builds the node of an `sppf` row.
 
 The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
@@ -1290,7 +1290,7 @@ prefix, in walk order.
 
 ### expect_norm_options
 
-`expect_norm_options` expects the given epsilon in attribute 0 of every BATCHNORM2D node of a
+`expect_norm_options` expects the given epsilon in attribute 0 of every K_BATCHNORM2D node of a
 graph and the given momentum on every update of a list.
 
 ### OutputShapeKeepsTheExtentsAndSetsTheWidth
@@ -1305,31 +1305,31 @@ left, and its `output_shape([20, 20, 128])` is [20, 20, 128].
 
 ### Row9EmitsThreePoolsOneConcatAndOneAdd
 
-A training trace over [2, 4, 4, 256] emits two MATMUL, two BATCHNORM2D, one SILU, three
-MAXPOOL2D, one CONCAT_CHANNELS and one ADD. The list holds four updates and the result is
-[2, 4, 4, 256]. The one SILU is `cv2`'s.
+A training trace over [2, 4, 4, 256] emits two K_MATMUL, two K_BATCHNORM2D, one K_SILU, three
+K_MAXPOOL2D, one K_CONCAT_CHANNELS and one K_ADD. The list holds four updates and the result is
+[2, 4, 4, 256]. The one K_SILU is `cv2`'s.
 
 ### TheJoinReadsTheNarrowedValueThenEachPoolInAChain
 
-The CONCAT_CHANNELS has four inputs. The first is produced by a BATCHNORM2D, because `cv1` is
-a `ConvLinear` and emits no activation. Each of the other three is produced by a MAXPOOL2D
+The K_CONCAT_CHANNELS has four inputs. The first is produced by a K_BATCHNORM2D, because `cv1` is
+a `ConvLinear` and emits no activation. Each of the other three is produced by a K_MAXPOOL2D
 that reads the input before it, and each is [2, 4, 4, 128]. The joined value is
 [2, 4, 4, 512].
 
 ### TheClosingAddReadsTheResultThenTheInput
 
-`adds_input` is true. The ADD's first operand is produced by a SILU and its second is the
+`adds_input` is true. The K_ADD's first operand is produced by a K_SILU and its second is the
 block's input, and its output is the returned value. The operand order is the reverse of
 `Bottleneck`'s.
 
 ### NoAddWithoutAShortcutOrOverUnequalWidths
 
 `SPPF(64, 64, 5, 3, false)` and `SPPF(64, 96, 5, 3, true)` both report `adds_input` false and
-trace no ADD.
+trace no K_ADD.
 
 ### ThePoolCountSetsThePoolsAndTheJoinedWidth
 
-`SPPF(64, 64, 3, 1, false)` traces one MAXPOOL2D. Its `cv1` weight is [32, 1, 1, 64] and its
+`SPPF(64, 64, 3, 1, false)` traces one K_MAXPOOL2D. Its `cv1` weight is [32, 1, 1, 64] and its
 `cv2` weight is [64, 1, 1, 64], two parts of 32 channels.
 
 ### StateMatchesManifestRow9
@@ -1341,13 +1341,13 @@ follow, with the weight [256, 1, 1, 512] and the rest [256]. The pool has no sta
 ### TheFactoryBuildsRow9
 
 `make_sppf_node` over [20, 20, 256] with 256 filters, kernel 5, 3 pools and shortcut true has
-one port of shape [20, 20, 256]. Its training trace holds three MAXPOOL2D and one ADD. The walk
+one port of shape [20, 20, 256]. Its training trace holds three K_MAXPOOL2D and one K_ADD. The walk
 under "model.9" yields ten records; record 0 is the `cv1` weight and record 5 the `cv2`
 weight.
 
 ### TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut
 
-A row stating only 64 filters traces three MAXPOOL2D and no ADD, and its `cv2` weight is
+A row stating only 64 filters traces three K_MAXPOOL2D and no K_ADD, and its `cv2` weight is
 [64, 1, 1, 128].
 
 ### TheFactoryRefusesAnEvenKernel
@@ -1366,12 +1366,12 @@ The key `hidden` fails with the context and "'hidden'". A row without `filters` 
 
 ### TheFactoryHandsTheNormOptionsToBothNorms
 
-A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two BATCHNORM2D nodes and four
+A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two K_BATCHNORM2D nodes and four
 updates, and `expect_norm_options` finds those two values on all of them.
 
 ### TheFactoryReadsKernelAndPools
 
-With `kernel` 3 and `pools` 1 the trace holds one MAXPOOL2D whose attributes 0, 1 and 6, which
+With `kernel` 3 and `pools` 1 the trace holds one K_MAXPOOL2D whose attributes 0, 1 and 6, which
 are kernel_h, kernel_w and pad_top, are 3, 3 and 1. The `cv2` weight is [64, 1, 1, 64].
 
 ## test_buffer.cpp
@@ -1380,7 +1380,7 @@ Tests Buffer: its description, its one leaf per graph and its identity.
 
 This file needs no device. `NN::Buffer` in `include/SushiAI/nn/buffer.hpp` is state a model
 owns that takes no gradient. `define()` records its shape, starting value and element type and
-returns a `Status`. `read()` declares a leaf of lifetime `Graph::Lifetime::BUFFER` in the graph
+returns a `Status`. `read()` declares a leaf of lifetime `Graph::Lifetime::Buffer` in the graph
 of the builder it is given.
 
 ### K_EXACT_TOLERANCE
@@ -1404,11 +1404,11 @@ type and the starting value 1.0.
 
 ### DefineDefaultsToFloat32
 
-`define([8], 0.0)` with no element type records `DType::FLOAT32`.
+`define([8], 0.0)` with no element type records `DType::Float32`.
 
 ### ADefinedBufferAddsNoLeafUntilItIsRead
 
-After `define()` alone a graph holds no value and `id_in(graph)` is `Graph::NO_VALUE`.
+After `define()` alone a graph holds no value and `id_in(graph)` is `Graph::K_NO_VALUE`.
 
 ### DefineDrawsTheIdentity
 
@@ -1435,7 +1435,7 @@ the same after both reads.
 ### ACopiedBufferHasANewStateId
 
 A copy of a defined and read buffer has the original's shape and starting value and a state
-that is neither `K_NO_STATE` nor the original's. `copy.id_in(graph)` is `NO_VALUE` until the
+that is neither `K_NO_STATE` nor the original's. `copy.id_in(graph)` is `K_NO_VALUE` until the
 copy is read, and its leaf then differs from the original's, which keeps its own.
 
 ### AMovedBufferKeepsItsStateId
@@ -1554,7 +1554,7 @@ No shape at all fails with a message containing "at least one input".
 
 ### ForwardEmitsOneConcatChannelsReadingEveryInputInOrder
 
-`forward` over the values b and a adds one `Ops::CONCAT_CHANNELS` node whose inputs are b then
+`forward` over the values b and a adds one `Ops::K_CONCAT_CHANNELS` node whose inputs are b then
 a. It appends one id to `outputs`, the node's one output.
 
 ### ForwardResultIsThePortShapeWithABatchAxis
@@ -1646,7 +1646,7 @@ for it.
 
 ### AnUnknownLayerTypeListsEveryTypeThisBuildHas
 
-The model names a layer type "hologram", which no row of `NN::LAYER_REGISTRY` carries. The
+The model names a layer type "hologram", which no row of `NN::K_LAYER_REGISTRY` carries. The
 message contains "hologram", "layer type", "'linear'" and "'gelu'". The unknown type has to
 be a name the registry does not hold, and "conv2d" is a row of the table.
 
@@ -1659,7 +1659,7 @@ that width is an error and not a line that does nothing.
 
 The cases from AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite to
 AMalformedOutputIsAnError cover the two versions of the model document that
-`Config::parse_model` reads. `Config::MODEL_VERSION` is 2. A version 1 document carries the key
+`Config::parse_model` reads. `Config::K_MODEL_VERSION` is 2. A version 1 document carries the key
 `sushiai_model` and an `input` of `features`. A version 2 document carries `format_version`,
 an `input` of `shape`, an optional `from` on each row, and the optional top-level keys
 `defaults` and `outputs`. Both parse to one `Config::ModelSpec`, in which every row holds its
@@ -1700,8 +1700,8 @@ the one output is row 4 with no port and no name.
 
 ### AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount
 
-`GOOD_MODEL`, a version 1 document of 6 features, parses to `input_shape` [6] and
-`input_features` 6. The case also asserts that `Config::MODEL_VERSION` is 2.
+`K_GOOD_MODEL`, a version 1 document of 6 features, parses to `input_shape` [6] and
+`input_features` 6. The case also asserts that `Config::K_MODEL_VERSION` is 2.
 
 ### AVersionTwoInputShapeKeepsItsRankAndCountsItsElements
 
@@ -1715,7 +1715,7 @@ An empty `shape` throws with a message containing "'input' 'shape'" and "empty".
 
 ### AnInputShapeAboveTheRankOrTheElementLimitIsAnError
 
-A shape of `MAX_RANK` + 1 extents throws with "'shape'" and "at most". The shape
+A shape of `K_MAX_RANK` + 1 extents throws with "'shape'" and "at most". The shape
 [4294967296, 4294967296], whose product is 2^64, throws with "'shape'", "entry 1" and "more
 elements".
 
@@ -1880,12 +1880,12 @@ The four extents differ, so a weight with two axes swapped fails the comparison.
 
 ### ALayerWithABiasTracesOneBiasAdd
 
-The traced graph holds exactly one BIAS_ADD node.
+The traced graph holds exactly one K_BIAS_ADD node.
 
 ### ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd
 
 With `use_bias` false the walk yields the weight alone, the bias is not declared, the graph
-holds no BIAS_ADD node, and the result shape is still [4, 28, 28, 8].
+holds no K_BIAS_ADD node, and the result shape is still [4, 28, 28, 8].
 
 ### TheWeightAndTheBiasRecordTheirFans
 
@@ -1918,7 +1918,7 @@ A 3x3 window with stride 2, padding 1 and dilations 2 by 3 maps [11, 13, 2] to [
 ### OutputShapeAgreesWithForwardForAPointwiseWindow
 
 A 1x1 window with six filters maps [5, 7, 4] to [5, 7, 6]. This is the geometry for which
-`GraphBuilder::conv2d` emits no IM2COL.
+`GraphBuilder::conv2d` emits no K_IM2COL.
 
 ### SamePaddedPadsByHalfTheKernelAndDropsTheBias
 
@@ -1942,12 +1942,12 @@ trace.
 ### SamePaddedTracesNoBias
 
 A traced `same_padded(2, 8, 3, 1)` layer walks as "weight:[8, 3, 3, 2]" alone. Its bias is not
-declared and the graph holds no BIAS_ADD node.
+declared and the graph holds no K_BIAS_ADD node.
 
 ### ANonZeroBiasInitReachesTheBiasParameter
 
 A layer with `bias_init` set to -4.5 traces a bias whose `init()` is a constant of -4.5 and
-whose role is `ParameterRole::BIAS`. -4.5 is exact in binary.
+whose role is `ParameterRole::Bias`. -4.5 is exact in binary.
 
 ### TheDefaultBiasInitIsTheConstantZero
 
@@ -2024,7 +2024,7 @@ refuses before it writes anything to the graph.
 ### DifferentiatingALossYieldsAGradientForTheWeightAndTheBias
 
 The layer's result is reduced with `spatial_mean` and passed to `NN::CrossEntropyLoss`.
-`Autograd::differentiate` returns two gradients, neither is `NO_VALUE`, and each has the shape
+`Autograd::differentiate` returns two gradients, neither is `K_NO_VALUE`, and each has the shape
 of its parameter. The case checks that a gradient exists and has the right shape; it computes
 no number.
 
@@ -2921,7 +2921,7 @@ The cases fall into five groups, in file order:
 
 ### ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit
 
-MAX_RANK is SushiBLAS's, so the number in the message is the one a reader has to reconcile
+K_MAX_RANK is SushiBLAS's, so the number in the message is the one a reader has to reconcile
 against the tensor they were trying to build.
 
 ### ShapeNonPositiveExtentNamesTheOffendingExtent
@@ -2941,22 +2941,22 @@ to say which two operations collided.
 
 ### AOneElementRootOfADifferentiableOperationIsSeeded
 
-The root is a [1, 1] MATMUL of a parameter `x` and an input `w`. Differentiation does not
-throw and appends two nodes. The first is a CONSTANT in the root's shape, the seed. The second
-is a MATMUL that reads the seed and `w`, and its result is the gradient of `x`, in the shape of
+The root is a [1, 1] K_MATMUL of a parameter `x` and an input `w`. Differentiation does not
+throw and appends two nodes. The first is a K_CONSTANT in the root's shape, the seed. The second
+is a K_MATMUL that reads the seed and `w`, and its result is the gradient of `x`, in the shape of
 `x`. `test_loss_roots.cpp` covers the seed in full.
 
 ### ARootThatRequiresNoGradientNamesItsProducerAndTheCause
 
-Two roots are refused. A MATMUL of two inputs is reached by no parameter, and the message
-contains "value 3", "sushiai.matmul" and "requires no gradient". A MATMUL that reads the
+Two roots are refused. A K_MATMUL of two inputs is reached by no parameter, and the message
+contains "value 3", "sushiai.matmul" and "requires no gradient". A K_MATMUL that reads the
 parameter through `stop_gradient` is refused with a message containing "sushiai.matmul",
-"requires no gradient" and "STOP_GRADIENT", so the message names the barrier as a cause the
+"requires no gradient" and "K_STOP_GRADIENT", so the message names the barrier as a cause the
 caller can look for.
 
 ### ARootWhoseProducerHasNoRuleNamesTheProducer
 
-The root is a DYNAMIC_SCALE of a parameter, an operation with no backward rule. The message
+The root is a K_DYNAMIC_SCALE of a parameter, an operation with no backward rule. The message
 contains "sushiai.dynamic_scale", "has no backward rule" and "autograd/rules/", the folder a
 rule is added in.
 
@@ -2973,12 +2973,12 @@ what turns that into something findable.
 ### LogSoftmaxOutsideTheFusedPairExplainsTheRestriction
 
 Naming the way out matters more than naming the failure. The caller has to be told to route
-through NLL_LOSS, and not merely that log-softmax said no.
+through K_NLL_LOSS, and not merely that log-softmax said no.
 
 ### AGradientContributedToTheWrongShapeNamesBothShapes
 
 This error is reachable only from inside a backward rule, so the test provokes it the way a
-buggy rule would. It builds a graph by hand whose SUB claims a result of a different shape from
+buggy rule would. It builds a graph by hand whose K_SUB claims a result of a different shape from
 its operands, so the rule contributes a [4, 3] gradient to a [2, 6] value.
 
 ## test_elementwise_ops.cpp
@@ -3000,16 +3000,16 @@ two-operand member of `GraphBuilder`. `UnaryEmitter` is the same for one operand
 
 ### K_BINARY_EMITTERS
 
-`K_BINARY_EMITTERS` lists `div`, `minimum`, `maximum` and `less_equal` with DIV, MINIMUM,
-MAXIMUM and LESS_EQUAL.
+`K_BINARY_EMITTERS` lists `div`, `minimum`, `maximum` and `less_equal` with K_DIV, K_MINIMUM,
+K_MAXIMUM and K_LESS_EQUAL.
 
 ### K_UNARY_EMITTERS
 
-`K_UNARY_EMITTERS` lists `abs`, `atan`, `softplus` and `silu` with ABS, ATAN, SOFTPLUS and SILU.
+`K_UNARY_EMITTERS` lists `abs`, `atan`, `softplus` and `silu` with K_ABS, K_ATAN, K_SOFTPLUS and K_SILU.
 
 ### K_INPUT_READING_GRADIENTS
 
-`K_INPUT_READING_GRADIENTS` lists SILU_BACKWARD and SOFTPLUS_BACKWARD, the two activation
+`K_INPUT_READING_GRADIENTS` lists K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD, the two activation
 gradients that read the forward input.
 
 ### nchw_input
@@ -3064,7 +3064,7 @@ and is FLOAT64 and NCHW.
 
 ### SelectReadsItsConditionThenBothBranches
 
-`select(condition, a, b)` writes one SELECT node whose inputs are the condition, `a` and `b`,
+`select(condition, a, b)` writes one K_SELECT node whose inputs are the condition, `a` and `b`,
 in that order.
 
 ### SelectKeepsShapeDtypeAndLayout
@@ -3089,7 +3089,7 @@ A FLOAT32 branch with a FLOAT64 branch throws in both orders.
 
 ### ActivationBackwardEmitsTheInputReadingGradients
 
-For SILU_BACKWARD and SOFTPLUS_BACKWARD, `activation_backward(gradient, dy, x)` writes one node
+For K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD, `activation_backward(gradient, dy, x)` writes one node
 of that identity whose inputs are `dy` then `x`, and the result is described like `dy`.
 
 ### InputReadingGradientsRejectAGradientOfAnotherShape
@@ -3102,8 +3102,8 @@ A FLOAT32 value with a FLOAT64 one throws for both gradients, in both orders.
 
 ### ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient
 
-`activation_backward` throws when the identity is SILU, SOFTPLUS or DIV. The first two are
-forward identities of `Ops::ACTIVATIONS` and the third is not in the table.
+`activation_backward` throws when the identity is K_SILU, K_SOFTPLUS or K_DIV. The first two are
+forward identities of `Ops::K_ACTIVATIONS` and the third is not in the table.
 
 ### FinaliseAcceptsAGraphUsingEveryEmitter
 
@@ -3133,7 +3133,7 @@ a `select` that reads it as its condition over two inputs.
 
 ### ConstantWritesAnOperandFreeNodeHoldingItsValue
 
-`constant([4, 3], 1e-7, FLOAT64)` writes one CONSTANT node with no input. Attribute slot 0
+`constant([4, 3], 1e-7, FLOAT64)` writes one K_CONSTANT node with no input. Attribute slot 0
 holds 1e-7 within 1e-20, and the value is [4, 3], FLOAT64, NHWC and ACTIVATION. `K_VALUE` and
 `K_VALUE_TOLERANCE` are constants local to the case.
 
@@ -3148,7 +3148,7 @@ unchanged.
 
 ### ConstantLikeCopiesShapeDtypeAndLayoutWithoutReadingItsOperand
 
-`constant_like(x, 0.5)` over a FLOAT64 NCHW value writes a CONSTANT node with no input whose
+`constant_like(x, 0.5)` over a FLOAT64 NCHW value writes a K_CONSTANT node with no input whose
 result is described like `x`. The value it names is not an operand of the node.
 
 ### ConstantLikeRejectsAValueThatIsNotRealFloating
@@ -3163,7 +3163,7 @@ no gradient.
 
 ### ZerosStillWritesTheZeroIdentity
 
-`zeros` and `zeros_like` each write a ZERO node with no input. ZERO and CONSTANT are two
+`zeros` and `zeros_like` each write a K_ZERO node with no input. K_ZERO and K_CONSTANT are two
 identities.
 
 ## test_flatten.cpp
@@ -3184,7 +3184,7 @@ Two `static_assert` lines require `Flatten` to be a `Module` and not a `ModuleCo
 
 ### ARank4InputTracesToOneReshape
 
-A [2, 4, 5, 3] input traces to a [2, 60] value. The trace adds exactly one node, a RESHAPE
+A [2, 4, 5, 3] input traces to a [2, 60] value. The trace adds exactly one node, a K_RESHAPE
 with the input as its one operand and the result as its one output.
 
 ### ARank3InputFoldsItsTwoInnerAxes
@@ -3241,7 +3241,7 @@ graphs the pass must decline, one per rule:
 - a spilled pre-activation read by a node that runs before the fused one.
 
 The activation whose gradient differentiates at its input used to be a fourth entry on that
-list. It no longer is. GEMM_BIAS_GELU folds it by spilling the pre-activation to a second
+list. It no longer is. K_GEMM_BIAS_GELU folds it by spilling the pre-activation to a second
 output, so the refusal became a condition: an INPUT-gradient activation may be folded only by an
 entry that writes the tensor its gradient reads, and only if it writes the right one. That
 condition has a compile-time half in `src/graph/fusion.cpp`, where an entry breaking either half
@@ -3264,7 +3264,7 @@ a graph that happens to contain it.
 
 ### AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts
 
-`activation_survives_fusion(RELU)` is the property the static_assert in `src/graph/fusion.cpp`
+`activation_survives_fusion(K_RELU)` is the property the static_assert in `src/graph/fusion.cpp`
 reads. If it ever flips for an activation that has a catalog entry, the static_assert catches
 it, but only while the property stays true of the table the static_assert consults. This test
 pins that.
@@ -3302,7 +3302,7 @@ this test shows that the pass consults it.
 
 ### AnIntermediateWithASecondConsumerIsNotFusedAway
 
-The `also` value is a second reader of the MATMUL's result. Fusing would mean recomputing the
+The `also` value is a second reader of the K_MATMUL's result. Fusing would mean recomputing the
 result for that reader, or losing it.
 
 ### AnIntermediateTheCallerReadsByIdIsNotFusedAway
@@ -3310,7 +3310,7 @@ result for that reader, or losing it.
 The `observed` list names `biased`, which is the logits of a real classifier. The training loop
 reads it after every replay to score accuracy, and a fused form gives it no buffer to read.
 
-`report.count(GEMM_BIAS)` is still 1: the pass falls back to the shorter form rooted at the
+`report.count(K_GEMM_BIAS)` is still 1: the pass falls back to the shorter form rooted at the
 bias_add, whose own intermediate is free.
 
 ### AParameterIsProtectedWithoutBeingListed
@@ -3331,21 +3331,21 @@ reason it is allowed to exist: the fused node keeps writing that value, as a sec
 under the same id.
 
 The check on the fused node's second output is the assertion that carries the test, and a plain
-GEMM_BIAS_GELU with no spill would fail it. The fused node still writes the pre-activation as
+K_GEMM_BIAS_GELU with no spill would fail it. The fused node still writes the pre-activation as
 its second output, and it is the same value, so `gelu_backward`'s operand needed no rewriting
 and the backward rule needed no change.
 
-`fused()[0].eliminated` holds only the MATMUL's result. A report that listed the spilled value
+`fused()[0].eliminated` holds only the K_MATMUL's result. A report that listed the spilled value
 as eliminated would read like the report of the silently wrong version of this pass.
 
 ### ASpilledPreActivationReadBeforeTheFusedNodeIsRefused
 
-The `early` reader shows the one new way the GEMM_BIAS_GELU entry could break the graph: a
-wrong order, not a wrong number. The fused node is emitted at the GELU's position, so a reader
-of the pre-activation sitting between the bias_add and the GELU would end up reading a value
+The `early` reader shows the one new way the K_GEMM_BIAS_GELU entry could break the graph: a
+wrong order, not a wrong number. The fused node is emitted at the K_GELU's position, so a reader
+of the pre-activation sitting between the bias_add and the K_GELU would end up reading a value
 written after it. Every pass downstream of fusion assumes that cannot happen.
 
-`report.count(GEMM_BIAS)` is 1: the pass still falls back to the shorter form, as it does after
+`report.count(K_GEMM_BIAS)` is 1: the pass still falls back to the shorter form, as it does after
 any other refusal of the three-node entry.
 
 The closing loop over the nodes checks that the rewritten graph is still topological, which is
@@ -3354,12 +3354,12 @@ the property the refusal exists to protect.
 ### ASpilledPreActivationMayBeReadFromOutsideTheGraph
 
 This case mirrors VALUE_IS_OBSERVED. That rule exists because a fused form gives an interior
-value no buffer to read. The GEMM_BIAS_GELU entry gives it one, so naming the pre-activation as
+value no buffer to read. The K_GEMM_BIAS_GELU entry gives it one, so naming the pre-activation as
 observed must not refuse the fold.
 
 ### TheGeluFoldStillObeysEveryOtherRefusal
 
-A spill licenses one interior value and no others. The MATMUL's result is not spilled, so a
+A spill licenses one interior value and no others. The K_MATMUL's result is not spilled, so a
 second reader of it refuses the whole chain as it does for every other entry. The fallback is
 nothing, because the same value blocks gemm+bias.
 
@@ -3368,7 +3368,7 @@ nothing, because the same value blocks gemm+bias.
 The last two assertions check that the GELU left outside is not also reported as unfoldable.
 "Its gradient differentiates at its input" and "no catalog entry composes it" are both false for
 this graph, and either would send a reader to change the wrong thing. The reason asserted just
-before them, `FusionDecline::DISABLED`, is the only one.
+before them, `FusionDecline::Disabled`, is the only one.
 
 ### ARecoverableActivationNextToAFusedGemmIsFoldedNotReported
 
@@ -3390,9 +3390,9 @@ from the chain's first node, and that is where a rewrite gets the order wrong.
 
 ### StateLeavesAndTheRefusalMarkSurviveTheRewrite
 
-The graph is a MATMUL, a BIAS_ADD whose bias is a buffer, and a RELU. The weight and the buffer
+The graph is a K_MATMUL, a K_BIAS_ADD whose bias is a buffer, and a K_RELU. The weight and the buffer
 are bound to the states 21 and 22 and the graph is marked refused before `Graph::fuse` runs.
-The report lists one fused form and the graph holds one GEMM_BIAS_RELU node, so the pass did
+The report lists one fused form and the graph holds one K_GEMM_BIAS_RELU node, so the pass did
 rebuild the graph. Both `state_leaf` lookups and the whole `state_leaves()` table are what they
 were. The buffer keeps the lifetime `BUFFER` and no gradient, the weight still requires one,
 and `has_refusal()` is still true.
@@ -3421,7 +3421,7 @@ A [4, 7, 5, 16] input traces to [4, 16].
 
 ### ForwardEmitsOneSpatialMeanNode
 
-The trace adds exactly one node, a SPATIAL_MEAN with the input as its one operand and the
+The trace adds exactly one node, a K_SPATIAL_MEAN with the input as its one operand and the
 result as its one output.
 
 ### ForwardKeepsTheNhwcLayoutTag
@@ -6004,7 +6004,7 @@ the rejection a statement about position and not about the node.
 
 ### AttributesHoldAConvolutionsGeometryAndItsWindowGrid
 
-`Attributes::CAPACITY` is ten, not eight. The eight of CV-5 are the geometry: kernel_h/w,
+`Attributes::K_CAPACITY` is ten, not eight. The eight of CV-5 are the geometry: kernel_h/w,
 stride_h/w, dilation_h/w, pad_top, pad_left. Slots 8 and 9 are the output extents out_h and
 out_w, and they have to be carried and cannot be re-derived. Deriving them from the geometry
 assumes symmetric padding, and an asymmetric window grid can derive to its own transpose with
@@ -6018,7 +6018,7 @@ Nothing downstream caps the ten. Nothing copies an attribute into a fixed-width 
 The nine cases from here are in the suite `Unit_Ir`; the cases above are in `Unit_IR`.
 
 `GraphBuilder::buffer` declares a value of the shape, type and name it was given, with the
-lifetime `Lifetime::BUFFER` and `requires_grad` false. Its producer is a LEAF node. A BIAS_ADD
+lifetime `Lifetime::Buffer` and `requires_grad` false. Its producer is a K_LEAF node. A K_BIAS_ADD
 that reads an input and a buffer does not require a gradient either. `is_persistent(BUFFER)` is
 true and `lifetime_name(BUFFER)` is "buffer".
 
@@ -6029,8 +6029,8 @@ false for ACTIVATION and SCRATCH.
 
 ### StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState
 
-`Graph::state_leaf` returns `NO_VALUE` before any binding. After `bind_state_leaf` of state 7
-to a buffer and state 5 to a parameter, it returns each leaf for its state and `NO_VALUE` for
+`Graph::state_leaf` returns `K_NO_VALUE` before any binding. After `bind_state_leaf` of state 7
+to a buffer and state 5 to a parameter, it returns each leaf for its state and `K_NO_VALUE` for
 state 6 and for `K_NO_STATE`. `state_leaves()` holds the two pairs in the order they were
 bound, not in the order of the state numbers.
 
@@ -6045,7 +6045,7 @@ still holds the first pair alone.
 
 `Graph::without_nodes()` returns a graph with no node and the same number of values. Every
 value keeps its shape, element type, layout, lifetime, `requires_grad` and debug name, and its
-producer is `NO_NODE`. The fixture holds an NCHW value, a parameter that requires a gradient
+producer is `K_NO_NODE`. The fixture holds an NCHW value, a parameter that requires a gradient
 and a HALF buffer, and each is checked by name. The copy's `state_leaves()` equals the
 source's. The source graph still has its nodes and producers.
 
@@ -6077,9 +6077,9 @@ After a move construction the target peeks the source's identity and the source 
 
 Tests the layer registry: each row's factory, the keys it reads and the model it builds.
 
-This file needs no device. `NN::LAYER_REGISTRY` in `include/SushiAI/nn/layer_registry.hpp` is
+This file needs no device. `NN::K_LAYER_REGISTRY` in `include/SushiAI/nn/layer_registry.hpp` is
 a constant table of fourteen rows, and a factory turns a per-sample input shape and a parsed
-JSON object into an `NN::ILayer`. A case therefore needs a `Shape`, a string of JSON and, for
+JSON object into an `NN::Layer`. A case therefore needs a `Shape`, a string of JSON and, for
 the model cases, a host-side graph.
 
 The cases fall into three groups, in file order:
@@ -6119,14 +6119,14 @@ carries the required keys of its row and no other.
 
 ### make_layer
 
-`make_layer` looks a type up in `NN::LAYER_REGISTRY` with `Config::find_entry` and calls the
+`make_layer` looks a type up in `NN::K_LAYER_REGISTRY` with `Config::find_entry` and calls the
 row's factory with the context "layer 0 '<type>'". The cases that assert a message expect that
 context in it.
 
 ### wrapped
 
 `wrapped<L>` returns the layer of type `L` inside an `NN::LayerAdapter<L>`, or null when the
-`ILayer` wraps another type. The `dynamic_cast` is how a case tells which layer type a factory
+`Layer` wraps another type. The `dynamic_cast` is how a case tells which layer type a factory
 built and reads the fields the factory set.
 
 ### square_window
@@ -6157,13 +6157,13 @@ makes of it.
 
 ### EveryRowHasAMinimalCase
 
-`K_MINIMAL_CASES` has as many entries as `NN::LAYER_REGISTRY`, and entry `i` names the type of
+`K_MINIMAL_CASES` has as many entries as `NN::K_LAYER_REGISTRY`, and entry `i` names the type of
 row `i`. A row added to the registry without a case here fails this test, so the two tests
 that loop over the cases cover every factory.
 
 ### TheTypeStringsAreTheOnesModelFilesSpell
 
-The `type` fields of `NN::LAYER_REGISTRY` are, in order, "linear", "gelu", "relu", "tanh",
+The `type` fields of `NN::K_LAYER_REGISTRY` are, in order, "linear", "gelu", "relu", "tanh",
 "sigmoid", "leaky_relu", "unflatten", "conv2d", "maxpool2d", "avgpool2d", "global_avgpool",
 "flatten", "upsample" and "silu". A model file names a layer by one of these strings, so a
 renamed row fails here.
@@ -6293,13 +6293,13 @@ written from one model therefore names its parameters as the other reads them.
 ### CrossEntropyDifferentiatesToEveryParameterOfTheConvModel
 
 The stack's output goes into `NN::CrossEntropyLoss`, and the loss is differentiated against
-the six parameters the walk yields. Every gradient is a value other than `NO_VALUE` with the
+the six parameters the walk yields. Every gradient is a value other than `K_NO_VALUE` with the
 shape of its parameter. The case checks that the graph differentiates; it computes no number.
 
 ### ASiluRowTracesOneSiluNode
 
 The layer of a `silu` row over [8, 8, 2], traced over [4, 8, 8, 2], adds one node. Its
-operation is `Ops::SILU` and the result keeps the shape [4, 8, 8, 2].
+operation is `Ops::K_SILU` and the result keeps the shape [4, 8, 8, 2].
 
 ### AVersionTwoChainStartsFromTheInputShape
 
@@ -6341,7 +6341,7 @@ Tests the runtime layer seam: LayerStack, LayerAdapter and the shape the factori
 
 This file needs no device. A LayerStack is host-lane, and the first property this file pins,
 that it names its parameters exactly as Sequential does, is a property of the walk and not of
-any memory. The second is the per-sample `Shape` that `NN::ILayer::output_shape()` reports
+any memory. The second is the per-sample `Shape` that `NN::Layer::output_shape()` reports
 and `NN::build_layer_stack` hands from each layer to the next factory.
 
 The comparison is written as "trace both, walk both, compare the two lists" and not as "check
@@ -6389,9 +6389,9 @@ A `LayerAdapter<Linear>` constructed with the width 8 reports the shape [8] and
 
 ### OutputFeaturesEqualsTheElementCountOfTheOutputShape
 
-Through an `ILayer` reference, `output_features()` of an adapter of shape [4, 5, 3] is 60 and
+Through an `Layer` reference, `output_features()` of an adapter of shape [4, 5, 3] is 60 and
 equals `output_shape().num_elements()`. `output_features()` is a non-virtual function of
-`ILayer` in `include/SushiAI/nn/ilayer.hpp`, derived from the one virtual.
+`Layer` in `include/SushiAI/nn/layer.hpp`, derived from the one virtual.
 
 ### ReportsTheLastLayersOutputShape
 
@@ -6460,7 +6460,7 @@ model learns from transposed data.
 
 ### LayoutConvertIsAllowedToChangeIt
 
-LAYOUT_CONVERT is the one exemption, and the reason the check runs per node and not as a single
+K_LAYOUT_CONVERT is the one exemption, and the reason the check runs per node and not as a single
 sweep over every value.
 
 ### DeclareLikeInheritsTheSourceValuesLayout
@@ -6512,17 +6512,17 @@ tag into rank-2 land with no guard at all, so unlike the two rank-4 sites the em
 chain be built.
 
 The last `EXPECT_THROW(graph.finalise(), Error)` shows what blocks that chain: the far end.
-`differentiate()` only seeds a loss produced by NLL_LOSS, whose one-hot operand is a leaf and so
-always NHWC, and nothing but LAYOUT_CONVERT may cross back, which is rank-4 only. `finalise()`
+`differentiate()` only seeds a loss produced by K_NLL_LOSS, whose one-hot operand is a leaf and so
+always NHWC, and nothing but K_LAYOUT_CONVERT may cross back, which is rank-4 only. `finalise()`
 rejects that node before differentiation ever runs, so the rule is never reached with an NCHW
 gradient. The guard is the pre-existing proof in `finalise()`, not a check in any emitter, and
 that is why it is worth a test and not a sentence.
 
 ### ZerosLikeCarriesTheTagAndPlainZerosCannot
 
-The three backward rules now depend on this contract. ZERO reads nothing, so plain `zeros()` has
+The three backward rules now depend on this contract. K_ZERO reads nothing, so plain `zeros()` has
 no operand to inherit from and its NHWC tag is a default, not an answer. That is harmless for
-the ZERO node itself, which the per-node proof skips for having no inputs. The consumer that
+the K_ZERO node itself, which the per-node proof skips for having no inputs. The consumer that
 reads those zeros beside a real operand is the node that would be seen crossing layouts.
 
 ### FinaliseStillPropagatesRequiresGrad
@@ -6560,7 +6560,7 @@ A default-constructed layer has slope 0.01.
 
 ### ForwardEmitsOneLeakyReluNodeCarryingTheSlope
 
-The trace of a layer with slope 0.2 adds exactly one node, a LEAKY_RELU with the input as its
+The trace of a layer with slope 0.2 adds exactly one node, a K_LEAKY_RELU with the input as its
 one operand and the result as its one output. Attribute slot 0 of the node holds 0.2.
 
 ### ForwardKeepsTheShapeAndTypeOfAFeatureBatch
@@ -6633,20 +6633,20 @@ After `forward()` throws for a slope of 1, the node count and the value count ar
 
 ## test_loss_roots.cpp
 
-Tests which values differentiation accepts as a loss, the seed it emits and the STOP_GRADIENT
+Tests which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT
 barrier.
 
 This file needs no device. Every case in `Unit_LossRoots` builds a host-side graph, calls
 `Autograd::differentiate` and reads the appended nodes or the error. A root produced by
-NLL_LOSS is seeded by that operation's own rule. Any other one-element root of a real floating
-type whose producer has a rule gets a CONSTANT of 1 as its gradient. Most refusal cases also
+K_NLL_LOSS is seeded by that operation's own rule. Any other one-element root of a real floating
+type whose producer has a rule gets a K_CONSTANT of 1 as its gradient. Most refusal cases also
 check that the node count is unchanged, so a refused call leaves the graph as it was.
 
 ### Constants
 
 `K_ATTRIBUTE_TOLERANCE` is 1e-12, the error allowed on an attribute a rule copies from the
-forward node. `K_TERM_WEIGHT` is 2.0, the factor of the SCALE term in `WeightedSum`.
-`K_ROOT_WEIGHT` is 0.5, the factor of the SCALE that ends a loss in the cases that need one.
+forward node. `K_TERM_WEIGHT` is 2.0, the factor of the K_SCALE term in `WeightedSum`.
+`K_ROOT_WEIGHT` is 0.5, the factor of the K_SCALE that ends a loss in the cases that need one.
 
 ### op_names
 
@@ -6660,38 +6660,38 @@ passes the forward node count, so the list covers the appended nodes.
 ### differentiate
 
 The file-local `differentiate` wraps `Autograd::differentiate` so that a case passes its `wrt`
-list as a vector. The seed factor defaults to `NO_VALUE` and the provenance to null.
+list as a vector. The seed factor defaults to `K_NO_VALUE` and the provenance to null.
 
 ### WeightedSum
 
 `WeightedSum` holds the loss `K_TERM_WEIGHT * a + b * c` over three one-element parameters:
-a SCALE, a MUL and the ADD of the two. It keeps the ids of the parameters and of the three
+a K_SCALE, a K_MUL and the K_ADD of the two. It keeps the ids of the parameters and of the three
 results.
 
 ### ASumOfTwoTermsEndingInAddReachesEveryParameter
 
-The root is the ADD. Four nodes are appended: CONSTANT, MUL, MUL, SCALE. The CONSTANT is the
-seed. The two MUL nodes read the seed with `c` and with `b`, and produce the gradients of `b`
-and `c`. The SCALE reads the seed with the factor `K_TERM_WEIGHT` and produces the gradient of
+The root is the K_ADD. Four nodes are appended: K_CONSTANT, K_MUL, K_MUL, K_SCALE. The K_CONSTANT is the
+seed. The two K_MUL nodes read the seed with `c` and with `b`, and produce the gradients of `b`
+and `c`. The K_SCALE reads the seed with the factor `K_TERM_WEIGHT` and produces the gradient of
 `a`. All three gradients have the lifetime GRADIENT.
 
 ### ASumOfTwoTermsEndingInScaleReachesEveryParameter
 
-The root is a SCALE of the sum by `K_ROOT_WEIGHT`. The appended nodes are CONSTANT, SCALE, MUL,
-MUL, SCALE. The first SCALE reads the seed with the factor `K_ROOT_WEIGHT`, and the three nodes
-after it read that SCALE's result, so both terms under the root receive the scaled seed. No
-gradient is `NO_VALUE`.
+The root is a K_SCALE of the sum by `K_ROOT_WEIGHT`. The appended nodes are K_CONSTANT, K_SCALE, K_MUL,
+K_MUL, K_SCALE. The first K_SCALE reads the seed with the factor `K_ROOT_WEIGHT`, and the three nodes
+after it read that K_SCALE's result, so both terms under the root receive the scaled seed. No
+gradient is `K_NO_VALUE`.
 
 ### TheSeedIsAConstantOneShapedAndTypedLikeTheRoot
 
-The root is a FLOAT64 [1, 1, 1, 1] value tagged NCHW. The first appended node is a CONSTANT
+The root is a FLOAT64 [1, 1, 1, 1] value tagged NCHW. The first appended node is a K_CONSTANT
 with no input and the value 1 in attribute slot 0, and its result is [1, 1, 1, 1], FLOAT64 and
-NCHW. The graph holds one CONSTANT, no ZERO and no EXP.
+NCHW. The graph holds one K_CONSTANT, no K_ZERO and no K_EXP.
 
 ### TheSeedFactorMultipliesTheSeedOnce
 
-With a seed factor, the appended nodes are CONSTANT, DYNAMIC_SCALE, MUL, MUL, SCALE. The
-DYNAMIC_SCALE reads the CONSTANT and the factor, the graph holds one DYNAMIC_SCALE, and the
+With a seed factor, the appended nodes are K_CONSTANT, K_DYNAMIC_SCALE, K_MUL, K_MUL, K_SCALE. The
+K_DYNAMIC_SCALE reads the K_CONSTANT and the factor, the graph holds one K_DYNAMIC_SCALE, and the
 three rule nodes read its result.
 
 ### ANonScalarRootThrowsNamingItsShape
@@ -6705,93 +6705,93 @@ A parameter passed as the root throws with a message containing "it is a leaf" a
 
 ### ARootThatNeedsNoGradientThrowsNamingTheCause
 
-The root is an ADD of two inputs and the requested parameter is not read by it. The message
+The root is an K_ADD of two inputs and the requested parameter is not read by it. The message
 contains "requires no gradient" and "sushiai.add".
 
 ### ARootWhoseProducerHasNoRuleThrowsNamingTheOperation
 
-The root is a DYNAMIC_SCALE of a parameter. The message contains "no backward rule" and
+The root is a K_DYNAMIC_SCALE of a parameter. The message contains "no backward rule" and
 "sushiai.dynamic_scale".
 
 ### ARootThatIsNotTheFirstResultThrowsNamingTheProducer
 
-The root is the index result of a MAXPOOL2D, its second output. The message contains "not the
+The root is the index result of a K_MAXPOOL2D, its second output. The message contains "not the
 first result" and "sushiai.maxpool2d".
 
 ### ARootThatIsNotRealFloatingThrowsNamingItsType
 
-The root is a SCALE of an INT32 parameter. The message contains "element type is int32" and
+The root is a K_SCALE of an INT32 parameter. The message contains "element type is int32" and
 "sushiai.scale".
 
 ### AFusedCrossEntropyRootEmitsNoSeedNode
 
-A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` appends EXP, SUB, SCALE, SUM_ROWS,
-MATMUL, MATMUL, RELU_BACKWARD, SUM_ROWS, MATMUL. The graph holds no ZERO and no CONSTANT: the
+A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` appends K_EXP, K_SUB, K_SCALE, K_SUM_ROWS,
+K_MATMUL, K_MATMUL, K_RELU_BACKWARD, K_SUM_ROWS, K_MATMUL. The graph holds no K_ZERO and no K_CONSTANT: the
 fused rule starts from the root's implicit gradient and needs no seed node.
 
 ### AnUnfusedNllLossRootEmitsNoSeedNode
 
-NLL_LOSS over a RELU result appends SCALE then RELU_BACKWARD. The SCALE reads the targets
+K_NLL_LOSS over a K_RELU result appends K_SCALE then K_RELU_BACKWARD. The K_SCALE reads the targets
 alone, so no seed node precedes it.
 
 ### AnNllLossRootAppliesTheSeedFactorInItsOwnRule
 
-With a seed factor, a LOG_SOFTMAX and NLL_LOSS pair appends EXP, SUB, SCALE, DYNAMIC_SCALE, and
-the result of the DYNAMIC_SCALE is the gradient of `x`.
+With a seed factor, a K_LOG_SOFTMAX and K_NLL_LOSS pair appends K_EXP, K_SUB, K_SCALE, K_DYNAMIC_SCALE, and
+the result of the K_DYNAMIC_SCALE is the gradient of `x`.
 
 ### StopGradientEmitsAnIdentityShapedLikeItsOperand
 
-`stop_gradient` of a FLOAT64 NCHW value writes one STOP_GRADIENT node that reads the operand.
+`stop_gradient` of a FLOAT64 NCHW value writes one K_STOP_GRADIENT node that reads the operand.
 The result has the operand's shape and is FLOAT64 and NCHW, and `finalise()` accepts the graph.
 
 ### StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable
 
-`Ops::STOP_GRADIENT` has `blocks_gradient` true and `differentiable` false.
-`Ops::is_gradient_barrier` is true for it and false for RESHAPE, and its name is
+`Ops::K_STOP_GRADIENT` has `blocks_gradient` true and `differentiable` false.
+`Ops::is_gradient_barrier` is true for it and false for K_RESHAPE, and its name is
 "sushiai.stop_gradient".
 
 ### RequiresGradDoesNotCrossStopGradient
 
-After `finalise()`, a parameter requires a gradient and so does a SCALE that reads it. The
-STOP_GRADIENT result and a SCALE that reads that result do not.
+After `finalise()`, a parameter requires a gradient and so does a K_SCALE that reads it. The
+K_STOP_GRADIENT result and a K_SCALE that reads that result do not.
 
 ### StopGradientBlocksAParameterReachableOnlyThroughIt
 
 The loss is `stop_gradient(scale(blocked)) * open`. Differentiation does not throw and appends
-CONSTANT and MUL. The gradient of `blocked` is `NO_VALUE`, and the gradient of `open` is the
-MUL of the seed and the stopped value.
+K_CONSTANT and K_MUL. The gradient of `blocked` is `K_NO_VALUE`, and the gradient of `open` is the
+K_MUL of the seed and the stopped value.
 
 ### AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradient
 
-The loss is `stop_gradient(x) * x`. The appended nodes are CONSTANT and MUL, the MUL reads the
+The loss is `stop_gradient(x) * x`. The appended nodes are K_CONSTANT and K_MUL, the K_MUL reads the
 seed and the stopped value, and its result is the gradient of `x`. The graph holds no
-ACCUMULATE, so the stopped path contributes nothing to the sum.
+K_ACCUMULATE, so the stopped path contributes nothing to the sum.
 
 ### ALossReachableOnlyThroughStopGradientThrowsNamingTheBarrier
 
-The root is a SCALE of `stop_gradient(x)`. The message contains "requires no gradient" and
+The root is a K_SCALE of `stop_gradient(x)`. The message contains "requires no gradient" and
 "sushiai.scale".
 
 ### AStopGradientRootThrowsForRequiringNoGradient
 
-The root is the STOP_GRADIENT result. The message contains "requires no gradient" and
+The root is the K_STOP_GRADIENT result. The message contains "requires no gradient" and
 "sushiai.stop_gradient".
 
 ### AContributionToAStopGradientResultIsDroppedWithoutAskingForARule
 
 The graph is that of StopGradientBlocksAParameterReachableOnlyThroughIt, with `requires_grad`
 of the stopped value set by hand after the graph is built. `finalise()` only sets the flag, so
-the hand-set value survives it and MUL's rule contributes a gradient to the stopped value.
-Differentiation does not throw. It appends CONSTANT, MUL, MUL, the gradient of `blocked` is
-`NO_VALUE`, and no appended node has the STOP_GRADIENT node as its origin in the `Provenance`.
+the hand-set value survives it and K_MUL's rule contributes a gradient to the stopped value.
+Differentiation does not throw. It appends K_CONSTANT, K_MUL, K_MUL, the gradient of `blocked` is
+`K_NO_VALUE`, and no appended node has the K_STOP_GRADIENT node as its origin in the `Provenance`.
 The reverse walk steps over the barrier and asks no rule of it.
 
 ### TheSeedNodesHaveTheRootProducerAsOrigin
 
 `WeightedSum` is differentiated with a seed factor and a `Provenance`. Five nodes are appended.
-The origin of the CONSTANT and of the DYNAMIC_SCALE is the ADD that produces the root. The
-origin of the two MUL nodes is the forward MUL, and the origin of the SCALE is the forward
-SCALE.
+The origin of the K_CONSTANT and of the K_DYNAMIC_SCALE is the K_ADD that produces the root. The
+origin of the two K_MUL nodes is the forward K_MUL, and the origin of the K_SCALE is the forward
+K_SCALE.
 
 ### AConstantRootThrowsForRequiringNoGradient
 
@@ -6805,8 +6805,8 @@ gradient" and "sushiai.less_equal".
 
 ### RequiresGradCrossesNoGradientBarrier
 
-After `finalise()`, a LESS_EQUAL mask over a parameter, a CONSTANT, a ZERO and the MUL of the
-mask with the CONSTANT require no gradient. The MUL of the mask with the parameter does,
+After `finalise()`, a K_LESS_EQUAL mask over a parameter, a K_CONSTANT, a K_ZERO and the K_MUL of the
+mask with the K_CONSTANT require no gradient. The K_MUL of the mask with the parameter does,
 through its second operand.
 
 ## test_loss_scaling.cpp
@@ -7031,8 +7031,8 @@ exactly one replay.
 
 ### AnAccumulateChainIsOneBufferWithOneLiveRange
 
-ACCUMULATE's result is its accumulator's storage. Planning the two separately would be silently
-wrong and not merely wasteful: the planner would think the accumulator died at the ACCUMULATE
+K_ACCUMULATE's result is its accumulator's storage. Planning the two separately would be silently
+wrong and not merely wasteful: the planner would think the accumulator died at the K_ACCUMULATE
 node and hand its bytes to `sink`, which is produced by the node still reading them.
 
 ### EveryStartIsAWholeNumberOfItsOwnElements
@@ -7062,7 +7062,7 @@ and take the library's bit-for-bit replay guarantee with it.
 
 ### TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes
 
-`FusedForm::GEMM_BIAS_GELU` writes two values from one node: its result and the pre-activation
+`FusedForm::GemmBiasGelu` writes two values from one node: its result and the pre-activation
 its epilogue spills. They have the same shape, they are born at the same instant, and the
 planner packs by liveness. "One died before the other was written" is the mistake available to
 it, and taking it would have the GELU computed from its own output with nothing to show for it.
@@ -7137,12 +7137,12 @@ mix. Node 3, the merge, declares [4, 4, 12] on its port.
 
 The model's `forward` under an evaluation trace is compared with the same five layers traced
 by hand through a `GraphBuilder` in a second graph. The two graphs hold the same operations in
-the same order, and both results are [2, 4, 4, 4]. The sequence holds one UPSAMPLE2D and one
-CONCAT_CHANNELS.
+the same order, and both results are [2, 4, 4, 4]. The sequence holds one K_UPSAMPLE2D and one
+K_CONCAT_CHANNELS.
 
 ### MergeEmitsOneConcatChannelsReadingBothBranches
 
-With stem, up and mix published, the traced graph holds one CONCAT_CHANNELS node. Its inputs
+With stem, up and mix published, the traced graph holds one K_CONCAT_CHANNELS node. Its inputs
 are the published value of up and then that of stem, and its output is [2, 4, 4, 12].
 
 ### TraceReturnsEveryPublishedOutputByName
@@ -7152,7 +7152,7 @@ With "features" and "skip" published in that order, `trace` returns two entries 
 
 ### ForwardReturnsTheSinglePublishedOutput
 
-A model of one ReLU node whose result is published traces one RELU node. That node reads the
+A model of one ReLU node whose result is published traces one K_RELU node. That node reads the
 input, and its output is the id `forward` returned.
 
 ### ForwardFailsWhenTwoOutputsArePublished
@@ -7198,7 +7198,7 @@ After a trace of the branching model, the walk under "model" yields "model.stem.
 ### ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers
 
 A model of one `BatchNorm2d(3)` node named "bn", traced under a training trace, emits one
-BATCHNORM2D node and leaves two updates in the list. The parameter walk under "model" yields
+K_BATCHNORM2D node and leaves two updates in the list. The parameter walk under "model" yields
 "model.bn.weight:[3]" and "model.bn.bias:[3]", and `for_each_buffer` yields
 "model.bn.running_mean" and "model.bn.running_var".
 
@@ -7211,7 +7211,7 @@ the names are "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]" and "2.bias:[4]
 
 ### NestsInASequentialUnderItsIndex
 
-A `Sequential<ModelGraph, ReLU>` traces to a [4, 8] value whose last node is a RELU. Its walk
+A `Sequential<ModelGraph, ReLU>` traces to a [4, 8] value whose last node is a K_RELU. Its walk
 yields "0.dense.weight:[8, 6]" and "0.dense.bias:[8]".
 
 ### AddRejectsADuplicateName
@@ -7342,7 +7342,7 @@ that order.
 
 ### add_without_value
 
-`add_without_value` adds "boxes" with `Graph::NO_VALUE`. It is the statement of the death
+`add_without_value` adds "boxes" with `Graph::K_NO_VALUE`. It is the statement of the death
 test.
 
 ### StartsEmpty
@@ -7365,7 +7365,7 @@ and "boxes, scores". The set still holds two entries and `at("boxes")` is still 
 
 ### AddStopsOnNoValue
 
-The case is in the suite `Unit_ModelOutputsDeathTest`. `add("boxes", NO_VALUE)` stops the
+The case is in the suite `Unit_ModelOutputsDeathTest`. `add("boxes", K_NO_VALUE)` stops the
 process with a report containing "'boxes'" and "no value".
 
 ### AtReturnsTheNamedValue
@@ -7535,9 +7535,9 @@ parameter's state returns the same in each graph, and the second leaf has the li
 
 ### AParameterHasNoLeafInAGraphItWasNotTracedInto
 
-Before any `declare()`, `id_in` is `NO_VALUE` and `state()` is `K_NO_STATE`. After one
+Before any `declare()`, `id_in` is `K_NO_VALUE` and `state()` is `K_NO_STATE`. After one
 `declare()` the state is set, and `id_in` of a graph that was never traced into is still
-`NO_VALUE`.
+`K_NO_VALUE`.
 
 ### ASecondDeclareInOneGraphReturnsTheFirstLeaf
 
@@ -7565,7 +7565,7 @@ are still the first ones, and it has a leaf in the second graph.
 ### ACopiedLayerHasANewStateId
 
 A copy of a traced `Linear` has a weight whose state is `K_NO_STATE` and whose `id_in(graph)`
-is `NO_VALUE`. `declared()` is true and `id()` is the original's leaf, because both are copied
+is `K_NO_VALUE`. `declared()` is true and `id()` is the original's leaf, because both are copied
 with the description. Once the copy is traced, its `id()` equals its own `id_in(graph)`, its
 state differs from the original's, and its weight and bias leaves differ from the original's.
 
@@ -7577,7 +7577,7 @@ leaf.
 
 ### IdReturnsTheLeafOfTheMostRecentDeclare
 
-`id()` is `NO_VALUE` before any `declare()`, the first graph's leaf after the first, and the
+`id()` is `K_NO_VALUE` before any `declare()`, the first graph's leaf after the first, and the
 second graph's leaf after the second. The second graph holds a padding input, so the two leaves
 have different ids.
 
@@ -7656,7 +7656,7 @@ Before `describe()` no buffer is yielded. After it two are. Once `define()` is c
 
 ### ADefinedBufferIsWalkedWithoutALeaf
 
-The buffer "count" has no leaf in the graph, `id_in` is `NO_VALUE`, and it is one of the two
+The buffer "count" has no leaf in the graph, `id_in` is `K_NO_VALUE`, and it is one of the two
 buffers counted.
 
 ### SelfWalkingStub
@@ -7791,7 +7791,7 @@ This file needs no device. `NN::Node` in `include/SushiAI/nn/node.hpp` is the se
 `ModelGraph` holds its rows through: a node declares its ports, reads a span of values and
 appends its results. `NN::ModuleNode<L>` in `include/SushiAI/nn/module_node.hpp` wraps a
 layer of any of the three forms, and `NN::LayerNode` in `include/SushiAI/nn/layer_node.hpp`
-wraps an `NN::ILayer`. Both return a `Status` from `forward`, and an `Error` a layer throws
+wraps an `NN::Layer`. Both return a `Status` from `forward`, and an `Error` a layer throws
 comes back as a failure.
 
 ### BufferedStub
@@ -7949,7 +7949,7 @@ Tests the node registry, make_node, build_model and the YOLO26n model file.
 
 This file needs no device. `NN::K_NODE_REGISTRY` in `include/SushiAI/nn/node_registry.hpp` is
 the table of node types a model file can name. `NN::make_node` builds the node of one row: it
-looks the type up in `K_NODE_REGISTRY` and then in `NN::LAYER_REGISTRY`, and wraps a layer of
+looks the type up in `K_NODE_REGISTRY` and then in `NN::K_LAYER_REGISTRY`, and wraps a layer of
 the second table in an `NN::LayerNode`. `NN::build_model` turns a `Config::ModelSpec` into an
 `NN::ModelGraph`. All three return a `Result`.
 
@@ -7986,7 +7986,7 @@ the row reads.
 
 ### K_LAYER_CASES
 
-`K_LAYER_CASES` has one `LayerCase` per row of `NN::LAYER_REGISTRY`, in the table's order.
+`K_LAYER_CASES` has one `LayerCase` per row of `NN::K_LAYER_REGISTRY`, in the table's order.
 
 ### K_INPUT_JOINING_MODEL
 
@@ -8101,7 +8101,7 @@ The `type` fields of `K_NODE_REGISTRY` are "batchnorm2d", "concat", "conv", "bot
 
 ### NoTypeIsInBothTables
 
-No `type` of `K_NODE_REGISTRY` equals a `type` of `LAYER_REGISTRY`.
+No `type` of `K_NODE_REGISTRY` equals a `type` of `K_LAYER_REGISTRY`.
 
 ### EveryRowHasAMinimalCase
 
@@ -8131,7 +8131,7 @@ A `concat` row over [4, 4, 2] and [8, 4, 2] fails with a message containing "lay
 
 `make_node("upsample", ...)` with scale 2 over [4, 4, 2] returns a `LayerNode` with one port
 named `K_SINGLE_PORT_NAME` of shape [8, 8, 2]. The case then walks `K_LAYER_CASES`, which has
-one entry per row of `LAYER_REGISTRY` in order. Every type builds a `LayerNode`, and every
+one entry per row of `K_LAYER_REGISTRY` in order. Every type builds a `LayerNode`, and every
 type given `{"no_such_key": 1}` fails with "'no_such_key'", which shows the layer's own
 factory ran.
 
@@ -8151,7 +8151,7 @@ failure.
 
 `make_node("conv3d", ...)` fails with a message containing "layer 5 'conv3d'", "the type
 'conv3d'", "does not have", "node types" and "layer types". The message also contains every
-type of `K_NODE_REGISTRY` and of `LAYER_REGISTRY` in quotes.
+type of `K_NODE_REGISTRY` and of `K_LAYER_REGISTRY` in quotes.
 
 ### AFileAndAHandBuiltGraphAgree
 
@@ -8234,7 +8234,7 @@ with "layer 23 'detect'", "the type 'detect'" and "does not have".
 
 ### Yolo26RowsTwoAndFourAddTheirBottlenecksInput
 
-Rows 2 and 4 of the file state `shortcut` true. The model built from rows 0 to 4 traces two ADD
+Rows 2 and 4 of the file state `shortcut` true. The model built from rows 0 to 4 traces two K_ADD
 nodes, one for the bottleneck of each of the two `c3k2` rows.
 
 ### Yolo26RowsZeroToNineMatchTheManifest
@@ -8305,18 +8305,18 @@ with the vocabulary C++17 has.
 
 ### TheTableContainsEveryDeclaredIdentity
 
-A new operation declared but left out of ALL would escape the uniqueness static_assert
+A new operation declared but left out of K_ALL would escape the uniqueness static_assert
 entirely, so the test checks membership by name.
 
 ### EverySpatialIdentityIsListedInAll
 
-ALL is what `all_ids_unique()` proves over and what `name_of()` searches. An identity declared
-but left out of ALL is not covered by the collision proof and prints as "sushiai.unknown" in
+K_ALL is what `all_ids_unique()` proves over and what `name_of()` searches. An identity declared
+but left out of K_ALL is not covered by the collision proof and prints as "sushiai.unknown" in
 every profile. Both failures are silent.
 
 ### ThereIsNoConv2dIdentity
 
-CV-1 says convolution is IM2COL + MATMUL in the IR. A CONV2D identity would be a second, opaque
+CV-1 says convolution is K_IM2COL + K_MATMUL in the IR. A CONV2D identity would be a second, opaque
 spelling of the same thing, and the first person to add one will do it by analogy and not by
 reading the spec.
 
@@ -8324,58 +8324,58 @@ reading the spec.
 
 For alpha > 0, leaky_relu(x) > 0 exactly when x > 0. Reading the output in place of the input is
 therefore a bit-identical substitution, not an approximation, and it is the same argument the
-table already records for RELU. It is what makes the fold free: an ordinary use count licenses
+table already records for K_RELU. It is what makes the fold free: an ordinary use count licenses
 it with no activation-specific knowledge in the fusion pass.
 
 ### EveryElementwiseAndSelectionIdentityIsListedInAll
 
-`Ops::name_of` resolves DIV, MINIMUM, MAXIMUM, ABS, ATAN, LESS_EQUAL, SELECT, SILU,
-SILU_BACKWARD, SOFTPLUS and SOFTPLUS_BACKWARD to a name other than "sushiai.unknown". The
+`Ops::name_of` resolves K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_LESS_EQUAL, K_SELECT, K_SILU,
+K_SILU_BACKWARD, K_SOFTPLUS and K_SOFTPLUS_BACKWARD to a name other than "sushiai.unknown". The
 reason is the one EverySpatialIdentityIsListedInAll gives.
 
 ### TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable
 
-`differentiable` is true for DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS, SELECT and SILU, and
-false for LESS_EQUAL, SILU_BACKWARD and SOFTPLUS_BACKWARD.
+`differentiable` is true for K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and K_SILU, and
+false for K_LESS_EQUAL, K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD.
 
 ### TheGradientBarriersAreTheFourIdentitiesThatPassNoGradient
 
-`Ops::is_gradient_barrier` is true for ZERO, CONSTANT, LESS_EQUAL and STOP_GRADIENT. Over every
-row of `Ops::ALL` it equals the row's `blocks_gradient` flag, and exactly four rows carry the
+`Ops::is_gradient_barrier` is true for K_ZERO, K_CONSTANT, K_LESS_EQUAL and K_STOP_GRADIENT. Over every
+row of `Ops::K_ALL` it equals the row's `blocks_gradient` flag, and exactly four rows carry the
 flag. A fifth barrier therefore fails the count until the list in this test names it.
 
 ### NoGradientBarrierIsFlaggedDifferentiable
 
-No row of `Ops::ALL` has both `differentiable` and `blocks_gradient` set.
+No row of `Ops::K_ALL` has both `differentiable` and `blocks_gradient` set.
 
 ### LeafCastAndTheGradientOperationsAreNotGradientBarriers
 
-`is_gradient_barrier` is false for LEAF, CAST, DYNAMIC_SCALE, LOG_SOFTMAX, RELU_BACKWARD,
-SILU_BACKWARD, SOFTPLUS_BACKWARD, MAXPOOL2D_BACKWARD, BATCHNORM2D_BACKWARD,
-BATCHNORM_UPDATE_STATS, BATCHNORM_FOLD, GEMM_BIAS, EXP_SUB_SCALE and ADAMW_UPDATE, and for the
+`is_gradient_barrier` is false for K_LEAF, K_CAST, K_DYNAMIC_SCALE, K_LOG_SOFTMAX, K_RELU_BACKWARD,
+K_SILU_BACKWARD, K_SOFTPLUS_BACKWARD, K_MAXPOOL2D_BACKWARD, K_BATCHNORM2D_BACKWARD,
+K_BATCHNORM_UPDATE_STATS, K_BATCHNORM_FOLD, K_GEMM_BIAS, K_EXP_SUB_SCALE and K_ADAMW_UPDATE, and for the
 foreign identity 0xDEADBEEF. These either pass a gradient or throw when one reaches them.
 Marking one as a barrier would turn that throw into a gradient that is dropped without a
 message.
 
 ### SiluDifferentiatesAtItsInput
 
-The `Ops::ACTIVATIONS` row of SILU names SILU_BACKWARD as its gradient and
-`GradientSource::INPUT` as its source, and `activation_survives_fusion(SILU)` is false.
+The `Ops::K_ACTIVATIONS` row of K_SILU names K_SILU_BACKWARD as its gradient and
+`GradientSource::Input` as its source, and `activation_survives_fusion(K_SILU)` is false.
 
 ### SoftplusDifferentiatesAtItsInput
 
-The row of SOFTPLUS names SOFTPLUS_BACKWARD and `GradientSource::INPUT`, and
-`activation_survives_fusion(SOFTPLUS)` is false.
+The row of K_SOFTPLUS names K_SOFTPLUS_BACKWARD and `GradientSource::Input`, and
+`activation_survives_fusion(K_SOFTPLUS)` is false.
 
 ### IsActivationBackwardAcceptsOnlyTheTablesGradientColumn
 
-For every row of `Ops::ACTIVATIONS`, `is_activation_backward` is true for the row's `backward`
-identity and false for its `forward` one. Over `Ops::ALL` it accepts as many identities as the
+For every row of `Ops::K_ACTIVATIONS`, `is_activation_backward` is true for the row's `backward`
+identity and false for its `forward` one. Over `Ops::K_ALL` it accepts as many identities as the
 table has rows.
 
 ### BatchNormFoldIsListedAndClaimsNoRule
 
-`Ops::name_of(BATCHNORM_FOLD)` is "sushiai.batchnorm_fold", and the row has `differentiable`
+`Ops::name_of(K_BATCHNORM_FOLD)` is "sushiai.batchnorm_fold", and the row has `differentiable`
 false and `blocks_gradient` false. `test_backward.cpp` holds what differentiation does when a
 gradient reaches the node.
 
@@ -8419,18 +8419,18 @@ set is a visible edit in this test and not a silent behaviour change. Everything
 stays in the graph's own precision, which is the safe answer for an operation nobody has thought
 about yet.
 
-The LEAKY_RELU entries are in `narrows` because LEAKY_RELU joined `Ops::ACTIVATIONS` with
-`GradientSource::OUTPUT`. It narrows by the same substitution argument as RELU.
+The K_LEAKY_RELU entries are in `narrows` because K_LEAKY_RELU joined `Ops::K_ACTIVATIONS` with
+`GradientSource::Output`. It narrows by the same substitution argument as K_RELU.
 
 The `stays` list opens with the reductions and anything that sums many terms. fp16 carries about
 11 bits of significand and SushiBLAS's own reduction header documents a 2048 ceiling for HALF,
 so these are the operations that go quietly wrong.
 
-DYNAMIC_SCALE is in `stays` because it carries the gradient loss scale, the one number in the
+K_DYNAMIC_SCALE is in `stays` because it carries the gradient loss scale, the one number in the
 graph that exists to keep values out of fp16's subnormals. Narrowing the node that applies it
 would overflow the very quantity it protects; see `include/SushiAI/optim/loss_scaler.hpp`.
 
-GELU, GELU_BACKWARD and GEMM_BIAS_GELU, the one fused form that folds GELU, are in `stays`. The
+K_GELU, K_GELU_BACKWARD and K_GEMM_BIAS_GELU, the one fused form that folds K_GELU, are in `stays`. The
 form is a GEMM and rule 1 would otherwise take it. Narrowing it puts the tanh approximation's
 `x*x*x` into fp16, which overflows at |x| ~ 40.3. Rule 5 in
 `include/SushiAI/graph/precision.hpp` says so, and also explains why that leaves rules 2 and 5
@@ -8440,11 +8440,11 @@ The twenty spatial and CV identities are in `stays` because none of them is a GE
 an activation this policy folds. Each gets the same safe default as everything else nobody has
 special-cased: it stays at the graph's own precision.
 
-SILU, SILU_BACKWARD, SOFTPLUS and SOFTPLUS_BACKWARD are in `stays`. SILU and SOFTPLUS read
-their input, so neither they nor their gradients narrow. DIV, MINIMUM, MAXIMUM, ABS, ATAN,
-LESS_EQUAL, SELECT, STOP_GRADIENT and CONSTANT are in `stays` under the same default.
+K_SILU, K_SILU_BACKWARD, K_SOFTPLUS and K_SOFTPLUS_BACKWARD are in `stays`. K_SILU and K_SOFTPLUS read
+their input, so neither they nor their gradients narrow. K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN,
+K_LESS_EQUAL, K_SELECT, K_STOP_GRADIENT and K_CONSTANT are in `stays` under the same default.
 
-BATCHNORM_FOLD is in `stays`. It takes the square root of a variance plus epsilon.
+K_BATCHNORM_FOLD is in `stays`. It takes the square root of a variance plus epsilon.
 
 The closing `EXPECT_EQ` on the two list sizes holds because every identity is accounted for by
 `narrows` or by `stays`. A new operation cannot join the enum without someone deciding which
@@ -8452,7 +8452,7 @@ list it belongs to.
 
 ### GeluStaysWideEvenThoughACatalogEntryNowFoldsIt
 
-Rule 5 used to rest on two arguments, and one of them is gone. `FusedForm::GEMM_BIAS_GELU`
+Rule 5 used to rest on two arguments, and one of them is gone. `FusedForm::GemmBiasGelu`
 folds GELU by spilling the pre-activation, so "nothing folds it, therefore nothing forces its
 precision" is no longer a reason for anything. The surviving argument is the arithmetic: the
 tanh approximation computes `x*x*x`, which overflows fp16 at |x| about 40.3. A unit test cannot
@@ -8462,7 +8462,7 @@ The first three assertions check what a unit test can: that the conclusion did n
 follow the dead premise. The catalog can fold GELU and the policy still keeps it wide, which is
 the pair of facts rule 5 in `include/SushiAI/graph/precision.hpp` now asserts.
 
-`narrows_under_mixed_precision(GEMM_BIAS_GELU)` is false because the fused form has to go with
+`narrows_under_mixed_precision(K_GEMM_BIAS_GELU)` is false because the fused form has to go with
 GELU. Otherwise the cast pass would narrow a node whose epilogue is the very expression rule 5
 refuses to put in fp16.
 
@@ -8520,8 +8520,8 @@ and if that reached the fp32 gradient buffer uncast, SushiBLAS would throw. If t
 been retyped to fp16 instead, nothing would throw and the optimizer would accumulate in fp16,
 which is the failure master weights exist to prevent.
 
-The loop over `gradients[0]` and `gradients[2]` covers the weights only. A backward MATMUL,
-which computes low, produces the gradients of w1 and w2. SUM_ROWS, which does not, produces
+The loop over `gradients[0]` and `gradients[2]` covers the weights only. A backward K_MATMUL,
+which computes low, produces the gradients of w1 and w2. K_SUM_ROWS, which does not, produces
 those of b1 and b2, so only the weights need widening.
 
 The loop over `gradients[1]` and `gradients[3]` covers the biases. Their gradients come out of
@@ -8529,7 +8529,7 @@ a reduction that stayed wide, so nothing was widened into them and nothing neede
 
 ### AccumulatingGradientContributionsHappensWide
 
-A parameter read twice gets two gradient contributions and an ACCUMULATE to sum them. Two things
+A parameter read twice gets two gradient contributions and an K_ACCUMULATE to sum them. Two things
 have to hold at once. The sum runs in the wide type, because it is a sum. Its result and its
 first operand agree, because the lowering makes the result alias the accumulator's buffer, so a
 disagreement there is a wrong-width write and not merely a wrong number.
@@ -8554,19 +8554,19 @@ come first.
 
 ### Pooled
 
-MAXPOOL2D is the first operation in this IR whose results are not all one element type: it
+K_MAXPOOL2D is the first operation in this IR whose results are not all one element type: it
 writes the pooled tensor and, beside it, the INT64 argmax its backward reads. The cast pass
 derives one precision per node from `outputs[0]`, which makes the argmax look like a value in
 the wrong type and not like a value with no precision to choose.
 
 `x` is a parameter and not an input for the reason
-`tests/functional/regression/test_argmax_lifetime.cpp` gives: MAXPOOL2D_BACKWARD is only emitted
+`tests/functional/regression/test_argmax_lifetime.cpp` gives: K_MAXPOOL2D_BACKWARD is only emitted
 when something upstream of the pool needs a gradient.
 
 ### AnIndexBufferHasNoPrecisionToChoose
 
 The pass forced every operand and every result of a node to one dtype, derived from the node's
-first result. For MAXPOOL2D that is FLOAT32 from the pooled tensor, so the INT64 argmax read as
+first result. For K_MAXPOOL2D that is FLOAT32 from the pooled tensor, so the INT64 argmax read as
 a mismatch and the pass tried to convert it. `GraphBuilder::cast` refuses anything but
 real-float to real-float by design, so the whole build threw.
 
@@ -8577,13 +8577,13 @@ policy's `choose()`, so the uniform policy reaches it too.
 
 This is the loud half of the same defect. An unpinned argmax is retyped in place and the
 mismatch disappears silently. A pinned one keeps its id and its INT64 buffer, so the pass
-reaches for the widening cast, and CAST is real-float to real-float by design.
+reaches for the widening cast, and K_CAST is real-float to real-float by design.
 
 ### ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
 
-The graph is a MATMUL and a BIAS_ADD whose bias is a buffer. The weight and the buffer are
+The graph is a K_MATMUL and a K_BIAS_ADD whose bias is a buffer. The weight and the buffer are
 bound to the states 31 and 32 and the graph is marked refused before `insert_casts` runs under
-the mixed policy. The report counts at least one cast and the BIAS_ADD's result is HALF, so
+the mixed policy. The report counts at least one cast and the K_BIAS_ADD's result is HALF, so
 the pass did rewrite the graph. The buffer is still FLOAT32 with the lifetime `BUFFER` and no
 gradient. Both `state_leaf` lookups, the whole `state_leaves()` table and `has_refusal()` are
 what they were, and `find_dtype_mismatches` returns nothing.
@@ -8591,7 +8591,7 @@ what they were, and `find_dtype_mismatches` returns nothing.
 ### BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy
 
 The graph is one `batchnorm_fold` over two parameters and two buffers. `insert_casts` under
-the mixed policy reports zero casts and the graph holds no CAST node. The four operands and
+the mixed policy reports zero casts and the graph holds no K_CAST node. The four operands and
 the two results are all FLOAT32.
 
 ## test_provenance.cpp
@@ -8606,8 +8606,8 @@ what the partitioner needs it for.
 ### TwoLinearGraph
 
 `TwoLinearGraph` is a two-layer perceptron with a cross-entropy loss: an [8, 6] input, a 6-to-4
-linear layer, a RELU, a 4-to-3 linear layer, then LOG_SOFTMAX and NLL_LOSS. It keeps the ids the
-cases name: the four parameters, the result of the first MATMUL and the loss.
+linear layer, a K_RELU, a 4-to-3 linear layer, then K_LOG_SOFTMAX and K_NLL_LOSS. It keeps the ids the
+cases name: the four parameters, the result of the first K_MATMUL and the loss.
 
 ### differentiate
 
@@ -8629,22 +8629,22 @@ that count would name a backward node, which no segment of the forward trace hol
 ### ARuleEmitsUnderTheNodeItDifferentiates
 
 The node that produces the first weight's gradient is an appended node, and its origin is the
-MATMUL that produces `first_product`. The case asserts the operation and the node id, so an
-origin that named another MATMUL of the graph fails it.
+K_MATMUL that produces `first_product`. The case asserts the operation and the node id, so an
+origin that named another K_MATMUL of the graph fails it.
 
 ### AFanOutAccumulateBelongsToTheProducer
 
-`shared` is a RELU result that a TANH and a SIGMOID both read, so its gradient has two
-contributors. The backward nodes hold exactly one ACCUMULATE, and its origin is the RELU that
+`shared` is a K_RELU result that a K_TANH and a K_SIGMOID both read, so its gradient has two
+contributors. The backward nodes hold exactly one K_ACCUMULATE, and its origin is the K_RELU that
 produces `shared`. `x` is read once, so no closing sum is emitted and the count stays at one.
 
 ### AParameterReadTwiceAccumulatesUnderItsLeaf
 
-The parameter `x` is read by a RELU and a TANH. The node that produces its gradient is an
-ACCUMULATE, and the origin of that node is the LEAF of `x`.
+The parameter `x` is read by a K_RELU and a K_TANH. The node that produces its gradient is an
+K_ACCUMULATE, and the origin of that node is the K_LEAF of `x`.
 
-`targets` is declared before `x` so that the LEAF of `x` is not node 0. The reverse walk ends at
-node 0, so with `x` there an origin taken from the walk's last position would equal the LEAF's
+`targets` is declared before `x` so that the K_LEAF of `x` is not node 0. The reverse walk ends at
+node 0, so with `x` there an origin taken from the walk's last position would equal the K_LEAF's
 id and the `EXPECT_NE(origin, 0u)` line could not tell the two apart.
 
 ### AReusedProvenanceHoldsOnlyTheLatestRun
@@ -8656,7 +8656,7 @@ it would leave the first run's entries in front.
 
 ### ARequestedValueWithoutAProducerIsRefused
 
-`x` is added with `add_value` and so has no LEAF node, and it is read twice, so the closing sum
+`x` is added with `add_value` and so has no K_LEAF node, and it is read twice, so the closing sum
 of its gradient needs an origin that does not exist. The call throws, and the message contains
 "provenance" and "producer node".
 
@@ -8701,9 +8701,9 @@ and calls `Eager::signature_of` with the identity vector as a span. The other tw
 ### Recipe
 
 `Recipe` describes `scale(combine(relu(x), tanh(x)), alpha)` over a parameter `x`, and each of
-its fields is one property a case varies: the shape, the element type, the SCALE factor, SUB in
-place of ADD, the operand order of the combine, and the identity of `x`. `build(Recipe)` puts
-the four operations under `K_BODY` and the LEAF under no region, and gives every value but `x`
+its fields is one property a case varies: the shape, the element type, the K_SCALE factor, K_SUB in
+place of K_ADD, the operand order of the combine, and the identity of `x`. `build(Recipe)` puts
+the four operations under `K_BODY` and the K_LEAF under no region, and gives every value but `x`
 identity zero.
 
 ### node_of
@@ -8713,28 +8713,28 @@ layout cases use it to reach the node they edit after `build` returns.
 
 ### assign_regions
 
-`assign_regions` gives a `Traced` its partition from one key per non-LEAF node, in node order,
-and a region list. A LEAF gets `K_NO_REGION`. It also resets every identity to zero, so a
+`assign_regions` gives a `Traced` its partition from one key per non-K_LEAF node, in node order,
+and a region list. A K_LEAF gets `K_NO_REGION`. It also resets every identity to zero, so a
 builder that calls it sets afterwards only the identities its case is about.
 
 ### ExternalRecipe
 
-`ExternalRecipe` describes a graph whose `K_READER` region holds one SCALE that reads a value
+`ExternalRecipe` describes a graph whose `K_READER` region holds one K_SCALE that reads a value
 the region does not produce. Its fields choose whether that value is the parameter `x` or the
-RELU result of `K_BODY`, whether `K_BODY` appears in the region list, and which identity the
+K_RELU result of `K_BODY`, whether `K_BODY` appears in the region list, and which identity the
 value has.
 
 ### ProbeOperands
 
-`ProbeOperands` names four operand orders for a hand-built three-operand ADD in `K_READER`.
+`ProbeOperands` names four operand orders for a hand-built three-operand K_ADD in `K_READER`.
 `build(ProbeOperands)` leaves every identity at zero, and the one in-region operand is result 0
 of the region's node 0. Both orders of a pair therefore feed the hash the same words, and the
 two signatures can differ only if the kind of each operand enters the hash.
 
 ### build_reader_of_result
 
-`build_reader_of_result` adds a RELU node by hand with two results and a TANH that reads the
-result at the given index, both under `K_BODY`. The RELU is added through `Graph::add_node`
+`build_reader_of_result` adds a K_RELU node by hand with two results and a K_TANH that reads the
+result at the given index, both under `K_BODY`. The K_RELU is added through `Graph::add_node`
 because `GraphBuilder::relu` returns one result.
 
 ### with_identity
@@ -8771,22 +8771,22 @@ the key of a region by name and direction, and `stem_output` is the value "body"
 ### TheSameTraceGivesTheSameSignature
 
 Two graphs built from the default `Recipe` have equal hashes and compare equal. The operation
-list is RELU, TANH, ADD, SCALE, which is the region's nodes in order with the LEAF left out.
+list is K_RELU, K_TANH, K_ADD, K_SCALE, which is the region's nodes in order with the K_LEAF left out.
 
 ### AChangedAttributeChangesTheHash
 
-A SCALE factor of 3.0 in place of 2.0 leaves the operation list equal and makes the hash
+A K_SCALE factor of 3.0 in place of 2.0 leaves the operation list equal and makes the hash
 differ.
 
 ### AChangedLastAttributeSlotChangesTheHash
 
-The case writes 1.0 into slot `Attributes::CAPACITY - 1` of the SCALE node and expects another
+The case writes 1.0 into slot `Attributes::K_CAPACITY - 1` of the K_SCALE node and expects another
 hash. It covers the last slot because a hash that read a fixed number of leading slots would
 agree with the other attribute case and miss this one.
 
 ### AChangedLayoutChangesTheHash
 
-The RELU result is retagged NCHW in one of two otherwise equal graphs, and the hashes differ.
+The K_RELU result is retagged NCHW in one of two otherwise equal graphs, and the hashes differ.
 Shape and element type are the same in both, so the layout is the only input that moved.
 
 ### AChangedShapeChangesTheHash
@@ -8799,7 +8799,7 @@ FLOAT64 in place of FLOAT32 leaves the operation list equal and makes the hash d
 
 ### AChangedOpChangesTheHash
 
-SUB in place of ADD makes both the operation list and the hash differ. It is the one
+K_SUB in place of K_ADD makes both the operation list and the hash differ. It is the one
 `Recipe` case in which the two lists are unequal.
 
 ### ADifferentParameterChangesTheHash
@@ -8827,12 +8827,12 @@ position.
 
 ### AReadOfAnotherResultChangesTheHash
 
-A TANH that reads result 1 of a two-result node hashes apart from one that reads result 0. The
+A K_TANH that reads result 1 of a two-result node hashes apart from one that reads result 0. The
 producer's index in the region is the same in both, so the result index is what separates them.
 
 ### ABoundaryValueOfAnotherIdentityChangesTheHash
 
-The SCALE in `K_READER` reads the RELU result of `K_BODY`. With identity
+The K_SCALE in `K_READER` reads the K_RELU result of `K_BODY`. With identity
 `K_EXTERNAL_IDENTITY + 1` for that value, the operation list is equal and the hash differs.
 
 ### ALeafAndABoundaryValueOfOneIdentityHashAlike
@@ -8861,8 +8861,8 @@ hashes.
 
 ### EqualHashesWithDifferentOpsCompareUnequal
 
-Three signatures are written by hand with hash 42. The one listing ADD and the one listing SUB
-compare unequal under `==` and `!=`, and two that both list ADD compare equal. A real collision
+Three signatures are written by hand with hash 42. The one listing K_ADD and the one listing K_SUB
+compare unequal under `==` and `!=`, and two that both list K_ADD compare equal. A real collision
 cannot be produced on demand, so the case constructs one.
 
 ### ARegionThePartitionDoesNotListThrows
@@ -8882,9 +8882,9 @@ The identity vector is cleared, so the id of `x` lies beyond its end. The messag
 
 ## test_rematerialise.cpp
 
-Tests the structure of the graph that the IM2COL rematerialisation pass rewrites.
+Tests the structure of the graph that the K_IM2COL rematerialisation pass rewrites.
 
-This file needs no device. The IM2COL rematerialisation pass is an IR-to-IR rewrite, so what it
+This file needs no device. The K_IM2COL rematerialisation pass is an IR-to-IR rewrite, so what it
 produces is a graph that can be inspected node by node.
 
 The unit tier proves the structure: that a clone appears, that it reads the same operands and
@@ -8895,9 +8895,9 @@ does that by running the same graph twice.
 
 The brief's three cases are all in this file, with two deviations that the library forced:
 
-1. `Autograd::differentiate()` refuses any root that is not a scalar produced by NLL_LOSS
+1. `Autograd::differentiate()` refuses any root that is not a scalar produced by K_NLL_LOSS
    (`src/autograd/differentiator.cpp` explains why every other root would silently return empty
-   gradients). The brief's graphs stopped at a MATMUL, so each is carried on to a loss. The
+   gradients). The brief's graphs stopped at a K_MATMUL, so each is carried on to a loss. The
    shapes, geometry and expectations are the brief's.
 2. A "backward consumer" cannot be identified by node index, because the pass runs when the
    backward nodes are already in the graph and no marker separates the phases. The rule the pass
@@ -9106,25 +9106,25 @@ one must still resolve.
 
 ### NoGradientBarrierHasARule
 
-For every row of `Ops::ALL` with `blocks_gradient` set, `Autograd::has_rule` and
+For every row of `Ops::K_ALL` with `blocks_gradient` set, `Autograd::has_rule` and
 `Autograd::has_backward_rule` are both false. The loop counts the rows it checked and expects
 4, so it cannot pass by checking none.
 
 ### TheComparisonIsABarrierWithoutARule
 
-`Ops::LESS_EQUAL` has `differentiable` false and `blocks_gradient` true, and
+`Ops::K_LESS_EQUAL` has `differentiable` false and `blocks_gradient` true, and
 `Autograd::has_rule` is false for it.
 
 ### EveryActivationRowHasARuleForItsForwardIdentityOnly
 
-For every row of `Ops::ACTIVATIONS`, `Autograd::has_rule` is true for the `forward` identity
-and false for the `backward` one. `Autograd::ACTIVATION_RULES` has as many entries as
-`Ops::ACTIVATIONS` has rows.
+For every row of `Ops::K_ACTIVATIONS`, `Autograd::has_rule` is true for the `forward` identity
+and false for the `backward` one. `Autograd::K_ACTIVATION_RULES` has as many entries as
+`Ops::K_ACTIVATIONS` has rows.
 
 ### BatchNormFoldHasNoRuleAndBatchNormKeepsIts
 
-`Autograd::has_rule` is true for BATCHNORM2D and false for BATCHNORM_FOLD, `has_backward_rule`
-is false for BATCHNORM_FOLD, and `Autograd::NORM_RULES` has two entries.
+`Autograd::has_rule` is true for K_BATCHNORM2D and false for K_BATCHNORM_FOLD, `has_backward_rule`
+is false for K_BATCHNORM_FOLD, and `Autograd::K_NORM_RULES` has two entries.
 
 ## test_scope_partitioner.cpp
 
@@ -9139,7 +9139,7 @@ the optimizer.
 The cases fall into three groups, in file order:
 
 - keys and region lists of traced and differentiated steps
-- graphs built by hand to reach a LEAF origin or a graph with no backward node
+- graphs built by hand to reach a K_LEAF origin or a graph with no backward node
 - inputs that `assign` refuses
 
 ### Step
@@ -9159,7 +9159,7 @@ what they trace.
 
 ### linear
 
-`linear` emits a MATMUL and a BIAS_ADD over a new weight and bias and appends both to the
+`linear` emits a K_MATMUL and a K_BIAS_ADD over a new weight and bias and appends both to the
 parameter list. The parameter order is therefore weight, bias per layer, which is how a case
 indexes `gradients`.
 
@@ -9176,25 +9176,25 @@ each, and a scope "loss". It has three segments, six leaves and seven other forw
 
 `shared_weight_step` declares one weight in a scope "weights", multiplies by it in "first" and
 again in "second", and closes with "loss". It has four segments, and the first holds only a
-LEAF.
+K_LEAF.
 
 ### repeated_block_step
 
 `repeated_block_step` opens a scope "block" twice in a loop, with one linear layer each time,
 then "loss". The input is declared before the first scope, so the trace opens with an unnamed
-segment that holds only a LEAF.
+segment that holds only a K_LEAF.
 
 ### TwoReluGraph
 
-`TwoReluGraph` holds a graph built without differentiation: a parameter, a RELU in a segment
-"first" and a RELU of that in a segment "second". `build_two_relu_graph` fills it, seals the
+`TwoReluGraph` holds a graph built without differentiation: a parameter, a K_RELU in a segment
+"first" and a K_RELU of that in a segment "second". `build_two_relu_graph` fills it, seals the
 trace and sets `forward_node_count`, and leaves `origin` empty. A case then appends backward
 nodes and writes their origins by hand, which reaches arrangements `differentiate()` does not
 emit.
 
 ### is_leaf
 
-`is_leaf` reports whether a node of a graph is a LEAF.
+`is_leaf` reports whether a node of a graph is a K_LEAF.
 
 ### segment_number
 
@@ -9204,18 +9204,18 @@ forward key is compared against something the partitioner did not write.
 
 ### backward_keys_of
 
-`backward_keys_of` returns the keys of the backward nodes whose origin is a non-LEAF node of
-one segment. It skips LEAF origins because those take their key from their operands.
+`backward_keys_of` returns the keys of the backward nodes whose origin is a non-K_LEAF node of
+one segment. It skips K_LEAF origins because those take their key from their operands.
 
 ### AnUnscopedStepIsOneRegion
 
-With one segment, every non-LEAF node of the forward and backward graph has key 1 and the
+With one segment, every non-K_LEAF node of the forward and backward graph has key 1 and the
 optimizer key is 2. The region list has one entry, named "#0" and marked forward: the empty
 scope name followed by its occurrence.
 
 ### ForwardKeysFollowTraceOrder
 
-Every non-LEAF forward node of `three_segment_step` has the number of its segment as its key.
+Every non-K_LEAF forward node of `three_segment_step` has the number of its segment as its key.
 The closing count of seven checked nodes fails if the loop skips nodes it should compare.
 
 ### BackwardKeysMirrorForwardKeys
@@ -9229,7 +9229,7 @@ The region list has five entries with keys 1 to 5, named "first#0", "second#0", 
 
 ### TheLastSegmentSharesItsRegionWithItsBackward
 
-The NLL_LOSS node has key 3, and so does every backward node whose origin lies in the third
+The K_NLL_LOSS node has key 3, and so does every backward node whose origin lies in the third
 segment. The region list holds exactly one entry with key 3, and its direction is forward. A
 list with a second, backward entry under the same key would describe one region twice.
 
@@ -9250,21 +9250,21 @@ graph that no longer contains the case, and the message on the last assertion sa
 
 ### ASharedParametersAccumulateSitsAboveBothContributors
 
-The gradient of the shared weight is produced by an ACCUMULATE whose origin is a LEAF. Its two
+The gradient of the shared weight is produced by an K_ACCUMULATE whose origin is a K_LEAF. Its two
 operands are produced under keys 5 and 6, the backward keys of "second" and "first" among four
-segments, and the ACCUMULATE has key 6. Key 7, the backward key of the segment that holds the
-weight's LEAF, is not used for it.
+segments, and the K_ACCUMULATE has key 6. Key 7, the backward key of the segment that holds the
+weight's K_LEAF, is not used for it.
 
 ### ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrder
 
-Two ADD nodes are appended to a `TwoReluGraph` with the LEAF as their origin. One reads the
+Two K_ADD nodes are appended to a `TwoReluGraph` with the K_LEAF as their origin. One reads the
 key 2 value first and the key 1 value second, the other the reverse, and both get key 2. A rule
 that took the key of the first or of the last operand would give one of them key 1.
 
 ### RegionsListOnlyKeysThatHoldANode
 
 `shared_weight_step` has four segments and optimizer key 8. Its region list has five entries
-with keys 2 to 6. Key 1 belongs to the LEAF-only segment "weights" and key 7 to its backward
+with keys 2 to 6. Key 1 belongs to the K_LEAF-only segment "weights" and key 7 to its backward
 mirror, no node carries either, and neither is listed.
 
 ### ARepeatedScopeIsNamedByItsOccurrence
@@ -9275,14 +9275,14 @@ names of the forward regions they mirror.
 
 ### AGraphWithNoBackwardNodeHasForwardRegionsOnly
 
-A `TwoReluGraph` with an empty `origin` gives its two RELU nodes keys 1 and 2 and optimizer
+A `TwoReluGraph` with an empty `origin` gives its two K_RELU nodes keys 1 and 2 and optimizer
 key 4. The region list holds "first#0" and "second#0", both forward. The optimizer key is `2m`
 whether or not any backward node exists.
 
 ### LeavesBelongToNoRegion
 
-In `three_segment_step` every LEAF has `K_NO_REGION` and every other node has a key. The count
-of six leaves, two inputs and four parameters, shows that the loop reached the LEAF branch.
+In `three_segment_step` every K_LEAF has `K_NO_REGION` and every other node has a key. The count
+of six leaves, two inputs and four parameters, shows that the loop reached the K_LEAF branch.
 
 ### SegmentsThatDoNotCoverTheForwardGraphThrow
 
@@ -9299,7 +9299,7 @@ id that is not a forward node, is refused with "has origin" and "forward nodes".
 
 ### ABackwardNodeThatReadsAHigherKeyThrows
 
-Two RELU nodes are appended to a `TwoReluGraph`, the second reading the first, with origins in
+Two K_RELU nodes are appended to a `TwoReluGraph`, the second reading the first, with origins in
 segments 1 and 2. The formula gives them keys 3 and 2, so the reader has the lower key. `assign`
 throws, and the message contains "has region key 2" and "whose key is 3". The partitioner
 therefore checks the ordering it produces and does not assume the provenance is consistent with
@@ -9307,7 +9307,7 @@ the graph.
 
 ### ALeafOriginNodeThatReadsOnlyLeavesThrows
 
-An ADD of two parameters is appended with a LEAF as its origin. Neither operand's producer has
+An K_ADD of two parameters is appended with a K_LEAF as its origin. Neither operand's producer has
 a region, so there is no key to take. The message contains "as its origin" and "reads only
 leaves".
 
@@ -9325,8 +9325,8 @@ The cases fall into two groups, in file order: the segments a trace yields, and 
 
 ### trace_nodes
 
-`trace_nodes` appends a given number of ADD nodes to a graph, each adding one input value to
-itself. The input is added as a value with no LEAF node, so the node count rises by exactly the
+`trace_nodes` appends a given number of K_ADD nodes to a graph, each adding one input value to
+itself. The input is added as a value with no K_LEAF node, so the node count rises by exactly the
 number asked for and a case can state every range as a literal.
 
 ### segment_is
@@ -9437,7 +9437,7 @@ Three `static_assert` lines at the top of the file hold that `SiLU` is a `Module
 
 ### ForwardEmitsOneSiluNodeReadingTheInput
 
-`forward` adds one node. Its operation is `Ops::SILU`, its one input is the value passed in
+`forward` adds one node. Its operation is `Ops::K_SILU`, its one input is the value passed in
 and its one output is the value returned.
 
 ### ForwardKeepsTheShapeAndTypeOfAFeatureBatch
@@ -9446,7 +9446,7 @@ Over a [2, 4] input the result has the shape [2, 4] and the input's element type
 
 ### ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch
 
-Over a [2, 8, 6, 3] input the result has that shape and the layout `TensorLayout::NHWC`.
+Over a [2, 8, 6, 3] input the result has that shape and the layout `TensorLayout::Nhwc`.
 
 ### ForwardCarriesTheLayoutOfItsInput
 
@@ -9541,7 +9541,7 @@ gradient test in this plan ends with this call.
 
 `GraphBuilder::batchnorm2d` over a [2, 8, 8, 16] FLOAT64 input returns four values: the output,
 of the input's shape, and `saved_mean`, `saved_inv_std` and `batch_variance`, each [16]. They
-are the four outputs of one BATCHNORM2D node in that order, and attribute 0 of the node is the
+are the four outputs of one K_BATCHNORM2D node in that order, and attribute 0 of the node is the
 epsilon 1e-5. Each of the four is FLOAT64 with the lifetime `ACTIVATION`. A gamma of [8]
 throws.
 
@@ -9556,7 +9556,7 @@ message names.
 ### BatchNormFoldYieldsAPerChannelScaleAndShift
 
 `GraphBuilder::batchnorm_fold` over a [16] gamma, beta, running mean and running variance adds
-one node. Its operation is `Ops::BATCHNORM_FOLD`, its inputs are those four values in that
+one node. Its operation is `Ops::K_BATCHNORM_FOLD`, its inputs are those four values in that
 order, its outputs are `fold.scale` and `fold.shift`, and attribute 0 is the epsilon 1e-3.
 Both results are [16] FLOAT64 values of lifetime `ACTIVATION`, the operands' type. A
 `channel_affine` of a [2, 8, 8, 16] input with the two results keeps that shape.
@@ -9581,12 +9581,12 @@ a read past the end.
 ### Convolution, window extents and upsampled extents
 
 The cases from here cover three additions to `include/SushiAI/graph/builder.hpp`.
-`GraphBuilder::conv2d` emits a convolution as a node sequence: a RESHAPE of the rank-4 weight
-to [C_out, taps], an IM2COL of the input, a MATMUL of the two with its second operand
-transposed, an optional BIAS_ADD, and a RESHAPE of the rows to [N, out_h, out_w, C_out].
+`GraphBuilder::conv2d` emits a convolution as a node sequence: a K_RESHAPE of the rank-4 weight
+to [C_out, taps], an K_IM2COL of the input, a K_MATMUL of the two with its second operand
+transposed, an optional K_BIAS_ADD, and a K_RESHAPE of the rows to [N, out_h, out_w, C_out].
 `Graph::window_extents` computes the output extents of a window and validates its geometry,
 and `conv2d`, `im2col`, `maxpool2d` and `avgpool2d` all derive their extents through it.
-`Graph::upsampled_extents` does the same for UPSAMPLE2D.
+`Graph::upsampled_extents` does the same for K_UPSAMPLE2D.
 
 ### op_names_from
 
@@ -9611,7 +9611,7 @@ A [2, 5, 5, 3] input, an [8, 3, 3, 3] weight and an [8] bias under a padded 3x3 
 ### Conv2dDividesTheOutputExtentsByItsStride
 
 A padded 3x3 window with stride 2 over a [2, 8, 6, 3] input gives [2, 4, 3, 4]. The call
-passes `NO_VALUE` as the bias.
+passes `K_NO_VALUE` as the bias.
 
 ### Conv2dWithABiasEmitsIm2colMatmulAndBiasAddBetweenTwoReshapes
 
@@ -9622,11 +9622,11 @@ exists.
 
 ### Conv2dWithoutABiasEmitsNoBiasAdd
 
-With `NO_VALUE` as the bias the same call adds four nodes: reshape, im2col, matmul, reshape.
+With `K_NO_VALUE` as the bias the same call adds four nodes: reshape, im2col, matmul, reshape.
 
 ### Conv2dContractsTheColumnMatrixAgainstTheTransposedFilterMatrix
 
-The third node added is a MATMUL. Its first operand has shape [2 * 5 * 5, 3 * 3 * 3], one row
+The third node added is a K_MATMUL. Its first operand has shape [2 * 5 * 5, 3 * 3 * 3], one row
 per window, and its second has shape [8, 3 * 3 * 3], one row per filter. Flag 0 is false and
 flag 1 is true, so the filter matrix is the transposed operand and the product has one column
 per filter.
@@ -9634,7 +9634,7 @@ per filter.
 ### Conv2dPointwiseEmitsNoIm2col
 
 A 1x1 unit-stride unpadded window adds reshape, reshape, matmul, reshape: the input is
-reshaped to one row per pixel and no IM2COL is emitted. The result is [2, 5, 5, 8].
+reshaped to one row per pixel and no K_IM2COL is emitted. The result is [2, 5, 5, 8].
 
 ### Conv2dStridedOneByOneKernelStillEmitsIm2col
 
@@ -9671,7 +9671,7 @@ A [5, 5, 3] input, which lacks the batch axis, throws.
 
 A [2, 5, 5, 3] input is converted to NCHW and paired with an [8, 1, 1, 5] weight, whose
 input-channel extent matches the last axis of the converted shape. The pointwise path skips
-IM2COL, which is the emitter that checks the layout, so `conv2d` has to check it itself. The
+K_IM2COL, which is the emitter that checks the layout, so `conv2d` has to check it itself. The
 call throws.
 
 ### Conv2dRejectsABiasWhoseExtentDiffersFromTheFilterCount
@@ -9697,9 +9697,9 @@ paths therefore leave every value with a layout tag the per-node proof accepts.
 ### Conv2dDifferentiatesToAWeightAndABiasGradient
 
 The convolution's result goes through `spatial_mean`, `log_softmax` and `nll_loss`.
-`Autograd::differentiate` returns two gradients other than `NO_VALUE`, of shapes [8, 3, 3, 3]
+`Autograd::differentiate` returns two gradients other than `K_NO_VALUE`, of shapes [8, 3, 3, 3]
 and [8]. The weight gradient has the rank-4 shape of the parameter and not the [8, 27] shape
-of the reshaped operand the MATMUL read.
+of the reshaped operand the K_MATMUL read.
 
 ### WindowExtentsPadBothSidesOfAnAxisByTheLeadingPad
 
@@ -9990,8 +9990,8 @@ condition: the counter stays at zero. Without it, `assert_positive(1)` returns a
 
 Tests that StepRecorderList drives its members as one recorder, in the order added.
 
-This file needs no device. `Graph::IStepRecorder` and `Graph::StepRecorderList` are in
-`include/SushiAI/graph/step_recorder.hpp`. The list is itself an `IStepRecorder` and holds
+This file needs no device. `Graph::StepRecorder` and `Graph::StepRecorderList` are in
+`include/SushiAI/graph/step_recorder.hpp`. The list is itself an `StepRecorder` and holds
 references to its members; it does not own them.
 
 ### JournalRecorder
@@ -10048,7 +10048,7 @@ hooks the journal holds "a.record", "a.before" and "a.after" only.
 
 ### ListIsDrivenThroughTheInterface
 
-Through an `IStepRecorder*`, a list of a and b records 5 tasks and journals the record calls,
+Through an `StepRecorder*`, a list of a and b records 5 tasks and journals the record calls,
 then the before calls, then the after calls, each as a then b.
 
 ### NestedListKeepsItsPlaceInTheOrder
@@ -10287,7 +10287,7 @@ The case is in the suite `Unit_TraceDeathTest`. `trace.fail(Status())` stops the
 
 ### AnUpdateWithoutASourceIsFatal
 
-The case is in the suite `Unit_TraceDeathTest`. An update whose source is `NO_VALUE` stops the
+The case is in the suite `Unit_TraceDeathTest`. An update whose source is `K_NO_VALUE` stops the
 process with "a buffer update reads value".
 
 ### AnUpdateFromAValueOutsideTheGraphIsFatal
@@ -10387,7 +10387,7 @@ limit, and otherwise declares one input of that extent.
 
 ### DefaultHoldsTheAbsentValueAndNoFailure
 
-A default-constructed `Traced` has a value, an ok status and the id `Graph::NO_VALUE`.
+A default-constructed `Traced` has a value, an ok status and the id `Graph::K_NO_VALUE`.
 
 ### HoldsAnIdWithASuccessStatus
 
@@ -10493,7 +10493,7 @@ The result is rank 4 and tagged NHWC, and `finalise()` accepts the graph.
 
 ### EmitsOneReshapeNode
 
-The trace adds exactly one node. The producer of the result is a RESHAPE whose one operand is
+The trace adds exactly one node. The producer of the result is a K_RESHAPE whose one operand is
 the input.
 
 ### OutputShapeAgreesWithTheTraceForAnRgbImage
@@ -10591,7 +10591,7 @@ The traced result is rank 4 and tagged NHWC.
 ### ForwardEmitsOneUpsampleNodeCarryingTheScale
 
 The trace of `Upsample2d{3}` adds exactly one node. The producer of the result is an
-UPSAMPLE2D whose one operand is the input, and attribute slots 0 and 1 both hold 3.
+K_UPSAMPLE2D whose one operand is the input, and attribute slots 0 and 1 both hold 3.
 
 ### OutputShapeScalesHeightAndWidthOnly
 

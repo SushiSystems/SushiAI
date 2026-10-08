@@ -1,5 +1,5 @@
 # SushiBLAS v0.1.0 migration
-**Status:** Open — wave 1 of 9
+**Status:** Open — waves 1 to 9 written; the owner's build closes it
 
 SushiAI calls the SushiBLAS surface that v0.1.0 removed and does not compile against the new one.
 This document specifies the migration: every call site, the units that replace

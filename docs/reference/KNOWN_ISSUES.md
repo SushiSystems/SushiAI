@@ -8,7 +8,7 @@ Defects that exist today, each with where it sits. Planned work is in
 | Issue | Where |
 | --- | --- |
 | In mixed precision an overflowed gradient skips that parameter's update only; the other parameters still step, so one step can update some layers and not others | `include/SushiAI/optim/loss_scaler.hpp` |
-| Differentiating `LOG_SOFTMAX` on its own throws; it differentiates only as the fused `LOG_SOFTMAX` + `NLL_LOSS` pair | `src/autograd/rules/loss.cpp` |
+| Differentiating `K_LOG_SOFTMAX` on its own throws; it differentiates only as the fused `K_LOG_SOFTMAX` + `K_NLL_LOSS` pair | `src/autograd/rules/loss.cpp` |
 | `gradcheck` cannot verify a mixed-precision graph: a central difference in fp16 has a noise floor near 1e-2. Check the rule in FLOAT64 | `include/SushiAI/autograd/gradcheck.hpp` |
 | NVIDIA Pascal GPUs (GTX 1060, compute capability 6.1) fail when the OpenCL loader ingests SPIR-V. Workaround below | The oneAPI OpenCL loader, outside this repository |
 

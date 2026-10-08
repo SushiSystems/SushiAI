@@ -156,15 +156,15 @@ its GEMM under mixed precision. Section 5.3 of the
 ## What does SushiAI not do yet?
 
 The [architecture page](../architecture/ARCHITECTURE.md) names the open work in its section 7:
-packing the lowering's scratch, the log-softmax and `NLL_LOSS` fusions, the standalone
-`LOG_SOFTMAX` rule, the whole-step overflow skip, bfloat16, and the `Dataset` and `Trainer`
+packing the lowering's scratch, the log-softmax and `K_NLL_LOSS` fusions, the standalone
+`K_LOG_SOFTMAX` rule, the whole-step overflow skip, bfloat16, and the `Dataset` and `Trainer`
 seams among them. [Known issues](../reference/KNOWN_ISSUES.md) records what behaves wrongly or
 narrowly today:
 
 - In mixed precision an overflowed gradient skips that parameter's update only; the other
   parameters still step.
-- Differentiating `LOG_SOFTMAX` on its own throws. It differentiates only as the fused
-  `LOG_SOFTMAX` and `NLL_LOSS` pair.
+- Differentiating `K_LOG_SOFTMAX` on its own throws. It differentiates only as the fused
+  `K_LOG_SOFTMAX` and `K_NLL_LOSS` pair.
 - `gradcheck` cannot verify a mixed-precision graph. Check the rule in FLOAT64.
 - NVIDIA Pascal GPUs (GTX 1060, compute capability 6.1) fail when the OpenCL loader ingests
   SPIR-V. The workaround is to set `ONEAPI_DEVICE_SELECTOR` to `opencl:cpu`.

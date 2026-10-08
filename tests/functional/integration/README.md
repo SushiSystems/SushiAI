@@ -98,9 +98,9 @@ left-hand test green.
 
 ### AccumulateInTheForwardGraph
 
-ACCUMULATE has a backward rule that nothing else exercises. The two fan-out tests build an
-ACCUMULATE chain in the backward graph, and `differentiate()` walks only the forward nodes, so
-those chains are never differentiated themselves. Reaching the rule needs an ACCUMULATE the
+K_ACCUMULATE has a backward rule that nothing else exercises. The two fan-out tests build an
+K_ACCUMULATE chain in the backward graph, and `differentiate()` walks only the forward nodes, so
+those chains are never differentiated themselves. Reaching the rule needs an K_ACCUMULATE the
 caller put in the forward pass.
 
 The lowering aliases the result onto the accumulator's own buffer, so running the step leaves
@@ -131,7 +131,7 @@ mutation would go undetected, and this test fails first.
 
 The central difference is the strongest oracle in the repository. Here it is pointed at the
 one fused form whose correctness does not follow from running the same operations in the same
-order. GEMM_BIAS_GELU rewrites what the backward pass reads: the pre-activation arrives from a
+order. K_GEMM_BIAS_GELU rewrites what the backward pass reads: the pre-activation arrives from a
 store inside a GEMM kernel, where the unfused graph had a `ger` write it. A central difference
 does not care where the value came from. It asks the graph what its own loss does when the
 variable moves and compares that with the gradient the graph reports. A spill holding the
@@ -164,10 +164,10 @@ A reshape moves no data, so its gradient is its incoming gradient in the origina
 numeric check is still worth having: reshaping back to the input shape and reshaping back to
 the output shape are both one line, and only one is right.
 
-The fused LOG_SOFTMAX + NLL_LOSS rule's closed form assumes a one-hot target row
+The fused K_LOG_SOFTMAX + K_NLL_LOSS rule's closed form assumes a one-hot target row
 (`nll_loss_backward` says it is "valid because the targets are one-hot"). Noise in the targets
 would make the analytic gradient disagree with the numeric one for reasons that have nothing
-to do with RESHAPE.
+to do with K_RESHAPE.
 
 ### LayoutConvertsGradientIsThePermutedGradient
 
@@ -177,13 +177,13 @@ it has the right magnitude in the wrong place, and it still satisfies every shap
 `Differentiator::contribute` makes. A round trip cannot tell the two apart, because any
 involutive, shape-correct pair of backward hops composes to the identity.
 
-CV-4 forces every node that is neither a LEAF nor a LAYOUT_CONVERT to agree with its operand
+CV-4 forces every node that is neither a K_LEAF nor a K_LAYOUT_CONVERT to agree with its operand
 on layout. A variable therefore cannot reach `log_softmax` by converting one way and stopping:
 `graph::finalise()` would refuse the mismatched `log_softmax` output before any gradient ran.
 CV-4 exempts a leaf, which has no operands to disagree with, so its layout tag is free. This
-is also how the operation is used in practice. LAYOUT_CONVERT exists for boundary interop,
+is also how the operation is used in practice. K_LAYOUT_CONVERT exists for boundary interop,
 such as loading an NCHW checkpoint, where the source data carries the other tag and no
-mid-graph value does. The case tags the variable NCHW before its one LAYOUT_CONVERT node and
+mid-graph value does. The case tags the variable NCHW before its one K_LAYOUT_CONVERT node and
 reshapes straight into `log_softmax`. That reaches a CV-4-legal NHWC consumer with no round
 trip, so the permutation is what the loss depends on.
 
@@ -209,7 +209,7 @@ reached straight off the matmul. With a 1x1 window grid folded into rows there w
 nothing to average over, and the matmul's output is already rank 2, [N*H_o*W_o, C_out], so no
 reshape is needed.
 
-A probe ending in `log_softmax` must use one-hot targets (A-6). The fused NLL_LOSS rule's
+A probe ending in `log_softmax` must use one-hot targets (A-6). The fused K_NLL_LOSS rule's
 closed form is the true derivative of this loss only when the target row is one-hot.
 
 ### Im2colsGradientAccumulatesEveryWindowThatReadAPixel
@@ -229,7 +229,7 @@ case checks the whole path against finite differences.
 
 ### Col2imsGradientGathersEveryWindowThatWroteAPixel
 
-COL2IM's rule is the mirror image of `im2col_backward`. The case checks it without `im2col`:
+K_COL2IM's rule is the mirror image of `im2col_backward`. The case checks it without `im2col`:
 the variable is the column matrix, fed straight into `col2im` and reshaped into `log_softmax`.
 That keeps it single-hop by construction (A-7). No `im2col` sits on the path for `col2im` to
 be the adjoint of, so an involutive round trip cannot satisfy the check.
@@ -260,8 +260,8 @@ slowly, and only in this one layer.
 
 ### SpatialMeanBroadcastsScaledByOneOverHW
 
-An earlier draft of the design lacked this rule. It is a per-(n, c) broadcast. BIAS_ADD's
-broadcast is per row and CHANNEL_AFFINE's is per channel, and neither would have produced it.
+An earlier draft of the design lacked this rule. It is a per-(n, c) broadcast. K_BIAS_ADD's
+broadcast is per row and K_CHANNEL_AFFINE's is per channel, and neither would have produced it.
 
 ### ConcatGivesEachOperandItsOwnChannelRange
 
@@ -447,7 +447,7 @@ ones. The expected buffer is worked out by hand and not read back from the imple
 
 ### AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient
 
-MAXPOOL2D is the first operation whose results are not all one element type. Beside the pooled
+K_MAXPOOL2D is the first operation whose results are not all one element type. Beside the pooled
 tensor it writes an INT64 argmax, and its backward reads that as a table of offsets.
 `insert_casts()` derived one precision per node from `outputs[0]` and forced every operand and
 result to it. The argmax then read as a value in the wrong type, and was either retyped to
@@ -467,7 +467,7 @@ must come back with no gradient.
 ### ChannelAffineScalesAndShiftsPerChannelNotPerRow
 
 The input is N=1, H=1, W=2, C=2. Two pixels sharing one pair of parameters separate a
-per-channel broadcast from a per-row one: BIAS_ADD's broadcast would give the second pixel the
+per-channel broadcast from a per-row one: K_BIAS_ADD's broadcast would give the second pixel the
 second channel's numbers.
 
 ### BatchNorm2dNormalisesEachChannelOverTheWholeBatch
@@ -568,7 +568,7 @@ is why `dataset.hpp` warns about `set_seed`.
 
 ### The mnist cases
 
-The six cases below cover the "mnist" row of `Data::DATASET_REGISTRY` and its factory,
+The six cases below cover the "mnist" row of `Data::K_DATASET_REGISTRY` and its factory,
 `Data::make_mnist` in `src/data/dataset.cpp`. None of them needs the IDX files. Each asks for
 the directory `sushiai_absent_mnist`, which does not exist, or omits the directory, so every
 call ends in an error and the case asserts what the message contains. Loading the files is
@@ -576,7 +576,7 @@ not covered here.
 
 ### TheDatasetRegistryListsMnist
 
-A search of `Data::DATASET_REGISTRY` finds an entry whose type is "mnist". The message for
+A search of `Data::K_DATASET_REGISTRY` finds an entry whose type is "mnist". The message for
 the unknown type "coco" contains "'mnist'", so the row also reaches the list a user is shown.
 
 ### MnistRefusesADirectoryWithoutTheFiles
@@ -630,7 +630,7 @@ be able to change what a run is, so "kernel" is not an accepted key.
 
 ## test_rematerialise.cpp
 
-The file covers the half of the IM2COL rematerialisation pass that the host-lane tier cannot
+The file covers the half of the K_IM2COL rematerialisation pass that the host-lane tier cannot
 reach. `Unit_Rematerialise` proves the rewrite has the right shape; this file proves the
 rewritten graph computes the same numbers.
 
@@ -644,7 +644,7 @@ tolerance: the clone recomputes the same operation from the same inputs, and Sus
 
 ### image_values
 
-The [1, 5, 4, 2] image is not square on purpose. IM2COL's output extents live in attribute
+The [1, 5, 4, 2] image is not square on purpose. K_IM2COL's output extents live in attribute
 slots 8 and 9. A clone goes wrong by re-deriving them where it should copy them, which can
 yield the transpose of the real window grid with the same number of windows. On a square image
 that mistake is invisible; on 5x4 it is a different gather.
@@ -791,8 +791,8 @@ inside the runtime is tolerated; a per-iteration leak is not.
 ### BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo
 
 CV-7 keeps a BatchNorm's running statistics out of the IR. They are recorded into the training
-step beside the graph, the same way `src/optim/` emits SGD_UPDATE and ADAMW_UPDATE directly.
-BATCHNORM_UPDATE_STATS is therefore the one declared identity with no case in
+step beside the graph, the same way `src/optim/` emits K_SGD_UPDATE and K_ADAMW_UPDATE directly.
+K_BATCHNORM_UPDATE_STATS is therefore the one declared identity with no case in
 `Lowering::record_node`, and that is deliberate.
 
 From the outside a deliberate gap and an omission look the same, which is why the test exists.
