@@ -96,6 +96,11 @@ the `detect` module and the `imaging` module.
   sample source, the build pass that parses and rejects labels once, one pipeline per thread.
 - **The image decode tool** that writes the raw cache, with libjpeg-turbo through vcpkg.
 - **MuSGD, parameter groups, the learning-rate schedule with warmup, and the weight EMA.**
+- **The tolerance of a HALF comparison between the reference path and the device.** The
+  toolchain's host float-to-half conversion truncates below 2^-13, so a HALF result of smaller
+  magnitude computed under `ForceReference` sits one HALF unit in the last place under the
+  device's value. A mixed-precision check that compares the two paths allows one HALF ulp below
+  2^-13 and bit equality above it (sushiblas: `docs/reference/KNOWN_ISSUES.md`).
 - **Reference coverage of NMS.** The fixture's detections are one class with no pair above the
   IoU threshold, so a removal by suppression and the class shift are covered by hand tests only.
 - **The detect module's open interface points** are listed in `PLAN.md` under "Detection host
