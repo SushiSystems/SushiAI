@@ -10,8 +10,8 @@ behind the library items is in [`ROADMAP.md`](ROADMAP.md) and
 Builds and test runs have been off since 2026-10-07, so everything written since then was checked
 by reading and by single-file syntax checks only. The first build has to settle:
 
-- **The suites pass.** On 2026-10-09 the tree built with no error and 1794 of 1803 tests passed;
-  the nine are listed in `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`.
+- **The suites pass.** Done on 2026-10-09: the tree built with no error and all 1803 tests
+  passed on an RTX 3080 Ti; `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md` has the runs.
 - **The `No kernel named` failure.** The test logs of 2026-09-16 and later show nearly every test
   failing with a SYCL "No kernel named" error; no document names the cause (stale binary, device
   selection or kernel bundle).
@@ -33,8 +33,9 @@ The library, the applications, the examples and the tests were moved on 2026-10-
 design is `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/SPEC.md`; section 7 of it lists the sixteen
 things the first build has to confirm, and `REPORT.md` beside it holds each wave's review.
 
-- **Rerun the suite.** On 2026-10-09, 1794 of 1803 tests passed. Eight node-count expectations
-  were corrected and the learning-curve reference was re-recorded; neither has been rerun.
+- **Run what the suite does not reach.** On 2026-10-09 all 1803 tests passed against SushiBLAS
+  `7f04834`. The demo transcript, `sa train` on MNIST and a HALF comparison under
+  `ForceReference` have not run.
 - **Make the learning-curve reference pin its tail.** From step 6 on the loss is under the
   absolute tolerance of 0.02, so those values hold little; a relative tolerance or a lower
   learning rate would.
