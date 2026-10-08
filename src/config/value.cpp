@@ -119,13 +119,13 @@ namespace SushiAI
         {
             switch (kind)
             {
-                case Kind::NUL:    return "null";
-                case Kind::BOOL:   return "a boolean";
-                case Kind::INT:    return "a whole number";
-                case Kind::REAL:   return "a number";
-                case Kind::STRING: return "a string";
-                case Kind::ARRAY:  return "an array";
-                case Kind::OBJECT: return "an object";
+                case Kind::Null:    return "null";
+                case Kind::Bool:   return "a boolean";
+                case Kind::Int:    return "a whole number";
+                case Kind::Real:   return "a number";
+                case Kind::String: return "a string";
+                case Kind::Array:  return "an array";
+                case Kind::Object: return "an object";
             }
             return "an unknown kind";
         }
@@ -133,7 +133,7 @@ namespace SushiAI
         Value Value::boolean(bool value)
         {
             Value node;
-            node.kind_ = Kind::BOOL;
+            node.kind_ = Kind::Bool;
             node.bool_ = value;
             return node;
         }
@@ -141,7 +141,7 @@ namespace SushiAI
         Value Value::integer(std::int64_t value)
         {
             Value node;
-            node.kind_ = Kind::INT;
+            node.kind_ = Kind::Int;
             node.int_ = value;
             return node;
         }
@@ -149,7 +149,7 @@ namespace SushiAI
         Value Value::real(double value)
         {
             Value node;
-            node.kind_ = Kind::REAL;
+            node.kind_ = Kind::Real;
             node.real_ = value;
             return node;
         }
@@ -157,7 +157,7 @@ namespace SushiAI
         Value Value::string(std::string value)
         {
             Value node;
-            node.kind_ = Kind::STRING;
+            node.kind_ = Kind::String;
             node.string_ = std::move(value);
             return node;
         }
@@ -165,7 +165,7 @@ namespace SushiAI
         Value Value::array(std::vector<Value> entries)
         {
             Value node;
-            node.kind_ = Kind::ARRAY;
+            node.kind_ = Kind::Array;
             node.array_ = std::move(entries);
             return node;
         }
@@ -177,7 +177,7 @@ namespace SushiAI
                         keys.size(), values.size());
 
             Value node;
-            node.kind_ = Kind::OBJECT;
+            node.kind_ = Kind::Object;
             node.keys_ = std::move(keys);
             node.values_ = std::move(values);
             return node;
@@ -185,44 +185,44 @@ namespace SushiAI
 
         bool Value::as_bool(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::BOOL,
+            SA_THROW_IF(kind_ != Kind::Bool,
                         "{} must be a boolean, but it is {}", context, kind_name(kind_));
             return bool_;
         }
 
         std::int64_t Value::as_int(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::INT,
+            SA_THROW_IF(kind_ != Kind::Int,
                         "{} must be a whole number, but it is {}", context, kind_name(kind_));
             return int_;
         }
 
         double Value::as_real(std::string_view context) const
         {
-            if (kind_ == Kind::INT) return static_cast<double>(int_);
+            if (kind_ == Kind::Int) return static_cast<double>(int_);
 
-            SA_THROW_IF(kind_ != Kind::REAL,
+            SA_THROW_IF(kind_ != Kind::Real,
                         "{} must be a number, but it is {}", context, kind_name(kind_));
             return real_;
         }
 
         const std::string& Value::as_string(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::STRING,
+            SA_THROW_IF(kind_ != Kind::String,
                         "{} must be a string, but it is {}", context, kind_name(kind_));
             return string_;
         }
 
         const std::vector<Value>& Value::as_array(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::ARRAY,
+            SA_THROW_IF(kind_ != Kind::Array,
                         "{} must be an array, but it is {}", context, kind_name(kind_));
             return array_;
         }
 
         bool Value::has(std::string_view key) const noexcept
         {
-            if (kind_ != Kind::OBJECT) return false;
+            if (kind_ != Kind::Object) return false;
 
             for (const std::string& candidate : keys_)
                 if (candidate == key) return true;
@@ -231,7 +231,7 @@ namespace SushiAI
 
         const Value& Value::at(std::string_view key, std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::OBJECT,
+            SA_THROW_IF(kind_ != Kind::Object,
                         "{} must be an object carrying '{}', but it is {}",
                         context, key, kind_name(kind_));
 
@@ -245,7 +245,7 @@ namespace SushiAI
 
         const Value& Value::at_or(std::string_view key, const Value& fallback) const noexcept
         {
-            if (kind_ != Kind::OBJECT) return fallback;
+            if (kind_ != Kind::Object) return fallback;
 
             for (std::size_t i = 0; i < keys_.size(); ++i)
                 if (keys_[i] == key) return values_[i];
@@ -256,7 +256,7 @@ namespace SushiAI
                                         SushiRuntime::span<const std::string_view> allowed) const
         {
             // Non-object nodes contain no keys to validate against the allowed list.
-            if (kind_ != Kind::OBJECT) return;
+            if (kind_ != Kind::Object) return;
 
             for (const std::string& key : keys_)
             {
@@ -275,7 +275,7 @@ namespace SushiAI
 
         Value Value::without(std::string_view key) const
         {
-            if (kind_ != Kind::OBJECT) return *this;
+            if (kind_ != Kind::Object) return *this;
 
             std::vector<std::string> keys;
             std::vector<Value> values;
@@ -294,7 +294,7 @@ namespace SushiAI
         void require_version(const Value& root, std::string_view key,
                              std::int64_t expected, std::string_view origin)
         {
-            SA_THROW_IF(root.kind() != Kind::OBJECT,
+            SA_THROW_IF(root.kind() != Kind::Object,
                         "'{}' must be an object whose first key is '{}', but it is {}",
                         origin, key, kind_name(root.kind()));
 

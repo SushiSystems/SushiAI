@@ -47,11 +47,11 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 16;
-    constexpr int64_t FEATURES = 8;
-    constexpr int64_t HIDDEN = 16;
+    constexpr int64_t K_FEATURES = 8;
+    constexpr int64_t K_HIDDEN = 16;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 8;
-    constexpr int64_t EPOCHS = 25;
+    constexpr int64_t K_BATCHES = 8;
+    constexpr int64_t K_EPOCHS = 25;
 
     /**
      * @brief Returns AdamW options at the rate `sa demo mlp` uses, 3e-3.
@@ -82,12 +82,12 @@ namespace
      * @brief Trains the same model, data and seed under @p precision.
      * @see tests/functional/regression/README.md
      */
-    TrainingRun train(SushiBLAS::Engine& engine, const Graph::IPrecisionPolicy* precision)
+    TrainingRun train(SushiBLAS::Engine& engine, const Graph::PrecisionPolicy* precision)
     {
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
 
         Train::TrainingGraph built = Train::build_classifier(
-            model, BATCH, FEATURES, CLASSES, DType::FLOAT32, Graph::FusionOptions{}, precision);
+            model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{}, precision);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -101,8 +101,8 @@ namespace
 
         Data::SyntheticOptions data;
         data.batch_size = BATCH;
-        data.batches = BATCHES;
-        data.features = FEATURES;
+        data.batches = K_BATCHES;
+        data.features = K_FEATURES;
         data.classes = CLASSES;
         const Data::SyntheticClassification dataset(engine, data);
 
@@ -110,7 +110,7 @@ namespace
         result.casts = built.casts.count();
         result.operations = trainer.step().operation_count();
 
-        for (int64_t epoch = 0; epoch < EPOCHS; ++epoch)
+        for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
             for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
             {
                 const Train::StepMetrics metrics = trainer.run_step(dataset.batch(batch));
@@ -138,12 +138,12 @@ TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
     ASSERT_GT(mixed.casts, 0u) << "nothing was narrowed, so nothing was being guarded";
 
     for (DType dtype : mixed.master_dtypes)
-        EXPECT_EQ(dtype, DType::FLOAT32)
+        EXPECT_EQ(dtype, DType::Float32)
             << "a master weight was narrowed; fp16 updates below the weight's own "
                "spacing are discarded and the run still converges";
 
     for (DType dtype : mixed.gradient_dtypes)
-        EXPECT_EQ(dtype, DType::FLOAT32)
+        EXPECT_EQ(dtype, DType::Float32)
             << "a gradient reached the optimizer in low precision";
 }
 
@@ -218,35 +218,35 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
  */
 TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
 {
-    using GeluMlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using GeluMlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
 
-    GeluMlp wide_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
-    GeluMlp narrow_model(NN::Linear{FEATURES, HIDDEN}, NN::GELU{}, NN::Linear{HIDDEN, CLASSES});
+    GeluMlp wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
+    GeluMlp narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
 
     const MixedPrecisionPolicy precision;
 
     const Train::TrainingGraph wide = Train::build_classifier(
-        wide_model, BATCH, FEATURES, CLASSES, DType::FLOAT32, Graph::FusionOptions{}, nullptr);
+        wide_model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{}, nullptr);
     const Train::TrainingGraph narrow = Train::build_classifier(
-        narrow_model, BATCH, FEATURES, CLASSES, DType::FLOAT32, Graph::FusionOptions{},
+        narrow_model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{},
         &precision);
 
     // The control: with nothing narrowing, the entry is reachable and taken.
-    EXPECT_EQ(wide.fusion.count(Graph::FusedForm::GEMM_BIAS_GELU), 1u)
+    EXPECT_EQ(wide.fusion.count(Graph::FusedForm::GemmBiasGelu), 1u)
         << wide.fusion.to_string();
 
-    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMM_BIAS_GELU), 0u)
+    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GemmBiasGelu), 0u)
         << "a narrowing policy folded GELU into the GEMM, which puts the tanh "
            "approximation's x*x*x into fp16 - see graph/precision.hpp rule 5\n"
         << narrow.fusion.to_string();
 
     // The bias still folds on both layers; see tests/functional/regression/README.md.
-    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMM_BIAS), 2u)
+    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GemmBias), 2u)
         << narrow.fusion.to_string();
     EXPECT_GT(narrow.casts.count(), 0u) << "this arm narrowed nothing, so it proves nothing";
 
     // The GELU stays in the graph, in the master type; see tests/functional/regression/README.md.
     for (const Graph::Node& node : narrow.graph.nodes())
-        if (node.op == Ops::GELU.id)
-            EXPECT_EQ(narrow.graph.value(node.outputs[0]).dtype, DType::FLOAT32);
+        if (node.op == Ops::K_GELU.id)
+            EXPECT_EQ(narrow.graph.value(node.outputs[0]).dtype, DType::Float32);
 }

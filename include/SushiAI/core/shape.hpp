@@ -53,8 +53,8 @@ namespace SushiAI
              */
             Shape(std::initializer_list<int64_t> dims)
             {
-                SA_THROW_IF(dims.size() > static_cast<std::size_t>(MAX_RANK),
-                            "Shape rank {} exceeds the maximum of {}", dims.size(), MAX_RANK);
+                SA_THROW_IF(dims.size() > static_cast<std::size_t>(K_MAX_RANK),
+                            "Shape rank {} exceeds the maximum of {}", dims.size(), K_MAX_RANK);
 
                 for (int64_t d : dims)
                 {
@@ -70,8 +70,8 @@ namespace SushiAI
              */
             explicit Shape(SushiRuntime::span<const int64_t> dims)
             {
-                SA_THROW_IF(dims.size() > static_cast<std::size_t>(MAX_RANK),
-                            "Shape rank {} exceeds the maximum of {}", dims.size(), MAX_RANK);
+                SA_THROW_IF(dims.size() > static_cast<std::size_t>(K_MAX_RANK),
+                            "Shape rank {} exceeds the maximum of {}", dims.size(), K_MAX_RANK);
 
                 for (std::size_t i = 0; i < dims.size(); ++i)
                 {
@@ -164,7 +164,7 @@ namespace SushiAI
             }
 
         private:
-            std::array<int64_t, static_cast<std::size_t>(MAX_RANK)> dims_{};
+            std::array<int64_t, static_cast<std::size_t>(K_MAX_RANK)> dims_{};
             int32_t rank_ = 0;
     };
 

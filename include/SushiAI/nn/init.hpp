@@ -44,11 +44,11 @@ namespace SushiAI
          */
         enum class Nonlinearity : std::uint8_t
         {
-            LINEAR,     /**< No activation, or an identity one. */
-            TANH,       /**< Hyperbolic tangent. */
-            RELU,       /**< Rectified linear unit; also GELU and SiLU in practice. */
-            LEAKY_RELU, /**< Leaky rectified linear unit. */
-            SIGMOID,    /**< Logistic sigmoid. */
+            Linear,     /**< No activation, or an identity one. */
+            Tanh,       /**< Hyperbolic tangent. */
+            Relu,       /**< Rectified linear unit; also GELU and SiLU in practice. */
+            LeakyRelu, /**< Leaky rectified linear unit. */
+            Sigmoid,    /**< Logistic sigmoid. */
         };
 
         /**
@@ -114,8 +114,8 @@ namespace SushiAI
          */
         enum class InitFamily : std::uint8_t
         {
-            KAIMING, /**< Scale by fan-in; the right default for a rectifier stack. */
-            XAVIER,  /**< Scale by both fans; the right default for tanh or sigmoid. */
+            Kaiming, /**< Scale by fan-in; the right default for a rectifier stack. */
+            Xavier,  /**< Scale by both fans; the right default for tanh or sigmoid. */
         };
 
         /**
@@ -125,10 +125,10 @@ namespace SushiAI
         struct InitPolicy
         {
             /** @brief Which variance rule the weights follow. */
-            InitFamily family = InitFamily::KAIMING;
+            InitFamily family = InitFamily::Kaiming;
 
             /** @brief The activation the hidden layers feed. */
-            Nonlinearity nonlinearity = Nonlinearity::RELU;
+            Nonlinearity nonlinearity = Nonlinearity::Relu;
 
             /** @brief Draw uniformly rather than normally. */
             bool uniform = false;
@@ -182,7 +182,7 @@ namespace SushiAI
 
             std::size_t final_weight = parameters.size();
             for (std::size_t i = 0; i < parameters.size(); ++i)
-                if (parameters[i]->role() == ParameterRole::WEIGHT) final_weight = i;
+                if (parameters[i]->role() == ParameterRole::Weight) final_weight = i;
 
             for (std::size_t i = 0; i < parameters.size(); ++i)
             {

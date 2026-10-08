@@ -37,8 +37,8 @@ using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::Lifetime;
 using Graph::K_NO_STATE;
-using Graph::NO_NODE;
-using Graph::NO_VALUE;
+using Graph::K_NO_NODE;
+using Graph::K_NO_VALUE;
 using Graph::StateId;
 using Graph::StateIdentity;
 using Graph::ValueId;
@@ -46,25 +46,25 @@ using Graph::ValueId;
 TEST(Unit_Ir, AddValueRecordsShapeDtypeAndLifetime)
 {
     Graph::Graph graph;
-    const ValueId id = graph.add_value(Shape{2, 3}, DType::FLOAT64,
-                                       Lifetime::PARAMETER, "w");
+    const ValueId id = graph.add_value(Shape{2, 3}, DType::Float64,
+                                       Lifetime::Parameter, "w");
 
     EXPECT_EQ(graph.value_count(), 1u);
     EXPECT_EQ(graph.value(id).shape, Shape({2, 3}));
-    EXPECT_EQ(graph.value(id).dtype, DType::FLOAT64);
-    EXPECT_EQ(graph.value(id).lifetime, Lifetime::PARAMETER);
+    EXPECT_EQ(graph.value(id).dtype, DType::Float64);
+    EXPECT_EQ(graph.value(id).lifetime, Lifetime::Parameter);
     EXPECT_EQ(graph.value(id).debug_name, "w");
-    EXPECT_EQ(graph.value(id).producer, NO_NODE);
+    EXPECT_EQ(graph.value(id).producer, K_NO_NODE);
 }
 
 TEST(Unit_Ir, AddNodeClaimsItsOutputs)
 {
     Graph::Graph graph;
-    const ValueId a = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
-    const ValueId b = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
-    const ValueId c = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION);
+    const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueId b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueId c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
 
-    const Graph::NodeId node = graph.add_node(Ops::ADD.id, {a, b}, {c});
+    const Graph::NodeId node = graph.add_node(Ops::K_ADD.id, {a, b}, {c});
 
     EXPECT_EQ(graph.value(c).producer, node);
     EXPECT_EQ(graph.node(node).inputs.size(), 2u);
@@ -74,21 +74,21 @@ TEST(Unit_Ir, ASecondProducerForOneValueThrows)
 {
     // A value has exactly one producer; see tests/functional/unit/README.md.
     Graph::Graph graph;
-    const ValueId a = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
-    const ValueId b = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
-    const ValueId c = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION);
+    const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueId b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueId c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
 
-    graph.add_node(Ops::ADD.id, {a, b}, {c});
-    EXPECT_THROW(graph.add_node(Ops::SUB.id, {a, b}, {c}), Error);
+    graph.add_node(Ops::K_ADD.id, {a, b}, {c});
+    EXPECT_THROW(graph.add_node(Ops::K_SUB.id, {a, b}, {c}), Error);
 }
 
 TEST(Unit_Ir, ReferencingAnUnknownValueThrows)
 {
     Graph::Graph graph;
-    const ValueId a = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
+    const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
 
-    EXPECT_THROW(graph.add_node(Ops::ADD.id, {a, 99}, {a}), Error);
-    EXPECT_THROW(graph.add_node(Ops::ADD.id, {a}, {99}), Error);
+    EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a, 99}, {a}), Error);
+    EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a}, {99}), Error);
 }
 
 TEST(Unit_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
@@ -181,8 +181,8 @@ TEST(Unit_Ir, BuilderRejectsMixedElementTypes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId single = builder.input(Shape{4, 4}, "f32", DType::FLOAT32);
-    const ValueId doubled = builder.input(Shape{4, 4}, "f64", DType::FLOAT64);
+    const ValueId single = builder.input(Shape{4, 4}, "f32", DType::Float32);
+    const ValueId doubled = builder.input(Shape{4, 4}, "f64", DType::Float64);
 
     EXPECT_THROW((void)builder.add(single, doubled), Error);
     EXPECT_THROW((void)builder.matmul(single, doubled, false, false), Error);
@@ -203,7 +203,7 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
         for (Graph::ValueId in : graph.nodes()[i].inputs)
         {
             const Graph::NodeId producer = graph.value(in).producer;
-            if (producer != NO_NODE) EXPECT_LT(producer, i);
+            if (producer != K_NO_NODE) EXPECT_LT(producer, i);
         }
 }
 
@@ -211,22 +211,22 @@ TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
 {
     // insert_node refuses a producer placed after its reader; see tests/functional/unit/README.md.
     Graph::Graph graph;
-    const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
-    const ValueId orphan = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "orphan");
-    const ValueId y = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "y");
+    const ValueId x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
+    const ValueId orphan = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "orphan");
+    const ValueId y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
 
     // Node 0 reads `orphan`, which nothing writes yet.
-    (void)graph.add_node(Ops::ADD.id, {x, orphan}, {y});
+    (void)graph.add_node(Ops::K_ADD.id, {x, orphan}, {y});
 
-    SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}),
+    SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}),
                     "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
 
     // A rejected insert leaves the graph unchanged; see tests/functional/unit/README.md.
     EXPECT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.value(orphan).producer, NO_NODE);
+    EXPECT_EQ(graph.value(orphan).producer, K_NO_NODE);
 
     // The same node ahead of the reader is accepted; see tests/functional/unit/README.md.
-    EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::RELU.id, {x}, {orphan}, {}}));
+    EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}));
     EXPECT_EQ(graph.node_count(), 2u);
     EXPECT_EQ(graph.value(orphan).producer, Graph::NodeId{0});
     EXPECT_EQ(graph.value(y).producer, Graph::NodeId{1});
@@ -236,26 +236,26 @@ TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
 {
     // The mirror of the case above, and the one that was guarded first.
     Graph::Graph graph;
-    const ValueId x = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
-    const ValueId y = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "y");
-    const ValueId z = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION, "z");
+    const ValueId x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
+    const ValueId y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
+    const ValueId z = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "z");
 
-    (void)graph.add_node(Ops::RELU.id, {x}, {y});
+    (void)graph.add_node(Ops::K_RELU.id, {x}, {y});
 
-    SA_EXPECT_ERROR((void)graph.insert_node(0, Graph::Node{Ops::TANH.id, {y}, {z}, {}}),
+    SA_EXPECT_ERROR((void)graph.insert_node(0, Graph::Node{Ops::K_TANH.id, {y}, {z}, {}}),
                     "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes", "topological");
 
     EXPECT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.value(z).producer, NO_NODE);
+    EXPECT_EQ(graph.value(z).producer, K_NO_NODE);
 }
 
 TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 {
     // Slots 8 and 9 carry the output extents out_h and out_w; see tests/functional/unit/README.md.
-    EXPECT_EQ(Graph::Attributes::CAPACITY, std::size_t{10});
+    EXPECT_EQ(Graph::Attributes::K_CAPACITY, std::size_t{10});
 
     Graph::Attributes a;
-    for (std::size_t i = 0; i < Graph::Attributes::CAPACITY; ++i)
+    for (std::size_t i = 0; i < Graph::Attributes::K_CAPACITY; ++i)
         a.values[i] = static_cast<double>(i + 1);
 
     EXPECT_EQ(a.get(7), 8.0);
@@ -270,34 +270,34 @@ TEST(Unit_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
     const GraphBuilder builder(graph);
 
     const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId running = builder.buffer(Shape{3}, "running_mean", DType::FLOAT64);
+    const ValueId running = builder.buffer(Shape{3}, "running_mean", DType::Float64);
     const ValueId y = builder.bias_add(x, builder.buffer(Shape{3}, "shift"));
 
     graph.finalise();
 
     EXPECT_EQ(graph.value(running).shape, Shape({3}));
-    EXPECT_EQ(graph.value(running).dtype, DType::FLOAT64);
-    EXPECT_EQ(graph.value(running).lifetime, Lifetime::BUFFER);
+    EXPECT_EQ(graph.value(running).dtype, DType::Float64);
+    EXPECT_EQ(graph.value(running).lifetime, Lifetime::Buffer);
     EXPECT_EQ(graph.value(running).debug_name, "running_mean");
     EXPECT_FALSE(graph.value(running).requires_grad);
     EXPECT_FALSE(graph.value(y).requires_grad);
 
-    ASSERT_NE(graph.value(running).producer, NO_NODE);
-    EXPECT_EQ(graph.node(graph.value(running).producer).op, Ops::LEAF.id);
+    ASSERT_NE(graph.value(running).producer, K_NO_NODE);
+    EXPECT_EQ(graph.node(graph.value(running).producer).op, Ops::K_LEAF.id);
 
-    EXPECT_TRUE(Graph::is_persistent(Lifetime::BUFFER));
-    EXPECT_EQ(std::string_view(Graph::lifetime_name(Lifetime::BUFFER)), "buffer");
+    EXPECT_TRUE(Graph::is_persistent(Lifetime::Buffer));
+    EXPECT_EQ(std::string_view(Graph::lifetime_name(Lifetime::Buffer)), "buffer");
 }
 
 /** @brief Tests that the persistent lifetimes are the five that outlive a step. */
 TEST(Unit_Ir, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
 {
-    for (Lifetime lifetime : {Lifetime::PARAMETER, Lifetime::GRADIENT, Lifetime::OPTIMIZER_STATE,
-                              Lifetime::INPUT, Lifetime::BUFFER})
+    for (Lifetime lifetime : {Lifetime::Parameter, Lifetime::Gradient, Lifetime::OptimizerState,
+                              Lifetime::Input, Lifetime::Buffer})
         EXPECT_TRUE(Graph::is_persistent(lifetime)) << Graph::lifetime_name(lifetime);
 
-    EXPECT_FALSE(Graph::is_persistent(Lifetime::ACTIVATION));
-    EXPECT_FALSE(Graph::is_persistent(Lifetime::SCRATCH));
+    EXPECT_FALSE(Graph::is_persistent(Lifetime::Activation));
+    EXPECT_FALSE(Graph::is_persistent(Lifetime::Scratch));
 }
 
 /** @brief Tests that state_leaf returns the leaf bound to a state and NO_VALUE for any other. */
@@ -308,7 +308,7 @@ TEST(Unit_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
     const ValueId weight = builder.parameter(Shape{3}, "weight");
     const ValueId running = builder.buffer(Shape{3}, "running_mean");
 
-    EXPECT_EQ(graph.state_leaf(StateId{7}), NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(StateId{7}), K_NO_VALUE);
     EXPECT_TRUE(graph.state_leaves().empty());
 
     graph.bind_state_leaf(StateId{7}, running);
@@ -316,8 +316,8 @@ TEST(Unit_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
 
     EXPECT_EQ(graph.state_leaf(StateId{7}), running);
     EXPECT_EQ(graph.state_leaf(StateId{5}), weight);
-    EXPECT_EQ(graph.state_leaf(StateId{6}), NO_VALUE);
-    EXPECT_EQ(graph.state_leaf(K_NO_STATE), NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(StateId{6}), K_NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(K_NO_STATE), K_NO_VALUE);
 
     ASSERT_EQ(graph.state_leaves().size(), 2u);
     EXPECT_EQ(graph.state_leaves()[0], std::make_pair(StateId{7}, running));
@@ -342,7 +342,7 @@ TEST(Unit_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
     // A refused binding records nothing, so the table still holds the first pair alone.
     ASSERT_EQ(graph.state_leaves().size(), 1u);
     EXPECT_EQ(graph.state_leaf(StateId{7}), first);
-    EXPECT_EQ(graph.state_leaf(StateId{8}), NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(StateId{8}), K_NO_VALUE);
 }
 
 /** @brief Tests that without_nodes keeps every value field and state leaf and holds no node. */
@@ -351,10 +351,10 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 3, 4, 4}, "x", DType::FLOAT64);
-    const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId x = builder.input(Shape{1, 3, 4, 4}, "x", DType::Float64);
+    const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
     const ValueId weight = builder.parameter(Shape{2, 3}, "weight");
-    const ValueId running = builder.buffer(Shape{3}, "running", DType::HALF);
+    const ValueId running = builder.buffer(Shape{3}, "running", DType::Half);
     graph.bind_state_leaf(StateId{11}, weight);
     graph.bind_state_leaf(StateId{12}, running);
     graph.finalise();
@@ -375,19 +375,19 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
         EXPECT_EQ(after.lifetime, before.lifetime) << "value " << id;
         EXPECT_EQ(after.requires_grad, before.requires_grad) << "value " << id;
         EXPECT_EQ(after.debug_name, before.debug_name) << "value " << id;
-        EXPECT_EQ(after.producer, NO_NODE) << "value " << id;
+        EXPECT_EQ(after.producer, K_NO_NODE) << "value " << id;
     }
 
     // The fixture holds both layouts, both gradient flags and three element types.
-    EXPECT_EQ(stripped.value(x_nchw).layout, Graph::TensorLayout::NCHW);
+    EXPECT_EQ(stripped.value(x_nchw).layout, Graph::TensorLayout::Nchw);
     EXPECT_TRUE(stripped.value(weight).requires_grad);
-    EXPECT_EQ(stripped.value(running).dtype, DType::HALF);
+    EXPECT_EQ(stripped.value(running).dtype, DType::Half);
 
     EXPECT_EQ(stripped.state_leaves(), graph.state_leaves());
     EXPECT_EQ(stripped.state_leaf(StateId{12}), running);
 
     // The source graph is not changed by the copy.
-    EXPECT_NE(graph.value(x_nchw).producer, NO_NODE);
+    EXPECT_NE(graph.value(x_nchw).producer, K_NO_NODE);
     EXPECT_GT(graph.node_count(), 0u);
 }
 
@@ -395,7 +395,7 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
 TEST(Unit_Ir, ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes)
 {
     Graph::Graph graph;
-    (void)graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT, "x");
+    (void)graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
 
     EXPECT_FALSE(graph.has_refusal());
     EXPECT_FALSE(graph.without_nodes().has_refusal());

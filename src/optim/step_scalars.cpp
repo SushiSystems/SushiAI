@@ -40,7 +40,7 @@ namespace SushiAI
             SA_THROW_IF(count == 0, "A step-scalar buffer needs at least one slot");
 
             buffer_ = allocate_tensor(engine, Shape{static_cast<int64_t>(count)},
-                                      DType::FLOAT32);
+                                      DType::Float32);
             data_ = buffer_.data_as<float>();
 
             // Zero initialize shared USM buffer via host write before execution.

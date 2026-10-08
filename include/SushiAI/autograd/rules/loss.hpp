@@ -52,12 +52,12 @@ namespace SushiAI
          */
         constexpr bool starts_from_implicit_seed(OpID op) noexcept
         {
-            return op == Ops::NLL_LOSS.id;
+            return op == Ops::K_NLL_LOSS.id;
         }
 
         /** @brief Holds backward rule entries for loss operations. */
-        inline constexpr std::array<RuleEntry, 1> LOSS_RULES = {{
-            {Ops::NLL_LOSS.id, &nll_loss_backward},
+        inline constexpr std::array<RuleEntry, 1> K_LOSS_RULES = {{
+            {Ops::K_NLL_LOSS.id, &nll_loss_backward},
         }};
     }
 }

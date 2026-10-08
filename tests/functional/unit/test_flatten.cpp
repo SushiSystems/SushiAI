@@ -75,7 +75,7 @@ TEST(Unit_Flatten, ARank4InputTracesToOneReshape)
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
 
     const Graph::Node& node = graph.nodes().back();
-    EXPECT_EQ(node.op, Ops::RESHAPE.id);
+    EXPECT_EQ(node.op, Ops::K_RESHAPE.id);
     ASSERT_EQ(node.inputs.size(), 1u);
     EXPECT_EQ(node.inputs[0], x);
     ASSERT_EQ(node.outputs.size(), 1u);
@@ -113,11 +113,11 @@ TEST(Unit_Flatten, AnNhwcInputYieldsAnNhwcResult)
     const Graph::GraphBuilder builder(graph);
 
     const Graph::ValueId x = builder.input(Shape{2, 4, 5, 3}, "x");
-    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::NHWC);
+    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::Nhwc);
 
     const Graph::ValueId y = Flatten{}.forward(builder, x);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
 }
 
 /** @brief Tests that forward() throws on an input tagged NCHW. */
@@ -127,7 +127,7 @@ TEST(Unit_Flatten, ForwardRejectsAnNchwInput)
     const Graph::GraphBuilder builder(graph);
 
     const Graph::ValueId x = builder.input(Shape{2, 3, 4, 5}, "x");
-    graph.value(x).layout = Graph::TensorLayout::NCHW;
+    graph.value(x).layout = Graph::TensorLayout::Nchw;
 
     EXPECT_THROW((void)Flatten{}.forward(builder, x), Error);
 }

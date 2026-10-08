@@ -60,7 +60,7 @@ namespace SushiAI
             Graph::StateId target = Graph::K_NO_STATE;
 
             /** @brief Names the value of the traced graph the update reads. */
-            Graph::ValueId source = Graph::NO_VALUE;
+            Graph::ValueId source = Graph::K_NO_VALUE;
 
             /** @brief Weighs the source against the buffer's current content. */
             double momentum = 0.0;

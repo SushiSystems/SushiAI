@@ -98,7 +98,7 @@ TEST(Unit_Upsample2d, TheResultIsTaggedNhwc)
     const Graph::ValueId y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
 }
 
 /** @brief Tests that forward emits one UPSAMPLE2D node that reads x with scale on both axes. */
@@ -114,7 +114,7 @@ TEST(Unit_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
-    EXPECT_EQ(node.op, Ops::UPSAMPLE2D.id);
+    EXPECT_EQ(node.op, Ops::K_UPSAMPLE2D.id);
     EXPECT_EQ(node.inputs, (std::vector<Graph::ValueId>{x}));
     EXPECT_DOUBLE_EQ(node.attributes.get(0), 3.0);
     EXPECT_DOUBLE_EQ(node.attributes.get(1), 3.0);
@@ -209,7 +209,7 @@ TEST(Unit_Upsample2d, ForwardRejectsAnNchwInput)
 
     const Upsample2d layer{};
     const Graph::ValueId x = builder.input(Shape{1, 3, 2, 2}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x_nchw), "upsample2d", "NHWC");
 }

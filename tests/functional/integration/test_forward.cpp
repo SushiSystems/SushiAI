@@ -156,7 +156,7 @@ TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
 
     // N=1, H=1, W=2, C=3: small enough to hand-trace every element's move.
     const ValueId x = builder.input(Shape{1, 1, 2, 3}, "x");
-    const ValueId y = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId y = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     OneShot run(*engine, graph);
 
@@ -366,7 +366,7 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId zeros = builder.zeros(Shape{2, 3}, DType::FLOAT32);
+    const ValueId zeros = builder.zeros(Shape{2, 3}, DType::Float32);
     const ValueId bias = builder.input(Shape{3}, "bias");
     const ValueId broadcast = builder.bias_add(zeros, bias);
 
@@ -516,8 +516,8 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 
     // Values 1..8 are distinct, in NHWC order; see tests/functional/integration/README.md.
     const ValueId x = builder.input(Shape{1, 2, 2, 2}, "x");
-    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
-    const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::Nhwc);
     graph.finalise();
 
     ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
@@ -572,12 +572,12 @@ TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesIts
         graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(gradients.size(), 1u);
-    ASSERT_EQ(graph.value(pooled.indices).dtype, DType::INT64);
+    ASSERT_EQ(graph.value(pooled.indices).dtype, DType::Int64);
 
     ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
     ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
 
-    EXPECT_EQ(graph.value(pooled.indices).dtype, DType::INT64)
+    EXPECT_EQ(graph.value(pooled.indices).dtype, DType::Int64)
         << "the pass retyped the index buffer, so the backward is routing gradients by "
            "whatever a float reinterpretation of an offset table happens to say";
 
@@ -812,8 +812,8 @@ TEST_F(Integration_Forward, AnUnimplementedOperationNamesItself)
     const GraphBuilder builder(graph);
 
     const ValueId x = builder.input(Shape{2, 2}, "x");
-    const ValueId out = graph.add_value(Shape{2, 2}, DType::FLOAT32,
-                                        Graph::Lifetime::ACTIVATION, "mystery");
+    const ValueId out = graph.add_value(Shape{2, 2}, DType::Float32,
+                                        Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0xABCD'1234u), {x}, {out});
 
     TensorPool pool(*engine);

@@ -34,7 +34,7 @@ namespace SushiAI
         void activation_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::Node& node = tape.node();
@@ -47,7 +47,7 @@ namespace SushiAI
                         Ops::name_of(node.op));
 
             const Graph::ValueId primal =
-                activation->gradient_source == Ops::GradientSource::OUTPUT
+                activation->gradient_source == Ops::GradientSource::Output
                     ? node.outputs.at(0)
                     : node.inputs.at(0);
 

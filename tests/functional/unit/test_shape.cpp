@@ -74,7 +74,7 @@ TEST(Unit_Shape, NonPositiveExtentIsRejectedAtConstruction)
 TEST(Unit_Shape, RankBeyondTheMaximumIsRejected)
 {
     const std::initializer_list<int64_t> too_many = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-    ASSERT_GT(static_cast<int32_t>(too_many.size()), SushiAI::MAX_RANK);
+    ASSERT_GT(static_cast<int32_t>(too_many.size()), SushiAI::K_MAX_RANK);
     EXPECT_THROW((void)Shape(too_many), SushiAI::Error);
 }
 
@@ -102,7 +102,7 @@ TEST(Unit_Shape, RuntimeExtentsGetTheSameValidationAsAListDoes)
     EXPECT_THROW((void)Shape(SushiRuntime::span<const int64_t>(non_positive.data(), 2)),
                  SushiAI::Error);
 
-    const std::vector<int64_t> too_many(static_cast<std::size_t>(SushiAI::MAX_RANK) + 1, 1);
+    const std::vector<int64_t> too_many(static_cast<std::size_t>(SushiAI::K_MAX_RANK) + 1, 1);
     EXPECT_THROW((void)Shape(SushiRuntime::span<const int64_t>(too_many.data(), too_many.size())),
                  SushiAI::Error);
 }

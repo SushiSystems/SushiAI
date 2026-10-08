@@ -68,13 +68,13 @@ namespace SushiAI
              * @brief The task's human-readable name, in the form the seam wants.
              *
              * @c execute_zip_inplace takes a @c const @c char*, and the profiler
-             * shows this string next to the row @c Ops::ADAMW_UPDATE's hash
+             * shows this string next to the row @c Ops::K_ADAMW_UPDATE's hash
              * selects. The assertion below makes it impossible for the two to
              * name different things.
              */
-            constexpr const char* TASK_NAME = "sushiai.optim.adamw";
+            constexpr const char* K_TASK_NAME = "sushiai.optim.adamw";
 
-            static_assert(Ops::ADAMW_UPDATE.name == std::string_view(TASK_NAME),
+            static_assert(Ops::K_ADAMW_UPDATE.name == std::string_view(K_TASK_NAME),
                           "the fused update's task name must be the string its OpID hashes");
         }
 
@@ -90,7 +90,7 @@ namespace SushiAI
             SA_THROW_IF(options_.eps <= 0.0,
                         "AdamW eps must be positive; got {}", options_.eps);
 
-            const bool separate = options_.kernel == UpdateKernel::SEPARATE;
+            const bool separate = options_.kernel == UpdateKernel::Separate;
 
             state_.reserve(slots().size());
             for (const ParameterSlot& slot : slots())
@@ -161,7 +161,7 @@ namespace SushiAI
 
         std::size_t AdamW::record_update()
         {
-            return options_.kernel == UpdateKernel::FUSED ? record_fused()
+            return options_.kernel == UpdateKernel::Fused ? record_fused()
                                                           : record_separate();
         }
 
@@ -183,7 +183,7 @@ namespace SushiAI
                 };
 
                 SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
-                    TASK_NAME, Ops::ADAMW_UPDATE.id,
+                    K_TASK_NAME, Ops::K_ADAMW_UPDATE.id,
                     [s, gate, i](auto& theta, auto& g_scaled, auto& m, auto& v)
                     {
                         using T = std::decay_t<decltype(theta)>;

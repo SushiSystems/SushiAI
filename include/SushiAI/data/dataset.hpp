@@ -275,7 +275,7 @@ namespace SushiAI
 
         /**
          * @struct DatasetEntry
-         * @brief One row of @ref DATASET_REGISTRY.
+         * @brief One row of @ref K_DATASET_REGISTRY.
          */
         struct DatasetEntry
         {
@@ -315,7 +315,7 @@ namespace SushiAI
          * A file-scope constant table; nothing self-registers. See
          * config/registry.hpp for why that is forced rather than preferred.
          */
-        inline constexpr std::array<DatasetEntry, 2> DATASET_REGISTRY = {
+        inline constexpr std::array<DatasetEntry, 2> K_DATASET_REGISTRY = {
             DatasetEntry{"rings", &make_rings},
             DatasetEntry{"mnist", &make_mnist},
         };

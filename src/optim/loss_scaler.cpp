@@ -124,7 +124,7 @@ namespace SushiAI
             SA_THROW_IF(factor_.num_elements != 1,
                         "A loss scaler's factor must be a single element; got {}",
                         factor_.num_elements);
-            SA_THROW_IF(factor_.dtype != DType::FLOAT32,
+            SA_THROW_IF(factor_.dtype != DType::Float32,
                         "A loss scaler's factor must be float32; got {}. The graph value it "
                         "backs is multiplied into the cross-entropy tail, which the precision "
                         "policy keeps in the master type for exactly the reason the scale is "
@@ -135,13 +135,13 @@ namespace SushiAI
                         "clean and never back off.");
 
             // Allocate contiguous int64 arena partitioned into 1-element parameter views.
-            arena_ = allocate_arena(engine, parameter_count * dtype_size(DType::INT64));
+            arena_ = allocate_arena(engine, parameter_count * dtype_size(DType::Int64));
 
             count_views_.reserve(parameter_count);
             for (std::size_t i = 0; i < parameter_count; ++i)
                 count_views_.push_back(view_tensor(engine, arena_,
-                                                   i * dtype_size(DType::INT64),
-                                                   Shape{1}, DType::INT64));
+                                                   i * dtype_size(DType::Int64),
+                                                   Shape{1}, DType::Int64));
 
             counts_ = count_views_.front().data_as<std::int64_t>();
 

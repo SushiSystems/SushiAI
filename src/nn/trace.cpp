@@ -129,7 +129,7 @@ namespace SushiAI
             const std::size_t value_count = builder_->graph().value_count();
             SA_FATAL_IF(!target.declared(),
                         "a buffer update names a buffer that define() has not given a shape");
-            SA_FATAL_IF(source == Graph::NO_VALUE || source >= value_count,
+            SA_FATAL_IF(source == Graph::K_NO_VALUE || source >= value_count,
                         "a buffer update reads value {} of a graph that holds {} values",
                         source, value_count);
             SA_FAIL_IF(mode_ == TraceMode::Evaluation, StatusCode::InvalidDescription,

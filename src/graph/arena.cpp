@@ -44,7 +44,7 @@ namespace SushiAI
         {
             const Placement& placement = plan_.placement(id);
 
-            SA_THROW_IF(placement.arena == NO_ARENA,
+            SA_THROW_IF(placement.arena == K_NO_ARENA,
                         "Value {} was not packed into an arena; it owns its own allocation", id);
 
             const std::size_t bytes = static_cast<std::size_t>(shape.num_elements())

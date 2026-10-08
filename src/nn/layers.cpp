@@ -56,7 +56,7 @@ namespace SushiAI
             const DType dtype = builder.graph().value(x).dtype;
 
             const Graph::ValueId w = weight.declare(builder, Shape{out_features, in_features},
-                                                    ParameterRole::WEIGHT,
+                                                    ParameterRole::Weight,
                                                     in_features, out_features, "weight", dtype);
 
             // X [N, in] against W [out, in] transposed: the flag, never a view.
@@ -65,7 +65,7 @@ namespace SushiAI
             if (use_bias)
             {
                 const Graph::ValueId b = bias.declare(builder, Shape{out_features},
-                                                      ParameterRole::BIAS,
+                                                      ParameterRole::Bias,
                                                       in_features, out_features, "bias", dtype);
                 y = builder.bias_add(y, b);
             }

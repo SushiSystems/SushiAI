@@ -54,11 +54,11 @@ namespace SushiAI
             constexpr std::string_view K_INPUT_SOURCE = "input";
 
             /** @brief Every key a model document may carry at the top level. */
-            constexpr std::string_view MODEL_KEYS[] = {"format_version", "input", "defaults",
+            constexpr std::string_view K_MODEL_KEYS[] = {"format_version", "input", "defaults",
                                                        "layers", "outputs"};
 
             /** @brief Every key the "input" object may carry. */
-            constexpr std::string_view INPUT_KEYS[] = {"shape"};
+            constexpr std::string_view K_INPUT_KEYS[] = {"shape"};
 
             /** @brief Lists every key a version 1 document may carry at the top level. */
             constexpr std::string_view K_FIRST_MODEL_KEYS[] = {"sushiai_model", "input", "layers"};
@@ -88,7 +88,7 @@ namespace SushiAI
             /** @brief Returns the version @p root states, under either version key. */
             std::int64_t stated_version(const Value& root, std::string_view origin)
             {
-                SA_THROW_IF(root.kind() != Kind::OBJECT,
+                SA_THROW_IF(root.kind() != Kind::Object,
                             "'{}' must be an object that states '{}', but it is {}",
                             origin, K_VERSION_KEY, kind_name(root.kind()));
 
@@ -164,7 +164,7 @@ namespace SushiAI
                 for (std::size_t i = 0; i < layers.size(); ++i)
                 {
                     // A row that is not an object passes through; the version 2 reader names it.
-                    if (layers[i].kind() != Kind::OBJECT)
+                    if (layers[i].kind() != Kind::Object)
                     {
                         rows.push_back(layers[i]);
                         continue;
@@ -181,14 +181,14 @@ namespace SushiAI
 
                 Value shape = Value::object({"shape"}, {Value::array({Value::integer(features)})});
                 return Value::object({std::string(K_VERSION_KEY), "input", "layers"},
-                                     {Value::integer(MODEL_VERSION), std::move(shape),
+                                     {Value::integer(K_MODEL_VERSION), std::move(shape),
                                       Value::array(std::move(rows))});
             }
 
             /** @brief Reads the "input" object of a version 2 document into the sample shape. */
             Shape parse_input_shape(const Value& input, const std::string& context)
             {
-                input.reject_unknown_keys(context, as_span(INPUT_KEYS));
+                input.reject_unknown_keys(context, as_span(K_INPUT_KEYS));
 
                 const std::string shape_context = context + " 'shape'";
                 const std::vector<Value>& entries =
@@ -196,9 +196,9 @@ namespace SushiAI
 
                 SA_THROW_IF(entries.empty(),
                             "{} is empty; it lists the extents of one sample", shape_context);
-                SA_THROW_IF(entries.size() > static_cast<std::size_t>(MAX_RANK),
+                SA_THROW_IF(entries.size() > static_cast<std::size_t>(K_MAX_RANK),
                             "{} lists {} extents, but a sample has at most {}",
-                            shape_context, entries.size(), MAX_RANK);
+                            shape_context, entries.size(), K_MAX_RANK);
 
                 std::vector<std::int64_t> extents;
                 extents.reserve(entries.size());
@@ -231,14 +231,14 @@ namespace SushiAI
             void check_defaults(const Value& defaults, std::string_view origin)
             {
                 const std::string context = defaults_context(origin);
-                SA_THROW_IF(defaults.kind() != Kind::OBJECT,
+                SA_THROW_IF(defaults.kind() != Kind::Object,
                             "{} must be an object, but it is {}",
                             context, kind_name(defaults.kind()));
 
                 for (const std::string& type : defaults.keys())
                 {
                     const Value& entry = defaults.at(type, context);
-                    SA_THROW_IF(entry.kind() != Kind::OBJECT,
+                    SA_THROW_IF(entry.kind() != Kind::Object,
                                 "{} for '{}' must be an object, but it is {}",
                                 context, type, kind_name(entry.kind()));
                     SA_THROW_IF(entry.has("type") || entry.has("from"),
@@ -356,13 +356,13 @@ namespace SushiAI
             {
                 SourceSpec source;
 
-                if (entry.kind() == Kind::INT)
+                if (entry.kind() == Kind::Int)
                 {
                     source.node = resolve_row(entry.as_int(context), index, context);
                     return source;
                 }
 
-                if (entry.kind() == Kind::STRING)
+                if (entry.kind() == Kind::String)
                 {
                     SA_THROW_IF(entry.as_string(context) != K_INPUT_SOURCE,
                                 "{} is the string '{}'; the only string it accepts is '{}'",
@@ -371,7 +371,7 @@ namespace SushiAI
                     return source;
                 }
 
-                SA_THROW_IF(entry.kind() != Kind::OBJECT,
+                SA_THROW_IF(entry.kind() != Kind::Object,
                             "{} must be a row number, '{}' or an object carrying 'node', but "
                             "it is {}", context, K_INPUT_SOURCE, kind_name(entry.kind()));
 
@@ -398,7 +398,7 @@ namespace SushiAI
                 }
 
                 const Value& from = row.at("from", layer);
-                if (from.kind() != Kind::ARRAY)
+                if (from.kind() != Kind::Array)
                 {
                     sources.push_back(parse_source(from, index, context));
                     return sources;
@@ -418,7 +418,7 @@ namespace SushiAI
             OutputSpec parse_output(const Value& entry, std::size_t rows,
                                     const std::string& context)
             {
-                SA_THROW_IF(entry.kind() != Kind::OBJECT,
+                SA_THROW_IF(entry.kind() != Kind::Object,
                             "{} must be an object carrying 'node', but it is {}",
                             context, kind_name(entry.kind()));
                 entry.reject_unknown_keys(context, as_span(K_OUTPUT_KEYS));
@@ -471,7 +471,7 @@ namespace SushiAI
             /** @brief Reads a version 2 model document into a @ref ModelSpec. */
             ModelSpec parse_current_model(const Value& root, std::string_view origin)
             {
-                root.reject_unknown_keys(origin, as_span(MODEL_KEYS));
+                root.reject_unknown_keys(origin, as_span(K_MODEL_KEYS));
 
                 ModelSpec model;
                 model.input_shape = parse_input_shape(root.at("input", origin),
@@ -493,7 +493,7 @@ namespace SushiAI
                     // Positional naming ensures error messages remain clear if type is missing.
                     const std::string context = layer_context(i, origin);
 
-                    SA_THROW_IF(layers[i].kind() != Kind::OBJECT,
+                    SA_THROW_IF(layers[i].kind() != Kind::Object,
                                 "{} must be an object, but it is {}",
                                 context, kind_name(layers[i].kind()));
 
@@ -515,9 +515,9 @@ namespace SushiAI
         ModelSpec parse_model(const Value& root, std::string_view origin)
         {
             const std::int64_t version = stated_version(root, origin);
-            SA_THROW_IF(version > MODEL_VERSION,
+            SA_THROW_IF(version > K_MODEL_VERSION,
                         "'{}' is a model file of version {}; this build reads up to version {}",
-                        origin, version, MODEL_VERSION);
+                        origin, version, K_MODEL_VERSION);
 
             if (version == K_FIRST_VERSION)
                 return parse_current_model(upgrade_model_v1_to_v2(root, origin), origin);

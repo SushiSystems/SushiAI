@@ -135,7 +135,7 @@ namespace
         // Both constants are stored as given, so they compare exactly.
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op == Ops::BATCHNORM2D.id)
+            if (node.op == Ops::K_BATCHNORM2D.id)
                 EXPECT_EQ(node.attributes.values[0], options.epsilon);
         }
 
@@ -175,12 +175,12 @@ TEST(Unit_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
 
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::SLICE_CHANNELS.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 7u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 0u);
     EXPECT_EQ(list.updates().size(), 14u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 64}));
 }
@@ -198,13 +198,13 @@ TEST(Unit_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
-    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::CONCAT_CHANNELS.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
     ASSERT_EQ(join.inputs.size(), 2u);
 
     // The chain ends in a bottleneck's ADD; the second branch ends in cv2's SILU.
-    EXPECT_EQ(graph.node(graph.value(join.inputs[0]).producer).op, Ops::ADD.id);
-    EXPECT_EQ(graph.node(graph.value(join.inputs[1]).producer).op, Ops::SILU.id);
+    EXPECT_EQ(graph.node(graph.value(join.inputs[0]).producer).op, Ops::K_ADD.id);
+    EXPECT_EQ(graph.node(graph.value(join.inputs[1]).producer).op, Ops::K_SILU.id);
     EXPECT_EQ(graph.value(join.inputs[0]).shape, (Shape{2, 4, 4, 32}));
     EXPECT_EQ(graph.value(join.inputs[1]).shape, (Shape{2, 4, 4, 32}));
     EXPECT_EQ(graph.value(join.outputs[0]).shape, (Shape{2, 4, 4, 64}));
@@ -220,8 +220,8 @@ TEST(Unit_BlockC3k, NoShortcutTracesNoAdd)
 
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 7u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
 }
 
 /** @brief Tests that an odd output width leaves a hidden width of half of it, rounded down. */
@@ -319,8 +319,8 @@ TEST(Unit_BlockC3k, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{2, 4, 4, 32}));
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 5u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 5u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 }
 
 /** @brief Tests that the factory reads "repeats" and "shortcut" and names state as row 6 does. */
@@ -339,8 +339,8 @@ TEST(Unit_BlockC3k, TheFactoryReadsRepeatsAndShortcut)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 7u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 
     const std::vector<std::string> state = walk(*node, "model.6.m.0");
     ASSERT_EQ(state.size(), 35u);
@@ -405,7 +405,7 @@ TEST(Unit_BlockC3k, TheFactoryHandsTheNormOptionsToEveryNorm)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 7u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
     ASSERT_EQ(list.updates().size(), 14u);
     expect_norm_options(graph, list, K_YOLO_NORM);
 }

@@ -61,7 +61,7 @@ namespace SushiAI
         void add_backward(const GradientTape& tape)
         {
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE) return;
+            if (dc == Graph::K_NO_VALUE) return;
 
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dc);
             if (tape.input_requires_grad(1)) tape.contribute_input(1, dc);
@@ -70,7 +70,7 @@ namespace SushiAI
         void sub_backward(const GradientTape& tape)
         {
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE) return;
+            if (dc == Graph::K_NO_VALUE) return;
 
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dc);
             if (tape.input_requires_grad(1)) tape.contribute_input(1, tape.builder().scale(dc, -1.0));
@@ -80,7 +80,7 @@ namespace SushiAI
         {
             const Graph::Node& node = tape.node();
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE) return;
+            if (dc == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
             if (tape.input_requires_grad(0))
@@ -92,7 +92,7 @@ namespace SushiAI
         void scale_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
             tape.contribute_input(0, tape.builder().scale(dy, tape.node().attributes.get(0)));
@@ -101,7 +101,7 @@ namespace SushiAI
         void exp_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
             // d/dx exp(x) = exp(x), which the forward pass already produced.
@@ -111,7 +111,7 @@ namespace SushiAI
         void accumulate_backward(const GradientTape& tape)
         {
             const Graph::ValueId dout = tape.output_grad(0);
-            if (dout == Graph::NO_VALUE) return;
+            if (dout == Graph::K_NO_VALUE) return;
 
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dout);
             if (tape.input_requires_grad(1)) tape.contribute_input(1, dout);
@@ -120,7 +120,7 @@ namespace SushiAI
         void div_backward(const GradientTape& tape)
         {
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE)
+            if (dc == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
                 return;
@@ -141,7 +141,7 @@ namespace SushiAI
         void minimum_backward(const GradientTape& tape)
         {
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE)
+            if (dc == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
                 return;
@@ -156,7 +156,7 @@ namespace SushiAI
         void maximum_backward(const GradientTape& tape)
         {
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE)
+            if (dc == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
                 return;
@@ -171,7 +171,7 @@ namespace SushiAI
         void abs_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE)
+            if (dy == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0))
                 return;
@@ -193,7 +193,7 @@ namespace SushiAI
         void atan_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE)
+            if (dy == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0))
                 return;
@@ -209,7 +209,7 @@ namespace SushiAI
         void select_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE)
+            if (dy == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(1) && !tape.input_requires_grad(2))
                 return;

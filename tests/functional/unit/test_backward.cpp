@@ -43,7 +43,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::NO_VALUE;
+using Graph::K_NO_VALUE;
 using Graph::ValueId;
 
 namespace
@@ -82,7 +82,7 @@ namespace
     struct Appended
     {
         std::size_t first = 0;            /**< @brief Index of the first appended node. */
-        ValueId seed = NO_VALUE;          /**< @brief Gradient the tested operation receives. */
+        ValueId seed = K_NO_VALUE;          /**< @brief Gradient the tested operation receives. */
         std::vector<ValueId> gradients;   /**< @brief One entry per requested value. */
     };
 
@@ -118,56 +118,56 @@ namespace
 
 TEST(Unit_Backward, EveryImplementedOperationHasARule)
 {
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MATMUL.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::BIAS_ADD.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::ADD.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SUB.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MUL.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SCALE.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::EXP.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::RELU.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::GELU.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SIGMOID.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::TANH.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SUM_ROWS.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::ACCUMULATE.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::NLL_LOSS.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MAXPOOL2D.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::AVGPOOL2D.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::UPSAMPLE2D.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SPATIAL_MEAN.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::CONCAT_CHANNELS.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SLICE_CHANNELS.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::BATCHNORM2D.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::CHANNEL_AFFINE.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::DIV.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MINIMUM.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::MAXIMUM.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::ABS.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::ATAN.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SOFTPLUS.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SELECT.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::SILU.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_MATMUL.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BIAS_ADD.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_ADD.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SUB.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_MUL.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SCALE.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_EXP.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_RELU.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_GELU.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SIGMOID.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_TANH.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SUM_ROWS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_ACCUMULATE.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_NLL_LOSS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_MAXPOOL2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_AVGPOOL2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_UPSAMPLE2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SPATIAL_MEAN.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_CONCAT_CHANNELS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SLICE_CHANNELS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BATCHNORM2D.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_CHANNEL_AFFINE.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_DIV.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_MINIMUM.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_MAXIMUM.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_ABS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_ATAN.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SOFTPLUS.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SELECT.id));
+    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_SILU.id));
 
     // A gradient barrier is stepped over by the reverse walk, so no rule is ever asked of it.
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::LESS_EQUAL.id));
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::CONSTANT.id));
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::STOP_GRADIENT.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_LESS_EQUAL.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CONSTANT.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_STOP_GRADIENT.id));
 
     // An activation gradient has no rule; a second differentiation over it throws.
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::SILU_BACKWARD.id));
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::SOFTPLUS_BACKWARD.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_SILU_BACKWARD.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_SOFTPLUS_BACKWARD.id));
 
     // Running statistics are a buffer, not a gradient path; see tests/functional/unit/README.md.
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_UPDATE_STATS.id));
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_FOLD.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_UPDATE_STATS.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_FOLD.id));
 
     // LEAF and ZERO have no operand to hand a gradient to; see tests/functional/unit/README.md.
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::LEAF.id));
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::ZERO.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_LEAF.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_ZERO.id));
 
     // Casts are inserted after differentiation; see tests/functional/unit/README.md.
-    EXPECT_FALSE(Autograd::has_backward_rule(Ops::CAST.id));
+    EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CAST.id));
 }
 
 TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
@@ -180,57 +180,57 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     };
 
     const std::vector<Proven> ledger = {
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithoutTransposes"},
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithATransposedRightOperand"},
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithATransposedLeftOperand"},
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulWithBothOperandsTransposed"},
-        {Ops::MATMUL.id,     "Integration_Autograd.MatmulGradientOfTheRightOperand"},
-        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAddPassesTheMatrixGradientThrough"},
-        {Ops::BIAS_ADD.id,   "Integration_Autograd.BiasAddSumsOverTheBroadcastAxis"},
-        {Ops::ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
-        {Ops::SUB.id,        "Integration_Autograd.ElementwiseSubtractFromTheRight"},
-        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiply"},
-        {Ops::MUL.id,        "Integration_Autograd.ElementwiseMultiplyFromTheRight"},
-        {Ops::SCALE.id,      "Integration_Autograd.Scale"},
-        {Ops::EXP.id,        "Integration_Autograd.Exp"},
-        {Ops::RELU.id,       "Integration_Autograd.ReluAwayFromItsKink"},
-        {Ops::GELU.id,       "Integration_Autograd.Gelu"},
-        {Ops::SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
-        {Ops::TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
-        {Ops::LEAKY_RELU.id, "Integration_Autograd.LeakyReluHasBothOfItsSlopes"},
-        {Ops::SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
-        {Ops::ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
-        {Ops::NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
+        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithoutTransposes"},
+        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithATransposedRightOperand"},
+        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithATransposedLeftOperand"},
+        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithBothOperandsTransposed"},
+        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulGradientOfTheRightOperand"},
+        {Ops::K_BIAS_ADD.id,   "Integration_Autograd.BiasAddPassesTheMatrixGradientThrough"},
+        {Ops::K_BIAS_ADD.id,   "Integration_Autograd.BiasAddSumsOverTheBroadcastAxis"},
+        {Ops::K_ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
+        {Ops::K_SUB.id,        "Integration_Autograd.ElementwiseSubtractFromTheRight"},
+        {Ops::K_MUL.id,        "Integration_Autograd.ElementwiseMultiply"},
+        {Ops::K_MUL.id,        "Integration_Autograd.ElementwiseMultiplyFromTheRight"},
+        {Ops::K_SCALE.id,      "Integration_Autograd.Scale"},
+        {Ops::K_EXP.id,        "Integration_Autograd.Exp"},
+        {Ops::K_RELU.id,       "Integration_Autograd.ReluAwayFromItsKink"},
+        {Ops::K_GELU.id,       "Integration_Autograd.Gelu"},
+        {Ops::K_SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
+        {Ops::K_TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
+        {Ops::K_LEAKY_RELU.id, "Integration_Autograd.LeakyReluHasBothOfItsSlopes"},
+        {Ops::K_SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
+        {Ops::K_ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
+        {Ops::K_NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
 
         // LOG_SOFTMAX's rule only raises its diagnostic; see tests/functional/unit/README.md.
-        {Ops::LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
+        {Ops::K_LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
 
-        {Ops::RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
-        {Ops::LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
+        {Ops::K_RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
+        {Ops::K_LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
 
-        {Ops::IM2COL.id, "Integration_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
-        {Ops::COL2IM.id, "Integration_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
+        {Ops::K_IM2COL.id, "Integration_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
+        {Ops::K_COL2IM.id, "Integration_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
 
-        {Ops::MAXPOOL2D.id, "Integration_Autograd.MaxPoolRoutesEachGradientToTheElementThatWon"},
-        {Ops::AVGPOOL2D.id, "Integration_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
-        {Ops::UPSAMPLE2D.id, "Integration_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
-        {Ops::SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
-        {Ops::CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
-        {Ops::SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
+        {Ops::K_MAXPOOL2D.id, "Integration_Autograd.MaxPoolRoutesEachGradientToTheElementThatWon"},
+        {Ops::K_AVGPOOL2D.id, "Integration_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
+        {Ops::K_UPSAMPLE2D.id, "Integration_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
+        {Ops::K_SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
+        {Ops::K_CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
+        {Ops::K_SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
 
-        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsGradientAccountsForTheStatisticsItComputed"},
-        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput"},
-        {Ops::BATCHNORM2D.id, "Integration_Autograd.BatchNormsShiftGradientIsThePlainSumOfDy"},
+        {Ops::K_BATCHNORM2D.id, "Integration_Autograd.BatchNormsGradientAccountsForTheStatisticsItComputed"},
+        {Ops::K_BATCHNORM2D.id, "Integration_Autograd.BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput"},
+        {Ops::K_BATCHNORM2D.id, "Integration_Autograd.BatchNormsShiftGradientIsThePlainSumOfDy"},
 
-        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffineDifferentiatesAtItsInput"},
-        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
-        {Ops::CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
+        {Ops::K_CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffineDifferentiatesAtItsInput"},
+        {Ops::K_CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
+        {Ops::K_CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
     };
 
     // No finite-difference case names these rules; an entry leaves this list when one does.
     const std::vector<OpID> unproven = {
-        Ops::DIV.id, Ops::MINIMUM.id, Ops::MAXIMUM.id, Ops::ABS.id, Ops::ATAN.id,
-        Ops::SOFTPLUS.id, Ops::SELECT.id, Ops::SILU.id,
+        Ops::K_DIV.id, Ops::K_MINIMUM.id, Ops::K_MAXIMUM.id, Ops::K_ABS.id, Ops::K_ATAN.id,
+        Ops::K_SOFTPLUS.id, Ops::K_SELECT.id, Ops::K_SILU.id,
     };
 
     EXPECT_EQ(unproven.size(), K_UNPROVEN_RULES)
@@ -250,7 +250,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         EXPECT_TRUE(Autograd::has_backward_rule(op))
             << Ops::name_of(op) << " is listed as unproven but has no rule";
 
-    for (const Ops::OpName& declared : Ops::ALL)
+    for (const Ops::OpName& declared : Ops::K_ALL)
     {
         if (!Autograd::has_backward_rule(declared.id)) continue;
 
@@ -307,17 +307,17 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     }));
 
     // No LOG_SOFTMAX gradient: the fused rule absorbed that node.
-    EXPECT_EQ(count_op(graph, Ops::LOG_SOFTMAX.id), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX.id), 1u);
 
     // One contributor per value emits no ACCUMULATE; see tests/functional/unit/README.md.
-    EXPECT_EQ(count_op(graph, Ops::ACCUMULATE.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 0u);
 
     ASSERT_EQ(grads.size(), 4u);
     for (std::size_t i = 0; i < grads.size(); ++i)
     {
-        ASSERT_NE(grads[i], NO_VALUE) << "parameter " << i << " received no gradient";
+        ASSERT_NE(grads[i], K_NO_VALUE) << "parameter " << i << " received no gradient";
         EXPECT_EQ(graph.value(grads[i]).shape, graph.value(wrt[i]).shape);
-        EXPECT_EQ(graph.value(grads[i]).lifetime, Graph::Lifetime::GRADIENT);
+        EXPECT_EQ(graph.value(grads[i]).lifetime, Graph::Lifetime::Gradient);
     }
 }
 
@@ -337,7 +337,7 @@ TEST(Unit_Backward, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     // The input gradient's MATMUL is skipped; see tests/functional/unit/README.md.
-    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 2u);
+    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 2u);
 }
 
 TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
@@ -359,9 +359,9 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 1u);
-    ASSERT_NE(grads[0], NO_VALUE);
-    EXPECT_EQ(count_op(graph, Ops::ACCUMULATE.id), 1u);
-    EXPECT_EQ(graph.node(graph.value(grads[0]).producer).op, Ops::ACCUMULATE.id);
+    ASSERT_NE(grads[0], K_NO_VALUE);
+    EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 1u);
+    EXPECT_EQ(graph.node(graph.value(grads[0]).producer).op, Ops::K_ACCUMULATE.id);
 }
 
 TEST(Unit_Backward, ThreeContributorsChainTwoAccumulates)
@@ -380,7 +380,7 @@ TEST(Unit_Backward, ThreeContributorsChainTwoAccumulates)
     const std::vector<ValueId> wrt = {x};
     (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    EXPECT_EQ(count_op(graph, Ops::ACCUMULATE.id), 2u);
+    EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 2u);
 }
 
 TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
@@ -400,11 +400,11 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 2u);
-    EXPECT_EQ(grads[0], NO_VALUE) << "a disconnected parameter has no gradient value at all";
-    EXPECT_NE(grads[1], NO_VALUE);
+    EXPECT_EQ(grads[0], K_NO_VALUE) << "a disconnected parameter has no gradient value at all";
+    EXPECT_NE(grads[1], K_NO_VALUE);
 
     // A zero gradient emits no ZERO node; see tests/functional/unit/README.md.
-    EXPECT_EQ(count_op(graph, Ops::ZERO.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
     EXPECT_EQ(graph.node_count(), before + 2);
 }
 
@@ -425,7 +425,7 @@ TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
     const std::vector<ValueId> grads =
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    EXPECT_EQ(grads.at(0), NO_VALUE);
+    EXPECT_EQ(grads.at(0), K_NO_VALUE);
     EXPECT_EQ(graph.node_count(), before);
 }
 
@@ -438,8 +438,8 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
     // An identity that no rule covers stands in for a new op; see tests/functional/unit/README.md.
-    const ValueId mystery = graph.add_value(Shape{4, 3}, DType::FLOAT32,
-                                            Graph::Lifetime::ACTIVATION, "mystery");
+    const ValueId mystery = graph.add_value(Shape{4, 3}, DType::Float32,
+                                            Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
 
     const ValueId loss = builder.nll_loss(mystery, targets);
@@ -863,7 +863,7 @@ TEST(Unit_Backward, SelectGivesItsConditionNoGradient)
     const Appended appended = differentiate_through(graph, y, {condition});
 
     EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{"sushiai.scale"}));
-    EXPECT_EQ(appended.gradients.at(0), NO_VALUE);
+    EXPECT_EQ(appended.gradients.at(0), K_NO_VALUE);
 }
 
 /** @brief Tests that a comparison feeding a SELECT condition gives its operands no gradient. */
@@ -879,8 +879,8 @@ TEST(Unit_Backward, AComparisonUnderASelectLeavesItsOperandsWithoutAGradient)
 
     const Appended appended = differentiate_through(graph, y, {p, a});
 
-    EXPECT_EQ(appended.gradients.at(0), NO_VALUE);
-    EXPECT_NE(appended.gradients.at(1), NO_VALUE);
+    EXPECT_EQ(appended.gradients.at(0), K_NO_VALUE);
+    EXPECT_NE(appended.gradients.at(1), K_NO_VALUE);
     EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
         "sushiai.scale",
         "sushiai.zero",
@@ -904,8 +904,8 @@ TEST(Unit_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
     ASSERT_NO_THROW(appended = differentiate_through(graph, y, {p, a}));
 
     EXPECT_FALSE(graph.value(mask).requires_grad);
-    EXPECT_EQ(appended.gradients.at(0), NO_VALUE);
-    ASSERT_NE(appended.gradients.at(1), NO_VALUE);
+    EXPECT_EQ(appended.gradients.at(0), K_NO_VALUE);
+    ASSERT_NE(appended.gradients.at(1), K_NO_VALUE);
 
     ASSERT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
         "sushiai.scale",
@@ -1080,14 +1080,14 @@ TEST(Unit_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt, 2));
 
     ASSERT_EQ(gradients.size(), 2u);
-    EXPECT_NE(gradients[0], NO_VALUE);
-    EXPECT_NE(gradients[1], NO_VALUE);
-    ASSERT_EQ(count_op(graph, Ops::BATCHNORM2D_BACKWARD.id), 1u);
+    EXPECT_NE(gradients[0], K_NO_VALUE);
+    EXPECT_NE(gradients[1], K_NO_VALUE);
+    ASSERT_EQ(count_op(graph, Ops::K_BATCHNORM2D_BACKWARD.id), 1u);
 
     // The backward node reads the saved mean and inverse deviation, never the variance.
     for (const Graph::Node& node : graph.nodes())
     {
-        if (node.op != Ops::BATCHNORM2D_BACKWARD.id)
+        if (node.op != Ops::K_BATCHNORM2D_BACKWARD.id)
             continue;
 
         EXPECT_EQ(node.inputs[3], bn.saved_mean);
@@ -1141,7 +1141,7 @@ TEST(Unit_Backward, ABufferInWrtIsRefusedAndAppendsNoNode)
         graph, loss, SushiRuntime::span<const ValueId>(parameters_only, 1));
 
     ASSERT_EQ(gradients.size(), 1u);
-    ASSERT_NE(gradients[0], NO_VALUE);
-    EXPECT_EQ(graph.value(gradients[0]).lifetime, Graph::Lifetime::GRADIENT);
-    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::BUFFER);
+    ASSERT_NE(gradients[0], K_NO_VALUE);
+    EXPECT_EQ(graph.value(gradients[0]).lifetime, Graph::Lifetime::Gradient);
+    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::Buffer);
 }

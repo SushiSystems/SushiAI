@@ -41,13 +41,13 @@ namespace
     using SushiAI::IO::TensorRecord;
 
     // Offsets index the first record of sample_stream(); see tests/functional/unit/README.md.
-    constexpr std::size_t OFFSET_MAGIC        = 0;
-    constexpr std::size_t OFFSET_VERSION      = 4;
-    constexpr std::size_t OFFSET_COUNT        = 8;
-    constexpr std::size_t OFFSET_NAME_LENGTH  = 12;
-    constexpr std::size_t OFFSET_DTYPE        = 24;   // after the 8-byte name
-    constexpr std::size_t OFFSET_RANK         = 28;
-    constexpr std::size_t OFFSET_FIRST_DIM    = 32;
+    constexpr std::size_t K_OFFSET_MAGIC        = 0;
+    constexpr std::size_t K_OFFSET_VERSION      = 4;
+    constexpr std::size_t K_OFFSET_COUNT        = 8;
+    constexpr std::size_t K_OFFSET_NAME_LENGTH  = 12;
+    constexpr std::size_t K_OFFSET_DTYPE        = 24;   // after the 8-byte name
+    constexpr std::size_t K_OFFSET_RANK         = 28;
+    constexpr std::size_t K_OFFSET_FIRST_DIM    = 32;
 
     const std::vector<float> K_WEIGHT{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     const std::vector<float> K_BIAS{7.0f, 8.0f};
@@ -57,9 +57,9 @@ namespace
     {
         std::ostringstream out;
         CheckpointWriter writer(out, 2);
-        writer.write(TensorRecord{"0.weight", SushiAI::DType::FLOAT32, SushiAI::Shape{2, 3}},
+        writer.write(TensorRecord{"0.weight", SushiAI::DType::Float32, SushiAI::Shape{2, 3}},
                      K_WEIGHT.data());
-        writer.write(TensorRecord{"0.bias", SushiAI::DType::FLOAT32, SushiAI::Shape{2}},
+        writer.write(TensorRecord{"0.bias", SushiAI::DType::Float32, SushiAI::Shape{2}},
                      K_BIAS.data());
         writer.finish();
         return out.str();
@@ -106,7 +106,7 @@ TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
 
     const TensorRecord weight = reader.next();
     EXPECT_EQ(weight.name, "0.weight");
-    EXPECT_EQ(weight.dtype, SushiAI::DType::FLOAT32);
+    EXPECT_EQ(weight.dtype, SushiAI::DType::Float32);
     EXPECT_EQ(weight.shape, (SushiAI::Shape{2, 3}));
     EXPECT_EQ(weight.payload_bytes(), 24u);
 
@@ -130,7 +130,7 @@ TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
     // The recorded shape separates [2, 3] from [3, 2]; see tests/functional/unit/README.md.
     std::ostringstream out;
     CheckpointWriter writer(out, 1);
-    writer.write(TensorRecord{"w", SushiAI::DType::FLOAT32, SushiAI::Shape{2, 3}}, K_WEIGHT.data());
+    writer.write(TensorRecord{"w", SushiAI::DType::Float32, SushiAI::Shape{2, 3}}, K_WEIGHT.data());
     writer.finish();
 
     std::istringstream in(out.str());
@@ -141,21 +141,21 @@ TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
 TEST(Unit_CheckpointFormat, RejectsAForeignMagic)
 {
     std::string bytes = sample_stream();
-    std::memcpy(&bytes[OFFSET_MAGIC], "JUNK", 4);
+    std::memcpy(&bytes[K_OFFSET_MAGIC], "JUNK", 4);
     SA_EXPECT_ERROR(read_everything(bytes), "SACP", "not a SushiAI checkpoint");
 }
 
 TEST(Unit_CheckpointFormat, RejectsAFutureVersion)
 {
     std::string bytes = sample_stream();
-    patch_u32(bytes, OFFSET_VERSION, 2u);
+    patch_u32(bytes, K_OFFSET_VERSION, 2u);
     SA_EXPECT_ERROR(read_everything(bytes), "version 2", "version 1");
 }
 
 TEST(Unit_CheckpointFormat, RejectsACountOverTheBound)
 {
     std::string bytes = sample_stream();
-    patch_u32(bytes, OFFSET_COUNT, 4097u);
+    patch_u32(bytes, K_OFFSET_COUNT, 4097u);
     SA_EXPECT_ERROR(read_everything(bytes), "4097", "4096");
 }
 
@@ -175,28 +175,28 @@ TEST(Unit_CheckpointFormat, RejectsATruncatedPayload)
 TEST(Unit_CheckpointFormat, RejectsANameLengthOverTheBound)
 {
     std::string bytes = sample_stream();
-    patch_u32(bytes, OFFSET_NAME_LENGTH, 257u);
+    patch_u32(bytes, K_OFFSET_NAME_LENGTH, 257u);
     SA_EXPECT_ERROR(read_everything(bytes), "257", "256");
 }
 
 TEST(Unit_CheckpointFormat, RejectsARankOverTheBound)
 {
     std::string bytes = sample_stream();
-    patch_u32(bytes, OFFSET_RANK, 7u);
+    patch_u32(bytes, K_OFFSET_RANK, 7u);
     SA_EXPECT_ERROR(read_everything(bytes), "0.weight", "rank 7", "6");
 }
 
 TEST(Unit_CheckpointFormat, RejectsANonPositiveDim)
 {
     std::string bytes = sample_stream();
-    patch_i64(bytes, OFFSET_FIRST_DIM, 0);
+    patch_i64(bytes, K_OFFSET_FIRST_DIM, 0);
     SA_EXPECT_ERROR(read_everything(bytes), "0.weight", "must be positive");
 }
 
 TEST(Unit_CheckpointFormat, RejectsAnUnknownDtype)
 {
     std::string bytes = sample_stream();
-    patch_u32(bytes, OFFSET_DTYPE, 99u);
+    patch_u32(bytes, K_OFFSET_DTYPE, 99u);
     SA_EXPECT_ERROR(read_everything(bytes), "0.weight", "99", "does not know");
 }
 
@@ -204,11 +204,11 @@ TEST(Unit_CheckpointFormat, RejectsMoreRecordsThanDeclared)
 {
     std::ostringstream out;
     CheckpointWriter writer(out, 2);
-    writer.write(TensorRecord{"a", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data());
-    writer.write(TensorRecord{"b", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data());
+    writer.write(TensorRecord{"a", SushiAI::DType::Float32, SushiAI::Shape{2}}, K_BIAS.data());
+    writer.write(TensorRecord{"b", SushiAI::DType::Float32, SushiAI::Shape{2}}, K_BIAS.data());
 
     SA_EXPECT_ERROR(
-        writer.write(TensorRecord{"c", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data()),
+        writer.write(TensorRecord{"c", SushiAI::DType::Float32, SushiAI::Shape{2}}, K_BIAS.data()),
         "declared 2", "'c'");
 }
 
@@ -216,7 +216,7 @@ TEST(Unit_CheckpointFormat, RejectsFewerRecordsThanDeclared)
 {
     std::ostringstream out;
     CheckpointWriter writer(out, 2);
-    writer.write(TensorRecord{"a", SushiAI::DType::FLOAT32, SushiAI::Shape{2}}, K_BIAS.data());
+    writer.write(TensorRecord{"a", SushiAI::DType::Float32, SushiAI::Shape{2}}, K_BIAS.data());
 
     SA_EXPECT_ERROR(writer.finish(), "declared 2", "1 were written");
 }

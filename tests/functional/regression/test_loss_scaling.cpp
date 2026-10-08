@@ -51,10 +51,10 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 16;
-    constexpr int64_t FEATURES = 8;
-    constexpr int64_t HIDDEN = 16;
+    constexpr int64_t K_FEATURES = 8;
+    constexpr int64_t K_HIDDEN = 16;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 4;
+    constexpr int64_t K_BATCHES = 4;
 
     /**
      * @brief Holds 2^20, a loss scale high enough that the fp16 backward pass overflows.
@@ -63,15 +63,15 @@ namespace
     constexpr double OVERFLOWING_SCALE = 1048576.0;
 
     /** @brief How many epochs the overflowing run gets to back off into a clean scale. */
-    constexpr int64_t OVERFLOW_EPOCHS = 4;
+    constexpr int64_t K_OVERFLOW_EPOCHS = 4;
 
     /** @brief The fixed scale the exactness case runs at, and its step count. */
-    constexpr double EXACT_SCALE = 1024.0;
-    constexpr int EXACT_STEPS = 5;
+    constexpr double K_EXACT_SCALE = 1024.0;
+    constexpr int K_EXACT_STEPS = 5;
 
-    constexpr int64_t ELEMENTS = 67;
-    constexpr std::uint64_t PARAM_SEED = 0x5175'5348'4941'0011ull;
-    constexpr std::uint64_t GRAD_SEED = 0x5175'5348'4941'0012ull;
+    constexpr int64_t K_ELEMENTS = 67;
+    constexpr std::uint64_t K_PARAM_SEED = 0x5175'5348'4941'0011ull;
+    constexpr std::uint64_t K_GRAD_SEED = 0x5175'5348'4941'0012ull;
 
     /**
      * @struct ScaledRun
@@ -95,14 +95,14 @@ namespace
      * a difference between two calls is those two things and nothing else.
      */
     ScaledRun train_scaled(SushiBLAS::Engine& engine,
-                           const Graph::IPrecisionPolicy* precision,
+                           const Graph::PrecisionPolicy* precision,
                            LossScaleOptions scale_options,
                            int64_t epochs)
     {
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
 
         Train::TrainingGraph built = Train::build_classifier(
-            model, BATCH, FEATURES, CLASSES, DType::FLOAT32,
+            model, BATCH, K_FEATURES, CLASSES, DType::Float32,
             Graph::FusionOptions{}, precision, /*loss_scaling=*/true);
 
         TensorPool pool(engine);
@@ -124,8 +124,8 @@ namespace
 
         Data::SyntheticOptions data;
         data.batch_size = BATCH;
-        data.batches = BATCHES;
-        data.features = FEATURES;
+        data.batches = K_BATCHES;
+        data.features = K_FEATURES;
         data.classes = CLASSES;
         const Data::SyntheticClassification dataset(engine, data);
 
@@ -146,8 +146,8 @@ namespace
     /** @brief A fixed, finite gradient, identical across runs. */
     std::vector<double> finite_gradient()
     {
-        SaTest::HostNoise noise(GRAD_SEED);
-        std::vector<double> values(static_cast<std::size_t>(ELEMENTS));
+        SaTest::HostNoise noise(K_GRAD_SEED);
+        std::vector<double> values(static_cast<std::size_t>(K_ELEMENTS));
         noise.fill(values, 0.75);
         values[0] = 0.0;
         values[1] = -0.0;
@@ -157,8 +157,8 @@ namespace
     /** @brief The starting parameter values, identical across runs. */
     std::vector<double> initial_parameter()
     {
-        SaTest::HostNoise noise(PARAM_SEED);
-        std::vector<double> values(static_cast<std::size_t>(ELEMENTS));
+        SaTest::HostNoise noise(K_PARAM_SEED);
+        std::vector<double> values(static_cast<std::size_t>(K_ELEMENTS));
         noise.fill(values, 2.0);
         return values;
     }
@@ -185,7 +185,7 @@ TEST_F(Regression_LossScaling, AnFp16OverflowIsDetectedAndBacksTheScaleOff)
     options.growth_interval = 1000;   // out of reach, so growth cannot confuse the reading
 
     const MixedPrecisionPolicy mixed;
-    const ScaledRun run = train_scaled(engine, &mixed, options, /*epochs=*/OVERFLOW_EPOCHS);
+    const ScaledRun run = train_scaled(engine, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS);
 
     EXPECT_GT(run.skipped, 0u) << "no step was thrown away, so nothing overflowed - "
                                   "the detector is not seeing the infinities";
@@ -194,13 +194,13 @@ TEST_F(Regression_LossScaling, AnFp16OverflowIsDetectedAndBacksTheScaleOff)
     EXPECT_EQ(run.growths, 0u);
 
     // The backed-off scale must reach the device; see tests/functional/regression/README.md.
-    EXPECT_LT(run.skipped, static_cast<std::uint64_t>(OVERFLOW_EPOCHS * BATCHES))
+    EXPECT_LT(run.skipped, static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES))
         << "every step was thrown away, so the new scale never reached the graph";
     EXPECT_GT(run.optimizer_steps, 0u);
 
     // A thrown-away step does not advance the counter; see tests/functional/regression/README.md.
     EXPECT_EQ(run.optimizer_steps,
-              static_cast<std::uint64_t>(OVERFLOW_EPOCHS * BATCHES) - run.skipped);
+              static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES) - run.skipped);
 
     // A loop that went NaN reports NaN here; see tests/functional/regression/README.md.
     EXPECT_TRUE(std::isfinite(run.last_loss));
@@ -224,7 +224,7 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
     EXPECT_EQ(run.skipped, 0u);
     EXPECT_EQ(run.backoffs, 0u);
     EXPECT_EQ(run.final_scale, OVERFLOWING_SCALE);
-    EXPECT_EQ(run.optimizer_steps, 2u * static_cast<std::uint64_t>(BATCHES));
+    EXPECT_EQ(run.optimizer_steps, 2u * static_cast<std::uint64_t>(K_BATCHES));
 }
 
 /**
@@ -235,8 +235,8 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{ELEMENTS});
+    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
+    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
     SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
     SaTest::write_tensor(parameter, initial_parameter());
 
@@ -299,8 +299,8 @@ TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{ELEMENTS});
+    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
+    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
     SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
     SaTest::write_tensor(parameter, initial_parameter());
 
@@ -339,8 +339,8 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
-        SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{ELEMENTS});
+        SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
+        SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
         SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
         SaTest::write_tensor(parameter, initial_parameter());
 
@@ -352,7 +352,7 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
         Optim::SGD optimizer(engine, slots, sgd);
 
         LossScaleOptions options;
-        options.initial = EXACT_SCALE;
+        options.initial = K_EXACT_SCALE;
         options.growth_interval = 1000;  // out of reach: the scale must not move
         std::unique_ptr<LossScaler> scaler;
 
@@ -362,18 +362,18 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
             optimizer.set_loss_scaler(scaler.get());
         }
 
-        for (int step = 0; step < EXACT_STEPS; ++step)
+        for (int step = 0; step < K_EXACT_STEPS; ++step)
         {
             std::vector<double> values = finite_gradient();
             if (scaled)
-                for (double& value : values) value *= EXACT_SCALE;
+                for (double& value : values) value *= K_EXACT_SCALE;
 
             SaTest::write_tensor(gradient, values);
             optimizer.step();
         }
 
-        if (scaled) EXPECT_EQ(scaler->scale(), EXACT_SCALE);
-        EXPECT_EQ(optimizer.step_count(), static_cast<std::uint64_t>(EXACT_STEPS));
+        if (scaled) EXPECT_EQ(scaler->scale(), K_EXACT_SCALE);
+        EXPECT_EQ(optimizer.step_count(), static_cast<std::uint64_t>(K_EXACT_STEPS));
 
         return SaTest::read_tensor_bytes(parameter);
     };
@@ -431,14 +431,14 @@ TEST_F(Regression_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{ELEMENTS});
+    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
+    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
     SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
 
     std::vector<Optim::ParameterSlot> slots{Optim::ParameterSlot{"p", parameter, gradient}};
 
     Optim::AdamWOptions adamw;
-    adamw.kernel = Optim::UpdateKernel::SEPARATE;
+    adamw.kernel = Optim::UpdateKernel::Separate;
     Optim::AdamW optimizer(engine, slots, adamw);
 
     LossScaler scaler(engine, factor, slots.size(), LossScaleOptions{});

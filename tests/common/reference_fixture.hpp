@@ -66,26 +66,26 @@ namespace SushiAI
         {
             bool found = false;                 /**< Whether the tensor was read. */
             std::string reason;                 /**< Names what is missing when not found. */
-            DType dtype = DType::FLOAT32;       /**< Element type as stored. */
+            DType dtype = DType::Float32;       /**< Element type as stored. */
             Shape shape{};                      /**< Extents as stored. */
             std::vector<unsigned char> payload; /**< Element bytes, row-major, little-endian. */
 
             /** @brief Returns the elements of a float32 tensor. */
             [[nodiscard]] std::vector<float> floats() const
             {
-                return elements<float>(DType::FLOAT32);
+                return elements<float>(DType::Float32);
             }
 
             /** @brief Returns the elements of an int32 tensor. */
             [[nodiscard]] std::vector<std::int32_t> int32s() const
             {
-                return elements<std::int32_t>(DType::INT32);
+                return elements<std::int32_t>(DType::Int32);
             }
 
             /** @brief Returns the elements of an int64 tensor. */
             [[nodiscard]] std::vector<std::int64_t> int64s() const
             {
-                return elements<std::int64_t>(DType::INT64);
+                return elements<std::int64_t>(DType::Int64);
             }
 
             private:

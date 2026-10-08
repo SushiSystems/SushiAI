@@ -39,7 +39,7 @@ namespace SushiAI
 
         Graph::ValueId GradientTape::apply_seed_factor(Graph::ValueId gradient) const
         {
-            if (seed_factor_ == Graph::NO_VALUE) return gradient;
+            if (seed_factor_ == Graph::K_NO_VALUE) return gradient;
             return builder_.dynamic_scale(gradient, seed_factor_, "loss_scaled_grad");
         }
 

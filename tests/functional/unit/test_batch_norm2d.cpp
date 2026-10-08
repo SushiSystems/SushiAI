@@ -105,7 +105,7 @@ namespace
         std::size_t count = 0;
         for (std::size_t id = 0; id < graph.value_count(); ++id)
         {
-            if (graph.value(static_cast<Graph::ValueId>(id)).lifetime == Graph::Lifetime::BUFFER)
+            if (graph.value(static_cast<Graph::ValueId>(id)).lifetime == Graph::Lifetime::Buffer)
                 ++count;
         }
 
@@ -269,14 +269,14 @@ TEST(Unit_BatchNorm2d, ATrainingTraceEmitsOneBatchNorm)
 
     const Graph::ValueId y = layer.trace_training(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM_FOLD.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::CHANNEL_AFFINE.id), 0u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 0u);
 
     // The trace adds the two parameter leaves and the BATCHNORM2D, and no buffer leaf.
     EXPECT_EQ(graph.node_count(), nodes_before + 3u);
 
-    const Graph::Node& node = only_node(graph, Ops::BATCHNORM2D.id);
+    const Graph::Node& node = only_node(graph, Ops::K_BATCHNORM2D.id);
     ASSERT_EQ(node.inputs.size(), 3u);
     ASSERT_EQ(node.outputs.size(), 4u);
     EXPECT_EQ(node.inputs[0], x);
@@ -301,8 +301,8 @@ TEST(Unit_BatchNorm2d, ATrainingTraceReadsNoBuffer)
     static_cast<void>(layer.trace_training(Trace::training(builder, list), x));
 
     EXPECT_EQ(count_buffer_leaves(graph), 0u);
-    EXPECT_EQ(layer.running_mean.id_in(graph), Graph::NO_VALUE);
-    EXPECT_EQ(layer.running_var.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(layer.running_mean.id_in(graph), Graph::K_NO_VALUE);
+    EXPECT_EQ(layer.running_var.id_in(graph), Graph::K_NO_VALUE);
 }
 
 /**
@@ -319,8 +319,8 @@ TEST(Unit_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
 
     static_cast<void>(layer.trace_training(Trace::training(builder, list), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 1u);
-    const Graph::Node& node = only_node(graph, Ops::BATCHNORM2D.id);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    const Graph::Node& node = only_node(graph, Ops::K_BATCHNORM2D.id);
     ASSERT_EQ(node.outputs.size(), 4u);
     ASSERT_EQ(list.updates().size(), 2u);
 
@@ -375,28 +375,28 @@ TEST(Unit_BatchNorm2d, AnEvaluationTraceFoldsTheRunningStatistics)
 
     const Graph::ValueId y = layer.trace_evaluation(Trace::evaluation(builder), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 0u);
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM_FOLD.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::CHANNEL_AFFINE.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 1u);
     EXPECT_EQ(count_buffer_leaves(graph), 2u);
 
     // The trace adds two parameter leaves, two buffer leaves, the fold and the affine.
     EXPECT_EQ(graph.node_count(), nodes_before + 6u);
 
-    const Graph::Node& fold = only_node(graph, Ops::BATCHNORM_FOLD.id);
+    const Graph::Node& fold = only_node(graph, Ops::K_BATCHNORM_FOLD.id);
     ASSERT_EQ(fold.inputs.size(), 4u);
     ASSERT_EQ(fold.outputs.size(), 2u);
     EXPECT_EQ(fold.inputs[0], layer.weight.id_in(graph));
     EXPECT_EQ(fold.inputs[1], layer.bias.id_in(graph));
     EXPECT_EQ(fold.inputs[2], layer.running_mean.id_in(graph));
     EXPECT_EQ(fold.inputs[3], layer.running_var.id_in(graph));
-    EXPECT_EQ(graph.value(fold.inputs[2]).lifetime, Graph::Lifetime::BUFFER);
-    EXPECT_EQ(graph.value(fold.inputs[3]).lifetime, Graph::Lifetime::BUFFER);
+    EXPECT_EQ(graph.value(fold.inputs[2]).lifetime, Graph::Lifetime::Buffer);
+    EXPECT_EQ(graph.value(fold.inputs[3]).lifetime, Graph::Lifetime::Buffer);
 
     // The epsilon is stored as given, so it compares exactly.
     EXPECT_EQ(fold.attributes.values[0], 1e-3);
 
-    const Graph::Node& affine = only_node(graph, Ops::CHANNEL_AFFINE.id);
+    const Graph::Node& affine = only_node(graph, Ops::K_CHANNEL_AFFINE.id);
     ASSERT_EQ(affine.inputs.size(), 3u);
     ASSERT_EQ(affine.outputs.size(), 1u);
     EXPECT_EQ(affine.inputs[0], x);
@@ -432,13 +432,13 @@ TEST(Unit_BatchNorm2d, BothFormsNameTheSameState)
               layer.running_mean.id_in(evaluation_graph));
     EXPECT_EQ(evaluation_graph.state_leaf(list.updates()[1].target),
               layer.running_var.id_in(evaluation_graph));
-    EXPECT_NE(layer.running_mean.id_in(evaluation_graph), Graph::NO_VALUE);
-    EXPECT_NE(layer.running_var.id_in(evaluation_graph), Graph::NO_VALUE);
+    EXPECT_NE(layer.running_mean.id_in(evaluation_graph), Graph::K_NO_VALUE);
+    EXPECT_NE(layer.running_var.id_in(evaluation_graph), Graph::K_NO_VALUE);
     EXPECT_EQ(layer.weight.state(), gamma);
     EXPECT_EQ(layer.bias.state(), beta);
-    EXPECT_NE(layer.weight.id_in(training_graph), Graph::NO_VALUE);
-    EXPECT_NE(layer.weight.id_in(evaluation_graph), Graph::NO_VALUE);
-    EXPECT_NE(layer.bias.id_in(evaluation_graph), Graph::NO_VALUE);
+    EXPECT_NE(layer.weight.id_in(training_graph), Graph::K_NO_VALUE);
+    EXPECT_NE(layer.weight.id_in(evaluation_graph), Graph::K_NO_VALUE);
+    EXPECT_NE(layer.bias.id_in(evaluation_graph), Graph::K_NO_VALUE);
 }
 
 /**
@@ -505,7 +505,7 @@ TEST(Unit_BatchNorm2d, AnIntegerInputFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x", DType::INT32);
+    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x", DType::Int32);
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -566,7 +566,7 @@ TEST(Unit_BatchNorm2d, AnNchwInputFails)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{3, 3, 3, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -616,12 +616,12 @@ TEST(Unit_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
     Graph::Graph second;
     const Graph::GraphBuilder second_builder(second);
     const Graph::ValueId wide =
-        second_builder.input(Shape{2, 2, 2, 3}, "x", DType::FLOAT64);
+        second_builder.input(Shape{2, 2, 2, 3}, "x", DType::Float64);
 
     SA_EXPECT_FAILURE(refused_evaluation(layer, second_builder, wide),
-                      StatusCode::InvalidDescription, "'weight'", dtype_name(DType::FLOAT32),
-                      dtype_name(DType::FLOAT64));
-    EXPECT_EQ(layer.running_mean.dtype(), DType::FLOAT32);
+                      StatusCode::InvalidDescription, "'weight'", dtype_name(DType::Float32),
+                      dtype_name(DType::Float64));
+    EXPECT_EQ(layer.running_mean.dtype(), DType::Float32);
 }
 
 /** @brief Tests that gamma is a SCALE that starts at one and beta a BIAS that starts at zero. */
@@ -633,10 +633,10 @@ TEST(Unit_BatchNorm2d, TheScaleStartsAtOneAndTheShiftAtZero)
     static_cast<void>(layer.trace_evaluation(Trace::evaluation(builder),
                                              builder.input(Shape{2, 2, 2, 3}, "x")));
 
-    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::SCALE);
+    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(layer.weight.init().constant, 1.0, K_EXACT_TOLERANCE);
-    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
     EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(layer.bias.init().constant, 0.0, K_EXACT_TOLERANCE);
 }
@@ -708,10 +708,10 @@ TEST(Unit_BatchNorm2d, TraceLayerPicksTheFormOfTheMode)
     static_cast<void>(NN::trace_layer(layer, Trace::evaluation(evaluation_builder),
                                       evaluation_builder.input(Shape{2, 2, 2, 3}, "x")));
 
-    EXPECT_EQ(count_nodes(training_graph, Ops::BATCHNORM2D.id), 1u);
-    EXPECT_EQ(count_nodes(training_graph, Ops::BATCHNORM_FOLD.id), 0u);
-    EXPECT_EQ(count_nodes(evaluation_graph, Ops::BATCHNORM2D.id), 0u);
-    EXPECT_EQ(count_nodes(evaluation_graph, Ops::BATCHNORM_FOLD.id), 1u);
+    EXPECT_EQ(count_nodes(training_graph, Ops::K_BATCHNORM2D.id), 1u);
+    EXPECT_EQ(count_nodes(training_graph, Ops::K_BATCHNORM_FOLD.id), 0u);
+    EXPECT_EQ(count_nodes(evaluation_graph, Ops::K_BATCHNORM2D.id), 0u);
+    EXPECT_EQ(count_nodes(evaluation_graph, Ops::K_BATCHNORM_FOLD.id), 1u);
 }
 
 /** @brief Tests that output_shape returns the shape it is given, whatever that shape is. */

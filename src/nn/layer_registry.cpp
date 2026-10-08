@@ -54,7 +54,7 @@ namespace SushiAI
         namespace
         {
             /** @brief Every key a "linear" layer accepts. */
-            constexpr std::string_view LINEAR_KEYS[] = {"units", "use_bias"};
+            constexpr std::string_view K_LINEAR_KEYS[] = {"units", "use_bias"};
 
             /** @brief Lists every key a "leaky_relu" layer accepts. */
             constexpr std::string_view K_LEAKY_RELU_KEYS[] = {"slope"};
@@ -95,7 +95,7 @@ namespace SushiAI
              */
             SushiRuntime::span<const std::string_view> no_keys()
             {
-                return SushiRuntime::span<const std::string_view>(LINEAR_KEYS,
+                return SushiRuntime::span<const std::string_view>(K_LINEAR_KEYS,
                                                                   static_cast<std::size_t>(0));
             }
 
@@ -151,13 +151,13 @@ namespace SushiAI
              */
             AxisPair parse_axis_pair(const Config::Value& value, const std::string& what)
             {
-                if (value.kind() == Config::Kind::INT)
+                if (value.kind() == Config::Kind::Int)
                 {
                     const int64_t both = value.as_int(what);
                     return AxisPair{both, both};
                 }
 
-                SA_THROW_IF(value.kind() != Config::Kind::ARRAY,
+                SA_THROW_IF(value.kind() != Config::Kind::Array,
                             "{} must be an integer or a two-entry [h, w] array, but it is {}",
                             what, Config::kind_name(value.kind()));
 
@@ -281,7 +281,7 @@ namespace SushiAI
                                             const Config::Value& attributes,
                                             std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(LINEAR_KEYS));
+            attributes.reject_unknown_keys(context, as_span(K_LINEAR_KEYS));
 
             SA_THROW_IF(input.rank() != 1,
                         "{} was given a per-sample input of {}, but a linear layer needs a "
@@ -301,7 +301,7 @@ namespace SushiAI
                                           const Config::Value& attributes,
                                           std::string_view context)
         {
-            return make_keyless<GELU>(input, attributes, context);
+            return make_keyless<K_GELU>(input, attributes, context);
         }
 
         std::unique_ptr<ILayer> make_relu(const Shape& input,
@@ -449,7 +449,7 @@ namespace SushiAI
                             context);
 
                 const LayerEntry& entry =
-                    Config::find_entry(LAYER_REGISTRY, spec.type, "layer type");
+                    Config::find_entry(K_LAYER_REGISTRY, spec.type, "layer type");
 
                 std::unique_ptr<ILayer> layer = entry.make(shape, spec.attributes, context);
 

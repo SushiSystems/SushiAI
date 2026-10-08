@@ -60,19 +60,19 @@ namespace SushiAI
         void select_backward(const GradientTape& tape);
 
         /** @brief Holds backward rule entries for elementwise operations. */
-        inline constexpr std::array<RuleEntry, 12> ELEMENTWISE_RULES = {{
-            {Ops::ADD.id,        &add_backward},
-            {Ops::SUB.id,        &sub_backward},
-            {Ops::MUL.id,        &mul_backward},
-            {Ops::SCALE.id,      &scale_backward},
-            {Ops::EXP.id,        &exp_backward},
-            {Ops::ACCUMULATE.id, &accumulate_backward},
-            {Ops::DIV.id,        &div_backward},
-            {Ops::MINIMUM.id,    &minimum_backward},
-            {Ops::MAXIMUM.id,    &maximum_backward},
-            {Ops::ABS.id,        &abs_backward},
-            {Ops::ATAN.id,       &atan_backward},
-            {Ops::SELECT.id,     &select_backward},
+        inline constexpr std::array<RuleEntry, 12> K_ELEMENTWISE_RULES = {{
+            {Ops::K_ADD.id,        &add_backward},
+            {Ops::K_SUB.id,        &sub_backward},
+            {Ops::K_MUL.id,        &mul_backward},
+            {Ops::K_SCALE.id,      &scale_backward},
+            {Ops::K_EXP.id,        &exp_backward},
+            {Ops::K_ACCUMULATE.id, &accumulate_backward},
+            {Ops::K_DIV.id,        &div_backward},
+            {Ops::K_MINIMUM.id,    &minimum_backward},
+            {Ops::K_MAXIMUM.id,    &maximum_backward},
+            {Ops::K_ABS.id,        &abs_backward},
+            {Ops::K_ATAN.id,       &atan_backward},
+            {Ops::K_SELECT.id,     &select_backward},
         }};
     }
 }

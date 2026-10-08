@@ -116,7 +116,7 @@ namespace SushiAI
                  *         three arguments differs; the first description is kept then.
                  */
                 [[nodiscard]] Status define(Shape shape, double initial_value,
-                                            DType dtype = DType::FLOAT32)
+                                            DType dtype = DType::Float32)
                 {
                     if (defined_)
                     {
@@ -152,7 +152,7 @@ namespace SushiAI
 
                     Graph::Graph& graph = builder.graph();
                     const Graph::ValueId held = graph.state_leaf(identity_.peek());
-                    if (held != Graph::NO_VALUE)
+                    if (held != Graph::K_NO_VALUE)
                         return held;
 
                     const Graph::ValueId leaf = builder.buffer(shape_, debug_name, dtype_);
@@ -214,7 +214,7 @@ namespace SushiAI
                 double initial_value_ = 0.0;
 
                 /** @brief Holds the element type define() fixed. */
-                DType dtype_ = DType::FLOAT32;
+                DType dtype_ = DType::Float32;
 
                 /** @brief Records that define() has been called. */
                 bool defined_ = false;

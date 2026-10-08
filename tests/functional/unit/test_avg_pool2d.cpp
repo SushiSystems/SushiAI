@@ -90,7 +90,7 @@ TEST(Unit_AvgPool2d, ForwardTracesThePooledShapeInNhwc)
     const Graph::ValueId y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 2, 2, 3}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
 }
 
 /** @brief Tests that output_shape() equals the traced per-sample shape for a square window. */
@@ -194,7 +194,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsAnNchwInput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{1, 6, 6, 3}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     const AvgPool2d layer{window(3, 3, 3, 3)};
 
@@ -207,7 +207,7 @@ TEST(Unit_AvgPool2d, ForwardNamesTheLayoutOfAnNchwInputNarrowerThanTheWindow)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{1, 8, 8, 2}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     const AvgPool2d layer{window(3, 3, 1, 1)};
 

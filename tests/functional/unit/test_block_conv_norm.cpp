@@ -164,14 +164,14 @@ TEST(Unit_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSilu)
 
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::MATMUL.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 1u);
-    ASSERT_EQ(count_nodes(graph, Ops::SILU.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::BIAS_ADD.id), 0u);
-    EXPECT_LT(first_node(graph, Ops::MATMUL.id), first_node(graph, Ops::BATCHNORM2D.id));
-    EXPECT_LT(first_node(graph, Ops::BATCHNORM2D.id), first_node(graph, Ops::SILU.id));
+    ASSERT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 1u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BIAS_ADD.id), 0u);
+    EXPECT_LT(first_node(graph, Ops::K_MATMUL.id), first_node(graph, Ops::K_BATCHNORM2D.id));
+    EXPECT_LT(first_node(graph, Ops::K_BATCHNORM2D.id), first_node(graph, Ops::K_SILU.id));
 
-    const Graph::Node& activation = graph.nodes()[first_node(graph, Ops::SILU.id)];
+    const Graph::Node& activation = graph.nodes()[first_node(graph, Ops::K_SILU.id)];
     EXPECT_EQ(activation.outputs[0], y);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
@@ -187,8 +187,8 @@ TEST(Unit_BlockConvNorm, ATrainingTraceCarriesTheNormOptions)
 
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 1u);
-    const Graph::Node& norm = graph.nodes()[first_node(graph, Ops::BATCHNORM2D.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    const Graph::Node& norm = graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)];
 
     // Both constants are stored as given, so they compare exactly.
     EXPECT_EQ(norm.attributes.values[0], 1e-3);
@@ -207,10 +207,10 @@ TEST(Unit_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
 
     const Graph::ValueId y = block.forward(Trace::evaluation(builder), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM_FOLD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::CHANNEL_AFFINE.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CHANNEL_AFFINE.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
 
@@ -225,9 +225,9 @@ TEST(Unit_BlockConvNorm, ConvLinearEmitsNoActivation)
 
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 0u);
-    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::BATCHNORM2D.id)].outputs[0], y);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 0u);
+    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].outputs[0], y);
 }
 
 /**
@@ -288,8 +288,8 @@ TEST(Unit_BlockConvNorm, TheFactoryBuildsRow0)
 
     ASSERT_EQ(outputs.size(), 1u);
     EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{1, 320, 320, 16}));
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 1u);
-    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::BATCHNORM2D.id)].attributes.values[0], 1e-3);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].attributes.values[0], 1e-3);
     ASSERT_EQ(list.updates().size(), 2u);
     EXPECT_NEAR(list.updates()[0].momentum, 0.03, K_EXACT_TOLERANCE);
 

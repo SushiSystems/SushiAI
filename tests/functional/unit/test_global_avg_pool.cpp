@@ -95,7 +95,7 @@ TEST(Unit_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
 
     ASSERT_EQ(graph.nodes().size(), nodes_before + 1);
     const Graph::Node& node = graph.nodes().back();
-    EXPECT_EQ(node.op, Ops::SPATIAL_MEAN.id);
+    EXPECT_EQ(node.op, Ops::K_SPATIAL_MEAN.id);
     ASSERT_EQ(node.inputs.size(), 1u);
     EXPECT_EQ(node.inputs.front(), x);
     ASSERT_EQ(node.outputs.size(), 1u);
@@ -108,12 +108,12 @@ TEST(Unit_GlobalAvgPool, ForwardKeepsTheNhwcLayoutTag)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{2, 6, 6, 3}, "x");
-    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::NHWC);
+    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::Nhwc);
 
     const GlobalAvgPool layer{};
     const Graph::ValueId y = layer.forward(builder, x);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
     EXPECT_NO_THROW(graph.finalise());
 }
 
@@ -193,7 +193,7 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAnNchwInput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{1, 4, 4, 3}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     const GlobalAvgPool layer{};
 

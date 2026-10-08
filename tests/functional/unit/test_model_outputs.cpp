@@ -57,7 +57,7 @@ namespace
     void add_without_value()
     {
         ModelOutputs outputs;
-        const SushiAI::Status ignored = outputs.add("boxes", SushiAI::Graph::NO_VALUE);
+        const SushiAI::Status ignored = outputs.add("boxes", SushiAI::Graph::K_NO_VALUE);
         static_cast<void>(ignored);
     }
 

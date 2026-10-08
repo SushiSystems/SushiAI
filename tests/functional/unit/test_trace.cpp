@@ -439,7 +439,7 @@ TEST(Unit_Trace, AnUpdateAddsNothingToTheGraph)
     SA_EXPECT_OK(Trace::training(builder, list).update(buffer, x, 0.1, 1.0));
 
     EXPECT_EQ(graph.value_count(), before);
-    EXPECT_EQ(buffer.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(buffer.id_in(graph), Graph::K_NO_VALUE);
 }
 
 /** @brief Tests that a recorded target still names its buffer after the buffer is moved. */
@@ -501,7 +501,7 @@ TEST(Unit_Trace, AnUpdateOfABufferThatWasNeverReadIsRecorded)
     EXPECT_NE(list.updates()[0].target, Graph::K_NO_STATE);
     EXPECT_EQ(list.updates()[0].target, buffer.state());
     EXPECT_EQ(graph.value_count(), before);
-    EXPECT_EQ(buffer.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(buffer.id_in(graph), Graph::K_NO_VALUE);
 }
 
 /** @brief Tests that a new trace holds no failure and leaves its graph unrefused. */
@@ -593,7 +593,7 @@ TEST(Unit_Trace, SequentialFoldsAnInputShapeThroughItsChildren)
 /** @brief Tests that an update whose source is NO_VALUE stops the process. */
 TEST(Unit_TraceDeathTest, AnUpdateWithoutASourceIsFatal)
 {
-    SA_EXPECT_FATAL(update_from(Graph::NO_VALUE), "a buffer update reads value");
+    SA_EXPECT_FATAL(update_from(Graph::K_NO_VALUE), "a buffer update reads value");
 }
 
 /** @brief Tests that an update whose source the graph does not hold stops the process. */

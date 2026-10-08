@@ -41,28 +41,27 @@ namespace SushiAI
 
         FusionChoice DeviceFusionSelector::choose(const FusionQuery& query) const
         {
-            if (query.matched == FusedForm::NONE)
-                return FusionChoice{FusedForm::NONE, "nothing was matched"};
+            if (query.matched == FusedForm::None)
+                return FusionChoice{FusedForm::None, "nothing was matched"};
 
             // Fall back to plain kernels when target device lacks native double precision.
-            if (query.dtype == DType::FLOAT64 && !profile_.supports_fp64)
-                return FusionChoice{FusedForm::NONE,
+            if (query.dtype == DType::Float64 && !profile_.supports_fp64)
+                return FusionChoice{FusedForm::None,
                                     "the device has no native double precision, so the plain "
                                     "kernels report the problem rather than a fused form the "
                                     "caller never asked for"};
 
             if (is_gemm_epilogue(query.matched))
             {
-                // Reference and verification execution modes execute epilogues on the host.
-                if (mode_ == SushiBLAS::ExecutionMode::FORCE_REFERENCE
-                    || mode_ == SushiBLAS::ExecutionMode::VERIFY)
-                    return FusionChoice{FusedForm::NONE,
+                // The reference execution mode executes epilogues on the host.
+                if (mode_ == SushiBLAS::ExecutionMode::ForceReference)
+                    return FusionChoice{FusedForm::None,
                                         "this execution mode runs the epilogue on the host, "
                                         "where an operand in device memory cannot be read"};
 
                 // Fused epilogue access requires a contiguous broadcast operand.
                 if (!query.operand_is_contiguous)
-                    return FusionChoice{FusedForm::NONE,
+                    return FusionChoice{FusedForm::None,
                                         "the epilogue's broadcast operand is not contiguous, and "
                                         "the functor indexes it directly"};
             }

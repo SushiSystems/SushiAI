@@ -97,7 +97,7 @@ namespace SushiAI
             SA_THROW_IF(image.rank() != 4,
                         "Conv2d({}, {}) needs a rank-4 [N, H, W, {}] input; got {}",
                         in_channels, out_channels, in_channels, image.to_string());
-            SA_THROW_IF(builder.graph().value(x).layout != Graph::TensorLayout::NHWC,
+            SA_THROW_IF(builder.graph().value(x).layout != Graph::TensorLayout::Nhwc,
                         "Conv2d needs an NHWC input; got {} tagged NCHW. Cross with "
                         "layout_convert first (CV-3).",
                         image.to_string());
@@ -109,12 +109,12 @@ namespace SushiAI
 
             const Graph::ValueId w = weight.declare(
                 builder, Shape{out_channels, geometry.kernel_h, geometry.kernel_w, in_channels},
-                ParameterRole::WEIGHT, fan_in, fan_out, "weight", dtype);
+                ParameterRole::Weight, fan_in, fan_out, "weight", dtype);
 
-            Graph::ValueId b = Graph::NO_VALUE;
+            Graph::ValueId b = Graph::K_NO_VALUE;
             if (use_bias)
             {
-                b = bias.declare(builder, Shape{out_channels}, ParameterRole::BIAS,
+                b = bias.declare(builder, Shape{out_channels}, ParameterRole::Bias,
                                  ParameterInit::constant_value(bias_init), fan_in, fan_out, "bias",
                                  dtype);
             }

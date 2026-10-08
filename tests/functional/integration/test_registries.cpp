@@ -152,7 +152,7 @@ TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
 TEST_F(Integration_Registries, TheDatasetRegistryListsMnist)
 {
     const bool listed = std::any_of(
-        Data::DATASET_REGISTRY.begin(), Data::DATASET_REGISTRY.end(),
+        Data::K_DATASET_REGISTRY.begin(), Data::K_DATASET_REGISTRY.end(),
         [](const Data::DatasetEntry& entry) { return entry.type == "mnist"; });
     EXPECT_TRUE(listed);
 

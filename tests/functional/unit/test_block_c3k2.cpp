@@ -144,7 +144,7 @@ namespace
         // Both constants are stored as given, so they compare exactly.
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op == Ops::BATCHNORM2D.id)
+            if (node.op == Ops::K_BATCHNORM2D.id)
                 EXPECT_EQ(node.attributes.values[0], options.epsilon);
         }
 
@@ -277,12 +277,12 @@ TEST(Unit_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
 
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::SLICE_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 4u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 4u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 4u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
     EXPECT_EQ(list.updates().size(), 8u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 64}));
     expect_norm_options(graph, list, K_YOLO_NORM);
@@ -301,16 +301,16 @@ TEST(Unit_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
-    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::CONCAT_CHANNELS.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
     ASSERT_EQ(join.inputs.size(), 3u);
 
     const Graph::Node& first_half = graph.node(graph.value(join.inputs[0]).producer);
     const Graph::Node& second_half = graph.node(graph.value(join.inputs[1]).producer);
     const Graph::Node& chained = graph.node(graph.value(join.inputs[2]).producer);
-    ASSERT_EQ(first_half.op, Ops::SLICE_CHANNELS.id);
-    ASSERT_EQ(second_half.op, Ops::SLICE_CHANNELS.id);
-    ASSERT_EQ(chained.op, Ops::ADD.id);
+    ASSERT_EQ(first_half.op, Ops::K_SLICE_CHANNELS.id);
+    ASSERT_EQ(second_half.op, Ops::K_SLICE_CHANNELS.id);
+    ASSERT_EQ(chained.op, Ops::K_ADD.id);
 
     // A slice stores its offset as a whole number in slot 0, so it compares exactly.
     EXPECT_NEAR(first_half.attributes.values[0], 0.0, K_EXACT_TOLERANCE);
@@ -337,8 +337,8 @@ TEST(Unit_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
 
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
-    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::CONCAT_CHANNELS.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
     ASSERT_EQ(join.inputs.size(), 4u);
     EXPECT_EQ(graph.node(graph.value(join.inputs[2]).producer).inputs[0], join.inputs[1]);
     EXPECT_EQ(graph.node(graph.value(join.inputs[3]).producer).inputs[0], join.inputs[2]);
@@ -360,12 +360,12 @@ TEST(Unit_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
 
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::SLICE_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 9u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 9u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 2u);
     EXPECT_EQ(list.updates().size(), 18u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 128}));
     expect_norm_options(graph, list, K_YOLO_NORM);
@@ -438,8 +438,8 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow2)
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 4u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 4u);
     EXPECT_EQ(list.updates().size(), 8u);
     expect_norm_options(graph, list, K_YOLO_NORM);
     EXPECT_EQ(walk(*node, "model.2"), row2_records());
@@ -468,9 +468,9 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow6)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 9u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
     EXPECT_EQ(list.updates().size(), 18u);
     expect_norm_options(graph, list, K_YOLO_NORM);
     EXPECT_EQ(walk(*node, "model.6"), row6_records());
@@ -492,8 +492,8 @@ TEST(Unit_BlockC3k2, TheFactoryReadsTheShortcutOfAC3kInnerBlock)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 9u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 9u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 }
 
 /**
@@ -514,9 +514,9 @@ TEST(Unit_BlockC3k2, TheFactoryDefaultsToOneBottleneckWithAShortcut)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 4u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 4u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
 }
 
 /** @brief Tests that "repeats" sets the number of inner blocks and "shortcut" their add. */
@@ -535,8 +535,8 @@ TEST(Unit_BlockC3k2, TheFactoryReadsRepeatsAndShortcut)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 8u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 8u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 
     const std::vector<std::string> state = walk(*node, "");
     ASSERT_EQ(state.size(), 40u);

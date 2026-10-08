@@ -43,7 +43,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::NO_VALUE;
+using Graph::K_NO_VALUE;
 using Graph::NodeId;
 using Graph::ValueId;
 
@@ -78,7 +78,7 @@ namespace
     /** @brief Differentiates @p loss with respect to @p wrt. */
     std::vector<ValueId> differentiate(Graph::Graph& graph, ValueId loss,
                                        const std::vector<ValueId>& wrt,
-                                       ValueId seed_factor = NO_VALUE,
+                                       ValueId seed_factor = K_NO_VALUE,
                                        Autograd::Provenance* provenance = nullptr)
     {
         return Autograd::differentiate(graph, loss,
@@ -109,12 +109,12 @@ namespace
         }
 
         Graph::Graph graph;          /**< @brief Holds the graph under test. */
-        ValueId a = NO_VALUE;        /**< @brief Holds the operand of the SCALE term. */
-        ValueId b = NO_VALUE;        /**< @brief Holds the first operand of the MUL term. */
-        ValueId c = NO_VALUE;        /**< @brief Holds the second operand of the MUL term. */
-        ValueId scaled = NO_VALUE;   /**< @brief Holds the SCALE term. */
-        ValueId product = NO_VALUE;  /**< @brief Holds the MUL term. */
-        ValueId sum = NO_VALUE;      /**< @brief Holds the ADD of the two terms. */
+        ValueId a = K_NO_VALUE;        /**< @brief Holds the operand of the SCALE term. */
+        ValueId b = K_NO_VALUE;        /**< @brief Holds the first operand of the MUL term. */
+        ValueId c = K_NO_VALUE;        /**< @brief Holds the second operand of the MUL term. */
+        ValueId scaled = K_NO_VALUE;   /**< @brief Holds the SCALE term. */
+        ValueId product = K_NO_VALUE;  /**< @brief Holds the MUL term. */
+        ValueId sum = K_NO_VALUE;      /**< @brief Holds the ADD of the two terms. */
     };
 }
 
@@ -150,7 +150,7 @@ TEST(Unit_LossRoots, ASumOfTwoTermsEndingInAddReachesEveryParameter)
     EXPECT_EQ(gradients[2], dc.outputs.at(0));
 
     for (ValueId gradient : gradients)
-        EXPECT_EQ(model.graph.value(gradient).lifetime, Graph::Lifetime::GRADIENT);
+        EXPECT_EQ(model.graph.value(gradient).lifetime, Graph::Lifetime::Gradient);
 }
 
 /** @brief Tests that a loss ending in a SCALE hands the scaled seed to both terms under it. */
@@ -186,7 +186,7 @@ TEST(Unit_LossRoots, ASumOfTwoTermsEndingInScaleReachesEveryParameter)
 
     ASSERT_EQ(gradients.size(), 3u);
     for (std::size_t i = 0; i < gradients.size(); ++i)
-        EXPECT_NE(gradients[i], NO_VALUE) << "parameter " << i << " received no gradient";
+        EXPECT_NE(gradients[i], K_NO_VALUE) << "parameter " << i << " received no gradient";
 }
 
 /** @brief Tests that the seed is one CONSTANT of 1 in the root's shape, element type and layout. */
@@ -195,8 +195,8 @@ TEST(Unit_LossRoots, TheSeedIsAConstantOneShapedAndTypedLikeTheRoot)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{1, 1, 1, 1}, "x", DType::FLOAT64);
-    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId x = builder.parameter(Shape{1, 1, 1, 1}, "x", DType::Float64);
+    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
     const ValueId loss = builder.scale(nchw, K_ROOT_WEIGHT);
     const std::size_t forward_nodes = graph.node_count();
 
@@ -205,17 +205,17 @@ TEST(Unit_LossRoots, TheSeedIsAConstantOneShapedAndTypedLikeTheRoot)
     ASSERT_GE(graph.node_count(), forward_nodes + 1);
     const Graph::Node& one = graph.nodes()[forward_nodes];
 
-    ASSERT_EQ(one.op, Ops::CONSTANT.id);
+    ASSERT_EQ(one.op, Ops::K_CONSTANT.id);
     EXPECT_TRUE(one.inputs.empty());
     EXPECT_NEAR(one.attributes.get(0), 1.0, K_ATTRIBUTE_TOLERANCE);
-    EXPECT_EQ(count_op(graph, Ops::CONSTANT.id), 1u);
-    EXPECT_EQ(count_op(graph, Ops::ZERO.id), 0u);
-    EXPECT_EQ(count_op(graph, Ops::EXP.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_CONSTANT.id), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_EXP.id), 0u);
 
     const Graph::Value& seed = graph.value(one.outputs.at(0));
     EXPECT_EQ(seed.shape, (Shape{1, 1, 1, 1}));
-    EXPECT_EQ(seed.dtype, DType::FLOAT64);
-    EXPECT_EQ(seed.layout, Graph::TensorLayout::NCHW);
+    EXPECT_EQ(seed.dtype, DType::Float64);
+    EXPECT_EQ(seed.layout, Graph::TensorLayout::Nchw);
 }
 
 /** @brief Tests that a seed factor multiplies the seed in one DYNAMIC_SCALE every rule reads. */
@@ -241,7 +241,7 @@ TEST(Unit_LossRoots, TheSeedFactorMultipliesTheSeedOnce)
     const ValueId seed = scaling.outputs.at(0);
 
     EXPECT_EQ(scaling.inputs, (std::vector<ValueId>{one, factor}));
-    EXPECT_EQ(count_op(model.graph, Ops::DYNAMIC_SCALE.id), 1u);
+    EXPECT_EQ(count_op(model.graph, Ops::K_DYNAMIC_SCALE.id), 1u);
     EXPECT_EQ(model.graph.nodes()[forward_nodes + 2].inputs,
               (std::vector<ValueId>{seed, model.c}));
     EXPECT_EQ(model.graph.nodes()[forward_nodes + 3].inputs,
@@ -329,7 +329,7 @@ TEST(Unit_LossRoots, ARootThatIsNotRealFloatingThrowsNamingItsType)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{1}, "x", DType::INT32);
+    const ValueId x = builder.parameter(Shape{1}, "x", DType::Int32);
     const ValueId loss = builder.scale(x, K_ROOT_WEIGHT);
     const std::size_t forward_nodes = graph.node_count();
 
@@ -371,8 +371,8 @@ TEST(Unit_LossRoots, AFusedCrossEntropyRootEmitsNoSeedNode)
         "sushiai.sum_rows",
         "sushiai.matmul",
     }));
-    EXPECT_EQ(count_op(graph, Ops::ZERO.id), 0u);
-    EXPECT_EQ(count_op(graph, Ops::CONSTANT.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_CONSTANT.id), 0u);
 }
 
 /** @brief Tests that an NLL_LOSS root outside the fused pair emits its SCALE and no seed node. */
@@ -424,29 +424,29 @@ TEST(Unit_LossRoots, StopGradientEmitsAnIdentityShapedLikeItsOperand)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{2, 3, 4, 5}, "x", DType::FLOAT64);
-    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueId x = builder.parameter(Shape{2, 3, 4, 5}, "x", DType::Float64);
+    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
     const ValueId stopped = builder.stop_gradient(nchw);
 
     const Graph::Node& node = graph.node(graph.value(stopped).producer);
-    EXPECT_EQ(node.op, Ops::STOP_GRADIENT.id);
+    EXPECT_EQ(node.op, Ops::K_STOP_GRADIENT.id);
     EXPECT_EQ(node.inputs, (std::vector<ValueId>{nchw}));
     EXPECT_EQ(node.outputs, (std::vector<ValueId>{stopped}));
 
     EXPECT_EQ(graph.value(stopped).shape, graph.value(nchw).shape);
-    EXPECT_EQ(graph.value(stopped).dtype, DType::FLOAT64);
-    EXPECT_EQ(graph.value(stopped).layout, Graph::TensorLayout::NCHW);
+    EXPECT_EQ(graph.value(stopped).dtype, DType::Float64);
+    EXPECT_EQ(graph.value(stopped).layout, Graph::TensorLayout::Nchw);
     EXPECT_NO_THROW(graph.finalise());
 }
 
 /** @brief Tests that STOP_GRADIENT is declared a gradient barrier and not differentiable. */
 TEST(Unit_LossRoots, StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable)
 {
-    EXPECT_TRUE(Ops::STOP_GRADIENT.blocks_gradient);
-    EXPECT_FALSE(Ops::STOP_GRADIENT.differentiable);
-    EXPECT_TRUE(Ops::is_gradient_barrier(Ops::STOP_GRADIENT.id));
-    EXPECT_FALSE(Ops::is_gradient_barrier(Ops::RESHAPE.id));
-    EXPECT_EQ(Ops::name_of(Ops::STOP_GRADIENT.id), "sushiai.stop_gradient");
+    EXPECT_TRUE(Ops::K_STOP_GRADIENT.blocks_gradient);
+    EXPECT_FALSE(Ops::K_STOP_GRADIENT.differentiable);
+    EXPECT_TRUE(Ops::is_gradient_barrier(Ops::K_STOP_GRADIENT.id));
+    EXPECT_FALSE(Ops::is_gradient_barrier(Ops::K_RESHAPE.id));
+    EXPECT_EQ(Ops::name_of(Ops::K_STOP_GRADIENT.id), "sushiai.stop_gradient");
 }
 
 /** @brief Tests that finalise() marks neither a STOP_GRADIENT result nor its consumers. */
@@ -491,7 +491,7 @@ TEST(Unit_LossRoots, StopGradientBlocksAParameterReachableOnlyThroughIt)
     const ValueId seed = graph.nodes()[forward_nodes].outputs.at(0);
     const Graph::Node& d_open = graph.nodes()[forward_nodes + 1];
 
-    EXPECT_EQ(gradients.at(0), NO_VALUE);
+    EXPECT_EQ(gradients.at(0), K_NO_VALUE);
     EXPECT_EQ(gradients.at(1), d_open.outputs.at(0));
     EXPECT_EQ(d_open.inputs, (std::vector<ValueId>{seed, stopped}));
 }
@@ -519,7 +519,7 @@ TEST(Unit_LossRoots, AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradi
 
     EXPECT_EQ(dx.inputs, (std::vector<ValueId>{seed, stopped}));
     EXPECT_EQ(gradients.at(0), dx.outputs.at(0));
-    EXPECT_EQ(count_op(graph, Ops::ACCUMULATE.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 0u);
 }
 
 /** @brief Tests that a loss every path to which crosses STOP_GRADIENT throws and names it. */
@@ -567,7 +567,7 @@ TEST(Unit_LossRoots, AContributionToAStopGradientResultIsDroppedWithoutAskingFor
 
     Autograd::Provenance provenance;
     std::vector<ValueId> gradients;
-    ASSERT_NO_THROW(gradients = differentiate(graph, loss, {blocked, open}, NO_VALUE,
+    ASSERT_NO_THROW(gradients = differentiate(graph, loss, {blocked, open}, K_NO_VALUE,
                                               &provenance));
 
     ASSERT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
@@ -575,8 +575,8 @@ TEST(Unit_LossRoots, AContributionToAStopGradientResultIsDroppedWithoutAskingFor
         "sushiai.mul",
         "sushiai.mul",
     }));
-    EXPECT_EQ(gradients.at(0), NO_VALUE);
-    EXPECT_NE(gradients.at(1), NO_VALUE);
+    EXPECT_EQ(gradients.at(0), K_NO_VALUE);
+    EXPECT_NE(gradients.at(1), K_NO_VALUE);
 
     const NodeId barrier = graph.value(stopped).producer;
     EXPECT_EQ(std::count(provenance.origin.begin(), provenance.origin.end(), barrier), 0);
@@ -602,7 +602,7 @@ TEST(Unit_LossRoots, TheSeedNodesHaveTheRootProducerAsOrigin)
     const NodeId scaled_producer = model.graph.value(model.scaled).producer;
     const NodeId first = static_cast<NodeId>(forward_nodes);
 
-    EXPECT_EQ(model.graph.node(root_producer).op, Ops::ADD.id);
+    EXPECT_EQ(model.graph.node(root_producer).op, Ops::K_ADD.id);
     EXPECT_EQ(provenance.origin_of(first), root_producer);
     EXPECT_EQ(provenance.origin_of(first + 1), root_producer);
     EXPECT_EQ(provenance.origin_of(first + 2), product_producer);

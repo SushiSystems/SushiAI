@@ -132,7 +132,7 @@ TEST(Unit_Concat, ForwardEmitsOneConcatChannelsReadingEveryInputInOrder)
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& emitted = graph.nodes().back();
-    EXPECT_EQ(emitted.op, Ops::CONCAT_CHANNELS.id);
+    EXPECT_EQ(emitted.op, Ops::K_CONCAT_CHANNELS.id);
     EXPECT_EQ(emitted.inputs, (std::vector<Graph::ValueId>{b, a}));
     ASSERT_EQ(outputs.size(), 1u);
     ASSERT_EQ(emitted.outputs.size(), 1u);

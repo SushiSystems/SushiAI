@@ -61,16 +61,16 @@ namespace SushiAI
         struct StepSpec
         {
             /** @brief The [N, D] minibatch input leaf, rewritten per step. */
-            Graph::ValueId inputs = Graph::NO_VALUE;
+            Graph::ValueId inputs = Graph::K_NO_VALUE;
 
             /** @brief The [N, C] one-hot target leaf, rewritten per step. */
-            Graph::ValueId targets = Graph::NO_VALUE;
+            Graph::ValueId targets = Graph::K_NO_VALUE;
 
             /** @brief The model's [N, C] logits, read for accuracy. */
-            Graph::ValueId logits = Graph::NO_VALUE;
+            Graph::ValueId logits = Graph::K_NO_VALUE;
 
             /** @brief The 1-element loss that was differentiated. */
-            Graph::ValueId loss = Graph::NO_VALUE;
+            Graph::ValueId loss = Graph::K_NO_VALUE;
         };
 
         /**
@@ -83,10 +83,10 @@ namespace SushiAI
             std::string name;
 
             /** @brief The parameter's value id. */
-            Graph::ValueId value = Graph::NO_VALUE;
+            Graph::ValueId value = Graph::K_NO_VALUE;
 
             /** @brief Its gradient's value id; Graph::NO_VALUE if none flows. */
-            Graph::ValueId gradient = Graph::NO_VALUE;
+            Graph::ValueId gradient = Graph::K_NO_VALUE;
         };
 
         /**
@@ -107,7 +107,7 @@ namespace SushiAI
             /**
              * @brief The 1-element leaf the backward seed is multiplied by.
              */
-            Graph::ValueId loss_scale = Graph::NO_VALUE;
+            Graph::ValueId loss_scale = Graph::K_NO_VALUE;
 
             /**
              * @brief Holds leaves declared by the objective, indexed by role.
@@ -130,11 +130,11 @@ namespace SushiAI
          * @return The constructed training graph.
          */
         template<typename M>
-        TrainingGraph build_graph(M& module, const IObjective& objective,
+        TrainingGraph build_graph(M& module, const Objective& objective,
                                   int64_t batch, int64_t features,
-                                  DType dtype = DType::FLOAT32,
+                                  DType dtype = DType::Float32,
                                   Graph::FusionOptions fusion = {},
-                                  const Graph::IPrecisionPolicy* precision = nullptr,
+                                  const Graph::PrecisionPolicy* precision = nullptr,
                                   bool loss_scaling = false)
         {
             TrainingGraph built;
@@ -157,13 +157,13 @@ namespace SushiAI
             std::vector<Graph::ValueId> wrt;
             NN::for_each_parameter(module, [&](const std::string& name, NN::Parameter& parameter)
             {
-                built.parameters.push_back(ParameterBinding{name, parameter.id(), Graph::NO_VALUE});
+                built.parameters.push_back(ParameterBinding{name, parameter.id(), Graph::K_NO_VALUE});
                 wrt.push_back(parameter.id());
             });
 
             // Loss scale input is declared before differentiation in master precision.
             if (loss_scaling)
-                built.loss_scale = builder.input(Shape{1}, "loss_scale", DType::FLOAT32);
+                built.loss_scale = builder.input(Shape{1}, "loss_scale", DType::Float32);
 
             const std::vector<Graph::ValueId> gradients =
                 Autograd::differentiate(built.graph, built.spec.loss,
@@ -176,7 +176,7 @@ namespace SushiAI
             std::vector<Graph::ValueId> observed{
                 built.spec.inputs, built.spec.targets, built.spec.logits, built.spec.loss,
             };
-            if (built.loss_scale != Graph::NO_VALUE) observed.push_back(built.loss_scale);
+            if (built.loss_scale != Graph::K_NO_VALUE) observed.push_back(built.loss_scale);
             observed.insert(observed.end(), fusion.observed.begin(), fusion.observed.end());
             fusion.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
 
@@ -200,9 +200,9 @@ namespace SushiAI
          */
         template<typename M>
         TrainingGraph build_classifier(M& module, int64_t batch, int64_t features,
-                                       int64_t classes, DType dtype = DType::FLOAT32,
+                                       int64_t classes, DType dtype = DType::Float32,
                                        Graph::FusionOptions fusion = {},
-                                       const Graph::IPrecisionPolicy* precision = nullptr,
+                                       const Graph::PrecisionPolicy* precision = nullptr,
                                        bool loss_scaling = false)
         {
             const CrossEntropyObjective objective(batch, classes, dtype);
@@ -233,7 +233,7 @@ namespace SushiAI
              * One compile, one replay, no host round trip between the loss and
              * the update. Requires @c Optim::Optimizer::is_replay_invariant().
              */
-            IN_PLAN,
+            InPlan,
 
             /**
              * @brief Stepped on its own after every replay, with its own flush.
@@ -241,7 +241,7 @@ namespace SushiAI
              * The behaviour before the update could be compiled, and the only
              * option for an optimizer whose recorded work is not replayable.
              */
-            PER_STEP,
+            PerStep,
         };
 
         /**
@@ -260,17 +260,17 @@ namespace SushiAI
             bool profile = false;
 
             /** @brief Whether to fold the optimizer's update into the compiled step. */
-            OptimizerPlacement optimizer_placement = OptimizerPlacement::IN_PLAN;
+            OptimizerPlacement optimizer_placement = OptimizerPlacement::InPlan;
 
             /**
              * @brief Specifies the fusion selector for device-specific kernel variants.
              */
-            const Graph::IFusionSelector* fusion_selector = nullptr;
+            const Graph::FusionSelector* fusion_selector = nullptr;
 
             /**
              * @brief Precision policy used to validate operand types before lowering.
              */
-            const Graph::IPrecisionPolicy* precision = nullptr;
+            const Graph::PrecisionPolicy* precision = nullptr;
         };
 
         /**

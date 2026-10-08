@@ -47,9 +47,9 @@ namespace SushiAI
         void channel_affine_backward(const GradientTape& tape);
 
         /** @brief Holds backward rule entries for normalization operations. */
-        inline constexpr std::array<RuleEntry, 2> NORM_RULES = {{
-            {Ops::BATCHNORM2D.id, &batchnorm2d_backward},
-            {Ops::CHANNEL_AFFINE.id, &channel_affine_backward},
+        inline constexpr std::array<RuleEntry, 2> K_NORM_RULES = {{
+            {Ops::K_BATCHNORM2D.id, &batchnorm2d_backward},
+            {Ops::K_CHANNEL_AFFINE.id, &channel_affine_backward},
         }};
     }
 }

@@ -126,7 +126,7 @@ namespace SushiAI
         {
             for (const Node& node : graph.nodes())
             {
-                if (node.op != Ops::LEAF.id) continue;
+                if (node.op != Ops::K_LEAF.id) continue;
                 for (ValueId out : node.outputs)
                     materialise(out, graph.value(out));
             }
@@ -326,10 +326,10 @@ namespace SushiAI
             for (const Node& node : graph.nodes())
             {
                 // Pins reduction operands requiring contiguous standalone allocation.
-                if (node.op == Ops::LOG_SOFTMAX.id && !node.inputs.empty())
+                if (node.op == Ops::K_LOG_SOFTMAX.id && !node.inputs.empty())
                     pinned.push_back(node.inputs[0]);   // reductions().max reads it
 
-                if (node.op == Ops::NLL_LOSS.id && !node.outputs.empty())
+                if (node.op == Ops::K_NLL_LOSS.id && !node.outputs.empty())
                     pinned.push_back(node.outputs[0]);  // reductions().sum writes it
             }
 
@@ -358,9 +358,9 @@ namespace SushiAI
 
             // Allows narrowing from extended epilogues to GEMM_BIAS within the same family.
             const bool narrowed_within_family =
-                is_gemm_epilogue(query.matched) && choice.form == FusedForm::GEMM_BIAS;
+                is_gemm_epilogue(query.matched) && choice.form == FusedForm::GemmBias;
 
-            SA_THROW_IF(choice.form != FusedForm::NONE && choice.form != query.matched
+            SA_THROW_IF(choice.form != FusedForm::None && choice.form != query.matched
                         && !narrowed_within_family,
                         "A fusion selector answered {} to a {} node, which is not a spelling of "
                         "it. A selector may take the whole match, narrow a GEMM epilogue to "
@@ -375,7 +375,7 @@ namespace SushiAI
         {
             const Node& node = graph.node(id);
 
-            if (node.op == Ops::LEAF.id)
+            if (node.op == Ops::K_LEAF.id)
             {
                 // Validates that leaf output values are explicitly bound before execution.
                 for (ValueId out : node.outputs)
@@ -386,51 +386,51 @@ namespace SushiAI
                 return;
             }
 
-            if (node.op == Ops::MATMUL.id)                 { record_matmul(graph, id, node); return; }
-            if (node.op == Ops::BIAS_ADD.id)               { record_bias_add(graph, id, node); return; }
-            if (node.op == Ops::ADD.id
-                || node.op == Ops::SUB.id
-                || node.op == Ops::MUL.id)                 { record_binary(graph, node); return; }
-            if (node.op == Ops::SCALE.id)                  { record_scale(graph, node); return; }
-            if (node.op == Ops::DYNAMIC_SCALE.id)          { record_dynamic_scale(graph, id, node); return; }
-            if (node.op == Ops::EXP.id
-                || node.op == Ops::RELU.id
-                || node.op == Ops::GELU.id
-                || node.op == Ops::SIGMOID.id
-                || node.op == Ops::TANH.id)                { record_unary_inplace(graph, node); return; }
-            if (node.op == Ops::LEAKY_RELU.id)             { record_leaky_relu(graph, node); return; }
-            if (node.op == Ops::RELU_BACKWARD.id
-                || node.op == Ops::GELU_BACKWARD.id
-                || node.op == Ops::SIGMOID_BACKWARD.id
-                || node.op == Ops::TANH_BACKWARD.id)       { record_activation_backward(graph, node); return; }
-            if (node.op == Ops::LEAKY_RELU_BACKWARD.id)    { record_leaky_relu_backward(graph, node); return; }
-            if (node.op == Ops::LOG_SOFTMAX.id)            { record_log_softmax(graph, id, node); return; }
-            if (node.op == Ops::NLL_LOSS.id)               { record_nll_loss(graph, id, node); return; }
-            if (node.op == Ops::SUM_ROWS.id)               { record_sum_rows(graph, node); return; }
-            if (node.op == Ops::ACCUMULATE.id)             { record_accumulate(node); return; }
-            if (node.op == Ops::ZERO.id)                   { record_zero(graph, node); return; }
-            if (node.op == Ops::CAST.id)                   { record_cast(graph, id, node); return; }
-            if (node.op == Ops::RESHAPE.id)                { record_reshape(graph, id, node); return; }
-            if (node.op == Ops::LAYOUT_CONVERT.id)         { record_layout_convert(graph, id, node); return; }
-            if (node.op == Ops::IM2COL.id)                 { record_im2col(graph, id, node); return; }
-            if (node.op == Ops::COL2IM.id)                 { record_col2im(graph, id, node); return; }
-            if (node.op == Ops::MAXPOOL2D.id)              { record_maxpool2d(graph, id, node); return; }
-            if (node.op == Ops::MAXPOOL2D_BACKWARD.id)     { record_maxpool2d_backward(graph, id, node); return; }
-            if (node.op == Ops::AVGPOOL2D.id)              { record_avgpool2d(graph, id, node); return; }
-            if (node.op == Ops::AVGPOOL2D_BACKWARD.id)     { record_avgpool2d_backward(graph, id, node); return; }
-            if (node.op == Ops::UPSAMPLE2D.id)             { record_upsample2d(graph, id, node); return; }
-            if (node.op == Ops::UPSAMPLE2D_BACKWARD.id)    { record_upsample2d_backward(graph, id, node); return; }
-            if (node.op == Ops::SPATIAL_MEAN.id)           { record_spatial_mean(graph, id, node); return; }
-            if (node.op == Ops::SPATIAL_MEAN_BACKWARD.id)  { record_spatial_mean_backward(graph, id, node); return; }
-            if (node.op == Ops::CONCAT_CHANNELS.id)        { record_concat_channels(graph, id, node); return; }
-            if (node.op == Ops::SLICE_CHANNELS.id)         { record_slice_channels(graph, id, node); return; }
-            if (node.op == Ops::CHANNEL_AFFINE.id)         { record_channel_affine(graph, id, node); return; }
-            if (node.op == Ops::BATCHNORM2D.id)            { record_batchnorm2d(graph, id, node); return; }
-            if (node.op == Ops::BATCHNORM2D_BACKWARD.id)   { record_batchnorm2d_backward(graph, id, node); return; }
+            if (node.op == Ops::K_MATMUL.id)                 { record_matmul(graph, id, node); return; }
+            if (node.op == Ops::K_BIAS_ADD.id)               { record_bias_add(graph, id, node); return; }
+            if (node.op == Ops::K_ADD.id
+                || node.op == Ops::K_SUB.id
+                || node.op == Ops::K_MUL.id)                 { record_binary(graph, node); return; }
+            if (node.op == Ops::K_SCALE.id)                  { record_scale(graph, node); return; }
+            if (node.op == Ops::K_DYNAMIC_SCALE.id)          { record_dynamic_scale(graph, id, node); return; }
+            if (node.op == Ops::K_EXP.id
+                || node.op == Ops::K_RELU.id
+                || node.op == Ops::K_GELU.id
+                || node.op == Ops::K_SIGMOID.id
+                || node.op == Ops::K_TANH.id)                { record_unary_inplace(graph, node); return; }
+            if (node.op == Ops::K_LEAKY_RELU.id)             { record_leaky_relu(graph, node); return; }
+            if (node.op == Ops::K_RELU_BACKWARD.id
+                || node.op == Ops::K_GELU_BACKWARD.id
+                || node.op == Ops::K_SIGMOID_BACKWARD.id
+                || node.op == Ops::K_TANH_BACKWARD.id)       { record_activation_backward(graph, node); return; }
+            if (node.op == Ops::K_LEAKY_RELU_BACKWARD.id)    { record_leaky_relu_backward(graph, node); return; }
+            if (node.op == Ops::K_LOG_SOFTMAX.id)            { record_log_softmax(graph, id, node); return; }
+            if (node.op == Ops::K_NLL_LOSS.id)               { record_nll_loss(graph, id, node); return; }
+            if (node.op == Ops::K_SUM_ROWS.id)               { record_sum_rows(graph, node); return; }
+            if (node.op == Ops::K_ACCUMULATE.id)             { record_accumulate(node); return; }
+            if (node.op == Ops::K_ZERO.id)                   { record_zero(graph, node); return; }
+            if (node.op == Ops::K_CAST.id)                   { record_cast(graph, id, node); return; }
+            if (node.op == Ops::K_RESHAPE.id)                { record_reshape(graph, id, node); return; }
+            if (node.op == Ops::K_LAYOUT_CONVERT.id)         { record_layout_convert(graph, id, node); return; }
+            if (node.op == Ops::K_IM2COL.id)                 { record_im2col(graph, id, node); return; }
+            if (node.op == Ops::K_COL2IM.id)                 { record_col2im(graph, id, node); return; }
+            if (node.op == Ops::K_MAXPOOL2D.id)              { record_maxpool2d(graph, id, node); return; }
+            if (node.op == Ops::K_MAXPOOL2D_BACKWARD.id)     { record_maxpool2d_backward(graph, id, node); return; }
+            if (node.op == Ops::K_AVGPOOL2D.id)              { record_avgpool2d(graph, id, node); return; }
+            if (node.op == Ops::K_AVGPOOL2D_BACKWARD.id)     { record_avgpool2d_backward(graph, id, node); return; }
+            if (node.op == Ops::K_UPSAMPLE2D.id)             { record_upsample2d(graph, id, node); return; }
+            if (node.op == Ops::K_UPSAMPLE2D_BACKWARD.id)    { record_upsample2d_backward(graph, id, node); return; }
+            if (node.op == Ops::K_SPATIAL_MEAN.id)           { record_spatial_mean(graph, id, node); return; }
+            if (node.op == Ops::K_SPATIAL_MEAN_BACKWARD.id)  { record_spatial_mean_backward(graph, id, node); return; }
+            if (node.op == Ops::K_CONCAT_CHANNELS.id)        { record_concat_channels(graph, id, node); return; }
+            if (node.op == Ops::K_SLICE_CHANNELS.id)         { record_slice_channels(graph, id, node); return; }
+            if (node.op == Ops::K_CHANNEL_AFFINE.id)         { record_channel_affine(graph, id, node); return; }
+            if (node.op == Ops::K_BATCHNORM2D.id)            { record_batchnorm2d(graph, id, node); return; }
+            if (node.op == Ops::K_BATCHNORM2D_BACKWARD.id)   { record_batchnorm2d_backward(graph, id, node); return; }
 
             const FusedForm form = fused_form_of(node.op);
             if (is_gemm_epilogue(form))       { record_fused_gemm(graph, id, node, form); return; }
-            if (form == FusedForm::EXP_SUB_SCALE)
+            if (form == FusedForm::ExpSubScale)
             {
                 record_fused_exp_sub_scale(graph, id, node, form);
                 return;
@@ -535,7 +535,7 @@ namespace SushiAI
             const FusionChoice choice = select(query);
             const std::size_t before = emitted_;
 
-            if (choice.form == FusedForm::NONE)
+            if (choice.form == FusedForm::None)
             {
                 // Executes unfused GEMM and bias rank-1 update in-place on result buffer.
                 engine_->blas().gemm(a, b, c, transpose_a, transpose_b, 1.0, 0.0);
@@ -551,35 +551,35 @@ namespace SushiAI
                 // Dispatches fused epilogue with declared operand dependencies per catalog arm.
                 switch (choice.form)
                 {
-                    case FusedForm::GEMM_BIAS_RELU:
+                    case FusedForm::GemmBiasRelu:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
-                            Ops::GEMM_BIAS_RELU.name.data(), Ops::GEMM_BIAS_RELU.id,
+                            Ops::K_GEMM_BIAS_RELU.name.data(), Ops::K_GEMM_BIAS_RELU.id,
                             SushiBLAS::Dispatch::gemm_epilogue(
                                 BiasReluEpilogue{values}).reads(bias));
                         break;
 
-                    case FusedForm::GEMM_BIAS_SIGMOID:
+                    case FusedForm::GemmBiasSigmoid:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
-                            Ops::GEMM_BIAS_SIGMOID.name.data(), Ops::GEMM_BIAS_SIGMOID.id,
+                            Ops::K_GEMM_BIAS_SIGMOID.name.data(), Ops::K_GEMM_BIAS_SIGMOID.id,
                             SushiBLAS::Dispatch::gemm_epilogue(
                                 BiasSigmoidEpilogue{values}).reads(bias));
                         break;
 
-                    case FusedForm::GEMM_BIAS_TANH:
+                    case FusedForm::GemmBiasTanh:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
-                            Ops::GEMM_BIAS_TANH.name.data(), Ops::GEMM_BIAS_TANH.id,
+                            Ops::K_GEMM_BIAS_TANH.name.data(), Ops::K_GEMM_BIAS_TANH.id,
                             SushiBLAS::Dispatch::gemm_epilogue(
                                 BiasTanhEpilogue{values}).reads(bias));
                         break;
 
-                    case FusedForm::GEMM_BIAS_GELU:
+                    case FusedForm::GemmBiasGelu:
                         // Declares auxiliary buffer write dependency for backward graph ordering.
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
-                            Ops::GEMM_BIAS_GELU.name.data(), Ops::GEMM_BIAS_GELU.id,
+                            Ops::K_GEMM_BIAS_GELU.name.data(), Ops::K_GEMM_BIAS_GELU.id,
                             SushiBLAS::Dispatch::gemm_epilogue(
                                 BiasGeluSpillEpilogue{values, aux->data(),
                                                       aux->strides[0], aux->strides[1]})
@@ -587,10 +587,10 @@ namespace SushiAI
                                 .writes(*aux));
                         break;
 
-                    case FusedForm::GEMM_BIAS:
+                    case FusedForm::GemmBias:
                         SushiBLAS::Dispatch::execute_gemm(
                             *engine_, a, b, c, transpose_a, transpose_b, 1.0, 0.0,
-                            Ops::GEMM_BIAS.name.data(), Ops::GEMM_BIAS.id,
+                            Ops::K_GEMM_BIAS.name.data(), Ops::K_GEMM_BIAS.id,
                             SushiBLAS::Dispatch::gemm_epilogue(
                                 BiasEpilogue{values}).reads(bias));
                         break;
@@ -614,12 +614,12 @@ namespace SushiAI
 
             // Executes trailing activation in-place when excluded from fused epilogue.
             const OpID activation = fused_form_activation(matched);
-            if (activation != Ops::LEAF.id && fused_form_activation(choice.form) != activation)
+            if (activation != Ops::K_LEAF.id && fused_form_activation(choice.form) != activation)
             {
-                if (activation == Ops::RELU.id)         engine_->nonlinear().relu(c);
-                else if (activation == Ops::SIGMOID.id) engine_->nonlinear().sigmoid(c);
-                else if (activation == Ops::GELU.id)    engine_->nonlinear().gelu(c);
-                else if (activation == Ops::TANH.id)    engine_->nonlinear().tanh(c);
+                if (activation == Ops::K_RELU.id)         engine_->nonlinear().relu(c);
+                else if (activation == Ops::K_SIGMOID.id) engine_->nonlinear().sigmoid(c);
+                else if (activation == Ops::K_GELU.id)    engine_->nonlinear().gelu(c);
+                else if (activation == Ops::K_TANH.id)    engine_->nonlinear().tanh(c);
                 else
                     SA_THROW_IF(true,
                                 "No activation kernel for operation {}, the tail of {} (node {}). "
@@ -658,7 +658,7 @@ namespace SushiAI
             const FusionChoice choice = select(query);
             const std::size_t before = emitted_;
 
-            if (choice.form == FusedForm::NONE)
+            if (choice.form == FusedForm::None)
             {
                 // Reuses output tensor as scratch across sequential elementwise stages.
                 engine_->blas().copy(a, out);
@@ -673,7 +673,7 @@ namespace SushiAI
                 std::array<SushiBLAS::Tensor*, 3> operands{&out, &a, &b};
 
                 SushiBLAS::Dispatch::execute_zip_inplace(*engine_, operands,
-                    Ops::EXP_SUB_SCALE.name.data(), Ops::EXP_SUB_SCALE.id,
+                    Ops::K_EXP_SUB_SCALE.name.data(), Ops::K_EXP_SUB_SCALE.id,
                     [alpha](auto& result, auto& logit, auto& target)
                     {
                         using T = std::decay_t<decltype(result)>;
@@ -692,9 +692,9 @@ namespace SushiAI
             const SushiBLAS::Tensor& b = input(node, 1);
             SushiBLAS::Tensor& c = output(graph, node, 0);
 
-            if (node.op == Ops::ADD.id)      engine_->elementwise().add(a, b, c);
-            else if (node.op == Ops::SUB.id) engine_->elementwise().sub(a, b, c);
-            else if (node.op == Ops::MUL.id) engine_->elementwise().mul(a, b, c);
+            if (node.op == Ops::K_ADD.id)      engine_->elementwise().add(a, b, c);
+            else if (node.op == Ops::K_SUB.id) engine_->elementwise().sub(a, b, c);
+            else if (node.op == Ops::K_MUL.id) engine_->elementwise().mul(a, b, c);
             else
                 SA_THROW_IF(true,
                             "No elementwise kernel for operation {}. Add it to "
@@ -731,12 +731,12 @@ namespace SushiAI
             engine_->blas().copy(x, y);
 
             // Captures factor buffer pointer to allow host updates without recompilation.
-            constexpr const char* TASK_NAME = "sushiai.dynamic_scale";
-            static_assert(Ops::DYNAMIC_SCALE.name == std::string_view(TASK_NAME),
+            constexpr const char* K_TASK_NAME = "sushiai.dynamic_scale";
+            static_assert(Ops::K_DYNAMIC_SCALE.name == std::string_view(K_TASK_NAME),
                           "the task name must be the string its OpID hashes");
 
             SushiBLAS::Dispatch::execute_unary_inplace(*engine_, y,
-                TASK_NAME, Ops::DYNAMIC_SCALE.id,
+                K_TASK_NAME, Ops::K_DYNAMIC_SCALE.id,
                 [f = static_cast<const void*>(factor.data())](auto v)
                 {
                     using T = std::decay_t<decltype(v)>;
@@ -754,11 +754,11 @@ namespace SushiAI
             // Copies input to output before in-place evaluation to preserve primal tensor.
             engine_->blas().copy(x, y);
 
-            if (node.op == Ops::EXP.id)          engine_->elementwise().exp(y);
-            else if (node.op == Ops::RELU.id)    engine_->nonlinear().relu(y);
-            else if (node.op == Ops::GELU.id)    engine_->nonlinear().gelu(y);
-            else if (node.op == Ops::SIGMOID.id) engine_->nonlinear().sigmoid(y);
-            else if (node.op == Ops::TANH.id)    engine_->nonlinear().tanh(y);
+            if (node.op == Ops::K_EXP.id)          engine_->elementwise().exp(y);
+            else if (node.op == Ops::K_RELU.id)    engine_->nonlinear().relu(y);
+            else if (node.op == Ops::K_GELU.id)    engine_->nonlinear().gelu(y);
+            else if (node.op == Ops::K_SIGMOID.id) engine_->nonlinear().sigmoid(y);
+            else if (node.op == Ops::K_TANH.id)    engine_->nonlinear().tanh(y);
             else
                 SA_THROW_IF(true,
                             "No in-place kernel for operation {}. Add it to "
@@ -774,10 +774,10 @@ namespace SushiAI
             const SushiBLAS::Tensor& primal = input(node, 1);
             SushiBLAS::Tensor& dx = output(graph, node, 0);
 
-            if (node.op == Ops::RELU_BACKWARD.id)         engine_->nonlinear().relu_backward(dy, primal, dx);
-            else if (node.op == Ops::GELU_BACKWARD.id)    engine_->nonlinear().gelu_backward(dy, primal, dx);
-            else if (node.op == Ops::SIGMOID_BACKWARD.id) engine_->nonlinear().sigmoid_backward(dy, primal, dx);
-            else if (node.op == Ops::TANH_BACKWARD.id)    engine_->nonlinear().tanh_backward(dy, primal, dx);
+            if (node.op == Ops::K_RELU_BACKWARD.id)         engine_->nonlinear().relu_backward(dy, primal, dx);
+            else if (node.op == Ops::K_GELU_BACKWARD.id)    engine_->nonlinear().gelu_backward(dy, primal, dx);
+            else if (node.op == Ops::K_SIGMOID_BACKWARD.id) engine_->nonlinear().sigmoid_backward(dy, primal, dx);
+            else if (node.op == Ops::K_TANH_BACKWARD.id)    engine_->nonlinear().tanh_backward(dy, primal, dx);
             else
                 SA_THROW_IF(true,
                             "No backward kernel for operation {}. Add it to "
@@ -964,9 +964,9 @@ namespace SushiAI
             const TensorLayout dest_layout = graph.value(node.outputs[0]).layout;
 
             // Converts spatial channel layouts between NCHW and NHWC representations.
-            const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::NCHW)
+            const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::Nchw)
                 ? source.transpose(1, 2).transpose(2, 3) : source;
-            SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::NCHW)
+            SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::Nchw)
                 ? destination.transpose(1, 2).transpose(2, 3) : destination;
 
             engine_->spatial().layout_convert(source_view, dest_view);

@@ -32,8 +32,8 @@ namespace SushiAI
     namespace Graph
     {
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, const Graph& graph,
-                                   TensorPool& pool, IStepRecorder* trailing,
-                                   const IFusionSelector* selector)
+                                   TensorPool& pool, StepRecorder* trailing,
+                                   const FusionSelector* selector)
             : engine_(&engine), trailing_(trailing)
         {
             Lowering lowering(engine, pool, selector);

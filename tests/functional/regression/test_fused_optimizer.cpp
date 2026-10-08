@@ -47,11 +47,11 @@ namespace
     class Regression_FusedOptimizer : public ::testing::Test {};
 
     // 133 is not a multiple of the vector width; see tests/functional/regression/README.md.
-    constexpr int64_t ELEMENTS = 133;
+    constexpr int64_t K_ELEMENTS = 133;
 
-    constexpr int STEPS = 6;
-    constexpr std::uint64_t PARAM_SEED = 0x5175'5348'4941'0001ull;
-    constexpr std::uint64_t GRAD_SEED = 0x5175'5348'4941'0002ull;
+    constexpr int K_STEPS = 6;
+    constexpr std::uint64_t K_PARAM_SEED = 0x5175'5348'4941'0001ull;
+    constexpr std::uint64_t K_GRAD_SEED = 0x5175'5348'4941'0002ull;
 
     /**
      * @brief Returns the gradient for step @p step, identical across runs.
@@ -59,9 +59,9 @@ namespace
      */
     std::vector<double> gradient_for(int step)
     {
-        SaTest::HostNoise noise(GRAD_SEED + static_cast<std::uint64_t>(step));
+        SaTest::HostNoise noise(K_GRAD_SEED + static_cast<std::uint64_t>(step));
 
-        std::vector<double> values(static_cast<std::size_t>(ELEMENTS));
+        std::vector<double> values(static_cast<std::size_t>(K_ELEMENTS));
         noise.fill(values, 0.75);
 
         values[0] = 0.0;
@@ -74,8 +74,8 @@ namespace
     /** @brief The starting parameter values, identical across runs. */
     std::vector<double> initial_parameter()
     {
-        SaTest::HostNoise noise(PARAM_SEED);
-        std::vector<double> values(static_cast<std::size_t>(ELEMENTS));
+        SaTest::HostNoise noise(K_PARAM_SEED);
+        std::vector<double> values(static_cast<std::size_t>(K_ELEMENTS));
         noise.fill(values, 2.0);
         return values;
     }
@@ -89,8 +89,8 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
-        SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{ELEMENTS});
+        SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
+        SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
         SaTest::write_tensor(parameter, initial_parameter());
 
         std::vector<Optim::ParameterSlot> slots{
@@ -99,7 +99,7 @@ namespace
 
         const std::unique_ptr<Optim::Optimizer> optimizer = make(engine, slots, kernel);
 
-        for (int step = 0; step < STEPS; ++step)
+        for (int step = 0; step < K_STEPS; ++step)
         {
             SaTest::write_tensor(gradient, gradient_for(step));
             optimizer->step();
@@ -138,8 +138,8 @@ namespace
     template<typename Make>
     void expect_kernels_agree(Make make, const std::string& what)
     {
-        const std::vector<unsigned char> fused = drive(make, UpdateKernel::FUSED);
-        const std::vector<unsigned char> separate = drive(make, UpdateKernel::SEPARATE);
+        const std::vector<unsigned char> fused = drive(make, UpdateKernel::Fused);
+        const std::vector<unsigned char> separate = drive(make, UpdateKernel::Separate);
 
         ASSERT_EQ(fused.size(), separate.size());
         EXPECT_EQ(SaTest::first_difference(fused, separate), fused.size())
@@ -151,18 +151,18 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 8;
-    constexpr int64_t FEATURES = 6;
-    constexpr int64_t HIDDEN = 12;
+    constexpr int64_t K_FEATURES = 6;
+    constexpr int64_t K_HIDDEN = 12;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 4;
+    constexpr int64_t K_BATCHES = 4;
 
     /** @brief The synthetic problem the training comparisons train on. */
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
         options.batch_size = BATCH;
-        options.batches = BATCHES;
-        options.features = FEATURES;
+        options.batches = K_BATCHES;
+        options.features = K_FEATURES;
         options.classes = CLASSES;
         options.seed = 0x0FED'0FED'0001ull;
         return options;
@@ -190,8 +190,8 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+        Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -312,8 +312,8 @@ TEST_F(Regression_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExa
  */
 TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt)
 {
-    const TrainedRun folded = train(Train::OptimizerPlacement::IN_PLAN, UpdateKernel::FUSED);
-    const TrainedRun apart = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::FUSED);
+    const TrainedRun folded = train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused);
+    const TrainedRun apart = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused);
 
     ASSERT_TRUE(folded.optimizer_in_plan);
     ASSERT_FALSE(apart.optimizer_in_plan);
@@ -328,16 +328,16 @@ TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdate
  */
 TEST_F(Regression_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo)
 {
-    const TrainedRun fused = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::FUSED);
-    const TrainedRun separate = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::SEPARATE);
+    const TrainedRun fused = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused);
+    const TrainedRun separate = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Separate);
 
     expect_runs_agree(fused, separate, "the update's spelling");
 }
 
 TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
 {
-    const TrainedRun folded = train(Train::OptimizerPlacement::IN_PLAN, UpdateKernel::FUSED);
-    const TrainedRun apart = train(Train::OptimizerPlacement::PER_STEP, UpdateKernel::FUSED);
+    const TrainedRun folded = train(Train::OptimizerPlacement::InPlan, UpdateKernel::Fused);
+    const TrainedRun apart = train(Train::OptimizerPlacement::PerStep, UpdateKernel::Fused);
 
     EXPECT_EQ(folded.compiles, 1u);
     EXPECT_EQ(apart.compiles, 1u);
@@ -354,7 +354,7 @@ TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
  */
 TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve)
 {
-    constexpr std::size_t PARAMETERS = 3;
+    constexpr std::size_t K_PARAMETERS = 3;
 
     const auto count = [](UpdateKernel kernel, auto make) -> std::size_t
     {
@@ -362,12 +362,12 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
 
         std::vector<Optim::ParameterSlot> slots;
         std::vector<SushiBLAS::Tensor> owned;
-        owned.reserve(PARAMETERS * 2);
+        owned.reserve(K_PARAMETERS * 2);
 
-        for (std::size_t i = 0; i < PARAMETERS; ++i)
+        for (std::size_t i = 0; i < K_PARAMETERS; ++i)
         {
-            owned.push_back(allocate_tensor(engine, Shape{ELEMENTS}));
-            owned.push_back(allocate_tensor(engine, Shape{ELEMENTS}));
+            owned.push_back(allocate_tensor(engine, Shape{K_ELEMENTS}));
+            owned.push_back(allocate_tensor(engine, Shape{K_ELEMENTS}));
             SaTest::write_tensor(owned[owned.size() - 2], initial_parameter());
             SaTest::write_tensor(owned[owned.size() - 1], gradient_for(0));
             slots.push_back(Optim::ParameterSlot{
@@ -390,16 +390,16 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
     adam.learning_rate = 0.02;
     adam.weight_decay = 0.01;
 
-    EXPECT_EQ(count(UpdateKernel::FUSED, adamw_factory(adam)), PARAMETERS);
-    EXPECT_EQ(count(UpdateKernel::SEPARATE, adamw_factory(adam)), PARAMETERS * 12);
+    EXPECT_EQ(count(UpdateKernel::Fused, adamw_factory(adam)), K_PARAMETERS);
+    EXPECT_EQ(count(UpdateKernel::Separate, adamw_factory(adam)), K_PARAMETERS * 12);
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
     sgd.momentum = 0.9;
 
     // Four is the floor for SGD, on its first step; see tests/functional/regression/README.md.
-    EXPECT_EQ(count(UpdateKernel::FUSED, sgd_factory(sgd)), PARAMETERS);
-    EXPECT_EQ(count(UpdateKernel::SEPARATE, sgd_factory(sgd)), PARAMETERS * 4);
+    EXPECT_EQ(count(UpdateKernel::Fused, sgd_factory(sgd)), K_PARAMETERS);
+    EXPECT_EQ(count(UpdateKernel::Separate, sgd_factory(sgd)), K_PARAMETERS * 4);
 }
 
 /**
@@ -410,21 +410,21 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
     NN::initialize(engine, model, pool);
 
     Optim::AdamWOptions adam;
-    adam.kernel = UpdateKernel::SEPARATE;
+    adam.kernel = UpdateKernel::Separate;
     Optim::AdamW optimizer(engine, slots, adam);
 
     EXPECT_FALSE(optimizer.is_replay_invariant());
 
     Train::TrainerOptions options;
-    options.optimizer_placement = Train::OptimizerPlacement::IN_PLAN;
+    options.optimizer_placement = Train::OptimizerPlacement::InPlan;
 
     SA_EXPECT_ERROR((void)Train::Trainer(engine, built.graph, pool, built.spec,
                                          optimizer, options),
@@ -439,8 +439,8 @@ TEST_F(Regression_FusedOptimizer, SteppingAnOptimizerThatIsAlreadyInThePlanIsRef
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -467,8 +467,8 @@ TEST_F(Regression_FusedOptimizer, TurningMomentumOnAfterConstructionIsRefusedRat
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{ELEMENTS});
+    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
+    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
     SaTest::write_tensor(parameter, initial_parameter());
     SaTest::write_tensor(gradient, gradient_for(0));
 

@@ -91,7 +91,7 @@ namespace SushiAI
 
             private:
                 /** @brief Holds the id; the absent-value id when a failure is held. */
-                ValueId id_ = NO_VALUE;
+                ValueId id_ = K_NO_VALUE;
 
                 /** @brief Holds the failure; a success when an id is held. */
                 Status status_;

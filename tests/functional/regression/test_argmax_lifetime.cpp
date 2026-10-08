@@ -49,7 +49,7 @@ namespace
     /** @brief Whether two placements in one arena claim any byte in common. */
     bool overlaps(const Placement& a, const Placement& b)
     {
-        if (a.arena != b.arena || a.arena == Graph::NO_ARENA) return false;
+        if (a.arena != b.arena || a.arena == Graph::K_NO_ARENA) return false;
         return a.offset < b.offset + b.bytes && b.offset < a.offset + a.bytes;
     }
 }
@@ -60,8 +60,8 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     const GraphBuilder builder(graph);
 
     // x is a parameter so MAXPOOL2D_BACKWARD is emitted; see tests/functional/regression/README.md.
-    const ValueId x = builder.parameter(Shape{2, 8, 8, 4}, "x", DType::FLOAT64);
-    const ValueId w = builder.parameter(Shape{4, 4}, "w", DType::FLOAT64);
+    const ValueId x = builder.parameter(Shape{2, 8, 8, 4}, "x", DType::Float64);
+    const ValueId w = builder.parameter(Shape{4, 4}, "w", DType::Float64);
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
@@ -73,7 +73,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     const ValueId mean = builder.spatial_mean(pooled.output);
     const ValueId rows = builder.reshape(mean, Shape{2, 4});
     const ValueId hidden = builder.relu(builder.matmul(rows, w));
-    const ValueId target = builder.input(Shape{2, 4}, "target", DType::FLOAT64);
+    const ValueId target = builder.input(Shape{2, 4}, "target", DType::Float64);
     const ValueId loss = builder.nll_loss(builder.log_softmax(hidden), target);
     graph.finalise();
 
@@ -84,7 +84,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     // Differentiation emitted a reader of the indices; see tests/functional/regression/README.md.
     bool backward_reads_the_indices = false;
     for (const Graph::Node& node : graph.nodes())
-        if (node.op == Ops::MAXPOOL2D_BACKWARD.id)
+        if (node.op == Ops::K_MAXPOOL2D_BACKWARD.id)
             for (ValueId in : node.inputs)
                 if (in == pooled.indices) backward_reads_the_indices = true;
 
@@ -101,7 +101,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
         << "the argmax is not in an arena, so the overlap check proves nothing about it";
 
     const Placement& argmax = plan.placement(pooled.indices);
-    ASSERT_NE(argmax.arena, Graph::NO_ARENA);
+    ASSERT_NE(argmax.arena, Graph::K_NO_ARENA);
     ASSERT_NE(argmax.bytes, std::size_t{0});
     ASSERT_EQ(argmax.bytes, std::size_t{2 * 4 * 4 * 4} * sizeof(std::int64_t))
         << "the argmax is not the INT64 buffer this test thinks it is";

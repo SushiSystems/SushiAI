@@ -57,7 +57,7 @@ namespace SushiAI
 
         /**
          * @struct OptimizerEntry
-         * @brief One row of @ref OPTIMIZER_REGISTRY.
+         * @brief One row of @ref K_OPTIMIZER_REGISTRY.
          */
         struct OptimizerEntry
         {
@@ -95,7 +95,7 @@ namespace SushiAI
                                             std::string_view context);
 
         /** @brief Every optimizer a configuration file may name. */
-        inline constexpr std::array<OptimizerEntry, 2> OPTIMIZER_REGISTRY = {
+        inline constexpr std::array<OptimizerEntry, 2> K_OPTIMIZER_REGISTRY = {
             OptimizerEntry{"adamw", &make_adamw},
             OptimizerEntry{"sgd",   &make_sgd},
         };

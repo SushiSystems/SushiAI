@@ -44,7 +44,7 @@ namespace SushiAI
         namespace
         {
             /** @brief Every key a "rings" dataset accepts. */
-            constexpr std::string_view RINGS_KEYS[] = {
+            constexpr std::string_view K_RINGS_KEYS[] = {
                 "batch_size", "batches", "classes", "distractors",
                 "ring_width", "position_noise", "seed",
             };
@@ -389,11 +389,11 @@ namespace SushiAI
             const int64_t classes = options_.classes;
             const int64_t rows = options_.batch_size;
 
-            constexpr double TWO_PI = 6.283185307179586476925286766559;
+            constexpr double K_TWO_PI = 6.283185307179586476925286766559;
 
             // Host RNG ensures reproducible sequence generation from the seed alone.
             std::mt19937_64 rng(options_.seed);
-            std::uniform_real_distribution<double> theta_dist(0.0, TWO_PI);
+            std::uniform_real_distribution<double> theta_dist(0.0, K_TWO_PI);
             std::uniform_real_distribution<double> band_dist(0.0, options_.ring_width);
             std::normal_distribution<double> jitter(0.0, options_.position_noise);
             std::normal_distribution<double> distractor(0.0, 1.0);
@@ -446,7 +446,7 @@ namespace SushiAI
                                             const Config::Value& attributes,
                                             std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(RINGS_KEYS));
+            attributes.reject_unknown_keys(context, as_span(K_RINGS_KEYS));
 
             RingsOptions options;
             const std::string prefix(context);
@@ -500,7 +500,7 @@ namespace SushiAI
                                               const Config::Value& attributes,
                                               std::string_view context)
         {
-            return Config::find_entry(DATASET_REGISTRY, type, "dataset type")
+            return Config::find_entry(K_DATASET_REGISTRY, type, "dataset type")
                        .make(engine, attributes, context);
         }
 

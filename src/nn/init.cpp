@@ -36,11 +36,11 @@ namespace SushiAI
         {
             switch (nonlinearity)
             {
-                case Nonlinearity::LINEAR:     return 1.0;
-                case Nonlinearity::SIGMOID:    return 1.0;
-                case Nonlinearity::TANH:       return 5.0 / 3.0;
-                case Nonlinearity::RELU:       return std::sqrt(2.0);
-                case Nonlinearity::LEAKY_RELU: return std::sqrt(2.0 / (1.0 + negative_slope * negative_slope));
+                case Nonlinearity::Linear:     return 1.0;
+                case Nonlinearity::Sigmoid:    return 1.0;
+                case Nonlinearity::Tanh:       return 5.0 / 3.0;
+                case Nonlinearity::Relu:       return std::sqrt(2.0);
+                case Nonlinearity::LeakyRelu: return std::sqrt(2.0 / (1.0 + negative_slope * negative_slope));
             }
             return 1.0;
         }
@@ -97,7 +97,7 @@ namespace SushiAI
                                    bool is_final_layer)
             {
                 // Invariant: Biases and final classifier layers initialize to zero.
-                if (is_final_layer || parameter.role() == ParameterRole::BIAS)
+                if (is_final_layer || parameter.role() == ParameterRole::Bias)
                 {
                     zeros(engine, tensor);
                     return;
@@ -107,7 +107,7 @@ namespace SushiAI
                 const int64_t fan_in = parameter.fan_in();
                 const int64_t fan_out = parameter.fan_out();
 
-                if (policy.family == InitFamily::KAIMING)
+                if (policy.family == InitFamily::Kaiming)
                 {
                     if (policy.uniform) kaiming_uniform(engine, tensor, fan_in, gain);
                     else                kaiming_normal(engine, tensor, fan_in, gain);

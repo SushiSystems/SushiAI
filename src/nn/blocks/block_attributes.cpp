@@ -58,7 +58,7 @@ namespace SushiAI
                                                                    std::string_view key,
                                                                    std::string_view context)
                 {
-                    SA_FAIL_IF(value.kind() != Config::Kind::INT, StatusCode::InvalidDescription,
+                    SA_FAIL_IF(value.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
                                "{} '{}' must be a whole number, but it is {}", context, key,
                                Config::kind_name(value.kind()));
 
@@ -82,8 +82,8 @@ namespace SushiAI
                         return fallback;
 
                     const Config::Value& value = attributes.at(key, context);
-                    SA_FAIL_IF(value.kind() != Config::Kind::INT &&
-                                   value.kind() != Config::Kind::REAL,
+                    SA_FAIL_IF(value.kind() != Config::Kind::Int &&
+                                   value.kind() != Config::Kind::Real,
                                StatusCode::InvalidDescription,
                                "{} '{}' must be a number, but it is {}", context, key,
                                Config::kind_name(value.kind()));
@@ -158,7 +158,7 @@ namespace SushiAI
                     return fallback;
 
                 const Config::Value& value = attributes.at(key, context);
-                SA_FAIL_IF(value.kind() != Config::Kind::BOOL, StatusCode::InvalidDescription,
+                SA_FAIL_IF(value.kind() != Config::Kind::Bool, StatusCode::InvalidDescription,
                            "{} '{}' must be true or false, but it is {}", context, key,
                            Config::kind_name(value.kind()));
 

@@ -109,8 +109,8 @@ TEST(Unit_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 5}, "a", DType::FLOAT32);
-    const ValueId b = builder.input(Shape{5, 3}, "b", DType::FLOAT64);
+    const ValueId a = builder.input(Shape{4, 5}, "a", DType::Float32);
+    const ValueId b = builder.input(Shape{5, 3}, "b", DType::Float64);
 
     SA_EXPECT_ERROR((void)builder.matmul(a, b),
                     "MATMUL needs operands of one element type", "float32", "float64");
@@ -152,7 +152,7 @@ TEST(Unit_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
 
     const ValueId a = builder.input(Shape{4, 3}, "a");
     const ValueId b = builder.input(Shape{4, 2}, "b");
-    const ValueId wide = builder.input(Shape{4, 3}, "wide", DType::FLOAT64);
+    const ValueId wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
     SA_EXPECT_ERROR((void)builder.add(a, b), "ADD needs equally shaped operands",
                     "[4, 3]", "[4, 2]");
@@ -185,7 +185,7 @@ TEST(Unit_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
 
     const ValueId dy = builder.input(Shape{4, 3}, "dy");
 
-    SA_EXPECT_ERROR((void)builder.activation_backward(Ops::RELU.id, dy, dy),
+    SA_EXPECT_ERROR((void)builder.activation_backward(Ops::K_RELU.id, dy, dy),
                     "sushiai.relu", "is not an activation gradient");
 }
 
@@ -195,12 +195,12 @@ TEST(Unit_Diagnostics, ASecondProducerNamesBothOperationsAndTheRule)
     const GraphBuilder builder(graph);
 
     const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId out = graph.add_value(Shape{4, 3}, DType::FLOAT32,
-                                        Graph::Lifetime::ACTIVATION, "out");
-    graph.add_node(Ops::RELU.id, {x}, {out});
+    const ValueId out = graph.add_value(Shape{4, 3}, DType::Float32,
+                                        Graph::Lifetime::Activation, "out");
+    graph.add_node(Ops::K_RELU.id, {x}, {out});
 
     // The message names both colliding operations; see tests/functional/unit/README.md.
-    SA_EXPECT_ERROR((void)graph.add_node(Ops::TANH.id, {x}, {out}),
+    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_TANH.id, {x}, {out}),
                     "sushiai.tanh", "sushiai.relu", "single-assignment");
 }
 
@@ -210,12 +210,12 @@ TEST(Unit_Diagnostics, AnUnknownOperandNamesTheOperationThatAskedForIt)
     const GraphBuilder builder(graph);
 
     const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId out = graph.add_value(Shape{4, 3}, DType::FLOAT32,
-                                        Graph::Lifetime::ACTIVATION, "out");
+    const ValueId out = graph.add_value(Shape{4, 3}, DType::Float32,
+                                        Graph::Lifetime::Activation, "out");
 
-    SA_EXPECT_ERROR((void)graph.add_node(Ops::RELU.id, {9999u}, {out}),
+    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {9999u}, {out}),
                     "sushiai.relu", "reads value 9999", "does not exist");
-    SA_EXPECT_ERROR((void)graph.add_node(Ops::RELU.id, {x}, {9999u}),
+    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {x}, {9999u}),
                     "sushiai.relu", "writes value 9999", "does not exist");
 }
 
@@ -272,9 +272,9 @@ TEST(Unit_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
     const Graph::Node& seed = graph.nodes()[forward_nodes];
     const Graph::Node& dx = graph.nodes()[forward_nodes + 1];
 
-    EXPECT_EQ(seed.op, Ops::CONSTANT.id);
+    EXPECT_EQ(seed.op, Ops::K_CONSTANT.id);
     EXPECT_EQ(graph.value(seed.outputs.at(0)).shape, graph.value(scalar).shape);
-    EXPECT_EQ(dx.op, Ops::MATMUL.id);
+    EXPECT_EQ(dx.op, Ops::K_MATMUL.id);
     EXPECT_EQ(dx.inputs, (std::vector<ValueId>{seed.outputs.at(0), w}));
 
     ASSERT_EQ(gradients.size(), 1u);
@@ -320,8 +320,8 @@ TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
     const GraphBuilder builder(graph);
 
     // A loss with no producer has no operation to name; see tests/functional/unit/README.md.
-    const ValueId orphan = graph.add_value(Shape{1}, DType::FLOAT32,
-                                           Graph::Lifetime::ACTIVATION, "orphan");
+    const ValueId orphan = graph.add_value(Shape{1}, DType::Float32,
+                                           Graph::Lifetime::Activation, "orphan");
     SA_EXPECT_ERROR(differentiate_wrt(graph, orphan, orphan), "nothing produces it", "NLL_LOSS");
 
     // A leaf does have a producing node, and it is named.
@@ -337,8 +337,8 @@ TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    const ValueId mystery = graph.add_value(Shape{4, 3}, DType::FLOAT32,
-                                            Graph::Lifetime::ACTIVATION, "mystery");
+    const ValueId mystery = graph.add_value(Shape{4, 3}, DType::Float32,
+                                            Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
 
     const ValueId loss = builder.nll_loss(mystery, targets);
@@ -373,9 +373,9 @@ TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
     const ValueId other = builder.input(Shape{4, 3}, "other");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    const ValueId difference = graph.add_value(Shape{4, 3}, DType::FLOAT32,
-                                               Graph::Lifetime::ACTIVATION, "bad_sub");
-    graph.add_node(Ops::SUB.id, {x, other}, {difference});
+    const ValueId difference = graph.add_value(Shape{4, 3}, DType::Float32,
+                                               Graph::Lifetime::Activation, "bad_sub");
+    graph.add_node(Ops::K_SUB.id, {x, other}, {difference});
 
     const ValueId loss = builder.nll_loss(difference, targets);
 

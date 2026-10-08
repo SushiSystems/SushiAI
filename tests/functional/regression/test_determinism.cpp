@@ -47,21 +47,21 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 8;
-    constexpr int64_t FEATURES = 6;
-    constexpr int64_t HIDDEN = 12;
+    constexpr int64_t K_FEATURES = 6;
+    constexpr int64_t K_HIDDEN = 12;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 4;
-    constexpr std::uint64_t DATA_SEED = 0x0D37E4'C0FFEEull;
+    constexpr int64_t K_BATCHES = 4;
+    constexpr std::uint64_t K_DATA_SEED = 0x0D37E4'C0FFEEull;
 
     /** @brief The synthetic problem every run below trains on. */
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
         options.batch_size = BATCH;
-        options.batches = BATCHES;
-        options.features = FEATURES;
+        options.batches = K_BATCHES;
+        options.features = K_FEATURES;
         options.classes = CLASSES;
-        options.seed = DATA_SEED;
+        options.seed = K_DATA_SEED;
         return options;
     }
 
@@ -89,8 +89,8 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+        Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -191,8 +191,8 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+        Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -249,8 +249,8 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);

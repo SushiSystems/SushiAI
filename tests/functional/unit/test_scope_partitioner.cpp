@@ -82,7 +82,7 @@ namespace
         step.gradients = Autograd::differentiate(
             step.graph, loss,
             SushiRuntime::span<const ValueId>(step.parameters.data(), step.parameters.size()),
-            Graph::NO_VALUE, &step.provenance);
+            Graph::K_NO_VALUE, &step.provenance);
         step.partition = Eager::ScopePartitioner{}.assign(step.graph, as_span(step.segments),
                                                           step.provenance);
     }
@@ -127,20 +127,20 @@ namespace
         const GraphBuilder builder(step.graph);
         Eager::ScopeTrace trace(step.graph);
 
-        ValueId hidden = Graph::NO_VALUE;
+        ValueId hidden = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "first");
             const ValueId x = builder.input(Shape{8, 6}, "x");
             hidden = builder.relu(linear(builder, x, 6, 4, step.parameters));
         }
 
-        ValueId logits = Graph::NO_VALUE;
+        ValueId logits = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "second");
             logits = builder.tanh(linear(builder, hidden, 4, 3, step.parameters));
         }
 
-        ValueId loss = Graph::NO_VALUE;
+        ValueId loss = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "loss");
             const ValueId targets = builder.input(Shape{8, 3}, "targets");
@@ -163,26 +163,26 @@ namespace
         const GraphBuilder builder(step.graph);
         Eager::ScopeTrace trace(step.graph);
 
-        ValueId weight = Graph::NO_VALUE;
+        ValueId weight = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "weights");
             weight = builder.parameter(Shape{4, 4}, "weight");
         }
 
-        ValueId hidden = Graph::NO_VALUE;
+        ValueId hidden = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "first");
             const ValueId x = builder.input(Shape{8, 4}, "x");
             hidden = builder.relu(builder.matmul(x, weight));
         }
 
-        ValueId logits = Graph::NO_VALUE;
+        ValueId logits = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "second");
             logits = builder.tanh(builder.matmul(hidden, weight));
         }
 
-        ValueId loss = Graph::NO_VALUE;
+        ValueId loss = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "loss");
             const ValueId targets = builder.input(Shape{8, 4}, "targets");
@@ -211,7 +211,7 @@ namespace
             hidden = builder.relu(linear(builder, hidden, 4, 4, step.parameters));
         }
 
-        ValueId loss = Graph::NO_VALUE;
+        ValueId loss = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "loss");
             const ValueId targets = builder.input(Shape{8, 4}, "targets");
@@ -228,8 +228,8 @@ namespace
         Graph::Graph graph;                   /**< A parameter, then one RELU per segment. */
         std::vector<Eager::Segment> segments; /**< "first" and "second". */
         Autograd::Provenance provenance;      /**< Forward count set, origin left empty. */
-        ValueId first = Graph::NO_VALUE;      /**< Output of the first segment's RELU. */
-        ValueId second = Graph::NO_VALUE;     /**< Output of the second segment's RELU. */
+        ValueId first = Graph::K_NO_VALUE;      /**< Output of the first segment's RELU. */
+        ValueId second = Graph::K_NO_VALUE;     /**< Output of the second segment's RELU. */
     };
 
     /**
@@ -257,7 +257,7 @@ namespace
     /** @brief Returns whether @p node of @p graph is a LEAF. */
     bool is_leaf(const Graph::Graph& graph, std::size_t node)
     {
-        return graph.nodes()[node].op == Ops::LEAF.id;
+        return graph.nodes()[node].op == Ops::K_LEAF.id;
     }
 
     /**
@@ -369,7 +369,7 @@ TEST(Unit_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
     ASSERT_EQ(step.segments.size(), 3u);
 
     const NodeId loss_node = static_cast<NodeId>(step.provenance.forward_node_count - 1);
-    ASSERT_EQ(step.graph.node(loss_node).op, Ops::NLL_LOSS.id);
+    ASSERT_EQ(step.graph.node(loss_node).op, Ops::K_NLL_LOSS.id);
     EXPECT_EQ(step.partition.region_of_node[loss_node], 3u);
 
     const std::vector<RegionKey> keys = backward_keys_of(step, 3);
@@ -401,7 +401,7 @@ TEST(Unit_ScopePartitioner, EveryOperandComesFromALowerOrEqualKey)
             for (ValueId operand : step.graph.nodes()[node].inputs)
             {
                 const NodeId producer = step.graph.value(operand).producer;
-                if (producer == Graph::NO_NODE
+                if (producer == Graph::K_NO_NODE
                     || step.partition.region_of_node[producer] == K_NO_REGION)
                     continue;
 
@@ -423,17 +423,17 @@ TEST(Unit_ScopePartitioner, AWeightGradientLandsInItsOwnLayersBackwardRegion)
 
     ASSERT_EQ(step.gradients.size(), 4u);
     const ValueId second_weight_gradient = step.gradients[2];
-    ASSERT_NE(second_weight_gradient, Graph::NO_VALUE);
+    ASSERT_NE(second_weight_gradient, Graph::K_NO_VALUE);
 
     const NodeId node = step.graph.value(second_weight_gradient).producer;
-    ASSERT_NE(node, Graph::NO_NODE);
+    ASSERT_NE(node, Graph::K_NO_NODE);
     EXPECT_EQ(step.partition.region_of_node[node], 4u);
 
     bool reads_first_segment = false;
     for (ValueId operand : step.graph.node(node).inputs)
     {
         const NodeId producer = step.graph.value(operand).producer;
-        if (producer != Graph::NO_NODE && step.partition.region_of_node[producer] == 1u)
+        if (producer != Graph::K_NO_NODE && step.partition.region_of_node[producer] == 1u)
             reads_first_segment = true;
     }
     EXPECT_TRUE(reads_first_segment)
@@ -447,18 +447,18 @@ TEST(Unit_ScopePartitioner, ASharedParametersAccumulateSitsAboveBothContributors
     const Step step = shared_weight_step();
 
     ASSERT_EQ(step.gradients.size(), 1u);
-    ASSERT_NE(step.gradients[0], Graph::NO_VALUE);
+    ASSERT_NE(step.gradients[0], Graph::K_NO_VALUE);
 
     const NodeId accumulate = step.graph.value(step.gradients[0]).producer;
-    ASSERT_NE(accumulate, Graph::NO_NODE);
-    ASSERT_EQ(step.graph.node(accumulate).op, Ops::ACCUMULATE.id);
+    ASSERT_NE(accumulate, Graph::K_NO_NODE);
+    ASSERT_EQ(step.graph.node(accumulate).op, Ops::K_ACCUMULATE.id);
     ASSERT_TRUE(is_leaf(step.graph, step.provenance.origin_of(accumulate)));
 
     std::vector<RegionKey> contributors;
     for (ValueId operand : step.graph.node(accumulate).inputs)
     {
         const NodeId producer = step.graph.value(operand).producer;
-        ASSERT_NE(producer, Graph::NO_NODE);
+        ASSERT_NE(producer, Graph::K_NO_NODE);
         contributors.push_back(step.partition.region_of_node[producer]);
     }
     std::sort(contributors.begin(), contributors.end());

@@ -42,20 +42,20 @@ namespace SushiAI
             /**
              * @brief Lists every supported datatype that a checkpoint may encode.
              */
-            constexpr std::array<DType, 7> KNOWN_DTYPES = {
-                DType::HALF, DType::FLOAT32, DType::FLOAT64,
-                DType::COMPLEX32, DType::COMPLEX64,
-                DType::INT32, DType::INT64,
+            constexpr std::array<DType, 7> K_KNOWN_DTYPES = {
+                DType::Half, DType::Float32, DType::Float64,
+                DType::Complex32, DType::Complex64,
+                DType::Int32, DType::Int64,
             };
 
             /**
              * @brief Whether @p encoded names a DType this build knows.
              * @param encoded The raw value read from the file.
-             * @return True when it matches an entry of @ref KNOWN_DTYPES.
+             * @return True when it matches an entry of @ref K_KNOWN_DTYPES.
              */
             bool is_known_dtype(std::uint32_t encoded) noexcept
             {
-                for (DType dtype : KNOWN_DTYPES)
+                for (DType dtype : K_KNOWN_DTYPES)
                     if (static_cast<std::uint32_t>(dtype) == encoded) return true;
                 return false;
             }
@@ -121,12 +121,12 @@ namespace SushiAI
         CheckpointWriter::CheckpointWriter(std::ostream& out, std::uint32_t count)
             : out_(&out), declared_(count)
         {
-            SA_THROW_IF(count > MAX_TENSOR_COUNT,
+            SA_THROW_IF(count > K_MAX_TENSOR_COUNT,
                         "a checkpoint may hold at most {} tensors; {} were declared",
-                        MAX_TENSOR_COUNT, count);
+                        K_MAX_TENSOR_COUNT, count);
 
-            put_u32(out, CHECKPOINT_MAGIC);
-            put_u32(out, CHECKPOINT_VERSION);
+            put_u32(out, K_CHECKPOINT_MAGIC);
+            put_u32(out, K_CHECKPOINT_VERSION);
             put_u32(out, count);
             SA_THROW_IF(!out, "failed writing the checkpoint header");
         }
@@ -138,12 +138,12 @@ namespace SushiAI
                         "('{}') was written", declared_, record.name);
             SA_THROW_IF(payload == nullptr,
                         "'{}' was written with no payload", record.name);
-            SA_THROW_IF(record.name.size() > MAX_NAME_LENGTH,
+            SA_THROW_IF(record.name.size() > K_MAX_NAME_LENGTH,
                         "'{}...' is {} bytes long; a checkpoint name may be at most {}",
-                        record.name.substr(0, 32), record.name.size(), MAX_NAME_LENGTH);
-            SA_THROW_IF(record.shape.rank() > MAX_RANK,
+                        record.name.substr(0, 32), record.name.size(), K_MAX_NAME_LENGTH);
+            SA_THROW_IF(record.shape.rank() > K_MAX_RANK,
                         "'{}' is rank {}; a checkpoint tensor may be at most rank {}",
-                        record.name, record.shape.rank(), MAX_RANK);
+                        record.name, record.shape.rank(), K_MAX_RANK);
 
             put_u32(*out_, static_cast<std::uint32_t>(record.name.size()));
             out_->write(record.name.data(), static_cast<std::streamsize>(record.name.size()));
@@ -169,19 +169,19 @@ namespace SushiAI
         CheckpointReader::CheckpointReader(std::istream& in) : in_(&in)
         {
             const std::uint32_t magic = get_u32(in, "the magic number");
-            SA_THROW_IF(magic != CHECKPOINT_MAGIC,
+            SA_THROW_IF(magic != K_CHECKPOINT_MAGIC,
                         "this is not a SushiAI checkpoint: expected the magic bytes "
-                        "'SACP' (0x{:08X}), got 0x{:08X}", CHECKPOINT_MAGIC, magic);
+                        "'SACP' (0x{:08X}), got 0x{:08X}", K_CHECKPOINT_MAGIC, magic);
 
             const std::uint32_t version = get_u32(in, "the version");
-            SA_THROW_IF(version != CHECKPOINT_VERSION,
+            SA_THROW_IF(version != K_CHECKPOINT_VERSION,
                         "this checkpoint is version {}; this build reads version {}",
-                        version, CHECKPOINT_VERSION);
+                        version, K_CHECKPOINT_VERSION);
 
             count_ = get_u32(in, "the tensor count");
-            SA_THROW_IF(count_ > MAX_TENSOR_COUNT,
+            SA_THROW_IF(count_ > K_MAX_TENSOR_COUNT,
                         "this checkpoint declares {} tensors; at most {} are allowed",
-                        count_, MAX_TENSOR_COUNT);
+                        count_, K_MAX_TENSOR_COUNT);
         }
 
         TensorRecord CheckpointReader::next()
@@ -191,9 +191,9 @@ namespace SushiAI
                         count_);
 
             const std::uint32_t name_length = get_u32(*in_, "a record's name length");
-            SA_THROW_IF(name_length > MAX_NAME_LENGTH,
+            SA_THROW_IF(name_length > K_MAX_NAME_LENGTH,
                         "a checkpoint record declares a {}-byte name; at most {} are allowed",
-                        name_length, MAX_NAME_LENGTH);
+                        name_length, K_MAX_NAME_LENGTH);
 
             TensorRecord record;
             record.name.resize(name_length);
@@ -210,12 +210,12 @@ namespace SushiAI
             record.dtype = static_cast<DType>(encoded_dtype);
 
             const std::uint32_t rank = get_u32(*in_, "'" + record.name + "'s rank");
-            SA_THROW_IF(rank > static_cast<std::uint32_t>(MAX_RANK),
+            SA_THROW_IF(rank > static_cast<std::uint32_t>(K_MAX_RANK),
                         "'{}' declares rank {}; at most {} is allowed",
-                        record.name, rank, MAX_RANK);
+                        record.name, rank, K_MAX_RANK);
 
             // Extents are validated before Shape construction to provide record context.
-            std::array<std::int64_t, static_cast<std::size_t>(MAX_RANK)> dims{};
+            std::array<std::int64_t, static_cast<std::size_t>(K_MAX_RANK)> dims{};
             for (std::uint32_t i = 0; i < rank; ++i)
             {
                 dims[i] = get_i64(*in_, "'" + record.name + "'s extents");

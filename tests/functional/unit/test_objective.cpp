@@ -146,7 +146,7 @@ TEST(Unit_Objective, TheRegistryBuildsCrossEntropyAndListsWhatItHas)
 {
     const Config::Value empty = Config::parse_json("{}", "<test>");
 
-    const std::unique_ptr<Train::IObjective> objective =
+    const std::unique_ptr<Train::Objective> objective =
         Train::make_objective("cross_entropy", 4, 3, empty, "objective");
     EXPECT_EQ(objective->name(), "cross_entropy");
 

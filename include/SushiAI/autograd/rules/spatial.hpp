@@ -92,15 +92,15 @@ namespace SushiAI
         void slice_channels_backward(const GradientTape& tape);
 
         /** @brief Spatial operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 8> SPATIAL_RULES = {{
-            {Ops::IM2COL.id, &im2col_backward},
-            {Ops::COL2IM.id, &col2im_backward},
-            {Ops::MAXPOOL2D.id, &maxpool2d_backward},
-            {Ops::AVGPOOL2D.id, &avgpool2d_backward},
-            {Ops::UPSAMPLE2D.id, &upsample2d_backward},
-            {Ops::SPATIAL_MEAN.id, &spatial_mean_backward},
-            {Ops::CONCAT_CHANNELS.id, &concat_channels_backward},
-            {Ops::SLICE_CHANNELS.id, &slice_channels_backward},
+        inline constexpr std::array<RuleEntry, 8> K_SPATIAL_RULES = {{
+            {Ops::K_IM2COL.id, &im2col_backward},
+            {Ops::K_COL2IM.id, &col2im_backward},
+            {Ops::K_MAXPOOL2D.id, &maxpool2d_backward},
+            {Ops::K_AVGPOOL2D.id, &avgpool2d_backward},
+            {Ops::K_UPSAMPLE2D.id, &upsample2d_backward},
+            {Ops::K_SPATIAL_MEAN.id, &spatial_mean_backward},
+            {Ops::K_CONCAT_CHANNELS.id, &concat_channels_backward},
+            {Ops::K_SLICE_CHANNELS.id, &slice_channels_backward},
         }};
     }
 }

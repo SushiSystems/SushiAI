@@ -177,8 +177,8 @@ namespace SushiAI
                               Graph::ValueId operand)
             {
                 const Graph::NodeId producer_id = graph.value(operand).producer;
-                const bool computed = producer_id != Graph::NO_NODE
-                                      && graph.node(producer_id).op != Ops::LEAF.id;
+                const bool computed = producer_id != Graph::K_NO_NODE
+                                      && graph.node(producer_id).op != Ops::K_LEAF.id;
                 const std::uint32_t* position = computed ? layout.find(producer_id) : nullptr;
 
                 if (position != nullptr)

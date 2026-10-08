@@ -88,7 +88,7 @@ namespace
         std::vector<double> weight_gradient;
         std::size_t nodes = 0;
         std::size_t im2col_nodes = 0;
-        Graph::Lifetime cols_lifetime = Graph::Lifetime::ACTIVATION;
+        Graph::Lifetime cols_lifetime = Graph::Lifetime::Activation;
         std::size_t planned_bytes = 0;
     };
 
@@ -104,8 +104,8 @@ namespace
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{1, 5, 4, 2}, "x", DType::FLOAT64);
-        const ValueId w = builder.parameter(Shape{18, 4}, "w", DType::FLOAT64);
+        const ValueId x = builder.input(Shape{1, 5, 4, 2}, "x", DType::Float64);
+        const ValueId w = builder.parameter(Shape{18, 4}, "w", DType::Float64);
 
         Graph::ConvGeometry g;
         g.kernel_h = 3; g.kernel_w = 3;
@@ -113,7 +113,7 @@ namespace
 
         const ValueId cols = builder.im2col(x, g);
         const ValueId out = builder.matmul(cols, w);
-        const ValueId target = builder.input(graph.value(out).shape, "target", DType::FLOAT64);
+        const ValueId target = builder.input(graph.value(out).shape, "target", DType::Float64);
         const ValueId loss = builder.nll_loss(builder.log_softmax(out), target);
         graph.finalise();
 
@@ -128,7 +128,7 @@ namespace
         outcome.nodes = graph.node_count();
         outcome.cols_lifetime = graph.value(cols).lifetime;
         for (const Graph::Node& node : graph.nodes())
-            if (node.op == Ops::IM2COL.id) ++outcome.im2col_nodes;
+            if (node.op == Ops::K_IM2COL.id) ++outcome.im2col_nodes;
 
         const Graph::MemoryPlan plan = Graph::MemoryPlan::build(graph);
         outcome.planned_bytes = plan.arena_bytes();
@@ -159,8 +159,8 @@ TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
     ASSERT_EQ(stored.im2col_nodes, std::size_t{1});
     ASSERT_EQ(recomputed.im2col_nodes, std::size_t{2}) << "no recomputation was inserted";
     ASSERT_EQ(recomputed.nodes, stored.nodes + 1);
-    ASSERT_EQ(stored.cols_lifetime, Graph::Lifetime::ACTIVATION);
-    ASSERT_EQ(recomputed.cols_lifetime, Graph::Lifetime::SCRATCH);
+    ASSERT_EQ(stored.cols_lifetime, Graph::Lifetime::Activation);
+    ASSERT_EQ(recomputed.cols_lifetime, Graph::Lifetime::Scratch);
 
     // Equality is exact, not within a tolerance; see tests/functional/integration/README.md.
     ASSERT_EQ(recomputed.loss.size(), stored.loss.size());
@@ -187,8 +187,8 @@ TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 5, 4, 2}, "x", DType::FLOAT64);
-    const ValueId w = builder.parameter(Shape{18, 4}, "w", DType::FLOAT64);
+    const ValueId x = builder.input(Shape{1, 5, 4, 2}, "x", DType::Float64);
+    const ValueId w = builder.parameter(Shape{18, 4}, "w", DType::Float64);
 
     Graph::ConvGeometry g;
     g.kernel_h = 3; g.kernel_w = 3;
@@ -196,7 +196,7 @@ TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
 
     const ValueId cols = builder.im2col(x, g);
     const ValueId out = builder.matmul(cols, w);
-    const ValueId target = builder.input(graph.value(out).shape, "target", DType::FLOAT64);
+    const ValueId target = builder.input(graph.value(out).shape, "target", DType::Float64);
     const ValueId loss = builder.nll_loss(builder.log_softmax(out), target);
     graph.finalise();
 
@@ -207,12 +207,12 @@ TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
     const Graph::MemoryPlan before = Graph::MemoryPlan::build(graph);
     ASSERT_TRUE(before.is_packed(cols));
     EXPECT_EQ(before.arenas()[before.placement(cols).arena].lifetime,
-              Graph::Lifetime::ACTIVATION);
+              Graph::Lifetime::Activation);
 
     Graph::rematerialise_im2col(graph);
 
     const Graph::MemoryPlan after = Graph::MemoryPlan::build(graph);
     ASSERT_TRUE(after.is_packed(cols));
-    EXPECT_EQ(after.arenas()[after.placement(cols).arena].lifetime, Graph::Lifetime::SCRATCH)
+    EXPECT_EQ(after.arenas()[after.placement(cols).arena].lifetime, Graph::Lifetime::Scratch)
         << "the planner still packs the column matrix with the activations";
 }

@@ -37,32 +37,32 @@ namespace SushiAI
         {
             // A domain left out of all.hpp still compiles; see tests/functional/unit/README.md.
             constexpr std::size_t domains =
-                Autograd::ELEMENTWISE_RULES.size() + Autograd::LINALG_RULES.size()
-                + Autograd::ACTIVATION_RULES.size() + Autograd::LOSS_RULES.size()
-                + Autograd::SHAPE_RULES.size() + Autograd::SPATIAL_RULES.size()
-                + Autograd::NORM_RULES.size();
+                Autograd::K_ELEMENTWISE_RULES.size() + Autograd::K_LINALG_RULES.size()
+                + Autograd::K_ACTIVATION_RULES.size() + Autograd::K_LOSS_RULES.size()
+                + Autograd::K_SHAPE_RULES.size() + Autograd::K_SPATIAL_RULES.size()
+                + Autograd::K_NORM_RULES.size();
 
-            EXPECT_EQ(Autograd::RULES.size(), domains);
+            EXPECT_EQ(Autograd::K_RULES.size(), domains);
         }
 
         TEST(Unit_RuleTable, NoOperationHasTwoRules)
         {
             // The first of two entries would win silently; see tests/functional/unit/README.md.
-            for (std::size_t i = 0; i < Autograd::RULES.size(); ++i)
-                for (std::size_t j = i + 1; j < Autograd::RULES.size(); ++j)
-                    EXPECT_NE(Autograd::RULES[i].op, Autograd::RULES[j].op)
-                        << "'" << Ops::name_of(Autograd::RULES[i].op)
+            for (std::size_t i = 0; i < Autograd::K_RULES.size(); ++i)
+                for (std::size_t j = i + 1; j < Autograd::K_RULES.size(); ++j)
+                    EXPECT_NE(Autograd::K_RULES[i].op, Autograd::K_RULES[j].op)
+                        << "'" << Ops::name_of(Autograd::K_RULES[i].op)
                         << "' has two backward rules";
         }
 
         TEST(Unit_RuleTable, TheRulesThatExistedBeforeTheSplitStillDo)
         {
             // These fourteen rules predate the split; see tests/functional/unit/README.md.
-            for (OpID op : {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::ADD.id,
-                                 Ops::SUB.id, Ops::MUL.id, Ops::SCALE.id, Ops::EXP.id,
-                                 Ops::RELU.id, Ops::GELU.id, Ops::SIGMOID.id,
-                                 Ops::TANH.id, Ops::SUM_ROWS.id, Ops::ACCUMULATE.id,
-                                 Ops::NLL_LOSS.id})
+            for (OpID op : {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_ADD.id,
+                                 Ops::K_SUB.id, Ops::K_MUL.id, Ops::K_SCALE.id, Ops::K_EXP.id,
+                                 Ops::K_RELU.id, Ops::K_GELU.id, Ops::K_SIGMOID.id,
+                                 Ops::K_TANH.id, Ops::K_SUM_ROWS.id, Ops::K_ACCUMULATE.id,
+                                 Ops::K_NLL_LOSS.id})
                 EXPECT_TRUE(Autograd::has_backward_rule(op))
                     << "'" << Ops::name_of(op) << "' lost its rule in the split";
         }
@@ -71,7 +71,7 @@ namespace SushiAI
         TEST(Unit_RuleTable, NoGradientBarrierHasARule)
         {
             std::size_t barriers = 0;
-            for (const Ops::OpName& entry : Ops::ALL)
+            for (const Ops::OpName& entry : Ops::K_ALL)
             {
                 if (!entry.blocks_gradient)
                     continue;
@@ -87,15 +87,15 @@ namespace SushiAI
         /** @brief Tests that the comparison is a gradient barrier and has no rule row. */
         TEST(Unit_RuleTable, TheComparisonIsABarrierWithoutARule)
         {
-            EXPECT_FALSE(Ops::LESS_EQUAL.differentiable);
-            EXPECT_TRUE(Ops::LESS_EQUAL.blocks_gradient);
-            EXPECT_FALSE(Autograd::has_rule(Ops::LESS_EQUAL.id));
+            EXPECT_FALSE(Ops::K_LESS_EQUAL.differentiable);
+            EXPECT_TRUE(Ops::K_LESS_EQUAL.blocks_gradient);
+            EXPECT_FALSE(Autograd::has_rule(Ops::K_LESS_EQUAL.id));
         }
 
         /** @brief Tests that each ACTIVATIONS row has a rule for its forward identity alone. */
         TEST(Unit_RuleTable, EveryActivationRowHasARuleForItsForwardIdentityOnly)
         {
-            for (const Ops::Activation& entry : Ops::ACTIVATIONS)
+            for (const Ops::Activation& entry : Ops::K_ACTIVATIONS)
             {
                 EXPECT_TRUE(Autograd::has_rule(entry.forward))
                     << "'" << Ops::name_of(entry.forward) << "' has no backward rule";
@@ -103,16 +103,16 @@ namespace SushiAI
                     << "'" << Ops::name_of(entry.backward) << "' is a gradient with a rule";
             }
 
-            EXPECT_EQ(Autograd::ACTIVATION_RULES.size(), Ops::ACTIVATIONS.size());
+            EXPECT_EQ(Autograd::K_ACTIVATION_RULES.size(), Ops::K_ACTIVATIONS.size());
         }
 
         /** @brief Tests that the normalisation domain rules BATCHNORM2D and not the fold. */
         TEST(Unit_RuleTable, BatchNormFoldHasNoRuleAndBatchNormKeepsIts)
         {
-            EXPECT_TRUE(Autograd::has_rule(Ops::BATCHNORM2D.id));
-            EXPECT_FALSE(Autograd::has_rule(Ops::BATCHNORM_FOLD.id));
-            EXPECT_FALSE(Autograd::has_backward_rule(Ops::BATCHNORM_FOLD.id));
-            EXPECT_EQ(Autograd::NORM_RULES.size(), 2u);
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_BATCHNORM2D.id));
+            EXPECT_FALSE(Autograd::has_rule(Ops::K_BATCHNORM_FOLD.id));
+            EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_FOLD.id));
+            EXPECT_EQ(Autograd::K_NORM_RULES.size(), 2u);
         }
     }
 }

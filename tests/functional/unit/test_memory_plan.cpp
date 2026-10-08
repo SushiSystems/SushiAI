@@ -39,8 +39,8 @@ using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::Lifetime;
 using Graph::MemoryPlan;
-using Graph::NO_ARENA;
-using Graph::NO_NODE;
+using Graph::K_NO_ARENA;
+using Graph::K_NO_NODE;
 using Graph::NodeId;
 using Graph::PlanOptions;
 using Graph::ValueId;
@@ -61,7 +61,7 @@ namespace
         std::vector<std::vector<NodeId>> successors(graph.node_count());
         for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
             for (ValueId in : graph.node(id).inputs)
-                if (graph.value(in).producer != NO_NODE)
+                if (graph.value(in).producer != K_NO_NODE)
                     successors[graph.value(in).producer].push_back(id);
 
         std::set<NodeId> seen;
@@ -82,7 +82,7 @@ namespace
     std::vector<NodeId> uses_of(const Graph::Graph& graph, ValueId id)
     {
         std::vector<NodeId> uses;
-        if (graph.value(id).producer != NO_NODE) uses.push_back(graph.value(id).producer);
+        if (graph.value(id).producer != K_NO_NODE) uses.push_back(graph.value(id).producer);
 
         for (NodeId node = 0; node < static_cast<NodeId>(graph.node_count()); ++node)
             for (ValueId in : graph.node(node).inputs)
@@ -95,7 +95,7 @@ namespace
     bool finished_before(const Graph::Graph& graph, ValueId earlier, ValueId later)
     {
         const NodeId write = graph.value(later).producer;
-        if (write == NO_NODE) return false;
+        if (write == K_NO_NODE) return false;
 
         for (NodeId use : uses_of(graph, earlier))
             if (descendants(graph, use).count(write) == 0) return false;
@@ -158,7 +158,7 @@ TEST(Unit_MemoryPlan, ASingleActivationGetsOneArenaAndOffsetZero)
     const MemoryPlan plan = MemoryPlan::build(graph);
 
     ASSERT_EQ(plan.arenas().size(), 1u);
-    EXPECT_EQ(plan.arenas()[0].lifetime, Lifetime::ACTIVATION);
+    EXPECT_EQ(plan.arenas()[0].lifetime, Lifetime::Activation);
     EXPECT_EQ(plan.arenas()[0].buffers, 1u);
     EXPECT_EQ(plan.arena_bytes(), 128u);
 
@@ -245,23 +245,23 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
     // Only ACTIVATION and SCRATCH reach an arena; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId parameter = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::PARAMETER, "w");
-    graph.add_node(Ops::LEAF.id, {}, {parameter});
+    const ValueId parameter = graph.add_value(unit_shape(), DType::Float32, Lifetime::Parameter, "w");
+    graph.add_node(Ops::K_LEAF.id, {}, {parameter});
 
-    const ValueId input = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::INPUT, "x");
-    graph.add_node(Ops::LEAF.id, {}, {input});
+    const ValueId input = graph.add_value(unit_shape(), DType::Float32, Lifetime::Input, "x");
+    graph.add_node(Ops::K_LEAF.id, {}, {input});
 
-    const ValueId activation = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "h");
-    graph.add_node(Ops::RELU.id, {input}, {activation});
+    const ValueId activation = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "h");
+    graph.add_node(Ops::K_RELU.id, {input}, {activation});
 
-    const ValueId scratch = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::SCRATCH, "t");
-    graph.add_node(Ops::RELU.id, {activation}, {scratch});
+    const ValueId scratch = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "t");
+    graph.add_node(Ops::K_RELU.id, {activation}, {scratch});
 
-    const ValueId gradient = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::GRADIENT, "dw");
-    graph.add_node(Ops::RELU.id, {scratch}, {gradient});
+    const ValueId gradient = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "dw");
+    graph.add_node(Ops::K_RELU.id, {scratch}, {gradient});
 
-    const ValueId state = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::OPTIMIZER_STATE, "m");
-    graph.add_node(Ops::RELU.id, {gradient}, {state});
+    const ValueId state = graph.add_value(unit_shape(), DType::Float32, Lifetime::OptimizerState, "m");
+    graph.add_node(Ops::K_RELU.id, {gradient}, {state});
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 
@@ -276,8 +276,8 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
         << "one arena per lifetime class, so the tracker keeps a shard per class";
 
     ASSERT_EQ(plan.arenas().size(), 2u);
-    EXPECT_EQ(plan.arenas()[0].lifetime, Lifetime::ACTIVATION);
-    EXPECT_EQ(plan.arenas()[1].lifetime, Lifetime::SCRATCH);
+    EXPECT_EQ(plan.arenas()[0].lifetime, Lifetime::Activation);
+    EXPECT_EQ(plan.arenas()[1].lifetime, Lifetime::Scratch);
 }
 
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
@@ -285,9 +285,9 @@ TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
     // An ACTIVATION with no producer lives the whole run; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId orphan = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "?");
-    const ValueId out = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "y");
-    graph.add_node(Ops::RELU.id, {orphan}, {out});
+    const ValueId orphan = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "?");
+    const ValueId out = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "y");
+    graph.add_node(Ops::K_RELU.id, {orphan}, {out});
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 
@@ -326,25 +326,25 @@ TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
     // The float64 buffer starts at 24, not at 20; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId narrow_leaf = graph.add_value(Shape{5}, DType::FLOAT32, Lifetime::INPUT, "x");
-    graph.add_node(Ops::LEAF.id, {}, {narrow_leaf});
+    const ValueId narrow_leaf = graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
+    graph.add_node(Ops::K_LEAF.id, {}, {narrow_leaf});
 
-    const ValueId wide_leaf = graph.add_value(Shape{2}, DType::FLOAT64, Lifetime::INPUT, "y");
-    graph.add_node(Ops::LEAF.id, {}, {wide_leaf});
+    const ValueId wide_leaf = graph.add_value(Shape{2}, DType::Float64, Lifetime::Input, "y");
+    graph.add_node(Ops::K_LEAF.id, {}, {wide_leaf});
 
-    const ValueId narrow = graph.add_value(Shape{5}, DType::FLOAT32, Lifetime::ACTIVATION, "a");
-    graph.add_node(Ops::RELU.id, {narrow_leaf}, {narrow});
+    const ValueId narrow = graph.add_value(Shape{5}, DType::Float32, Lifetime::Activation, "a");
+    graph.add_node(Ops::K_RELU.id, {narrow_leaf}, {narrow});
 
-    const ValueId wide = graph.add_value(Shape{2}, DType::FLOAT64, Lifetime::ACTIVATION, "b");
-    graph.add_node(Ops::RELU.id, {wide_leaf}, {wide});
+    const ValueId wide = graph.add_value(Shape{2}, DType::Float64, Lifetime::Activation, "b");
+    graph.add_node(Ops::K_RELU.id, {wide_leaf}, {wide});
 
     PlanOptions options;
     options.alignment = 1;
 
     const MemoryPlan plan = MemoryPlan::build(graph, options);
 
-    EXPECT_EQ(plan.placement(narrow).offset % dtype_size(DType::FLOAT32), 0u);
-    EXPECT_EQ(plan.placement(wide).offset % dtype_size(DType::FLOAT64), 0u);
+    EXPECT_EQ(plan.placement(narrow).offset % dtype_size(DType::Float32), 0u);
+    EXPECT_EQ(plan.placement(wide).offset % dtype_size(DType::Float64), 0u);
 
     EXPECT_EQ(plan.placement(narrow).offset, 0u);
     EXPECT_EQ(plan.placement(wide).offset, 24u)
@@ -441,11 +441,11 @@ TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
     // The pass relies on topological order; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId a = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "a");
-    const ValueId b = graph.add_value(unit_shape(), DType::FLOAT32, Lifetime::ACTIVATION, "b");
+    const ValueId a = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "a");
+    const ValueId b = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "b");
 
-    graph.add_node(Ops::RELU.id, {a}, {b});
-    graph.add_node(Ops::RELU.id, {b}, {a});
+    graph.add_node(Ops::K_RELU.id, {a}, {b});
+    graph.add_node(Ops::K_RELU.id, {b}, {a});
 
     EXPECT_THROW((void)MemoryPlan::build(graph), Error);
 }
@@ -479,23 +479,23 @@ TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
     // A node does not reach itself, so its results conflict; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId input = graph.add_value(Shape{8, 4}, DType::FLOAT32, Lifetime::ACTIVATION, "x");
-    graph.add_node(Ops::LEAF.id, {}, {input});
+    const ValueId input = graph.add_value(Shape{8, 4}, DType::Float32, Lifetime::Activation, "x");
+    graph.add_node(Ops::K_LEAF.id, {}, {input});
 
-    const ValueId result = graph.add_value(Shape{8, 4}, DType::FLOAT32,
-                                           Lifetime::ACTIVATION, "y");
-    const ValueId spill = graph.add_value(Shape{8, 4}, DType::FLOAT32,
-                                          Lifetime::ACTIVATION, "pre");
-    graph.add_node(Ops::GEMM_BIAS_GELU.id, {input}, {result, spill});
+    const ValueId result = graph.add_value(Shape{8, 4}, DType::Float32,
+                                           Lifetime::Activation, "y");
+    const ValueId spill = graph.add_value(Shape{8, 4}, DType::Float32,
+                                          Lifetime::Activation, "pre");
+    graph.add_node(Ops::K_GEMM_BIAS_GELU.id, {input}, {result, spill});
 
     // Both are read afterwards, as the forward and the backward pass read them.
-    const ValueId downstream = graph.add_value(Shape{8, 4}, DType::FLOAT32,
-                                               Lifetime::ACTIVATION, "h");
-    graph.add_node(Ops::RELU.id, {result}, {downstream});
+    const ValueId downstream = graph.add_value(Shape{8, 4}, DType::Float32,
+                                               Lifetime::Activation, "h");
+    graph.add_node(Ops::K_RELU.id, {result}, {downstream});
 
-    const ValueId gradient = graph.add_value(Shape{8, 4}, DType::FLOAT32,
-                                             Lifetime::ACTIVATION, "dx");
-    graph.add_node(Ops::GELU_BACKWARD.id, {downstream, spill}, {gradient});
+    const ValueId gradient = graph.add_value(Shape{8, 4}, DType::Float32,
+                                             Lifetime::Activation, "dx");
+    graph.add_node(Ops::K_GELU_BACKWARD.id, {downstream, spill}, {gradient});
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 

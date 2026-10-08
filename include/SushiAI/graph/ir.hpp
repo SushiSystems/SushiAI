@@ -47,10 +47,10 @@ namespace SushiAI
         using NodeId = std::uint32_t;
 
         /** @brief The absent-value sentinel, used for "no producer" and "no gradient". */
-        inline constexpr ValueId NO_VALUE = ~ValueId{0};
+        inline constexpr ValueId K_NO_VALUE = ~ValueId{0};
 
         /** @brief The absent-node sentinel, marking a value that no node produces. */
-        inline constexpr NodeId NO_NODE = ~NodeId{0};
+        inline constexpr NodeId K_NO_NODE = ~NodeId{0};
 
         /**
          * @enum Lifetime
@@ -59,19 +59,19 @@ namespace SushiAI
         enum class Lifetime : std::uint8_t
         {
             /** @brief A learnable weight. Lives for the whole run. */
-            PARAMETER,
+            Parameter,
             /** @brief A gradient of a parameter. Lives for the whole run. */
-            GRADIENT,
+            Gradient,
             /** @brief Optimizer state such as a momentum or variance buffer. */
-            OPTIMIZER_STATE,
+            OptimizerState,
             /** @brief A minibatch input or target. Lives for the whole run, rewritten per step. */
-            INPUT,
+            Input,
             /** @brief Model state with no gradient, written beside the graph. */
-            BUFFER,
+            Buffer,
             /** @brief An intermediate. Lives only between its producer and its last reader. */
-            ACTIVATION,
+            Activation,
             /** @brief A transient the planner may overlap freely with any other scratch. */
-            SCRATCH,
+            Scratch,
         };
 
         /** @brief A human-readable name for @p lifetime, for diagnostics. */
@@ -79,13 +79,13 @@ namespace SushiAI
         {
             switch (lifetime)
             {
-                case Lifetime::PARAMETER:       return "parameter";
-                case Lifetime::GRADIENT:        return "gradient";
-                case Lifetime::OPTIMIZER_STATE: return "optimizer_state";
-                case Lifetime::INPUT:           return "input";
-                case Lifetime::BUFFER:          return "buffer";
-                case Lifetime::ACTIVATION:      return "activation";
-                case Lifetime::SCRATCH:         return "scratch";
+                case Lifetime::Parameter:       return "parameter";
+                case Lifetime::Gradient:        return "gradient";
+                case Lifetime::OptimizerState: return "optimizer_state";
+                case Lifetime::Input:           return "input";
+                case Lifetime::Buffer:          return "buffer";
+                case Lifetime::Activation:      return "activation";
+                case Lifetime::Scratch:         return "scratch";
             }
             return "unknown";
         }
@@ -98,11 +98,11 @@ namespace SushiAI
          */
         constexpr bool is_persistent(Lifetime lifetime) noexcept
         {
-            return lifetime == Lifetime::PARAMETER
-                || lifetime == Lifetime::GRADIENT
-                || lifetime == Lifetime::OPTIMIZER_STATE
-                || lifetime == Lifetime::INPUT
-                || lifetime == Lifetime::BUFFER;
+            return lifetime == Lifetime::Parameter
+                || lifetime == Lifetime::Gradient
+                || lifetime == Lifetime::OptimizerState
+                || lifetime == Lifetime::Input
+                || lifetime == Lifetime::Buffer;
         }
 
         /**
@@ -114,15 +114,15 @@ namespace SushiAI
             /**
              * @brief Maximum number of supported inline scalar attribute slots.
              */
-            static constexpr std::size_t CAPACITY = 10;
+            static constexpr std::size_t K_CAPACITY = 10;
 
             /** @brief The scalar values, interpreted per operation. */
-            double values[CAPACITY] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            double values[K_CAPACITY] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
             /** @brief Reads slot @p index, or zero when it is out of range. */
             constexpr double get(std::size_t index) const noexcept
             {
-                return index < CAPACITY ? values[index] : 0.0;
+                return index < K_CAPACITY ? values[index] : 0.0;
             }
 
             /** @brief Reads slot @p index as a flag. */
@@ -139,9 +139,9 @@ namespace SushiAI
         enum class TensorLayout : std::uint8_t
         {
             /** @brief Channels innermost - the single native layout (CV-3). */
-            NHWC,
+            Nhwc,
             /** @brief Channels before the spatial axes; a boundary only. */
-            NCHW,
+            Nchw,
         };
 
         /**
@@ -154,7 +154,7 @@ namespace SushiAI
             Shape shape{};
 
             /** @brief The value's element type. */
-            DType dtype = DType::FLOAT32;
+            DType dtype = DType::Float32;
 
             /**
              * @brief The axis order this value's extents are in.
@@ -162,13 +162,13 @@ namespace SushiAI
              * Graph-wide rather than free-floating: see @ref TensorLayout and
              * @c Graph::finalise(), which proves every node preserves it.
              */
-            TensorLayout layout = TensorLayout::NHWC;
+            TensorLayout layout = TensorLayout::Nhwc;
 
             /** @brief Which arena owns this value's storage. */
-            Lifetime lifetime = Lifetime::ACTIVATION;
+            Lifetime lifetime = Lifetime::Activation;
 
             /** @brief The node that writes this value, or NO_NODE for a leaf. */
-            NodeId producer = NO_NODE;
+            NodeId producer = K_NO_NODE;
 
             /**
              * @brief Whether a gradient flows back through this value.
@@ -225,8 +225,8 @@ namespace SushiAI
                                   Lifetime lifetime,
                                   std::string_view debug_name = {})
                 {
-                    values_.push_back(Value{shape, dtype, TensorLayout::NHWC, lifetime,
-                                            NO_NODE, false, debug_name});
+                    values_.push_back(Value{shape, dtype, TensorLayout::Nhwc, lifetime,
+                                            K_NO_NODE, false, debug_name});
                     return static_cast<ValueId>(values_.size() - 1);
                 }
 
@@ -255,7 +255,7 @@ namespace SushiAI
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} writes value {}, which does not exist",
                                     Ops::name_of(op), v);
-                        SA_THROW_IF(values_[v].producer != NO_NODE,
+                        SA_THROW_IF(values_[v].producer != K_NO_NODE,
                                     "Operation {} writes value {}, which is already written by {}. "
                                     "The IR is single-assignment; emit a new value instead.",
                                     Ops::name_of(op), v, Ops::name_of(nodes_[values_[v].producer].op));
@@ -285,7 +285,7 @@ namespace SushiAI
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} reads value {}, which does not exist",
                                     Ops::name_of(node.op), v);
-                        SA_THROW_IF(values_[v].producer != NO_NODE
+                        SA_THROW_IF(values_[v].producer != K_NO_NODE
                                         && values_[v].producer >= before,
                                     "Operation {} would be inserted at {} but reads value {}, "
                                     "which node {} writes. Insertion order must stay a "
@@ -298,7 +298,7 @@ namespace SushiAI
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} writes value {}, which does not exist",
                                     Ops::name_of(node.op), v);
-                        SA_THROW_IF(values_[v].producer != NO_NODE,
+                        SA_THROW_IF(values_[v].producer != K_NO_NODE,
                                     "Operation {} writes value {}, which is already written by {}. "
                                     "The IR is single-assignment; emit a new value instead.",
                                     Ops::name_of(node.op), v,
@@ -317,7 +317,7 @@ namespace SushiAI
 
                     // Subsequent producer indices are incremented before claiming this node.
                     for (Value& value : values_)
-                        if (value.producer != NO_NODE && value.producer >= before)
+                        if (value.producer != K_NO_NODE && value.producer >= before)
                             ++value.producer;
 
                     for (ValueId v : node.outputs)
@@ -386,7 +386,7 @@ namespace SushiAI
                             return bound.second;
                     }
 
-                    return NO_VALUE;
+                    return K_NO_VALUE;
                 }
 
                 /**
@@ -440,7 +440,7 @@ namespace SushiAI
                     stripped.refused_ = refused_;
 
                     for (Value& value : stripped.values_)
-                        value.producer = NO_NODE;
+                        value.producer = K_NO_NODE;
 
                     return stripped;
                 }
@@ -481,7 +481,7 @@ namespace SushiAI
                 {
                     for (const Node& n : nodes_)
                     {
-                        if (n.op == Ops::LAYOUT_CONVERT.id || n.inputs.empty())
+                        if (n.op == Ops::K_LAYOUT_CONVERT.id || n.inputs.empty())
                             continue;
 
                         const TensorLayout expected = values_[n.inputs.front()].layout;

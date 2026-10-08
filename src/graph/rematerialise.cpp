@@ -38,7 +38,7 @@ namespace SushiAI
         namespace
         {
             /** @brief The name every rematerialised column matrix carries. */
-            constexpr const char* REMAT_NAME = "cols_remat";
+            constexpr const char* K_REMAT_NAME = "cols_remat";
 
             /**
              * @brief Collects output value ids of every IM2COL node in graph order.
@@ -49,7 +49,7 @@ namespace SushiAI
             {
                 std::vector<ValueId> stored;
                 for (const Node& node : graph.nodes())
-                    if (node.op == Ops::IM2COL.id && !node.outputs.empty())
+                    if (node.op == Ops::K_IM2COL.id && !node.outputs.empty())
                         stored.push_back(node.outputs.front());
                 return stored;
             }
@@ -89,7 +89,7 @@ namespace SushiAI
 
                 // Clones must preserve original tensor layout to satisfy layout proof invariants.
                 const ValueId clone = builder.declare_like(cols, original.shape, original.dtype,
-                                                           Lifetime::SCRATCH, REMAT_NAME);
+                                                           Lifetime::Scratch, K_REMAT_NAME);
                 graph.value(clone).requires_grad = original.requires_grad;
 
                 // Geometric attributes are cloned directly to preserve exact padding extents.
@@ -102,7 +102,7 @@ namespace SushiAI
                         if (in == cols) in = clone;
 
                 // The original column matrix is demoted to scratch lifetime.
-                graph.value(cols).lifetime = Lifetime::SCRATCH;
+                graph.value(cols).lifetime = Lifetime::Scratch;
             }
         }
 

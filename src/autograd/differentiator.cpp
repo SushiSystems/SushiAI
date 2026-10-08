@@ -39,7 +39,7 @@ namespace SushiAI
         namespace
         {
             /** @brief The extra entry that only exists to produce a good error. */
-            constexpr RuleEntry LOG_SOFTMAX_RULE{Ops::LOG_SOFTMAX.id, &log_softmax_backward};
+            constexpr RuleEntry K_LOG_SOFTMAX_RULE{Ops::K_LOG_SOFTMAX.id, &log_softmax_backward};
 
             /** @brief Holds d(loss)/d(loss), the value an explicit root seed is filled with. */
             constexpr double K_ROOT_SEED = 1.0;
@@ -47,9 +47,9 @@ namespace SushiAI
             /** @brief Finds a rule, or null when the operation has none. */
             constexpr BackwardRule find_rule(OpID op) noexcept
             {
-                for (const RuleEntry& entry : RULES)
+                for (const RuleEntry& entry : K_RULES)
                     if (entry.op == op) return entry.rule;
-                if (op == LOG_SOFTMAX_RULE.op) return LOG_SOFTMAX_RULE.rule;
+                if (op == K_LOG_SOFTMAX_RULE.op) return K_LOG_SOFTMAX_RULE.rule;
                 return nullptr;
             }
         }
@@ -90,7 +90,7 @@ namespace SushiAI
             const auto cached = resolved_.find(primal);
             if (cached != resolved_.end()) return cached->second;
 
-            Graph::ValueId result = Graph::NO_VALUE;
+            Graph::ValueId result = Graph::K_NO_VALUE;
             const auto found = contributions_.find(primal);
 
             if (found != contributions_.end() && !found->second.empty())
@@ -112,7 +112,7 @@ namespace SushiAI
             const Graph::NodeId producer = graph_.value(value).producer;
 
             SA_THROW_IF(provenance_ != nullptr && graph_.node_count() > nodes_before
-                            && producer == Graph::NO_NODE,
+                            && producer == Graph::K_NO_NODE,
                         "Cannot record provenance for the gradient of value {}: summing its "
                         "contributions appended a node, and no node produces the value. A "
                         "requested value needs a producer node to carry provenance.",
@@ -135,7 +135,7 @@ namespace SushiAI
         {
             const Graph::Value& requested = graph_.value(value);
 
-            SA_THROW_IF(requested.lifetime == Graph::Lifetime::BUFFER,
+            SA_THROW_IF(requested.lifetime == Graph::Lifetime::Buffer,
                         "differentiate() cannot return a gradient for value {} ('{}'): it is a "
                         "buffer, model state that takes no gradient and is written beside the "
                         "graph. Request parameters and inputs only.",
@@ -151,7 +151,7 @@ namespace SushiAI
                         loss_, graph_.value(loss_).shape.to_string());
 
             const Graph::NodeId root_producer = graph_.value(loss_).producer;
-            SA_THROW_IF(root_producer == Graph::NO_NODE,
+            SA_THROW_IF(root_producer == Graph::K_NO_NODE,
                         "differentiate() cannot seed a gradient for value {}: nothing produces "
                         "it. The loss must be the result of an operation that has a backward "
                         "rule, for example NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of "
@@ -178,7 +178,7 @@ namespace SushiAI
             const OpID op = graph_.node(producer).op;
             const DType dtype = graph_.value(loss_).dtype;
 
-            SA_THROW_IF(op == Ops::LEAF.id,
+            SA_THROW_IF(op == Ops::K_LEAF.id,
                         "differentiate() cannot differentiate value {}: it is a leaf, produced "
                         "by {}, so no operation computes it from a parameter. The loss must be "
                         "the result of an operation that has a backward rule, for example "
@@ -242,7 +242,7 @@ namespace SushiAI
             bool reachable = false;
             for (Graph::ValueId out : current_node_.outputs)
             {
-                if (is_root(out) || resolve(out) != Graph::NO_VALUE)
+                if (is_root(out) || resolve(out) != Graph::K_NO_VALUE)
                 {
                     reachable = true;
                     break;
@@ -286,9 +286,9 @@ namespace SushiAI
                 gradients.push_back(gradient);
 
                 // Parameter gradients persist across execution and receive Lifetime::GRADIENT.
-                if (gradient != Graph::NO_VALUE
-                    && graph.value(value).lifetime == Graph::Lifetime::PARAMETER)
-                    graph.value(gradient).lifetime = Graph::Lifetime::GRADIENT;
+                if (gradient != Graph::K_NO_VALUE
+                    && graph.value(value).lifetime == Graph::Lifetime::Parameter)
+                    graph.value(gradient).lifetime = Graph::Lifetime::Gradient;
             }
 
             return gradients;

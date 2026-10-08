@@ -60,8 +60,8 @@ namespace SushiAI
             const double batch = static_cast<double>(value.shape.dim(0));
 
             const Graph::NodeId producer = value.producer;
-            const bool fused = producer != Graph::NO_NODE
-                            && tape.graph().node(producer).op == Ops::LOG_SOFTMAX.id;
+            const bool fused = producer != Graph::K_NO_NODE
+                            && tape.graph().node(producer).op == Ops::K_LOG_SOFTMAX.id;
 
             if (!fused)
             {

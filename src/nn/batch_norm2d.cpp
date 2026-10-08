@@ -89,7 +89,7 @@ namespace SushiAI
                            StatusCode::InvalidDescription,
                            "BatchNorm2d({}) needs a rank-4 [N, H, W, {}] input; got {}",
                            layer.channels, layer.channels, image.to_string());
-                SA_FAIL_IF(builder.graph().value(x).layout != Graph::TensorLayout::NHWC,
+                SA_FAIL_IF(builder.graph().value(x).layout != Graph::TensorLayout::Nhwc,
                            StatusCode::InvalidDescription,
                            "BatchNorm2d({}) needs an NHWC input; got {} tagged NCHW. Cross with "
                            "layout_convert first (CV-3).",
@@ -116,12 +116,12 @@ namespace SushiAI
 
                 SA_TRY_ASSIGN(const Graph::ValueId gamma, Detail::bridge_throwing([&]()
                 {
-                    return layer.weight.declare(builder, per_channel, ParameterRole::SCALE,
+                    return layer.weight.declare(builder, per_channel, ParameterRole::Scale,
                                                 layer.channels, layer.channels, "weight", dtype);
                 }));
                 SA_TRY_ASSIGN(const Graph::ValueId beta, Detail::bridge_throwing([&]()
                 {
-                    return layer.bias.declare(builder, per_channel, ParameterRole::BIAS,
+                    return layer.bias.declare(builder, per_channel, ParameterRole::Bias,
                                               layer.channels, layer.channels, "bias", dtype);
                 }));
 

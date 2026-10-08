@@ -177,7 +177,7 @@ TEST(Unit_Module, ParametersAreDeclaredAsGradientRequiringLeaves)
 
     EXPECT_TRUE(graph.value(layer.weight.id()).requires_grad);
     EXPECT_TRUE(graph.value(layer.bias.id()).requires_grad);
-    EXPECT_EQ(graph.value(layer.weight.id()).lifetime, Graph::Lifetime::PARAMETER);
+    EXPECT_EQ(graph.value(layer.weight.id()).lifetime, Graph::Lifetime::Parameter);
     EXPECT_FALSE(graph.value(x).requires_grad);
 }
 
@@ -190,8 +190,8 @@ TEST(Unit_Module, RolesAndFansAreRecordedForTheInitializer)
     const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
     (void)layer.forward(builder, x);
 
-    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::WEIGHT);
-    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
+    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
     EXPECT_EQ(layer.weight.fan_in(), 4);
     EXPECT_EQ(layer.weight.fan_out(), 3);
 }
@@ -225,7 +225,7 @@ namespace
         Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
         {
             const Graph::ValueId b = offset.declare(
-                builder, Shape{width}, NN::ParameterRole::BIAS,
+                builder, Shape{width}, NN::ParameterRole::Bias,
                 width, width, "offset");
             return builder.bias_add(x, b);
         }
@@ -245,7 +245,7 @@ TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
 
     // The role decides the initialiser; see tests/functional/unit/README.md.
-    EXPECT_EQ(layer.offset.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(layer.offset.role(), NN::ParameterRole::Bias);
 
     // It satisfies the Module contract, so it composes.
     static_assert(NN::Module<MyOffset>, "the tutorial's layer must be a Module");
@@ -274,8 +274,8 @@ namespace
         public:
             WalkableStub()
             {
-                weight_.declare(builder_, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "w");
-                bias_.declare(builder_, Shape{2}, NN::ParameterRole::BIAS, 0, 0, "b");
+                weight_.declare(builder_, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "w");
+                bias_.declare(builder_, Shape{2}, NN::ParameterRole::Bias, 0, 0, "b");
             }
 
             static constexpr auto fields() { return std::tuple<>{}; }
@@ -376,7 +376,7 @@ TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
     for (const Shape& input : {Shape{5}, Shape{4, 4, 3}})
     {
         EXPECT_EQ(ReLU{}.output_shape(input), input);
-        EXPECT_EQ(NN::GELU{}.output_shape(input), input);
+        EXPECT_EQ(NN::K_GELU{}.output_shape(input), input);
         EXPECT_EQ(NN::Tanh{}.output_shape(input), input);
         EXPECT_EQ(NN::Sigmoid{}.output_shape(input), input);
     }
@@ -386,7 +386,7 @@ TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
 TEST(Unit_Module, AnActivationsOutputShapeAgreesWithItsTrace)
 {
     ReLU relu;
-    NN::GELU gelu;
+    NN::K_GELU gelu;
     NN::Tanh tanh;
     NN::Sigmoid sigmoid;
 
@@ -401,7 +401,7 @@ namespace
     /** @brief Declares one [2, 3] weight into @p builder and returns its leaf. */
     Graph::ValueId declare_weight(Parameter& parameter, const Graph::GraphBuilder& builder)
     {
-        return parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "weight");
+        return parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "weight");
     }
 }
 
@@ -426,7 +426,7 @@ TEST(Unit_Module, AParameterTracedIntoTwoGraphsHasALeafInEach)
     EXPECT_EQ(parameter.id_in(second), second_leaf);
     EXPECT_EQ(first.state_leaf(parameter.state()), first_leaf);
     EXPECT_EQ(second.state_leaf(parameter.state()), second_leaf);
-    EXPECT_EQ(second.value(second_leaf).lifetime, Graph::Lifetime::PARAMETER);
+    EXPECT_EQ(second.value(second_leaf).lifetime, Graph::Lifetime::Parameter);
 }
 
 /** @brief Tests that id_in() reports NO_VALUE for a graph the parameter was never traced into. */
@@ -437,13 +437,13 @@ TEST(Unit_Module, AParameterHasNoLeafInAGraphItWasNotTracedInto)
     const Graph::GraphBuilder builder(traced);
 
     Parameter parameter;
-    EXPECT_EQ(parameter.id_in(traced), Graph::NO_VALUE);
+    EXPECT_EQ(parameter.id_in(traced), Graph::K_NO_VALUE);
     EXPECT_EQ(parameter.state(), Graph::K_NO_STATE);
 
     (void)declare_weight(parameter, builder);
 
     EXPECT_NE(parameter.state(), Graph::K_NO_STATE);
-    EXPECT_EQ(parameter.id_in(untouched), Graph::NO_VALUE);
+    EXPECT_EQ(parameter.id_in(untouched), Graph::K_NO_VALUE);
 }
 
 /** @brief Tests that a second declare in one graph returns the first leaf and adds no value. */
@@ -472,10 +472,10 @@ TEST(Unit_Module, ADeclareWithAnotherShapeIsRefused)
     Parameter parameter;
     (void)declare_weight(parameter, builder);
 
-    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{4, 3}, NN::ParameterRole::WEIGHT,
+    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{4, 3}, NN::ParameterRole::Weight,
                                             3, 4, "weight"),
                     "'weight'", "[2, 3]", "[4, 3]");
-    SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{4, 3}, NN::ParameterRole::WEIGHT,
+    SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{4, 3}, NN::ParameterRole::Weight,
                                             3, 4, "weight"),
                     "'weight'", "[2, 3]", "[4, 3]");
     EXPECT_EQ(other.value_count(), 0u);
@@ -493,15 +493,15 @@ TEST(Unit_Module, ADeclareWithAnotherElementTypeIsRefused)
     Parameter parameter;
     (void)declare_weight(parameter, builder);
 
-    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT,
-                                            3, 2, "weight", DType::FLOAT64),
-                    "'weight'", dtype_name(DType::FLOAT32), dtype_name(DType::FLOAT64));
+    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight,
+                                            3, 2, "weight", DType::Float64),
+                    "'weight'", dtype_name(DType::Float32), dtype_name(DType::Float64));
     SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{2, 3},
-                                            NN::ParameterRole::WEIGHT, 3, 2, "weight",
-                                            DType::FLOAT64),
-                    "'weight'", dtype_name(DType::FLOAT32), dtype_name(DType::FLOAT64));
+                                            NN::ParameterRole::Weight, 3, 2, "weight",
+                                            DType::Float64),
+                    "'weight'", dtype_name(DType::Float32), dtype_name(DType::Float64));
     EXPECT_EQ(other.value_count(), 0u);
-    EXPECT_EQ(parameter.dtype(), DType::FLOAT32);
+    EXPECT_EQ(parameter.dtype(), DType::Float32);
 }
 
 /** @brief Tests that a later declare with another fill and other fans leaves the first ones. */
@@ -513,17 +513,17 @@ TEST(Unit_Module, ALaterDeclareKeepsTheFirstDescription)
     const Graph::GraphBuilder second_builder(second);
 
     Parameter scale;
-    (void)scale.declare(first_builder, Shape{4}, NN::ParameterRole::SCALE,
+    (void)scale.declare(first_builder, Shape{4}, NN::ParameterRole::Scale,
                         NN::ParameterInit::constant_value(1.5), 4, 4, "scale");
-    (void)scale.declare(second_builder, Shape{4}, NN::ParameterRole::WEIGHT,
+    (void)scale.declare(second_builder, Shape{4}, NN::ParameterRole::Weight,
                         NN::ParameterInit::fan_scaled(), 9, 9, "scale");
 
     EXPECT_EQ(scale.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(scale.init().constant, 1.5, K_EXACT_TOLERANCE);
-    EXPECT_EQ(scale.role(), NN::ParameterRole::SCALE);
+    EXPECT_EQ(scale.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(scale.fan_in(), 4);
     EXPECT_EQ(scale.fan_out(), 4);
-    EXPECT_NE(scale.id_in(second), Graph::NO_VALUE);
+    EXPECT_NE(scale.id_in(second), Graph::K_NO_VALUE);
 }
 
 /** @brief Tests that a copied layer is new state: its own StateId and its own leaf. */
@@ -538,7 +538,7 @@ TEST(Unit_Module, ACopiedLayerHasANewStateId)
 
     Linear copy = original;
     EXPECT_EQ(copy.weight.state(), Graph::K_NO_STATE);
-    EXPECT_EQ(copy.weight.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(copy.weight.id_in(graph), Graph::K_NO_VALUE);
 
     // id() is copied with the description, so an untraced copy reports the original's leaf.
     EXPECT_TRUE(copy.weight.declared());
@@ -588,7 +588,7 @@ TEST(Unit_Module, IdReturnsTheLeafOfTheMostRecentDeclare)
     (void)second_builder.input(Shape{2, 3}, "padding");
 
     Parameter parameter;
-    EXPECT_EQ(parameter.id(), Graph::NO_VALUE);
+    EXPECT_EQ(parameter.id(), Graph::K_NO_VALUE);
 
     const Graph::ValueId first_leaf = declare_weight(parameter, first_builder);
     EXPECT_EQ(parameter.id(), first_leaf);
@@ -625,8 +625,8 @@ TEST(Unit_Module, ARoleDeclareRecordsTheFillOfItsRole)
 
     Parameter weight;
     Parameter bias;
-    (void)weight.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "weight");
-    (void)bias.declare(builder, Shape{2}, NN::ParameterRole::BIAS, 3, 2, "bias");
+    (void)weight.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "weight");
+    (void)bias.declare(builder, Shape{2}, NN::ParameterRole::Bias, 3, 2, "bias");
 
     EXPECT_EQ(weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(bias.init().kind, NN::ParameterInit::Kind::Constant);
@@ -641,17 +641,17 @@ TEST(Unit_Module, AnInitDeclareRecordsTheStatedFillAndTheStatedRole)
 
     Parameter offset;
     Parameter kernel;
-    (void)offset.declare(builder, Shape{4}, NN::ParameterRole::BIAS,
+    (void)offset.declare(builder, Shape{4}, NN::ParameterRole::Bias,
                          NN::ParameterInit::constant_value(1.5), 4, 4, "offset");
-    (void)kernel.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT,
+    (void)kernel.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight,
                          NN::ParameterInit::fan_scaled(), 3, 2, "kernel");
 
     EXPECT_EQ(offset.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(offset.init().constant, 1.5, K_EXACT_TOLERANCE);
-    EXPECT_EQ(offset.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(offset.role(), NN::ParameterRole::Bias);
     EXPECT_EQ(offset.fan_in(), 4);
     EXPECT_EQ(kernel.init().kind, NN::ParameterInit::Kind::FanScaled);
-    EXPECT_EQ(kernel.role(), NN::ParameterRole::WEIGHT);
+    EXPECT_EQ(kernel.role(), NN::ParameterRole::Weight);
     EXPECT_TRUE(graph.value(offset.id_in(graph)).requires_grad);
 }
 
@@ -664,14 +664,14 @@ TEST(Unit_Module, ARoleDeclareFillsByItsRole)
     Parameter weight;
     Parameter bias;
     Parameter scale;
-    (void)weight.declare(builder, Shape{2, 3}, NN::ParameterRole::WEIGHT, 3, 2, "weight");
-    (void)bias.declare(builder, Shape{2}, NN::ParameterRole::BIAS, 3, 2, "bias");
-    (void)scale.declare(builder, Shape{2}, NN::ParameterRole::SCALE, 2, 2, "scale");
+    (void)weight.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "weight");
+    (void)bias.declare(builder, Shape{2}, NN::ParameterRole::Bias, 3, 2, "bias");
+    (void)scale.declare(builder, Shape{2}, NN::ParameterRole::Scale, 2, 2, "scale");
 
     EXPECT_EQ(weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(bias.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(bias.init().constant, 0.0, K_EXACT_TOLERANCE);
-    EXPECT_EQ(scale.role(), NN::ParameterRole::SCALE);
+    EXPECT_EQ(scale.role(), NN::ParameterRole::Scale);
     EXPECT_EQ(scale.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(scale.init().constant, 1.0, K_EXACT_TOLERANCE);
 }
@@ -695,7 +695,7 @@ namespace
         /** @brief Declares the parameter into @p builder and defines the buffer. */
         void describe(const Graph::GraphBuilder& builder)
         {
-            (void)scale.declare(builder, Shape{4}, NN::ParameterRole::SCALE, 4, 4, "scale");
+            (void)scale.declare(builder, Shape{4}, NN::ParameterRole::Scale, 4, 4, "scale");
             const Status defined = mean.define(Shape{4}, 0.0);
             static_cast<void>(defined);
         }
@@ -722,10 +722,10 @@ namespace
         /** @brief Describes every piece of state except the buffer named "unset". */
         void describe(const Graph::GraphBuilder& builder)
         {
-            const Status defined = count.define(Shape{1}, 0.0, DType::INT64);
+            const Status defined = count.define(Shape{1}, 0.0, DType::Int64);
             static_cast<void>(defined);
             pair.describe(builder);
-            (void)offset.declare(builder, Shape{4}, NN::ParameterRole::BIAS, 4, 4, "offset");
+            (void)offset.declare(builder, Shape{4}, NN::ParameterRole::Bias, 4, 4, "offset");
         }
     };
 
@@ -847,7 +847,7 @@ TEST(Unit_Module, ADefinedBufferIsWalkedWithoutALeaf)
     MixedState model;
     model.describe(builder);
 
-    EXPECT_EQ(model.count.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(model.count.id_in(graph), Graph::K_NO_VALUE);
     EXPECT_EQ(NN::buffer_count(model), 2u);
 }
 
@@ -859,7 +859,7 @@ namespace
         public:
             SelfWalkingStub()
             {
-                (void)gain_.declare(builder_, Shape{3}, NN::ParameterRole::WEIGHT, 3, 3, "gain");
+                (void)gain_.declare(builder_, Shape{3}, NN::ParameterRole::Weight, 3, 3, "gain");
                 const Status defined = level_.define(Shape{3}, 0.5);
                 static_cast<void>(defined);
             }

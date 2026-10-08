@@ -39,12 +39,12 @@ namespace SushiAI
         namespace
         {
             /** @brief Every key an "adamw" optimizer accepts. */
-            constexpr std::string_view ADAMW_KEYS[] = {
+            constexpr std::string_view K_ADAMW_KEYS[] = {
                 "learning_rate", "beta1", "beta2", "eps", "weight_decay",
             };
 
             /** @brief Every key an "sgd" optimizer accepts. */
-            constexpr std::string_view SGD_KEYS[] = {
+            constexpr std::string_view K_SGD_KEYS[] = {
                 "learning_rate", "momentum", "dampening", "weight_decay", "nesterov",
             };
 
@@ -93,7 +93,7 @@ namespace SushiAI
                                               const Config::Value& attributes,
                                               std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(ADAMW_KEYS));
+            attributes.reject_unknown_keys(context, as_span(K_ADAMW_KEYS));
 
             const std::string prefix(context);
             AdamWOptions options;
@@ -117,7 +117,7 @@ namespace SushiAI
                                             const Config::Value& attributes,
                                             std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(SGD_KEYS));
+            attributes.reject_unknown_keys(context, as_span(K_SGD_KEYS));
 
             const std::string prefix(context);
             SGDOptions options;
@@ -142,7 +142,7 @@ namespace SushiAI
                                                   const Config::Value& attributes,
                                                   std::string_view context)
         {
-            return Config::find_entry(OPTIMIZER_REGISTRY, type, "optimizer type")
+            return Config::find_entry(K_OPTIMIZER_REGISTRY, type, "optimizer type")
                        .make(engine, std::move(parameters), attributes, context);
         }
 

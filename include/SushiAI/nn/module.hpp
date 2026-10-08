@@ -54,11 +54,11 @@ namespace SushiAI
         enum class ParameterRole : std::uint8_t
         {
             /** @brief A weight matrix; gets a fan-scaled random initialisation. */
-            WEIGHT,
+            Weight,
             /** @brief A bias vector; always starts at zero. */
-            BIAS,
+            Bias,
             /** @brief A per-channel scale, such as a normalisation's gamma; starts at one. */
-            SCALE,
+            Scale,
         };
 
         /** @brief Describes how one parameter is filled before training. */
@@ -95,10 +95,10 @@ namespace SushiAI
             /** @brief Returns the fill a parameter of @p role starts from. */
             [[nodiscard]] constexpr ParameterInit init_of(ParameterRole role) noexcept
             {
-                if (role == ParameterRole::BIAS)
+                if (role == ParameterRole::Bias)
                     return ParameterInit::constant_value(0.0);
 
-                if (role == ParameterRole::SCALE)
+                if (role == ParameterRole::Scale)
                     return ParameterInit::constant_value(1.0);
 
                 return ParameterInit::fan_scaled();
@@ -138,7 +138,7 @@ namespace SushiAI
                                        int64_t fan_in,
                                        int64_t fan_out,
                                        std::string_view debug_name,
-                                       DType dtype = DType::FLOAT32)
+                                       DType dtype = DType::Float32)
                 {
                     return declare_described(builder, shape, Detail::init_of(role), role,
                                              fan_in, fan_out, debug_name, dtype);
@@ -159,7 +159,7 @@ namespace SushiAI
                                        int64_t fan_in,
                                        int64_t fan_out,
                                        std::string_view debug_name,
-                                       DType dtype = DType::FLOAT32)
+                                       DType dtype = DType::Float32)
                 {
                     return declare_described(builder, shape, init, role, fan_in, fan_out,
                                              debug_name, dtype);
@@ -233,7 +233,7 @@ namespace SushiAI
 
                     Graph::Graph& graph = builder.graph();
                     const Graph::ValueId held = graph.state_leaf(identity_.peek());
-                    if (held != Graph::NO_VALUE)
+                    if (held != Graph::K_NO_VALUE)
                     {
                         id_ = held;
                         return held;
@@ -252,9 +252,9 @@ namespace SushiAI
                 /** @brief Holds the fill the first declare stated. */
                 ParameterInit init_{};
 
-                Graph::ValueId id_ = Graph::NO_VALUE;
-                DType dtype_ = DType::FLOAT32;
-                ParameterRole role_ = ParameterRole::WEIGHT;
+                Graph::ValueId id_ = Graph::K_NO_VALUE;
+                DType dtype_ = DType::Float32;
+                ParameterRole role_ = ParameterRole::Weight;
                 int64_t fan_in_ = 0;
                 int64_t fan_out_ = 0;
 

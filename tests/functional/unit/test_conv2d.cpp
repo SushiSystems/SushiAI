@@ -119,7 +119,7 @@ TEST(Unit_Conv2d, ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents)
     const Graph::ValueId y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 28, 28, 8}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
 }
 
 /** @brief Tests that a FLOAT64 input gives FLOAT64 parameters and a FLOAT64 result. */
@@ -129,12 +129,12 @@ TEST(Unit_Conv2d, TheParametersAndTheResultTakeTheInputElementType)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x", DType::FLOAT64);
+    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
     const Graph::ValueId y = layer.forward(builder, x);
 
-    EXPECT_EQ(layer.weight.dtype(), DType::FLOAT64);
-    EXPECT_EQ(layer.bias.dtype(), DType::FLOAT64);
-    EXPECT_EQ(graph.value(y).dtype, DType::FLOAT64);
+    EXPECT_EQ(layer.weight.dtype(), DType::Float64);
+    EXPECT_EQ(layer.bias.dtype(), DType::Float64);
+    EXPECT_EQ(graph.value(y).dtype, DType::Float64);
 }
 
 /** @brief Tests that the walk yields weight [8, 3, 3, 1] then bias [8] under Linear's names. */
@@ -177,7 +177,7 @@ TEST(Unit_Conv2d, ALayerWithABiasTracesOneBiasAdd)
     const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
     (void)layer.forward(builder, x);
 
-    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
 }
 
 /** @brief Tests that use_bias = false yields the weight alone and traces no BIAS_ADD node. */
@@ -193,7 +193,7 @@ TEST(Unit_Conv2d, ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd)
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 1]"}));
     EXPECT_FALSE(layer.bias.declared());
-    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 28, 28, 8}));
 }
 
@@ -225,8 +225,8 @@ TEST(Unit_Conv2d, TheParametersRecordTheirRoles)
     const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
     (void)layer.forward(builder, x);
 
-    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::WEIGHT);
-    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
+    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
 }
 
 /** @brief Tests that a second trace reuses the parameters the first one declared. */
@@ -350,7 +350,7 @@ TEST(Unit_Conv2d, SamePaddedTracesNoBias)
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 2]"}));
     EXPECT_FALSE(layer.bias.declared());
-    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
 }
 
 /** @brief Tests that a non-zero bias_init reaches the bias parameter's init() as a constant. */
@@ -367,7 +367,7 @@ TEST(Unit_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
     // -4.5 is exact in binary, so the stored value compares equal with no tolerance.
     EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(layer.bias.init().constant, -4.5, K_EXACT_TOLERANCE);
-    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::BIAS);
+    EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
 }
 
 /** @brief Tests that a layer left at the default starts its bias from the constant zero. */
@@ -396,7 +396,7 @@ TEST(Unit_Conv2d, BiasInitLeavesTheWeightFanScaled)
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::FanScaled);
-    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::WEIGHT);
+    EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
 }
 
 /** @brief Tests that output_shape() refuses a layer whose input channel count is zero. */
@@ -524,7 +524,7 @@ TEST(Unit_Conv2d, ForwardRejectsAnNchwInput)
 
     Conv2d layer = make_conv(3, 8, 3, 1, 1);
     const Graph::ValueId x = builder.input(Shape{2, 3, 3, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
@@ -557,7 +557,7 @@ TEST(Unit_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
     ASSERT_EQ(grads.size(), 2u);
     for (std::size_t i = 0; i < grads.size(); ++i)
     {
-        ASSERT_NE(grads[i], Graph::NO_VALUE) << "parameter " << i << " received no gradient";
+        ASSERT_NE(grads[i], Graph::K_NO_VALUE) << "parameter " << i << " received no gradient";
         EXPECT_EQ(graph.value(grads[i]).shape, graph.value(wrt[i]).shape);
     }
 }

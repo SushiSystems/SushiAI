@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-08 — naming: Renamed every enumerator to PascalCase and every constant to K_ form, 2995 tokens in 158 files; breaks callers that spell the old names (`rename_map.tsv`, `apply_rename.py`).
 - 2026-10-07 — nn: Added the blocks ConvNorm, Bottleneck, C3k, C3k2 and SPPF, the node registry with `build_model`, and the YOLO26n model file (`nn/blocks/`, `node_registry.hpp`, `examples/yolo26/model.json`).
 - 2026-10-07 — nn: Added Buffer, ModuleList, Trace with two modes, the node seam, ModelGraph, and the layers BatchNorm2d, Concat, SiLU and Identity (`buffer.hpp`, `trace.hpp`, `node.hpp`, `model_graph.hpp`, `batch_norm2d.hpp`).
 - 2026-10-07 — config: Changed the model file to version 2 with from, outputs and input.shape; a version 1 file is upgraded on read (`model_config.hpp`, `model_config.cpp`, `MODEL_FILE.md`).
