@@ -818,6 +818,10 @@ READMEs of `nn`, `train`, `io`, `data`, `apps` and the three test folders,
 Each is a module boundary, a public interface or data ownership that the SPEC leaves open. The
 plan is written under the recommendation.
 
+**Decided 2026-10-09**, by the engineer the owner delegated these to: every question takes its
+recommendation. For question 14, T16.2 and T16.3 run on `opus` at `low` with the wave's reviewer
+told to check the order of passes; neither is a `high` dispatch.
+
 1. **Who owns a step's pool.** SPEC line 996 sketches `TrainingStep` with "its pool". The
    optimizer needs the parameter slots, which need the pool, before the step is compiled.
    - a. The caller owns the pool, as `Trainer::make` and `CompiledStep::compile` have it today.
