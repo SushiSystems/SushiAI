@@ -57,7 +57,7 @@ TEST(Unit_SiLU, ForwardEmitsOneSiluNodeReadingTheInput)
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.nodes().back();
-    EXPECT_EQ(node.op, Ops::SILU.id);
+    EXPECT_EQ(node.op, Ops::K_SILU.id);
     ASSERT_EQ(node.inputs.size(), 1u);
     EXPECT_EQ(node.inputs.front(), x);
     ASSERT_EQ(node.outputs.size(), 1u);
@@ -89,7 +89,7 @@ TEST(Unit_SiLU, ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch)
     const Graph::ValueId y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 6, 3}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
@@ -98,12 +98,12 @@ TEST(Unit_SiLU, ForwardCarriesTheLayoutOfItsInput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     const SiLU layer{};
     const Graph::ValueId y = layer.forward(builder, nchw);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NCHW);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nchw);
     EXPECT_EQ(graph.value(y).shape, graph.value(nchw).shape);
 }
 

@@ -53,7 +53,7 @@ namespace SushiAI
              * and one pass over memory, and it is replay-invariant - which is
              * what lets it be compiled into the training step.
              */
-            FUSED,
+            Fused,
 
             /**
              * @brief The original sequence of separate SushiBLAS calls.
@@ -63,7 +63,7 @@ namespace SushiAI
              * fused functor. It bakes the step's scalars into the recorded
              * tasks, so it cannot join the compiled plan.
              */
-            SEPARATE,
+            Separate,
         };
 
         /**
@@ -90,7 +90,7 @@ namespace SushiAI
          * @class Optimizer
          * @brief Common base class providing parameter update recording and lifecycle hooks.
          */
-        class Optimizer : public Graph::IStepRecorder
+        class Optimizer : public Graph::StepRecorder
         {
             public:
                 /**

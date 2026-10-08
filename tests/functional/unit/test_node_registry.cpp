@@ -418,7 +418,7 @@ TEST(Unit_NodeRegistry, NoTypeIsInBothTables)
 {
     for (const NN::NodeEntry& node : NN::K_NODE_REGISTRY)
     {
-        for (const NN::LayerEntry& layer : NN::LAYER_REGISTRY)
+        for (const NN::LayerEntry& layer : NN::K_LAYER_REGISTRY)
             EXPECT_NE(node.type, layer.type);
     }
 }
@@ -500,12 +500,12 @@ TEST(Unit_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
     EXPECT_EQ(node->ports()[0].name, NN::K_SINGLE_PORT_NAME);
     EXPECT_EQ(node->ports()[0].shape, (Shape{8, 8, 2}));
 
-    ASSERT_EQ(K_LAYER_CASES.size(), NN::LAYER_REGISTRY.size());
-    for (std::size_t index = 0; index < NN::LAYER_REGISTRY.size(); ++index)
+    ASSERT_EQ(K_LAYER_CASES.size(), NN::K_LAYER_REGISTRY.size());
+    for (std::size_t index = 0; index < NN::K_LAYER_REGISTRY.size(); ++index)
     {
         const LayerCase& minimal = K_LAYER_CASES[index];
         SCOPED_TRACE(std::string(minimal.type));
-        ASSERT_EQ(minimal.type, NN::LAYER_REGISTRY[index].type);
+        ASSERT_EQ(minimal.type, NN::K_LAYER_REGISTRY[index].type);
 
         const std::vector<Shape> read = {minimal.input};
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> built,
@@ -558,7 +558,7 @@ TEST(Unit_NodeRegistry, AnUnknownTypeListsBothTables)
         SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription,
                           "'" + std::string(entry.type) + "'");
 
-    for (const NN::LayerEntry& entry : NN::LAYER_REGISTRY)
+    for (const NN::LayerEntry& entry : NN::K_LAYER_REGISTRY)
         SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription,
                           "'" + std::string(entry.type) + "'");
 }
@@ -827,7 +827,7 @@ TEST(Unit_NodeRegistry, Yolo26RowsTwoAndFourAddTheirBottlenecksInput)
     SA_ASSERT_OK_AND_ASSIGN(const TraceSummary traced,
                             trace_summary(model, spec.input_shape, "model"));
 
-    EXPECT_EQ(std::count(traced.ops.begin(), traced.ops.end(), Ops::ADD.id), 2);
+    EXPECT_EQ(std::count(traced.ops.begin(), traced.ops.end(), Ops::K_ADD.id), 2);
 }
 
 /**

@@ -46,7 +46,7 @@ namespace SushiAI
              */
             bool is_structural(OpID op) noexcept
             {
-                return op == Ops::LEAF.id || op == Ops::CAST.id;
+                return op == Ops::K_LEAF.id || op == Ops::K_CAST.id;
             }
 
             /**
@@ -72,7 +72,7 @@ namespace SushiAI
              */
             DType computed_dtype(const Node& node,
                                  const std::vector<DType>& declared,
-                                 const IPrecisionPolicy& policy)
+                                 const PrecisionPolicy& policy)
             {
                 SA_THROW_IF(node.outputs.empty(),
                             "{} declares no result, so there is no precision to reason about. "
@@ -164,7 +164,7 @@ namespace SushiAI
         CastReport insert_casts(Graph& graph, const CastOptions& options)
         {
             const UniformPrecisionPolicy fallback;
-            const IPrecisionPolicy& policy =
+            const PrecisionPolicy& policy =
                 options.policy != nullptr ? *options.policy : fallback;
 
             CastReport report;
@@ -181,7 +181,7 @@ namespace SushiAI
                 for (ValueId in : graph.node(id).inputs)
                 {
                     const NodeId producer = graph.value(in).producer;
-                    SA_THROW_IF(producer != NO_NODE && producer >= id,
+                    SA_THROW_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The cast "
                                 "pass needs the graph's insertion order to be a topological "
                                 "order; emit the producer first.",
@@ -193,7 +193,7 @@ namespace SushiAI
             for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
                 declared[id] = graph.value(id).dtype;
 
-            std::vector<DType> computed(node_count, DType::FLOAT32);
+            std::vector<DType> computed(node_count, DType::Float32);
             for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
             {
                 const Node& node = graph.node(id);
@@ -219,7 +219,7 @@ namespace SushiAI
             for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
             {
                 const NodeId producer = graph.value(id).producer;
-                if (pinned[id] || producer == NO_NODE) continue;
+                if (pinned[id] || producer == K_NO_NODE) continue;
                 if (is_structural(graph.node(producer).op)) continue;
                 if (!has_precision(declared[id])) continue;
 
@@ -287,7 +287,7 @@ namespace SushiAI
                     const bool needs_grad = rebuilt.value(out).requires_grad;
 
                     const ValueId computed_result =
-                        rebuilt.add_value(shape, wanted, Lifetime::ACTIVATION,
+                        rebuilt.add_value(shape, wanted, Lifetime::Activation,
                                           cast_label(wanted, master));
 
                     rebuilt.value(computed_result).requires_grad = needs_grad;
@@ -323,7 +323,7 @@ namespace SushiAI
         }
 
         std::vector<DTypeMismatch> find_dtype_mismatches(const Graph& graph,
-                                                         const IPrecisionPolicy& policy)
+                                                         const PrecisionPolicy& policy)
         {
             std::vector<DTypeMismatch> mismatches;
 

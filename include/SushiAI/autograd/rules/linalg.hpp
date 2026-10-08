@@ -42,10 +42,10 @@ namespace SushiAI
         void sum_rows_backward(const GradientTape& tape);
 
         /** @brief Holds backward rule entries for linear algebra operations. */
-        inline constexpr std::array<RuleEntry, 3> LINALG_RULES = {{
-            {Ops::MATMUL.id,   &matmul_backward},
-            {Ops::BIAS_ADD.id, &bias_add_backward},
-            {Ops::SUM_ROWS.id, &sum_rows_backward},
+        inline constexpr std::array<RuleEntry, 3> K_LINALG_RULES = {{
+            {Ops::K_MATMUL.id,   &matmul_backward},
+            {Ops::K_BIAS_ADD.id, &bias_add_backward},
+            {Ops::K_SUM_ROWS.id, &sum_rows_backward},
         }};
     }
 }

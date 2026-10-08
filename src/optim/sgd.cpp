@@ -58,9 +58,9 @@ namespace SushiAI
             };
 
             /** @brief The task name; proved below to be the OpID's own string. */
-            constexpr const char* TASK_NAME = "sushiai.optim.sgd";
+            constexpr const char* K_TASK_NAME = "sushiai.optim.sgd";
 
-            static_assert(Ops::SGD_UPDATE.name == std::string_view(TASK_NAME),
+            static_assert(Ops::K_SGD_UPDATE.name == std::string_view(K_TASK_NAME),
                           "the fused update's task name must be the string its OpID hashes");
         }
 
@@ -77,7 +77,7 @@ namespace SushiAI
                         options_.dampening);
 
             has_momentum_ = options_.momentum != 0.0;
-            const bool separate = options_.kernel == UpdateKernel::SEPARATE;
+            const bool separate = options_.kernel == UpdateKernel::Separate;
 
             state_.reserve(slots().size());
             for (const ParameterSlot& slot : slots())
@@ -122,7 +122,7 @@ namespace SushiAI
 
         std::size_t SGD::record_update()
         {
-            return options_.kernel == UpdateKernel::FUSED ? record_fused()
+            return options_.kernel == UpdateKernel::Fused ? record_fused()
                                                           : record_separate();
         }
 
@@ -143,7 +143,7 @@ namespace SushiAI
                     std::array<SushiBLAS::Tensor*, 2> operands{&slot.parameter, &slot.gradient};
 
                     SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
-                        TASK_NAME, Ops::SGD_UPDATE.id,
+                        K_TASK_NAME, Ops::K_SGD_UPDATE.id,
                         [s, gate, i](auto& theta, auto& g)
                         {
                             using T = std::decay_t<decltype(theta)>;
@@ -167,7 +167,7 @@ namespace SushiAI
                 };
 
                 SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
-                    TASK_NAME, Ops::SGD_UPDATE.id,
+                    K_TASK_NAME, Ops::K_SGD_UPDATE.id,
                     [s, gate, i](auto& theta, auto& g, auto& b)
                     {
                         using T = std::decay_t<decltype(theta)>;

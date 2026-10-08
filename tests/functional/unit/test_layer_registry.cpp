@@ -124,7 +124,7 @@ namespace
                                            const Shape& input)
     {
         const NN::LayerEntry& entry =
-            Config::find_entry(NN::LAYER_REGISTRY, type, "layer type");
+            Config::find_entry(NN::K_LAYER_REGISTRY, type, "layer type");
         const std::string context = "layer 0 '" + std::string(type) + "'";
         return entry.make(input, attributes_from(attributes), context);
     }
@@ -214,10 +214,10 @@ namespace
 /** @brief Tests that every registry row has a minimal case here, so no factory goes unbuilt. */
 TEST(Unit_LayerRegistry, EveryRowHasAMinimalCase)
 {
-    ASSERT_EQ(K_MINIMAL_CASES.size(), NN::LAYER_REGISTRY.size());
+    ASSERT_EQ(K_MINIMAL_CASES.size(), NN::K_LAYER_REGISTRY.size());
 
-    for (std::size_t i = 0; i < NN::LAYER_REGISTRY.size(); ++i)
-        EXPECT_EQ(K_MINIMAL_CASES[i].type, NN::LAYER_REGISTRY[i].type);
+    for (std::size_t i = 0; i < NN::K_LAYER_REGISTRY.size(); ++i)
+        EXPECT_EQ(K_MINIMAL_CASES[i].type, NN::K_LAYER_REGISTRY[i].type);
 }
 
 /** @brief Tests that the registry spells its fourteen type strings as model files do, in order. */
@@ -230,7 +230,7 @@ TEST(Unit_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
     };
 
     std::vector<std::string_view> spelled;
-    for (const NN::LayerEntry& entry : NN::LAYER_REGISTRY)
+    for (const NN::LayerEntry& entry : NN::K_LAYER_REGISTRY)
         spelled.push_back(entry.type);
 
     EXPECT_EQ(spelled, expected);
@@ -258,7 +258,7 @@ TEST(Unit_LayerRegistry, EachKeyBuildsItsOwnLayerType)
     const Shape image{8, 8, 2};
 
     EXPECT_NE(wrapped<NN::Linear>(make_layer("linear", R"({"units": 5})", vector)), nullptr);
-    EXPECT_NE(wrapped<NN::GELU>(make_layer("gelu", "{}", vector)), nullptr);
+    EXPECT_NE(wrapped<NN::K_GELU>(make_layer("gelu", "{}", vector)), nullptr);
     EXPECT_NE(wrapped<NN::ReLU>(make_layer("relu", "{}", vector)), nullptr);
     EXPECT_NE(wrapped<NN::Tanh>(make_layer("tanh", "{}", vector)), nullptr);
     EXPECT_NE(wrapped<NN::Sigmoid>(make_layer("sigmoid", "{}", vector)), nullptr);
@@ -644,7 +644,7 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
     for (std::size_t i = 0; i < gradients.size(); ++i)
     {
         SCOPED_TRACE(names[i]);
-        ASSERT_NE(gradients[i], Graph::NO_VALUE);
+        ASSERT_NE(gradients[i], Graph::K_NO_VALUE);
         EXPECT_EQ(graph.value(gradients[i]).shape, shapes[i]);
     }
 }
@@ -660,7 +660,7 @@ TEST(Unit_LayerRegistry, ASiluRowTracesOneSiluNode)
     const Graph::ValueId y = layer->forward(builder, x);
 
     ASSERT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.nodes()[0].op, Ops::SILU.id);
+    EXPECT_EQ(graph.nodes()[0].op, Ops::K_SILU.id);
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 8, 8, 2}));
 }
 

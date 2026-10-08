@@ -42,7 +42,7 @@ namespace sb = SushiBLAS;
 namespace
 {
     /** @brief Holds the text `--help` prints. */
-    constexpr std::string_view USAGE =
+    constexpr std::string_view K_USAGE =
         "sushiai train - train a model described by a JSON configuration.\n"
         "\n"
         "Usage: sushiai train <train.json>\n"
@@ -59,7 +59,7 @@ int main(int argc, char** argv)
     {
         if (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
         {
-            std::cout << USAGE;
+            std::cout << K_USAGE;
             return EXIT_SUCCESS;
         }
 
@@ -83,7 +83,7 @@ int main(int argc, char** argv)
 
         sa::NN::LayerStack model = sa::NN::build_layer_stack(model_spec);
 
-        const std::unique_ptr<sa::Train::IObjective> objective =
+        const std::unique_ptr<sa::Train::Objective> objective =
             sa::Train::make_objective(spec.objective_type, dataset->batch_size(),
                                       dataset->num_classes(), spec.objective_attributes,
                                       "the objective block");

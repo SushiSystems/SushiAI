@@ -49,7 +49,7 @@ namespace SushiAI
                 SA_THROW_IF(!is_real_float(slot.parameter.dtype),
                             "Parameter '{}' is {}; optimizers update real floating tensors only",
                             slot.name, dtype_name(slot.parameter.dtype));
-                SA_THROW_IF(slot.parameter.dtype == DType::HALF,
+                SA_THROW_IF(slot.parameter.dtype == DType::Half,
                             "Parameter '{}' is half precision; SushiBLAS's RNG cannot initialise "
                             "half state and a half accumulator loses the small updates that make "
                             "momentum work. Keep parameters in float32.",

@@ -45,7 +45,7 @@ namespace SushiAI
             /** @brief Returns whether @p node is a LEAF, which no region holds. */
             bool is_leaf(const Graph::Graph& graph, Graph::NodeId node)
             {
-                return graph.node(node).op == Ops::LEAF.id;
+                return graph.node(node).op == Ops::K_LEAF.id;
             }
 
             /**
@@ -149,7 +149,7 @@ namespace SushiAI
                 for (Graph::ValueId operand : graph.node(node).inputs)
                 {
                     const Graph::NodeId producer = graph.value(operand).producer;
-                    if (producer != Graph::NO_NODE)
+                    if (producer != Graph::K_NO_NODE)
                         highest = std::max(highest, region_of_node[producer]);
                 }
 
@@ -197,7 +197,7 @@ namespace SushiAI
                     for (Graph::ValueId operand : graph.node(node).inputs)
                     {
                         const Graph::NodeId producer = graph.value(operand).producer;
-                        if (producer == Graph::NO_NODE)
+                        if (producer == Graph::K_NO_NODE)
                             continue;
 
                         SA_THROW_IF(region_of_node[producer] > region_of_node[i],

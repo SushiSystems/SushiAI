@@ -58,8 +58,8 @@ namespace SushiAI
                  * @param selector Fusion selector, or null for default.
                  */
                 CompiledStep(SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
-                             IStepRecorder* trailing = nullptr,
-                             const IFusionSelector* selector = nullptr);
+                             StepRecorder* trailing = nullptr,
+                             const FusionSelector* selector = nullptr);
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;
@@ -109,7 +109,7 @@ namespace SushiAI
 
             private:
                 SushiBLAS::Engine* engine_;
-                IStepRecorder* trailing_;
+                StepRecorder* trailing_;
                 SushiRuntime::Execution::CompiledGraph plan_;
                 std::vector<FusionSelection> selections_;
                 std::size_t compile_count_ = 0;

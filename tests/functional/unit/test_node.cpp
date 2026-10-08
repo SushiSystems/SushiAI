@@ -229,7 +229,7 @@ namespace
             {
                 return std::string("the stub's recorded cause");
             }));
-            SA_THROW_IF(x != Graph::NO_VALUE, "the stub's later throw over value {}", x);
+            SA_THROW_IF(x != Graph::K_NO_VALUE, "the stub's later throw over value {}", x);
             return x;
         }
 

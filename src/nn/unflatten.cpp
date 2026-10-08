@@ -68,7 +68,7 @@ namespace SushiAI
             SA_THROW_IF(input.shape[1] != elements,
                         "Unflatten({}, {}, {}) needs an input whose inner extent is {}; got {}",
                         height, width, channels, elements, input.shape.to_string());
-            SA_THROW_IF(input.layout != Graph::TensorLayout::NHWC,
+            SA_THROW_IF(input.layout != Graph::TensorLayout::Nhwc,
                         "Unflatten needs an NHWC input; got {} tagged NCHW. Cross with "
                         "layout_convert first (CV-3).",
                         input.shape.to_string());

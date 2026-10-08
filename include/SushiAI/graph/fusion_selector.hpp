@@ -44,11 +44,11 @@ namespace SushiAI
          */
         struct FusionQuery
         {
-            /** @brief The form the static pass matched; never @c FusedForm::NONE. */
-            FusedForm matched = FusedForm::NONE;
+            /** @brief The form the static pass matched; never @c FusedForm::None. */
+            FusedForm matched = FusedForm::None;
 
             /** @brief The element type every operand shares. */
-            DType dtype = DType::FLOAT32;
+            DType dtype = DType::Float32;
 
             /** @brief Rows of the node's result. */
             std::int64_t rows = 0;
@@ -76,10 +76,10 @@ namespace SushiAI
              * @brief The form to instantiate.
              *
              * Equal to @c FusionQuery::matched to take the whole match, a
-             * shorter entry to take part of it, or @c FusedForm::NONE to spell
+             * shorter entry to take part of it, or @c FusedForm::None to spell
              * the node out of unfused operations.
              */
-            FusedForm form = FusedForm::NONE;
+            FusedForm form = FusedForm::None;
 
             /** @brief A sentence for the report; a static string, never owned. */
             std::string_view reason{};
@@ -89,10 +89,10 @@ namespace SushiAI
          * @class IFusionSelector
          * @brief Defines the interface for bind-time selection of fused forms.
          */
-        class IFusionSelector
+        class FusionSelector
         {
             public:
-                virtual ~IFusionSelector() = default;
+                virtual ~FusionSelector() = default;
 
                 /**
                  * @brief Chooses the form to spell for @p query.
@@ -106,7 +106,7 @@ namespace SushiAI
          * @class DeviceFusionSelector
          * @brief Selects fused forms based on device profile and execution mode.
          */
-        class DeviceFusionSelector final : public IFusionSelector
+        class DeviceFusionSelector final : public FusionSelector
         {
             public:
                 /**
@@ -145,10 +145,10 @@ namespace SushiAI
         struct FusionSelection
         {
             /** @brief What the static pass matched. */
-            FusedForm matched = FusedForm::NONE;
+            FusedForm matched = FusedForm::None;
 
             /** @brief What the selector chose. */
-            FusedForm chosen = FusedForm::NONE;
+            FusedForm chosen = FusedForm::None;
 
             /** @brief Why. */
             std::string_view reason{};

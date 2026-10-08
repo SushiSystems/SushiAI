@@ -174,7 +174,7 @@ namespace SushiAI
                  * @return The new value's id.
                  */
                 ValueId input(Shape shape, std::string_view debug_name,
-                              DType dtype = DType::FLOAT32) const;
+                              DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Declares a learnable parameter: a leaf that needs a gradient.
@@ -184,7 +184,7 @@ namespace SushiAI
                  * @return The new value's id.
                  */
                 ValueId parameter(Shape shape, std::string_view debug_name,
-                                  DType dtype = DType::FLOAT32) const;
+                                  DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Declares a buffer leaf: persistent, no gradient, not rewritten per step.
@@ -194,7 +194,7 @@ namespace SushiAI
                  * @return The new value's id, with the BUFFER lifetime.
                  */
                 ValueId buffer(Shape shape, std::string_view debug_name,
-                               DType dtype = DType::FLOAT32) const;
+                               DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Emits MATMUL: C = op(A) * op(B).
@@ -208,7 +208,7 @@ namespace SushiAI
                                bool transpose_a = false, bool transpose_b = false) const;
 
                 /**
-                 * @brief Emits @c BIAS_ADD: Y = X + 1 * bias^T, over an [N, C] X.
+                 * @brief Emits @c K_BIAS_ADD: Y = X + 1 * bias^T, over an [N, C] X.
                  * @param x The [N, C] matrix.
                  * @param bias The [C] row added to every row of @p x.
                  * @return The sum's id.
@@ -217,20 +217,20 @@ namespace SushiAI
                 ValueId bias_add(ValueId x, ValueId bias) const;
 
                 /**
-                 * @brief Emits @c SUM_ROWS: the column sums of an [N, C] matrix.
+                 * @brief Emits @c K_SUM_ROWS: the column sums of an [N, C] matrix.
                  * @param x The [N, C] matrix.
                  * @return The [C] result's id.
                  * @throws Error If @p x is not rank 2.
                  */
                 ValueId sum_rows(ValueId x) const;
 
-                /** @brief Emits @c ADD: elementwise A + B. @throws Error on mismatch. */
+                /** @brief Emits @c K_ADD: elementwise A + B. @throws Error on mismatch. */
                 ValueId add(ValueId a, ValueId b) const;
 
-                /** @brief Emits @c SUB: elementwise A - B. @throws Error on mismatch. */
+                /** @brief Emits @c K_SUB: elementwise A - B. @throws Error on mismatch. */
                 ValueId sub(ValueId a, ValueId b) const;
 
-                /** @brief Emits @c MUL: elementwise A * B. @throws Error on mismatch. */
+                /** @brief Emits @c K_MUL: elementwise A * B. @throws Error on mismatch. */
                 ValueId mul(ValueId a, ValueId b) const;
 
                 /**
@@ -275,7 +275,7 @@ namespace SushiAI
                 ValueId select(ValueId condition, ValueId a, ValueId b) const;
 
                 /**
-                 * @brief Emits @c SCALE: Y = alpha * X.
+                 * @brief Emits @c K_SCALE: Y = alpha * X.
                  * @param x The operand.
                  * @param alpha The host-side constant factor.
                  * @return The scaled value's id.
@@ -293,7 +293,7 @@ namespace SushiAI
                 ValueId dynamic_scale(ValueId x, ValueId factor,
                                       std::string_view debug_name = "dynamic_scale") const;
 
-                /** @brief Emits @c EXP: elementwise exp(X), out of place. */
+                /** @brief Emits @c K_EXP: elementwise exp(X), out of place. */
                 ValueId exp(ValueId x) const;
 
                 /** @brief Emits ABS: elementwise |x|, out of place. */
@@ -311,7 +311,7 @@ namespace SushiAI
                  * @param dtype The element data type.
                  * @return The new value id.
                  */
-                ValueId zeros(Shape shape, DType dtype = DType::FLOAT32) const;
+                ValueId zeros(Shape shape, DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Emits ZERO adopting the layout of @p like.
@@ -321,7 +321,7 @@ namespace SushiAI
                  * @return The new value id.
                  */
                 ValueId zeros_like(ValueId like, Shape shape,
-                                   DType dtype = DType::FLOAT32) const;
+                                   DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Emits CONSTANT: a tensor with no operands, filled with @p value.
@@ -330,7 +330,7 @@ namespace SushiAI
                  * @param dtype The element type; must be half, float32 or float64.
                  * @return The new value id, in the NHWC layout, requiring no gradient.
                  */
-                ValueId constant(Shape shape, double value, DType dtype = DType::FLOAT32) const;
+                ValueId constant(Shape shape, double value, DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Emits CONSTANT in the shape, element type and layout of @p x.
@@ -340,16 +340,16 @@ namespace SushiAI
                  */
                 ValueId constant_like(ValueId x, double value) const;
 
-                /** @brief Emits @c RELU. */
+                /** @brief Emits @c K_RELU. */
                 ValueId relu(ValueId x) const;
 
-                /** @brief Emits @c GELU (tanh approximation). */
+                /** @brief Emits @c K_GELU (tanh approximation). */
                 ValueId gelu(ValueId x) const;
 
-                /** @brief Emits @c SIGMOID. */
+                /** @brief Emits @c K_SIGMOID. */
                 ValueId sigmoid(ValueId x) const;
 
-                /** @brief Emits @c TANH. */
+                /** @brief Emits @c K_TANH. */
                 ValueId tanh(ValueId x) const;
 
                 /** @brief Emits SILU: elementwise x * sigmoid(x). */
@@ -376,7 +376,7 @@ namespace SushiAI
                                             const Attributes& attributes = {}) const;
 
                 /**
-                 * @brief Emits @c LOG_SOFTMAX over the rows of an [N, C] matrix.
+                 * @brief Emits @c K_LOG_SOFTMAX over the rows of an [N, C] matrix.
                  * @param x The logits.
                  * @return The [N, C] log-probabilities' id.
                  * @throws Error If @p x is not rank 2.
@@ -384,9 +384,9 @@ namespace SushiAI
                 ValueId log_softmax(ValueId x) const;
 
                 /**
-                 * @brief Emits @c NLL_LOSS: the mean negative log-likelihood.
+                 * @brief Emits @c K_NLL_LOSS: the mean negative log-likelihood.
                  *
-                 * @param log_probs An [N, C] value, normally a @c LOG_SOFTMAX result.
+                 * @param log_probs An [N, C] value, normally a @c K_LOG_SOFTMAX result.
                  * @param one_hot An [N, C] one-hot target matrix.
                  * @return A 1-element loss value's id.
                  * @throws Error If the two operands disagree in shape or dtype.
@@ -501,7 +501,7 @@ namespace SushiAI
                                const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c MAXPOOL2D, with symmetric padding assumed.
+                 * @brief Emits @c K_MAXPOOL2D, with symmetric padding assumed.
                  * @param x The @c [N,H,W,C] input.
                  * @param g The window geometry.
                  * @return The pooled value and its argmax indices.
@@ -521,7 +521,7 @@ namespace SushiAI
                                                   int64_t out_h, int64_t out_w) const;
 
                 /**
-                 * @brief Emits @c AVGPOOL2D. Divides by the full window area.
+                 * @brief Emits @c K_AVGPOOL2D. Divides by the full window area.
                  * @param x The @c [N,H,W,C] input.
                  * @param g The window geometry.
                  * @return The pooled value's id.
@@ -541,7 +541,7 @@ namespace SushiAI
                 ValueId upsample2d(ValueId x, int64_t scale_h, int64_t scale_w) const;
 
                 /**
-                 * @brief Emits @c SPATIAL_MEAN: the mean of every [H,W] plane.
+                 * @brief Emits @c K_SPATIAL_MEAN: the mean of every [H,W] plane.
                  * @param x The @c [N,H,W,C] input.
                  * @return The @c [N,C] result's id.
                  * @throws Error If @p x is not rank 4 or not NHWC.
@@ -560,7 +560,7 @@ namespace SushiAI
                                           const ConvGeometry& g) const;
 
                 /**
-                 * @brief Emits @c AVGPOOL2D_BACKWARD: spreads each gradient over its window.
+                 * @brief Emits @c K_AVGPOOL2D_BACKWARD: spreads each gradient over its window.
                  * @param dy The @c [N,H_o,W_o,C] output gradient.
                  * @param input_shape The @c [N,H,W,C] shape of the pooled input.
                  * @param g The window geometry the forward used.
@@ -590,7 +590,7 @@ namespace SushiAI
                 ValueId spatial_mean_backward(ValueId dy, Shape input_shape) const;
 
                 /**
-                 * @brief Emits @c CONCAT_CHANNELS: joins operands along the channel axis.
+                 * @brief Emits @c K_CONCAT_CHANNELS: joins operands along the channel axis.
                  * @param parts The @c [N,H,W,C_i] operands, at least one, sharing
                  *        N, H, W and dtype.
                  * @return The @c [N,H,W,sum(C_i)] result's id.
@@ -661,7 +661,7 @@ namespace SushiAI
                                              ValueId variance, double epsilon) const;
 
                 /**
-                 * @brief Emits @c RESHAPE: a view of @p x with different extents.
+                 * @brief Emits @c K_RESHAPE: a view of @p x with different extents.
                  * @param x The value reshaped.
                  * @param shape The result's extents.
                  * @return The reshaped value's id.

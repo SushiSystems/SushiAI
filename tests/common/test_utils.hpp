@@ -74,7 +74,7 @@ namespace SushiAI
         {
             EXPECT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
 
-            if (tensor.dtype == DType::FLOAT64)
+            if (tensor.dtype == DType::Float64)
             {
                 double* data = tensor.data_as<double>();
                 for (std::size_t i = 0; i < values.size(); ++i) data[i] = values[i];
@@ -91,7 +91,7 @@ namespace SushiAI
             const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
             std::vector<double> values(count);
 
-            if (tensor.dtype == DType::FLOAT64)
+            if (tensor.dtype == DType::Float64)
             {
                 const double* data = tensor.data_as<double>();
                 for (std::size_t i = 0; i < count; ++i) values[i] = data[i];

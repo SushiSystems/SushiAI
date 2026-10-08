@@ -40,9 +40,9 @@ namespace SushiAI
         void layout_convert_backward(const GradientTape& tape);
 
         /** @brief Holds backward rule entries for structural shape and layout operations. */
-        inline constexpr std::array<RuleEntry, 2> SHAPE_RULES = {{
-            {Ops::RESHAPE.id,        &reshape_backward},
-            {Ops::LAYOUT_CONVERT.id, &layout_convert_backward},
+        inline constexpr std::array<RuleEntry, 2> K_SHAPE_RULES = {{
+            {Ops::K_RESHAPE.id,        &reshape_backward},
+            {Ops::K_LAYOUT_CONVERT.id, &layout_convert_backward},
         }};
     }
 }

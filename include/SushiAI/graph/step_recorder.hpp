@@ -42,10 +42,10 @@ namespace SushiAI
          *
          * Records replay-invariant tasks into the graph builder before compilation.
          */
-        class IStepRecorder
+        class StepRecorder
         {
             public:
-                virtual ~IStepRecorder() = default;
+                virtual ~StepRecorder() = default;
 
                 /**
                  * @brief Records this work into the engine's task-graph builder.
@@ -72,7 +72,7 @@ namespace SushiAI
          *
          * Holds each member by address and owns none of them.
          */
-        class StepRecorderList final : public IStepRecorder
+        class StepRecorderList final : public StepRecorder
         {
             public:
                 /**
@@ -81,7 +81,7 @@ namespace SushiAI
                  *                 member. A recorder reached through a nested list is not checked.
                  * @pre No list of one tree holds a recorder twice, and no list reaches itself.
                  */
-                void add(IStepRecorder& recorder)
+                void add(StepRecorder& recorder)
                 {
                     SA_THROW_IF(&recorder == this,
                                 "StepRecorderList::add: a list cannot hold itself");
@@ -107,7 +107,7 @@ namespace SushiAI
                 std::size_t record_into_step() override
                 {
                     std::size_t recorded = 0;
-                    for (IStepRecorder* member : members_)
+                    for (StepRecorder* member : members_)
                         recorded += member->record_into_step();
 
                     return recorded;
@@ -116,20 +116,20 @@ namespace SushiAI
                 /** @brief Refreshes every member's host state, first added first. */
                 void before_replay() override
                 {
-                    for (IStepRecorder* member : members_)
+                    for (StepRecorder* member : members_)
                         member->before_replay();
                 }
 
                 /** @brief Notifies every member that the replay finished, first added first. */
                 void after_replay() override
                 {
-                    for (IStepRecorder* member : members_)
+                    for (StepRecorder* member : members_)
                         member->after_replay();
                 }
 
             private:
                 /// @brief Members in the order add() received them; none is owned.
-                std::vector<IStepRecorder*> members_;
+                std::vector<StepRecorder*> members_;
         };
 
     } // namespace Graph

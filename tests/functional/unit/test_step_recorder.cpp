@@ -34,13 +34,13 @@
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
-using Graph::IStepRecorder;
+using Graph::StepRecorder;
 using Graph::StepRecorderList;
 
 namespace
 {
     /** @brief Writes each call it receives to a shared journal as "<name>.<call>". */
-    class JournalRecorder final : public IStepRecorder
+    class JournalRecorder final : public StepRecorder
     {
         public:
             /** @brief Binds the recorder to @p journal, which must outlive it. */
@@ -81,7 +81,7 @@ namespace
     };
 
     /** @brief Overrides only the pure call, so both replay hooks are the interface's own. */
-    class RecordOnlyRecorder final : public IStepRecorder
+    class RecordOnlyRecorder final : public StepRecorder
     {
         public:
             /** @brief Returns a fixed count of three tasks. */
@@ -230,7 +230,7 @@ TEST(Unit_StepRecorder, ListIsDrivenThroughTheInterface)
     StepRecorderList list;
     list.add(a);
     list.add(b);
-    IStepRecorder* trailing = &list;
+    StepRecorder* trailing = &list;
 
     EXPECT_EQ(trailing->record_into_step(), 5u);
     trailing->before_replay();

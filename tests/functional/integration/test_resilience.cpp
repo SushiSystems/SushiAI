@@ -182,8 +182,8 @@ TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrong
 {
     std::vector<Optim::ParameterSlot> slots;
     slots.push_back(Optim::ParameterSlot{"0.bias",
-                                         allocate_tensor(*engine, Shape{4}, DType::FLOAT32),
-                                         allocate_tensor(*engine, Shape{4}, DType::FLOAT64)});
+                                         allocate_tensor(*engine, Shape{4}, DType::Float32),
+                                         allocate_tensor(*engine, Shape{4}, DType::Float64)});
 
     SA_EXPECT_ERROR((void)Optim::SGD(*engine, slots, Optim::SGDOptions{}),
                     "0.bias", "float32", "float64");
@@ -194,16 +194,16 @@ TEST_F(Integration_Resilience, AnOptimizerRefusesADtypeItCannotServeAndExplainsW
     // The half refusal must say why in its message; see tests/functional/integration/README.md.
     std::vector<Optim::ParameterSlot> complex_slot;
     complex_slot.push_back(Optim::ParameterSlot{"0.weight",
-                                                allocate_tensor(*engine, Shape{4}, DType::COMPLEX32),
-                                                allocate_tensor(*engine, Shape{4}, DType::COMPLEX32)});
+                                                allocate_tensor(*engine, Shape{4}, DType::Complex32),
+                                                allocate_tensor(*engine, Shape{4}, DType::Complex32)});
 
     SA_EXPECT_ERROR((void)Optim::SGD(*engine, complex_slot, Optim::SGDOptions{}),
                     "0.weight", "complex32", "real floating tensors only");
 
     std::vector<Optim::ParameterSlot> half_slot;
     half_slot.push_back(Optim::ParameterSlot{"0.weight",
-                                             allocate_tensor(*engine, Shape{4}, DType::HALF),
-                                             allocate_tensor(*engine, Shape{4}, DType::HALF)});
+                                             allocate_tensor(*engine, Shape{4}, DType::Half),
+                                             allocate_tensor(*engine, Shape{4}, DType::Half)});
 
     SA_EXPECT_ERROR((void)Optim::AdamW(*engine, half_slot, Optim::AdamWOptions{}),
                     "0.weight", "half precision", "float32");
@@ -234,7 +234,7 @@ TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
     NN::Linear layer{4, 3};
     Train::TrainingGraph built = Train::build_classifier(layer, 4, 4, 3);
     built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id(),
-                                                       Graph::NO_VALUE});
+                                                       Graph::K_NO_VALUE});
 
     TensorPool pool(*engine);
     SA_EXPECT_ERROR((void)Train::bind_parameters(built, pool),
@@ -704,7 +704,7 @@ TEST_F(Integration_Resilience, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
     const ValueId running = builder.parameter(Shape{4}, "running_mean");
     const ValueId batch = builder.input(Shape{4}, "batch_mean");
     const ValueId out = builder.like(running, "updated_running_mean");
-    graph.add_node(Ops::BATCHNORM_UPDATE_STATS.id, {running, batch}, {out});
+    graph.add_node(Ops::K_BATCHNORM_UPDATE_STATS.id, {running, batch}, {out});
     graph.finalise();
 
     TensorPool pool(*engine);

@@ -52,11 +52,11 @@ namespace
      */
     void trace_nodes(Graph::Graph& graph, std::size_t count)
     {
-        const ValueId source = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::INPUT);
+        const ValueId source = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
         for (std::size_t i = 0; i < count; ++i)
         {
-            const ValueId result = graph.add_value(Shape{2}, DType::FLOAT32, Lifetime::ACTIVATION);
-            graph.add_node(Ops::ADD.id, {source, source}, {result});
+            const ValueId result = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
+            graph.add_node(Ops::K_ADD.id, {source, source}, {result});
         }
     }
 

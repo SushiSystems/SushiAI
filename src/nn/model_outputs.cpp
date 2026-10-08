@@ -71,7 +71,7 @@ namespace SushiAI
 
         Status ModelOutputs::add(std::string name, Graph::ValueId id)
         {
-            SA_FATAL_IF(id == Graph::NO_VALUE,
+            SA_FATAL_IF(id == Graph::K_NO_VALUE,
                         "a model output named '{}' was added with no value", name);
             SA_FAIL_IF(name.empty(), StatusCode::InvalidDescription,
                        "a model output needs a name; the outputs so far: {}",

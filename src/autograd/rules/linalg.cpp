@@ -35,7 +35,7 @@ namespace SushiAI
         {
             const Graph::Node& node = tape.node();
             const Graph::ValueId dc = tape.output_grad(0);
-            if (dc == Graph::NO_VALUE) return;
+            if (dc == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
             const Graph::ValueId a = node.inputs.at(0);
@@ -68,7 +68,7 @@ namespace SushiAI
         void bias_add_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Bias addition passes gradient directly to input and sums across rows for bias.
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dy);
@@ -78,7 +78,7 @@ namespace SushiAI
         void sum_rows_backward(const GradientTape& tape)
         {
             const Graph::ValueId ds = tape.output_grad(0);
-            if (ds == Graph::NO_VALUE) return;
+            if (ds == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId x = tape.node().inputs.at(0);

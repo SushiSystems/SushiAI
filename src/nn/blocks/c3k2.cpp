@@ -83,7 +83,7 @@ namespace SushiAI
                     return fallback;
 
                 const Config::Value& stated = attributes.at("inner", context);
-                SA_FAIL_IF(stated.kind() != Config::Kind::STRING, StatusCode::InvalidDescription,
+                SA_FAIL_IF(stated.kind() != Config::Kind::String, StatusCode::InvalidDescription,
                            "{} 'inner' must be a string, but it is {}", context,
                            Config::kind_name(stated.kind()));
 

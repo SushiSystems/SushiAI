@@ -160,10 +160,10 @@ namespace SushiAI
             struct Buffer
             {
                 /** @brief The alias class's representative value. */
-                ValueId owner = NO_VALUE;
+                ValueId owner = K_NO_VALUE;
 
                 /** @brief Which arena class it belongs to. */
-                Lifetime lifetime = Lifetime::ACTIVATION;
+                Lifetime lifetime = Lifetime::Activation;
 
                 /** @brief The largest member's byte count. */
                 std::size_t bytes = 0;
@@ -172,7 +172,7 @@ namespace SushiAI
                 std::size_t alignment = 1;
 
                 /** @brief The earliest node that writes it, or NO_NODE. */
-                NodeId first_write = NO_NODE;
+                NodeId first_write = K_NO_NODE;
 
                 /** @brief Every node that writes or reads any member. */
                 std::vector<NodeId> uses;
@@ -198,7 +198,7 @@ namespace SushiAI
              */
             bool precedes(const Buffer& earlier, const Buffer& later, const Reachability& reach)
             {
-                if (later.first_write == NO_NODE) return false;
+                if (later.first_write == K_NO_NODE) return false;
 
                 for (NodeId use : earlier.uses)
                     if (!reach.reaches(use, later.first_write)) return false;
@@ -275,7 +275,7 @@ namespace SushiAI
                 for (ValueId in : graph.node(id).inputs)
                 {
                     const NodeId producer = graph.value(in).producer;
-                    SA_THROW_IF(producer != NO_NODE && producer >= id,
+                    SA_THROW_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The memory "
                                 "planner needs the graph's insertion order to be a topological "
                                 "order; emit the producer first.",
@@ -286,7 +286,7 @@ namespace SushiAI
             // Groups values that share a common backing buffer.
             Aliases aliases(value_count);
             for (const Node& node : graph.nodes())
-                if (node.op == Ops::ACCUMULATE.id && !node.inputs.empty() && !node.outputs.empty())
+                if (node.op == Ops::K_ACCUMULATE.id && !node.inputs.empty() && !node.outputs.empty())
                     aliases.merge(node.outputs[0], node.inputs[0]);
 
             std::vector<Buffer> buffers;
@@ -317,7 +317,7 @@ namespace SushiAI
                 if (id == owner) buffer.lifetime = value.lifetime;
                 if (is_persistent(value.lifetime)) buffer.packable = false;
 
-                if (value.producer == NO_NODE)
+                if (value.producer == K_NO_NODE)
                 {
                     // External inputs persist across step replays and are marked unpackable.
                     buffer.packable = false;
@@ -357,9 +357,9 @@ namespace SushiAI
             if (overlap) reach.emplace(graph, consumers);
 
             // Allocates arenas per packable lifetime class in fixed enumeration order.
-            constexpr Lifetime PACKABLE[] = {Lifetime::ACTIVATION, Lifetime::SCRATCH};
+            constexpr Lifetime K_PACKABLE[] = {Lifetime::Activation, Lifetime::Scratch};
 
-            for (Lifetime lifetime : PACKABLE)
+            for (Lifetime lifetime : K_PACKABLE)
             {
                 std::vector<std::size_t> candidates;
                 for (std::size_t index = 0; index < buffers.size(); ++index)

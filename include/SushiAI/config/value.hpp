@@ -43,19 +43,19 @@ namespace SushiAI
         enum class Kind : std::uint8_t
         {
             /** @brief JSON null. */
-            NUL,
+            Null,
             /** @brief true or false. */
-            BOOL,
+            Bool,
             /** @brief A whole number. */
-            INT,
+            Int,
             /** @brief A number with a fractional part or an exponent. */
-            REAL,
+            Real,
             /** @brief A string. */
-            STRING,
+            String,
             /** @brief An ordered list of values. */
-            ARRAY,
+            Array,
             /** @brief A set of key/value pairs, in the order the file spelled them. */
-            OBJECT,
+            Object,
         };
 
         /**
@@ -103,7 +103,7 @@ namespace SushiAI
                 Kind kind() const noexcept { return kind_; }
 
                 /** @brief Whether this node is JSON null. */
-                bool is_null() const noexcept { return kind_ == Kind::NUL; }
+                bool is_null() const noexcept { return kind_ == Kind::Null; }
 
                 /**
                  * @brief Reads this value as a boolean.
@@ -189,7 +189,7 @@ namespace SushiAI
                 Value without(std::string_view key) const;
 
             private:
-                Kind kind_ = Kind::NUL;
+                Kind kind_ = Kind::Null;
                 bool bool_ = false;
                 std::int64_t int_ = 0;
                 double real_ = 0.0;

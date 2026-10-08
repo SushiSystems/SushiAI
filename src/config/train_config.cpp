@@ -37,13 +37,13 @@ namespace SushiAI
         namespace
         {
             /** @brief Every key a train document may carry at the top level. */
-            constexpr std::string_view TRAIN_KEYS[] = {
+            constexpr std::string_view K_TRAIN_KEYS[] = {
                 "sushiai_train", "model", "objective", "data", "optimizer",
                 "epochs", "checkpoint",
             };
 
             /** @brief Every key a standalone data document may carry. */
-            constexpr std::string_view DATA_KEYS[] = {"sushiai_data", "data"};
+            constexpr std::string_view K_DATA_KEYS[] = {"sushiai_data", "data"};
 
             /** @brief Wraps a literal key list as a span, for reject_unknown_keys. */
             template<std::size_t N>
@@ -82,7 +82,7 @@ namespace SushiAI
                                           + std::string(key) + "'";
                 const Value& block = root.at(key, origin);
 
-                SA_THROW_IF(block.kind() != Kind::OBJECT,
+                SA_THROW_IF(block.kind() != Kind::Object,
                             "{} must be an object, but it is {}",
                             context, kind_name(block.kind()));
 
@@ -96,8 +96,8 @@ namespace SushiAI
         TrainSpec parse_train(const Value& root, std::string_view origin,
                               const std::filesystem::path& base)
         {
-            require_version(root, "sushiai_train", TRAIN_VERSION, origin);
-            root.reject_unknown_keys(origin, as_span(TRAIN_KEYS));
+            require_version(root, "sushiai_train", K_TRAIN_VERSION, origin);
+            root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS));
 
             TrainSpec spec;
             const std::string origin_text(origin);
@@ -136,8 +136,8 @@ namespace SushiAI
 
         DataSpec parse_data(const Value& root, std::string_view origin)
         {
-            require_version(root, "sushiai_data", DATA_VERSION, origin);
-            root.reject_unknown_keys(origin, as_span(DATA_KEYS));
+            require_version(root, "sushiai_data", K_DATA_VERSION, origin);
+            root.reject_unknown_keys(origin, as_span(K_DATA_KEYS));
 
             DataSpec data;
             read_typed_block(root, "data", origin, data.type, data.attributes);

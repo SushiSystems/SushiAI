@@ -41,14 +41,14 @@ namespace SushiAI
         void activation_backward(const GradientTape& tape);
 
         /** @brief Activation operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 7> ACTIVATION_RULES = {{
-            {Ops::RELU.id,       &activation_backward},
-            {Ops::GELU.id,       &activation_backward},
-            {Ops::SIGMOID.id,    &activation_backward},
-            {Ops::TANH.id,       &activation_backward},
-            {Ops::LEAKY_RELU.id, &activation_backward},
-            {Ops::SILU.id,       &activation_backward},
-            {Ops::SOFTPLUS.id,   &activation_backward},
+        inline constexpr std::array<RuleEntry, 7> K_ACTIVATION_RULES = {{
+            {Ops::K_RELU.id,       &activation_backward},
+            {Ops::K_GELU.id,       &activation_backward},
+            {Ops::K_SIGMOID.id,    &activation_backward},
+            {Ops::K_TANH.id,       &activation_backward},
+            {Ops::K_LEAKY_RELU.id, &activation_backward},
+            {Ops::K_SILU.id,       &activation_backward},
+            {Ops::K_SOFTPLUS.id,   &activation_backward},
         }};
     }
 }

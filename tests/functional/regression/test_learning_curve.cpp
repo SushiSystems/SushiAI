@@ -49,24 +49,24 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 8;
-    constexpr int64_t FEATURES = 6;
-    constexpr int64_t HIDDEN = 12;
+    constexpr int64_t K_FEATURES = 6;
+    constexpr int64_t K_HIDDEN = 12;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 4;
-    constexpr int64_t EPOCHS = 4;
-    constexpr double LEARNING_RATE = 0.25;
+    constexpr int64_t K_BATCHES = 4;
+    constexpr int64_t K_EPOCHS = 4;
+    constexpr double K_LEARNING_RATE = 0.25;
     constexpr double MOMENTUM = 0.9;
-    constexpr std::uint64_t DATA_SEED = 0x0C0FFEE'5EEDull;
+    constexpr std::uint64_t K_DATA_SEED = 0x0C0FFEE'5EEDull;
 
     /** @brief Everything the reference depends on, in one place. */
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
         options.batch_size = BATCH;
-        options.batches = BATCHES;
-        options.features = FEATURES;
+        options.batches = K_BATCHES;
+        options.features = K_FEATURES;
         options.classes = CLASSES;
-        options.seed = DATA_SEED;
+        options.seed = K_DATA_SEED;
         return options;
     }
 
@@ -82,15 +82,15 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+        Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
         NN::initialize(engine, model, pool);
 
         Optim::SGDOptions sgd;
-        sgd.learning_rate = LEARNING_RATE;
+        sgd.learning_rate = K_LEARNING_RATE;
         sgd.momentum = MOMENTUM;
         Optim::SGD optimizer(engine, slots, sgd);
 
@@ -101,9 +101,9 @@ namespace
         const Data::SyntheticClassification dataset(engine, data_options());
 
         std::vector<double> losses;
-        losses.reserve(static_cast<std::size_t>(EPOCHS * BATCHES));
+        losses.reserve(static_cast<std::size_t>(K_EPOCHS * K_BATCHES));
 
-        for (int64_t epoch = 0; epoch < EPOCHS; ++epoch)
+        for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
             for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
                 losses.push_back(trainer.run_step(dataset.batch(batch)).loss);
 
@@ -132,7 +132,7 @@ namespace
      * -precision revision current that day. Every value is the batch's mean
      * cross-entropy as the trainer reports it.
      */
-    constexpr double REFERENCE[] = {
+    constexpr double K_REFERENCE[] = {
         1.386294, 1.262154, 1.037548, 0.767985,
         0.570578, 0.373737, 0.274389, 0.152003,
         0.098416, 0.070900, 0.122845, 0.031372,
@@ -140,22 +140,22 @@ namespace
     };
 
     /** @brief How far a step's loss may drift before it counts as a change. */
-    constexpr double LOSS_TOLERANCE = 0.02;
+    constexpr double K_LOSS_TOLERANCE = 0.02;
 }
 
 TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
 {
     const std::vector<double> losses = recorded_trajectory();
 
-    ASSERT_EQ(losses.size(), std::size(REFERENCE))
+    ASSERT_EQ(losses.size(), std::size(K_REFERENCE))
         << "the configuration changed shape; re-record the reference:\n"
         << as_initialiser(losses);
 
     bool matched = true;
     for (std::size_t step = 0; step < losses.size(); ++step)
     {
-        EXPECT_NEAR(losses[step], REFERENCE[step], LOSS_TOLERANCE) << "at step " << step;
-        if (std::abs(losses[step] - REFERENCE[step]) > LOSS_TOLERANCE) matched = false;
+        EXPECT_NEAR(losses[step], K_REFERENCE[step], K_LOSS_TOLERANCE) << "at step " << step;
+        if (std::abs(losses[step] - K_REFERENCE[step]) > K_LOSS_TOLERANCE) matched = false;
     }
 
     if (!matched)
@@ -184,13 +184,13 @@ TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
 
     // Each epoch's mean must beat the one before it; see tests/functional/regression/README.md.
     double previous_epoch = 0.0;
-    for (int64_t epoch = 0; epoch < EPOCHS; ++epoch)
+    for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
     {
         double total = 0.0;
-        for (int64_t batch = 0; batch < BATCHES; ++batch)
-            total += losses[static_cast<std::size_t>(epoch * BATCHES + batch)];
+        for (int64_t batch = 0; batch < K_BATCHES; ++batch)
+            total += losses[static_cast<std::size_t>(epoch * K_BATCHES + batch)];
 
-        const double mean = total / static_cast<double>(BATCHES);
+        const double mean = total / static_cast<double>(K_BATCHES);
         if (epoch > 0)
             EXPECT_LT(mean, previous_epoch) << "epoch " << epoch << " did not improve";
         previous_epoch = mean;

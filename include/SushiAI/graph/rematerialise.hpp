@@ -34,7 +34,7 @@ namespace SushiAI
     namespace Graph
     {
         /**
-         * @brief Recomputes every stored @c IM2COL result at its later consumers.
+         * @brief Recomputes every stored @c K_IM2COL result at its later consumers.
          *
          * Inserts gathers before later readers to shorten column matrix live ranges.
          *

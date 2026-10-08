@@ -50,7 +50,7 @@ namespace SushiAI
             /**
              * @brief Determines each node's precision, or null for uniform.
              */
-            const IPrecisionPolicy* policy = nullptr;
+            const PrecisionPolicy* policy = nullptr;
 
             /**
              * @brief Holds values read by id whose element types must not change.
@@ -65,22 +65,22 @@ namespace SushiAI
         struct InsertedCast
         {
             /** @brief The node whose dtype boundary this cast resolves. */
-            NodeId node = NO_NODE;
+            NodeId node = K_NO_NODE;
 
             /** @brief That node's operation, in the graph as it arrived. */
             OpID op{};
 
             /** @brief The value read. */
-            ValueId source = NO_VALUE;
+            ValueId source = K_NO_VALUE;
 
             /** @brief The value written. */
-            ValueId destination = NO_VALUE;
+            ValueId destination = K_NO_VALUE;
 
             /** @brief The source's element type. */
-            DType from = DType::FLOAT32;
+            DType from = DType::Float32;
 
             /** @brief The destination's element type. */
-            DType to = DType::FLOAT32;
+            DType to = DType::Float32;
 
             /**
              * @brief Whether this cast feeds an operand or widens a result.
@@ -153,19 +153,19 @@ namespace SushiAI
         struct DTypeMismatch
         {
             /** @brief The offending node. */
-            NodeId node = NO_NODE;
+            NodeId node = K_NO_NODE;
 
             /** @brief Its operation. */
             OpID op{};
 
             /** @brief The operand or result that disagrees. */
-            ValueId value = NO_VALUE;
+            ValueId value = K_NO_VALUE;
 
             /** @brief That value's element type. */
-            DType found = DType::FLOAT32;
+            DType found = DType::Float32;
 
             /** @brief The element type the policy says the node computes in. */
-            DType expected = DType::FLOAT32;
+            DType expected = DType::Float32;
 
             /** @brief Whether @c value is one of the node's results. */
             bool is_result = false;
@@ -178,7 +178,7 @@ namespace SushiAI
          * @return Disagreements found, or empty if invariant holds.
          */
         std::vector<DTypeMismatch> find_dtype_mismatches(const Graph& graph,
-                                                         const IPrecisionPolicy& policy);
+                                                         const PrecisionPolicy& policy);
 
         /** @brief A one-line description of @p mismatch, for a test failure or a report. */
         std::string describe(const DTypeMismatch& mismatch);

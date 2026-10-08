@@ -34,15 +34,15 @@ namespace SushiAI
         void batchnorm2d_backward(const GradientTape& tape)
         {
             // The saved mean, the inverse deviation and the batch variance carry no gradient.
-            SA_THROW_IF(tape.output_grad(1) != Graph::NO_VALUE
-                        || tape.output_grad(2) != Graph::NO_VALUE
-                        || tape.output_grad(3) != Graph::NO_VALUE,
+            SA_THROW_IF(tape.output_grad(1) != Graph::K_NO_VALUE
+                        || tape.output_grad(2) != Graph::K_NO_VALUE
+                        || tape.output_grad(3) != Graph::K_NO_VALUE,
                         "BATCHNORM2D's saved statistics received a gradient. They are a side "
                         "channel for this node's own backward (CV-7), not a differentiable "
                         "result, and this rule has no path to propagate one.");
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Batch normalization gradients share batch reductions across input, scale, and bias.
             const Graph::Node& node = tape.node();
@@ -57,7 +57,7 @@ namespace SushiAI
         void channel_affine_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::Node& node = tape.node();
 

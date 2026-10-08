@@ -52,7 +52,7 @@ namespace SushiAI
              * fp64 is not silently dropped to fp32 by a policy whose author was
              * thinking about fp32 models.
              */
-            DType declared = DType::FLOAT32;
+            DType declared = DType::Float32;
         };
 
         /**
@@ -62,7 +62,7 @@ namespace SushiAI
         struct PrecisionChoice
         {
             /** @brief The element type every operand and result must agree on. */
-            DType dtype = DType::FLOAT32;
+            DType dtype = DType::Float32;
 
             /** @brief A sentence for the report; a static string, never owned. */
             std::string_view reason{};
@@ -74,10 +74,10 @@ namespace SushiAI
          *
          * Implementations must be idempotent and reproducible.
          */
-        class IPrecisionPolicy
+        class PrecisionPolicy
         {
             public:
-                virtual ~IPrecisionPolicy() = default;
+                virtual ~PrecisionPolicy() = default;
 
                 /**
                  * @brief Chooses the element type @p query's operation computes in.
@@ -100,7 +100,7 @@ namespace SushiAI
          *
          * Returns declared data types directly, inserting zero conversion casts.
          */
-        class UniformPrecisionPolicy final : public IPrecisionPolicy
+        class UniformPrecisionPolicy final : public PrecisionPolicy
         {
             public:
                 PrecisionChoice choose(const PrecisionQuery& query) const override;
@@ -114,7 +114,7 @@ namespace SushiAI
          *
          * Narrows matrix multiplications while keeping sensitive reductions wide.
          */
-        class MixedPrecisionPolicy final : public IPrecisionPolicy
+        class MixedPrecisionPolicy final : public PrecisionPolicy
         {
             public:
                 /**
@@ -122,7 +122,7 @@ namespace SushiAI
                  * @param low The narrow element type; must be a real float.
                  * @throws Error If @p low is complex or integral.
                  */
-                explicit MixedPrecisionPolicy(DType low = DType::HALF);
+                explicit MixedPrecisionPolicy(DType low = DType::Half);
 
                 /** @brief The narrow element type this policy narrows to. */
                 DType low() const noexcept { return low_; }

@@ -114,10 +114,10 @@ namespace SushiAI
          * @class IObjective
          * @brief What a model is being trained to minimise.
          */
-        class IObjective
+        class Objective
         {
             public:
-                virtual ~IObjective() = default;
+                virtual ~Objective() = default;
 
                 /**
                  * @brief Declares whatever leaves the graph needs beyond the model's input.
@@ -161,7 +161,7 @@ namespace SushiAI
          * operations in the same order as the code this replaced, so the
          * existing suite is the regression test.
          */
-        class CrossEntropyObjective final : public IObjective
+        class CrossEntropyObjective final : public Objective
         {
             public:
                 /**
@@ -171,7 +171,7 @@ namespace SushiAI
                  * @param dtype The element type the target leaf carries.
                  */
                 CrossEntropyObjective(int64_t batch, int64_t classes,
-                                      DType dtype = DType::FLOAT32) noexcept
+                                      DType dtype = DType::Float32) noexcept
                     : batch_(batch), classes_(classes), dtype_(dtype) {}
 
                 void declare(const Graph::GraphBuilder& builder,
@@ -190,7 +190,7 @@ namespace SushiAI
             private:
                 int64_t batch_ = 0;
                 int64_t classes_ = 0;
-                DType dtype_ = DType::FLOAT32;
+                DType dtype_ = DType::Float32;
         };
 
         /**
@@ -201,13 +201,13 @@ namespace SushiAI
          * @param context What to call this objective in a diagnostic.
          * @return The objective.
          */
-        using ObjectiveFactory = std::unique_ptr<IObjective> (*)(int64_t batch, int64_t classes,
+        using ObjectiveFactory = std::unique_ptr<Objective> (*)(int64_t batch, int64_t classes,
                                                                  const Config::Value& attributes,
                                                                  std::string_view context);
 
         /**
          * @struct ObjectiveEntry
-         * @brief One row of @ref OBJECTIVE_REGISTRY.
+         * @brief One row of @ref K_OBJECTIVE_REGISTRY.
          */
         struct ObjectiveEntry
         {
@@ -226,7 +226,7 @@ namespace SushiAI
          * @param context Diagnostic context string.
          * @return The constructed objective instance.
          */
-        std::unique_ptr<IObjective> make_cross_entropy(int64_t batch, int64_t classes,
+        std::unique_ptr<Objective> make_cross_entropy(int64_t batch, int64_t classes,
                                                        const Config::Value& attributes,
                                                        std::string_view context);
 
@@ -236,7 +236,7 @@ namespace SushiAI
          * A file-scope constant table; nothing self-registers. See
          * config/registry.hpp for why that is forced rather than preferred.
          */
-        inline constexpr std::array<ObjectiveEntry, 1> OBJECTIVE_REGISTRY = {
+        inline constexpr std::array<ObjectiveEntry, 1> K_OBJECTIVE_REGISTRY = {
             ObjectiveEntry{"cross_entropy", &make_cross_entropy},
         };
 
@@ -247,7 +247,7 @@ namespace SushiAI
          * @param context Diagnostic context string.
          * @return The constructed objective instance.
          */
-        std::unique_ptr<IObjective> make_objective(std::string_view type,
+        std::unique_ptr<Objective> make_objective(std::string_view type,
                                                    int64_t batch, int64_t classes,
                                                    const Config::Value& attributes,
                                                    std::string_view context);

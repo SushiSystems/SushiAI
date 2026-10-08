@@ -63,7 +63,7 @@ TEST(Unit_Config, ParsesEveryScalarKind)
     const Value root = parse_json(
         R"({"a": 1, "b": 2.5, "c": "text", "d": true, "e": null, "f": [1, 2]})", "<test>");
 
-    ASSERT_EQ(root.kind(), Kind::OBJECT);
+    ASSERT_EQ(root.kind(), Kind::Object);
     EXPECT_EQ(root.at("a", "<test>").as_int("a"), 1);
     EXPECT_DOUBLE_EQ(root.at("b", "<test>").as_real("b"), 2.5);
     EXPECT_EQ(root.at("c", "<test>").as_string("c"), "text");
@@ -180,7 +180,7 @@ namespace
         return SushiAI::Config::parse_model(parse_json(text, "model.json"), "model.json");
     }
 
-    constexpr std::string_view GOOD_MODEL = R"({
+    constexpr std::string_view K_GOOD_MODEL = R"({
         "sushiai_model": 1,
         "input": {"features": 6},
         "layers": [{"type": "linear", "units": 8},
@@ -191,7 +191,7 @@ namespace
 
 TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
 {
-    const SushiAI::Config::ModelSpec model = model_from(GOOD_MODEL);
+    const SushiAI::Config::ModelSpec model = model_from(K_GOOD_MODEL);
 
     EXPECT_EQ(model.input_features, 6);
     ASSERT_EQ(model.layers.size(), 3u);
@@ -207,7 +207,7 @@ TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
 
 TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
 {
-    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(GOOD_MODEL));
+    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(K_GOOD_MODEL));
 
     EXPECT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.output_features(), 4);
@@ -219,7 +219,7 @@ TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
 
 TEST(Unit_Config, AConfiguredStackTracesToTheDeclaredOutputWidth)
 {
-    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(GOOD_MODEL));
+    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(K_GOOD_MODEL));
 
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
@@ -362,13 +362,13 @@ namespace
     /** @brief Renders one scalar attribute as text, so two specs compare value by value. */
     std::string scalar_text(const Value& value)
     {
-        if (value.kind() == Kind::INT)
+        if (value.kind() == Kind::Int)
             return "int " + std::to_string(value.as_int("attribute"));
 
-        if (value.kind() == Kind::BOOL)
+        if (value.kind() == Kind::Bool)
             return value.as_bool("attribute") ? "bool true" : "bool false";
 
-        if (value.kind() == Kind::STRING)
+        if (value.kind() == Kind::String)
             return "string " + value.as_string("attribute");
 
         return std::string(SushiAI::Config::kind_name(value.kind()));
@@ -425,11 +425,11 @@ TEST(Unit_Config, AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite)
 /** @brief Tests that a version 1 document still fills the shape and the feature count. */
 TEST(Unit_Config, AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount)
 {
-    const ModelSpec model = model_from(GOOD_MODEL);
+    const ModelSpec model = model_from(K_GOOD_MODEL);
 
     EXPECT_EQ(model.input_shape, (SushiAI::Shape{6}));
     EXPECT_EQ(model.input_features, 6);
-    EXPECT_EQ(SushiAI::Config::MODEL_VERSION, 2);
+    EXPECT_EQ(SushiAI::Config::K_MODEL_VERSION, 2);
 }
 
 /** @brief Tests that a version 2 input shape of rank 3 is kept and its elements counted. */
@@ -463,7 +463,7 @@ TEST(Unit_Config, AnEmptyOrNonPositiveInputShapeIsAnError)
 TEST(Unit_Config, AnInputShapeAboveTheRankOrTheElementLimitIsAnError)
 {
     std::string extents = "1";
-    for (std::int32_t i = 0; i < SushiAI::MAX_RANK; ++i)
+    for (std::int32_t i = 0; i < SushiAI::K_MAX_RANK; ++i)
         extents += ", 1";
 
     SA_EXPECT_ERROR((void)model_from(R"({"format_version": 2, "input": {"shape": [)" + extents
@@ -705,7 +705,7 @@ namespace
         return SushiAI::Config::parse_train(parse_json(text, "train.json"), "train.json", ".");
     }
 
-    constexpr std::string_view GOOD_TRAIN = R"({
+    constexpr std::string_view K_GOOD_TRAIN = R"({
         "sushiai_train": 1,
         "model": "model.json",
         "objective": {"type": "cross_entropy"},
@@ -756,7 +756,7 @@ namespace
 
 TEST(Unit_Config, ParsesATrainDocumentIntoItsFourTypedBlocks)
 {
-    const SushiAI::Config::TrainSpec spec = train_from(GOOD_TRAIN);
+    const SushiAI::Config::TrainSpec spec = train_from(K_GOOD_TRAIN);
 
     EXPECT_EQ(spec.objective_type, "cross_entropy");
     EXPECT_EQ(spec.data.type, "rings");
@@ -773,7 +773,7 @@ TEST(Unit_Config, ParsesATrainDocumentIntoItsFourTypedBlocks)
 TEST(Unit_Config, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
 {
     const TemporaryDirectory directory("sushiai_config_paths");
-    const std::filesystem::path config = directory.write("train.json", GOOD_TRAIN);
+    const std::filesystem::path config = directory.write("train.json", K_GOOD_TRAIN);
 
     const SushiAI::Config::TrainSpec spec = SushiAI::Config::load_train(config);
 

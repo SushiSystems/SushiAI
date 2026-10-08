@@ -69,7 +69,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Col2im adjoint accumulates window gradients using recorded forward window extents.
             const Graph::Node& node = tape.node();
@@ -90,7 +90,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Reconstruct im2col adjoint using recorded forward window grid extents.
             const Graph::Node& node = tape.node();
@@ -108,7 +108,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Maxpool backward routes gradients through argmax indices from the forward node output.
             const Graph::Node& node = tape.node();
@@ -122,7 +122,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Avgpool backward distributes incoming gradients uniformly across the window area.
             const Graph::Node& node = tape.node();
@@ -135,7 +135,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::Node& node = tape.node();
             tape.contribute_input(0, tape.builder().upsample2d_backward(
@@ -149,7 +149,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::Node& node = tape.node();
             tape.contribute_input(0, tape.builder().spatial_mean_backward(
@@ -159,7 +159,7 @@ namespace SushiAI
         void concat_channels_backward(const GradientTape& tape)
         {
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Channel concatenation backward extracts operand slices along cumulative channel offsets.
             const Graph::Node& node = tape.node();
@@ -185,7 +185,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Slice adjoint pads zeros around the active channel range via channel concatenation.
             const Graph::Node& node = tape.node();

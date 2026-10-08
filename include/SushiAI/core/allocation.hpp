@@ -46,7 +46,7 @@ namespace SushiAI
      */
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine,
                                       SushiRuntime::span<const int64_t> dims,
-                                      DType dtype = DType::FLOAT32);
+                                      DType dtype = DType::Float32);
 
     /**
      * @brief Allocates a tensor of @p shape with its own Storage.
@@ -58,7 +58,7 @@ namespace SushiAI
      */
     SushiBLAS::Tensor allocate_tensor(SushiBLAS::Engine& engine,
                                       const Shape& shape,
-                                      DType dtype = DType::FLOAT32);
+                                      DType dtype = DType::Float32);
 
     /**
      * @brief Allocates a tensor with @p like's extents, dtype, and layout.

@@ -49,18 +49,18 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 8;
-    constexpr int64_t FEATURES = 16;
-    constexpr int64_t HIDDEN = 64;
+    constexpr int64_t K_FEATURES = 16;
+    constexpr int64_t K_HIDDEN = 64;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 3;
+    constexpr int64_t K_BATCHES = 3;
 
     /** @brief The synthetic problem every run below trains on. */
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
         options.batch_size = BATCH;
-        options.batches = BATCHES;
-        options.features = FEATURES;
+        options.batches = K_BATCHES;
+        options.features = K_FEATURES;
         options.classes = CLASSES;
         options.seed = 0xA11'0C8'2026ull;
         return options;
@@ -86,9 +86,9 @@ namespace
      */
     Outcome train(SushiBLAS::Engine& engine, bool packed, Graph::FusionOptions fusion = {})
     {
-        Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
         Train::TrainingGraph built = Train::build_classifier(
-            model, BATCH, FEATURES, CLASSES, DType::FLOAT32, fusion);
+            model, BATCH, K_FEATURES, CLASSES, DType::Float32, fusion);
 
         TensorPool pool(engine);
         if (!packed) pool.adopt(MemoryPlan{});
@@ -135,8 +135,8 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
         return static_cast<std::int32_t>(engine->get_context().live_usm_count());
     };
 
-    Mlp model(NN::Linear{FEATURES, HIDDEN}, NN::ReLU{}, NN::Linear{HIDDEN, CLASSES});
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -161,7 +161,7 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 
     for (int step = 1; step <= 12; ++step)
     {
-        trainer.run_step(dataset.batch(static_cast<std::size_t>(step) % BATCHES));
+        trainer.run_step(dataset.batch(static_cast<std::size_t>(step) % K_BATCHES));
         engine->get_context().wait_all();
 
         EXPECT_EQ(live_allocations(), baseline)

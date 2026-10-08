@@ -54,7 +54,7 @@ namespace SushiAI
 
         /**
          * @struct LayerEntry
-         * @brief One row of @ref LAYER_REGISTRY.
+         * @brief One row of @ref K_LAYER_REGISTRY.
          */
         struct LayerEntry
         {
@@ -77,7 +77,7 @@ namespace SushiAI
                                             std::string_view context);
 
         /**
-         * @brief Builds a @c GELU, which takes no keys at all.
+         * @brief Builds a @c K_GELU, which takes no keys at all.
          * @param input The predecessor's per-sample shape; the activation preserves it.
          * @param attributes The layer's keys; any key whatsoever is an error.
          * @param context What to call this layer in a diagnostic.
@@ -179,10 +179,10 @@ namespace SushiAI
         /**
          * @brief Every layer type a model.json may name.
          *
-         * A file-scope constant table, in the shape of @c Ops::ALL and the
-         * fusion @c CATALOG.
+         * A file-scope constant table, in the shape of @c Ops::K_ALL and the
+         * fusion @c K_CATALOG.
          */
-        inline constexpr std::array<LayerEntry, 14> LAYER_REGISTRY = {
+        inline constexpr std::array<LayerEntry, 14> K_LAYER_REGISTRY = {
             LayerEntry{"linear",         &make_linear},
             LayerEntry{"gelu",           &make_gelu},
             LayerEntry{"relu",           &make_relu},

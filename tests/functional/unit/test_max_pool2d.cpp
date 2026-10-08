@@ -99,7 +99,7 @@ TEST(Unit_MaxPool2d, ForwardTagsItsResultNhwc)
     const Graph::ValueId y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
 }
 
 /** @brief Tests that forward() returns the pooled value and not the INT64 argmax beside it. */
@@ -113,7 +113,7 @@ TEST(Unit_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
     const Graph::ValueId y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
-    EXPECT_NE(graph.value(y).dtype, DType::INT64);
+    EXPECT_NE(graph.value(y).dtype, DType::Int64);
 }
 
 /** @brief Tests that output_shape() returns [out_h, out_w, C] for an unpadded square window. */
@@ -197,7 +197,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAnNchwInput)
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
     const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     EXPECT_THROW((void)layer.forward(builder, nchw), Error);
 }
@@ -208,7 +208,7 @@ TEST(Unit_MaxPool2d, ForwardNamesTheLayoutOfAnNchwInputNarrowerThanTheWindow)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueId x = builder.input(Shape{1, 8, 8, 2}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
     const MaxPool2d layer = make_pool(3, 3, 1, 1);
 

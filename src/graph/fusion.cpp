@@ -38,10 +38,10 @@ namespace SushiAI
         namespace
         {
             /** @brief The longest chain any catalog entry replaces. */
-            constexpr std::size_t MAX_CHAIN = 3;
+            constexpr std::size_t K_MAX_CHAIN = 3;
 
             /** @brief @c CatalogEntry::spill for an entry that writes only its result. */
-            constexpr std::uint8_t NO_SPILL = 0xFF;
+            constexpr std::uint8_t K_NO_SPILL = 0xFF;
 
             /**
              * @struct FusedOperands
@@ -65,13 +65,13 @@ namespace SushiAI
                 FusedForm form;
                 OpID fused_op;
                 std::uint8_t length;
-                std::array<OpID, MAX_CHAIN> chain;
-                std::array<std::uint8_t, MAX_CHAIN> link;
+                std::array<OpID, K_MAX_CHAIN> chain;
+                std::array<std::uint8_t, K_MAX_CHAIN> link;
 
                 /**
                  * @brief Index of the chain step whose result is preserved as second output.
                  *
-                 * Specifies @c NO_SPILL when only the root result is written, or an
+                 * Specifies @c K_NO_SPILL when only the root result is written, or an
                  * index into @c chain to retain an auxiliary output across fusion.
                  */
                 std::uint8_t spill;
@@ -97,7 +97,7 @@ namespace SushiAI
             }
 
             /**
-             * @brief Operands for @c EXP_SUB_SCALE: [a, b], with alpha in slot 0.
+             * @brief Operands for @c K_EXP_SUB_SCALE: [a, b], with alpha in slot 0.
              * @param chain The matched nodes, in producer order.
              * @return The fused node's operands and attributes.
              */
@@ -119,30 +119,30 @@ namespace SushiAI
              * Flat constexpr array avoiding static registration constructors
              * in static library builds; matcher sorts by chain length.
              */
-            constexpr std::array<CatalogEntry, 6> CATALOG = {{
-                {FusedForm::GEMM_BIAS_RELU, Ops::GEMM_BIAS_RELU.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::RELU.id}, {0, 0, 0}, NO_SPILL,
+            constexpr std::array<CatalogEntry, 6> K_CATALOG = {{
+                {FusedForm::GemmBiasRelu, Ops::K_GEMM_BIAS_RELU.id, 3,
+                 {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_RELU.id}, {0, 0, 0}, K_NO_SPILL,
                  &compose_gemm_epilogue},
 
-                {FusedForm::GEMM_BIAS_SIGMOID, Ops::GEMM_BIAS_SIGMOID.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::SIGMOID.id}, {0, 0, 0}, NO_SPILL,
+                {FusedForm::GemmBiasSigmoid, Ops::K_GEMM_BIAS_SIGMOID.id, 3,
+                 {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_SIGMOID.id}, {0, 0, 0}, K_NO_SPILL,
                  &compose_gemm_epilogue},
 
-                {FusedForm::GEMM_BIAS_TANH, Ops::GEMM_BIAS_TANH.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::TANH.id}, {0, 0, 0}, NO_SPILL,
+                {FusedForm::GemmBiasTanh, Ops::K_GEMM_BIAS_TANH.id, 3,
+                 {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_TANH.id}, {0, 0, 0}, K_NO_SPILL,
                  &compose_gemm_epilogue},
 
                 // Spills BIAS_ADD output at step 1 required for GELU backward differentiation.
-                {FusedForm::GEMM_BIAS_GELU, Ops::GEMM_BIAS_GELU.id, 3,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::GELU.id}, {0, 0, 0}, 1,
+                {FusedForm::GemmBiasGelu, Ops::K_GEMM_BIAS_GELU.id, 3,
+                 {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_GELU.id}, {0, 0, 0}, 1,
                  &compose_gemm_epilogue},
 
-                {FusedForm::GEMM_BIAS, Ops::GEMM_BIAS.id, 2,
-                 {Ops::MATMUL.id, Ops::BIAS_ADD.id, Ops::LEAF.id}, {0, 0, 0}, NO_SPILL,
+                {FusedForm::GemmBias, Ops::K_GEMM_BIAS.id, 2,
+                 {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_LEAF.id}, {0, 0, 0}, K_NO_SPILL,
                  &compose_gemm_epilogue},
 
-                {FusedForm::EXP_SUB_SCALE, Ops::EXP_SUB_SCALE.id, 3,
-                 {Ops::EXP.id, Ops::SUB.id, Ops::SCALE.id}, {0, 0, 0}, NO_SPILL,
+                {FusedForm::ExpSubScale, Ops::K_EXP_SUB_SCALE.id, 3,
+                 {Ops::K_EXP.id, Ops::K_SUB.id, Ops::K_SCALE.id}, {0, 0, 0}, K_NO_SPILL,
                  &compose_exp_sub_scale},
             }};
 
@@ -154,14 +154,14 @@ namespace SushiAI
              */
             constexpr bool every_fused_activation_survives()
             {
-                for (const CatalogEntry& entry : CATALOG)
+                for (const CatalogEntry& entry : K_CATALOG)
                 {
                     const OpID last = entry.chain[entry.length - 1];
                     if (Ops::activation_of(last) == nullptr) continue;
                     if (Ops::activation_survives_fusion(last)) continue;
 
                     // Verifies that input-differentiating activation has matching spill.
-                    if (entry.spill == NO_SPILL) return false;
+                    if (entry.spill == K_NO_SPILL) return false;
                     if (entry.spill != entry.length - 2) return false;
                     if (entry.link[entry.length - 1] != 0) return false;
                 }
@@ -196,7 +196,7 @@ namespace SushiAI
             struct Candidate
             {
                 const CatalogEntry* entry = nullptr;
-                std::array<NodeId, MAX_CHAIN> chain{};
+                std::array<NodeId, K_MAX_CHAIN> chain{};
             };
 
             /**
@@ -216,7 +216,7 @@ namespace SushiAI
                           consumers_(graph.value_count()),
                           observed_(graph.value_count(), false),
                           claimed_(graph.node_count(), false),
-                          root_(graph.node_count(), NO_NODE)
+                          root_(graph.node_count(), K_NO_NODE)
                     {
                         // Tracks read counts and consumer node IDs for safety and spill ordering.
                         for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
@@ -267,7 +267,7 @@ namespace SushiAI
                      * @return True if pattern matches and satisfies safety checks.
                      */
                     bool try_entry(const CatalogEntry& entry, NodeId root,
-                                   std::array<NodeId, MAX_CHAIN>& chain,
+                                   std::array<NodeId, K_MAX_CHAIN>& chain,
                                    ValueId& blocked, FusionDecline& reason) const;
 
                     /**
@@ -305,9 +305,9 @@ namespace SushiAI
 
             FusionDecline Matcher::interior_verdict(ValueId value) const
             {
-                if (observed_[value]) return FusionDecline::VALUE_IS_OBSERVED;
-                if (use_count_[value] == 1) return FusionDecline::NONE;
-                return FusionDecline::VALUE_HAS_OTHER_CONSUMERS;
+                if (observed_[value]) return FusionDecline::ValueIsObserved;
+                if (use_count_[value] == 1) return FusionDecline::None;
+                return FusionDecline::ValueHasOtherConsumers;
             }
 
             bool Matcher::spill_is_ordered(ValueId value, NodeId chain_consumer, NodeId root) const
@@ -329,7 +329,7 @@ namespace SushiAI
 
                     // Reports activation exclusion only when preceding producer successfully fused.
                     const NodeId producer = graph_.value(node.inputs[0]).producer;
-                    if (producer == NO_NODE || root_[producer] == NO_NODE) continue;
+                    if (producer == K_NO_NODE || root_[producer] == K_NO_NODE) continue;
 
                     const Candidate& claimed = candidates_[root_[producer]];
                     if (claimed.entry == nullptr) continue;
@@ -339,23 +339,23 @@ namespace SushiAI
 
                     // Categorizes decline between missing catalog row and missing required spill.
                     declined_.push_back(DeclinedFusion{
-                        FusedForm::NONE,
+                        FusedForm::None,
                         node.op,
                         id,
                         node.inputs[0],
                         Ops::activation_survives_fusion(node.op)
-                            ? FusionDecline::NO_CATALOG_ENTRY
-                            : FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION,
+                            ? FusionDecline::NoCatalogEntry
+                            : FusionDecline::GradientNeedsPreActivation,
                     });
                 }
             }
 
             bool Matcher::try_entry(const CatalogEntry& entry, NodeId root,
-                                    std::array<NodeId, MAX_CHAIN>& chain,
+                                    std::array<NodeId, K_MAX_CHAIN>& chain,
                                     ValueId& blocked, FusionDecline& reason) const
             {
-                blocked = NO_VALUE;
-                reason = FusionDecline::NONE;
+                blocked = K_NO_VALUE;
+                reason = FusionDecline::None;
 
                 const std::size_t length = entry.length;
                 chain[length - 1] = root;
@@ -371,25 +371,25 @@ namespace SushiAI
                     const ValueId edge = consumer.inputs[position];
                     const NodeId producer = graph_.value(edge).producer;
 
-                    if (producer == NO_NODE) return false;
+                    if (producer == K_NO_NODE) return false;
                     if (graph_.node(producer).op != entry.chain[step - 1]) return false;
                     if (graph_.node(producer).outputs.size() != 1) return false;
                     if (claimed_[producer]) return false;
 
                     // Validates topological ordering for preserved auxiliary spill edge.
-                    if (entry.spill != NO_SPILL && step - 1 == entry.spill)
+                    if (entry.spill != K_NO_SPILL && step - 1 == entry.spill)
                     {
                         if (!spill_is_ordered(edge, chain[step], root))
                         {
                             blocked = edge;
-                            reason = FusionDecline::SPILL_READ_TOO_EARLY;
+                            reason = FusionDecline::SpillReadTooEarly;
                             return false;
                         }
                     }
                     else
                     {
                         const FusionDecline verdict = interior_verdict(edge);
-                        if (verdict != FusionDecline::NONE)
+                        if (verdict != FusionDecline::None)
                         {
                             blocked = edge;
                             reason = verdict;
@@ -402,7 +402,7 @@ namespace SushiAI
 
                 if (is_disabled(options_, entry.form))
                 {
-                    reason = FusionDecline::DISABLED;
+                    reason = FusionDecline::Disabled;
                     return false;
                 }
 
@@ -412,8 +412,8 @@ namespace SushiAI
             void Matcher::run()
             {
                 // Sorts catalog entries descending by length using stable sort for determinism.
-                std::array<const CatalogEntry*, CATALOG.size()> ordered{};
-                for (std::size_t i = 0; i < CATALOG.size(); ++i) ordered[i] = &CATALOG[i];
+                std::array<const CatalogEntry*, K_CATALOG.size()> ordered{};
+                for (std::size_t i = 0; i < K_CATALOG.size(); ++i) ordered[i] = &K_CATALOG[i];
                 std::stable_sort(ordered.begin(), ordered.end(),
                                  [](const CatalogEntry* a, const CatalogEntry* b)
                                  { return a->length > b->length; });
@@ -429,9 +429,9 @@ namespace SushiAI
                         if (graph_.node(root).op != entry->chain[entry->length - 1]) continue;
                         if (graph_.node(root).outputs.size() != 1) continue;
 
-                        std::array<NodeId, MAX_CHAIN> chain{};
-                        ValueId blocked = NO_VALUE;
-                        FusionDecline reason = FusionDecline::NONE;
+                        std::array<NodeId, K_MAX_CHAIN> chain{};
+                        ValueId blocked = K_NO_VALUE;
+                        FusionDecline reason = FusionDecline::None;
 
                         if (try_entry(*entry, root, chain, blocked, reason))
                         {
@@ -445,7 +445,7 @@ namespace SushiAI
                         }
 
                         // Records diagnostic decline when matched candidate violates safety rules.
-                        if (reason != FusionDecline::NONE)
+                        if (reason != FusionDecline::None)
                             declined_.push_back(DeclinedFusion{
                                 entry->form, graph_.node(root).op, root, blocked, reason});
                     }
@@ -457,41 +457,41 @@ namespace SushiAI
 
         FusedForm fused_form_from_name(std::string_view name) noexcept
         {
-            for (const CatalogEntry& entry : CATALOG)
+            for (const CatalogEntry& entry : K_CATALOG)
                 if (fused_form_name(entry.form) == name) return entry.form;
-            return FusedForm::NONE;
+            return FusedForm::None;
         }
 
         OpID fused_form_op(FusedForm form) noexcept
         {
-            for (const CatalogEntry& entry : CATALOG)
+            for (const CatalogEntry& entry : K_CATALOG)
                 if (entry.form == form) return entry.fused_op;
-            return Ops::LEAF.id;
+            return Ops::K_LEAF.id;
         }
 
         FusedForm fused_form_of(OpID op) noexcept
         {
-            for (const CatalogEntry& entry : CATALOG)
+            for (const CatalogEntry& entry : K_CATALOG)
                 if (entry.fused_op == op) return entry.form;
-            return FusedForm::NONE;
+            return FusedForm::None;
         }
 
         OpID fused_form_activation(FusedForm form) noexcept
         {
-            for (const CatalogEntry& entry : CATALOG)
+            for (const CatalogEntry& entry : K_CATALOG)
             {
                 if (entry.form != form) continue;
 
                 const OpID last = entry.chain[entry.length - 1];
-                return Ops::activation_of(last) != nullptr ? last : Ops::LEAF.id;
+                return Ops::activation_of(last) != nullptr ? last : Ops::K_LEAF.id;
             }
-            return Ops::LEAF.id;
+            return Ops::K_LEAF.id;
         }
 
         bool fused_form_spills(FusedForm form) noexcept
         {
-            for (const CatalogEntry& entry : CATALOG)
-                if (entry.form == form) return entry.spill != NO_SPILL;
+            for (const CatalogEntry& entry : K_CATALOG)
+                if (entry.form == form) return entry.spill != K_NO_SPILL;
             return false;
         }
 
@@ -499,7 +499,7 @@ namespace SushiAI
         {
             if (Ops::activation_of(activation) == nullptr) return false;
 
-            for (const CatalogEntry& entry : CATALOG)
+            for (const CatalogEntry& entry : K_CATALOG)
                 if (entry.chain[entry.length - 1] == activation) return true;
             return false;
         }
@@ -527,7 +527,7 @@ namespace SushiAI
                 text += SushiBLAS::Core::format("] -> value {}", subtree.result);
 
                 // Formats spilled auxiliary value alongside primary result.
-                if (subtree.spilled != NO_VALUE)
+                if (subtree.spilled != K_NO_VALUE)
                     text += SushiBLAS::Core::format(", spilling the pre-activation to value {}",
                                                     subtree.spilled);
 
@@ -544,12 +544,12 @@ namespace SushiAI
             for (const DeclinedFusion& decline : declined_)
             {
                 // Formats decline label using fused form name or raw operation name.
-                const std::string_view label = decline.form != FusedForm::NONE
+                const std::string_view label = decline.form != FusedForm::None
                     ? fused_form_name(decline.form)
                     : Ops::name_of(decline.op);
 
                 text += SushiBLAS::Core::format("  declined {:<15} at node {}", label, decline.root);
-                if (decline.blocked_by != NO_VALUE)
+                if (decline.blocked_by != K_NO_VALUE)
                     text += SushiBLAS::Core::format(" (value {})", decline.blocked_by);
                 text += SushiBLAS::Core::format(": {}\n", fusion_decline_reason(decline.reason));
             }
@@ -571,7 +571,7 @@ namespace SushiAI
                 for (ValueId in : graph.node(id).inputs)
                 {
                     const NodeId producer = graph.value(in).producer;
-                    SA_THROW_IF(producer != NO_NODE && producer >= id,
+                    SA_THROW_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The fusion "
                                 "pass needs the graph's insertion order to be a topological "
                                 "order; emit the producer first.",
@@ -599,7 +599,7 @@ namespace SushiAI
 
                 const CatalogEntry& entry = *candidate->entry;
 
-                std::array<const Node*, MAX_CHAIN> chain{};
+                std::array<const Node*, K_MAX_CHAIN> chain{};
                 for (std::size_t step = 0; step < entry.length; ++step)
                     chain[step] = &graph.node(candidate->chain[step]);
 
@@ -609,7 +609,7 @@ namespace SushiAI
                 FusedSubtree subtree;
                 subtree.form = entry.form;
                 subtree.result = chain[entry.length - 1]->outputs[0];
-                if (entry.spill != NO_SPILL)
+                if (entry.spill != K_NO_SPILL)
                     subtree.spilled = chain[entry.spill]->outputs[0];
 
                 for (std::size_t step = 0; step < entry.length; ++step)
@@ -623,7 +623,7 @@ namespace SushiAI
 
                 // Primary result occupies index 0 with optional spilled value at index 1.
                 std::vector<ValueId> outputs{subtree.result};
-                if (subtree.spilled != NO_VALUE) outputs.push_back(subtree.spilled);
+                if (subtree.spilled != K_NO_VALUE) outputs.push_back(subtree.spilled);
 
                 rebuilt.add_node(entry.fused_op, operands.inputs, std::move(outputs),
                                  operands.attributes);

@@ -60,7 +60,7 @@ namespace SushiAI
 
             for (const ParameterBinding& binding : built.parameters)
             {
-                SA_THROW_IF(binding.gradient == Graph::NO_VALUE,
+                SA_THROW_IF(binding.gradient == Graph::K_NO_VALUE,
                             "Parameter '{}' receives no gradient. It is not on any path from the "
                             "loss, so no optimizer could ever move it - either wire it into the "
                             "model or stop listing it as a parameter.",
@@ -123,10 +123,10 @@ namespace SushiAI
              * @return Step recorder pointer, or nullptr for PER_STEP.
              * @throws Error If IN_PLAN was requested for non-replayable optimizer.
              */
-            Graph::IStepRecorder* placement_recorder(Optim::Optimizer& optimizer,
+            Graph::StepRecorder* placement_recorder(Optim::Optimizer& optimizer,
                                                      const TrainerOptions& options)
             {
-                if (options.optimizer_placement == OptimizerPlacement::PER_STEP)
+                if (options.optimizer_placement == OptimizerPlacement::PerStep)
                     return nullptr;
 
                 SA_THROW_IF(!optimizer.is_replay_invariant(),
@@ -181,8 +181,8 @@ namespace SushiAI
                     placement_recorder(optimizer, options),
                     options.fusion_selector)
         {
-            SA_THROW_IF(spec_.inputs == Graph::NO_VALUE || spec_.targets == Graph::NO_VALUE
-                        || spec_.logits == Graph::NO_VALUE || spec_.loss == Graph::NO_VALUE,
+            SA_THROW_IF(spec_.inputs == Graph::K_NO_VALUE || spec_.targets == Graph::K_NO_VALUE
+                        || spec_.logits == Graph::K_NO_VALUE || spec_.loss == Graph::K_NO_VALUE,
                         "The trainer needs all four of inputs, targets, logits and loss");
 
             const Shape& logits = graph.value(spec_.logits).shape;
@@ -200,8 +200,8 @@ namespace SushiAI
 
             switch (loss.dtype)
             {
-                case DType::FLOAT32: return static_cast<double>(loss.data_as<float>()[0]);
-                case DType::FLOAT64: return loss.data_as<double>()[0];
+                case DType::Float32: return static_cast<double>(loss.data_as<float>()[0]);
+                case DType::Float64: return loss.data_as<double>()[0];
                 default:
                     SA_THROW_IF(true, "The loss is {}; only float32 and float64 can be read back",
                                 dtype_name(loss.dtype));
@@ -214,7 +214,7 @@ namespace SushiAI
             const SushiBLAS::Tensor& logits = pool_->tensor(spec_.logits);
 
             // Accuracy evaluation requires readable host float32 or float64 logits.
-            SA_THROW_IF(logits.dtype != DType::FLOAT32 && logits.dtype != DType::FLOAT64,
+            SA_THROW_IF(logits.dtype != DType::Float32 && logits.dtype != DType::Float64,
                         "Accuracy needs a host read of the logits and they are {}; only "
                         "float32 and float64 can be read back. Either switch accuracy "
                         "tracking off, or keep the logits in the master type - "
@@ -225,7 +225,7 @@ namespace SushiAI
             // Per-row argmax is computed on host to evaluate accuracy per sample.
             const auto at = [&logits](int64_t index) -> double
             {
-                return logits.dtype == DType::FLOAT64
+                return logits.dtype == DType::Float64
                      ? logits.data_as<double>()[index]
                      : static_cast<double>(logits.data_as<float>()[index]);
             };

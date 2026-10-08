@@ -66,11 +66,11 @@ TEST(Unit_Buffer, ANewBufferIsUndefined)
 TEST(Unit_Buffer, DefineRecordsTheDescription)
 {
     Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::FLOAT64));
+    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
 
     EXPECT_TRUE(buffer.declared());
     EXPECT_EQ(buffer.shape(), (Shape{8}));
-    EXPECT_EQ(buffer.dtype(), DType::FLOAT64);
+    EXPECT_EQ(buffer.dtype(), DType::Float64);
     EXPECT_NEAR(buffer.initial_value(), 1.0, K_EXACT_TOLERANCE);
 }
 
@@ -80,7 +80,7 @@ TEST(Unit_Buffer, DefineDefaultsToFloat32)
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
 
-    EXPECT_EQ(buffer.dtype(), DType::FLOAT32);
+    EXPECT_EQ(buffer.dtype(), DType::Float32);
 }
 
 /** @brief Tests that a buffer that is defined and never read adds no value to a graph. */
@@ -91,7 +91,7 @@ TEST(Unit_Buffer, ADefinedBufferAddsNoLeafUntilItIsRead)
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
 
     EXPECT_EQ(graph.value_count(), 0u);
-    EXPECT_EQ(buffer.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(buffer.id_in(graph), Graph::K_NO_VALUE);
 }
 
 /** @brief Tests that define() draws the identity, which a later read and define() keep. */
@@ -121,14 +121,14 @@ TEST(Unit_Buffer, ReadDeclaresABufferLeaf)
     const Graph::GraphBuilder builder(graph);
 
     Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::FLOAT64));
+    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
     const Graph::ValueId leaf = buffer.read(builder, "running_var");
 
     EXPECT_EQ(graph.value_count(), 1u);
-    EXPECT_EQ(graph.value(leaf).lifetime, Graph::Lifetime::BUFFER);
+    EXPECT_EQ(graph.value(leaf).lifetime, Graph::Lifetime::Buffer);
     EXPECT_FALSE(graph.value(leaf).requires_grad);
     EXPECT_EQ(graph.value(leaf).shape, (Shape{8}));
-    EXPECT_EQ(graph.value(leaf).dtype, DType::FLOAT64);
+    EXPECT_EQ(graph.value(leaf).dtype, DType::Float64);
     EXPECT_EQ(buffer.id_in(graph), leaf);
     EXPECT_EQ(graph.state_leaf(buffer.state()), leaf);
 }
@@ -190,7 +190,7 @@ TEST(Unit_Buffer, ACopiedBufferHasANewStateId)
     EXPECT_NEAR(copy.initial_value(), 1.0, K_EXACT_TOLERANCE);
     EXPECT_NE(copy.state(), Graph::K_NO_STATE);
     EXPECT_NE(copy.state(), original.state());
-    EXPECT_EQ(copy.id_in(graph), Graph::NO_VALUE);
+    EXPECT_EQ(copy.id_in(graph), Graph::K_NO_VALUE);
 
     const Graph::ValueId copy_leaf = copy.read(builder, "running_var");
 
@@ -242,14 +242,14 @@ TEST(Unit_Buffer, ACopyAssignedBufferHasANewStateId)
 {
     Buffer original;
     Buffer target;
-    SA_EXPECT_OK(original.define(Shape{8}, 1.0, DType::FLOAT64));
+    SA_EXPECT_OK(original.define(Shape{8}, 1.0, DType::Float64));
     SA_EXPECT_OK(target.define(Shape{2}, 0.0));
     const Graph::StateId replaced = target.state();
 
     target = original;
 
     EXPECT_EQ(target.shape(), (Shape{8}));
-    EXPECT_EQ(target.dtype(), DType::FLOAT64);
+    EXPECT_EQ(target.dtype(), DType::Float64);
     EXPECT_NE(target.state(), Graph::K_NO_STATE);
     EXPECT_NE(target.state(), replaced);
     EXPECT_NE(target.state(), original.state());
@@ -269,11 +269,11 @@ TEST(Unit_Buffer, ACopyOfAnUndefinedBufferHasNoIdentity)
 TEST(Unit_Buffer, DefiningTwiceWithOneDescriptionIsAccepted)
 {
     Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::FLOAT64));
-    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::FLOAT64));
+    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
+    SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
 
     EXPECT_EQ(buffer.shape(), (Shape{8}));
-    EXPECT_EQ(buffer.dtype(), DType::FLOAT64);
+    EXPECT_EQ(buffer.dtype(), DType::Float64);
     EXPECT_NEAR(buffer.initial_value(), 1.0, K_EXACT_TOLERANCE);
 }
 
@@ -292,12 +292,12 @@ TEST(Unit_Buffer, DefiningWithAnotherShapeFails)
 TEST(Unit_Buffer, DefiningWithAnotherElementTypeFails)
 {
     Buffer buffer;
-    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0, DType::FLOAT32));
+    SA_EXPECT_OK(buffer.define(Shape{8}, 0.0, DType::Float32));
 
-    SA_EXPECT_FAILURE(buffer.define(Shape{8}, 0.0, DType::FLOAT64),
+    SA_EXPECT_FAILURE(buffer.define(Shape{8}, 0.0, DType::Float64),
                       StatusCode::InvalidDescription, "Buffer was defined as",
-                      dtype_name(DType::FLOAT32), dtype_name(DType::FLOAT64));
-    EXPECT_EQ(buffer.dtype(), DType::FLOAT32);
+                      dtype_name(DType::Float32), dtype_name(DType::Float64));
+    EXPECT_EQ(buffer.dtype(), DType::Float32);
 }
 
 /** @brief Tests that define() with another starting value fails and keeps the first value. */

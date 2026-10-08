@@ -214,7 +214,7 @@ namespace SushiAI
             if (node != nullptr)
                 return node->make(inputs, attributes, context);
 
-            const LayerEntry* const layer = find_type(LAYER_REGISTRY, type);
+            const LayerEntry* const layer = find_type(K_LAYER_REGISTRY, type);
             if (layer != nullptr)
                 return make_layer_node(*layer, inputs, attributes, context);
 
@@ -223,7 +223,7 @@ namespace SushiAI
                 return SushiBLAS::Core::format(
                     "{} has the type '{}', which this build does not have; the node types "
                     "are: {}; the layer types are: {}",
-                    context, type, list_types(K_NODE_REGISTRY), list_types(LAYER_REGISTRY));
+                    context, type, list_types(K_NODE_REGISTRY), list_types(K_LAYER_REGISTRY));
             });
         }
 

@@ -50,9 +50,9 @@ namespace
     struct Chain
     {
         Graph::Graph graph;
-        ValueId x = Graph::NO_VALUE;
-        ValueId a = Graph::NO_VALUE;
-        ValueId b = Graph::NO_VALUE;
+        ValueId x = Graph::K_NO_VALUE;
+        ValueId a = Graph::K_NO_VALUE;
+        ValueId b = Graph::K_NO_VALUE;
 
         Chain()
         {
@@ -76,8 +76,8 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
     const ArenaSet arenas(*engine, plan);
     ASSERT_EQ(arenas.arena_count(), 1u);
 
-    const SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::FLOAT32);
-    const SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::FLOAT32);
+    const SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
+    const SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
 
     const SushiRuntime::Core::ResourceRegion left = first.region();
     const SushiRuntime::Core::ResourceRegion right = second.region();
@@ -102,8 +102,8 @@ TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     const Chain chain;
     const ArenaSet arenas(*engine, MemoryPlan::build(chain.graph));
 
-    SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::FLOAT32);
-    SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::FLOAT32);
+    SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
+    SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
 
     std::vector<double> ones(16, 1.0);
     std::vector<double> twos(16, 2.0);
@@ -124,7 +124,7 @@ TEST_F(Integration_Arena, AViewAddressesItsOwnElements)
     const MemoryPlan plan = MemoryPlan::build(chain.graph);
     const ArenaSet arenas(*engine, plan);
 
-    const SushiBLAS::Tensor view = arenas.view(chain.b, Shape{16}, DType::FLOAT32);
+    const SushiBLAS::Tensor view = arenas.view(chain.b, Shape{16}, DType::Float32);
     const std::size_t offset = plan.placement(chain.b).offset;
 
     EXPECT_EQ(view.storage_offset, static_cast<int64_t>(offset / sizeof(float)));
@@ -138,17 +138,17 @@ TEST_F(Integration_Arena, AnOffsetThatIsNotAWholeNumberOfElementsIsRefused)
     const auto arena = allocate_arena(*engine, 256);
 
     // A float64 view needs a whole-element offset; see tests/functional/integration/README.md.
-    SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 4, Shape{2}, DType::FLOAT64),
+    SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 4, Shape{2}, DType::Float64),
                     "counts elements");
 
     // The same offset is perfectly fine for float32.
-    EXPECT_NO_THROW((void)view_tensor(*engine, arena, 4, Shape{2}, DType::FLOAT32));
+    EXPECT_NO_THROW((void)view_tensor(*engine, arena, 4, Shape{2}, DType::Float32));
 }
 
 TEST_F(Integration_Arena, AViewThatWouldRunPastTheArenaIsRefused)
 {
     const auto arena = allocate_arena(*engine, 128);
-    SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 64, Shape{64}, DType::FLOAT32),
+    SA_EXPECT_ERROR((void)view_tensor(*engine, arena, 64, Shape{64}, DType::Float32),
                     "run past the end");
 }
 
@@ -158,20 +158,20 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     Graph::Graph graph;
 
     const ValueId narrow_leaf =
-        graph.add_value(Shape{5}, DType::FLOAT32, Lifetime::INPUT, "x");
-    graph.add_node(Ops::LEAF.id, {}, {narrow_leaf});
+        graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
+    graph.add_node(Ops::K_LEAF.id, {}, {narrow_leaf});
 
     const ValueId wide_leaf =
-        graph.add_value(Shape{3}, DType::FLOAT64, Lifetime::INPUT, "y");
-    graph.add_node(Ops::LEAF.id, {}, {wide_leaf});
+        graph.add_value(Shape{3}, DType::Float64, Lifetime::Input, "y");
+    graph.add_node(Ops::K_LEAF.id, {}, {wide_leaf});
 
     const ValueId narrow =
-        graph.add_value(Shape{5}, DType::FLOAT32, Lifetime::ACTIVATION, "a");
-    graph.add_node(Ops::RELU.id, {narrow_leaf}, {narrow});
+        graph.add_value(Shape{5}, DType::Float32, Lifetime::Activation, "a");
+    graph.add_node(Ops::K_RELU.id, {narrow_leaf}, {narrow});
 
     const ValueId wide =
-        graph.add_value(Shape{3}, DType::FLOAT64, Lifetime::ACTIVATION, "b");
-    graph.add_node(Ops::RELU.id, {wide_leaf}, {wide});
+        graph.add_value(Shape{3}, DType::Float64, Lifetime::Activation, "b");
+    graph.add_node(Ops::K_RELU.id, {wide_leaf}, {wide});
 
     PlanOptions options;
     options.alignment = 1;
@@ -181,16 +181,16 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
 
     const ArenaSet arenas(*engine, plan);
 
-    SushiBLAS::Tensor as_float = arenas.view(narrow, Shape{5}, DType::FLOAT32);
-    SushiBLAS::Tensor as_double = arenas.view(wide, Shape{3}, DType::FLOAT64);
+    SushiBLAS::Tensor as_float = arenas.view(narrow, Shape{5}, DType::Float32);
+    SushiBLAS::Tensor as_double = arenas.view(wide, Shape{3}, DType::Float64);
 
     const auto address = [](const SushiBLAS::Tensor& t)
     {
         return reinterpret_cast<std::uintptr_t>(t.data());
     };
 
-    EXPECT_EQ(address(as_float) % dtype_size(DType::FLOAT32), 0u);
-    EXPECT_EQ(address(as_double) % dtype_size(DType::FLOAT64), 0u);
+    EXPECT_EQ(address(as_float) % dtype_size(DType::Float32), 0u);
+    EXPECT_EQ(address(as_double) % dtype_size(DType::Float64), 0u);
 
     // And the two really are different dtypes in one allocation.
     EXPECT_EQ(as_float.storage->allocation_base(), as_double.storage->allocation_base());

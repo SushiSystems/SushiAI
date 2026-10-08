@@ -63,12 +63,12 @@ namespace
             {
                 const GraphBuilder builder(graph_);
 
-                variable_ = builder.parameter(variable_shape, "x", DType::FLOAT64);
+                variable_ = builder.parameter(variable_shape, "x", DType::Float64);
 
                 const ValueId logits = build(builder, variable_);
                 const Shape logit_shape = graph_.value(logits).shape;
 
-                targets_ = builder.input(logit_shape, "targets", DType::FLOAT64);
+                targets_ = builder.input(logit_shape, "targets", DType::Float64);
                 loss_ = builder.nll_loss(logits, targets_);
 
                 const std::vector<ValueId> wrt = {variable_};
@@ -76,7 +76,7 @@ namespace
                     graph_, loss_, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
                 gradient_ = grads.at(0);
-                EXPECT_NE(gradient_, Graph::NO_VALUE);
+                EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
                 // Fusion is off unless a case asks; see tests/functional/integration/README.md.
                 if (fuse)
@@ -169,10 +169,10 @@ namespace
             Graph::Graph graph_;
             TensorPool pool_;
             std::unique_ptr<CompiledStep> step_;
-            ValueId variable_ = Graph::NO_VALUE;
-            ValueId targets_ = Graph::NO_VALUE;
-            ValueId loss_ = Graph::NO_VALUE;
-            ValueId gradient_ = Graph::NO_VALUE;
+            ValueId variable_ = Graph::K_NO_VALUE;
+            ValueId targets_ = Graph::K_NO_VALUE;
+            ValueId loss_ = Graph::K_NO_VALUE;
+            ValueId gradient_ = Graph::K_NO_VALUE;
             Graph::FusionReport fusion_;
     };
 
@@ -191,11 +191,11 @@ namespace
 
 TEST_F(Integration_Autograd, MatmulWithoutTransposes)
 {
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 5}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{5, 3}, "b", DType::FLOAT64);
+        other = builder.input(Shape{5, 3}, "b", DType::Float64);
         return builder.matmul(x, other, false, false);
     });
 
@@ -211,11 +211,11 @@ TEST_F(Integration_Autograd, MatmulWithoutTransposes)
 TEST_F(Integration_Autograd, MatmulWithATransposedRightOperand)
 {
     // The shape Linear actually emits: X [N, in] against W [out, in]^T.
-    ValueId weight = Graph::NO_VALUE;
+    ValueId weight = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 5}, [&weight](const GraphBuilder& builder, ValueId x)
     {
-        weight = builder.input(Shape{3, 5}, "w", DType::FLOAT64);
+        weight = builder.input(Shape{3, 5}, "w", DType::Float64);
         return builder.matmul(x, weight, false, true);
     });
 
@@ -230,11 +230,11 @@ TEST_F(Integration_Autograd, MatmulWithATransposedRightOperand)
 
 TEST_F(Integration_Autograd, MatmulWithATransposedLeftOperand)
 {
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{5, 4}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{5, 3}, "b", DType::FLOAT64);
+        other = builder.input(Shape{5, 3}, "b", DType::Float64);
         return builder.matmul(x, other, true, false);
     });
 
@@ -249,11 +249,11 @@ TEST_F(Integration_Autograd, MatmulWithATransposedLeftOperand)
 
 TEST_F(Integration_Autograd, MatmulWithBothOperandsTransposed)
 {
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{5, 4}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{3, 5}, "b", DType::FLOAT64);
+        other = builder.input(Shape{3, 5}, "b", DType::Float64);
         return builder.matmul(x, other, true, true);
     });
 
@@ -269,11 +269,11 @@ TEST_F(Integration_Autograd, MatmulWithBothOperandsTransposed)
 TEST_F(Integration_Autograd, MatmulGradientOfTheRightOperand)
 {
     // The weight is the variable, covering dB; see tests/functional/integration/README.md.
-    ValueId activations = Graph::NO_VALUE;
+    ValueId activations = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{3, 5}, [&activations](const GraphBuilder& builder, ValueId w)
     {
-        activations = builder.input(Shape{4, 5}, "x", DType::FLOAT64);
+        activations = builder.input(Shape{4, 5}, "x", DType::Float64);
         return builder.matmul(activations, w, false, true);
     });
 
@@ -288,11 +288,11 @@ TEST_F(Integration_Autograd, MatmulGradientOfTheRightOperand)
 
 TEST_F(Integration_Autograd, BiasAddPassesTheMatrixGradientThrough)
 {
-    ValueId bias = Graph::NO_VALUE;
+    ValueId bias = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&bias](const GraphBuilder& builder, ValueId x)
     {
-        bias = builder.input(Shape{3}, "b", DType::FLOAT64);
+        bias = builder.input(Shape{3}, "b", DType::Float64);
         return builder.bias_add(x, bias);
     });
 
@@ -307,11 +307,11 @@ TEST_F(Integration_Autograd, BiasAddPassesTheMatrixGradientThrough)
 
 TEST_F(Integration_Autograd, BiasAddSumsOverTheBroadcastAxis)
 {
-    ValueId base = Graph::NO_VALUE;
+    ValueId base = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{3}, [&base](const GraphBuilder& builder, ValueId bias)
     {
-        base = builder.input(Shape{4, 3}, "x", DType::FLOAT64);
+        base = builder.input(Shape{4, 3}, "x", DType::Float64);
         return builder.bias_add(base, bias);
     });
 
@@ -328,11 +328,11 @@ TEST_F(Integration_Autograd, ElementwiseAddAndSubtract)
 {
     for (int which = 0; which < 2; ++which)
     {
-        ValueId other = Graph::NO_VALUE;
+        ValueId other = Graph::K_NO_VALUE;
 
         Probe probe(*engine, Shape{4, 3}, [&other, which](const GraphBuilder& builder, ValueId x)
         {
-            other = builder.input(Shape{4, 3}, "b", DType::FLOAT64);
+            other = builder.input(Shape{4, 3}, "b", DType::Float64);
             return which == 0 ? builder.add(x, other) : builder.sub(x, other);
         });
 
@@ -349,11 +349,11 @@ TEST_F(Integration_Autograd, ElementwiseAddAndSubtract)
 TEST_F(Integration_Autograd, ElementwiseSubtractFromTheRight)
 {
     // dB = -dC, the half the left-hand check cannot reach.
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{4, 3}, "a", DType::FLOAT64);
+        other = builder.input(Shape{4, 3}, "a", DType::Float64);
         return builder.sub(other, x);
     });
 
@@ -368,11 +368,11 @@ TEST_F(Integration_Autograd, ElementwiseSubtractFromTheRight)
 
 TEST_F(Integration_Autograd, ElementwiseMultiply)
 {
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{4, 3}, "b", DType::FLOAT64);
+        other = builder.input(Shape{4, 3}, "b", DType::Float64);
         return builder.mul(x, other);
     });
 
@@ -388,11 +388,11 @@ TEST_F(Integration_Autograd, ElementwiseMultiply)
 TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
 {
     // Covers dB = dC * A, the right-hand half; see tests/functional/integration/README.md.
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{4, 3}, "a", DType::FLOAT64);
+        other = builder.input(Shape{4, 3}, "a", DType::Float64);
         return builder.mul(other, x);
     });
 
@@ -408,11 +408,11 @@ TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
 TEST_F(Integration_Autograd, AccumulateInTheForwardGraph)
 {
     // Every probe rewrites the whole variable first; see tests/functional/integration/README.md.
-    ValueId other = Graph::NO_VALUE;
+    ValueId other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueId x)
     {
-        other = builder.input(Shape{4, 3}, "delta", DType::FLOAT64);
+        other = builder.input(Shape{4, 3}, "delta", DType::Float64);
         return builder.accumulate(x, other);
     });
 
@@ -528,27 +528,27 @@ TEST_F(Integration_Autograd, Gelu)
 TEST_F(Integration_Autograd, AFusedGeluEpilogueHasTheSameDerivativeAsAnUnfusedOne)
 {
     // The fused epilogue is checked in FLOAT64; see tests/functional/integration/README.md.
-    ValueId weight = Graph::NO_VALUE;
-    ValueId bias = Graph::NO_VALUE;
+    ValueId weight = Graph::K_NO_VALUE;
+    ValueId bias = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 5},
                 [&](const GraphBuilder& builder, ValueId x)
                 {
                     // x is the variable: matmul -> bias_add -> gelu gives [4, 3] logits.
-                    weight = builder.input(Shape{3, 5}, "w", DType::FLOAT64);
-                    bias = builder.input(Shape{3}, "b", DType::FLOAT64);
+                    weight = builder.input(Shape{3, 5}, "w", DType::Float64);
+                    bias = builder.input(Shape{3}, "b", DType::Float64);
                     return builder.gelu(
                         builder.bias_add(builder.matmul(x, weight, false, true), bias));
                 },
                 /*fuse=*/true);
 
     // The fused arm must really have run; see tests/functional/integration/README.md.
-    ASSERT_EQ(probe.fusion().count(Graph::FusedForm::GEMM_BIAS_GELU), 1u)
+    ASSERT_EQ(probe.fusion().count(Graph::FusedForm::GemmBiasGelu), 1u)
         << probe.fusion().to_string();
 
     bool spelled = false;
     for (const Graph::FusionSelection& selection : probe.selections())
-        if (selection.chosen == Graph::FusedForm::GEMM_BIAS_GELU) spelled = true;
+        if (selection.chosen == Graph::FusedForm::GemmBiasGelu) spelled = true;
 
     ASSERT_TRUE(spelled)
         << "this device declined the fused GELU epilogue, so the gradient below is the "
@@ -600,7 +600,7 @@ TEST_F(Integration_Autograd, SumRowsBroadcastsItsGradientBack)
     {
         // [4, 3] -> [3] -> [1, 3], so the loss can consume it as a one-row batch.
         const ValueId sums = builder.sum_rows(x);
-        return builder.bias_add(builder.zeros(Shape{1, 3}, DType::FLOAT64), sums);
+        return builder.bias_add(builder.zeros(Shape{1, 3}, DType::Float64), sums);
     });
 
     probe.fill_noise(probe.targets(), 191, 1.0);
@@ -646,15 +646,15 @@ TEST_F(Integration_Autograd, GradientAccumulationAtAFanOut)
 TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
 {
     // Sixteen random directions cost 2k runs, not 2n; see tests/functional/integration/README.md.
-    ValueId hidden_weight = Graph::NO_VALUE;
-    ValueId output_weight = Graph::NO_VALUE;
-    ValueId inputs = Graph::NO_VALUE;
+    ValueId hidden_weight = Graph::K_NO_VALUE;
+    ValueId output_weight = Graph::K_NO_VALUE;
+    ValueId inputs = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{6}, [&](const GraphBuilder& builder, ValueId bias)
     {
-        inputs = builder.input(Shape{4, 5}, "x", DType::FLOAT64);
-        hidden_weight = builder.input(Shape{6, 5}, "w0", DType::FLOAT64);
-        output_weight = builder.input(Shape{3, 6}, "w1", DType::FLOAT64);
+        inputs = builder.input(Shape{4, 5}, "x", DType::Float64);
+        hidden_weight = builder.input(Shape{6, 5}, "w0", DType::Float64);
+        output_weight = builder.input(Shape{3, 6}, "w1", DType::Float64);
 
         const ValueId hidden = builder.relu(
             builder.bias_add(builder.matmul(inputs, hidden_weight, false, true), bias));
@@ -699,8 +699,8 @@ TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
     // A single layout_convert, so the order matters; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
     {
-        builder.graph().value(x).layout = Graph::TensorLayout::NCHW;
-        const ValueId nhwc = builder.layout_convert(x, Graph::TensorLayout::NHWC);
+        builder.graph().value(x).layout = Graph::TensorLayout::Nchw;
+        const ValueId nhwc = builder.layout_convert(x, Graph::TensorLayout::Nhwc);
         return builder.log_softmax(builder.reshape(nhwc, Shape{2, 60}));
     });
 
@@ -717,8 +717,8 @@ TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
     // The round trip is a secondary check only; see tests/functional/integration/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueId x)
     {
-        const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
-        const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+        const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+        const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::Nhwc);
         return builder.log_softmax(builder.reshape(back, Shape{2, 60}));
     });
 
@@ -733,7 +733,7 @@ TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
 TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatmul)
 {
     // Single hop: im2col feeds matmul, never col2im; see tests/functional/integration/README.md.
-    ValueId weights = Graph::NO_VALUE;
+    ValueId weights = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{2, 5, 5, 3}, [&weights](const GraphBuilder& builder, ValueId x)
     {
@@ -742,7 +742,7 @@ TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatm
         g.pad_top = 1;  g.pad_left = 1;
 
         const ValueId cols = builder.im2col(x, g);                      // [2*25, 27]
-        weights = builder.parameter(Shape{27, 8}, "w", DType::FLOAT64); // 8 output channels
+        weights = builder.parameter(Shape{27, 8}, "w", DType::Float64); // 8 output channels
         return builder.log_softmax(builder.matmul(cols, weights));      // [2*25, 8]
     });
 
@@ -759,7 +759,7 @@ TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatm
 TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel)
 {
     // Nine windows read each interior pixel; see tests/functional/integration/README.md.
-    ValueId weights = Graph::NO_VALUE;
+    ValueId weights = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{1, 4, 4, 2}, [&weights](const GraphBuilder& builder, ValueId x)
     {
@@ -768,7 +768,7 @@ TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel
         g.pad_top = 1;  g.pad_left = 1;
 
         const ValueId cols = builder.im2col(x, g);
-        weights = builder.parameter(Shape{18, 4}, "w", DType::FLOAT64);
+        weights = builder.parameter(Shape{18, 4}, "w", DType::Float64);
         return builder.log_softmax(builder.matmul(cols, weights)); // [16, 4]
     });
 
@@ -784,7 +784,7 @@ TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel
 TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOverItsRealWindowGrid)
 {
     // The real grid is 5x4; a symmetric guess is 4x5; see tests/functional/integration/README.md.
-    ValueId weights = Graph::NO_VALUE;
+    ValueId weights = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{1, 4, 5, 1}, [&weights](const GraphBuilder& builder, ValueId x)
     {
@@ -793,7 +793,7 @@ TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOver
         g.pad_top = 1;  g.pad_left = 1;
 
         const ValueId cols = builder.im2col_with_extents(x, g, 5, 4);  // [20, 9]
-        weights = builder.parameter(Shape{9, 4}, "w", DType::FLOAT64);
+        weights = builder.parameter(Shape{9, 4}, "w", DType::Float64);
         return builder.log_softmax(builder.matmul(cols, weights));     // [20, 4]
     });
 
@@ -956,14 +956,14 @@ TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
 TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItComputed)
 {
     // dx has three terms, not one; see tests/functional/integration/README.md.
-    ValueId gamma = Graph::NO_VALUE;
-    ValueId beta = Graph::NO_VALUE;
+    ValueId gamma = Graph::K_NO_VALUE;
+    ValueId beta = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape({4, 3, 3, 5}),
                 [&gamma, &beta](const GraphBuilder& b, ValueId x)
     {
-        gamma = b.parameter(Shape{5}, "gamma", DType::FLOAT64);
-        beta = b.parameter(Shape{5}, "beta", DType::FLOAT64);
+        gamma = b.parameter(Shape{5}, "gamma", DType::Float64);
+        beta = b.parameter(Shape{5}, "beta", DType::Float64);
         return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
     });
 
@@ -980,13 +980,13 @@ TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItCompute
 TEST_F(Integration_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput)
 {
     // The same node, differentiated at gamma; see tests/functional/integration/README.md.
-    ValueId x = Graph::NO_VALUE;
-    ValueId beta = Graph::NO_VALUE;
+    ValueId x = Graph::K_NO_VALUE;
+    ValueId beta = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{5}, [&x, &beta](const GraphBuilder& b, ValueId gamma)
     {
-        x = b.input(Shape({4, 3, 3, 5}), "x", DType::FLOAT64);
-        beta = b.parameter(Shape{5}, "beta", DType::FLOAT64);
+        x = b.input(Shape({4, 3, 3, 5}), "x", DType::Float64);
+        beta = b.parameter(Shape{5}, "beta", DType::Float64);
         return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
     });
 
@@ -1002,13 +1002,13 @@ TEST_F(Integration_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalis
 
 TEST_F(Integration_Autograd, BatchNormsShiftGradientIsThePlainSumOfDy)
 {
-    ValueId x = Graph::NO_VALUE;
-    ValueId gamma = Graph::NO_VALUE;
+    ValueId x = Graph::K_NO_VALUE;
+    ValueId gamma = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{5}, [&x, &gamma](const GraphBuilder& b, ValueId beta)
     {
-        x = b.input(Shape({4, 3, 3, 5}), "x", DType::FLOAT64);
-        gamma = b.parameter(Shape{5}, "gamma", DType::FLOAT64);
+        x = b.input(Shape({4, 3, 3, 5}), "x", DType::Float64);
+        gamma = b.parameter(Shape{5}, "gamma", DType::Float64);
         return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
     });
 
@@ -1024,14 +1024,14 @@ TEST_F(Integration_Autograd, BatchNormsShiftGradientIsThePlainSumOfDy)
 
 TEST_F(Integration_Autograd, ChannelAffineDifferentiatesAtItsInput)
 {
-    ValueId gamma = Graph::NO_VALUE;
-    ValueId beta = Graph::NO_VALUE;
+    ValueId gamma = Graph::K_NO_VALUE;
+    ValueId beta = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape({2, 4, 4, 6}),
                 [&gamma, &beta](const GraphBuilder& b, ValueId x)
     {
-        gamma = b.parameter(Shape{6}, "gamma", DType::FLOAT64);
-        beta = b.parameter(Shape{6}, "beta", DType::FLOAT64);
+        gamma = b.parameter(Shape{6}, "gamma", DType::Float64);
+        beta = b.parameter(Shape{6}, "beta", DType::Float64);
         return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
     });
 
@@ -1048,13 +1048,13 @@ TEST_F(Integration_Autograd, ChannelAffineDifferentiatesAtItsInput)
 TEST_F(Integration_Autograd, ChannelAffinesScaleGradientSumsOverNHAndW)
 {
     // dgamma sums over N, H and W at once; see tests/functional/integration/README.md.
-    ValueId x = Graph::NO_VALUE;
-    ValueId beta = Graph::NO_VALUE;
+    ValueId x = Graph::K_NO_VALUE;
+    ValueId beta = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{6}, [&x, &beta](const GraphBuilder& b, ValueId gamma)
     {
-        x = b.input(Shape({2, 4, 4, 6}), "x", DType::FLOAT64);
-        beta = b.parameter(Shape{6}, "beta", DType::FLOAT64);
+        x = b.input(Shape({2, 4, 4, 6}), "x", DType::Float64);
+        beta = b.parameter(Shape{6}, "beta", DType::Float64);
         return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
     });
 
@@ -1070,13 +1070,13 @@ TEST_F(Integration_Autograd, ChannelAffinesScaleGradientSumsOverNHAndW)
 
 TEST_F(Integration_Autograd, ChannelAffinesShiftGradientSumsOverNHAndW)
 {
-    ValueId x = Graph::NO_VALUE;
-    ValueId gamma = Graph::NO_VALUE;
+    ValueId x = Graph::K_NO_VALUE;
+    ValueId gamma = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{6}, [&x, &gamma](const GraphBuilder& b, ValueId beta)
     {
-        x = b.input(Shape({2, 4, 4, 6}), "x", DType::FLOAT64);
-        gamma = b.parameter(Shape{6}, "gamma", DType::FLOAT64);
+        x = b.input(Shape({2, 4, 4, 6}), "x", DType::Float64);
+        gamma = b.parameter(Shape{6}, "gamma", DType::Float64);
         return b.log_softmax(b.spatial_mean(b.channel_affine(x, gamma, beta)));
     });
 

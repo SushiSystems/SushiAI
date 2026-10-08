@@ -176,7 +176,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 32, 32}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
@@ -200,7 +200,7 @@ namespace SushiAI
 
             EXPECT_EQ(graph.values()[pooled.output].shape, Shape({2, 2, 2, 3}));
             EXPECT_EQ(graph.values()[pooled.indices].shape, Shape({2, 2, 2, 3}));
-            EXPECT_EQ(graph.values()[pooled.indices].dtype, DType::INT64)
+            EXPECT_EQ(graph.values()[pooled.indices].dtype, DType::Int64)
                 << "an index is not a number to interpolate; a float index would "
                    "compare unequal to the integer the forward wrote";
         }
@@ -261,7 +261,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
             Graph::ConvGeometry g;
             g.kernel_h = 2; g.kernel_w = 2;
@@ -275,7 +275,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 6, 6}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
@@ -289,7 +289,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 2, 2}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
             EXPECT_THROW((void)builder.upsample2d(x_nchw, 2, 2), Error);
         }
@@ -309,7 +309,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
             EXPECT_THROW((void)builder.spatial_mean(x_nchw), Error);
         }
@@ -344,9 +344,9 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId a = builder.input({1, 3, 4, 4}, "a");
-            const ValueId a_nchw = builder.layout_convert(a, Graph::TensorLayout::NCHW);
+            const ValueId a_nchw = builder.layout_convert(a, Graph::TensorLayout::Nchw);
             const ValueId b = builder.input({1, 3, 4, 4}, "b");
-            const ValueId b_nchw = builder.layout_convert(b, Graph::TensorLayout::NCHW);
+            const ValueId b_nchw = builder.layout_convert(b, Graph::TensorLayout::Nchw);
             const std::array<ValueId, 2> parts = {a_nchw, b_nchw};
 
             EXPECT_THROW((void)builder.concat_channels(
@@ -369,7 +369,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
 
             EXPECT_THROW((void)builder.slice_channels(x_nchw, 0, 1), Error);
         }
@@ -394,7 +394,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
             const ValueId gamma = builder.parameter({3}, "gamma");
             const ValueId beta = builder.parameter({3}, "beta");
 
@@ -406,9 +406,9 @@ namespace SushiAI
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
-            const ValueId x = builder.input({2, 8, 8, 16}, "x", DType::FLOAT64);
-            const ValueId gamma = builder.parameter({16}, "gamma", DType::FLOAT64);
-            const ValueId beta = builder.parameter({16}, "beta", DType::FLOAT64);
+            const ValueId x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
+            const ValueId gamma = builder.parameter({16}, "gamma", DType::Float64);
+            const ValueId beta = builder.parameter({16}, "beta", DType::Float64);
 
             const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
             EXPECT_EQ(graph.values()[bn.output].shape, Shape({2, 8, 8, 16}));
@@ -417,15 +417,15 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[bn.batch_variance].shape, Shape({16}));
 
             const Graph::Node& node = graph.node(graph.value(bn.output).producer);
-            EXPECT_EQ(node.op, Ops::BATCHNORM2D.id);
+            EXPECT_EQ(node.op, Ops::K_BATCHNORM2D.id);
             EXPECT_EQ(node.outputs, (std::vector<ValueId>{bn.output, bn.saved_mean,
                                                           bn.saved_inv_std, bn.batch_variance}));
             EXPECT_EQ(node.attributes.get(0), 1e-5);
 
             for (ValueId out : node.outputs)
             {
-                EXPECT_EQ(graph.value(out).dtype, DType::FLOAT64) << "value " << out;
-                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::ACTIVATION)
+                EXPECT_EQ(graph.value(out).dtype, DType::Float64) << "value " << out;
+                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation)
                     << "value " << out;
             }
 
@@ -442,7 +442,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 3, 4, 4}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
             const ValueId gamma = builder.parameter({3}, "gamma");
             const ValueId beta = builder.parameter({3}, "beta");
 
@@ -454,10 +454,10 @@ namespace SushiAI
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
-            const ValueId gamma = builder.parameter({16}, "gamma", DType::FLOAT64);
-            const ValueId beta = builder.parameter({16}, "beta", DType::FLOAT64);
-            const ValueId mean = builder.buffer({16}, "running_mean", DType::FLOAT64);
-            const ValueId variance = builder.buffer({16}, "running_var", DType::FLOAT64);
+            const ValueId gamma = builder.parameter({16}, "gamma", DType::Float64);
+            const ValueId beta = builder.parameter({16}, "beta", DType::Float64);
+            const ValueId mean = builder.buffer({16}, "running_mean", DType::Float64);
+            const ValueId variance = builder.buffer({16}, "running_var", DType::Float64);
             const std::size_t nodes_before = graph.node_count();
 
             const Graph::BatchNormFold fold =
@@ -465,7 +465,7 @@ namespace SushiAI
 
             ASSERT_EQ(graph.node_count(), nodes_before + 1);
             const Graph::Node& node = graph.nodes().back();
-            EXPECT_EQ(node.op, Ops::BATCHNORM_FOLD.id);
+            EXPECT_EQ(node.op, Ops::K_BATCHNORM_FOLD.id);
             EXPECT_EQ(node.inputs, (std::vector<ValueId>{gamma, beta, mean, variance}));
             EXPECT_EQ(node.outputs, (std::vector<ValueId>{fold.scale, fold.shift}));
             EXPECT_EQ(node.attributes.get(0), 1e-3);
@@ -473,13 +473,13 @@ namespace SushiAI
             for (ValueId out : {fold.scale, fold.shift})
             {
                 EXPECT_EQ(graph.value(out).shape, Shape({16})) << "value " << out;
-                EXPECT_EQ(graph.value(out).dtype, DType::FLOAT64) << "value " << out;
-                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::ACTIVATION)
+                EXPECT_EQ(graph.value(out).dtype, DType::Float64) << "value " << out;
+                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation)
                     << "value " << out;
             }
 
             // The fold's results are what CHANNEL_AFFINE reads in an evaluation trace.
-            const ValueId x = builder.input({2, 8, 8, 16}, "x", DType::FLOAT64);
+            const ValueId x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
             EXPECT_EQ(graph.value(builder.channel_affine(x, fold.scale, fold.shift)).shape,
                       Shape({2, 8, 8, 16}));
         }
@@ -494,9 +494,9 @@ namespace SushiAI
             const ValueId mean = builder.buffer({16}, "running_mean");
             const ValueId variance = builder.buffer({16}, "running_var");
             const ValueId short_mean = builder.buffer({8}, "short_mean");
-            const ValueId wide_variance = builder.buffer({16}, "wide_var", DType::FLOAT64);
+            const ValueId wide_variance = builder.buffer({16}, "wide_var", DType::Float64);
             const ValueId matrix = builder.parameter({4, 4}, "matrix");
-            const ValueId counts = builder.buffer({16}, "counts", DType::INT64);
+            const ValueId counts = builder.buffer({16}, "counts", DType::Int64);
             const std::size_t nodes_before = graph.node_count();
             const std::size_t values_before = graph.value_count();
 
@@ -541,7 +541,7 @@ namespace SushiAI
 
             EXPECT_EQ(graph.values()[builder.sum_channels(x)].shape, Shape({16}));
 
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
             EXPECT_THROW((void)builder.sum_channels(x_nchw), Error);
         }
 
@@ -600,7 +600,7 @@ namespace SushiAI
             const ValueId y = builder.conv2d(x, weight, bias, square_window(3, 1));
 
             EXPECT_EQ(graph.values()[y].shape, Shape({2, 5, 5, 8}));
-            EXPECT_EQ(graph.values()[y].layout, Graph::TensorLayout::NHWC);
+            EXPECT_EQ(graph.values()[y].layout, Graph::TensorLayout::Nhwc);
         }
 
         /** @brief Tests that conv2d divides the output extents by its stride. */
@@ -615,7 +615,7 @@ namespace SushiAI
             g.stride_h = 2;
             g.stride_w = 2;
 
-            const ValueId y = builder.conv2d(x, weight, Graph::NO_VALUE, g);
+            const ValueId y = builder.conv2d(x, weight, Graph::K_NO_VALUE, g);
 
             EXPECT_EQ(graph.values()[y].shape, Shape({2, 4, 3, 4}));
         }
@@ -650,7 +650,7 @@ namespace SushiAI
             const ValueId weight = builder.parameter({8, 3, 3, 3}, "weight");
             const std::size_t operands = graph.node_count();
 
-            (void)builder.conv2d(x, weight, Graph::NO_VALUE, square_window(3, 1));
+            (void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1));
 
             EXPECT_EQ(op_names_from(graph, operands), (std::vector<std::string>{
                 "sushiai.reshape",
@@ -669,10 +669,10 @@ namespace SushiAI
             const ValueId weight = builder.parameter({8, 3, 3, 3}, "weight");
             const std::size_t operands = graph.node_count();
 
-            (void)builder.conv2d(x, weight, Graph::NO_VALUE, square_window(3, 1));
+            (void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1));
 
             const Graph::Node& matmul = graph.nodes()[operands + 2];
-            ASSERT_EQ(matmul.op, Ops::MATMUL.id);
+            ASSERT_EQ(matmul.op, Ops::K_MATMUL.id);
             EXPECT_EQ(graph.values()[matmul.inputs[0]].shape, Shape({2 * 5 * 5, 3 * 3 * 3}));
             EXPECT_EQ(graph.values()[matmul.inputs[1]].shape, Shape({8, 3 * 3 * 3}));
             EXPECT_FALSE(matmul.attributes.flag(0));
@@ -688,7 +688,7 @@ namespace SushiAI
             const ValueId weight = builder.parameter({8, 1, 1, 3}, "weight");
             const std::size_t operands = graph.node_count();
 
-            const ValueId y = builder.conv2d(x, weight, Graph::NO_VALUE, square_window(1, 0));
+            const ValueId y = builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(1, 0));
 
             EXPECT_EQ(op_names_from(graph, operands), (std::vector<std::string>{
                 "sushiai.reshape",
@@ -712,7 +712,7 @@ namespace SushiAI
             g.stride_h = 2;
             g.stride_w = 2;
 
-            const ValueId y = builder.conv2d(x, weight, Graph::NO_VALUE, g);
+            const ValueId y = builder.conv2d(x, weight, Graph::K_NO_VALUE, g);
 
             EXPECT_EQ(op_names_from(graph, operands), (std::vector<std::string>{
                 "sushiai.reshape",
@@ -731,7 +731,7 @@ namespace SushiAI
             const ValueId x = builder.input({2, 5, 5, 3}, "x");
             const ValueId weight = builder.parameter({8, 1, 3, 3}, "weight");
 
-            const ValueId y = builder.conv2d(x, weight, Graph::NO_VALUE, window(1, 3));
+            const ValueId y = builder.conv2d(x, weight, Graph::K_NO_VALUE, window(1, 3));
 
             EXPECT_EQ(graph.values()[y].shape, Shape({2, 5, 3, 8}));
         }
@@ -745,7 +745,7 @@ namespace SushiAI
             const ValueId weight = builder.parameter({8, 3, 1, 3}, "weight");
 
             // [8,3,1,3] holds as many elements as [8,1,3,3], so no later reshape rejects it.
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::NO_VALUE, window(1, 3)), Error);
+            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, window(1, 3)), Error);
         }
 
         /** @brief Tests that conv2d names itself when a weight's C_in differs from the input's. */
@@ -758,7 +758,7 @@ namespace SushiAI
 
             // reshape rejects the same weight by element count, in a message without "conv2d".
             SA_EXPECT_ERROR(
-                (void)builder.conv2d(x, weight, Graph::NO_VALUE, square_window(3, 1)), "conv2d");
+                (void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)), "conv2d");
         }
 
         /** @brief Tests that conv2d rejects a weight that is not rank 4. */
@@ -769,7 +769,7 @@ namespace SushiAI
             const ValueId x = builder.input({2, 5, 5, 3}, "x");
             const ValueId weight = builder.parameter({8, 3 * 3 * 3}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::NO_VALUE, square_window(3, 1)),
+            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
                          Error);
         }
 
@@ -781,7 +781,7 @@ namespace SushiAI
             const ValueId x = builder.input({5, 5, 3}, "x");
             const ValueId weight = builder.parameter({8, 3, 3, 3}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::NO_VALUE, square_window(3, 1)),
+            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
                          Error);
         }
 
@@ -791,10 +791,10 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 5, 5, 3}, "x");
-            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
             const ValueId weight = builder.parameter({8, 1, 1, 5}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x_nchw, weight, Graph::NO_VALUE,
+            EXPECT_THROW((void)builder.conv2d(x_nchw, weight, Graph::K_NO_VALUE,
                                               square_window(1, 0)),
                          Error);
         }
@@ -819,7 +819,7 @@ namespace SushiAI
             const ValueId x = builder.input({1, 2, 2, 3}, "x");
             const ValueId weight = builder.parameter({8, 5, 5, 3}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::NO_VALUE, square_window(5, 0)),
+            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(5, 0)),
                          Error);
         }
 
@@ -835,9 +835,9 @@ namespace SushiAI
             const ValueId widened = builder.parameter({8, 1, 1, 4}, "widened");
             const std::size_t operands = graph.node_count();
 
-            EXPECT_THROW((void)builder.conv2d(x, oversized, Graph::NO_VALUE, square_window(5, 0)),
+            EXPECT_THROW((void)builder.conv2d(x, oversized, Graph::K_NO_VALUE, square_window(5, 0)),
                          Error);
-            EXPECT_THROW((void)builder.conv2d(x, widened, Graph::NO_VALUE, square_window(1, 0)),
+            EXPECT_THROW((void)builder.conv2d(x, widened, Graph::K_NO_VALUE, square_window(1, 0)),
                          Error);
             EXPECT_THROW((void)builder.conv2d(x, fitting, bias, square_window(1, 0)), Error);
 
@@ -855,7 +855,7 @@ namespace SushiAI
             const ValueId shortcut = builder.parameter({8, 1, 1, 8}, "shortcut");
 
             const ValueId y = builder.conv2d(x, weight, bias, square_window(3, 1));
-            (void)builder.conv2d(y, shortcut, Graph::NO_VALUE, square_window(1, 0));
+            (void)builder.conv2d(y, shortcut, Graph::K_NO_VALUE, square_window(1, 0));
 
             EXPECT_NO_THROW(graph.finalise());
         }
@@ -879,8 +879,8 @@ namespace SushiAI
                 graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
             ASSERT_EQ(grads.size(), 2u);
-            ASSERT_NE(grads[0], Graph::NO_VALUE);
-            ASSERT_NE(grads[1], Graph::NO_VALUE);
+            ASSERT_NE(grads[0], Graph::K_NO_VALUE);
+            ASSERT_NE(grads[1], Graph::K_NO_VALUE);
             EXPECT_EQ(graph.values()[grads[0]].shape, Shape({8, 3, 3, 3}));
             EXPECT_EQ(graph.values()[grads[1]].shape, Shape({8}));
         }
@@ -1030,7 +1030,7 @@ namespace SushiAI
             const Graph::ConvGeometry g = square_window(3, -1);
 
             SA_EXPECT_ERROR((void)builder.im2col(x, g), "padding");
-            SA_EXPECT_ERROR((void)builder.conv2d(x, weight, Graph::NO_VALUE, g), "padding");
+            SA_EXPECT_ERROR((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, g), "padding");
             SA_EXPECT_ERROR((void)builder.maxpool2d(x, g), "padding");
             SA_EXPECT_ERROR((void)builder.avgpool2d(x, g), "padding");
         }
@@ -1063,7 +1063,7 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({1, 8, 8, 2}, "x");
-            const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
             const Graph::ConvGeometry g = square_window(3, 0);
 
             SA_EXPECT_ERROR((void)builder.im2col(nchw, g), "im2col", "NHWC");

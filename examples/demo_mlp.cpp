@@ -50,8 +50,8 @@ namespace
     /** @brief Selects the update rule the demo trains with. */
     enum class OptimizerKind
     {
-        ADAMW, /**< AdamW, the default; converges on this problem without tuning. */
-        SGD,   /**< SGD with momentum, for comparison. */
+        Adamw, /**< AdamW, the default; converges on this problem without tuning. */
+        Sgd,   /**< SGD with momentum, for comparison. */
     };
 
     /**
@@ -60,8 +60,8 @@ namespace
      */
     enum class ActivationKind
     {
-        RELU, /**< The default; folds with nothing spilled. */
-        GELU, /**< Folds only via the auxiliary pre-activation spill. */
+        Relu, /**< The default; folds with nothing spilled. */
+        Gelu, /**< Folds only via the auxiliary pre-activation spill. */
     };
 
     /**
@@ -82,9 +82,9 @@ namespace
 
         std::uint64_t seed = 0x0D15EA5E'0BADF00Dull; /**< Seeds both the data and the weights. */
         /** @brief Holds the update rule the run trains with. */
-        OptimizerKind optimizer = OptimizerKind::ADAMW;
+        OptimizerKind optimizer = OptimizerKind::Adamw;
         /** @brief Holds the activation of the hidden layer. */
-        ActivationKind activation = ActivationKind::RELU;
+        ActivationKind activation = ActivationKind::Relu;
         /** @brief Holds the directory the MNIST IDX files are looked for in. */
         std::filesystem::path mnist_directory = "data/mnist";
 
@@ -102,7 +102,7 @@ namespace
     };
 
     /** @brief Holds the text `--help` prints. */
-    constexpr std::string_view USAGE = R"(sa demo mlp - train an MLP classifier end to end.
+    constexpr std::string_view K_USAGE = R"(sa demo mlp - train an MLP classifier end to end.
 
 Usage: sushiai_demo_mlp [options]
 
@@ -278,7 +278,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             {
                 const std::string name = value();
                 const sa::Graph::FusedForm form = sa::Graph::fused_form_from_name(name);
-                SA_THROW_IF(form == sa::Graph::FusedForm::NONE,
+                SA_THROW_IF(form == sa::Graph::FusedForm::None,
                             "--no-fuse does not know the form '{}'. Run with --help for the "
                             "names; they are the ones the fusion report prints.", name);
                 settings.without.push_back(form);
@@ -308,15 +308,15 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             else if (flag == "--optimizer")
             {
                 const std::string name = value();
-                if (name == "adamw") settings.optimizer = OptimizerKind::ADAMW;
-                else if (name == "sgd") settings.optimizer = OptimizerKind::SGD;
+                if (name == "adamw") settings.optimizer = OptimizerKind::Adamw;
+                else if (name == "sgd") settings.optimizer = OptimizerKind::Sgd;
                 else SA_THROW_IF(true, "--optimizer takes 'adamw' or 'sgd', got '{}'", name);
             }
             else if (flag == "--activation")
             {
                 const std::string name = value();
-                if (name == "relu") settings.activation = ActivationKind::RELU;
-                else if (name == "gelu") settings.activation = ActivationKind::GELU;
+                if (name == "relu") settings.activation = ActivationKind::Relu;
+                else if (name == "gelu") settings.activation = ActivationKind::Gelu;
                 else SA_THROW_IF(true, "--activation takes 'relu' or 'gelu', got '{}'", name);
             }
             else SA_THROW_IF(true, "Unknown flag '{}'. Run with --help.", flag);
@@ -327,7 +327,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     }
 
     /** @brief Holds the momentum SGD runs with, which the report prints. */
-    constexpr double SGD_MOMENTUM = 0.9;
+    constexpr double K_SGD_MOMENTUM = 0.9;
 
     /**
      * @brief Builds the requested optimizer over @p parameters.
@@ -341,11 +341,11 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         const Settings& settings,
         double& learning_rate)
     {
-        if (settings.optimizer == OptimizerKind::SGD)
+        if (settings.optimizer == OptimizerKind::Sgd)
         {
             sa::Optim::SGDOptions sgd;
             sgd.learning_rate = settings.learning_rate.value_or(0.2);
-            sgd.momentum = SGD_MOMENTUM;
+            sgd.momentum = K_SGD_MOMENTUM;
             learning_rate = sgd.learning_rate;
             return std::make_unique<sa::Optim::SGD>(engine, std::move(parameters), sgd);
         }
@@ -436,7 +436,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                             sa::Graph::fused_form_name(subtree.form), subtree.result);
 
             // The one form that writes two values names the spilled value here.
-            if (subtree.spilled != sa::Graph::NO_VALUE)
+            if (subtree.spilled != sa::Graph::K_NO_VALUE)
                 text += SushiBLAS::Core::format(" (+ pre-activation spilled to value {})",
                                                 subtree.spilled);
             text += "\n";
@@ -444,7 +444,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
         for (const sa::Graph::DeclinedFusion& decline : report.declined())
             text += SushiBLAS::Core::format("           declined {}: {}\n",
-                                            decline.form != sa::Graph::FusedForm::NONE
+                                            decline.form != sa::Graph::FusedForm::None
                                                 ? sa::Graph::fused_form_name(decline.form)
                                                 : sa::Ops::name_of(decline.op),
                                             sa::Graph::fusion_decline_reason(decline.reason));
@@ -467,8 +467,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         return SushiBLAS::Core::format(
             "Precision: {}; {} cast(s) - {} narrowing, {} widening back to the master type\n",
             report.policy(), report.count(),
-            report.count_into(sa::DType::HALF),
-            report.count_into(sa::DType::FLOAT32));
+            report.count_into(sa::DType::Half),
+            report.count_into(sa::DType::Float32));
     }
 
     /**
@@ -535,15 +535,15 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         const sa::Graph::UniformPrecisionPolicy single_precision;
         const sa::Graph::MixedPrecisionPolicy mixed_precision;
 
-        const sa::Graph::IPrecisionPolicy* precision =
+        const sa::Graph::PrecisionPolicy* precision =
             settings.mixed_precision
-                ? static_cast<const sa::Graph::IPrecisionPolicy*>(&mixed_precision)
-                : static_cast<const sa::Graph::IPrecisionPolicy*>(&single_precision);
+                ? static_cast<const sa::Graph::PrecisionPolicy*>(&mixed_precision)
+                : static_cast<const sa::Graph::PrecisionPolicy*>(&single_precision);
 
         const bool scaling = settings.loss_scale > 0.0;
 
         sa::Train::TrainingGraph built = sa::Train::build_classifier(
-            model, settings.batch_size, features, classes, sa::DType::FLOAT32, fusion,
+            model, settings.batch_size, features, classes, sa::DType::Float32, fusion,
             precision, scaling);
 
         sa::Graph::TensorPool pool(engine);
@@ -596,10 +596,10 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                        features, settings.hidden, classes,
                                        sa::NN::parameter_elements(model))
             << SushiBLAS::Core::format("Optimizer: {} (lr {:g}{})\n",
-                                       settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw",
+                                       settings.optimizer == OptimizerKind::Sgd ? "sgd" : "adamw",
                                        learning_rate,
-                                       settings.optimizer == OptimizerKind::SGD
-                                           ? SushiBLAS::Core::format(", momentum {:g}", SGD_MOMENTUM)
+                                       settings.optimizer == OptimizerKind::Sgd
+                                           ? SushiBLAS::Core::format(", momentum {:g}", K_SGD_MOMENTUM)
                                            : std::string{})
             << SushiBLAS::Core::format("Batches  : {} x {} from '{}'\n",
                                        dataset.batch_count(), settings.batch_size, dataset.name())
@@ -649,7 +649,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             << "\n================================================================\n"
             << " SushiAI MLP demo - result\n"
             << " " << (data.is_mnist ? "MNIST" : "synthetic fallback")
-            << ", " << (settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw")
+            << ", " << (settings.optimizer == OptimizerKind::Sgd ? "sgd" : "adamw")
             << SushiBLAS::Core::format(", {} -> {} -> {}\n", features, settings.hidden, classes)
             << "================================================================\n"
             << trajectory
@@ -682,7 +682,7 @@ int main(int argc, char** argv)
         const Settings settings = parse_command_line(argc, argv, wants_help);
         if (wants_help)
         {
-            std::cout << USAGE;
+            std::cout << K_USAGE;
             return EXIT_SUCCESS;
         }
 
@@ -696,11 +696,11 @@ int main(int argc, char** argv)
         const int64_t classes = dataset.num_classes();
 
         // The activation is a type, so the choice is made here and nowhere after it.
-        if (settings.activation == ActivationKind::GELU)
+        if (settings.activation == ActivationKind::Gelu)
         {
             sa::NN::Sequential model{
                 sa::NN::Linear{features, settings.hidden},
-                sa::NN::GELU{},
+                sa::NN::K_GELU{},
                 sa::NN::Linear{settings.hidden, classes},
             };
             return train_and_report(engine, model, data, dataset, settings, features, classes);

@@ -58,7 +58,7 @@ using namespace SushiAI;
 using Eager::RegionKey;
 using Eager::RegionSignature;
 using Graph::GraphBuilder;
-using Graph::NO_VALUE;
+using Graph::K_NO_VALUE;
 using Graph::ValueId;
 
 namespace
@@ -96,7 +96,7 @@ namespace
     struct Recipe
     {
         Shape shape{4, 3};                                  /**< Extents of every value. */
-        DType dtype = DType::FLOAT32;                       /**< Element type of every value. */
+        DType dtype = DType::Float32;                       /**< Element type of every value. */
         double alpha = 2.0;                                 /**< Factor of the closing SCALE. */
         bool subtracts = false;                             /**< Combines with SUB, not ADD. */
         bool swaps_operands = false;                        /**< Combines (tanh, relu). */
@@ -123,7 +123,7 @@ namespace
 
         for (const Graph::Node& node : traced.graph.nodes())
             traced.partition.region_of_node.push_back(
-                node.op == Ops::LEAF.id ? Eager::K_NO_REGION : K_BODY);
+                node.op == Ops::K_LEAF.id ? Eager::K_NO_REGION : K_BODY);
         traced.partition.regions = {{K_BODY, "body#0", Eager::Direction::Forward}};
         traced.partition.optimizer_key = K_BODY + 1;
 
@@ -145,7 +145,7 @@ namespace
         for (std::size_t id = 0; id < nodes.size(); ++id)
             if (nodes[id].op == op)
                 return static_cast<Graph::NodeId>(id);
-        return Graph::NO_NODE;
+        return Graph::K_NO_NODE;
     }
 
     /**
@@ -161,7 +161,7 @@ namespace
         traced.partition.region_of_node.clear();
         for (const Graph::Node& node : traced.graph.nodes())
             traced.partition.region_of_node.push_back(
-                node.op == Ops::LEAF.id ? Eager::K_NO_REGION : keys.at(next++));
+                node.op == Ops::K_LEAF.id ? Eager::K_NO_REGION : keys.at(next++));
         traced.partition.regions = std::move(regions);
         traced.partition.optimizer_key = K_READER + 1;
         traced.identity.assign(traced.graph.value_count(), 0);
@@ -184,7 +184,7 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::FLOAT32);
+        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
         const ValueId rectified = builder.relu(x);
         const ValueId read = recipe.reads_leaf ? x : rectified;
         (void)builder.scale(read, 2.0);
@@ -227,11 +227,11 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::FLOAT32);
+        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
         const ValueId outside = builder.relu(x);
         const ValueId inside = builder.relu(x);
         const ValueId probed =
-            traced.graph.add_value(Shape{4, 3}, DType::FLOAT32, Graph::Lifetime::ACTIVATION);
+            traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation);
 
         std::vector<ValueId> read;
         switch (operands)
@@ -249,7 +249,7 @@ namespace
                 read = {x, x, inside};
                 break;
         }
-        (void)traced.graph.add_node(Ops::ADD.id, std::move(read), {probed});
+        (void)traced.graph.add_node(Ops::K_ADD.id, std::move(read), {probed});
 
         assign_regions(traced, {K_BODY, K_READER, K_READER},
                        {{K_BODY, "body#0", Eager::Direction::Forward},
@@ -266,11 +266,11 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::FLOAT32);
+        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
         const std::vector<ValueId> results = {
-            traced.graph.add_value(Shape{4, 3}, DType::FLOAT32, Graph::Lifetime::ACTIVATION),
-            traced.graph.add_value(Shape{4, 3}, DType::FLOAT32, Graph::Lifetime::ACTIVATION)};
-        (void)traced.graph.add_node(Ops::RELU.id, {x}, results);
+            traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation),
+            traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation)};
+        (void)traced.graph.add_node(Ops::K_RELU.id, {x}, results);
         (void)builder.tanh(results.at(index));
 
         assign_regions(traced, {K_BODY, K_BODY},
@@ -380,7 +380,7 @@ namespace
                 activation = builder.relu(builder.matmul(activation, parameters.back()));
             }
 
-            ValueId loss = NO_VALUE;
+            ValueId loss = K_NO_VALUE;
             {
                 const Eager::Scope scope(trace, "head");
                 parameters.push_back(
@@ -395,7 +395,7 @@ namespace
             (void)Autograd::differentiate(
                 traced.graph, loss,
                 SushiRuntime::span<const ValueId>(parameters.data(), parameters.size()),
-                NO_VALUE, &provenance);
+                K_NO_VALUE, &provenance);
 
             traced.partition = Eager::ScopePartitioner{}.assign(
                 traced.graph,
@@ -417,7 +417,7 @@ namespace
         Traced traced;
 
         /** @brief Holds the last result of the "stem" scope, which "body" reads. */
-        ValueId stem_output = NO_VALUE;
+        ValueId stem_output = K_NO_VALUE;
     };
 }
 
@@ -429,8 +429,8 @@ TEST(Unit_RegionSignature, TheSameTraceGivesTheSameSignature)
 
     EXPECT_EQ(first.hash, second.hash);
     EXPECT_TRUE(first == second);
-    EXPECT_EQ(first.ops, (std::vector<OpID>{Ops::RELU.id, Ops::TANH.id, Ops::ADD.id,
-                                            Ops::SCALE.id}));
+    EXPECT_EQ(first.ops, (std::vector<OpID>{Ops::K_RELU.id, Ops::K_TANH.id, Ops::K_ADD.id,
+                                            Ops::K_SCALE.id}));
 }
 
 /** @brief Tests that another SCALE factor gives another hash over the same operations. */
@@ -451,8 +451,8 @@ TEST(Unit_RegionSignature, AChangedLastAttributeSlotChangesTheHash)
 {
     const Traced base = build(Recipe{});
     Traced changed = build(Recipe{});
-    changed.graph.node(node_of(changed.graph, Ops::SCALE.id))
-        .attributes.values[Graph::Attributes::CAPACITY - 1] = 1.0;
+    changed.graph.node(node_of(changed.graph, Ops::K_SCALE.id))
+        .attributes.values[Graph::Attributes::K_CAPACITY - 1] = 1.0;
 
     const RegionSignature before = signature_of(base, K_BODY);
     const RegionSignature after = signature_of(changed, K_BODY);
@@ -467,8 +467,8 @@ TEST(Unit_RegionSignature, AChangedLayoutChangesTheHash)
     const Traced base = build(Recipe{});
     Traced changed = build(Recipe{});
     const ValueId rectified =
-        changed.graph.node(node_of(changed.graph, Ops::RELU.id)).outputs.front();
-    changed.graph.value(rectified).layout = Graph::TensorLayout::NCHW;
+        changed.graph.node(node_of(changed.graph, Ops::K_RELU.id)).outputs.front();
+    changed.graph.value(rectified).layout = Graph::TensorLayout::Nchw;
 
     const RegionSignature before = signature_of(base, K_BODY);
     const RegionSignature after = signature_of(changed, K_BODY);
@@ -494,7 +494,7 @@ TEST(Unit_RegionSignature, AChangedShapeChangesTheHash)
 TEST(Unit_RegionSignature, AChangedDtypeChangesTheHash)
 {
     Recipe changed;
-    changed.dtype = DType::FLOAT64;
+    changed.dtype = DType::Float64;
 
     const RegionSignature base = signature_of(Recipe{});
     const RegionSignature other = signature_of(changed);
@@ -654,9 +654,9 @@ TEST(Unit_RegionSignature, ALeafOperandHashesApartFromOneInsideTheRegion)
 /** @brief Tests that two signatures with one hash and different operations compare unequal. */
 TEST(Unit_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
 {
-    const RegionSignature added{42, {Ops::ADD.id}};
-    const RegionSignature subtracted{42, {Ops::SUB.id}};
-    const RegionSignature added_again{42, {Ops::ADD.id}};
+    const RegionSignature added{42, {Ops::K_ADD.id}};
+    const RegionSignature subtracted{42, {Ops::K_SUB.id}};
+    const RegionSignature added_again{42, {Ops::K_ADD.id}};
 
     EXPECT_FALSE(added == subtracted);
     EXPECT_TRUE(added != subtracted);

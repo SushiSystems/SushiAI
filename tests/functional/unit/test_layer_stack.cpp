@@ -45,7 +45,7 @@
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
-using NN::GELU;
+using NN::K_GELU;
 using NN::LayerAdapter;
 using NN::LayerStack;
 using NN::Linear;
@@ -75,7 +75,7 @@ namespace
     {
         LayerStack stack;
         stack.push(std::make_unique<LayerAdapter<Linear>>(Linear{6, 8}, 8));
-        stack.push(std::make_unique<LayerAdapter<GELU>>(GELU{}, 8));
+        stack.push(std::make_unique<LayerAdapter<K_GELU>>(K_GELU{}, 8));
         stack.push(std::make_unique<LayerAdapter<Linear>>(Linear{8, 4}, 4));
         return stack;
     }
@@ -106,7 +106,7 @@ namespace
 
 TEST(Unit_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
 {
-    Sequential compile_time{Linear{6, 8}, GELU{}, Linear{8, 4}};
+    Sequential compile_time{Linear{6, 8}, K_GELU{}, Linear{8, 4}};
     LayerStack run_time = make_stack();
 
     const std::vector<std::string> expected = traced_names(compile_time, 4, 6);
@@ -195,7 +195,7 @@ TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 /** @brief Tests that an adapter built from a Shape reports that shape unchanged. */
 TEST(Unit_LayerStack, AnAdapterBuiltFromAShapeReportsIt)
 {
-    const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
+    const LayerAdapter<K_GELU> adapter(K_GELU{}, Shape{4, 5, 3});
     EXPECT_EQ(adapter.output_shape(), (Shape{4, 5, 3}));
 }
 
@@ -210,7 +210,7 @@ TEST(Unit_LayerStack, AnAdapterBuiltFromAWidthReportsARankOneShape)
 /** @brief Tests that output_features() is the element count of output_shape(). */
 TEST(Unit_LayerStack, OutputFeaturesEqualsTheElementCountOfTheOutputShape)
 {
-    const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
+    const LayerAdapter<K_GELU> adapter(K_GELU{}, Shape{4, 5, 3});
     const NN::ILayer& layer = adapter;
 
     EXPECT_EQ(layer.output_features(), 4 * 5 * 3);
@@ -223,7 +223,7 @@ TEST(Unit_LayerStack, ReportsTheLastLayersOutputShape)
     EXPECT_EQ(make_stack().output_shape(), (Shape{4}));
 
     LayerStack image_stack = make_stack();
-    image_stack.push(std::make_unique<LayerAdapter<GELU>>(GELU{}, Shape{2, 2, 1}));
+    image_stack.push(std::make_unique<LayerAdapter<K_GELU>>(K_GELU{}, Shape{2, 2, 1}));
     EXPECT_EQ(image_stack.output_shape(), (Shape{2, 2, 1}));
     EXPECT_EQ(image_stack.output_features(), 4);
 }

@@ -42,15 +42,15 @@ using Graph::FusionDecline;
 using Graph::FusionOptions;
 using Graph::FusionReport;
 using Graph::GraphBuilder;
-using Graph::NO_NODE;
+using Graph::K_NO_NODE;
 using Graph::NodeId;
 using Graph::ValueId;
 
 namespace
 {
-    constexpr int64_t ROWS = 4;
-    constexpr int64_t IN_FEATURES = 3;
-    constexpr int64_t OUT_FEATURES = 5;
+    constexpr int64_t K_ROWS = 4;
+    constexpr int64_t K_IN_FEATURES = 3;
+    constexpr int64_t K_OUT_FEATURES = 5;
 
     /**
      * @struct Layer
@@ -58,20 +58,20 @@ namespace
      */
     struct Layer
     {
-        ValueId x = Graph::NO_VALUE;
-        ValueId weight = Graph::NO_VALUE;
-        ValueId bias = Graph::NO_VALUE;
-        ValueId product = Graph::NO_VALUE;   /**< The MATMUL's result. */
-        ValueId biased = Graph::NO_VALUE;    /**< The BIAS_ADD's result. */
+        ValueId x = Graph::K_NO_VALUE;
+        ValueId weight = Graph::K_NO_VALUE;
+        ValueId bias = Graph::K_NO_VALUE;
+        ValueId product = Graph::K_NO_VALUE;   /**< The MATMUL's result. */
+        ValueId biased = Graph::K_NO_VALUE;    /**< The BIAS_ADD's result. */
     };
 
     /** @brief Emits x -> matmul -> bias_add, the shape every case below builds on. */
     Layer trace_linear(const GraphBuilder& builder)
     {
         Layer layer;
-        layer.x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
-        layer.weight = builder.parameter(Shape{OUT_FEATURES, IN_FEATURES}, "w");
-        layer.bias = builder.parameter(Shape{OUT_FEATURES}, "b");
+        layer.x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+        layer.weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
+        layer.bias = builder.parameter(Shape{K_OUT_FEATURES}, "b");
         layer.product = builder.matmul(layer.x, layer.weight, false, true);
         layer.biased = builder.bias_add(layer.product, layer.bias);
         return layer;
@@ -100,14 +100,14 @@ namespace
 TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
 {
     // Every form round-trips through its operation identity; see tests/functional/unit/README.md.
-    constexpr FusedForm ALL[] = {
-        FusedForm::GEMM_BIAS, FusedForm::GEMM_BIAS_RELU,
-        FusedForm::GEMM_BIAS_SIGMOID, FusedForm::GEMM_BIAS_TANH,
-        FusedForm::GEMM_BIAS_GELU,
-        FusedForm::EXP_SUB_SCALE,
+    constexpr FusedForm K_ALL[] = {
+        FusedForm::GemmBias, FusedForm::GemmBiasRelu,
+        FusedForm::GemmBiasSigmoid, FusedForm::GemmBiasTanh,
+        FusedForm::GemmBiasGelu,
+        FusedForm::ExpSubScale,
     };
 
-    for (FusedForm form : ALL)
+    for (FusedForm form : K_ALL)
     {
         const OpID op = Graph::fused_form_op(form);
         EXPECT_NE(Ops::name_of(op), "sushiai.unknown")
@@ -116,37 +116,37 @@ TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
             << Graph::fused_form_name(form) << " does not round-trip";
     }
 
-    EXPECT_EQ(Graph::fused_form_of(Ops::MATMUL.id), FusedForm::NONE);
-    EXPECT_EQ(Graph::fused_form_of(Ops::RELU.id), FusedForm::NONE);
+    EXPECT_EQ(Graph::fused_form_of(Ops::K_MATMUL.id), FusedForm::None);
+    EXPECT_EQ(Graph::fused_form_of(Ops::K_RELU.id), FusedForm::None);
 }
 
 TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts)
 {
     // RELU's gradient reads its output, so it survives fusion; see tests/functional/unit/README.md.
-    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::RELU.id));
-    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::SIGMOID.id));
-    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::TANH.id));
+    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::K_RELU.id));
+    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::K_SIGMOID.id));
+    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::K_TANH.id));
 
     // GELU's gradient reads the pre-activation; see tests/functional/unit/README.md.
-    EXPECT_FALSE(Ops::activation_survives_fusion(Ops::GELU.id));
+    EXPECT_FALSE(Ops::activation_survives_fusion(Ops::K_GELU.id));
 
     // Only the entry that spills folds GELU; see tests/functional/unit/README.md.
-    EXPECT_TRUE(Graph::catalog_folds_activation(Ops::GELU.id));
-    EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GEMM_BIAS_GELU));
+    EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id));
+    EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GemmBiasGelu));
 
-    for (FusedForm form : {FusedForm::GEMM_BIAS, FusedForm::GEMM_BIAS_RELU,
-                           FusedForm::GEMM_BIAS_SIGMOID, FusedForm::GEMM_BIAS_TANH,
-                           FusedForm::EXP_SUB_SCALE})
+    for (FusedForm form : {FusedForm::GemmBias, FusedForm::GemmBiasRelu,
+                           FusedForm::GemmBiasSigmoid, FusedForm::GemmBiasTanh,
+                           FusedForm::ExpSubScale})
         EXPECT_FALSE(Graph::fused_form_spills(form))
             << Graph::fused_form_name(form) << " grew a second output without a reason";
 
     // Not an activation at all, so neither question applies to it.
-    EXPECT_FALSE(Graph::catalog_folds_activation(Ops::MATMUL.id));
-    EXPECT_FALSE(Graph::catalog_folds_activation(Ops::EXP.id));
+    EXPECT_FALSE(Graph::catalog_folds_activation(Ops::K_MATMUL.id));
+    EXPECT_FALSE(Graph::catalog_folds_activation(Ops::K_EXP.id));
 
-    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS), Ops::LEAF.id);
-    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS_RELU), Ops::RELU.id);
-    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMM_BIAS_GELU), Ops::GELU.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GemmBias), Ops::K_LEAF.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GemmBiasRelu), Ops::K_RELU.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GemmBiasGelu), Ops::K_GELU.id);
 }
 
 TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
@@ -161,15 +161,15 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    ASSERT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
-    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 0u);
-    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
-    EXPECT_EQ(count_op(graph, Ops::GEMM_BIAS.id), 1u);
+    ASSERT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_GEMM_BIAS.id), 1u);
 
     // The fused node writes the value the caller named; see tests/functional/unit/README.md.
     ASSERT_EQ(report.fused().size(), 1u);
     EXPECT_EQ(report.fused()[0].result, layer.biased);
-    ASSERT_NE(graph.value(layer.biased).producer, NO_NODE);
+    ASSERT_NE(graph.value(layer.biased).producer, K_NO_NODE);
 
     const Graph::Node& fused = graph.node(graph.value(layer.biased).producer);
     ASSERT_EQ(fused.inputs.size(), 3u);
@@ -182,7 +182,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
     EXPECT_TRUE(fused.attributes.flag(1));
 
     // The intermediate is nobody's output now.
-    EXPECT_EQ(graph.value(layer.product).producer, NO_NODE);
+    EXPECT_EQ(graph.value(layer.product).producer, K_NO_NODE);
 }
 
 TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
@@ -199,8 +199,8 @@ TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_RELU), 1u);
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 0u);
+    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 1u);
+    EXPECT_EQ(report.count(FusedForm::GemmBias), 0u);
     EXPECT_EQ(graph.node_count(), report.nodes_before() - 2u);
 }
 
@@ -209,8 +209,8 @@ TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId log_probs = builder.input(Shape{ROWS, OUT_FEATURES}, "log_probs");
-    const ValueId targets = builder.input(Shape{ROWS, OUT_FEATURES}, "targets");
+    const ValueId log_probs = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "log_probs");
+    const ValueId targets = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "targets");
     const ValueId probabilities = builder.exp(log_probs);
     const ValueId difference = builder.sub(probabilities, targets);
     const ValueId scaled = builder.scale(difference, 0.25);
@@ -221,15 +221,15 @@ TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    ASSERT_EQ(report.count(FusedForm::EXP_SUB_SCALE), 1u);
+    ASSERT_EQ(report.count(FusedForm::ExpSubScale), 1u);
 
     const Graph::Node& fused = graph.node(graph.value(scaled).producer);
     ASSERT_EQ(fused.inputs.size(), 2u);
     EXPECT_EQ(fused.inputs[0], log_probs);
     EXPECT_EQ(fused.inputs[1], targets);
     EXPECT_DOUBLE_EQ(fused.attributes.get(0), 0.25);
-    EXPECT_EQ(graph.value(probabilities).producer, NO_NODE);
-    EXPECT_EQ(graph.value(difference).producer, NO_NODE);
+    EXPECT_EQ(graph.value(probabilities).producer, K_NO_NODE);
+    EXPECT_EQ(graph.value(difference).producer, K_NO_NODE);
 }
 
 TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
@@ -238,8 +238,8 @@ TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{ROWS, OUT_FEATURES}, "a");
-    const ValueId b = builder.input(Shape{ROWS, OUT_FEATURES}, "b");
+    const ValueId a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
+    const ValueId b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
     const ValueId exponent = builder.exp(a);
     const ValueId difference = builder.sub(b, exponent);
     const ValueId scaled = builder.scale(difference, 0.5);
@@ -250,7 +250,7 @@ TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::EXP_SUB_SCALE), 0u);
+    EXPECT_EQ(report.count(FusedForm::ExpSubScale), 0u);
     EXPECT_EQ(report.nodes_after(), report.nodes_before());
 }
 
@@ -270,9 +270,9 @@ TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
     const FusionReport report = Graph::fuse(graph, options);
 
     EXPECT_TRUE(report.fused().empty());
-    EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_HAS_OTHER_CONSUMERS));
-    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 1u);
-    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 1u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::ValueHasOtherConsumers));
+    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
 }
 
 TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
@@ -289,11 +289,11 @@ TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_RELU), 0u);
-    EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_IS_OBSERVED));
+    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 0u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::ValueIsObserved));
 
     // The shorter form rooted at the bias_add still fuses; see tests/functional/unit/README.md.
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
+    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
 }
 
 TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
@@ -302,20 +302,20 @@ TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{ROWS, OUT_FEATURES}, "a");
-    const ValueId b = builder.input(Shape{ROWS, OUT_FEATURES}, "b");
+    const ValueId a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
+    const ValueId b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
     const ValueId exponent = builder.exp(a);
 
     // The exp's result is forced into a persistent class; see tests/functional/unit/README.md.
-    graph.value(exponent).lifetime = Graph::Lifetime::OPTIMIZER_STATE;
+    graph.value(exponent).lifetime = Graph::Lifetime::OptimizerState;
 
     const ValueId difference = builder.sub(exponent, b);
     (void)builder.scale(difference, 0.5);
 
     const FusionReport report = Graph::fuse(graph, FusionOptions{});
 
-    EXPECT_EQ(report.count(FusedForm::EXP_SUB_SCALE), 0u);
-    EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_IS_OBSERVED));
+    EXPECT_EQ(report.count(FusedForm::ExpSubScale), 0u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::ValueIsObserved));
 }
 
 TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntrySpills)
@@ -326,9 +326,9 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     const Layer layer = trace_linear(builder);
 
     const ValueId activated = builder.gelu(layer.biased);
-    const ValueId upstream = builder.input(Shape{ROWS, OUT_FEATURES}, "dy");
+    const ValueId upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
     const ValueId gradient =
-        builder.activation_backward(Ops::GELU_BACKWARD.id, upstream, layer.biased);
+        builder.activation_backward(Ops::K_GELU_BACKWARD.id, upstream, layer.biased);
 
     const std::vector<ValueId> observed{activated, gradient};
     FusionOptions options;
@@ -336,10 +336,10 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    ASSERT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 1u) << report.to_string();
-    EXPECT_EQ(count_op(graph, Ops::GELU.id), 0u);
-    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 0u);
-    EXPECT_EQ(count_op(graph, Ops::BIAS_ADD.id), 0u);
+    ASSERT_EQ(report.count(FusedForm::GemmBiasGelu), 1u) << report.to_string();
+    EXPECT_EQ(count_op(graph, Ops::K_GELU.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 0u);
+    EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
 
     // The pre-activation is the fused node's second output; see tests/functional/unit/README.md.
     ASSERT_EQ(report.fused().size(), 1u);
@@ -347,7 +347,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     EXPECT_EQ(report.fused()[0].spilled, layer.biased);
 
     const NodeId producer = graph.value(layer.biased).producer;
-    ASSERT_NE(producer, NO_NODE) << "the pre-activation has no producer - the spill was lost";
+    ASSERT_NE(producer, K_NO_NODE) << "the pre-activation has no producer - the spill was lost";
     EXPECT_EQ(producer, graph.value(activated).producer)
         << "the spill and the result must come from the same node";
 
@@ -358,7 +358,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
 
     // Only the MATMUL's result is reported as eliminated; see tests/functional/unit/README.md.
     EXPECT_EQ(report.fused()[0].eliminated, std::vector<ValueId>{layer.product});
-    EXPECT_EQ(graph.value(layer.product).producer, NO_NODE);
+    EXPECT_EQ(graph.value(layer.product).producer, K_NO_NODE);
 
     // And gelu_backward still reads the pre-activation, not the result.
     const Graph::Node& backward = graph.node(graph.value(gradient).producer);
@@ -383,19 +383,19 @@ TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 0u) << report.to_string();
-    EXPECT_TRUE(declined_for(report, FusionDecline::SPILL_READ_TOO_EARLY));
+    EXPECT_EQ(report.count(FusedForm::GemmBiasGelu), 0u) << report.to_string();
+    EXPECT_TRUE(declined_for(report, FusionDecline::SpillReadTooEarly));
 
     // The shorter form still fuses after the refusal; see tests/functional/unit/README.md.
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
-    EXPECT_EQ(count_op(graph, Ops::GELU.id), 1u);
+    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_GELU.id), 1u);
 
     // The rewritten graph stays topological; see tests/functional/unit/README.md.
     for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
         for (ValueId in : graph.node(id).inputs)
         {
             const NodeId producer = graph.value(in).producer;
-            if (producer == NO_NODE) continue;
+            if (producer == K_NO_NODE) continue;
             EXPECT_LT(producer, id) << "node " << id << " reads value " << in;
         }
 }
@@ -414,9 +414,9 @@ TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 1u) << report.to_string();
-    EXPECT_FALSE(declined_for(report, FusionDecline::VALUE_IS_OBSERVED));
-    EXPECT_NE(graph.value(layer.biased).producer, NO_NODE);
+    EXPECT_EQ(report.count(FusedForm::GemmBiasGelu), 1u) << report.to_string();
+    EXPECT_FALSE(declined_for(report, FusionDecline::ValueIsObserved));
+    EXPECT_NE(graph.value(layer.biased).producer, K_NO_NODE);
 }
 
 TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
@@ -436,8 +436,8 @@ TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
     const FusionReport report = Graph::fuse(graph, options);
 
     EXPECT_TRUE(report.fused().empty()) << report.to_string();
-    EXPECT_TRUE(declined_for(report, FusionDecline::VALUE_HAS_OTHER_CONSUMERS));
-    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 1u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::ValueHasOtherConsumers));
+    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
 TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
@@ -448,7 +448,7 @@ TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
     const ValueId activated = builder.gelu(layer.biased);
 
     const std::vector<ValueId> observed{activated};
-    const std::vector<FusedForm> off{FusedForm::GEMM_BIAS_GELU};
+    const std::vector<FusedForm> off{FusedForm::GemmBiasGelu};
 
     FusionOptions options;
     options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
@@ -456,13 +456,13 @@ TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_GELU), 0u);
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
-    EXPECT_TRUE(declined_for(report, FusionDecline::DISABLED));
+    EXPECT_EQ(report.count(FusedForm::GemmBiasGelu), 0u);
+    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::Disabled));
 
     // The GELU left outside is not reported as unfoldable; see tests/functional/unit/README.md.
-    EXPECT_FALSE(declined_for(report, FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION));
-    EXPECT_FALSE(declined_for(report, FusionDecline::NO_CATALOG_ENTRY));
+    EXPECT_FALSE(declined_for(report, FusionDecline::GradientNeedsPreActivation));
+    EXPECT_FALSE(declined_for(report, FusionDecline::NoCatalogEntry));
 }
 
 TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
@@ -473,9 +473,9 @@ TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
     const Layer layer = trace_linear(builder);
 
     const ValueId activated = builder.relu(layer.biased);
-    const ValueId upstream = builder.input(Shape{ROWS, OUT_FEATURES}, "dy");
+    const ValueId upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
     const ValueId gradient =
-        builder.activation_backward(Ops::RELU_BACKWARD.id, upstream, activated);
+        builder.activation_backward(Ops::K_RELU_BACKWARD.id, upstream, activated);
 
     const std::vector<ValueId> observed{gradient};
     FusionOptions options;
@@ -483,8 +483,8 @@ TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_RELU), 1u);
-    EXPECT_FALSE(declined_for(report, FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION));
+    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 1u);
+    EXPECT_FALSE(declined_for(report, FusionDecline::GradientNeedsPreActivation));
 }
 
 TEST_F(Unit_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
@@ -506,7 +506,7 @@ TEST_F(Unit_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
     EXPECT_TRUE(report.fused().empty());
     EXPECT_EQ(graph.node_count(), nodes);
     EXPECT_EQ(graph.value_count(), values);
-    EXPECT_EQ(count_op(graph, Ops::MATMUL.id), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
 TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
@@ -517,7 +517,7 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
     const ValueId activated = builder.relu(layer.biased);
 
     const std::vector<ValueId> observed{activated};
-    const std::vector<FusedForm> off{FusedForm::GEMM_BIAS_RELU};
+    const std::vector<FusedForm> off{FusedForm::GemmBiasRelu};
 
     FusionOptions options;
     options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
@@ -525,9 +525,9 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS_RELU), 0u);
-    EXPECT_EQ(report.count(FusedForm::GEMM_BIAS), 1u);
-    EXPECT_TRUE(declined_for(report, FusionDecline::DISABLED));
+    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 0u);
+    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_TRUE(declined_for(report, FusionDecline::Disabled));
 }
 
 TEST_F(Unit_Fusion, ValueIdsAndTheirDescriptionsSurviveTheRewrite)
@@ -567,8 +567,8 @@ TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
 
     const Layer first = trace_linear(builder);
     const ValueId hidden = builder.relu(first.biased);
-    const ValueId weight = builder.parameter(Shape{OUT_FEATURES, OUT_FEATURES}, "w2");
-    const ValueId bias = builder.parameter(Shape{OUT_FEATURES}, "b2");
+    const ValueId weight = builder.parameter(Shape{K_OUT_FEATURES, K_OUT_FEATURES}, "w2");
+    const ValueId bias = builder.parameter(Shape{K_OUT_FEATURES}, "b2");
     const ValueId product = builder.matmul(hidden, weight, false, true);
     (void)builder.bias_add(product, bias);
 
@@ -578,7 +578,7 @@ TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
         for (ValueId in : graph.node(id).inputs)
         {
             const NodeId producer = graph.value(in).producer;
-            if (producer == NO_NODE) continue;
+            if (producer == K_NO_NODE) continue;
             EXPECT_LT(producer, id) << "node " << id << " reads value " << in
                                     << ", which node " << producer << " writes later";
         }
@@ -604,9 +604,9 @@ TEST_F(Unit_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
-    const ValueId weight = builder.parameter(Shape{OUT_FEATURES, IN_FEATURES}, "w");
-    const ValueId shift = builder.buffer(Shape{OUT_FEATURES}, "running_shift");
+    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    const ValueId weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
+    const ValueId shift = builder.buffer(Shape{K_OUT_FEATURES}, "running_shift");
     (void)builder.relu(builder.bias_add(builder.matmul(x, weight, false, true), shift));
 
     graph.bind_state_leaf(Graph::StateId{21}, weight);
@@ -618,12 +618,12 @@ TEST_F(Unit_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
 
     // The pass must have rebuilt the graph, or the lookups below prove nothing.
     ASSERT_EQ(report.fused().size(), 1u);
-    ASSERT_EQ(count_op(graph, Ops::GEMM_BIAS_RELU.id), 1u);
+    ASSERT_EQ(count_op(graph, Ops::K_GEMM_BIAS_RELU.id), 1u);
 
     EXPECT_EQ(graph.state_leaf(Graph::StateId{21}), weight);
     EXPECT_EQ(graph.state_leaf(Graph::StateId{22}), shift);
     EXPECT_EQ(graph.state_leaves(), bound_before);
-    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::BUFFER);
+    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::Buffer);
     EXPECT_FALSE(graph.value(shift).requires_grad);
     EXPECT_TRUE(graph.value(weight).requires_grad);
     EXPECT_TRUE(graph.has_refusal());

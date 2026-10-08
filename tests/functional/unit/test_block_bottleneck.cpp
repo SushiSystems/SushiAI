@@ -135,7 +135,7 @@ namespace
         // Both constants are stored as given, so they compare exactly.
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op == Ops::BATCHNORM2D.id)
+            if (node.op == Ops::K_BATCHNORM2D.id)
                 EXPECT_EQ(node.attributes.values[0], options.epsilon);
         }
 
@@ -168,15 +168,15 @@ TEST(Unit_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_TRUE(block.adds_input);
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 2u);
-    ASSERT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 2u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 
-    const Graph::Node& add = graph.nodes()[first_node(graph, Ops::ADD.id)];
+    const Graph::Node& add = graph.nodes()[first_node(graph, Ops::K_ADD.id)];
     ASSERT_EQ(add.inputs.size(), 2u);
     EXPECT_EQ(add.inputs[0], x);
-    EXPECT_EQ(graph.node(graph.value(add.inputs[1]).producer).op, Ops::SILU.id);
+    EXPECT_EQ(graph.node(graph.value(add.inputs[1]).producer).op, Ops::K_SILU.id);
     EXPECT_EQ(add.outputs[0], y);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
@@ -193,8 +193,8 @@ TEST(Unit_BlockBottleneck, NoShortcutTracesNoAdd)
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_FALSE(block.adds_input);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 16}));
 }
 
@@ -210,7 +210,7 @@ TEST(Unit_BlockBottleneck, AShortcutOverUnequalWidthsTracesNoAdd)
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_FALSE(block.adds_input);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 24}));
 }
 
@@ -279,7 +279,7 @@ TEST(Unit_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue)
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 
     const std::vector<std::string> state = walk(*node, "model.2.m.0");
     ASSERT_EQ(state.size(), 10u);
@@ -305,7 +305,7 @@ TEST(Unit_BlockBottleneck, TheFactoryReadsTheShortcut)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing width and a text flag. */
@@ -352,7 +352,7 @@ TEST(Unit_BlockBottleneck, TheFactoryHandsTheNormOptionsToBothNorms)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 2u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
     ASSERT_EQ(list.updates().size(), 4u);
     expect_norm_options(graph, list, K_YOLO_NORM);
 }

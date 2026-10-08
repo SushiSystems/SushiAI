@@ -49,7 +49,7 @@ namespace SushiAI
     using Layout = SushiBLAS::Core::Layout;
 
     /** @brief Maximum tensor rank, fixed by SushiBLAS's own storage of shape and strides. */
-    inline constexpr int32_t MAX_RANK = static_cast<int32_t>(SushiBLAS::Core::MAX_TENSOR_RANK);
+    inline constexpr int32_t K_MAX_RANK = static_cast<int32_t>(SushiBLAS::Core::K_MAX_TENSOR_RANK);
 
     /**
      * @brief Returns the size in bytes occupied by one element of @p dtype.
@@ -60,13 +60,13 @@ namespace SushiAI
     {
         switch (dtype)
         {
-            case DType::HALF:      return 2;
-            case DType::FLOAT32:   return 4;
-            case DType::FLOAT64:   return 8;
-            case DType::COMPLEX32: return 8;
-            case DType::COMPLEX64: return 16;
-            case DType::INT32:     return 4;
-            case DType::INT64:     return 8;
+            case DType::Half:      return 2;
+            case DType::Float32:   return 4;
+            case DType::Float64:   return 8;
+            case DType::Complex32: return 8;
+            case DType::Complex64: return 16;
+            case DType::Int32:     return 4;
+            case DType::Int64:     return 8;
         }
         return 4;
     }
@@ -80,13 +80,13 @@ namespace SushiAI
     {
         switch (dtype)
         {
-            case DType::HALF:      return "half";
-            case DType::FLOAT32:   return "float32";
-            case DType::FLOAT64:   return "float64";
-            case DType::COMPLEX32: return "complex32";
-            case DType::COMPLEX64: return "complex64";
-            case DType::INT32:     return "int32";
-            case DType::INT64:     return "int64";
+            case DType::Half:      return "half";
+            case DType::Float32:   return "float32";
+            case DType::Float64:   return "float64";
+            case DType::Complex32: return "complex32";
+            case DType::Complex64: return "complex64";
+            case DType::Int32:     return "int32";
+            case DType::Int64:     return "int64";
         }
         return "unknown";
     }
@@ -98,7 +98,7 @@ namespace SushiAI
      */
     constexpr bool is_real_float(DType dtype) noexcept
     {
-        return dtype == DType::HALF || dtype == DType::FLOAT32 || dtype == DType::FLOAT64;
+        return dtype == DType::Half || dtype == DType::Float32 || dtype == DType::Float64;
     }
 
     /**

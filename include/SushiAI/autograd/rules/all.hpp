@@ -48,18 +48,18 @@ namespace SushiAI
          * Adding an operation to a domain changes only that domain's file;
          * adding a domain is one line here.
          */
-        inline constexpr auto RULES = concat_rules(
+        inline constexpr auto K_RULES = concat_rules(
             concat_rules(
-                concat_rules(ELEMENTWISE_RULES, LINALG_RULES),
-                concat_rules(ACTIVATION_RULES, LOSS_RULES)),
+                concat_rules(K_ELEMENTWISE_RULES, K_LINALG_RULES),
+                concat_rules(K_ACTIVATION_RULES, K_LOSS_RULES)),
             concat_rules(
-                concat_rules(SHAPE_RULES, SPATIAL_RULES),
-                NORM_RULES));
+                concat_rules(K_SHAPE_RULES, K_SPATIAL_RULES),
+                K_NORM_RULES));
 
-        /** @brief Whether @p op has a rule in @ref RULES. */
+        /** @brief Whether @p op has a rule in @ref K_RULES. */
         constexpr bool has_rule(OpID op) noexcept
         {
-            for (const RuleEntry& e : RULES)
+            for (const RuleEntry& e : K_RULES)
                 if (e.op == op) return true;
             return false;
         }
@@ -78,8 +78,8 @@ namespace SushiAI
         }
 
         static_assert(every_differentiable_op_has_a_rule(
-                          SushiRuntime::span<const Ops::OpName>(Ops::ALL.data(),
-                                                                Ops::ALL.size())),
+                          SushiRuntime::span<const Ops::OpName>(Ops::K_ALL.data(),
+                                                                Ops::K_ALL.size())),
                       "An operation is declared differentiable in core/ops.hpp but has no "
                       "backward rule. Declaring an identity and forgetting its rule is "
                       "otherwise silent: the graph builds, differentiate() skips the node, "
@@ -102,8 +102,8 @@ namespace SushiAI
         }
 
         static_assert(no_gradient_barrier_has_a_rule(
-                          SushiRuntime::span<const Ops::OpName>(Ops::ALL.data(),
-                                                                Ops::ALL.size())),
+                          SushiRuntime::span<const Ops::OpName>(Ops::K_ALL.data(),
+                                                                Ops::K_ALL.size())),
                       "An operation is declared a gradient barrier in core/ops.hpp and also has "
                       "a backward rule. The reverse walk steps over a barrier, so the rule "
                       "would never run. Remove the row, or declare the operation differentiable.");

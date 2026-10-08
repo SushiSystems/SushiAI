@@ -138,7 +138,7 @@ namespace
         // Both constants are stored as given, so they compare exactly.
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op == Ops::BATCHNORM2D.id)
+            if (node.op == Ops::K_BATCHNORM2D.id)
                 EXPECT_EQ(node.attributes.values[0], options.epsilon);
         }
 
@@ -186,12 +186,12 @@ TEST(Unit_BlockSppf, Row9EmitsThreePoolsOneConcatAndOneAdd)
 
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
-    EXPECT_EQ(count_nodes(graph, Ops::MATMUL.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 2u);
-    EXPECT_EQ(count_nodes(graph, Ops::SILU.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::MAXPOOL2D.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 3u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
     EXPECT_EQ(list.updates().size(), 4u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 256}));
 }
@@ -209,16 +209,16 @@ TEST(Unit_BlockSppf, TheJoinReadsTheNarrowedValueThenEachPoolInAChain)
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    ASSERT_EQ(count_nodes(graph, Ops::CONCAT_CHANNELS.id), 1u);
-    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::CONCAT_CHANNELS.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 1u);
+    const Graph::Node& join = graph.nodes()[first_node(graph, Ops::K_CONCAT_CHANNELS.id)];
     ASSERT_EQ(join.inputs.size(), 4u);
 
     // cv1 is a ConvLinear, so the value the pools start from comes out of its BATCHNORM2D.
-    EXPECT_EQ(graph.node(graph.value(join.inputs[0]).producer).op, Ops::BATCHNORM2D.id);
+    EXPECT_EQ(graph.node(graph.value(join.inputs[0]).producer).op, Ops::K_BATCHNORM2D.id);
     for (std::size_t stage = 1; stage < join.inputs.size(); ++stage)
     {
         const Graph::Node& pool = graph.node(graph.value(join.inputs[stage]).producer);
-        ASSERT_EQ(pool.op, Ops::MAXPOOL2D.id) << "stage " << stage;
+        ASSERT_EQ(pool.op, Ops::K_MAXPOOL2D.id) << "stage " << stage;
         EXPECT_EQ(pool.inputs[0], join.inputs[stage - 1]) << "stage " << stage;
         EXPECT_EQ(graph.value(join.inputs[stage]).shape, (Shape{2, 4, 4, 128}))
             << "stage " << stage;
@@ -239,10 +239,10 @@ TEST(Unit_BlockSppf, TheClosingAddReadsTheResultThenTheInput)
     const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_TRUE(block.adds_input);
-    ASSERT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
-    const Graph::Node& add = graph.nodes()[first_node(graph, Ops::ADD.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
+    const Graph::Node& add = graph.nodes()[first_node(graph, Ops::K_ADD.id)];
     ASSERT_EQ(add.inputs.size(), 2u);
-    EXPECT_EQ(graph.node(graph.value(add.inputs[0]).producer).op, Ops::SILU.id);
+    EXPECT_EQ(graph.node(graph.value(add.inputs[0]).producer).op, Ops::K_SILU.id);
     EXPECT_EQ(add.inputs[1], x);
     EXPECT_EQ(add.outputs[0], y);
 }
@@ -263,9 +263,9 @@ TEST(Unit_BlockSppf, NoAddWithoutAShortcutOrOverUnequalWidths)
                                        widening_builder.input(Shape{2, 4, 4, 64}, "x")));
 
     EXPECT_FALSE(plain.adds_input);
-    EXPECT_EQ(count_nodes(plain_graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(plain_graph, Ops::K_ADD.id), 0u);
     EXPECT_FALSE(widening.adds_input);
-    EXPECT_EQ(count_nodes(widening_graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(widening_graph, Ops::K_ADD.id), 0u);
 }
 
 /** @brief Tests that the pool count sets the number of pools and the width cv2 reads. */
@@ -278,7 +278,7 @@ TEST(Unit_BlockSppf, ThePoolCountSetsThePoolsAndTheJoinedWidth)
 
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
-    EXPECT_EQ(count_nodes(graph, Ops::MAXPOOL2D.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 1u);
     EXPECT_EQ(block.cv1.conv.weight.shape(), (Shape{32, 1, 1, 64}));
     EXPECT_EQ(block.cv2.conv.weight.shape(), (Shape{64, 1, 1, 64}));
 }
@@ -336,8 +336,8 @@ TEST(Unit_BlockSppf, TheFactoryBuildsRow9)
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
-    EXPECT_EQ(count_nodes(graph, Ops::MAXPOOL2D.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 3u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
 
     const std::vector<std::string> state = walk(*node, "model.9");
     ASSERT_EQ(state.size(), 10u);
@@ -365,8 +365,8 @@ TEST(Unit_BlockSppf, TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    EXPECT_EQ(count_nodes(graph, Ops::MAXPOOL2D.id), 3u);
-    EXPECT_EQ(count_nodes(graph, Ops::ADD.id), 0u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 3u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
 
     const std::vector<std::string> state = walk(*node, "");
     ASSERT_EQ(state.size(), 10u);
@@ -426,7 +426,7 @@ TEST(Unit_BlockSppf, TheFactoryHandsTheNormOptionsToBothNorms)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
-    ASSERT_EQ(count_nodes(graph, Ops::BATCHNORM2D.id), 2u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
     ASSERT_EQ(list.updates().size(), 4u);
     expect_norm_options(graph, list, K_YOLO_NORM);
 }
@@ -450,8 +450,8 @@ TEST(Unit_BlockSppf, TheFactoryReadsKernelAndPools)
     std::vector<Graph::ValueId> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
-    ASSERT_EQ(count_nodes(graph, Ops::MAXPOOL2D.id), 1u);
-    const Graph::Node& pool = graph.nodes()[first_node(graph, Ops::MAXPOOL2D.id)];
+    ASSERT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 1u);
+    const Graph::Node& pool = graph.nodes()[first_node(graph, Ops::K_MAXPOOL2D.id)];
 
     // A pool stores kernel_h, kernel_w and pad_top as whole numbers in slots 0, 1 and 6.
     EXPECT_NEAR(pool.attributes.values[0], 3.0, K_EXACT_TOLERANCE);

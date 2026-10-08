@@ -46,21 +46,21 @@ namespace
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t BATCH = 8;
-    constexpr int64_t FEATURES = 6;
+    constexpr int64_t K_FEATURES = 6;
     constexpr int64_t CLASSES = 4;
-    constexpr int64_t BATCHES = 4;
+    constexpr int64_t K_BATCHES = 4;
 
     Mlp make_model()
     {
-        return Mlp(NN::Linear{FEATURES, 12}, NN::ReLU{}, NN::Linear{12, CLASSES});
+        return Mlp(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, CLASSES});
     }
 
     Data::SyntheticOptions make_data_options()
     {
         Data::SyntheticOptions options;
         options.batch_size = BATCH;
-        options.batches = BATCHES;
-        options.features = FEATURES;
+        options.batches = K_BATCHES;
+        options.features = K_FEATURES;
         options.classes = CLASSES;
         return options;
     }
@@ -73,7 +73,7 @@ namespace
 TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 {
     Mlp model = make_model();
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -101,7 +101,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
         EXPECT_EQ(trainer.compile_count(), 1u) << "recompiled during epoch " << epoch;
     }
 
-    EXPECT_EQ(steps, static_cast<std::size_t>(6 * BATCHES));
+    EXPECT_EQ(steps, static_cast<std::size_t>(6 * K_BATCHES));
     EXPECT_EQ(trainer.step_count(), steps);
 }
 
@@ -112,7 +112,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmediately)
 {
     Mlp model = make_model();
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -131,7 +131,7 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
     for (std::size_t step = 0; step < 5; ++step)
     {
         const Train::StepMetrics metrics =
-            trainer.run_step(dataset.batch(step % static_cast<std::size_t>(BATCHES)));
+            trainer.run_step(dataset.batch(step % static_cast<std::size_t>(K_BATCHES)));
 
         ASSERT_TRUE(std::isfinite(metrics.loss)) << "at step " << step;
         EXPECT_GT(metrics.loss, 0.0) << "at step " << step;
@@ -174,8 +174,8 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
     ASSERT_EQ(step.compile_count(), 1u);
     ASSERT_EQ(step.run_count(), 0u);
 
-    constexpr double POISON = -12345.0;
-    SaTest::write_tensor(pool.tensor(y), std::vector<double>(inputs.size(), POISON));
+    constexpr double K_POISON = -12345.0;
+    SaTest::write_tensor(pool.tensor(y), std::vector<double>(inputs.size(), K_POISON));
 
     step.run();
 
@@ -195,7 +195,7 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
             next[i] = inputs[i] + static_cast<double>(replay + 1) * 10.0;
 
         SaTest::write_tensor(pool.tensor(x), next);
-        SaTest::write_tensor(pool.tensor(y), std::vector<double>(inputs.size(), POISON));
+        SaTest::write_tensor(pool.tensor(y), std::vector<double>(inputs.size(), K_POISON));
 
         step.run();
 
@@ -217,7 +217,7 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
 TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps)
 {
     Mlp model = make_model();
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, FEATURES, CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -259,7 +259,7 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
         EXPECT_EQ(trainer.compile_count(), 1u) << "recompiled after round " << round;
     }
 
-    EXPECT_EQ(trainer.step_count(), static_cast<std::size_t>(4 * (BATCHES + 4)));
+    EXPECT_EQ(trainer.step_count(), static_cast<std::size_t>(4 * (K_BATCHES + 4)));
     EXPECT_EQ(trainer.step().run_count(), trainer.step_count());
     EXPECT_EQ(trainer.compile_count(), 1u);
 }

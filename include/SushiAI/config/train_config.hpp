@@ -39,10 +39,10 @@ namespace SushiAI
     namespace Config
     {
         /** @brief The train-file version this build reads. */
-        inline constexpr std::int64_t TRAIN_VERSION = 1;
+        inline constexpr std::int64_t K_TRAIN_VERSION = 1;
 
         /** @brief The standalone data-file version this build reads. */
-        inline constexpr std::int64_t DATA_VERSION = 1;
+        inline constexpr std::int64_t K_DATA_VERSION = 1;
 
         /**
          * @struct DataSpec
@@ -50,7 +50,7 @@ namespace SushiAI
          */
         struct DataSpec
         {
-            /** @brief The @c Data::DATASET_REGISTRY key, e.g. "rings". */
+            /** @brief The @c Data::K_DATASET_REGISTRY key, e.g. "rings". */
             std::string type;
 
             /** @brief Every other key; the dataset's own factory validates them. */
@@ -66,7 +66,7 @@ namespace SushiAI
             /** @brief The architecture file, resolved against this file's directory. */
             std::filesystem::path model_path;
 
-            /** @brief The @c Train::OBJECTIVE_REGISTRY key, e.g. "cross_entropy". */
+            /** @brief The @c Train::K_OBJECTIVE_REGISTRY key, e.g. "cross_entropy". */
             std::string objective_type;
 
             /** @brief The objective's own keys. */
@@ -75,7 +75,7 @@ namespace SushiAI
             /** @brief Where the batches come from. */
             DataSpec data;
 
-            /** @brief The @c Optim::OPTIMIZER_REGISTRY key, e.g. "adamw". */
+            /** @brief The @c Optim::K_OPTIMIZER_REGISTRY key, e.g. "adamw". */
             std::string optimizer_type;
 
             /** @brief The optimizer's own keys. */

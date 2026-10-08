@@ -143,7 +143,7 @@ TEST(Unit_Traced, DefaultHoldsTheAbsentValueAndNoFailure)
     const Traced absent;
     EXPECT_TRUE(absent.has_value());
     EXPECT_TRUE(absent.status().is_ok());
-    EXPECT_EQ(absent.value(), SushiAI::Graph::NO_VALUE);
+    EXPECT_EQ(absent.value(), SushiAI::Graph::K_NO_VALUE);
 }
 
 TEST(Unit_Traced, HoldsAnIdWithASuccessStatus)

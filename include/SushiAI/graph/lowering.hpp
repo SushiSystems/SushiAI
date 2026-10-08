@@ -272,7 +272,7 @@ namespace SushiAI
                  * @param selector Optional fused kernel selection strategy.
                  */
                 Lowering(SushiBLAS::Engine& engine, TensorPool& pool,
-                         const IFusionSelector* selector = nullptr) noexcept
+                         const FusionSelector* selector = nullptr) noexcept
                     : engine_(&engine), pool_(&pool), selector_(selector) {}
 
                 /**
@@ -357,7 +357,7 @@ namespace SushiAI
 
                 SushiBLAS::Engine* engine_;
                 TensorPool* pool_;
-                const IFusionSelector* selector_ = nullptr;
+                const FusionSelector* selector_ = nullptr;
                 std::vector<FusionSelection> selections_;
                 std::size_t emitted_ = 0;
         };

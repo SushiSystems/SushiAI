@@ -52,30 +52,30 @@ namespace SushiAI
         enum class FusedForm : std::uint8_t
         {
             /** @brief Not a fused node. */
-            NONE,
+            None,
 
-            /** @brief @c MATMUL then @c BIAS_ADD, as one GEMM with a bias epilogue. */
-            GEMM_BIAS,
+            /** @brief @c K_MATMUL then @c K_BIAS_ADD, as one GEMM with a bias epilogue. */
+            GemmBias,
 
-            /** @brief @c MATMUL, @c BIAS_ADD then @c RELU, as one GEMM. */
-            GEMM_BIAS_RELU,
+            /** @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_RELU, as one GEMM. */
+            GemmBiasRelu,
 
-            /** @brief @c MATMUL, @c BIAS_ADD then @c SIGMOID, as one GEMM. */
-            GEMM_BIAS_SIGMOID,
+            /** @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_SIGMOID, as one GEMM. */
+            GemmBiasSigmoid,
 
-            /** @brief @c MATMUL, @c BIAS_ADD then @c TANH, as one GEMM. */
-            GEMM_BIAS_TANH,
+            /** @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_TANH, as one GEMM. */
+            GemmBiasTanh,
 
             /**
-             * @brief @c MATMUL, @c BIAS_ADD then @c GELU, spilling the pre-activation.
+             * @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_GELU, spilling the pre-activation.
              *
              * The only entry that writes two values. See @ref spill; without
              * the spill this row could not exist, and the build says so.
              */
-            GEMM_BIAS_GELU,
+            GemmBiasGelu,
 
-            /** @brief @c EXP, @c SUB then @c SCALE, as one elementwise pass. */
-            EXP_SUB_SCALE,
+            /** @brief @c K_EXP, @c K_SUB then @c K_SCALE, as one elementwise pass. */
+            ExpSubScale,
         };
 
         /** @brief A human-readable name for @p form, for diagnostics. */
@@ -83,13 +83,13 @@ namespace SushiAI
         {
             switch (form)
             {
-                case FusedForm::NONE:              return "none";
-                case FusedForm::GEMM_BIAS:         return "gemm+bias";
-                case FusedForm::GEMM_BIAS_RELU:    return "gemm+bias+relu";
-                case FusedForm::GEMM_BIAS_SIGMOID: return "gemm+bias+sigmoid";
-                case FusedForm::GEMM_BIAS_TANH:    return "gemm+bias+tanh";
-                case FusedForm::GEMM_BIAS_GELU:    return "gemm+bias+gelu";
-                case FusedForm::EXP_SUB_SCALE:     return "exp-sub-scale";
+                case FusedForm::None:              return "none";
+                case FusedForm::GemmBias:         return "gemm+bias";
+                case FusedForm::GemmBiasRelu:    return "gemm+bias+relu";
+                case FusedForm::GemmBiasSigmoid: return "gemm+bias+sigmoid";
+                case FusedForm::GemmBiasTanh:    return "gemm+bias+tanh";
+                case FusedForm::GemmBiasGelu:    return "gemm+bias+gelu";
+                case FusedForm::ExpSubScale:     return "exp-sub-scale";
             }
             return "unknown";
         }
@@ -97,21 +97,21 @@ namespace SushiAI
         /**
          * @brief Returns the catalog entry @p name refers to.
          * @param name Name as @ref fused_form_name spells it.
-         * @return Matching form, or @c FusedForm::NONE when unmatched.
+         * @return Matching form, or @c FusedForm::None when unmatched.
          */
         FusedForm fused_form_from_name(std::string_view name) noexcept;
 
         /**
          * @brief The operation identity a node of @p form carries.
          * @param form The catalog entry.
-         * @return Its @c Ops identity, or @c Ops::LEAF.id for @c FusedForm::NONE.
+         * @return Its @c Ops identity, or @c Ops::K_LEAF.id for @c FusedForm::None.
          */
         OpID fused_form_op(FusedForm form) noexcept;
 
         /**
          * @brief The catalog entry behind an operation identity.
          * @param op The identity to look up.
-         * @return The form, or @c FusedForm::NONE when @p op is not a fused one.
+         * @return The form, or @c FusedForm::None when @p op is not a fused one.
          */
         FusedForm fused_form_of(OpID op) noexcept;
 
@@ -122,17 +122,17 @@ namespace SushiAI
          */
         constexpr bool is_gemm_epilogue(FusedForm form) noexcept
         {
-            return form == FusedForm::GEMM_BIAS
-                || form == FusedForm::GEMM_BIAS_RELU
-                || form == FusedForm::GEMM_BIAS_SIGMOID
-                || form == FusedForm::GEMM_BIAS_TANH
-                || form == FusedForm::GEMM_BIAS_GELU;
+            return form == FusedForm::GemmBias
+                || form == FusedForm::GemmBiasRelu
+                || form == FusedForm::GemmBiasSigmoid
+                || form == FusedForm::GemmBiasTanh
+                || form == FusedForm::GemmBiasGelu;
         }
 
         /**
          * @brief The activation a GEMM-epilogue form folds in, if any.
          * @param form The catalog entry.
-         * @return The forward activation's identity, or @c Ops::LEAF.id when
+         * @return The forward activation's identity, or @c Ops::K_LEAF.id when
          *         the form folds no activation.
          */
         OpID fused_form_activation(FusedForm form) noexcept;
@@ -162,10 +162,10 @@ namespace SushiAI
         enum class FusionDecline : std::uint8_t
         {
             /** @brief Placeholder; never recorded. */
-            NONE,
+            None,
 
             /** @brief An interior value feeds a consumer outside the chain. */
-            VALUE_HAS_OTHER_CONSUMERS,
+            ValueHasOtherConsumers,
 
             /**
              * @brief An interior value is read from outside the graph.
@@ -173,17 +173,17 @@ namespace SushiAI
              * Named by @c FusionOptions::observed, or a persistent lifetime
              * class whose buffer outlives the step.
              */
-            VALUE_IS_OBSERVED,
+            ValueIsObserved,
 
             /**
              * @brief Indicates the activation gradient differentiates at its input.
              */
-            GRADIENT_NEEDS_PRE_ACTIVATION,
+            GradientNeedsPreActivation,
 
             /**
              * @brief Indicates a spilled value is read before the fused node writes it.
              */
-            SPILL_READ_TOO_EARLY,
+            SpillReadTooEarly,
 
             /**
              * @brief The activation could be folded and the catalog has no entry.
@@ -191,12 +191,12 @@ namespace SushiAI
              * Not a safety refusal - a missing row. It is reported because a
              * new activation whose gradient reads its output is fusable the day
              * it is added, and the only thing standing between it and a free
-             * launch is a line in @c CATALOG that somebody forgot.
+             * launch is a line in @c K_CATALOG that somebody forgot.
              */
-            NO_CATALOG_ENTRY,
+            NoCatalogEntry,
 
             /** @brief The caller switched this form off through @c FusionOptions. */
-            DISABLED,
+            Disabled,
         };
 
         /** @brief A sentence explaining @p reason, for the report. */
@@ -204,25 +204,25 @@ namespace SushiAI
         {
             switch (reason)
             {
-                case FusionDecline::NONE:
+                case FusionDecline::None:
                     return "no reason recorded";
-                case FusionDecline::VALUE_HAS_OTHER_CONSUMERS:
+                case FusionDecline::ValueHasOtherConsumers:
                     return "an intermediate is read by a node outside the chain, and a fused "
                            "kernel never writes it";
-                case FusionDecline::VALUE_IS_OBSERVED:
+                case FusionDecline::ValueIsObserved:
                     return "an intermediate is read from outside the graph, so it must reach "
                            "memory";
-                case FusionDecline::GRADIENT_NEEDS_PRE_ACTIVATION:
+                case FusionDecline::GradientNeedsPreActivation:
                     return "this activation's gradient differentiates at its input and no "
                            "catalog entry spills that tensor - fusing anyway trains towards "
                            "the wrong place without failing";
-                case FusionDecline::SPILL_READ_TOO_EARLY:
+                case FusionDecline::SpillReadTooEarly:
                     return "the pre-activation this form would spill is read by a node that "
                            "runs before the fused GEMM would write it";
-                case FusionDecline::NO_CATALOG_ENTRY:
+                case FusionDecline::NoCatalogEntry:
                     return "this activation is safe to fold but no catalog entry composes it "
                            "with a GEMM epilogue; add one";
-                case FusionDecline::DISABLED:
+                case FusionDecline::Disabled:
                     return "the caller switched this form off";
             }
             return "unknown";
@@ -264,18 +264,18 @@ namespace SushiAI
         struct FusedSubtree
         {
             /** @brief Which catalog entry was instantiated. */
-            FusedForm form = FusedForm::NONE;
+            FusedForm form = FusedForm::None;
 
             /** @brief The chain's nodes, in producer order; the last one is its root. */
             std::vector<NodeId> chain;
 
             /** @brief The value the fused node writes - the root's own result. */
-            ValueId result = NO_VALUE;
+            ValueId result = K_NO_VALUE;
 
             /**
-             * @brief Pre-activation value the fused node also writes, or @c NO_VALUE.
+             * @brief Pre-activation value the fused node also writes, or @c K_NO_VALUE.
              */
-            ValueId spilled = NO_VALUE;
+            ValueId spilled = K_NO_VALUE;
 
             /** @brief The values that stopped being written; they have no buffer now. */
             std::vector<ValueId> eliminated;
@@ -290,24 +290,24 @@ namespace SushiAI
             /**
              * @brief The catalog entry that would have applied.
              *
-             * @c FusedForm::NONE when there was no entry to try at all, which
+             * @c FusedForm::None when there was no entry to try at all, which
              * is itself the finding - see @c NO_CATALOG_ENTRY and
              * @c GRADIENT_NEEDS_PRE_ACTIVATION. @c op names the operation in
              * that case.
              */
-            FusedForm form = FusedForm::NONE;
+            FusedForm form = FusedForm::None;
 
             /** @brief The operation that stayed on its own. */
             OpID op{};
 
             /** @brief That operation's node, in the graph as it arrived. */
-            NodeId root = NO_NODE;
+            NodeId root = K_NO_NODE;
 
-            /** @brief The value that blocked it, or @c NO_VALUE when none did. */
-            ValueId blocked_by = NO_VALUE;
+            /** @brief The value that blocked it, or @c K_NO_VALUE when none did. */
+            ValueId blocked_by = K_NO_VALUE;
 
             /** @brief Why. */
-            FusionDecline reason = FusionDecline::NONE;
+            FusionDecline reason = FusionDecline::None;
         };
 
         /**

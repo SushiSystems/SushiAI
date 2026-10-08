@@ -44,7 +44,7 @@ namespace
 {
     class Integration_Checkpoint : public SaTest::EngineTest {};
 
-    constexpr std::string_view MODEL_JSON = R"({
+    constexpr std::string_view K_MODEL_JSON = R"({
         "sushiai_model": 1,
         "input": {"features": 6},
         "layers": [{"type": "linear", "units": 8},
@@ -53,17 +53,17 @@ namespace
     })";
 
     /** @brief The same architecture, spelled at compile time. */
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
 
     Mlp make_sequential()
     {
-        return Mlp(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
+        return Mlp(NN::Linear{6, 8}, NN::K_GELU{}, NN::Linear{8, 4});
     }
 
     NN::LayerStack make_stack()
     {
         return NN::build_layer_stack(
-            Config::parse_model(Config::parse_json(MODEL_JSON, "<test>"), "<test>"));
+            Config::parse_model(Config::parse_json(K_MODEL_JSON, "<test>"), "<test>"));
     }
 
     /**
@@ -263,10 +263,10 @@ TEST_F(Integration_Checkpoint, ADuplicatedNameThrowsAndNamesTheDuplicate)
         const std::vector<float> bias(8, 2.0f);
         std::ofstream out(file.path(), std::ios::binary);
         IO::CheckpointWriter writer(out, 4);
-        writer.write(IO::TensorRecord{"0.weight", DType::FLOAT32, Shape{8, 6}}, weight.data());
-        writer.write(IO::TensorRecord{"0.bias", DType::FLOAT32, Shape{8}}, bias.data());
-        writer.write(IO::TensorRecord{"0.bias", DType::FLOAT32, Shape{8}}, bias.data());
-        writer.write(IO::TensorRecord{"2.bias", DType::FLOAT32, Shape{4}}, bias.data());
+        writer.write(IO::TensorRecord{"0.weight", DType::Float32, Shape{8, 6}}, weight.data());
+        writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}}, bias.data());
+        writer.write(IO::TensorRecord{"0.bias", DType::Float32, Shape{8}}, bias.data());
+        writer.write(IO::TensorRecord{"2.bias", DType::Float32, Shape{4}}, bias.data());
         writer.finish();
     }
 

@@ -65,7 +65,7 @@ namespace SushiAI
 
             SA_THROW_IF(true, "the objective declared no leaf '{}'; it declared {}",
                         role, declared);
-            return Graph::NO_VALUE;   // unreachable: SA_THROW_IF(true) always throws
+            return Graph::K_NO_VALUE;   // unreachable: SA_THROW_IF(true) always throws
         }
 
         void CrossEntropyObjective::declare(const Graph::GraphBuilder& builder,
@@ -94,14 +94,14 @@ namespace SushiAI
                                                            const SushiBLAS::Tensor& output) const
         {
             // Accuracy evaluation requires readable host float32 or float64 logits.
-            SA_THROW_IF(output.dtype != DType::FLOAT32 && output.dtype != DType::FLOAT64,
+            SA_THROW_IF(output.dtype != DType::Float32 && output.dtype != DType::Float64,
                         "Accuracy needs a host read of the logits and they are {}; only "
                         "float32 and float64 can be read back.", dtype_name(output.dtype));
 
             // Per-row argmax is performed on host to avoid whole-tensor reduction.
             const auto at = [&output](int64_t index) -> double
             {
-                return output.dtype == DType::FLOAT64
+                return output.dtype == DType::Float64
                      ? output.data_as<double>()[index]
                      : static_cast<double>(output.data_as<float>()[index]);
             };
@@ -121,25 +121,25 @@ namespace SushiAI
                           true};
         }
 
-        std::unique_ptr<IObjective> make_cross_entropy(int64_t batch, int64_t classes,
+        std::unique_ptr<Objective> make_cross_entropy(int64_t batch, int64_t classes,
                                                        const Config::Value& attributes,
                                                        std::string_view context)
         {
             // Cross-entropy takes no configuration attributes.
-            static constexpr std::string_view NONE[] = {""};
+            static constexpr std::string_view K_NONE[] = {""};
             attributes.reject_unknown_keys(
-                context, SushiRuntime::span<const std::string_view>(NONE,
+                context, SushiRuntime::span<const std::string_view>(K_NONE,
                                                                     static_cast<std::size_t>(0)));
 
             return std::make_unique<CrossEntropyObjective>(batch, classes);
         }
 
-        std::unique_ptr<IObjective> make_objective(std::string_view type,
+        std::unique_ptr<Objective> make_objective(std::string_view type,
                                                    int64_t batch, int64_t classes,
                                                    const Config::Value& attributes,
                                                    std::string_view context)
         {
-            return Config::find_entry(OBJECTIVE_REGISTRY, type, "objective type")
+            return Config::find_entry(K_OBJECTIVE_REGISTRY, type, "objective type")
                        .make(batch, classes, attributes, context);
         }
 

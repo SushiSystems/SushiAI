@@ -39,7 +39,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::NO_VALUE;
+using Graph::K_NO_VALUE;
 using Graph::NodeId;
 using Graph::ValueId;
 
@@ -79,22 +79,22 @@ namespace
         Graph::Graph graph;
 
         /** @brief Holds the first layer's weight. */
-        ValueId first_weight = NO_VALUE;
+        ValueId first_weight = K_NO_VALUE;
 
         /** @brief Holds the first layer's bias. */
-        ValueId first_bias = NO_VALUE;
+        ValueId first_bias = K_NO_VALUE;
 
         /** @brief Holds the result of the first layer's MATMUL. */
-        ValueId first_product = NO_VALUE;
+        ValueId first_product = K_NO_VALUE;
 
         /** @brief Holds the second layer's weight. */
-        ValueId second_weight = NO_VALUE;
+        ValueId second_weight = K_NO_VALUE;
 
         /** @brief Holds the second layer's bias. */
-        ValueId second_bias = NO_VALUE;
+        ValueId second_bias = K_NO_VALUE;
 
         /** @brief Holds the scalar loss. */
-        ValueId loss = NO_VALUE;
+        ValueId loss = K_NO_VALUE;
     };
 
     /** @brief Differentiates @p loss with respect to @p wrt, recording into @p provenance. */
@@ -104,7 +104,7 @@ namespace
     {
         return Autograd::differentiate(graph, loss,
                                        SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()),
-                                       NO_VALUE, provenance);
+                                       K_NO_VALUE, provenance);
     }
 
     /** @brief Returns the ids of the nodes of @p op at or after node @p from. */
@@ -144,12 +144,12 @@ TEST(Unit_Provenance, ARuleEmitsUnderTheNodeItDifferentiates)
     const std::vector<ValueId> gradients =
         differentiate(model.graph, model.loss, model.parameters(), &provenance);
 
-    ASSERT_NE(gradients.at(0), NO_VALUE);
+    ASSERT_NE(gradients.at(0), K_NO_VALUE);
     const NodeId emitted = model.graph.value(gradients[0]).producer;
     ASSERT_GE(emitted, provenance.forward_node_count);
 
     const NodeId origin = provenance.origin_of(emitted);
-    EXPECT_EQ(model.graph.node(origin).op, Ops::MATMUL.id);
+    EXPECT_EQ(model.graph.node(origin).op, Ops::K_MATMUL.id);
     EXPECT_EQ(origin, model.graph.value(model.first_product).producer);
 }
 
@@ -170,11 +170,11 @@ TEST(Unit_Provenance, AFanOutAccumulateBelongsToTheProducer)
     (void)differentiate(graph, loss, {x}, &provenance);
 
     const std::vector<NodeId> accumulates =
-        nodes_of(graph, Ops::ACCUMULATE.id, provenance.forward_node_count);
+        nodes_of(graph, Ops::K_ACCUMULATE.id, provenance.forward_node_count);
     ASSERT_EQ(accumulates.size(), 1u);
 
     const NodeId origin = provenance.origin_of(accumulates.front());
-    EXPECT_EQ(graph.node(origin).op, Ops::RELU.id);
+    EXPECT_EQ(graph.node(origin).op, Ops::K_RELU.id);
     EXPECT_EQ(origin, graph.value(shared).producer);
 }
 
@@ -194,13 +194,13 @@ TEST(Unit_Provenance, AParameterReadTwiceAccumulatesUnderItsLeaf)
     Autograd::Provenance provenance;
     const std::vector<ValueId> gradients = differentiate(graph, loss, {x}, &provenance);
 
-    ASSERT_NE(gradients.at(0), NO_VALUE);
+    ASSERT_NE(gradients.at(0), K_NO_VALUE);
     const NodeId closing = graph.value(gradients[0]).producer;
-    ASSERT_EQ(graph.node(closing).op, Ops::ACCUMULATE.id);
+    ASSERT_EQ(graph.node(closing).op, Ops::K_ACCUMULATE.id);
 
     const NodeId origin = provenance.origin_of(closing);
     EXPECT_NE(origin, 0u);
-    EXPECT_EQ(graph.node(origin).op, Ops::LEAF.id);
+    EXPECT_EQ(graph.node(origin).op, Ops::K_LEAF.id);
     EXPECT_EQ(origin, graph.value(x).producer);
 }
 
@@ -236,7 +236,7 @@ TEST(Unit_Provenance, ARequestedValueWithoutAProducerIsRefused)
 
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
     const ValueId x =
-        graph.add_value(Shape{4, 3}, DType::FLOAT32, Graph::Lifetime::PARAMETER, "x");
+        graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Parameter, "x");
     graph.value(x).requires_grad = true;
 
     const ValueId sum = builder.add(builder.relu(x), builder.tanh(x));

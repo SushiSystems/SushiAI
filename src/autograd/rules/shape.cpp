@@ -36,7 +36,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::ValueId x = tape.node().inputs[0];
             tape.contribute_input(0, tape.builder().reshape(dy, tape.graph().value(x).shape));
@@ -47,7 +47,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             const Graph::ValueId dy = tape.output_grad(0);
-            if (dy == Graph::NO_VALUE) return;
+            if (dy == Graph::K_NO_VALUE) return;
 
             // Permutation adjoint inverts by converting back to the operand layout.
             const Graph::ValueId x = tape.node().inputs[0];

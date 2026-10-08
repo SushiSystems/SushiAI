@@ -253,8 +253,8 @@ TEST(Unit_ModelGraph, BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace)
     EXPECT_EQ(traced.value(features).shape, expected.value(expected_features).shape);
 
     EXPECT_EQ(traced.value(features).shape, (Shape{2, 4, 4, 4}));
-    EXPECT_EQ(std::count(ops.begin(), ops.end(), Ops::UPSAMPLE2D.id), 1);
-    EXPECT_EQ(std::count(ops.begin(), ops.end(), Ops::CONCAT_CHANNELS.id), 1);
+    EXPECT_EQ(std::count(ops.begin(), ops.end(), Ops::K_UPSAMPLE2D.id), 1);
+    EXPECT_EQ(std::count(ops.begin(), ops.end(), Ops::K_CONCAT_CHANNELS.id), 1);
 }
 
 /** @brief Tests that the merge is one CONCAT_CHANNELS reading the two branches in from order. */
@@ -276,7 +276,7 @@ TEST(Unit_ModelGraph, MergeEmitsOneConcatChannelsReadingBothBranches)
     std::vector<const Graph::Node*> concats;
     for (const Graph::Node& node : graph.nodes())
     {
-        if (node.op == Ops::CONCAT_CHANNELS.id)
+        if (node.op == Ops::K_CONCAT_CHANNELS.id)
             concats.push_back(&node);
     }
 
@@ -322,7 +322,7 @@ TEST(Unit_ModelGraph, ForwardReturnsTheSinglePublishedOutput)
     const Graph::ValueId y = model.forward(Trace::evaluation(builder), x);
 
     ASSERT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.nodes().front().op, Ops::RELU.id);
+    EXPECT_EQ(graph.nodes().front().op, Ops::K_RELU.id);
     EXPECT_EQ(graph.nodes().front().outputs, (std::vector<Graph::ValueId>{y}));
     EXPECT_EQ(graph.nodes().front().inputs, (std::vector<Graph::ValueId>{x}));
 }
@@ -413,7 +413,7 @@ TEST(Unit_ModelGraph, ASequentialAndALayerStackAreNodesOfAGraph)
 {
     NN::LayerStack stack;
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(NN::Linear{8, 4}, 4));
-    stack.push(std::make_unique<NN::LayerAdapter<NN::GELU>>(NN::GELU{}, 4));
+    stack.push(std::make_unique<NN::LayerAdapter<NN::K_GELU>>(NN::K_GELU{}, 4));
 
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(
@@ -486,7 +486,7 @@ TEST(Unit_ModelGraph, ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers)
     SA_EXPECT_OK(model.trace(Trace::training(builder, list), x));
 
     const OpList ops = ops_of(graph);
-    EXPECT_EQ(std::count(ops.begin(), ops.end(), Ops::BATCHNORM2D.id), 1);
+    EXPECT_EQ(std::count(ops.begin(), ops.end(), Ops::K_BATCHNORM2D.id), 1);
     EXPECT_EQ(list.updates().size(), 2u);
     EXPECT_EQ(parameter_names(model, "model"), (std::vector<std::string>{
         "model.bn.weight:[3]", "model.bn.bias:[3]"}));
@@ -511,13 +511,13 @@ TEST(Unit_ModelGraph, AChainNamedByIndexYieldsTheNamesOfALayerStack)
 
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef row0, model.add("0", first, model.input()));
-    SA_ASSERT_OK_AND_ASSIGN(const NodeRef row1, model.add("1", NN::GELU{}, row0));
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef row1, model.add("1", NN::K_GELU{}, row0));
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef row2, model.add("2", last, row1));
     SA_EXPECT_OK(model.output("output", row2));
 
     NN::LayerStack stack;
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(first, 8));
-    stack.push(std::make_unique<NN::LayerAdapter<NN::GELU>>(NN::GELU{}, 8));
+    stack.push(std::make_unique<NN::LayerAdapter<NN::K_GELU>>(NN::K_GELU{}, 8));
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(last, 4));
 
     Graph::Graph graph_of_model;
@@ -553,7 +553,7 @@ TEST(Unit_ModelGraph, NestsInASequentialUnderItsIndex)
     const Graph::ValueId y = model.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 8}));
-    EXPECT_EQ(graph.nodes().back().op, Ops::RELU.id);
+    EXPECT_EQ(graph.nodes().back().op, Ops::K_RELU.id);
     EXPECT_EQ(parameter_names(model, ""), (std::vector<std::string>{
         "0.dense.weight:[8, 6]", "0.dense.bias:[8]"}));
 }
@@ -564,7 +564,7 @@ TEST(Unit_ModelGraph, AddRejectsADuplicateName)
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef first, model.add("act", NN::ReLU{}, model.input()));
 
-    SA_EXPECT_FAILURE(model.add("act", NN::GELU{}, first), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(model.add("act", NN::K_GELU{}, first), StatusCode::InvalidDescription,
                       "already has a node named 'act'", "index 0");
     EXPECT_EQ(model.size(), 1u);
 }
@@ -675,7 +675,7 @@ TEST(Unit_ModelGraph, PortSelectsANamedPortThatALaterNodeReads)
     static_cast<void>(model.forward(Trace::evaluation(builder), x));
 
     ASSERT_EQ(graph.node_count(), 3u);
-    EXPECT_EQ(graph.nodes()[1].op, Ops::GELU.id);
+    EXPECT_EQ(graph.nodes()[1].op, Ops::K_GELU.id);
     EXPECT_EQ(graph.nodes()[2].inputs, graph.nodes()[1].outputs);
 }
 

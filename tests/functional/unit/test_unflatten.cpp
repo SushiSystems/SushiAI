@@ -70,11 +70,11 @@ TEST(Unit_Unflatten, TracesTheImageShape)
     const Graph::GraphBuilder builder(graph);
 
     const Unflatten layer{4, 5, 3};
-    const Graph::ValueId x = builder.input(Shape{2, 60}, "x", DType::FLOAT64);
+    const Graph::ValueId x = builder.input(Shape{2, 60}, "x", DType::Float64);
     const Graph::ValueId y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 5, 3}));
-    EXPECT_EQ(graph.value(y).dtype, DType::FLOAT64);
+    EXPECT_EQ(graph.value(y).dtype, DType::Float64);
 }
 
 /** @brief Tests that forward() leaves the default NHWC tag on a result finalise() accepts. */
@@ -88,7 +88,7 @@ TEST(Unit_Unflatten, TagsTheResultNhwc)
     const Graph::ValueId y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
     EXPECT_NO_THROW(graph.finalise());
 }
 
@@ -105,7 +105,7 @@ TEST(Unit_Unflatten, EmitsOneReshapeNode)
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
-    EXPECT_EQ(node.op, Ops::RESHAPE.id);
+    EXPECT_EQ(node.op, Ops::K_RESHAPE.id);
     ASSERT_EQ(node.inputs.size(), 1u);
     EXPECT_EQ(node.inputs.front(), x);
 }
@@ -198,7 +198,7 @@ TEST(Unit_Unflatten, ForwardRejectsAnNchwInput)
 
     const Unflatten layer{4, 5, 3};
     const Graph::ValueId x = builder.input(Shape{2, 60}, "x");
-    graph.value(x).layout = Graph::TensorLayout::NCHW;
+    graph.value(x).layout = Graph::TensorLayout::Nchw;
 
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }

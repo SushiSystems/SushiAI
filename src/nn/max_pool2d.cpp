@@ -74,7 +74,7 @@ namespace SushiAI
                         "MaxPool2d needs a rank-4 [N, H, W, C] input; got {}", image.to_string());
 
             // Axes 1 and 2 hold H and W under NHWC only; the emitter refuses any other layout.
-            if (builder.graph().value(x).layout == Graph::TensorLayout::NHWC)
+            if (builder.graph().value(x).layout == Graph::TensorLayout::Nhwc)
                 (void)fit_window(*this, Shape{image[1], image[2], image[3]});
 
             return builder.maxpool2d(x, geometry).output;

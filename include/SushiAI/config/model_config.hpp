@@ -41,7 +41,7 @@ namespace SushiAI
     namespace Config
     {
         /** @brief Holds the model-file version this build writes and the newest it reads. */
-        inline constexpr std::int64_t MODEL_VERSION = 2;
+        inline constexpr std::int64_t K_MODEL_VERSION = 2;
 
         /** @brief Marks a resolved @ref SourceSpec that reads the model input, not a row. */
         inline constexpr std::int64_t K_MODEL_INPUT = -1;
@@ -75,7 +75,7 @@ namespace SushiAI
          */
         struct LayerSpec
         {
-            /** @brief The @c NN::LAYER_REGISTRY key, e.g. "linear". */
+            /** @brief The @c NN::K_LAYER_REGISTRY key, e.g. "linear". */
             std::string type;
 
             /** @brief Holds the row's keys without "type" and "from", defaults merged in. */

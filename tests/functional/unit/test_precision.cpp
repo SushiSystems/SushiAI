@@ -49,17 +49,17 @@ using Graph::GraphBuilder;
 using Graph::InsertedCast;
 using Graph::Lifetime;
 using Graph::MixedPrecisionPolicy;
-using Graph::NO_NODE;
-using Graph::NO_VALUE;
+using Graph::K_NO_NODE;
+using Graph::K_NO_VALUE;
 using Graph::NodeId;
 using Graph::UniformPrecisionPolicy;
 using Graph::ValueId;
 
 namespace
 {
-    constexpr int64_t ROWS = 4;
-    constexpr int64_t IN_FEATURES = 3;
-    constexpr int64_t HIDDEN = 5;
+    constexpr int64_t K_ROWS = 4;
+    constexpr int64_t K_IN_FEATURES = 3;
+    constexpr int64_t K_HIDDEN = 5;
     constexpr int64_t CLASSES = 2;
 
     /**
@@ -70,14 +70,14 @@ namespace
     struct Traced
     {
         Graph::Graph graph;
-        ValueId x = NO_VALUE;
-        ValueId targets = NO_VALUE;
-        ValueId w1 = NO_VALUE;
-        ValueId b1 = NO_VALUE;
-        ValueId w2 = NO_VALUE;
-        ValueId b2 = NO_VALUE;
-        ValueId logits = NO_VALUE;
-        ValueId loss = NO_VALUE;
+        ValueId x = K_NO_VALUE;
+        ValueId targets = K_NO_VALUE;
+        ValueId w1 = K_NO_VALUE;
+        ValueId b1 = K_NO_VALUE;
+        ValueId w2 = K_NO_VALUE;
+        ValueId b2 = K_NO_VALUE;
+        ValueId logits = K_NO_VALUE;
+        ValueId loss = K_NO_VALUE;
         std::vector<ValueId> gradients;
     };
 
@@ -87,11 +87,11 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        traced.x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
-        traced.targets = builder.input(Shape{ROWS, CLASSES}, "targets");
-        traced.w1 = builder.parameter(Shape{HIDDEN, IN_FEATURES}, "w1");
-        traced.b1 = builder.parameter(Shape{HIDDEN}, "b1");
-        traced.w2 = builder.parameter(Shape{CLASSES, HIDDEN}, "w2");
+        traced.x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+        traced.targets = builder.input(Shape{K_ROWS, CLASSES}, "targets");
+        traced.w1 = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w1");
+        traced.b1 = builder.parameter(Shape{K_HIDDEN}, "b1");
+        traced.w2 = builder.parameter(Shape{CLASSES, K_HIDDEN}, "w2");
         traced.b2 = builder.parameter(Shape{CLASSES}, "b2");
 
         const ValueId h = builder.relu(
@@ -137,8 +137,8 @@ TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 {
     const UniformPrecisionPolicy policy;
 
-    for (const Ops::OpName& entry : Ops::ALL)
-        for (DType dtype : {DType::HALF, DType::FLOAT32, DType::FLOAT64})
+    for (const Ops::OpName& entry : Ops::K_ALL)
+        for (DType dtype : {DType::Half, DType::Float32, DType::Float64})
             EXPECT_EQ(policy.choose(Graph::PrecisionQuery{entry.id, dtype}).dtype, dtype)
                 << entry.name << " was moved by the policy that is supposed to move nothing";
 
@@ -149,14 +149,14 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
 {
     // Every narrowing operation is listed here; see tests/functional/unit/README.md.
     const OpID narrows[] = {
-        Ops::MATMUL.id,
-        Ops::GEMM_BIAS.id, Ops::GEMM_BIAS_RELU.id,
-        Ops::GEMM_BIAS_SIGMOID.id, Ops::GEMM_BIAS_TANH.id,
-        Ops::BIAS_ADD.id,
-        Ops::RELU.id, Ops::SIGMOID.id, Ops::TANH.id,
-        Ops::RELU_BACKWARD.id, Ops::SIGMOID_BACKWARD.id, Ops::TANH_BACKWARD.id,
+        Ops::K_MATMUL.id,
+        Ops::K_GEMM_BIAS.id, Ops::K_GEMM_BIAS_RELU.id,
+        Ops::K_GEMM_BIAS_SIGMOID.id, Ops::K_GEMM_BIAS_TANH.id,
+        Ops::K_BIAS_ADD.id,
+        Ops::K_RELU.id, Ops::K_SIGMOID.id, Ops::K_TANH.id,
+        Ops::K_RELU_BACKWARD.id, Ops::K_SIGMOID_BACKWARD.id, Ops::K_TANH_BACKWARD.id,
         // LEAKY_RELU narrows, as RELU does; see tests/functional/unit/README.md.
-        Ops::LEAKY_RELU.id, Ops::LEAKY_RELU_BACKWARD.id,
+        Ops::K_LEAKY_RELU.id, Ops::K_LEAKY_RELU_BACKWARD.id,
     };
 
     for (OpID op : narrows)
@@ -165,31 +165,31 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
 
     // Reductions stay wide; fp16 has ~11 significand bits; see tests/functional/unit/README.md.
     const OpID stays[] = {
-        Ops::SUM_ROWS.id, Ops::LOG_SOFTMAX.id, Ops::NLL_LOSS.id, Ops::ACCUMULATE.id,
-        Ops::EXP.id, Ops::SUB.id, Ops::SCALE.id, Ops::EXP_SUB_SCALE.id,
+        Ops::K_SUM_ROWS.id, Ops::K_LOG_SOFTMAX.id, Ops::K_NLL_LOSS.id, Ops::K_ACCUMULATE.id,
+        Ops::K_EXP.id, Ops::K_SUB.id, Ops::K_SCALE.id, Ops::K_EXP_SUB_SCALE.id,
         // DYNAMIC_SCALE applies the loss scale and stays wide; see tests/functional/unit/README.md.
-        Ops::DYNAMIC_SCALE.id,
-        Ops::ADD.id, Ops::MUL.id, Ops::ZERO.id,
+        Ops::K_DYNAMIC_SCALE.id,
+        Ops::K_ADD.id, Ops::K_MUL.id, Ops::K_ZERO.id,
         // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/functional/unit/README.md.
-        Ops::GELU.id, Ops::GELU_BACKWARD.id, Ops::GEMM_BIAS_GELU.id,
-        Ops::LEAF.id, Ops::CAST.id,
-        Ops::ADAMW_UPDATE.id, Ops::SGD_UPDATE.id,
+        Ops::K_GELU.id, Ops::K_GELU_BACKWARD.id, Ops::K_GEMM_BIAS_GELU.id,
+        Ops::K_LEAF.id, Ops::K_CAST.id,
+        Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id,
         // The twenty spatial identities keep the default; see tests/functional/unit/README.md.
-        Ops::RESHAPE.id, Ops::LAYOUT_CONVERT.id,
-        Ops::IM2COL.id, Ops::COL2IM.id,
-        Ops::MAXPOOL2D.id, Ops::MAXPOOL2D_BACKWARD.id,
-        Ops::AVGPOOL2D.id, Ops::AVGPOOL2D_BACKWARD.id,
-        Ops::SPATIAL_MEAN.id, Ops::SPATIAL_MEAN_BACKWARD.id,
-        Ops::UPSAMPLE2D.id, Ops::UPSAMPLE2D_BACKWARD.id,
-        Ops::CONCAT_CHANNELS.id, Ops::SLICE_CHANNELS.id,
-        Ops::BATCHNORM2D.id, Ops::BATCHNORM2D_BACKWARD.id,
-        Ops::CHANNEL_AFFINE.id, Ops::BATCHNORM_UPDATE_STATS.id,
+        Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
+        Ops::K_IM2COL.id, Ops::K_COL2IM.id,
+        Ops::K_MAXPOOL2D.id, Ops::K_MAXPOOL2D_BACKWARD.id,
+        Ops::K_AVGPOOL2D.id, Ops::K_AVGPOOL2D_BACKWARD.id,
+        Ops::K_SPATIAL_MEAN.id, Ops::K_SPATIAL_MEAN_BACKWARD.id,
+        Ops::K_UPSAMPLE2D.id, Ops::K_UPSAMPLE2D_BACKWARD.id,
+        Ops::K_CONCAT_CHANNELS.id, Ops::K_SLICE_CHANNELS.id,
+        Ops::K_BATCHNORM2D.id, Ops::K_BATCHNORM2D_BACKWARD.id,
+        Ops::K_CHANNEL_AFFINE.id, Ops::K_BATCHNORM_UPDATE_STATS.id,
         // SILU and SOFTPLUS read their input, so neither they nor their gradients narrow.
-        Ops::SILU.id, Ops::SILU_BACKWARD.id, Ops::SOFTPLUS.id, Ops::SOFTPLUS_BACKWARD.id,
-        Ops::DIV.id, Ops::MINIMUM.id, Ops::MAXIMUM.id, Ops::ABS.id, Ops::ATAN.id,
-        Ops::LESS_EQUAL.id, Ops::SELECT.id, Ops::STOP_GRADIENT.id, Ops::CONSTANT.id,
+        Ops::K_SILU.id, Ops::K_SILU_BACKWARD.id, Ops::K_SOFTPLUS.id, Ops::K_SOFTPLUS_BACKWARD.id,
+        Ops::K_DIV.id, Ops::K_MINIMUM.id, Ops::K_MAXIMUM.id, Ops::K_ABS.id, Ops::K_ATAN.id,
+        Ops::K_LESS_EQUAL.id, Ops::K_SELECT.id, Ops::K_STOP_GRADIENT.id, Ops::K_CONSTANT.id,
         // BATCHNORM_FOLD takes the square root of a variance plus epsilon, so it stays wide.
-        Ops::BATCHNORM_FOLD.id,
+        Ops::K_BATCHNORM_FOLD.id,
     };
 
     for (OpID op : stays)
@@ -198,24 +198,24 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
 
     // The two lists account for every identity; see tests/functional/unit/README.md.
     EXPECT_EQ(sizeof(narrows) / sizeof(narrows[0]) + sizeof(stays) / sizeof(stays[0]),
-              Ops::ALL.size());
+              Ops::K_ALL.size());
 }
 
 TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
     // The catalog folds GELU and the policy keeps it wide; see tests/functional/unit/README.md.
-    EXPECT_TRUE(Graph::catalog_folds_activation(Ops::GELU.id))
+    EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id))
         << "the catalog no longer folds GELU, so rule 5's first reason is back and this "
            "test is guarding nothing";
-    EXPECT_FALSE(Ops::activation_survives_fusion(Ops::GELU.id));
-    EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::GELU.id));
+    EXPECT_FALSE(Ops::activation_survives_fusion(Ops::K_GELU.id));
+    EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::K_GELU.id));
 
     // The fused GELU form stays wide with it; see tests/functional/unit/README.md.
-    EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::GEMM_BIAS_GELU.id));
-    EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::GEMM_BIAS_RELU.id));
+    EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::K_GEMM_BIAS_GELU.id));
+    EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::K_GEMM_BIAS_RELU.id));
 
-    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::RELU.id));
-    EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::RELU.id));
+    EXPECT_TRUE(Ops::activation_survives_fusion(Ops::K_RELU.id));
+    EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::K_RELU.id));
 }
 
 TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
@@ -223,8 +223,8 @@ TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
     // choose() is idempotent for every operation; see tests/functional/unit/README.md.
     const MixedPrecisionPolicy policy;
 
-    for (const Ops::OpName& entry : Ops::ALL)
-        for (DType dtype : {DType::HALF, DType::FLOAT32, DType::FLOAT64})
+    for (const Ops::OpName& entry : Ops::K_ALL)
+        for (DType dtype : {DType::Half, DType::Float32, DType::Float64})
         {
             const DType once = policy.choose(Graph::PrecisionQuery{entry.id, dtype}).dtype;
             const DType twice = policy.choose(Graph::PrecisionQuery{entry.id, once}).dtype;
@@ -237,36 +237,36 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
     const MixedPrecisionPolicy policy;
 
     // An fp16 graph is already at the floor; see tests/functional/unit/README.md.
-    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::MATMUL.id, DType::FLOAT64}).dtype,
-              DType::HALF);
-    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::SUM_ROWS.id, DType::FLOAT64}).dtype,
-              DType::FLOAT64);
-    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::MATMUL.id, DType::HALF}).dtype,
-              DType::HALF);
-    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::SUM_ROWS.id, DType::HALF}).dtype,
-              DType::HALF);
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
+              DType::Half);
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Float64}).dtype,
+              DType::Float64);
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Half}).dtype,
+              DType::Half);
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Half}).dtype,
+              DType::Half);
 
     // A policy may narrow to fp32; see tests/functional/unit/README.md.
-    const MixedPrecisionPolicy to_single(DType::FLOAT32);
-    EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::MATMUL.id, DType::FLOAT64}).dtype,
-              DType::FLOAT32);
-    EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::MATMUL.id, DType::FLOAT32}).dtype,
-              DType::FLOAT32);
+    const MixedPrecisionPolicy to_single(DType::Float32);
+    EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
+              DType::Float32);
+    EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float32}).dtype,
+              DType::Float32);
 }
 
 TEST(Unit_Precision, ANonFloatLowTypeIsRefusedAtConstruction)
 {
-    EXPECT_THROW(MixedPrecisionPolicy{DType::INT32}, Error);
-    EXPECT_THROW(MixedPrecisionPolicy{DType::COMPLEX32}, Error);
-    EXPECT_NO_THROW(MixedPrecisionPolicy{DType::HALF});
+    EXPECT_THROW(MixedPrecisionPolicy{DType::Int32}, Error);
+    EXPECT_THROW(MixedPrecisionPolicy{DType::Complex32}, Error);
+    EXPECT_NO_THROW(MixedPrecisionPolicy{DType::Half});
 }
 
 TEST(Unit_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
 {
     const MixedPrecisionPolicy policy;
 
-    for (const Ops::OpName& entry : Ops::ALL)
-        EXPECT_FALSE(policy.choose(Graph::PrecisionQuery{entry.id, DType::FLOAT32}).reason.empty())
+    for (const Ops::OpName& entry : Ops::K_ALL)
+        EXPECT_FALSE(policy.choose(Graph::PrecisionQuery{entry.id, DType::Float32}).reason.empty())
             << entry.name << " was decided without a reason";
 }
 
@@ -289,12 +289,12 @@ TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
 
     EXPECT_EQ(report.count(), 0u);
     EXPECT_EQ(report.retyped_values(), 0u);
-    EXPECT_EQ(count_op(traced.graph, Ops::CAST.id), 0u);
+    EXPECT_EQ(count_op(traced.graph, Ops::K_CAST.id), 0u);
     EXPECT_EQ(traced.graph.node_count(), nodes_before);
     EXPECT_EQ(traced.graph.value_count(), values_before);
 
     for (ValueId id = 0; id < static_cast<ValueId>(values_before); ++id)
-        EXPECT_EQ(traced.graph.value(id).dtype, DType::FLOAT32);
+        EXPECT_EQ(traced.graph.value(id).dtype, DType::Float32);
 }
 
 TEST(Unit_CastInsertion, NoPolicyMeansTheUniformPolicy)
@@ -347,7 +347,7 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     fusion.observed = observed_span;
     const Graph::FusionReport fused = Graph::fuse(traced.graph, fusion);
 
-    EXPECT_GT(fused.count(FusedForm::GEMM_BIAS_RELU), 0u)
+    EXPECT_GT(fused.count(FusedForm::GemmBiasRelu), 0u)
         << "the casts landed inside a fusable chain and broke it";
 
     const std::vector<DTypeMismatch> mismatches =
@@ -357,15 +357,15 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     // After the *whole* pipeline, not just after the cast pass.
     for (ValueId parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
     {
-        EXPECT_EQ(traced.graph.value(parameter).dtype, DType::FLOAT32);
-        EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::PARAMETER);
+        EXPECT_EQ(traced.graph.value(parameter).dtype, DType::Float32);
+        EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
     }
 
     for (ValueId gradient : traced.gradients)
     {
-        ASSERT_NE(gradient, NO_VALUE);
-        EXPECT_EQ(traced.graph.value(gradient).dtype, DType::FLOAT32);
-        EXPECT_EQ(traced.graph.value(gradient).lifetime, Lifetime::GRADIENT);
+        ASSERT_NE(gradient, K_NO_VALUE);
+        EXPECT_EQ(traced.graph.value(gradient).dtype, DType::Float32);
+        EXPECT_EQ(traced.graph.value(gradient).lifetime, Lifetime::Gradient);
     }
 }
 
@@ -375,8 +375,8 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{ROWS, IN_FEATURES}, "x", DType::FLOAT32);
-    const ValueId w = builder.parameter(Shape{HIDDEN, IN_FEATURES}, "w", DType::FLOAT32);
+    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x", DType::Float32);
+    const ValueId w = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w", DType::Float32);
     builder.matmul(x, w, false, true);
 
     const MixedPrecisionPolicy policy;
@@ -386,9 +386,9 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     ASSERT_EQ(mismatches.size(), 3u);
     for (const DTypeMismatch& mismatch : mismatches)
     {
-        EXPECT_EQ(mismatch.op, Ops::MATMUL.id);
-        EXPECT_EQ(mismatch.found, DType::FLOAT32);
-        EXPECT_EQ(mismatch.expected, DType::HALF);
+        EXPECT_EQ(mismatch.op, Ops::K_MATMUL.id);
+        EXPECT_EQ(mismatch.found, DType::Float32);
+        EXPECT_EQ(mismatch.expected, DType::Half);
     }
 
     EXPECT_NE(Graph::describe(mismatches.front()).find("sushiai.matmul"), std::string::npos);
@@ -409,9 +409,9 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 
     for (ValueId parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
     {
-        EXPECT_EQ(traced.graph.value(parameter).dtype, DType::FLOAT32)
+        EXPECT_EQ(traced.graph.value(parameter).dtype, DType::Float32)
             << "a master weight was retyped in place";
-        EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::PARAMETER);
+        EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
 
         // The GEMM reads a derived fp16 copy of the parameter; see tests/functional/unit/README.md.
         const auto casts = report.casts();
@@ -420,10 +420,10 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 
         ASSERT_NE(found, casts.end())
             << "no low-precision copy was derived from parameter " << parameter;
-        EXPECT_EQ(found->to, DType::HALF);
+        EXPECT_EQ(found->to, DType::Half);
         EXPECT_TRUE(found->feeds_operand);
-        EXPECT_EQ(traced.graph.value(found->destination).lifetime, Lifetime::ACTIVATION);
-        EXPECT_EQ(traced.graph.value(found->destination).dtype, DType::HALF);
+        EXPECT_EQ(traced.graph.value(found->destination).lifetime, Lifetime::Activation);
+        EXPECT_EQ(traced.graph.value(found->destination).dtype, DType::Half);
     }
 }
 
@@ -444,28 +444,28 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
     // Only the weight gradients come from a low MATMUL; see tests/functional/unit/README.md.
     for (ValueId weight_gradient : {traced.gradients[0], traced.gradients[2]})
     {
-        ASSERT_NE(weight_gradient, NO_VALUE);
-        EXPECT_EQ(traced.graph.value(weight_gradient).dtype, DType::FLOAT32);
+        ASSERT_NE(weight_gradient, K_NO_VALUE);
+        EXPECT_EQ(traced.graph.value(weight_gradient).dtype, DType::Float32);
 
         const NodeId producer = traced.graph.value(weight_gradient).producer;
-        ASSERT_NE(producer, NO_NODE);
-        EXPECT_EQ(traced.graph.node(producer).op, Ops::CAST.id)
+        ASSERT_NE(producer, K_NO_NODE);
+        EXPECT_EQ(traced.graph.node(producer).op, Ops::K_CAST.id)
             << "an fp16 matmul wrote straight into an fp32 gradient buffer";
 
         const ValueId narrow = traced.graph.node(producer).inputs.at(0);
-        EXPECT_EQ(traced.graph.value(narrow).dtype, DType::HALF);
-        EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::MATMUL.id);
+        EXPECT_EQ(traced.graph.value(narrow).dtype, DType::Half);
+        EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::K_MATMUL.id);
     }
 
     // The bias gradients come from a wide reduction; see tests/functional/unit/README.md.
     for (ValueId bias_gradient : {traced.gradients[1], traced.gradients[3]})
     {
-        EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::FLOAT32);
+        EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::Float32);
         EXPECT_EQ(traced.graph.node(traced.graph.value(bias_gradient).producer).op,
-                  Ops::SUM_ROWS.id);
+                  Ops::K_SUM_ROWS.id);
     }
 
-    EXPECT_EQ(report.count_into(DType::FLOAT32) > 0, true);
+    EXPECT_EQ(report.count_into(DType::Float32) > 0, true);
 }
 
 TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
@@ -474,9 +474,9 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
-    const ValueId targets = builder.input(Shape{ROWS, CLASSES}, "targets");
-    const ValueId w = builder.parameter(Shape{CLASSES, IN_FEATURES}, "w");
+    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    const ValueId targets = builder.input(Shape{K_ROWS, CLASSES}, "targets");
+    const ValueId w = builder.parameter(Shape{CLASSES, K_IN_FEATURES}, "w");
 
     // The same weight in two products, summed - the smallest fan-out there is.
     const ValueId a = builder.matmul(x, w, false, true);
@@ -488,7 +488,7 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
     const std::vector<ValueId> gradients =
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt, 1));
 
-    ASSERT_EQ(count_op(graph, Ops::ACCUMULATE.id), 1u);
+    ASSERT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 1u);
 
     const MixedPrecisionPolicy policy;
     CastOptions options;
@@ -500,14 +500,14 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
     Graph::insert_casts(graph, options);
 
     EXPECT_TRUE(Graph::find_dtype_mismatches(graph, policy).empty());
-    EXPECT_EQ(graph.value(gradients[0]).dtype, DType::FLOAT32);
+    EXPECT_EQ(graph.value(gradients[0]).dtype, DType::Float32);
 
     for (const Graph::Node& node : graph.nodes())
-        if (node.op == Ops::ACCUMULATE.id)
+        if (node.op == Ops::K_ACCUMULATE.id)
         {
-            EXPECT_EQ(graph.value(node.outputs[0]).dtype, DType::FLOAT32);
-            EXPECT_EQ(graph.value(node.inputs[0]).dtype, DType::FLOAT32);
-            EXPECT_EQ(graph.value(node.inputs[1]).dtype, DType::FLOAT32);
+            EXPECT_EQ(graph.value(node.outputs[0]).dtype, DType::Float32);
+            EXPECT_EQ(graph.value(node.inputs[0]).dtype, DType::Float32);
+            EXPECT_EQ(graph.value(node.inputs[1]).dtype, DType::Float32);
         }
 }
 
@@ -529,8 +529,8 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
     without.policy = &policy;
     Graph::insert_casts(loose.graph, without);
 
-    EXPECT_EQ(pinned.graph.value(pinned.logits).dtype, DType::FLOAT32);
-    EXPECT_EQ(loose.graph.value(loose.logits).dtype, DType::HALF);
+    EXPECT_EQ(pinned.graph.value(pinned.logits).dtype, DType::Float32);
+    EXPECT_EQ(loose.graph.value(loose.logits).dtype, DType::Half);
 
     // Naming a value that does not exist is a caller error worth reporting.
     Traced other = trace();
@@ -654,11 +654,11 @@ TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
     EXPECT_EQ(report.policy(), "mixed");
-    EXPECT_EQ(report.count(), count_op(traced.graph, Ops::CAST.id));
+    EXPECT_EQ(report.count(), count_op(traced.graph, Ops::K_CAST.id));
     EXPECT_EQ(report.nodes_after() - report.nodes_before(), report.count());
-    EXPECT_EQ(report.count(), report.count_into(DType::HALF) + report.count_into(DType::FLOAT32));
-    EXPECT_GT(report.count_into(DType::HALF), 0u);
-    EXPECT_GT(report.count_into(DType::FLOAT32), 0u);
+    EXPECT_EQ(report.count(), report.count_into(DType::Half) + report.count_into(DType::Float32));
+    EXPECT_GT(report.count_into(DType::Half), 0u);
+    EXPECT_GT(report.count_into(DType::Float32), 0u);
     EXPECT_GT(report.retyped_values(), 0u);
 
     EXPECT_NE(report.to_string().find("mixed"), std::string::npos);
@@ -670,11 +670,11 @@ TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
     // A conversion sits immediately before its consumer; see tests/functional/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId a = graph.add_value(Shape{ROWS}, DType::FLOAT32, Lifetime::ACTIVATION, "a");
-    const ValueId b = graph.add_value(Shape{ROWS}, DType::FLOAT32, Lifetime::ACTIVATION, "b");
+    const ValueId a = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "a");
+    const ValueId b = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "b");
 
-    graph.add_node(Ops::RELU.id, {b}, {a});   // reads b...
-    graph.add_node(Ops::RELU.id, {a}, {b});   // ...which is written here.
+    graph.add_node(Ops::K_RELU.id, {b}, {a});   // reads b...
+    graph.add_node(Ops::K_RELU.id, {a}, {b});   // ...which is written here.
 
     const MixedPrecisionPolicy policy;
     CastOptions options;
@@ -693,9 +693,9 @@ namespace
     struct Pooled
     {
         Graph::Graph graph;
-        ValueId x = NO_VALUE;
-        ValueId indices = NO_VALUE;
-        ValueId loss = NO_VALUE;
+        ValueId x = K_NO_VALUE;
+        ValueId indices = K_NO_VALUE;
+        ValueId loss = K_NO_VALUE;
     };
 
     Pooled trace_pool()
@@ -732,7 +732,7 @@ namespace
     {
         for (const Graph::Node& node : graph.nodes())
         {
-            if (node.op != Ops::CAST.id) continue;
+            if (node.op != Ops::K_CAST.id) continue;
             for (ValueId in : node.inputs) if (in == value) return true;
             for (ValueId out : node.outputs) if (out == value) return true;
         }
@@ -745,13 +745,13 @@ TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
     // The INT64 argmax is not converted; see tests/functional/unit/README.md.
     Pooled p = trace_pool();
 
-    ASSERT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
-    ASSERT_EQ(count_op(p.graph, Ops::MAXPOOL2D_BACKWARD.id), 1u)
+    ASSERT_EQ(p.graph.value(p.indices).dtype, DType::Int64);
+    ASSERT_EQ(count_op(p.graph, Ops::K_MAXPOOL2D_BACKWARD.id), 1u)
         << "no pool backward was emitted, so the operand half of this test is vacuous";
 
     EXPECT_NO_THROW(Graph::insert_casts(p.graph, CastOptions{}));
 
-    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64)
+    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::Int64)
         << "the argmax was retyped; its backward reads it as a routing table of offsets";
     EXPECT_FALSE(any_cast_touches(p.graph, p.indices))
         << "a CAST was wrapped around the index buffer, which is a rounding policy nobody asked for";
@@ -770,7 +770,7 @@ TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
 
     EXPECT_NO_THROW(Graph::insert_casts(p.graph, options));
 
-    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
+    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::Int64);
     EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
 }
 
@@ -785,7 +785,7 @@ TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 
     EXPECT_NO_THROW(Graph::insert_casts(p.graph, options));
 
-    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::INT64);
+    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::Int64);
     EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
 }
 
@@ -795,9 +795,9 @@ TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{ROWS, IN_FEATURES}, "x");
-    const ValueId weight = builder.parameter(Shape{HIDDEN, IN_FEATURES}, "w");
-    const ValueId shift = builder.buffer(Shape{HIDDEN}, "running_shift");
+    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    const ValueId weight = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w");
+    const ValueId shift = builder.buffer(Shape{K_HIDDEN}, "running_shift");
     const ValueId biased = builder.bias_add(builder.matmul(x, weight, false, true), shift);
 
     graph.bind_state_leaf(Graph::StateId{31}, weight);
@@ -813,10 +813,10 @@ TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
 
     // BIAS_ADD narrows, so the pass must have cast the buffer for the lookups to prove anything.
     ASSERT_GT(report.count(), 0u);
-    EXPECT_EQ(graph.value(biased).dtype, DType::HALF);
+    EXPECT_EQ(graph.value(biased).dtype, DType::Half);
 
-    EXPECT_EQ(graph.value(shift).dtype, DType::FLOAT32);
-    EXPECT_EQ(graph.value(shift).lifetime, Lifetime::BUFFER);
+    EXPECT_EQ(graph.value(shift).dtype, DType::Float32);
+    EXPECT_EQ(graph.value(shift).lifetime, Lifetime::Buffer);
     EXPECT_FALSE(graph.value(shift).requires_grad);
     EXPECT_EQ(graph.state_leaf(Graph::StateId{31}), weight);
     EXPECT_EQ(graph.state_leaf(Graph::StateId{32}), shift);
@@ -833,10 +833,10 @@ TEST(Unit_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId gamma = builder.parameter(Shape{HIDDEN}, "gamma");
-    const ValueId beta = builder.parameter(Shape{HIDDEN}, "beta");
-    const ValueId mean = builder.buffer(Shape{HIDDEN}, "running_mean");
-    const ValueId variance = builder.buffer(Shape{HIDDEN}, "running_var");
+    const ValueId gamma = builder.parameter(Shape{K_HIDDEN}, "gamma");
+    const ValueId beta = builder.parameter(Shape{K_HIDDEN}, "beta");
+    const ValueId mean = builder.buffer(Shape{K_HIDDEN}, "running_mean");
+    const ValueId variance = builder.buffer(Shape{K_HIDDEN}, "running_var");
     const Graph::BatchNormFold fold = builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
 
     const MixedPrecisionPolicy policy;
@@ -846,9 +846,9 @@ TEST(Unit_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
     const CastReport report = Graph::insert_casts(graph, options);
 
     EXPECT_EQ(report.count(), 0u);
-    EXPECT_EQ(count_op(graph, Ops::CAST.id), 0u);
-    ASSERT_EQ(count_op(graph, Ops::BATCHNORM_FOLD.id), 1u);
+    EXPECT_EQ(count_op(graph, Ops::K_CAST.id), 0u);
+    ASSERT_EQ(count_op(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
 
     for (ValueId id : {gamma, beta, mean, variance, fold.scale, fold.shift})
-        EXPECT_EQ(graph.value(id).dtype, DType::FLOAT32) << "value " << id;
+        EXPECT_EQ(graph.value(id).dtype, DType::Float32) << "value " << id;
 }

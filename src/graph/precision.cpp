@@ -36,33 +36,33 @@ namespace SushiAI
             /**
              * @brief Reason string literals preserved for diagnostic reports.
              */
-            constexpr std::string_view REASON_DECLARED =
+            constexpr std::string_view K_REASON_DECLARED =
                 "stays in the graph's own precision";
-            constexpr std::string_view REASON_FLOPS =
+            constexpr std::string_view K_REASON_FLOPS =
                 "the matrix product is where the work is, so it is what low precision is for";
-            constexpr std::string_view REASON_EPILOGUE =
+            constexpr std::string_view K_REASON_EPILOGUE =
                 "a fused GEMM applies this inside the GEMM's kernel, in the GEMM's element "
                 "type, so the unfused spelling has to agree or fusion would change the numbers";
-            constexpr std::string_view REASON_ALREADY_NARROW =
+            constexpr std::string_view K_REASON_ALREADY_NARROW =
                 "already at or below the policy's low type";
         }
 
         bool narrows_under_mixed_precision(OpID op) noexcept
         {
             // Matrix products and their narrowing epilogue forms compute in lower precision.
-            if (op == Ops::MATMUL.id
-                || op == Ops::GEMM_BIAS.id
-                || op == Ops::GEMM_BIAS_RELU.id
-                || op == Ops::GEMM_BIAS_SIGMOID.id
-                || op == Ops::GEMM_BIAS_TANH.id)
+            if (op == Ops::K_MATMUL.id
+                || op == Ops::K_GEMM_BIAS.id
+                || op == Ops::K_GEMM_BIAS_RELU.id
+                || op == Ops::K_GEMM_BIAS_SIGMOID.id
+                || op == Ops::K_GEMM_BIAS_TANH.id)
                 return true;
 
             // Fused bias addition and surviving activations match GEMM precision.
-            if (op == Ops::BIAS_ADD.id) return true;
+            if (op == Ops::K_BIAS_ADD.id) return true;
             if (Ops::activation_survives_fusion(op)) return true;
 
             // Activation backward operations follow the precision of their forward pass.
-            for (const Ops::Activation& activation : Ops::ACTIVATIONS)
+            for (const Ops::Activation& activation : Ops::K_ACTIVATIONS)
                 if (activation.backward == op)
                     return Ops::activation_survives_fusion(activation.forward);
 
@@ -71,7 +71,7 @@ namespace SushiAI
 
         PrecisionChoice UniformPrecisionPolicy::choose(const PrecisionQuery& query) const
         {
-            return PrecisionChoice{query.declared, REASON_DECLARED};
+            return PrecisionChoice{query.declared, K_REASON_DECLARED};
         }
 
         MixedPrecisionPolicy::MixedPrecisionPolicy(DType low) : low_(low)
@@ -87,19 +87,19 @@ namespace SushiAI
         PrecisionChoice MixedPrecisionPolicy::choose(const PrecisionQuery& query) const
         {
             if (!narrows_under_mixed_precision(query.op))
-                return PrecisionChoice{query.declared, REASON_DECLARED};
+                return PrecisionChoice{query.declared, K_REASON_DECLARED};
 
             // Narrowing applies strictly downward to real floats preserving idempotence.
             if (!is_real_float(query.declared) || dtype_size(query.declared) <= dtype_size(low_))
-                return PrecisionChoice{query.declared, REASON_ALREADY_NARROW};
+                return PrecisionChoice{query.declared, K_REASON_ALREADY_NARROW};
 
-            const bool is_product = query.op == Ops::MATMUL.id
-                                 || query.op == Ops::GEMM_BIAS.id
-                                 || query.op == Ops::GEMM_BIAS_RELU.id
-                                 || query.op == Ops::GEMM_BIAS_SIGMOID.id
-                                 || query.op == Ops::GEMM_BIAS_TANH.id;
+            const bool is_product = query.op == Ops::K_MATMUL.id
+                                 || query.op == Ops::K_GEMM_BIAS.id
+                                 || query.op == Ops::K_GEMM_BIAS_RELU.id
+                                 || query.op == Ops::K_GEMM_BIAS_SIGMOID.id
+                                 || query.op == Ops::K_GEMM_BIAS_TANH.id;
 
-            return PrecisionChoice{low_, is_product ? REASON_FLOPS : REASON_EPILOGUE};
+            return PrecisionChoice{low_, is_product ? K_REASON_FLOPS : K_REASON_EPILOGUE};
         }
 
     } // namespace Graph

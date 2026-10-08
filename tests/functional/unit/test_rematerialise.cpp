@@ -57,7 +57,7 @@ namespace
     {
         std::size_t count = 0;
         for (const Graph::Node& node : graph.nodes())
-            if (node.op == Ops::IM2COL.id) ++count;
+            if (node.op == Ops::K_IM2COL.id) ++count;
         return count;
     }
 
@@ -70,9 +70,9 @@ namespace
     struct ConvGraph
     {
         Graph::Graph graph;
-        ValueId cols = Graph::NO_VALUE;
-        ValueId weight = Graph::NO_VALUE;
-        ValueId loss = Graph::NO_VALUE;
+        ValueId cols = Graph::K_NO_VALUE;
+        ValueId weight = Graph::K_NO_VALUE;
+        ValueId loss = Graph::K_NO_VALUE;
     };
 
     /** @brief Builds and differentiates a one-convolution graph. */
@@ -106,14 +106,14 @@ TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
     ConvGraph c;
     build_and_differentiate(c, Shape{2, 5, 5, 3}, Shape{27, 8});
 
-    EXPECT_EQ(c.graph.values()[c.cols].lifetime, Graph::Lifetime::ACTIVATION);
+    EXPECT_EQ(c.graph.values()[c.cols].lifetime, Graph::Lifetime::Activation);
     ASSERT_GT(readers_of(c.graph, c.cols).size(), std::size_t{1})
         << "the backward pass did not read the column matrix, so there is "
            "nothing for the pass to do and this test proves nothing";
 
     Graph::rematerialise_im2col(c.graph);
 
-    EXPECT_EQ(c.graph.values()[c.cols].lifetime, Graph::Lifetime::SCRATCH);
+    EXPECT_EQ(c.graph.values()[c.cols].lifetime, Graph::Lifetime::Scratch);
 
     // And it really did die early: exactly one node still reads the original.
     EXPECT_EQ(readers_of(c.graph, c.cols).size(), std::size_t{1});
@@ -140,10 +140,10 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
     for (std::size_t i = 0; i < c.graph.node_count(); ++i)
     {
         const Graph::Node& n = c.graph.nodes()[i];
-        if (n.op != Ops::IM2COL.id || i == original_id) continue;
+        if (n.op != Ops::K_IM2COL.id || i == original_id) continue;
         ++clones;
         EXPECT_EQ(n.inputs, original.inputs);
-        for (std::size_t slot = 0; slot < Graph::Attributes::CAPACITY; ++slot)
+        for (std::size_t slot = 0; slot < Graph::Attributes::K_CAPACITY; ++slot)
             EXPECT_EQ(n.attributes.get(slot), original.attributes.get(slot))
                 << "the clone lost attribute slot " << slot;
 
@@ -153,7 +153,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
         EXPECT_EQ(copy.shape, stored.shape);
         EXPECT_EQ(copy.dtype, stored.dtype);
         EXPECT_EQ(copy.layout, stored.layout);
-        EXPECT_EQ(copy.lifetime, Graph::Lifetime::SCRATCH);
+        EXPECT_EQ(copy.lifetime, Graph::Lifetime::Scratch);
     }
     EXPECT_EQ(clones, std::size_t{1});
 }
@@ -169,7 +169,7 @@ TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
         for (ValueId in : c.graph.nodes()[i].inputs)
         {
             const Graph::NodeId producer = c.graph.value(in).producer;
-            if (producer == Graph::NO_NODE) continue;
+            if (producer == Graph::K_NO_NODE) continue;
             EXPECT_LT(producer, i) << "node " << i << " reads value " << in
                                    << ", which node " << producer << " writes";
         }
@@ -198,7 +198,7 @@ TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
     Graph::rematerialise_im2col(graph);
 
     EXPECT_EQ(graph.node_count(), before);
-    EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::ACTIVATION);
+    EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::Activation);
 }
 
 TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
@@ -221,7 +221,7 @@ TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
     Graph::rematerialise_im2col(graph);
 
     EXPECT_EQ(graph.node_count(), before);
-    EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::ACTIVATION);
+    EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::Activation);
 }
 
 TEST(Unit_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)

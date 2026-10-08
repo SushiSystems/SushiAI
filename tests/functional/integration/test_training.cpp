@@ -369,7 +369,7 @@ TEST_F(Integration_Training, ADisconnectedParameterIsRejectedRatherThanSilentlyS
 
     // "ghost" is a parameter no gradient reaches; see tests/functional/integration/README.md.
     built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id(),
-                                                       Graph::NO_VALUE});
+                                                       Graph::K_NO_VALUE});
 
     TensorPool pool(*engine);
     EXPECT_THROW((void)Train::bind_parameters(built, pool), Error);

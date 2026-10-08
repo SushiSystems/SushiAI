@@ -49,7 +49,7 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 4}, "x");
 
-            EXPECT_EQ(graph.values()[x].layout, TensorLayout::NHWC);
+            EXPECT_EQ(graph.values()[x].layout, TensorLayout::Nhwc);
         }
 
         TEST(Unit_Layout, FinaliseAcceptsAUniformGraph)
@@ -72,7 +72,7 @@ namespace SushiAI
             const ValueId w = builder.parameter({4, 3}, "w");
             const ValueId y = builder.matmul(x, w);
 
-            graph.value(y).layout = TensorLayout::NCHW;
+            graph.value(y).layout = TensorLayout::Nchw;
 
             EXPECT_THROW(graph.finalise(), Error);
         }
@@ -83,9 +83,9 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 3, 4, 5}, "x");
-            const ValueId y = builder.layout_convert(x, TensorLayout::NCHW);
+            const ValueId y = builder.layout_convert(x, TensorLayout::Nchw);
 
-            EXPECT_EQ(graph.values()[y].layout, TensorLayout::NCHW);
+            EXPECT_EQ(graph.values()[y].layout, TensorLayout::Nchw);
             EXPECT_NO_THROW(graph.finalise());
         }
 
@@ -95,13 +95,13 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueId x = builder.input({2, 3, 4, 5}, "x");
-            const ValueId y = builder.layout_convert(x, TensorLayout::NCHW);
+            const ValueId y = builder.layout_convert(x, TensorLayout::Nchw);
 
             const ValueId z = builder.declare_like(y, graph.value(y).shape,
                                                     graph.value(y).dtype,
-                                                    Graph::Lifetime::ACTIVATION, "z");
+                                                    Graph::Lifetime::Activation, "z");
 
-            EXPECT_EQ(graph.values()[z].layout, TensorLayout::NCHW);
+            EXPECT_EQ(graph.values()[z].layout, TensorLayout::Nchw);
         }
 
         namespace
@@ -113,8 +113,8 @@ namespace SushiAI
             struct Crossed
             {
                 Graph::Graph graph;
-                ValueId nhwc = Graph::NO_VALUE;
-                ValueId nchw = Graph::NO_VALUE;
+                ValueId nhwc = Graph::K_NO_VALUE;
+                ValueId nchw = Graph::K_NO_VALUE;
             };
 
             Crossed make_crossed()
@@ -123,7 +123,7 @@ namespace SushiAI
                 const GraphBuilder builder(c.graph);
 
                 c.nhwc = builder.input({2, 3, 4, 5}, "x");
-                c.nchw = builder.layout_convert(c.nhwc, TensorLayout::NCHW);
+                c.nchw = builder.layout_convert(c.nhwc, TensorLayout::Nchw);
                 c.graph.finalise();
 
                 return c;
@@ -137,8 +137,8 @@ namespace SushiAI
 
             (void)Graph::fuse(c.graph, Graph::FusionOptions{});
 
-            EXPECT_EQ(c.graph.value(c.nhwc).layout, TensorLayout::NHWC);
-            EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::NCHW)
+            EXPECT_EQ(c.graph.value(c.nhwc).layout, TensorLayout::Nhwc);
+            EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::Nchw)
                 << "fuse() reset a NCHW value to NHWC; the convert that produced it is now "
                    "a no-op that copies transposed data through";
         }
@@ -150,8 +150,8 @@ namespace SushiAI
 
             (void)Graph::insert_casts(c.graph, Graph::CastOptions{});
 
-            EXPECT_EQ(c.graph.value(c.nhwc).layout, TensorLayout::NHWC);
-            EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::NCHW)
+            EXPECT_EQ(c.graph.value(c.nhwc).layout, TensorLayout::Nhwc);
+            EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::Nchw)
                 << "insert_casts() reset a NCHW value to NHWC";
         }
 
@@ -163,7 +163,7 @@ namespace SushiAI
             (void)Graph::insert_casts(c.graph, Graph::CastOptions{});
             (void)Graph::fuse(c.graph, Graph::FusionOptions{});
 
-            EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::NCHW);
+            EXPECT_EQ(c.graph.value(c.nchw).layout, TensorLayout::Nchw);
             EXPECT_NO_THROW(c.graph.finalise());
         }
 
@@ -174,20 +174,20 @@ namespace SushiAI
             const GraphBuilder builder(graph);
 
             const ValueId x = builder.input({1, 2, 2, 2}, "x");
-            const ValueId nchw = builder.layout_convert(x, TensorLayout::NCHW);
+            const ValueId nchw = builder.layout_convert(x, TensorLayout::Nchw);
 
             EXPECT_THROW((void)builder.slice_channels(nchw, 0, 1), Error);
             EXPECT_THROW((void)builder.channel_affine(nchw, x, x), Error);
 
             // finalise() rejects the node ahead of the rule; see tests/functional/unit/README.md.
             const ValueId rows = builder.reshape(nchw, Shape{1, 8});
-            EXPECT_EQ(graph.value(rows).layout, TensorLayout::NCHW);
+            EXPECT_EQ(graph.value(rows).layout, TensorLayout::Nchw);
 
             const ValueId target = builder.input({1, 8}, "target");
-            EXPECT_EQ(graph.value(target).layout, TensorLayout::NHWC);
+            EXPECT_EQ(graph.value(target).layout, TensorLayout::Nhwc);
 
             const ValueId summed = builder.sum_rows(rows);
-            EXPECT_EQ(graph.value(summed).layout, TensorLayout::NCHW);
+            EXPECT_EQ(graph.value(summed).layout, TensorLayout::Nchw);
 
             (void)builder.nll_loss(builder.log_softmax(rows), target);
             EXPECT_THROW(graph.finalise(), Error);
@@ -200,14 +200,14 @@ namespace SushiAI
             const GraphBuilder builder(graph);
 
             const ValueId x = builder.input({1, 2, 2, 2}, "x");
-            const ValueId nchw = builder.layout_convert(x, TensorLayout::NCHW);
+            const ValueId nchw = builder.layout_convert(x, TensorLayout::Nchw);
 
             EXPECT_EQ(graph.value(builder.zeros(Shape{1, 2, 2, 2})).layout,
-                      TensorLayout::NHWC);
+                      TensorLayout::Nhwc);
             EXPECT_EQ(graph.value(builder.zeros_like(nchw, Shape{1, 2, 2, 2})).layout,
-                      TensorLayout::NCHW);
+                      TensorLayout::Nchw);
             EXPECT_EQ(graph.value(builder.zeros_like(x, Shape{1, 2, 2, 2})).layout,
-                      TensorLayout::NHWC);
+                      TensorLayout::Nhwc);
         }
 
         TEST(Unit_Layout, FinaliseStillPropagatesRequiresGrad)

@@ -44,7 +44,7 @@ namespace SushiAI
         using ArenaId = std::uint32_t;
 
         /** @brief The "this value is not packed" sentinel; it gets its own allocation. */
-        inline constexpr ArenaId NO_ARENA = ~ArenaId{0};
+        inline constexpr ArenaId K_NO_ARENA = ~ArenaId{0};
 
         /**
          * @struct Arena
@@ -53,7 +53,7 @@ namespace SushiAI
         struct Arena
         {
             /** @brief The lifetime class every value in this arena belongs to. */
-            Lifetime lifetime = Lifetime::ACTIVATION;
+            Lifetime lifetime = Lifetime::Activation;
 
             /** @brief How many bytes to allocate. */
             std::size_t bytes = 0;
@@ -75,7 +75,7 @@ namespace SushiAI
         struct Placement
         {
             /** @brief Which arena holds it, or NO_ARENA for its own allocation. */
-            ArenaId arena = NO_ARENA;
+            ArenaId arena = K_NO_ARENA;
 
             /** @brief Byte offset from the arena's base; 0 when unpacked. */
             std::size_t offset = 0;
@@ -84,7 +84,7 @@ namespace SushiAI
             std::size_t bytes = 0;
 
             /** @brief The value that owns the bytes; equal to the value unless aliased. */
-            ValueId buffer = NO_VALUE;
+            ValueId buffer = K_NO_VALUE;
         };
 
         /**
@@ -163,7 +163,7 @@ namespace SushiAI
                 /** @brief Whether @p id was packed into an arena. */
                 bool is_packed(ValueId id) const noexcept
                 {
-                    return id < placements_.size() && placements_[id].arena != NO_ARENA;
+                    return id < placements_.size() && placements_[id].arena != K_NO_ARENA;
                 }
 
                 /**
@@ -178,7 +178,7 @@ namespace SushiAI
                 {
                     if (id >= placements_.size()) return id;
                     const ValueId owner = placements_[id].buffer;
-                    return owner == NO_VALUE ? id : owner;
+                    return owner == K_NO_VALUE ? id : owner;
                 }
 
                 /** @brief Every arena the plan asks for, in id order. */

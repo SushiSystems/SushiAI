@@ -107,7 +107,7 @@ namespace SushiAI
 
                 /** @brief Internal: constructs a tape over a differentiation run. */
                 GradientTape(Graph::GraphBuilder builder, Differentiator& owner,
-                             Graph::ValueId seed_factor = Graph::NO_VALUE) noexcept
+                             Graph::ValueId seed_factor = Graph::K_NO_VALUE) noexcept
                     : builder_(builder), owner_(&owner), seed_factor_(seed_factor) {}
 
                 /** @brief Internal: points the tape at the next node. */
@@ -116,8 +116,8 @@ namespace SushiAI
             private:
                 Graph::GraphBuilder builder_;
                 Differentiator* owner_;
-                Graph::NodeId node_ = Graph::NO_NODE;
-                Graph::ValueId seed_factor_ = Graph::NO_VALUE;
+                Graph::NodeId node_ = Graph::K_NO_NODE;
+                Graph::ValueId seed_factor_ = Graph::K_NO_VALUE;
         };
 
     } // namespace Autograd

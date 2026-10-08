@@ -45,7 +45,7 @@ namespace SushiAI
          * it compares against what @c get_u32 decodes without a second
          * conversion at each use.
          */
-        inline constexpr std::uint32_t CHECKPOINT_MAGIC = 0x50434153u;
+        inline constexpr std::uint32_t K_CHECKPOINT_MAGIC = 0x50434153u;
 
         /**
          * @brief The format version this build reads and writes.
@@ -54,13 +54,13 @@ namespace SushiAI
          * read with today's field order. That is the whole point of the field:
          * the format's next change must be loud, not a misread.
          */
-        inline constexpr std::uint32_t CHECKPOINT_VERSION = 1u;
+        inline constexpr std::uint32_t K_CHECKPOINT_VERSION = 1u;
 
         /** @brief The largest tensor count a file may declare. */
-        inline constexpr std::uint32_t MAX_TENSOR_COUNT = 4096u;
+        inline constexpr std::uint32_t K_MAX_TENSOR_COUNT = 4096u;
 
         /** @brief The longest parameter name a file may declare, in bytes. */
-        inline constexpr std::uint32_t MAX_NAME_LENGTH = 256u;
+        inline constexpr std::uint32_t K_MAX_NAME_LENGTH = 256u;
 
         /**
          * @struct TensorRecord
@@ -76,7 +76,7 @@ namespace SushiAI
             std::string name;
 
             /** @brief The element type. */
-            DType dtype = DType::FLOAT32;
+            DType dtype = DType::Float32;
 
             /** @brief The extents. */
             Shape shape{};
@@ -102,7 +102,7 @@ namespace SushiAI
                  * @brief Writes the file header immediately.
                  * @param out Where the bytes go; must outlive the writer.
                  * @param count How many records will follow.
-                 * @throws Error If @p count exceeds @ref MAX_TENSOR_COUNT, or the write fails.
+                 * @throws Error If @p count exceeds @ref K_MAX_TENSOR_COUNT, or the write fails.
                  */
                 CheckpointWriter(std::ostream& out, std::uint32_t count);
 

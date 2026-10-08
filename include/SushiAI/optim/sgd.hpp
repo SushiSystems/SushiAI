@@ -63,7 +63,7 @@ namespace SushiAI
              * FUSED is the default and the shipping path; SEPARATE exists to be
              * compared against. See optimizer.hpp.
              */
-            UpdateKernel kernel = UpdateKernel::FUSED;
+            UpdateKernel kernel = UpdateKernel::Fused;
         };
 
         /**
@@ -86,7 +86,7 @@ namespace SushiAI
                 /** @brief True when the update is fused, and therefore replayable. */
                 bool is_replay_invariant() const noexcept override
                 {
-                    return options_.kernel == UpdateKernel::FUSED;
+                    return options_.kernel == UpdateKernel::Fused;
                 }
 
                 /** @brief The hyperparameters in force. */

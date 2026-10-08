@@ -194,7 +194,7 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
         const std::vector<ValueId> wrt = {x};
         const std::vector<ValueId> grads = Autograd::differentiate(
             graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
-        ASSERT_NE(grads.at(0), Graph::NO_VALUE);
+        ASSERT_NE(grads.at(0), Graph::K_NO_VALUE);
 
         TensorPool pool(*engine);
         pool.materialise_leaves(graph);
