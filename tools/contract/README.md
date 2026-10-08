@@ -61,7 +61,7 @@ a site of the file that defines it.
 | `rule_unlisted_site` | A site has no row |
 | `rule_stale_row` | A row has no site |
 
-The files of `K_FROZEN` are edited by a later wave. A surplus or unlisted site in one of them is
+`K_FROZEN` names the files a later wave edits; it is empty since the SushiBLAS v0.1.0 migration. A surplus or unlisted site in one of them is
 printed as a note and does not fail the run. A stale row fails wherever its file is.
 
 Notes start with `note:` and never change the exit code:
