@@ -51,27 +51,35 @@ namespace SushiAI
     {
         namespace
         {
-            /**
-             * @enum Scalar
-             * @brief Where each per-step number lives in the device buffer.
-             *
-             * An enum rather than bare indices because the writer and the
-             * kernel are two hundred lines apart and a transposed pair of
-             * literals would be a plausible, converging, wrong optimizer.
-             */
-            enum Scalar : std::size_t
-            {
-                DECAY_FACTOR = 0,   /**< 1 - lr * weight_decay. */
-                BETA1,              /**< beta1. */
-                ONE_MINUS_BETA1,    /**< 1 - beta1. */
-                BETA2,              /**< beta2. */
-                ONE_MINUS_BETA2,    /**< 1 - beta2. */
-                INVERSE_BC2,        /**< 1 / (1 - beta2^t). */
-                EPSILON,            /**< eps, added after the correction. */
-                STEP_SIZE,          /**< -lr / (1 - beta1^t). */
-                INVERSE_LOSS_SCALE, /**< 1 / the gradient loss scale; exactly 1 when unscaled. */
-                SCALAR_COUNT,
-            };
+            /** @brief 1 - lr * weight_decay. */
+            constexpr std::size_t K_DECAY_FACTOR = 0;
+
+            /** @brief beta1. */
+            constexpr std::size_t K_BETA1 = 1;
+
+            /** @brief 1 - beta1. */
+            constexpr std::size_t K_ONE_MINUS_BETA1 = 2;
+
+            /** @brief beta2. */
+            constexpr std::size_t K_BETA2 = 3;
+
+            /** @brief 1 - beta2. */
+            constexpr std::size_t K_ONE_MINUS_BETA2 = 4;
+
+            /** @brief 1 / (1 - beta2^t). */
+            constexpr std::size_t K_INVERSE_BC2 = 5;
+
+            /** @brief eps, added after the correction. */
+            constexpr std::size_t K_EPSILON = 6;
+
+            /** @brief -lr / (1 - beta1^t). */
+            constexpr std::size_t K_STEP_SIZE = 7;
+
+            /** @brief 1 / the gradient loss scale; exactly 1 when unscaled. */
+            constexpr std::size_t K_INVERSE_LOSS_SCALE = 8;
+
+            /** @brief Holds the number of per-step scalars in the device buffer. */
+            constexpr std::size_t K_SCALAR_COUNT = 9;
 
             /**
              * @brief The task's human-readable name, in the form the seam wants.
@@ -102,7 +110,7 @@ namespace SushiAI
             SA_FAIL_IF(options.eps <= 0.0, StatusCode::InvalidDescription,
                        "AdamW eps must be positive; got {}", options.eps);
 
-            SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, SCALAR_COUNT));
+            SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, K_SCALAR_COUNT));
 
             const bool separate = options.kernel == UpdateKernel::Separate;
 
@@ -168,20 +176,20 @@ namespace SushiAI
             const double bias_correction2 = 1.0 - std::pow(options_.beta2, t);
 
             // Invariant: Floats match separate path precision for bit-identical comparison.
-            std::array<float, SCALAR_COUNT> values{};
-            values[DECAY_FACTOR] =
+            std::array<float, K_SCALAR_COUNT> values{};
+            values[K_DECAY_FACTOR] =
                 static_cast<float>(1.0 - options_.learning_rate * options_.weight_decay);
-            values[BETA1] = static_cast<float>(options_.beta1);
-            values[ONE_MINUS_BETA1] = static_cast<float>(1.0 - options_.beta1);
-            values[BETA2] = static_cast<float>(options_.beta2);
-            values[ONE_MINUS_BETA2] = static_cast<float>(1.0 - options_.beta2);
-            values[INVERSE_BC2] = static_cast<float>(1.0 / bias_correction2);
-            values[EPSILON] = static_cast<float>(options_.eps);
-            values[STEP_SIZE] =
+            values[K_BETA1] = static_cast<float>(options_.beta1);
+            values[K_ONE_MINUS_BETA1] = static_cast<float>(1.0 - options_.beta1);
+            values[K_BETA2] = static_cast<float>(options_.beta2);
+            values[K_ONE_MINUS_BETA2] = static_cast<float>(1.0 - options_.beta2);
+            values[K_INVERSE_BC2] = static_cast<float>(1.0 / bias_correction2);
+            values[K_EPSILON] = static_cast<float>(options_.eps);
+            values[K_STEP_SIZE] =
                 static_cast<float>(-options_.learning_rate / bias_correction1);
 
             // Invariant: Inverse loss scale is an exact power of two or unit identity.
-            values[INVERSE_LOSS_SCALE] = inverse_loss_scale();
+            values[K_INVERSE_LOSS_SCALE] = inverse_loss_scale();
 
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
@@ -235,27 +243,27 @@ namespace SushiAI
                         if (gate != nullptr && gate[i] != 0) return;
 
                         // Invariant: Unscaling occurs prior to moment and decay updates.
-                        const T g = g_scaled * static_cast<T>(s[INVERSE_LOSS_SCALE]);
+                        const T g = g_scaled * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
 
                         // Invariant: Decoupled weight decay applies to previous theta value.
-                        const T decay = static_cast<T>(s[DECAY_FACTOR]);
+                        const T decay = static_cast<T>(s[K_DECAY_FACTOR]);
                         if (decay != static_cast<T>(1)) theta = theta * decay;
 
                         // 2. m <- beta1 * m + (1 - beta1) * g
-                        m = m * static_cast<T>(s[BETA1])
-                          + static_cast<T>(s[ONE_MINUS_BETA1]) * g;
+                        m = m * static_cast<T>(s[K_BETA1])
+                          + static_cast<T>(s[K_ONE_MINUS_BETA1]) * g;
 
                         // 3. v <- beta2 * v + (1 - beta2) * g^2
-                        v = v * static_cast<T>(s[BETA2])
-                          + static_cast<T>(s[ONE_MINUS_BETA2]) * (g * g);
+                        v = v * static_cast<T>(s[K_BETA2])
+                          + static_cast<T>(s[K_ONE_MINUS_BETA2]) * (g * g);
 
                         // Invariant: Bias correction scales v before square root and epsilon addition.
-                        T denom = v * static_cast<T>(s[INVERSE_BC2]);
+                        T denom = v * static_cast<T>(s[K_INVERSE_BC2]);
                         denom = SushiBLAS::Dispatch::safe_sqrt(denom);
-                        denom = denom + static_cast<T>(s[EPSILON]);
+                        denom = denom + static_cast<T>(s[K_EPSILON]);
 
                         // 5. theta <- theta - (lr / bc1) * m / denom
-                        theta = theta + static_cast<T>(s[STEP_SIZE]) * (m / denom);
+                        theta = theta + static_cast<T>(s[K_STEP_SIZE]) * (m / denom);
                     });
             }
 
@@ -270,14 +278,14 @@ namespace SushiAI
             // Invariant: Separate reference path reads identical device scalar constants.
             const float* const s = scalars_.device_pointer();
 
-            const float decay_factor = s[DECAY_FACTOR];
-            const float beta1 = s[BETA1];
-            const float one_minus_beta1 = s[ONE_MINUS_BETA1];
-            const float beta2 = s[BETA2];
-            const float one_minus_beta2 = s[ONE_MINUS_BETA2];
-            const float inverse_correction2 = s[INVERSE_BC2];
-            const float eps = s[EPSILON];
-            const float step_size = s[STEP_SIZE];
+            const float decay_factor = s[K_DECAY_FACTOR];
+            const float beta1 = s[K_BETA1];
+            const float one_minus_beta1 = s[K_ONE_MINUS_BETA1];
+            const float beta2 = s[K_BETA2];
+            const float one_minus_beta2 = s[K_ONE_MINUS_BETA2];
+            const float inverse_correction2 = s[K_INVERSE_BC2];
+            const float eps = s[K_EPSILON];
+            const float step_size = s[K_STEP_SIZE];
 
             std::size_t recorded = 0;
 

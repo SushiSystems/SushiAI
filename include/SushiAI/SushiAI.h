@@ -95,7 +95,7 @@
 #include "nn/flatten.hpp"
 #include "nn/leaky_relu.hpp"
 #include "nn/upsample2d.hpp"
-#include "nn/ilayer.hpp"
+#include "nn/layer.hpp"
 #include "nn/layer_stack.hpp"
 #include "nn/layer_registry.hpp"
 #include "nn/loss.hpp"

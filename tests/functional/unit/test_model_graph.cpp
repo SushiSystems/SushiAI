@@ -43,7 +43,7 @@
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/concat.hpp>
 #include <SushiAI/nn/conv2d.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_node.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 #include <SushiAI/nn/layers.hpp>

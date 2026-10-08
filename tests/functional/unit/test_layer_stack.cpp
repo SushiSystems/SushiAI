@@ -37,7 +37,7 @@
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 #include <SushiAI/nn/layers.hpp>
@@ -211,7 +211,7 @@ TEST(Unit_LayerStack, AnAdapterBuiltFromAWidthReportsARankOneShape)
 TEST(Unit_LayerStack, OutputFeaturesEqualsTheElementCountOfTheOutputShape)
 {
     const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
-    const NN::ILayer& layer = adapter;
+    const NN::Layer& layer = adapter;
 
     EXPECT_EQ(layer.output_features(), 4 * 5 * 3);
     EXPECT_EQ(layer.output_features(), layer.output_shape().num_elements());
@@ -291,7 +291,7 @@ TEST(Unit_LayerStack, RefusesAnOutputShapeOfAnInputWhenEmpty)
 TEST(Unit_LayerStack, AnActivationFactoryKeepsARankThreeInputShape)
 {
     const Config::Value attributes = Config::parse_json("{}", "<test>");
-    const std::unique_ptr<NN::ILayer> layer =
+    const std::unique_ptr<NN::Layer> layer =
         NN::make_gelu(Shape{4, 4, 3}, attributes, "layer 1 'gelu'");
 
     EXPECT_EQ(layer->output_shape(), (Shape{4, 4, 3}));

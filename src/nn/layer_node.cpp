@@ -46,7 +46,7 @@ namespace SushiAI
             constexpr std::size_t K_INPUT_COUNT = 1;
 
             /** @brief Returns the port @p layer produces; a null layer is fatal. */
-            Port port_of(const ILayer* layer)
+            Port port_of(const Layer* layer)
             {
                 SA_FATAL_IF(layer == nullptr, "a LayerNode was built over a null layer");
 
@@ -55,7 +55,7 @@ namespace SushiAI
 
         } // namespace
 
-        LayerNode::LayerNode(std::unique_ptr<ILayer> layer)
+        LayerNode::LayerNode(std::unique_ptr<Layer> layer)
             : layer_(std::move(layer)), port_(port_of(layer_.get()))
         {
 
@@ -95,12 +95,12 @@ namespace SushiAI
             return SushiRuntime::span<const Port>(&port_, 1);
         }
 
-        ILayer& LayerNode::layer() noexcept
+        Layer& LayerNode::layer() noexcept
         {
             return *layer_;
         }
 
-        const ILayer& LayerNode::layer() const noexcept
+        const Layer& LayerNode::layer() const noexcept
         {
             return *layer_;
         }

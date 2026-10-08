@@ -41,7 +41,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/buffer.hpp>
-#include <SushiAI/nn/ilayer.hpp>
+#include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_node.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/layers.hpp>
@@ -274,7 +274,7 @@ namespace
     }
 
     /** @brief Builds the conv2d layer of a model-file row with 5 filters and a 3x3 kernel. */
-    std::unique_ptr<NN::ILayer> make_test_conv2d(const Shape& input)
+    std::unique_ptr<NN::Layer> make_test_conv2d(const Shape& input)
     {
         const Config::Value attributes =
             Config::parse_json(R"({"filters": 5, "kernel": 3})", "<test>");
@@ -481,7 +481,7 @@ TEST(Unit_Node, ModuleNodeRejectsTwoInputs)
 /** @brief Tests that a LayerNode over make_conv2d reports the layer's per-sample shape. */
 TEST(Unit_Node, LayerNodeReportsTheShapeOfTheLayerItWraps)
 {
-    std::unique_ptr<NN::ILayer> layer = make_test_conv2d(Shape{8, 8, 2});
+    std::unique_ptr<NN::Layer> layer = make_test_conv2d(Shape{8, 8, 2});
     const Shape layer_shape = layer->output_shape();
 
     const LayerNode node(std::move(layer));
@@ -570,5 +570,5 @@ TEST(Unit_Node, LayerNodeRejectsNoInput)
 /** @brief Tests that building a LayerNode over a null layer stops the process. */
 TEST(Unit_NodeDeathTest, LayerNodeOverANullLayerIsFatal)
 {
-    SA_EXPECT_FATAL((void)LayerNode(std::unique_ptr<NN::ILayer>()), "LayerNode", "null layer");
+    SA_EXPECT_FATAL((void)LayerNode(std::unique_ptr<NN::Layer>()), "LayerNode", "null layer");
 }

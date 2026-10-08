@@ -50,21 +50,29 @@ namespace SushiAI
     {
         namespace
         {
-            /**
-             * @enum Scalar
-             * @brief Defines device buffer scalar layout for per-step parameters.
-             */
-            enum Scalar : std::size_t
-            {
-                NEG_LEARNING_RATE = 0,  /**< -lr, as the separate path's axpy takes it. */
-                MOMENTUM,               /**< momentum. */
-                WEIGHT_DECAY,           /**< Coupled L2 penalty. */
-                RETAINED,               /**< 1 - dampening. */
-                FIRST_STEP,             /**< 1 on the first step, 0 afterwards. */
-                NESTEROV,               /**< 1 when Nesterov's look-ahead is on. */
-                INVERSE_LOSS_SCALE,     /**< 1 / the gradient loss scale; exactly 1 unscaled. */
-                SCALAR_COUNT,
-            };
+            /** @brief -lr, as the separate path's axpy takes it. */
+            constexpr std::size_t K_NEG_LEARNING_RATE = 0;
+
+            /** @brief momentum. */
+            constexpr std::size_t K_MOMENTUM = 1;
+
+            /** @brief Coupled L2 penalty. */
+            constexpr std::size_t K_WEIGHT_DECAY = 2;
+
+            /** @brief 1 - dampening. */
+            constexpr std::size_t K_RETAINED = 3;
+
+            /** @brief 1 on the first step, 0 afterwards. */
+            constexpr std::size_t K_FIRST_STEP = 4;
+
+            /** @brief 1 when Nesterov's look-ahead is on. */
+            constexpr std::size_t K_NESTEROV = 5;
+
+            /** @brief 1 / the gradient loss scale; exactly 1 unscaled. */
+            constexpr std::size_t K_INVERSE_LOSS_SCALE = 6;
+
+            /** @brief Holds the number of per-step scalars in the device buffer. */
+            constexpr std::size_t K_SCALAR_COUNT = 7;
 
             /** @brief The task name; proved below to be the OpID's own string. */
             constexpr const char* K_TASK_NAME = "sushiai.optim.sgd";
@@ -91,7 +99,7 @@ namespace SushiAI
             const bool has_momentum = options.momentum != 0.0;
             const bool separate = options.kernel == UpdateKernel::Separate;
 
-            SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, SCALAR_COUNT));
+            SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, K_SCALAR_COUNT));
 
             std::vector<State> state;
             SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
@@ -147,16 +155,16 @@ namespace SushiAI
 
             const float learning_rate = static_cast<float>(options_.learning_rate);
 
-            std::array<float, SCALAR_COUNT> values{};
-            values[NEG_LEARNING_RATE] = -learning_rate;
-            values[MOMENTUM] = static_cast<float>(options_.momentum);
-            values[WEIGHT_DECAY] = static_cast<float>(options_.weight_decay);
-            values[RETAINED] = static_cast<float>(1.0 - options_.dampening);
-            values[FIRST_STEP] = step_count() == 0 ? 1.0f : 0.0f;
-            values[NESTEROV] = options_.nesterov ? 1.0f : 0.0f;
+            std::array<float, K_SCALAR_COUNT> values{};
+            values[K_NEG_LEARNING_RATE] = -learning_rate;
+            values[K_MOMENTUM] = static_cast<float>(options_.momentum);
+            values[K_WEIGHT_DECAY] = static_cast<float>(options_.weight_decay);
+            values[K_RETAINED] = static_cast<float>(1.0 - options_.dampening);
+            values[K_FIRST_STEP] = step_count() == 0 ? 1.0f : 0.0f;
+            values[K_NESTEROV] = options_.nesterov ? 1.0f : 0.0f;
 
             // Write inverse loss scale factor for exact gradient descaling.
-            values[INVERSE_LOSS_SCALE] = inverse_loss_scale();
+            values[K_INVERSE_LOSS_SCALE] = inverse_loss_scale();
 
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
@@ -193,12 +201,12 @@ namespace SushiAI
                             if (gate != nullptr && gate[i] != 0) return;
 
                             // Compute unscaled gradient into register to preserve gradient buffer.
-                            T staged = g * static_cast<T>(s[INVERSE_LOSS_SCALE]);
+                            T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
 
-                            const T decay = static_cast<T>(s[WEIGHT_DECAY]);
+                            const T decay = static_cast<T>(s[K_WEIGHT_DECAY]);
                             if (decay != static_cast<T>(0)) staged = staged + decay * theta;
 
-                            theta = theta + static_cast<T>(s[NEG_LEARNING_RATE]) * staged;
+                            theta = theta + static_cast<T>(s[K_NEG_LEARNING_RATE]) * staged;
                         });
                     continue;
                 }
@@ -215,25 +223,25 @@ namespace SushiAI
 
                         if (gate != nullptr && gate[i] != 0) return;
 
-                        T staged = g * static_cast<T>(s[INVERSE_LOSS_SCALE]);
+                        T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
 
-                        const T decay = static_cast<T>(s[WEIGHT_DECAY]);
+                        const T decay = static_cast<T>(s[K_WEIGHT_DECAY]);
                         if (decay != static_cast<T>(0)) staged = staged + decay * theta;
 
-                        const T momentum = static_cast<T>(s[MOMENTUM]);
+                        const T momentum = static_cast<T>(s[K_MOMENTUM]);
 
                         // Assign staged gradient directly on first step to omit dampening.
-                        if (static_cast<T>(s[FIRST_STEP]) != static_cast<T>(0))
+                        if (static_cast<T>(s[K_FIRST_STEP]) != static_cast<T>(0))
                             b = staged;
                         else
-                            b = b * momentum + static_cast<T>(s[RETAINED]) * staged;
+                            b = b * momentum + static_cast<T>(s[K_RETAINED]) * staged;
 
-                        if (static_cast<T>(s[NESTEROV]) != static_cast<T>(0))
+                        if (static_cast<T>(s[K_NESTEROV]) != static_cast<T>(0))
                             staged = staged + momentum * b;
                         else
                             staged = b;
 
-                        theta = theta + static_cast<T>(s[NEG_LEARNING_RATE]) * staged;
+                        theta = theta + static_cast<T>(s[K_NEG_LEARNING_RATE]) * staged;
                     });
             }
 
@@ -247,12 +255,12 @@ namespace SushiAI
 
             SushiBLAS::BLASOps blas(recorder);
 
-            const float neg_learning_rate = s[NEG_LEARNING_RATE];
-            const float momentum = s[MOMENTUM];
-            const float decay = s[WEIGHT_DECAY];
-            const float retained = s[RETAINED];
-            const bool first = s[FIRST_STEP] != 0.0f;
-            const bool nesterov = s[NESTEROV] != 0.0f;
+            const float neg_learning_rate = s[K_NEG_LEARNING_RATE];
+            const float momentum = s[K_MOMENTUM];
+            const float decay = s[K_WEIGHT_DECAY];
+            const float retained = s[K_RETAINED];
+            const bool first = s[K_FIRST_STEP] != 0.0f;
+            const bool nesterov = s[K_NESTEROV] != 0.0f;
 
             std::size_t recorded = 0;
 
