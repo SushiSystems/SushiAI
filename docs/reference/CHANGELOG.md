@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-09 — core: Added record_and_run, which discards what a failed recording left on the engine through SushiBLAS's Engine::discard_recorded (`seam.hpp`, `seam.cpp`, `test_seam.cpp`).
+- 2026-10-09 — graph: Changed TensorPool::bind, alias and request_constant and StepRecorderList::add to return a status, and removed Lowering::values_needing_own_allocation (`tensor_pool.hpp`, `step_recorder.hpp`, `lowering.hpp`).
+- 2026-10-09 — tests: Added device cases for fourteen lowerings and a relative tolerance on the tail of the learning curve (`test_lowered_operations.cpp`, `test_learning_curve.cpp`).
+- 2026-10-09 — optim: Removed Optimizer::flush, which nothing calls since the step records and runs through the seam (`optimizer.hpp`, `optimizer.cpp`).
 - 2026-10-08 — tests: Moved the applications, the examples and 29 test files onto the status-returning factories and the v0.1.0 recorder (`apps/train.cpp`, `examples/demo_mlp.cpp`, `test_status.hpp`).
 - 2026-10-08 — graph: Replaced the lowering chain with eight per-domain tables of 62 rows and added the rows of 14 operations that had none (`graph/lowering/`, `all.hpp`, `LoweringContext`).
 - 2026-10-08 — core: Added the seam that turns every SushiBLAS and SushiRuntime exception into a status, and moved recording onto the v0.1.0 recorder; breaks every throwing signature it replaced (`seam.hpp`).

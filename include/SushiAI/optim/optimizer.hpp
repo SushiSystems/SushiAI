@@ -212,9 +212,6 @@ namespace SushiAI
                  */
                 const std::int64_t* gradient_gate() const noexcept;
 
-                /** @brief Runs the recorded update and waits for the device. */
-                [[nodiscard]] Status flush();
-
                 /** @brief Allocates a state buffer shaped like @p like, with its own Storage. */
                 [[nodiscard]] Result<SushiBLAS::Tensor> allocate_state(
                     const SushiBLAS::Tensor& like) const;

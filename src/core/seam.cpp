@@ -193,5 +193,25 @@ namespace SushiAI
             });
         }
 
+        Status discard_recorded(SushiBLAS::Engine& engine) noexcept
+        {
+            return guard(SeamPhase::Execute, [&]()
+            {
+                engine.discard_recorded();
+                return Status();
+            });
+        }
+
+        Status abandon_recording(SushiBLAS::Engine& engine, const Status& failure) noexcept
+        {
+            const Status dropped = discard_recorded(engine);
+            if (dropped.is_ok())
+                return failure;
+
+            return SA_ANNOTATE(failure, "the tasks recorded before this failure stay on the "
+                                        "engine, because discarding them failed ({})",
+                               dropped.message());
+        }
+
     } // namespace Detail
 } // namespace SushiAI

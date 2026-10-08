@@ -33,7 +33,6 @@
 
 #include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/engine/blas.hpp>
-#include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/core/seam.hpp>
 
@@ -48,21 +47,7 @@ namespace SushiAI
             // Memory planning must precede leaf and tensor materialisation.
             if (!pool.has_plan())
             {
-                // Lowering constraints determine which values require standalone allocations.
-                SA_TRY_ASSIGN(const std::vector<Graph::ValueId> pinned,
-                              Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
-                {
-                    std::vector<Graph::ValueId> values =
-                        Graph::Lowering::values_needing_own_allocation(built.graph);
-                    values.insert(values.end(), options.pinned.begin(), options.pinned.end());
-                    return values;
-                }));
-
-                Graph::PlanOptions planning = options;
-                planning.pinned =
-                    SushiRuntime::span<const Graph::ValueId>(pinned.data(), pinned.size());
-
-                SA_TRY(pool.adopt(Graph::MemoryPlan::build(built.graph, planning)));
+                SA_TRY(pool.adopt(Graph::MemoryPlan::build(built.graph, options)));
             }
 
             SA_TRY(pool.materialise_leaves(built.graph));
@@ -88,9 +73,9 @@ namespace SushiAI
                               pool.materialise(binding.gradient, gradient_value));
 
                 // Gradients are initialised to zero before the first backward execution.
+                SA_TRY(pool.request_constant(gradient, 0.0));
                 SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
                 {
-                    pool.request_constant(gradient, 0.0);
                     slots.push_back(Optim::ParameterSlot{
                         binding.name, pool.tensor(binding.value), gradient,
                     });
@@ -311,14 +296,13 @@ namespace SushiAI
                        batch.targets.num_elements, targets.num_elements);
 
             // Minibatch tensors are copied into fixed address buffers read by the plan.
-            SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+            SA_TRY(Detail::record_and_run(*engine_, [&]()
             {
                 SushiBLAS::BLASOps blas(*engine_);
                 blas.copy(batch.inputs, inputs);
                 blas.copy(batch.targets, targets);
                 return Status();
             }));
-            SA_TRY(Detail::run_recorded(*engine_));
 
             // The compiled step executes forward, backward, loss, and update in-plan.
             SA_TRY(step_->run());

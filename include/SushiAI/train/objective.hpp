@@ -111,7 +111,7 @@ namespace SushiAI
         };
 
         /**
-         * @class IObjective
+         * @class Objective
          * @brief What a model is being trained to minimise.
          */
         class Objective

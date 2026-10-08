@@ -211,7 +211,7 @@ TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerSt
     EXPECT_EQ(third.bits(), sequential_bits);
 }
 
-TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyThrowsAndNamesIt)
+TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
 {
     const ScratchFile file("sushiai_missing.ckpt");
 
@@ -225,7 +225,7 @@ TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyThrowsAndNamesIt)
                       StatusCode::Incompatible, "does not supply", "2.weight");
 }
 
-TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveThrowsAndNamesIt)
+TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
 {
     const ScratchFile file("sushiai_extra.ckpt");
 
@@ -238,7 +238,7 @@ TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveThrowsAndNamesIt)
                       StatusCode::Incompatible, "2.weight", "which this model does not have");
 }
 
-TEST_F(Integration_Checkpoint, AShapeMismatchThrowsWithBothShapes)
+TEST_F(Integration_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
 {
     const ScratchFile file("sushiai_shape.ckpt");
 
@@ -252,7 +252,7 @@ TEST_F(Integration_Checkpoint, AShapeMismatchThrowsWithBothShapes)
                       StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
 }
 
-TEST_F(Integration_Checkpoint, ADuplicatedNameThrowsAndNamesTheDuplicate)
+TEST_F(Integration_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
 {
     const ScratchFile file("sushiai_duplicate.ckpt");
 

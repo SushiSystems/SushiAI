@@ -269,13 +269,12 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor means,
                           allocate_tensor(engine, SushiRuntime::span<const int64_t>(mean_dims, 2)));
 
-            SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+            SA_TRY(Detail::record_and_run(engine, [&]()
             {
                 random.set_seed(options.seed);
                 random.normal(means, 0.0, 1.0);
                 return Status();
             }));
-            SA_TRY(Detail::run_recorded(engine));
 
             const int64_t noise_dims[2] = {rows, features};
             SA_TRY_ASSIGN(SushiBLAS::Tensor noise,
@@ -299,14 +298,13 @@ namespace SushiAI
                     write_one_hot(batch.targets, batch.labels, classes);
 
                     // Matrix multiplication by one-hot targets gathers each sample's class mean.
-                    SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+                    SA_TRY(Detail::record_and_run(engine, [&]()
                     {
                         blas.gemm(batch.targets, means, batch.inputs);
                         random.normal(noise, 0.0, options.noise);
                         blas.axpy(1.0f, noise, batch.inputs);
                         return Status();
                     }));
-                    SA_TRY(Detail::run_recorded(engine));
 
                     batches.push_back(std::move(batch));
                 }

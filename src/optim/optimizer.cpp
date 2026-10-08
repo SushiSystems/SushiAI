@@ -178,15 +178,13 @@ namespace SushiAI
 
             // Execute three-phase update sequence matching compiled plan replay order.
             before_replay();
-            SA_TRY(record_all(engine_->get_recorder()));
-            SA_TRY(flush());
+            SA_TRY(Detail::record_and_run(*engine_, [this]() -> Status
+            {
+                SA_TRY(record_all(engine_->get_recorder()));
+                return Status();
+            }));
             after_replay();
             return Status();
-        }
-
-        Status Optimizer::flush()
-        {
-            return Detail::run_recorded(*engine_);
         }
 
         Result<SushiBLAS::Tensor> Optimizer::allocate_state(const SushiBLAS::Tensor& like) const

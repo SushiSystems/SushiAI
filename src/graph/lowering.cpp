@@ -27,7 +27,6 @@
 
 #include <SushiAI/graph/lowering.hpp>
 
-#include <vector>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/seam.hpp>
@@ -38,28 +37,6 @@ namespace SushiAI
 {
     namespace Graph
     {
-        std::vector<ValueId> Lowering::values_needing_own_allocation(const Graph& graph)
-        {
-            std::vector<ValueId> pinned;
-
-            for (const Node& node : graph.nodes())
-            {
-                // ReductionOps::max_along reads this operand.
-                if (node.op == Ops::K_LOG_SOFTMAX.id && !node.inputs.empty())
-                {
-                    pinned.push_back(node.inputs[0]);
-                }
-
-                // ReductionOps::sum writes this result.
-                if (node.op == Ops::K_NLL_LOSS.id && !node.outputs.empty())
-                {
-                    pinned.push_back(node.outputs[0]);
-                }
-            }
-
-            return pinned;
-        }
-
         Status Lowering::record(const Graph& graph)
         {
             emitted_ = 0;

@@ -180,13 +180,6 @@ namespace SushiAI
                                         Graph::TensorPool& pool,
                                         const InitPolicy& policy = {})
         {
-            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
-            {
-                SushiBLAS::RandomOps random(engine);
-                random.set_seed(policy.seed);
-                return Status();
-            }));
-
             std::vector<Parameter*> parameters;
             SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
@@ -201,14 +194,19 @@ namespace SushiAI
             for (std::size_t i = 0; i < parameters.size(); ++i)
                 if (parameters[i]->role() == ParameterRole::Weight) final_weight = i;
 
-            for (std::size_t i = 0; i < parameters.size(); ++i)
+            return SushiAI::Detail::record_and_run(engine, [&]() -> Status
             {
-                const bool is_final = policy.zero_final_layer && i >= final_weight;
-                SA_TRY(Detail::apply_initializer(engine, pool.tensor(parameters[i]->id()),
-                                                 *parameters[i], policy, is_final));
-            }
+                SushiBLAS::RandomOps random(engine);
+                random.set_seed(policy.seed);
 
-            return SushiAI::Detail::run_recorded(engine);
+                for (std::size_t i = 0; i < parameters.size(); ++i)
+                {
+                    const bool is_final = policy.zero_final_layer && i >= final_weight;
+                    SA_TRY(Detail::apply_initializer(engine, pool.tensor(parameters[i]->id()),
+                                                     *parameters[i], policy, is_final));
+                }
+                return Status();
+            });
         }
 
     } // namespace NN
