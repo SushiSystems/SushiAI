@@ -115,7 +115,7 @@ namespace SushiAI
          * @struct GELU
          * @brief The Gaussian error linear unit, tanh approximation.
          */
-        struct K_GELU
+        struct GELU
         {
             /** @brief No parameters. */
             static constexpr auto fields() { return std::tuple<>{}; }
@@ -309,7 +309,7 @@ namespace SushiAI
         // Invariant: Module contracts are verified eagerly at declaration scope.
         static_assert(Module<Linear>, "Linear must satisfy the Module contract");
         static_assert(Module<ReLU>, "ReLU must satisfy the Module contract");
-        static_assert(Module<K_GELU>, "GELU must satisfy the Module contract");
+        static_assert(Module<GELU>, "GELU must satisfy the Module contract");
         static_assert(Module<Tanh>, "Tanh must satisfy the Module contract");
         static_assert(Module<Sigmoid>, "Sigmoid must satisfy the Module contract");
         static_assert(Module<Sequential<Linear, ReLU>>,

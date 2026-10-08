@@ -413,7 +413,7 @@ TEST(Unit_ModelGraph, ASequentialAndALayerStackAreNodesOfAGraph)
 {
     NN::LayerStack stack;
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(NN::Linear{8, 4}, 4));
-    stack.push(std::make_unique<NN::LayerAdapter<NN::K_GELU>>(NN::K_GELU{}, 4));
+    stack.push(std::make_unique<NN::LayerAdapter<NN::GELU>>(NN::GELU{}, 4));
 
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(
@@ -511,13 +511,13 @@ TEST(Unit_ModelGraph, AChainNamedByIndexYieldsTheNamesOfALayerStack)
 
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef row0, model.add("0", first, model.input()));
-    SA_ASSERT_OK_AND_ASSIGN(const NodeRef row1, model.add("1", NN::K_GELU{}, row0));
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef row1, model.add("1", NN::GELU{}, row0));
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef row2, model.add("2", last, row1));
     SA_EXPECT_OK(model.output("output", row2));
 
     NN::LayerStack stack;
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(first, 8));
-    stack.push(std::make_unique<NN::LayerAdapter<NN::K_GELU>>(NN::K_GELU{}, 8));
+    stack.push(std::make_unique<NN::LayerAdapter<NN::GELU>>(NN::GELU{}, 8));
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(last, 4));
 
     Graph::Graph graph_of_model;
@@ -564,7 +564,7 @@ TEST(Unit_ModelGraph, AddRejectsADuplicateName)
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef first, model.add("act", NN::ReLU{}, model.input()));
 
-    SA_EXPECT_FAILURE(model.add("act", NN::K_GELU{}, first), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(model.add("act", NN::GELU{}, first), StatusCode::InvalidDescription,
                       "already has a node named 'act'", "index 0");
     EXPECT_EQ(model.size(), 1u);
 }

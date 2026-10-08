@@ -30,9 +30,11 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -47,6 +49,26 @@ using Graph::ValueId;
 namespace
 {
     class Integration_Autograd : public SaTest::EngineTest {};
+
+    /**
+     * @brief Compiles @p graph into a step; a refusal is a failed expectation and yields null.
+     * @param engine Must outlive the returned step.
+     * @param graph Must outlive the returned step.
+     * @param pool Must outlive the returned step.
+     * @return The compiled step, or null when CompiledStep::compile refused the graph.
+     */
+    std::unique_ptr<CompiledStep> compile_or_record(SushiBLAS::Engine& engine,
+                                                    const Graph::Graph& graph, TensorPool& pool)
+    {
+        Result<std::unique_ptr<CompiledStep>> outcome =
+            CompiledStep::compile(engine, graph, pool);
+        SA_EXPECT_OK(outcome);
+
+        if (!outcome.has_value())
+            return nullptr;
+
+        return std::move(outcome).value();
+    }
 
     /**
      * @brief Holds a FLOAT64 graph whose loss and gradient can both be evaluated at a point.
@@ -87,9 +109,15 @@ namespace
                     fusion_ = Graph::fuse(graph_, options);
                 }
 
-                pool_.materialise_leaves(graph_);
-                step_ = std::make_unique<CompiledStep>(engine, graph_, pool_);
+                SA_EXPECT_OK(pool_.materialise_leaves(graph_));
+                step_ = compile_or_record(engine, graph_, pool_);
             }
+
+            /**
+             * @brief Reports whether the step compiled.
+             * @return False after a refusal, which the constructor already recorded.
+             */
+            bool compiled() const noexcept { return step_ != nullptr; }
 
             /** @brief What the fusion pass did, when the probe was asked to run it. */
             const Graph::FusionReport& fusion() const noexcept { return fusion_; }
@@ -97,6 +125,9 @@ namespace
             /** @brief What the lowering actually spelled, so a decline cannot pass unnoticed. */
             SushiRuntime::span<const Graph::FusionSelection> selections() const noexcept
             {
+                if (!compiled())
+                    return SushiRuntime::span<const Graph::FusionSelection>();
+
                 return step_->selections();
             }
 
@@ -134,16 +165,23 @@ namespace
             /** @brief The loss at @p point. */
             double value(SushiRuntime::span<const double> point)
             {
+                // A refused compile is already a failed expectation; there is no step to run.
+                if (!compiled())
+                    return 0.0;
+
                 SaTest::write_tensor(pool_.tensor(variable_), point);
-                step_->run();
+                SA_EXPECT_OK(step_->run());
                 return SaTest::read_tensor(pool_.tensor(loss_))[0];
             }
 
             /** @brief The analytic gradient at @p point. */
             void grad(SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
             {
+                if (!compiled())
+                    return;
+
                 SaTest::write_tensor(pool_.tensor(variable_), point);
-                step_->run();
+                SA_EXPECT_OK(step_->run());
 
                 const std::vector<double> values = SaTest::read_tensor(pool_.tensor(gradient_));
                 ASSERT_EQ(values.size(), out.size());
@@ -159,7 +197,8 @@ namespace
             /** @brief A GradientFunction bound to this probe. */
             Autograd::GradientFunction grad_fn()
             {
-                return [this](SushiRuntime::span<const double> point, SushiRuntime::span<double> out)
+                return [this](SushiRuntime::span<const double> point,
+                              SushiRuntime::span<double> out)
                 {
                     grad(point, out);
                 };

@@ -34,6 +34,7 @@
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/fusion.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -51,6 +52,9 @@ namespace
 {
     class Integration_Forward : public SaTest::EngineTest {};
 
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    using Integration_ForwardDeathTest = Integration_Forward;
+
     /** @brief Lowers a graph, runs it once, and hands back the pool. */
     class OneShot
     {
@@ -58,13 +62,16 @@ namespace
             OneShot(SushiBLAS::Engine& engine, const Graph::Graph& graph)
                 : pool(engine)
             {
-                pool.materialise_leaves(graph);
+                SA_EXPECT_OK(pool.materialise_leaves(graph));
                 graph_ = &graph;
                 engine_ = &engine;
             }
 
             /** @brief Compiles the graph; call after every leaf has been written. */
-            void compile() { step = std::make_unique<CompiledStep>(*engine_, *graph_, pool); }
+            void compile()
+            {
+                SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine_, *graph_, pool));
+            }
 
             TensorPool pool;
             std::unique_ptr<CompiledStep> step;
@@ -94,8 +101,8 @@ TEST_F(Integration_Forward, LinearLayerMatchesHandComputedValues)
     write_tensor(run.pool.tensor(w), std::vector<double>{1, 0, 0, 1, 1, 1});
     write_tensor(run.pool.tensor(b), std::vector<double>{-2.0, -0.5, 1.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     // X * W^T = [[1, 2, 3], [3, 4, 7]], then + b.
     const std::vector<double> expected_pre = {-1.0, 1.5, 4.0, 1.0, 3.5, 8.0};
@@ -120,8 +127,8 @@ TEST_F(Integration_Forward, SumRowsProducesColumnSums)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(sums));
     ASSERT_EQ(result.size(), 2u);
@@ -140,8 +147,8 @@ TEST_F(Integration_Forward, ReshapeReinterpretsRowMajorLinearOrder)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(y));
     ASSERT_EQ(result.size(), 12u);
@@ -163,8 +170,8 @@ TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
     // NHWC, channels innermost: (w=0,c=0..2) = 0,1,2; (w=1,c=0..2) = 3,4,5.
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     // For each c, the two W positions in order; see tests/functional/integration/README.md.
     const std::vector<double> expected = {0, 3, 1, 4, 2, 5};
@@ -192,8 +199,8 @@ TEST_F(Integration_Forward, ElementwiseAndScaleMatchTheirDefinitions)
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> expect_sum = {1.5, 1.0, 5.0, 4.0};
     const std::vector<double> expect_difference = {0.5, 3.0, 1.0, 4.0};
@@ -235,8 +242,8 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
     write_tensor(run.pool.tensor(x), inputs);
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> relu = read_tensor(run.pool.tensor(r));
     const std::vector<double> sigmoid = read_tensor(run.pool.tensor(s));
@@ -271,8 +278,8 @@ TEST_F(Integration_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     // Row two is row one shifted by a constant; see tests/functional/integration/README.md.
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 51, 52, 53});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> l_values = read_tensor(run.pool.tensor(l));
 
@@ -309,8 +316,8 @@ TEST_F(Integration_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
     for (int row = 0; row < 4; ++row) one_hot[static_cast<std::size_t>(row * 5 + row)] = 1.0;
     write_tensor(run.pool.tensor(targets), one_hot);
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], std::log(5.0), 1e-5);
 }
@@ -328,8 +335,8 @@ TEST_F(Integration_Forward, CrossEntropyMatchesAHandComputedSingleRow)
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0});
     write_tensor(run.pool.tensor(targets), std::vector<double>{0.0, 0.0, 1.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const double lse = 3.0 + std::log(1.0 + std::exp(-1.0) + std::exp(-2.0));
     EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], lse - 3.0, 1e-5);
@@ -348,8 +355,8 @@ TEST_F(Integration_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(b), std::vector<double>{10, 20, 30, 40});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(total));
     const std::vector<double> accumulator = read_tensor(run.pool.tensor(a));
@@ -373,9 +380,9 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(bias), std::vector<double>{1.0, -2.0, 3.0});
 
-    run.compile();
-    run.step->run();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+    SA_EXPECT_OK(run.step->run());
 
     // A replay must not accumulate into the result; see tests/functional/integration/README.md.
     const std::vector<double> result = read_tensor(run.pool.tensor(broadcast));
@@ -400,8 +407,8 @@ TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(cols));
     const std::vector<double> expected = {0, 1, 2, 3};
@@ -425,8 +432,8 @@ TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(cols), std::vector<double>(16, 1.0));
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(image));
     const std::vector<double> expected = {1, 2, 1, 2, 4, 2, 1, 2, 1};
@@ -453,8 +460,8 @@ TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGiven
     for (std::size_t i = 0; i < image.size(); ++i) image[i] = static_cast<double>(i);
     write_tensor(run.pool.tensor(x), image);
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(cols));
     const std::vector<double> expected = {
@@ -500,8 +507,8 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(pooled.output));
     ASSERT_EQ(result.size(), 1u);
@@ -529,8 +536,8 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     // NCHW index is ((c*2)+h)*2+w; see tests/functional/integration/README.md.
     const std::vector<double> permuted = {1, 3, 5, 7, 2, 4, 6, 8};
@@ -585,8 +592,8 @@ TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesIts
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7});
     write_tensor(run.pool.tensor(target), std::vector<double>{1.0, 0.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> pooled_values = read_tensor(run.pool.tensor(pooled.output));
     ASSERT_EQ(pooled_values.size(), 2u);
@@ -619,8 +626,8 @@ TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(pooled));
     ASSERT_EQ(result.size(), 1u);
@@ -639,8 +646,8 @@ TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{5.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(up));
     const std::vector<double> expected = {5.0, 5.0, 5.0, 5.0};
@@ -661,8 +668,8 @@ TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(mean));
     ASSERT_EQ(result.size(), 1u);
@@ -685,8 +692,8 @@ TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
     write_tensor(run.pool.tensor(left), std::vector<double>{10.0});
     write_tensor(run.pool.tensor(right), std::vector<double>{20.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(cat));
     const std::vector<double> expected = {10.0, 20.0};
@@ -707,8 +714,8 @@ TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(sliced));
     const std::vector<double> expected = {2.0, 3.0};
@@ -733,8 +740,8 @@ TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
     write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 3.0});
     write_tensor(run.pool.tensor(beta), std::vector<double>{10.0, 20.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     // [1*2+10, 2*3+20, 3*2+10, 4*3+20]
     const std::vector<double> expected = {12.0, 26.0, 16.0, 32.0};
@@ -762,8 +769,8 @@ TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 1.0});
     write_tensor(run.pool.tensor(beta), std::vector<double>{0.0, 5.0});
 
-    run.compile();
-    run.step->run();
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> mean = read_tensor(run.pool.tensor(bn.saved_mean));
     ASSERT_EQ(mean.size(), 2u);
@@ -794,7 +801,7 @@ TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
         EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
 }
 
-TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
+TEST_F(Integration_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -803,10 +810,11 @@ TEST_F(Integration_Forward, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
     (void)builder.relu(x);
 
     TensorPool pool(*engine);
-    EXPECT_THROW(CompiledStep(*engine, graph, pool), Error);
+    SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),
+                    "Leaf value", "'x'", "has no tensor bound");
 }
 
-TEST_F(Integration_Forward, AnUnimplementedOperationNamesItself)
+TEST_F(Integration_ForwardDeathTest, AnUnimplementedOperationNamesItself)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -817,7 +825,8 @@ TEST_F(Integration_Forward, AnUnimplementedOperationNamesItself)
     graph.add_node(OpID(0xABCD'1234u), {x}, {out});
 
     TensorPool pool(*engine);
-    pool.materialise_leaves(graph);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
 
-    EXPECT_THROW(CompiledStep(*engine, graph, pool), Error);
+    SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),
+                    "No lowering for operation");
 }

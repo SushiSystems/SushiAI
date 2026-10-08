@@ -32,6 +32,11 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/math/elementwise.hpp>
+#include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiRuntime/graph/task_graph.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -83,13 +88,14 @@ namespace
     };
 
     /**
-     * @brief Trains one model end to end and reports everything comparable.
+     * @brief Trains one model end to end and writes everything comparable into @p run.
+     * @param run Left partly filled when a step of the run fails, which fails the test.
      * @param selector Null selects this machine's own device.
      * @see tests/functional/regression/README.md
      */
     template<typename M>
-    TrainedRun train(M& model, FusionOptions fusion,
-                     const Graph::FusionSelector* selector = nullptr)
+    void train(M& model, FusionOptions fusion, TrainedRun& run,
+               const Graph::FusionSelector* selector = nullptr)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -97,34 +103,39 @@ namespace
             model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, fusion);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                                Train::bind_parameters(built, pool));
+        ASSERT_TRUE(SaTest::status_is_ok(NN::initialize(engine, model, pool)));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
-        Optim::AdamW optimizer(engine, slots, adam);
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                                Optim::AdamW::make(engine, slots, adam));
 
         Train::TrainerOptions options;
         options.epochs = K_EPOCHS;
         options.fusion_selector = selector;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_ASSERT_OK_AND_ASSIGN(
+            const std::unique_ptr<Train::Trainer> trainer,
+            Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer, options));
 
-        const Data::SyntheticClassification dataset(engine, data_options());
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                                Data::SyntheticClassification::make(engine, data_options()));
 
-        TrainedRun run;
         run.fused_subtrees = built.fusion.fused().size();
         run.declined = built.fusion.declined().size();
 
-        for (const Graph::FusionSelection& selection : trainer.step().selections())
+        for (const Graph::FusionSelection& selection : trainer->step().selections())
             if (selection.chosen != selection.matched) ++run.selector_refusals;
 
-        const Train::RunReport report = trainer.fit(dataset);
+        SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
         run.operations_per_step = report.operations_per_step;
 
         for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
-                const Train::StepMetrics metrics = trainer.run_step(dataset.batch(batch));
+                SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
+                                        trainer->run_step(dataset->batch(batch)));
                 run.losses.push_back(metrics.loss);
                 run.accuracies.push_back(metrics.accuracy);
             }
@@ -135,8 +146,7 @@ namespace
             run.parameters.push_back(SaTest::read_tensor_bytes(slot.parameter));
         }
 
-        run.compiles = trainer.compile_count();
-        return run;
+        run.compiles = trainer->compile_count();
     }
 
     /** @brief Asserts two runs agree byte for byte, naming where they do not. */
@@ -184,7 +194,6 @@ namespace
         profile.max_work_group_size = 1024;
         profile.sub_group_size = 32;
         profile.compute_units = 10;
-        profile.global_mem_cache_line = 128;
         return profile;
     }
 }
@@ -200,8 +209,10 @@ TEST_F(Regression_Fusion, AReluMlpTrainsIdenticallyFusedAndUnfused)
     Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const TrainedRun fused = train(fused_model, FusionOptions{});
-    const TrainedRun plain = train(plain_model, off());
+    TrainedRun fused;
+    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    TrainedRun plain;
+    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
 
     ASSERT_GT(fused.fused_subtrees, 0u);
     ASSERT_EQ(plain.fused_subtrees, 0u);
@@ -220,8 +231,10 @@ TEST_F(Regression_Fusion, ATanhMlpTrainsIdenticallyFusedAndUnfused)
     Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
     Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const TrainedRun fused = train(fused_model, FusionOptions{});
-    const TrainedRun plain = train(plain_model, off());
+    TrainedRun fused;
+    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    TrainedRun plain;
+    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
 
     ASSERT_GT(fused.fused_subtrees, 0u);
     expect_runs_agree(fused, plain, "a fused tanh epilogue");
@@ -234,8 +247,10 @@ TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
     Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
     Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const TrainedRun fused = train(fused_model, FusionOptions{});
-    const TrainedRun plain = train(plain_model, off());
+    TrainedRun fused;
+    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    TrainedRun plain;
+    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
 
     ASSERT_GT(fused.fused_subtrees, 0u);
     expect_runs_agree(fused, plain, "a fused sigmoid epilogue");
@@ -247,13 +262,15 @@ TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
  */
 TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const TrainedRun fused = train(fused_model, FusionOptions{});
-    const TrainedRun plain = train(plain_model, off());
+    TrainedRun fused;
+    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    TrainedRun plain;
+    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
 
     // Two layers and the gradient tail fuse; see tests/functional/regression/README.md.
     EXPECT_EQ(fused.fused_subtrees, 3u)
@@ -270,8 +287,8 @@ TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
 
 TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const Train::TrainingGraph built =
         Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
@@ -334,7 +351,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
     ASSERT_EQ(report.count(FusedForm::GemmBiasGelu), 1u) << report.to_string();
 
     TensorPool pool(engine);
-    pool.materialise_leaves(graph);
+    ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
 
     SaTest::HostNoise noise(0xC0FFEEu);
     std::vector<double> x_values(static_cast<std::size_t>(K_ROWS * K_IN_DIM));
@@ -351,8 +368,9 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
     SaTest::write_tensor(pool.tensor(b),
                          SushiRuntime::span<const double>(b_values.data(), b_values.size()));
 
-    Graph::Lowering lowering(engine, pool);
-    lowering.record(graph);
+    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
+    Graph::Lowering lowering(engine.get_recorder(), engine.get_rng(), pool, selector);
+    ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(1u, lowering.emitted_operations())
         << "this machine's device declined the fused form, so the epilogue never ran and "
            "this test is not exercising what it claims to";
@@ -410,14 +428,16 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
             }
     };
 
-    using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const RefuseEverything refuse;
-    const TrainedRun taken = train(taken_model, FusionOptions{});
-    const TrainedRun refused = train(refused_model, FusionOptions{}, &refuse);
+    TrainedRun taken;
+    ASSERT_NO_FATAL_FAILURE(train(taken_model, FusionOptions{}, taken));
+    TrainedRun refused;
+    ASSERT_NO_FATAL_FAILURE(train(refused_model, FusionOptions{}, refused, &refuse));
 
     EXPECT_EQ(taken.fused_subtrees, refused.fused_subtrees);
     EXPECT_EQ(refused.selector_refusals, refused.fused_subtrees);
@@ -432,17 +452,19 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
  */
 TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
+    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const std::vector<FusedForm> without{FusedForm::GemmBiasGelu};
     FusionOptions narrowed;
     narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
 
-    const TrainedRun folded = train(folded_model, FusionOptions{});
-    const TrainedRun separate = train(separate_model, narrowed);
+    TrainedRun folded;
+    ASSERT_NO_FATAL_FAILURE(train(folded_model, FusionOptions{}, folded));
+    TrainedRun separate;
+    ASSERT_NO_FATAL_FAILURE(train(separate_model, narrowed, separate));
 
     EXPECT_EQ(folded.fused_subtrees, separate.fused_subtrees)
         << "switching the three-node form off must fall back to gemm+bias, not to nothing";
@@ -464,8 +486,10 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
     Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const TrainedRun fused = train(fused_model, FusionOptions{});
-    const TrainedRun plain = train(plain_model, off());
+    TrainedRun fused;
+    ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
+    TrainedRun plain;
+    ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
 
     EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 10u);
 
@@ -493,19 +517,24 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
     ASSERT_EQ(1u, fusion.fused().size()) << fusion.to_string();
 
     TensorPool pool(engine);
-    pool.materialise_leaves(graph);
+    ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
+
+    SushiRuntime::Graph::TaskGraph tasks(SaTest::TestEnvironment::context());
+    SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::context());
+    SushiBLAS::TaskRecorder recorder(tasks, scratch, engine.get_mode());
 
     // Recorded first: the edge can only run to the GEMM; see tests/functional/regression/README.md.
     SushiBLAS::Tensor& bias = pool.tensor(b);
-    engine.elementwise().mul(bias, bias, bias);
+    SushiBLAS::ElementwiseOps(recorder).mul(bias, bias, bias);
 
-    Graph::Lowering lowering(engine, pool);
-    lowering.record(graph);
+    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
+    Graph::Lowering lowering(recorder, engine.get_rng(), pool, selector);
+    ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(1u, lowering.emitted_operations())
         << "this machine's device declined the fused form, so there is no epilogue to "
            "order and this test is not exercising what it claims to";
 
-    auto nodes = engine.get_graph().take_nodes();
+    auto nodes = tasks.take_nodes();
     ASSERT_EQ(2u, nodes.size());
     EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
         << "The fused GEMM must depend on the task that wrote the bias its epilogue "
@@ -542,16 +571,21 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt
     ASSERT_EQ(1u, fusion.count(FusedForm::GemmBiasGelu)) << fusion.to_string();
 
     TensorPool pool(engine);
-    pool.materialise_leaves(graph);
+    ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
 
-    Graph::Lowering lowering(engine, pool);
-    lowering.record(graph);
+    SushiRuntime::Graph::TaskGraph tasks(SaTest::TestEnvironment::context());
+    SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::context());
+    SushiBLAS::TaskRecorder recorder(tasks, scratch, engine.get_mode());
+
+    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
+    Graph::Lowering lowering(recorder, engine.get_rng(), pool, selector);
+    ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(2u, lowering.emitted_operations())
         << "expected the fused GEMM and the activation gradient; this machine's device may "
            "have declined the fused form, in which case this test is not exercising what "
            "it claims to";
 
-    auto nodes = engine.get_graph().take_nodes();
+    auto nodes = tasks.take_nodes();
     ASSERT_EQ(2u, nodes.size());
     EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
         << "The task that reads the spilled pre-activation must depend on the fused GEMM "
@@ -575,8 +609,10 @@ TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
     FusionOptions narrowed;
     narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
 
-    const TrainedRun whole = train(whole_model, FusionOptions{});
-    const TrainedRun some = train(narrowed_model, narrowed);
+    TrainedRun whole;
+    ASSERT_NO_FATAL_FAILURE(train(whole_model, FusionOptions{}, whole));
+    TrainedRun some;
+    ASSERT_NO_FATAL_FAILURE(train(narrowed_model, narrowed, some));
 
     // A catalog refusal costs two kernels, not one; see tests/functional/regression/README.md.
     EXPECT_EQ(some.operations_per_step, whole.operations_per_step + 2u);
@@ -604,8 +640,10 @@ TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
     Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const RefuseEverything refuse;
-    const TrainedRun taken = train(taken_model, FusionOptions{});
-    const TrainedRun refused = train(refused_model, FusionOptions{}, &refuse);
+    TrainedRun taken;
+    ASSERT_NO_FATAL_FAILURE(train(taken_model, FusionOptions{}, taken));
+    TrainedRun refused;
+    ASSERT_NO_FATAL_FAILURE(train(refused_model, FusionOptions{}, refused, &refuse));
 
     // The graph fused identically; only the spelling differs.
     EXPECT_EQ(taken.fused_subtrees, refused.fused_subtrees);

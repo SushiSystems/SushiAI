@@ -41,7 +41,9 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 
 namespace SushiAI
@@ -129,15 +131,13 @@ namespace SushiAI
                         return;
                     }
 
-                    IO::CheckpointReader reader(stream_);
-                    while (reader.read_count() < reader.count())
+                    const Status indexed = index_records();
+                    if (!indexed.is_ok())
                     {
-                        IO::TensorRecord record = reader.next();
-                        const std::streampos offset = stream_.tellg();
-                        stream_.seekg(static_cast<std::streamoff>(record.payload_bytes()),
-                                      std::ios::cur);
-                        std::string name = record.name;
-                        entries_.emplace(std::move(name), Entry{std::move(record), offset});
+                        reason_ = path_ + " is not a readable reference file: ";
+                        reason_ += indexed.message();
+                        ADD_FAILURE() << reason_;
+                        return;
                     }
                     present_ = true;
                 }
@@ -193,6 +193,26 @@ namespace SushiAI
                     IO::TensorRecord record; /**< Name, dtype and extents. */
                     std::streampos offset;   /**< Position of the first payload byte. */
                 };
+
+                /**
+                 * @brief Reads every record header of the open file into the index.
+                 * @return Success, or the failure of the header or of the first bad record.
+                 * @pre The stream is open at the first byte of the file.
+                 */
+                [[nodiscard]] Status index_records()
+                {
+                    SA_TRY_ASSIGN(IO::CheckpointReader reader, IO::CheckpointReader::open(stream_));
+                    while (reader.read_count() < reader.count())
+                    {
+                        SA_TRY_ASSIGN(IO::TensorRecord record, reader.next());
+                        const std::streampos offset = stream_.tellg();
+                        stream_.seekg(static_cast<std::streamoff>(record.payload_bytes()),
+                                      std::ios::cur);
+                        std::string name = record.name;
+                        entries_.emplace(std::move(name), Entry{std::move(record), offset});
+                    }
+                    return Status();
+                }
 
                 /// @brief Holds the path of the file, empty when the fixture directory is unknown.
                 std::string path_;

@@ -31,9 +31,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -71,14 +73,11 @@ namespace
     }
 
     /**
-     * @brief Runs the pinned configuration and returns its per-step losses.
-     *
-     * A fresh Engine, because reproducibility is a property of one - see
-     * dataset.hpp on the RNG offset counter.
-     *
-     * @return One loss per step, EPOCHS * BATCHES of them.
+     * @brief Runs the pinned configuration on a fresh Engine and returns its per-step losses.
+     * @return One loss per step, K_EPOCHS * K_BATCHES of them, or the first failure.
+     * @see tests/functional/regression/README.md
      */
-    std::vector<double> recorded_trajectory()
+    [[nodiscard]] Result<std::vector<double>> recorded_trajectory()
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
@@ -86,26 +85,33 @@ namespace
         Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots, Train::bind_parameters(built, pool));
+        SA_TRY(NN::initialize(engine, model, pool));
 
         Optim::SGDOptions sgd;
         sgd.learning_rate = K_LEARNING_RATE;
         sgd.momentum = K_MOMENTUM;
-        Optim::SGD optimizer(engine, slots, sgd);
+        SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer, Optim::SGD::make(engine, slots, sgd));
 
         Train::TrainerOptions options;
         options.track_accuracy = false;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                           options));
 
-        const Data::SyntheticClassification dataset(engine, data_options());
+        SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                      Data::SyntheticClassification::make(engine, data_options()));
 
         std::vector<double> losses;
         losses.reserve(static_cast<std::size_t>(K_EPOCHS * K_BATCHES));
 
         for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
-                losses.push_back(trainer.run_step(dataset.batch(batch)).loss);
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
+            {
+                SA_TRY_ASSIGN(const Train::StepMetrics metrics,
+                              trainer->run_step(dataset->batch(batch)));
+                losses.push_back(metrics.loss);
+            }
 
         return losses;
     }
@@ -118,9 +124,12 @@ namespace
         {
             char buffer[64] = {};
             std::snprintf(buffer, sizeof(buffer), "%.6f, ", losses[i]);
-            if (i % 4 == 0) text += "        ";
+            if (i % 4 == 0)
+                text += "        ";
+
             text += buffer;
-            if (i % 4 == 3) text += "\n";
+            if (i % 4 == 3)
+                text += "\n";
         }
         return text + "    }";
     }
@@ -143,9 +152,13 @@ namespace
     constexpr double K_LOSS_TOLERANCE = 0.02;
 }
 
+/**
+ * @brief Tests that every step's loss is within K_LOSS_TOLERANCE of the recorded reference.
+ * @see tests/functional/regression/README.md
+ */
 TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
 {
-    const std::vector<double> losses = recorded_trajectory();
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
 
     ASSERT_EQ(losses.size(), std::size(K_REFERENCE))
         << "the configuration changed shape; re-record the reference:\n"
@@ -155,7 +168,8 @@ TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
     for (std::size_t step = 0; step < losses.size(); ++step)
     {
         EXPECT_NEAR(losses[step], K_REFERENCE[step], K_LOSS_TOLERANCE) << "at step " << step;
-        if (std::abs(losses[step] - K_REFERENCE[step]) > K_LOSS_TOLERANCE) matched = false;
+        if (std::abs(losses[step] - K_REFERENCE[step]) > K_LOSS_TOLERANCE)
+            matched = false;
     }
 
     if (!matched)
@@ -170,7 +184,7 @@ TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
  */
 TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
 {
-    const std::vector<double> losses = recorded_trajectory();
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
     ASSERT_FALSE(losses.empty());
 
     EXPECT_NEAR(losses.front(), std::log(static_cast<double>(K_CLASSES)), 1e-4)

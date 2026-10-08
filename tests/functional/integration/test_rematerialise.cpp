@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -97,9 +98,9 @@ namespace
      *
      * One function for both arms so the two graphs differ in exactly the thing
      * under test. FLOAT64 throughout, as every numeric autograd test here is,
-     * so a difference cannot be hidden under rounding.
+     * so a difference cannot be hidden under rounding. The results go to @p outcome.
      */
-    Outcome run_convolution(SushiBLAS::Engine& engine, bool rematerialise)
+    void run_convolution(SushiBLAS::Engine& engine, bool rematerialise, Outcome& outcome)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -124,7 +125,6 @@ namespace
 
         if (rematerialise) Graph::rematerialise_im2col(graph);
 
-        Outcome outcome;
         outcome.nodes = graph.node_count();
         outcome.cols_lifetime = graph.value(cols).lifetime;
         for (const Graph::Node& node : graph.nodes())
@@ -134,26 +134,28 @@ namespace
         outcome.planned_bytes = plan.arena_bytes();
 
         TensorPool pool(engine);
-        pool.adopt(plan);
-        pool.materialise_leaves(graph);
+        SA_EXPECT_OK(pool.adopt(plan));
+        SA_EXPECT_OK(pool.materialise_leaves(graph));
 
         write_tensor(pool.tensor(x), image_values());
         write_tensor(pool.tensor(w), weight_values());
         write_tensor(pool.tensor(target), target_values());
 
-        CompiledStep step(engine, graph, pool);
-        step.run();
+        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                                CompiledStep::compile(engine, graph, pool));
+        SA_EXPECT_OK(step->run());
 
         outcome.loss = read_tensor(pool.tensor(loss));
         outcome.weight_gradient = read_tensor(pool.tensor(dw));
-        return outcome;
     }
 }
 
 TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
 {
-    const Outcome stored = run_convolution(*engine, false);
-    const Outcome recomputed = run_convolution(*engine, true);
+    Outcome stored;
+    ASSERT_NO_FATAL_FAILURE(run_convolution(*engine, false, stored));
+    Outcome recomputed;
+    ASSERT_NO_FATAL_FAILURE(run_convolution(*engine, true, recomputed));
 
     // The pass must have inserted a recomputation; see tests/functional/integration/README.md.
     ASSERT_EQ(stored.im2col_nodes, std::size_t{1});

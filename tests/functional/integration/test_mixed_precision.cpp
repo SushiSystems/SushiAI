@@ -26,10 +26,12 @@
  */
 
 #include <cmath>
+#include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/test_status.hpp"
 
 using namespace SushiAI;
 
@@ -91,18 +93,23 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     ASSERT_GT(built.casts.count(), 0u) << "the mixed policy inserted nothing";
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
-    Optim::AdamW optimizer(*engine, slots, optimizer_options());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, optimizer_options()));
 
     Train::TrainerOptions options;
     options.epochs = 25;
     options.precision = &precision;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
-    const Data::SyntheticClassification dataset(*engine, data_options());
-    const Train::RunReport report = trainer.fit(dataset);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(*engine, data_options()));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
 
     EXPECT_EQ(report.compile_count, 1u);
     EXPECT_TRUE(std::isfinite(report.first_loss));
@@ -124,14 +131,18 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
         model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
-    Optim::AdamW optimizer(*engine, slots, optimizer_options());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, optimizer_options()));
 
     Train::TrainerOptions options;
     options.precision = &precision;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
     // Every tensor the optimizer touches - both sides of the update.
     for (const Optim::ParameterSlot& slot : slots)
@@ -154,8 +165,10 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
     EXPECT_GT(half_buffers, 0u);
 
     // SushiBLAS refuses a mixed-dtype gemm by name; see tests/functional/integration/README.md.
-    const Data::SyntheticClassification dataset(*engine, data_options());
-    const Train::StepMetrics metrics = trainer.run_step(dataset.batch(0));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(*engine, data_options()));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
+                            trainer->run_step(dataset->batch(0)));
     EXPECT_TRUE(std::isfinite(metrics.loss));
 }
 
@@ -166,25 +179,27 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
-    Optim::AdamW optimizer(*engine, slots, optimizer_options());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, optimizer_options()));
 
     const MixedPrecisionPolicy precision;
     Train::TrainerOptions options;
     options.precision = &precision;
 
-    EXPECT_THROW(
-        Train::Trainer(*engine, built.graph, pool, built.spec, optimizer, options),
-        Error);
+    SA_EXPECT_FAILURE(Train::Trainer::make(*engine, built.graph, pool, built.spec, *optimizer,
+                                           options),
+                      StatusCode::InvalidDescription, "does not agree with the precision policy");
 
     // The same graph with the policy it was actually built under is accepted.
     const UniformPrecisionPolicy single;
     Train::TrainerOptions consistent;
     consistent.precision = &single;
-    EXPECT_NO_THROW(
-        Train::Trainer(*engine, built.graph, pool, built.spec, optimizer, consistent));
+    SA_EXPECT_OK(Train::Trainer::make(*engine, built.graph, pool, built.spec, *optimizer,
+                                      consistent));
 }
 
 TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
@@ -202,15 +217,21 @@ TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
     ASSERT_EQ(built.graph.value(built.spec.logits).dtype, DType::Half);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
-    Optim::AdamW optimizer(*engine, slots, optimizer_options());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, optimizer_options()));
 
     Train::TrainerOptions options;
     options.track_accuracy = true;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
-    const Data::SyntheticClassification dataset(*engine, data_options());
-    EXPECT_THROW(trainer.run_step(dataset.batch(0)), Error);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(*engine, data_options()));
+    SA_EXPECT_FAILURE(trainer->run_step(dataset->batch(0)), StatusCode::InvalidDescription,
+                      "Accuracy needs a host read of the logits");
 }

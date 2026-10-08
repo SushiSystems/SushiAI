@@ -27,7 +27,7 @@
 
 #include <cstdint>
 #include <gtest/gtest.h>
-#include "../../common/test_throws.hpp"
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -57,7 +57,8 @@ namespace
 
 TEST_F(Unit_LossScaling, TheScaleStartsWhereItWasAsked)
 {
-    const LossScaleState state{with_interval(4, 65536.0)};
+    SA_ASSERT_OK_AND_ASSIGN(const LossScaleState state,
+                            LossScaleState::make(with_interval(4, 65536.0)));
 
     EXPECT_EQ(state.scale(), 65536.0);
     EXPECT_EQ(state.inverse_scale(), 1.0 / 65536.0);
@@ -67,7 +68,7 @@ TEST_F(Unit_LossScaling, TheScaleStartsWhereItWasAsked)
 
 TEST_F(Unit_LossScaling, AnOverflowHalvesTheScaleAndSkipsTheStep)
 {
-    LossScaleState state{with_interval(4)};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
     state.observe(true);
 
@@ -80,7 +81,7 @@ TEST_F(Unit_LossScaling, AnOverflowHalvesTheScaleAndSkipsTheStep)
 
 TEST_F(Unit_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
 {
-    LossScaleState state{with_interval(4)};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
     run_clean(state, 4);
 
@@ -92,7 +93,7 @@ TEST_F(Unit_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
 // Controls the case above with one clean step fewer; see tests/functional/unit/README.md.
 TEST_F(Unit_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
 {
-    LossScaleState state{with_interval(4)};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
     run_clean(state, 3);
 
@@ -103,7 +104,7 @@ TEST_F(Unit_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
 
 TEST_F(Unit_LossScaling, AnOverflowRestartsTheRunOfCleanSteps)
 {
-    LossScaleState state{with_interval(4)};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
     run_clean(state, 3);
     state.observe(true);   // 1024 -> 512, and the three clean steps are spent
@@ -122,7 +123,7 @@ TEST_F(Unit_LossScaling, GrowthStopsAtTheCeilingWithoutCountingAGrowth)
 {
     LossScaleOptions options = with_interval(1, 1024.0);
     options.maximum = 2048.0;
-    LossScaleState state{options};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(options));
 
     state.observe(false);
     EXPECT_EQ(state.scale(), 2048.0);
@@ -136,7 +137,7 @@ TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
 {
     LossScaleOptions options = with_interval(4, 2.0);
     options.minimum = 1.0;
-    LossScaleState state{options};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(options));
 
     state.observe(true);
     EXPECT_EQ(state.scale(), 1.0);
@@ -154,15 +155,18 @@ TEST_F(Unit_LossScaling, ANonDyadicConstantIsRefusedByName)
 {
     LossScaleOptions options;
     options.initial = 3.0;
-    SA_EXPECT_ERROR((LossScaleState{options}), "power of two");
+    SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
+                      "power of two");
 
     options = LossScaleOptions{};
     options.growth = 3.0;
-    SA_EXPECT_ERROR((LossScaleState{options}), "power of two");
+    SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
+                      "power of two");
 
     options = LossScaleOptions{};
     options.backoff = 1.0 / 3.0;
-    SA_EXPECT_ERROR((LossScaleState{options}), "power of two");
+    SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
+                      "power of two");
 }
 
 TEST_F(Unit_LossScaling, IncoherentBoundsAreRefused)
@@ -170,17 +174,19 @@ TEST_F(Unit_LossScaling, IncoherentBoundsAreRefused)
     LossScaleOptions options;
     options.initial = 65536.0;
     options.maximum = 1024.0;
-    SA_EXPECT_ERROR((LossScaleState{options}), "outside the bounds");
+    SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
+                      "outside the bounds");
 
     options = LossScaleOptions{};
     options.growth_interval = 0;
-    SA_EXPECT_ERROR((LossScaleState{options}), "growth interval must be positive");
+    SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
+                      "growth interval must be positive");
 }
 
 // Every reachable scale is a power of two; see tests/functional/unit/README.md.
 TEST_F(Unit_LossScaling, EveryReachableScaleHasAnExactReciprocal)
 {
-    LossScaleState state{with_interval(2, 1024.0)};
+    SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(2, 1024.0)));
 
     for (int i = 0; i < 40; ++i)
     {

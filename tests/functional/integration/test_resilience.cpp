@@ -35,7 +35,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include "../../common/test_throws.hpp"
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -51,6 +51,9 @@ namespace
 {
     class Integration_Resilience : public SaTest::EngineTest {};
 
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    using Integration_ResilienceDeathTest = Integration_Resilience;
+
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     /**
@@ -64,21 +67,43 @@ namespace
     class Runner
     {
         public:
-            Runner(SushiBLAS::Engine& engine, const Graph::Graph& graph)
-                : pool(engine), graph_(&graph), engine_(&engine)
+            /**
+             * @brief Builds a runner over @p graph and materialises its leaves.
+             * @param engine Must outlive the runner.
+             * @param graph Must outlive the runner.
+             * @return The runner, or the failure of a leaf's allocation.
+             */
+            [[nodiscard]] static Result<std::unique_ptr<Runner>> make(SushiBLAS::Engine& engine,
+                                                                      const Graph::Graph& graph)
             {
-                pool.materialise_leaves(graph);
+                std::unique_ptr<Runner> runner(new Runner(engine, graph));
+                SA_TRY(runner->pool.materialise_leaves(graph));
+                return runner;
             }
 
-            /** @brief Compiles the graph; call once every leaf has been written. */
-            void compile() { step_ = std::make_unique<CompiledStep>(*engine_, *graph_, pool); }
+            /**
+             * @brief Compiles the graph.
+             * @pre Every leaf has been written.
+             */
+            [[nodiscard]] Status compile()
+            {
+                SA_TRY_ASSIGN(step_, CompiledStep::compile(*engine_, *graph_, pool));
+                return Status();
+            }
 
-            /** @brief Replays the compiled step. */
-            void run() { step_->run(); }
+            /**
+             * @brief Replays the compiled step.
+             * @pre compile() has returned success.
+             */
+            [[nodiscard]] Status run() { return step_->run(); }
 
             TensorPool pool;
 
         private:
+            /** @brief Stores the graph and the engine and builds an empty pool. */
+            Runner(SushiBLAS::Engine& engine, const Graph::Graph& graph)
+                : pool(engine), graph_(&graph), engine_(&engine) {}
+
             const Graph::Graph* graph_;
             SushiBLAS::Engine* engine_;
             std::unique_ptr<CompiledStep> step_;
@@ -141,16 +166,16 @@ namespace
     };
 
     /** @brief Traces and binds an MLP of the given extents. */
-    Fixture make_fixture(SushiBLAS::Engine& engine, int64_t batch, int64_t features,
-                         int64_t hidden, int64_t classes)
+    [[nodiscard]] Result<Fixture> make_fixture(SushiBLAS::Engine& engine, int64_t batch,
+                                               int64_t features, int64_t hidden, int64_t classes)
     {
         Fixture fixture{Mlp(NN::Linear{features, hidden}, NN::ReLU{},
                             NN::Linear{hidden, classes}), {}, nullptr, {}};
 
         fixture.built = Train::build_classifier(fixture.model, batch, features, classes);
         fixture.pool = std::make_unique<TensorPool>(engine);
-        fixture.slots = Train::bind_parameters(fixture.built, *fixture.pool);
-        NN::initialize(engine, fixture.model, *fixture.pool);
+        SA_TRY_ASSIGN(fixture.slots, Train::bind_parameters(fixture.built, *fixture.pool));
+        SA_TRY(NN::initialize(engine, fixture.model, *fixture.pool));
         return fixture;
     }
 
@@ -169,64 +194,81 @@ namespace
 
 TEST_F(Integration_Resilience, AnOptimizerNamesTheParameterWhoseGradientDoesNotMatch)
 {
-    std::vector<Optim::ParameterSlot> slots;
-    slots.push_back(Optim::ParameterSlot{"0.weight",
-                                         allocate_tensor(*engine, Shape{4, 3}),
-                                         allocate_tensor(*engine, Shape{4, 2})});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{4, 3}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient, allocate_tensor(*engine, Shape{4, 2}));
 
-    SA_EXPECT_ERROR((void)Optim::SGD(*engine, slots, Optim::SGDOptions{}),
-                    "0.weight", "12 elements", "gradient has 8");
+    std::vector<Optim::ParameterSlot> slots;
+    slots.push_back(Optim::ParameterSlot{"0.weight", parameter, gradient});
+
+    SA_EXPECT_FAILURE(Optim::SGD::make(*engine, slots, Optim::SGDOptions{}),
+                      StatusCode::InvalidDescription,
+                      "0.weight", "12 elements", "gradient has 8");
 }
 
 TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrongType)
 {
-    std::vector<Optim::ParameterSlot> slots;
-    slots.push_back(Optim::ParameterSlot{"0.bias",
-                                         allocate_tensor(*engine, Shape{4}, DType::Float32),
-                                         allocate_tensor(*engine, Shape{4}, DType::Float64)});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                            allocate_tensor(*engine, Shape{4}, DType::Float32));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                            allocate_tensor(*engine, Shape{4}, DType::Float64));
 
-    SA_EXPECT_ERROR((void)Optim::SGD(*engine, slots, Optim::SGDOptions{}),
-                    "0.bias", "float32", "float64");
+    std::vector<Optim::ParameterSlot> slots;
+    slots.push_back(Optim::ParameterSlot{"0.bias", parameter, gradient});
+
+    SA_EXPECT_FAILURE(Optim::SGD::make(*engine, slots, Optim::SGDOptions{}),
+                      StatusCode::InvalidDescription, "0.bias", "float32", "float64");
 }
 
 TEST_F(Integration_Resilience, AnOptimizerRefusesADtypeItCannotServeAndExplainsWhy)
 {
     // The half refusal must say why in its message; see tests/functional/integration/README.md.
-    std::vector<Optim::ParameterSlot> complex_slot;
-    complex_slot.push_back(Optim::ParameterSlot{"0.weight",
-                                                allocate_tensor(*engine, Shape{4}, DType::Complex32),
-                                                allocate_tensor(*engine, Shape{4}, DType::Complex32)});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor complex_parameter,
+                            allocate_tensor(*engine, Shape{4}, DType::Complex32));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor complex_gradient,
+                            allocate_tensor(*engine, Shape{4}, DType::Complex32));
 
-    SA_EXPECT_ERROR((void)Optim::SGD(*engine, complex_slot, Optim::SGDOptions{}),
-                    "0.weight", "complex32", "real floating tensors only");
+    std::vector<Optim::ParameterSlot> complex_slot;
+    complex_slot.push_back(Optim::ParameterSlot{"0.weight", complex_parameter, complex_gradient});
+
+    SA_EXPECT_FAILURE(Optim::SGD::make(*engine, complex_slot, Optim::SGDOptions{}),
+                      StatusCode::InvalidDescription,
+                      "0.weight", "complex32", "real floating tensors only");
+
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor half_parameter,
+                            allocate_tensor(*engine, Shape{4}, DType::Half));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor half_gradient,
+                            allocate_tensor(*engine, Shape{4}, DType::Half));
 
     std::vector<Optim::ParameterSlot> half_slot;
-    half_slot.push_back(Optim::ParameterSlot{"0.weight",
-                                             allocate_tensor(*engine, Shape{4}, DType::Half),
-                                             allocate_tensor(*engine, Shape{4}, DType::Half)});
+    half_slot.push_back(Optim::ParameterSlot{"0.weight", half_parameter, half_gradient});
 
-    SA_EXPECT_ERROR((void)Optim::AdamW(*engine, half_slot, Optim::AdamWOptions{}),
-                    "0.weight", "half precision", "float32");
+    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, half_slot, Optim::AdamWOptions{}),
+                      StatusCode::InvalidDescription,
+                      "0.weight", "half precision", "float32");
 }
 
 TEST_F(Integration_Resilience, AdamWNamesTheHyperparameterThatIsOutOfRange)
 {
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{4}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient, allocate_tensor(*engine, Shape{4}));
+
     std::vector<Optim::ParameterSlot> slots;
-    slots.push_back(Optim::ParameterSlot{"0.weight",
-                                         allocate_tensor(*engine, Shape{4}),
-                                         allocate_tensor(*engine, Shape{4})});
+    slots.push_back(Optim::ParameterSlot{"0.weight", parameter, gradient});
 
     Optim::AdamWOptions bad_beta1;
     bad_beta1.beta1 = 1.0;
-    SA_EXPECT_ERROR((void)Optim::AdamW(*engine, slots, bad_beta1), "beta1", "[0, 1)");
+    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, slots, bad_beta1),
+                      StatusCode::InvalidDescription, "beta1", "[0, 1)");
 
     Optim::AdamWOptions bad_beta2;
     bad_beta2.beta2 = -0.5;
-    SA_EXPECT_ERROR((void)Optim::AdamW(*engine, slots, bad_beta2), "beta2", "[0, 1)");
+    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, slots, bad_beta2),
+                      StatusCode::InvalidDescription, "beta2", "[0, 1)");
 
     Optim::AdamWOptions bad_eps;
     bad_eps.eps = 0.0;
-    SA_EXPECT_ERROR((void)Optim::AdamW(*engine, slots, bad_eps), "eps must be positive");
+    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, slots, bad_eps),
+                      StatusCode::InvalidDescription, "eps must be positive");
 }
 
 TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
@@ -237,14 +279,14 @@ TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
                                                        Graph::K_NO_VALUE});
 
     TensorPool pool(*engine);
-    SA_EXPECT_ERROR((void)Train::bind_parameters(built, pool),
-                    "'ghost'", "receives no gradient", "no optimizer could ever move it");
+    SA_EXPECT_FAILURE(Train::bind_parameters(built, pool), StatusCode::InvalidDescription,
+                      "'ghost'", "receives no gradient", "no optimizer could ever move it");
 }
 
 TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarbage)
 {
     // An unwritten gradient must read as zero; see tests/functional/integration/README.md.
-    Fixture fixture = make_fixture(*engine, 8, 6, 12, 4);
+    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 12, 4));
 
     for (const Optim::ParameterSlot& slot : fixture.slots)
     {
@@ -267,8 +309,9 @@ TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThan
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
-    Optim::SGD optimizer(*engine, fixture.slots, sgd);
-    optimizer.step();
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(*engine, fixture.slots, sgd));
+    SA_EXPECT_OK(optimizer->step());
 
     for (std::size_t p = 0; p < fixture.slots.size(); ++p)
     {
@@ -283,55 +326,65 @@ TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThan
 
 TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledStep)
 {
-    Fixture fixture = make_fixture(*engine, 8, 6, 10, 4);
-    Optim::SGD optimizer(*engine, fixture.slots, Optim::SGDOptions{});
-    Train::Trainer trainer(*engine, fixture.built.graph, *fixture.pool,
-                           fixture.built.spec, optimizer);
+    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(*engine, fixture.slots, Optim::SGDOptions{}));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
+                                                 fixture.built.spec, *optimizer));
 
     // A wrong-sized batch can only be reported; see tests/functional/integration/README.md.
-    const Data::SyntheticClassification wrong(*engine, data_for(4, 1, 6, 4));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong,
+                            Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
 
-    SA_EXPECT_ERROR((void)trainer.run_step(wrong.batch(0)),
-                    "24 input elements", "expects 48");
+    SA_EXPECT_FAILURE(trainer->run_step(wrong->batch(0)), StatusCode::Incompatible,
+                      "24 input elements", "expects 48");
 }
 
 TEST_F(Integration_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
 {
-    Fixture fixture = make_fixture(*engine, 8, 6, 10, 4);
-    Optim::SGD optimizer(*engine, fixture.slots, Optim::SGDOptions{});
-    Train::Trainer trainer(*engine, fixture.built.graph, *fixture.pool,
-                           fixture.built.spec, optimizer);
+    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(*engine, fixture.slots, Optim::SGDOptions{}));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
+                                                 fixture.built.spec, *optimizer));
 
     const NoBatches empty(8, 6, 4);
-    SA_EXPECT_ERROR((void)trainer.fit(empty), "The dataset holds no batches");
+    SA_EXPECT_FAILURE(trainer->fit(empty), StatusCode::InvalidDescription,
+                      "The dataset holds no batches");
 
-    const Data::SyntheticClassification narrow(*engine, data_for(4, 1, 6, 4));
-    SA_EXPECT_ERROR((void)trainer.fit(narrow), "batch size is 4", "compiled for 8");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> narrow,
+                            Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
+    SA_EXPECT_FAILURE(trainer->fit(*narrow), StatusCode::Incompatible,
+                      "batch size is 4", "compiled for 8");
 
-    const Data::SyntheticClassification wrong_classes(*engine, data_for(8, 1, 6, 5));
-    SA_EXPECT_ERROR((void)trainer.fit(wrong_classes), "5 classes", "compiled for 4");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong_classes,
+                            Data::SyntheticClassification::make(*engine, data_for(8, 1, 6, 5)));
+    SA_EXPECT_FAILURE(trainer->fit(*wrong_classes), StatusCode::Incompatible,
+                      "5 classes", "compiled for 4");
 }
 
 TEST_F(Integration_Resilience, TheSyntheticDatasetNamesEveryExtentWhenOneIsNotPositive)
 {
-    SA_EXPECT_ERROR((void)Data::SyntheticClassification(*engine, data_for(8, 0, 6, 4)),
-                    "positive extents", "batches=0");
-    SA_EXPECT_ERROR((void)Data::SyntheticClassification(*engine, data_for(0, 2, 6, 4)),
-                    "positive extents", "batch=0");
-    SA_EXPECT_ERROR((void)Data::SyntheticClassification(*engine, data_for(8, 2, 6, 0)),
-                    "positive extents", "classes=0");
+    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(8, 0, 6, 4)),
+                      StatusCode::InvalidDescription, "positive extents", "batches=0");
+    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(0, 2, 6, 4)),
+                      StatusCode::InvalidDescription, "positive extents", "batch=0");
+    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(8, 2, 6, 0)),
+                      StatusCode::InvalidDescription, "positive extents", "classes=0");
 }
 
 TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
 {
     const int64_t empty_dims[2] = {4, 0};
-    SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(empty_dims, 2)),
-                    "Tensor extents must be positive", "got 0");
+    SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(empty_dims, 2)),
+                      StatusCode::InvalidDescription, "Tensor extents must be positive", "got 0");
 
     // Overflow is detected before the multiply; see tests/functional/integration/README.md.
     const int64_t overflowing[3] = {3'000'000'000LL, 3'000'000'000LL, 3'000'000'000LL};
-    SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(overflowing, 3)),
-                    "more than", "elements", "3000000000");
+    SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(overflowing, 3)),
+                      StatusCode::InvalidDescription, "more than", "elements", "3000000000");
 }
 
 TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanTheKernel)
@@ -339,8 +392,9 @@ TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanT
     // A petabyte: the error names shape and dtype; see tests/functional/integration/README.md.
     const int64_t enormous[2] = {1LL << 25, 1LL << 25};
 
-    SA_EXPECT_ERROR((void)allocate_tensor(*engine, SushiRuntime::span<const int64_t>(enormous, 2)),
-                    "Could not allocate the float32 tensor", "[33554432, 33554432]");
+    SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(enormous, 2)),
+                      StatusCode::OutOfMemory,
+                      "Could not allocate the float32 tensor", "[33554432, 33554432]");
 }
 
 TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
@@ -354,25 +408,33 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
     Train::TrainingGraph built = Train::build_classifier(layer, batch, features, classes);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, layer, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, layer, pool));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.5;
-    Optim::SGD optimizer(*engine, slots, sgd);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(*engine, slots, sgd));
 
     Train::TrainerOptions options;
     options.track_accuracy = false;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
-    const Data::SyntheticClassification dataset(*engine, data_for(batch, 2, features, classes));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(
+                                *engine, data_for(batch, 2, features, classes)));
 
-    const Train::StepMetrics first = trainer.run_step(dataset.batch(0));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics first, trainer->run_step(dataset->batch(0)));
     EXPECT_NEAR(first.loss, std::log(static_cast<double>(classes)), 1e-5);
 
     for (int step = 0; step < 8; ++step)
     {
-        const Train::StepMetrics metrics = trainer.run_step(dataset.batch(static_cast<std::size_t>(step % 2)));
+        SA_ASSERT_OK_AND_ASSIGN(
+            const Train::StepMetrics metrics,
+            trainer->run_step(dataset->batch(static_cast<std::size_t>(step % 2))));
         ASSERT_TRUE(std::isfinite(metrics.loss)) << "at step " << step;
     }
 
@@ -391,18 +453,25 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
     Train::TrainingGraph built = Train::build_classifier(layer, batch, features, classes);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
 
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    NN::initialize(*engine, layer, pool, policy);
+    SA_EXPECT_OK(NN::initialize(*engine, layer, pool, policy));
 
-    Optim::AdamW optimizer(*engine, slots, Optim::AdamWOptions{});
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer));
 
-    const Data::SyntheticClassification dataset(*engine, data_for(batch, 1, features, classes));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(
+                                *engine, data_for(batch, 1, features, classes)));
 
-    const Train::StepMetrics metrics = trainer.run_step(dataset.batch(0));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
+                            trainer->run_step(dataset->batch(0)));
 
     EXPECT_NEAR(metrics.loss, 0.0, 1e-4);
     EXPECT_DOUBLE_EQ(metrics.accuracy, 1.0);
@@ -426,25 +495,25 @@ TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
         const ValueId w = builder.input(Shape{n, n}, "w");
         const ValueId y = builder.matmul(x, w, false, true);
 
-        Runner run(*engine, graph);
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
         std::vector<double> x_values(static_cast<std::size_t>(n * n));
         std::vector<double> w_values(static_cast<std::size_t>(n * n));
         SaTest::HostNoise(0xB10Cu + static_cast<std::uint64_t>(n)).fill(x_values, 1.0);
         SaTest::HostNoise(0xB10Du + static_cast<std::uint64_t>(n)).fill(w_values, 1.0);
 
-        SaTest::write_tensor(run.pool.tensor(x), x_values);
-        SaTest::write_tensor(run.pool.tensor(w), w_values);
+        SaTest::write_tensor(run->pool.tensor(x), x_values);
+        SaTest::write_tensor(run->pool.tensor(w), w_values);
 
-        run.compile();
-        run.run();
+        ASSERT_TRUE(SaTest::status_is_ok(run->compile()));
+        ASSERT_TRUE(SaTest::status_is_ok(run->run()));
 
-        const std::vector<double> got = SaTest::read_tensor(run.pool.tensor(y));
+        const std::vector<double> got = SaTest::read_tensor(run->pool.tensor(y));
         ASSERT_EQ(got.size(), static_cast<std::size_t>(n * n));
 
         // The reference uses the device's floats; see tests/functional/integration/README.md.
-        const std::vector<double> x_seen = SaTest::read_tensor(run.pool.tensor(x));
-        const std::vector<double> w_seen = SaTest::read_tensor(run.pool.tensor(w));
+        const std::vector<double> x_seen = SaTest::read_tensor(run->pool.tensor(x));
+        const std::vector<double> w_seen = SaTest::read_tensor(run->pool.tensor(w));
 
         for (int64_t i = 0; i < n; ++i)
         {
@@ -467,21 +536,27 @@ TEST_F(Integration_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastI
 {
     for (int64_t n : {int64_t{64}, int64_t{65}})
     {
-        Fixture fixture = make_fixture(*engine, n, n, n, 4);
+        SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, n, n, n, 4));
         Optim::SGDOptions sgd;
         sgd.learning_rate = 0.1;
-        Optim::SGD optimizer(*engine, fixture.slots, sgd);
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                                Optim::SGD::make(*engine, fixture.slots, sgd));
 
         Train::TrainerOptions options;
         options.track_accuracy = false;
-        Train::Trainer trainer(*engine, fixture.built.graph, *fixture.pool,
-                               fixture.built.spec, optimizer, options);
+        SA_ASSERT_OK_AND_ASSIGN(
+            const std::unique_ptr<Train::Trainer> trainer,
+            Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
+                                 fixture.built.spec, *optimizer, options));
 
-        const Data::SyntheticClassification dataset(*engine, data_for(n, 2, n, 4));
+        SA_ASSERT_OK_AND_ASSIGN(
+            const std::unique_ptr<Data::SyntheticClassification> dataset,
+            Data::SyntheticClassification::make(*engine, data_for(n, 2, n, 4)));
 
         for (std::size_t step = 0; step < 4; ++step)
         {
-            const Train::StepMetrics metrics = trainer.run_step(dataset.batch(step % 2));
+            SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
+                                    trainer->run_step(dataset->batch(step % 2)));
             ASSERT_TRUE(std::isfinite(metrics.loss)) << "n=" << n << " step " << step;
         }
 
@@ -503,10 +578,11 @@ namespace
      * @param rows Rows of the logit matrix.
      * @param columns Columns of the logit matrix.
      * @param logits The values to feed, row-major.
-     * @return The [rows, columns] log-probabilities.
+     * @return The [rows, columns] log-probabilities, or the failure of the compilation or the run.
      */
-    std::vector<double> log_softmax_of(SushiBLAS::Engine& engine, int64_t rows, int64_t columns,
-                                       const std::vector<double>& logits)
+    [[nodiscard]] Result<std::vector<double>> log_softmax_of(SushiBLAS::Engine& engine,
+                                                             int64_t rows, int64_t columns,
+                                                             const std::vector<double>& logits)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -514,12 +590,12 @@ namespace
         const ValueId x = builder.input(Shape{rows, columns}, "logits");
         const ValueId y = builder.log_softmax(x);
 
-        Runner run(engine, graph);
-        SaTest::write_tensor(run.pool.tensor(x), logits);
-        run.compile();
-        run.run();
+        SA_TRY_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(engine, graph));
+        SaTest::write_tensor(run->pool.tensor(x), logits);
+        SA_TRY(run->compile());
+        SA_TRY(run->run());
 
-        return SaTest::read_tensor(run.pool.tensor(y));
+        return SaTest::read_tensor(run->pool.tensor(y));
     }
 }
 
@@ -533,7 +609,8 @@ TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitud
     for (double magnitude : {0.0, 1.0, -1.0, 1e30, -1e30, 3.0e38})
     {
         const std::vector<double> logits(static_cast<std::size_t>(rows * columns), magnitude);
-        const std::vector<double> got = log_softmax_of(*engine, rows, columns, logits);
+        SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got,
+                                log_softmax_of(*engine, rows, columns, logits));
 
         ASSERT_TRUE(all_finite(got, "log_softmax")) << "at magnitude " << magnitude;
         for (std::size_t i = 0; i < got.size(); ++i)
@@ -552,7 +629,8 @@ TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
         -1e30, 1e30, -1e30,
     };
 
-    const std::vector<double> got = log_softmax_of(*engine, rows, columns, logits);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got,
+                            log_softmax_of(*engine, rows, columns, logits));
 
     ASSERT_TRUE(all_finite(got, "log_softmax"));
     EXPECT_NEAR(got[0], 0.0, 1e-6);
@@ -571,7 +649,8 @@ TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRan
         0.0, -1.0, -2.0,    // 60 below it, still exact
     };
 
-    const std::vector<double> got = log_softmax_of(*engine, 2, columns, logits);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got,
+                            log_softmax_of(*engine, 2, columns, logits));
     ASSERT_TRUE(all_finite(got, "log_softmax"));
 
     // Equal spread gives equal log-probabilities; see tests/functional/integration/README.md.
@@ -594,30 +673,30 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
     const ValueId targets = builder.input(Shape{rows, columns}, "targets");
     const ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
-    Runner run(*engine, graph);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
     // exp(80) overflows without the shift; see tests/functional/integration/README.md.
     const std::vector<double> confident = {
         80.0, -80.0, -80.0,
         -80.0, 80.0, -80.0,
     };
-    SaTest::write_tensor(run.pool.tensor(logits), confident);
-    SaTest::write_tensor(run.pool.tensor(targets),
+    SaTest::write_tensor(run->pool.tensor(logits), confident);
+    SaTest::write_tensor(run->pool.tensor(targets),
                          std::vector<double>{1.0, 0.0, 0.0, 0.0, 1.0, 0.0});
 
-    run.compile();
-    run.run();
+    ASSERT_TRUE(SaTest::status_is_ok(run->compile()));
+    ASSERT_TRUE(SaTest::status_is_ok(run->run()));
 
-    const double correct = SaTest::read_tensor(run.pool.tensor(loss))[0];
+    const double correct = SaTest::read_tensor(run->pool.tensor(loss))[0];
     EXPECT_TRUE(std::isfinite(correct));
     EXPECT_NEAR(correct, 0.0, 1e-5) << "a perfectly confident correct prediction costs nothing";
 
     // A wrong confident loss is large but finite; see tests/functional/integration/README.md.
-    SaTest::write_tensor(run.pool.tensor(targets),
+    SaTest::write_tensor(run->pool.tensor(targets),
                          std::vector<double>{0.0, 1.0, 0.0, 1.0, 0.0, 0.0});
-    run.run();
+    ASSERT_TRUE(SaTest::status_is_ok(run->run()));
 
-    const double wrong = SaTest::read_tensor(run.pool.tensor(loss))[0];
+    const double wrong = SaTest::read_tensor(run->pool.tensor(loss))[0];
     EXPECT_TRUE(std::isfinite(wrong)) << "loss on a confidently wrong prediction";
     EXPECT_NEAR(wrong, 160.0, 1e-2);
 }
@@ -625,8 +704,8 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
 TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 {
     // eps is added after the bias correction; see tests/functional/integration/README.md.
-    SushiBLAS::Tensor parameter = allocate_tensor(*engine, Shape{6});
-    SushiBLAS::Tensor gradient = allocate_tensor(*engine, Shape{6});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{6}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient, allocate_tensor(*engine, Shape{6}));
 
     const std::vector<double> initial = {0.5, -1.5, 0.0, 2.0, -0.25, 100.0};
     SaTest::write_tensor(parameter, initial);
@@ -638,9 +717,10 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
     Optim::AdamWOptions options;
     options.learning_rate = 0.1;
     options.weight_decay = 0.0;
-    Optim::AdamW optimizer(*engine, slots, options);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(*engine, slots, options));
 
-    optimizer.step();
+    SA_EXPECT_OK(optimizer->step());
 
     const std::vector<double> after = SaTest::read_tensor(parameter);
     ASSERT_TRUE(all_finite(after, "parameter"));
@@ -650,7 +730,7 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
         EXPECT_NEAR(after[i], initial[i], 1e-6) << "at " << i;
 
     // The bias corrections differ on step two; see tests/functional/integration/README.md.
-    optimizer.step();
+    SA_EXPECT_OK(optimizer->step());
     EXPECT_TRUE(all_finite(SaTest::read_tensor(parameter), "parameter after two steps"));
 }
 
@@ -668,16 +748,22 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
     for (int iteration = 0; iteration < 5; ++iteration)
     {
         {
-            Fixture fixture = make_fixture(*engine, 8, 6, 12, 4);
-            Optim::AdamW optimizer(*engine, fixture.slots, Optim::AdamWOptions{});
+            SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 12, 4));
+            SA_ASSERT_OK_AND_ASSIGN(
+                const std::unique_ptr<Optim::AdamW> optimizer,
+                Optim::AdamW::make(*engine, fixture.slots, Optim::AdamWOptions{}));
 
             Train::TrainerOptions options;
             options.track_accuracy = false;
-            Train::Trainer trainer(*engine, fixture.built.graph, *fixture.pool,
-                                   fixture.built.spec, optimizer, options);
+            SA_ASSERT_OK_AND_ASSIGN(
+                const std::unique_ptr<Train::Trainer> trainer,
+                Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
+                                     fixture.built.spec, *optimizer, options));
 
-            const Data::SyntheticClassification dataset(*engine, data_for(8, 2, 6, 4));
-            (void)trainer.fit(dataset);
+            SA_ASSERT_OK_AND_ASSIGN(
+                const std::unique_ptr<Data::SyntheticClassification> dataset,
+                Data::SyntheticClassification::make(*engine, data_for(8, 2, 6, 4)));
+            SA_EXPECT_OK(trainer->fit(*dataset));
 
             if (iteration == 0) baseline_bytes = fixture.pool->allocated_bytes();
             EXPECT_EQ(fixture.pool->allocated_bytes(), baseline_bytes)
@@ -695,7 +781,7 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
     }
 }
 
-TEST_F(Integration_Resilience, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
+TEST_F(Integration_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
 {
     // BATCHNORM_UPDATE_STATS has no lowering; see tests/functional/integration/README.md.
     Graph::Graph graph;
@@ -708,9 +794,9 @@ TEST_F(Integration_Resilience, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
     graph.finalise();
 
     TensorPool pool(*engine);
-    pool.adopt(Graph::MemoryPlan::build(graph));
-    pool.materialise_leaves(graph);
+    SA_EXPECT_OK(pool.adopt(Graph::MemoryPlan::build(graph)));
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
 
-    SA_EXPECT_ERROR((void)CompiledStep(*engine, graph, pool),
+    SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),
                     "No lowering for operation", "sushiai.batchnorm_update_stats");
 }

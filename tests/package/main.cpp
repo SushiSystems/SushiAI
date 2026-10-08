@@ -30,6 +30,9 @@
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 
+/** @brief Shortens the SushiBLAS namespace. */
+namespace sb = SushiBLAS;
+
 /** @brief Runs one axpy through the installed package and prints a confirmation. */
 int main()
 {
@@ -40,7 +43,7 @@ int main()
     auto x = engine.create_tensor({K_N});
     auto y = engine.create_tensor({K_N});
 
-    engine.blas().axpy(2.0f, x, y);
+    sb::BLASOps(engine).axpy(2.0f, x, y);
     engine.execute();
     ctx.wait_all();
 

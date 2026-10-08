@@ -376,7 +376,7 @@ TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
     for (const Shape& input : {Shape{5}, Shape{4, 4, 3}})
     {
         EXPECT_EQ(ReLU{}.output_shape(input), input);
-        EXPECT_EQ(NN::K_GELU{}.output_shape(input), input);
+        EXPECT_EQ(NN::GELU{}.output_shape(input), input);
         EXPECT_EQ(NN::Tanh{}.output_shape(input), input);
         EXPECT_EQ(NN::Sigmoid{}.output_shape(input), input);
     }
@@ -386,7 +386,7 @@ TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
 TEST(Unit_Module, AnActivationsOutputShapeAgreesWithItsTrace)
 {
     ReLU relu;
-    NN::K_GELU gelu;
+    NN::GELU gelu;
     NN::Tanh tanh;
     NN::Sigmoid sigmoid;
 

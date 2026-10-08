@@ -29,6 +29,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <string_view>
+#include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -36,10 +38,10 @@
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;
 
-/** @brief Runs the example and returns its exit code. */
-int main()
+namespace
 {
-    try
+    /** @brief Runs the example and returns its status. */
+    [[nodiscard]] sa::Status run([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
     {
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
@@ -50,13 +52,16 @@ int main()
         mnist.batch_size = batch;
         mnist.max_samples = 2048;
 
-        std::unique_ptr<sa::Data::Dataset> dataset = sa::Data::try_load_mnist(engine, mnist);
+        std::unique_ptr<sa::Data::Dataset> dataset;
+        sa::Result<std::unique_ptr<sa::Data::Dataset>> loaded =
+            sa::Data::try_load_mnist(engine, mnist);
 
-        if (dataset)
+        if (loaded.has_value())
         {
+            dataset = std::move(loaded.value());
             std::cout << "Dataset  : MNIST from " << mnist.directory.string() << "\n";
         }
-        else
+        else if (loaded.status().code() == sa::StatusCode::FileNotFound)
         {
             std::cout << "Dataset  : MNIST not found (" << sa::Data::mnist_expected_paths(mnist)
                       << ");\n           falling back to the seeded synthetic problem.\n";
@@ -66,7 +71,13 @@ int main()
             synthetic.batches = 16;
             synthetic.features = 32;
             synthetic.classes = 6;
-            dataset = std::make_unique<sa::Data::SyntheticClassification>(engine, synthetic);
+            SA_TRY_ASSIGN(std::unique_ptr<sa::Data::SyntheticClassification> generated,
+                          sa::Data::SyntheticClassification::make(engine, synthetic));
+            dataset = std::move(generated);
+        }
+        else
+        {
+            return loaded.status();
         }
 
         const int64_t features = dataset->input_dim();
@@ -84,17 +95,21 @@ int main()
             sa::Train::build_classifier(model, batch, features, classes);
 
         sa::Graph::TensorPool pool(engine);
-        std::vector<sa::Optim::ParameterSlot> parameters = sa::Train::bind_parameters(built, pool);
-        sa::NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
+                      sa::Train::bind_parameters(built, pool));
+        SA_TRY(sa::NN::initialize(engine, model, pool));
 
         sa::Optim::AdamWOptions adam;
         adam.learning_rate = 3e-3;
-        sa::Optim::AdamW optimizer(engine, parameters, adam);
+        SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
+                      sa::Optim::AdamW::make(engine, std::move(parameters), adam));
 
-        // The Trainer's constructor performs the only compile of the run.
+        // Trainer::make performs the only compile of the run.
         sa::Train::TrainerOptions options;
         options.epochs = 8;
-        sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
+                      sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                               options));
 
         std::cout << "SushiAI  : " << SushiAI::version_string()
                   << " on SushiBLAS " << SUSHIBLAS_VERSION_STRING << "\n"
@@ -107,17 +122,30 @@ int main()
                   << "Buffers  : " << pool.tensor_count() << " tensors, "
                   << (pool.allocated_bytes() / 1024) << " KiB\n\n";
 
-        const sa::Train::RunReport report = trainer.fit(*dataset);
+        SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*dataset));
         std::cout << report.to_string();
 
-        if (report.compile_count != 1)
+        SA_FAIL_IF(report.compile_count != 1, sa::StatusCode::InvalidDescription,
+                   "The step was compiled {} times; it must be compiled exactly once.",
+                   report.compile_count);
+
+        std::cout << "\nCompiled once, replayed " << report.steps << " times.\n";
+        return sa::Status();
+    }
+} // namespace
+
+/** @brief Runs the example and returns its exit code. */
+int main(int argc, char** argv)
+{
+    try
+    {
+        const sa::Status status = run(argc, argv);
+        if (!status.is_ok())
         {
-            std::cerr << "\nThe step was compiled " << report.compile_count
-                      << " times; it must be compiled exactly once.\n";
+            std::cerr << "SushiAI example failed: " << status.message() << "\n";
             return EXIT_FAILURE;
         }
 
-        std::cout << "\nCompiled once, replayed " << report.steps << " times.\n";
         return EXIT_SUCCESS;
     }
     catch (const std::exception& error)

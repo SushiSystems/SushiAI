@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -76,33 +77,37 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
-    Optim::SGD optimizer(*engine, slots, sgd);
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(*engine, slots, sgd));
 
     Train::TrainerOptions options;
     options.epochs = 1;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(auto trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
-    const Data::SyntheticClassification dataset(*engine, make_data_options());
+    SA_ASSERT_OK_AND_ASSIGN(auto dataset,
+                            Data::SyntheticClassification::make(*engine, make_data_options()));
 
-    ASSERT_EQ(trainer.compile_count(), 1u);
+    ASSERT_EQ(trainer->compile_count(), 1u);
 
     std::size_t steps = 0;
     for (int epoch = 0; epoch < 6; ++epoch)
     {
-        const Train::RunReport report = trainer.fit(dataset);
+        SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
         steps += report.steps;
 
         EXPECT_EQ(report.compile_count, 1u) << "recompiled during epoch " << epoch;
-        EXPECT_EQ(trainer.compile_count(), 1u) << "recompiled during epoch " << epoch;
+        EXPECT_EQ(trainer->compile_count(), 1u) << "recompiled during epoch " << epoch;
     }
 
     EXPECT_EQ(steps, static_cast<std::size_t>(6 * K_BATCHES));
-    EXPECT_EQ(trainer.step_count(), steps);
+    EXPECT_EQ(trainer->step_count(), steps);
 }
 
 /**
@@ -115,23 +120,28 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
-    Optim::SGD optimizer(*engine, slots, sgd);
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(*engine, slots, sgd));
 
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer);
-    const Data::SyntheticClassification dataset(*engine, make_data_options());
+    SA_ASSERT_OK_AND_ASSIGN(auto trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer));
+    SA_ASSERT_OK_AND_ASSIGN(auto dataset,
+                            Data::SyntheticClassification::make(*engine, make_data_options()));
 
     const std::vector<double> initial = SaTest::read_tensor(slots[0].parameter);
 
     double previous_loss = 0.0;
     for (std::size_t step = 0; step < 5; ++step)
     {
-        const Train::StepMetrics metrics =
-            trainer.run_step(dataset.batch(step % static_cast<std::size_t>(K_BATCHES)));
+        SA_ASSERT_OK_AND_ASSIGN(
+            const Train::StepMetrics metrics,
+            trainer->run_step(dataset->batch(step % static_cast<std::size_t>(K_BATCHES))));
 
         ASSERT_TRUE(std::isfinite(metrics.loss)) << "at step " << step;
         EXPECT_GT(metrics.loss, 0.0) << "at step " << step;
@@ -145,17 +155,19 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
 
     std::size_t moved = 0;
     for (std::size_t i = 0; i < initial.size(); ++i)
-        if (initial[i] != trained[i]) ++moved;
+        if (initial[i] != trained[i])
+            ++moved;
 
     EXPECT_GT(moved, 0u) << "no parameter moved across five replays";
-    EXPECT_EQ(trainer.compile_count(), 1u);
+    EXPECT_EQ(trainer->compile_count(), 1u);
 }
 
 /**
  * @brief Tests that the first run() and three replays overwrite a poisoned output buffer.
  * @see tests/functional/regression/README.md
  */
-TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline)
+TEST_F(Regression_CompileOnce,
+       TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -164,20 +176,20 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
     const Graph::ValueId y = builder.scale(x, 2.0);
 
     TensorPool pool(*engine);
-    pool.materialise_leaves(graph);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
 
     const std::vector<double> inputs = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
     SaTest::write_tensor(pool.tensor(x), inputs);
 
-    Graph::CompiledStep step(*engine, graph, pool);
-    ASSERT_FALSE(step.empty()) << "this graph has real work in it";
-    ASSERT_EQ(step.compile_count(), 1u);
-    ASSERT_EQ(step.run_count(), 0u);
+    SA_ASSERT_OK_AND_ASSIGN(auto step, Graph::CompiledStep::compile(*engine, graph, pool));
+    ASSERT_FALSE(step->empty()) << "this graph has real work in it";
+    ASSERT_EQ(step->compile_count(), 1u);
+    ASSERT_EQ(step->run_count(), 0u);
 
     constexpr double K_POISON = -12345.0;
     SaTest::write_tensor(pool.tensor(y), std::vector<double>(inputs.size(), K_POISON));
 
-    step.run();
+    SA_EXPECT_OK(step->run());
 
     const std::vector<double> first = SaTest::read_tensor(pool.tensor(y));
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -185,7 +197,7 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
             << "the first run() left element " << i << " untouched - the plan reported "
                "complete without dispatching anything";
 
-    EXPECT_EQ(step.run_count(), 1u);
+    EXPECT_EQ(step->run_count(), 1u);
 
     // Each replay must track the new input; see tests/functional/regression/README.md.
     for (int replay = 0; replay < 3; ++replay)
@@ -197,7 +209,7 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
         SaTest::write_tensor(pool.tensor(x), next);
         SaTest::write_tensor(pool.tensor(y), std::vector<double>(inputs.size(), K_POISON));
 
-        step.run();
+        SA_EXPECT_OK(step->run());
 
         const std::vector<double> got = SaTest::read_tensor(pool.tensor(y));
         for (std::size_t i = 0; i < next.size(); ++i)
@@ -205,8 +217,8 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
                 << "replay " << replay << " did not dispatch at element " << i;
     }
 
-    EXPECT_EQ(step.run_count(), 4u);
-    EXPECT_EQ(step.compile_count(), 1u);
+    EXPECT_EQ(step->run_count(), 4u);
+    EXPECT_EQ(step->compile_count(), 1u);
 }
 
 /**
@@ -220,46 +232,51 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
     Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
-    std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-    NN::initialize(*engine, model, pool);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.02;
-    Optim::AdamW optimizer(*engine, slots, adam);
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::AdamW::make(*engine, slots, adam));
 
     Train::TrainerOptions options;
     options.track_accuracy = false;
-    Train::Trainer trainer(*engine, built.graph, pool, built.spec, optimizer, options);
+    SA_ASSERT_OK_AND_ASSIGN(auto trainer,
+                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                                                 *optimizer, options));
 
     // The plan reads its inputs by address; see tests/functional/regression/README.md.
     Data::SyntheticOptions other = make_data_options();
     other.seed = 0xFEED'BEEFull;
 
-    const Data::SyntheticClassification first(*engine, make_data_options());
-    const Data::SyntheticClassification second(*engine, other);
+    SA_ASSERT_OK_AND_ASSIGN(auto first,
+                            Data::SyntheticClassification::make(*engine, make_data_options()));
+    SA_ASSERT_OK_AND_ASSIGN(auto second, Data::SyntheticClassification::make(*engine, other));
 
-    ASSERT_EQ(trainer.compile_count(), 1u);
+    ASSERT_EQ(trainer->compile_count(), 1u);
 
     for (int round = 0; round < 4; ++round)
     {
         // fit() returns and is entered again; see tests/functional/regression/README.md.
-        const Train::RunReport report = trainer.fit(round % 2 == 0 ? first : second);
+        SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
+                                trainer->fit(round % 2 == 0 ? *first : *second));
         EXPECT_EQ(report.compile_count, 1u) << "recompiled in round " << round;
 
         // The learning rate is a host-side scalar; see tests/functional/regression/README.md.
-        optimizer.options().learning_rate *= 0.5;
+        optimizer->options().learning_rate *= 0.5;
 
         // Individual steps between fits, mixing the two datasets.
         for (std::size_t batch = 0; batch < 2; ++batch)
         {
-            trainer.run_step(second.batch(batch));
-            trainer.run_step(first.batch(batch));
+            SA_EXPECT_OK(trainer->run_step(second->batch(batch)));
+            SA_EXPECT_OK(trainer->run_step(first->batch(batch)));
         }
 
-        EXPECT_EQ(trainer.compile_count(), 1u) << "recompiled after round " << round;
+        EXPECT_EQ(trainer->compile_count(), 1u) << "recompiled after round " << round;
     }
 
-    EXPECT_EQ(trainer.step_count(), static_cast<std::size_t>(4 * (K_BATCHES + 4)));
-    EXPECT_EQ(trainer.step().run_count(), trainer.step_count());
-    EXPECT_EQ(trainer.compile_count(), 1u);
+    EXPECT_EQ(trainer->step_count(), static_cast<std::size_t>(4 * (K_BATCHES + 4)));
+    EXPECT_EQ(trainer->step().run_count(), trainer->step_count());
+    EXPECT_EQ(trainer->compile_count(), 1u);
 }

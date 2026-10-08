@@ -153,8 +153,8 @@ namespace SushiAI
                            "This optimizer's update is recorded as separate operations whose "
                            "scalars are baked in at record time, so it cannot be compiled into "
                            "the step: every replay would reuse the first step's bias "
-                           "corrections. Use Optim::UpdateKernel::FUSED, or ask for "
-                           "TrainerOptions::optimizer_placement = OptimizerPlacement::PER_STEP.");
+                           "corrections. Use Optim::UpdateKernel::Fused, or ask for "
+                           "TrainerOptions::optimizer_placement = OptimizerPlacement::PerStep.");
 
                 recorder = &optimizer;
                 return recorder;

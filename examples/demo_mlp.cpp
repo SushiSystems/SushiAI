@@ -36,6 +36,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -153,97 +154,117 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @brief Parses @p text as a whole number, naming @p flag when it is not one.
      * @param flag The flag the value came from, for the error message.
      * @param text The value as typed.
-     * @return The parsed value.
-     * @throws SushiAI::Error If @p text is not entirely a whole number.
+     * @return The parsed value, or InvalidDescription when @p text is not a whole number.
      */
-    int64_t parse_int(std::string_view flag, const std::string& text)
+    [[nodiscard]] sa::Result<int64_t> parse_int(std::string_view flag, const std::string& text)
     {
+        long long parsed = 0;
+        bool is_whole = false;
+
         try
         {
             std::size_t consumed = 0;
-            const long long parsed = std::stoll(text, &consumed);
-            if (consumed == text.size()) return static_cast<int64_t>(parsed);
+            parsed = std::stoll(text, &consumed);
+            is_whole = consumed == text.size();
         }
         catch (const std::logic_error&)
         {
             // Malformed and out-of-range input share the one message below.
         }
-        SA_THROW_IF(true, "{} expects a whole number, got '{}'", flag, text);
-        return 0;
+
+        SA_FAIL_IF(!is_whole, sa::StatusCode::InvalidDescription,
+                   "{} expects a whole number, got '{}'", flag, text);
+        return static_cast<int64_t>(parsed);
     }
 
     /**
      * @brief Parses @p text as an unsigned seed, naming @p flag when it is not one.
      * @param flag The flag the value came from, for the error message.
      * @param text The value as typed.
-     * @return The parsed value.
-     * @throws SushiAI::Error If @p text is not entirely an unsigned number.
+     * @return The parsed value, or InvalidDescription when @p text is not an unsigned number.
      */
-    std::uint64_t parse_seed(std::string_view flag, const std::string& text)
+    [[nodiscard]] sa::Result<std::uint64_t> parse_seed(std::string_view flag,
+                                                       const std::string& text)
     {
+        unsigned long long parsed = 0;
+        bool is_whole = false;
+
         try
         {
             std::size_t consumed = 0;
-            const unsigned long long parsed = std::stoull(text, &consumed);
-            if (consumed == text.size()) return static_cast<std::uint64_t>(parsed);
+            parsed = std::stoull(text, &consumed);
+            is_whole = consumed == text.size();
         }
         catch (const std::logic_error&)
         {
             // As above: malformed and out-of-range read the same to the user.
         }
-        SA_THROW_IF(true, "{} expects an unsigned number, got '{}'", flag, text);
-        return 0;
+
+        SA_FAIL_IF(!is_whole, sa::StatusCode::InvalidDescription,
+                   "{} expects an unsigned number, got '{}'", flag, text);
+        return static_cast<std::uint64_t>(parsed);
     }
 
     /**
      * @brief Parses @p text as a real number, naming @p flag when it is not one.
      * @param flag The flag the value came from, for the error message.
      * @param text The value as typed.
-     * @return The parsed value.
-     * @throws SushiAI::Error If @p text is not entirely a real number.
+     * @return The parsed value, or InvalidDescription when @p text is not a real number.
      */
-    double parse_real(std::string_view flag, const std::string& text)
+    [[nodiscard]] sa::Result<double> parse_real(std::string_view flag, const std::string& text)
     {
+        double parsed = 0.0;
+        bool is_whole = false;
+
         try
         {
             std::size_t consumed = 0;
-            const double parsed = std::stod(text, &consumed);
-            if (consumed == text.size()) return parsed;
+            parsed = std::stod(text, &consumed);
+            is_whole = consumed == text.size();
         }
         catch (const std::logic_error&)
         {
             // As above: malformed and out-of-range read the same to the user.
         }
-        SA_THROW_IF(true, "{} expects a number, got '{}'", flag, text);
-        return 0.0;
+
+        SA_FAIL_IF(!is_whole, sa::StatusCode::InvalidDescription,
+                   "{} expects a number, got '{}'", flag, text);
+        return parsed;
     }
 
     /**
      * @brief Rejects a setting that cannot describe a training run.
-     * @throws SushiAI::Error If any extent is not positive.
+     * @return Success, or InvalidDescription when an extent or the rate is out of range.
      * @see examples/README.md, "Command line parsing".
      */
-    void validate(const Settings& settings)
+    [[nodiscard]] sa::Status validate(const Settings& settings)
     {
-        SA_THROW_IF(settings.epochs <= 0, "--epochs must be positive, got {}", settings.epochs);
-        SA_THROW_IF(settings.batches <= 0, "--batches must be positive, got {}", settings.batches);
-        SA_THROW_IF(settings.batch_size <= 0, "--batch-size must be positive, got {}",
-                    settings.batch_size);
-        SA_THROW_IF(settings.hidden <= 0, "--hidden must be positive, got {}", settings.hidden);
-        SA_THROW_IF(settings.features <= 0, "--features must be positive, got {}",
-                    settings.features);
-        SA_THROW_IF(settings.classes < 2, "--classes must be at least 2, got {}", settings.classes);
-        SA_THROW_IF(settings.learning_rate && *settings.learning_rate <= 0.0,
-                    "--lr must be positive, got {}", *settings.learning_rate);
+        SA_FAIL_IF(settings.epochs <= 0, sa::StatusCode::InvalidDescription,
+                   "--epochs must be positive, got {}", settings.epochs);
+        SA_FAIL_IF(settings.batches <= 0, sa::StatusCode::InvalidDescription,
+                   "--batches must be positive, got {}", settings.batches);
+        SA_FAIL_IF(settings.batch_size <= 0, sa::StatusCode::InvalidDescription,
+                   "--batch-size must be positive, got {}", settings.batch_size);
+        SA_FAIL_IF(settings.hidden <= 0, sa::StatusCode::InvalidDescription,
+                   "--hidden must be positive, got {}", settings.hidden);
+        SA_FAIL_IF(settings.features <= 0, sa::StatusCode::InvalidDescription,
+                   "--features must be positive, got {}", settings.features);
+        SA_FAIL_IF(settings.classes < 2, sa::StatusCode::InvalidDescription,
+                   "--classes must be at least 2, got {}", settings.classes);
+        SA_FAIL_IF(settings.learning_rate && *settings.learning_rate <= 0.0,
+                   sa::StatusCode::InvalidDescription, "--lr must be positive, got {}",
+                   *settings.learning_rate);
+        return sa::Status();
     }
 
     /**
      * @brief Turns the command line into @c Settings.
      * @param wants_help Set when --help was asked for; nothing else is filled in.
-     * @throws SushiAI::Error On an unknown flag, a missing value, or a bad value.
+     * @return The settings, or InvalidDescription on an unknown flag, a missing value or a
+     *         bad value.
      * @see examples/README.md, "Command line parsing".
      */
-    Settings parse_command_line(int argc, char** argv, bool& wants_help)
+    [[nodiscard]] sa::Result<Settings> parse_command_line(int argc, char** argv, bool& wants_help)
     {
         Settings settings;
         wants_help = false;
@@ -259,70 +280,112 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             }
 
             // Every flag below takes exactly one value; this lambda checks that it is there.
-            const auto value = [&]() -> std::string
+            const auto value = [&]() -> sa::Result<std::string>
             {
-                SA_THROW_IF(i + 1 >= argc, "{} needs a value", flag);
-                return argv[++i];
+                SA_FAIL_IF(i + 1 >= argc, sa::StatusCode::InvalidDescription,
+                           "{} needs a value", flag);
+                return std::string(argv[++i]);
             };
 
-            if (flag == "--epochs")           settings.epochs = parse_int(flag, value());
-            else if (flag == "--batches")     settings.batches = parse_int(flag, value());
-            else if (flag == "--batch-size")  settings.batch_size = parse_int(flag, value());
-            else if (flag == "--hidden")      settings.hidden = parse_int(flag, value());
-            else if (flag == "--features")    settings.features = parse_int(flag, value());
-            else if (flag == "--classes")     settings.classes = parse_int(flag, value());
-            else if (flag == "--lr")          settings.learning_rate = parse_real(flag, value());
-            else if (flag == "--seed")        settings.seed = parse_seed(flag, value());
-            else if (flag == "--mnist-dir")   settings.mnist_directory = value();
+            if (flag == "--epochs")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.epochs, parse_int(flag, text));
+            }
+            else if (flag == "--batches")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.batches, parse_int(flag, text));
+            }
+            else if (flag == "--batch-size")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.batch_size, parse_int(flag, text));
+            }
+            else if (flag == "--hidden")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.hidden, parse_int(flag, text));
+            }
+            else if (flag == "--features")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.features, parse_int(flag, text));
+            }
+            else if (flag == "--classes")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.classes, parse_int(flag, text));
+            }
+            else if (flag == "--lr")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.learning_rate, parse_real(flag, text));
+            }
+            else if (flag == "--seed")
+            {
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.seed, parse_seed(flag, text));
+            }
+            else if (flag == "--mnist-dir")
+            {
+                SA_TRY_ASSIGN(settings.mnist_directory, value());
+            }
             else if (flag == "--no-fuse")
             {
-                const std::string name = value();
+                SA_TRY_ASSIGN(const std::string name, value());
                 const sa::Graph::FusedForm form = sa::Graph::fused_form_from_name(name);
-                SA_THROW_IF(form == sa::Graph::FusedForm::None,
-                            "--no-fuse does not know the form '{}'. Run with --help for the "
-                            "names; they are the ones the fusion report prints.", name);
+                SA_FAIL_IF(form == sa::Graph::FusedForm::None, sa::StatusCode::InvalidDescription,
+                           "--no-fuse does not know the form '{}'. Run with --help for the "
+                           "names; they are the ones the fusion report prints.", name);
                 settings.without.push_back(form);
             }
             else if (flag == "--fusion")
             {
-                const std::string state = value();
+                SA_TRY_ASSIGN(const std::string state, value());
                 if (state == "on") settings.fusion = true;
                 else if (state == "off") settings.fusion = false;
-                else SA_THROW_IF(true, "--fusion takes 'on' or 'off', got '{}'", state);
+                else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
+                                "--fusion takes 'on' or 'off', got '{}'", state);
             }
             else if (flag == "--loss-scale")
             {
                 // Only positivity is checked here; LossScaleState owns the power-of-two rule.
-                settings.loss_scale = parse_real(flag, value());
-                SA_THROW_IF(settings.loss_scale <= 0.0,
-                            "--loss-scale takes a positive power of two, or omit it for none; "
-                            "got {}", settings.loss_scale);
+                SA_TRY_ASSIGN(const std::string text, value());
+                SA_TRY_ASSIGN(settings.loss_scale, parse_real(flag, text));
+                SA_FAIL_IF(settings.loss_scale <= 0.0, sa::StatusCode::InvalidDescription,
+                           "--loss-scale takes a positive power of two, or omit it for none; "
+                           "got {}", settings.loss_scale);
             }
             else if (flag == "--precision")
             {
-                const std::string name = value();
+                SA_TRY_ASSIGN(const std::string name, value());
                 if (name == "fp32") settings.mixed_precision = false;
                 else if (name == "mixed") settings.mixed_precision = true;
-                else SA_THROW_IF(true, "--precision takes 'fp32' or 'mixed', got '{}'", name);
+                else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
+                                "--precision takes 'fp32' or 'mixed', got '{}'", name);
             }
             else if (flag == "--optimizer")
             {
-                const std::string name = value();
+                SA_TRY_ASSIGN(const std::string name, value());
                 if (name == "adamw") settings.optimizer = OptimizerKind::Adamw;
                 else if (name == "sgd") settings.optimizer = OptimizerKind::Sgd;
-                else SA_THROW_IF(true, "--optimizer takes 'adamw' or 'sgd', got '{}'", name);
+                else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
+                                "--optimizer takes 'adamw' or 'sgd', got '{}'", name);
             }
             else if (flag == "--activation")
             {
-                const std::string name = value();
+                SA_TRY_ASSIGN(const std::string name, value());
                 if (name == "relu") settings.activation = ActivationKind::Relu;
                 else if (name == "gelu") settings.activation = ActivationKind::Gelu;
-                else SA_THROW_IF(true, "--activation takes 'relu' or 'gelu', got '{}'", name);
+                else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
+                                "--activation takes 'relu' or 'gelu', got '{}'", name);
             }
-            else SA_THROW_IF(true, "Unknown flag '{}'. Run with --help.", flag);
+            else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
+                            "Unknown flag '{}'. Run with --help.", flag);
         }
 
-        validate(settings);
+        SA_TRY(validate(settings));
         return settings;
     }
 
@@ -332,10 +395,10 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     /**
      * @brief Builds the requested optimizer over @p parameters.
      * @param learning_rate Receives the rate actually used, for the report.
-     * @return The optimizer, owned by the caller.
+     * @return The optimizer, owned by the caller, or the failure of its factory.
      * @see examples/README.md, "Learning-rate defaults".
      */
-    std::unique_ptr<sa::Optim::Optimizer> make_optimizer(
+    [[nodiscard]] sa::Result<std::unique_ptr<sa::Optim::Optimizer>> make_optimizer(
         sb::Engine& engine,
         std::vector<sa::Optim::ParameterSlot> parameters,
         const Settings& settings,
@@ -347,13 +410,19 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             sgd.learning_rate = settings.learning_rate.value_or(0.2);
             sgd.momentum = K_SGD_MOMENTUM;
             learning_rate = sgd.learning_rate;
-            return std::make_unique<sa::Optim::SGD>(engine, std::move(parameters), sgd);
+
+            SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::SGD> optimizer,
+                          sa::Optim::SGD::make(engine, std::move(parameters), sgd));
+            return std::unique_ptr<sa::Optim::Optimizer>(std::move(optimizer));
         }
 
         sa::Optim::AdamWOptions adam;
         adam.learning_rate = settings.learning_rate.value_or(3e-3);
         learning_rate = adam.learning_rate;
-        return std::make_unique<sa::Optim::AdamW>(engine, std::move(parameters), adam);
+
+        SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
+                      sa::Optim::AdamW::make(engine, std::move(parameters), adam));
+        return std::unique_ptr<sa::Optim::Optimizer>(std::move(optimizer));
     }
 
     /**
@@ -369,24 +438,31 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
     /**
      * @brief Loads MNIST when its files are present, else the synthetic problem.
-     * @return The dataset and its provenance.
+     * @return The dataset and its provenance, or the failure of the load or of the generation.
      * @see examples/README.md, "Data source".
      */
-    DataChoice load_dataset(sb::Engine& engine, const Settings& settings)
+    [[nodiscard]] sa::Result<DataChoice> load_dataset(sb::Engine& engine, const Settings& settings)
     {
         sa::Data::MnistOptions mnist;
         mnist.directory = settings.mnist_directory;
         mnist.batch_size = settings.batch_size;
         mnist.max_samples = settings.batch_size * settings.batches;
 
-        if (std::unique_ptr<sa::Data::Dataset> loaded = sa::Data::try_load_mnist(engine, mnist))
+        sa::Result<std::unique_ptr<sa::Data::Dataset>> loaded =
+            sa::Data::try_load_mnist(engine, mnist);
+
+        if (loaded.has_value())
         {
             return DataChoice{
-                std::move(loaded),
+                std::move(loaded).value(),
                 SushiBLAS::Core::format("MNIST (real IDX files) from {}", mnist.directory.string()),
                 true,
             };
         }
+
+        // Only an absent file selects the fallback; any other failure of the load is returned.
+        if (loaded.status().code() != sa::StatusCode::FileNotFound)
+            return loaded.status();
 
         sa::Data::SyntheticOptions synthetic;
         synthetic.batch_size = settings.batch_size;
@@ -395,8 +471,11 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         synthetic.classes = settings.classes;
         synthetic.seed = settings.seed;
 
+        SA_TRY_ASSIGN(std::unique_ptr<sa::Data::SyntheticClassification> generated,
+                      sa::Data::SyntheticClassification::make(engine, synthetic));
+
         return DataChoice{
-            std::make_unique<sa::Data::SyntheticClassification>(engine, synthetic),
+            std::move(generated),
             SushiBLAS::Core::format("SYNTHETIC FALLBACK - no MNIST here.\n"
                                     "           Looked for {}.",
                                     sa::Data::mnist_expected_paths(mnist)),
@@ -433,7 +512,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         for (const sa::Graph::FusedSubtree& subtree : report.fused())
         {
             text += SushiBLAS::Core::format("           fused    {} -> value {}",
-                                            sa::Graph::fused_form_name(subtree.form), subtree.result);
+                                            sa::Graph::fused_form_name(subtree.form),
+                                            subtree.result);
 
             // The one form that writes two values names the spilled value here.
             if (subtree.spilled != sa::Graph::K_NO_VALUE)
@@ -517,13 +597,15 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @brief Trains @p model end to end and prints the demo's whole contract.
      * @tparam M The model type; must satisfy NN::Module.
      * @param model The model to train; its parameters are declared by the trace.
-     * @return EXIT_SUCCESS, or EXIT_FAILURE if the step was compiled more than once.
+     * @return Success, or the first failure of a call, or InvalidDescription when the step
+     *         was not compiled exactly once.
      * @see examples/README.md, "One template, two models".
      */
     template<typename M>
-    int train_and_report(sb::Engine& engine, M& model, const DataChoice& data,
-                         const sa::Data::Dataset& dataset, const Settings& settings,
-                         int64_t features, int64_t classes)
+    [[nodiscard]] sa::Status train_and_report(sb::Engine& engine, M& model, const DataChoice& data,
+                                              const sa::Data::Dataset& dataset,
+                                              const Settings& settings, int64_t features,
+                                              int64_t classes)
     {
         // Tracing, differentiation, casts and fusion are IR-to-IR; nothing is compiled yet.
         sa::Graph::FusionOptions fusion;
@@ -531,7 +613,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         fusion.disabled = SushiRuntime::span<const sa::Graph::FusedForm>(settings.without.data(),
                                                                          settings.without.size());
 
-        // Both policies outlive build_classifier and the Trainer's constructor below.
+        // Both policies outlive build_classifier and Trainer::make below.
         const sa::Graph::UniformPrecisionPolicy single_precision;
         const sa::Graph::MixedPrecisionPolicy mixed_precision;
 
@@ -547,17 +629,18 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             precision, scaling);
 
         sa::Graph::TensorPool pool(engine);
-        std::vector<sa::Optim::ParameterSlot> parameters = sa::Train::bind_parameters(built, pool);
+        SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
+                      sa::Train::bind_parameters(built, pool));
 
         sa::NN::InitPolicy init;
         init.seed = settings.seed;
-        sa::NN::initialize(engine, model, pool, init);
+        SA_TRY(sa::NN::initialize(engine, model, pool, init));
 
         const std::size_t parameter_count = parameters.size();
 
         double learning_rate = 0.0;
-        const std::unique_ptr<sa::Optim::Optimizer> optimizer =
-            make_optimizer(engine, std::move(parameters), settings, learning_rate);
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Optim::Optimizer> optimizer,
+                      make_optimizer(engine, std::move(parameters), settings, learning_rate));
 
         // The scaler outlives the trainer, whose compiled plan records its screens.
         std::unique_ptr<sa::Optim::LossScaler> scaler;
@@ -567,20 +650,22 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             sa::Optim::LossScaleOptions scale_options;
             scale_options.initial = settings.loss_scale;
 
-            scaler = std::make_unique<sa::Optim::LossScaler>(
-                engine, pool.tensor(built.loss_scale), parameter_count, scale_options);
+            SA_TRY_ASSIGN(scaler, sa::Optim::LossScaler::make(
+                engine, pool.tensor(built.loss_scale), parameter_count, scale_options));
 
-            optimizer->set_loss_scaler(scaler.get());
+            SA_TRY(optimizer->set_loss_scaler(scaler.get()));
         }
 
-        // The Trainer's constructor lowers and compiles the step, the one compile of the run.
+        // Trainer::make lowers and compiles the step, the one compile of the run.
         sa::Train::TrainerOptions options;
         options.epochs = 1;
 
         // The trainer checks the graph against the policy it was built with.
         options.precision = precision;
 
-        sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, *optimizer, options);
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::Trainer> trainer,
+                      sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                               options));
 
         // The step count comes from the dataset, which the MNIST path may cap below --batches.
         const int64_t total_steps =
@@ -599,7 +684,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                        settings.optimizer == OptimizerKind::Sgd ? "sgd" : "adamw",
                                        learning_rate,
                                        settings.optimizer == OptimizerKind::Sgd
-                                           ? SushiBLAS::Core::format(", momentum {:g}", K_SGD_MOMENTUM)
+                                           ? SushiBLAS::Core::format(", momentum {:g}",
+                                                                     K_SGD_MOMENTUM)
                                            : std::string{})
             << SushiBLAS::Core::format("Batches  : {} x {} from '{}'\n",
                                        dataset.batch_count(), settings.batch_size, dataset.name())
@@ -620,7 +706,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                        human_bytes(pool.unpacked_bytes()))
             << describe_arenas(pool)
             << SushiBLAS::Core::format("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
-                                       settings.epochs, dataset.batch_count(), total_steps, settings.seed);
+                                       settings.epochs, dataset.batch_count(), total_steps,
+                                       settings.seed);
 
         // The trajectory is collected and printed as one block; see examples/README.md.
         std::string trajectory;
@@ -628,7 +715,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
         for (int64_t epoch = 1; epoch <= settings.epochs; ++epoch)
         {
-            const sa::Train::RunReport epoch_report = trainer.fit(dataset);
+            SA_TRY_ASSIGN(const sa::Train::RunReport epoch_report, trainer->fit(dataset));
 
             if (epoch == 1) run.first_loss = epoch_report.first_loss;
             run.last_loss = epoch_report.last_loss;
@@ -642,7 +729,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                 epoch, settings.epochs, epoch_report.first_loss,
                 epoch_report.last_loss, epoch_report.last_accuracy * 100.0);
         }
-        run.compile_count = trainer.compile_count();
+        run.compile_count = trainer->compile_count();
 
         // The compile count is the last line printed, in one write.
         std::cout
@@ -656,40 +743,37 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             << "\n" << run.to_string()
             << (scaling ? scaler->to_string() : std::string{})
             << "----------------------------------------------------------------\n"
-            << SushiBLAS::Core::format("  compiles: {}  <- one lowering, one compile, {} replays.\n",
-                                       run.compile_count, run.steps)
+            << SushiBLAS::Core::format(
+                   "  compiles: {}  <- one lowering, one compile, {} replays.\n",
+                   run.compile_count, run.steps)
             << "================================================================\n"
             << std::flush;
 
-        if (run.compile_count != 1)
-        {
-            std::cerr << "\nThe step was compiled " << run.compile_count
-                      << " times; it must be compiled exactly once.\n";
-            return EXIT_FAILURE;
-        }
+        SA_FAIL_IF(run.compile_count != 1, sa::StatusCode::InvalidDescription,
+                   "The step was compiled {} times; it must be compiled exactly once.",
+                   run.compile_count);
 
-        return EXIT_SUCCESS;
+        return sa::Status();
     }
 
-} // namespace
-
-/** @brief Runs the demo and returns its exit code. */
-int main(int argc, char** argv)
-{
-    try
+    /**
+     * @brief Parses the command line, loads the data, and trains the chosen model.
+     * @return Success, also after printing the usage text, or the first failure of a step.
+     */
+    [[nodiscard]] sa::Status run(int argc, char** argv)
     {
         bool wants_help = false;
-        const Settings settings = parse_command_line(argc, argv, wants_help);
+        SA_TRY_ASSIGN(const Settings settings, parse_command_line(argc, argv, wants_help));
         if (wants_help)
         {
             std::cout << K_USAGE;
-            return EXIT_SUCCESS;
+            return sa::Status();
         }
 
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
 
-        const DataChoice data = load_dataset(engine, settings);
+        SA_TRY_ASSIGN(const DataChoice data, load_dataset(engine, settings));
         const sa::Data::Dataset& dataset = *data.dataset;
 
         const int64_t features = dataset.input_dim();
@@ -700,7 +784,7 @@ int main(int argc, char** argv)
         {
             sa::NN::Sequential model{
                 sa::NN::Linear{features, settings.hidden},
-                sa::NN::K_GELU{},
+                sa::NN::GELU{},
                 sa::NN::Linear{settings.hidden, classes},
             };
             return train_and_report(engine, model, data, dataset, settings, features, classes);
@@ -712,6 +796,23 @@ int main(int argc, char** argv)
             sa::NN::Linear{settings.hidden, classes},
         };
         return train_and_report(engine, model, data, dataset, settings, features, classes);
+    }
+
+} // namespace
+
+/** @brief Runs the demo and returns its exit code. */
+int main(int argc, char** argv)
+{
+    try
+    {
+        const sa::Status status = run(argc, argv);
+        if (!status.is_ok())
+        {
+            std::cerr << "sa demo mlp failed: " << status.message() << "\n";
+            return EXIT_FAILURE;
+        }
+
+        return EXIT_SUCCESS;
     }
     catch (const std::exception& error)
     {

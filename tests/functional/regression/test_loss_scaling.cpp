@@ -32,7 +32,7 @@
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
-#include "../../common/test_throws.hpp"
+#include "../../common/test_status.hpp"
 #include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
@@ -89,15 +89,14 @@ namespace
     };
 
     /**
-     * @brief Trains the fixed model under @p precision with a scaler.
-     *
-     * Everything but the policy and the scaler's options is held constant, so
-     * a difference between two calls is those two things and nothing else.
+     * @brief Trains the fixed model under @p precision with a scaler built from @p scale_options.
+     * @return The run's figures, or the first failure of a library call.
+     * @see tests/functional/regression/README.md
      */
-    ScaledRun train_scaled(SushiBLAS::Engine& engine,
-                           const Graph::PrecisionPolicy* precision,
-                           LossScaleOptions scale_options,
-                           int64_t epochs)
+    [[nodiscard]] Result<ScaledRun> train_scaled(SushiBLAS::Engine& engine,
+                                                 const Graph::PrecisionPolicy* precision,
+                                                 LossScaleOptions scale_options,
+                                                 int64_t epochs)
     {
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
@@ -106,40 +105,51 @@ namespace
             Graph::FusionOptions{}, precision, /*loss_scaling=*/true);
 
         TensorPool pool(engine);
-        std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
-        NN::initialize(engine, model, pool);
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                      Train::bind_parameters(built, pool));
+        SA_TRY(NN::initialize(engine, model, pool));
 
         Optim::AdamWOptions adamw;
         adamw.learning_rate = 3e-3;
-        Optim::AdamW optimizer(engine, slots, adamw);
+        SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                      Optim::AdamW::make(engine, slots, adamw));
 
-        LossScaler scaler(engine, pool.tensor(built.loss_scale), slots.size(), scale_options);
+        SA_TRY_ASSIGN(std::unique_ptr<LossScaler> scaler,
+                      LossScaler::make(engine, pool.tensor(built.loss_scale), slots.size(),
+                                       scale_options));
 
         // The scaler is set before the trainer records; see tests/functional/regression/README.md.
-        optimizer.set_loss_scaler(&scaler);
+        SA_TRY(optimizer->set_loss_scaler(scaler.get()));
 
         Train::TrainerOptions options;
         options.precision = precision;
-        Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+        SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
+                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                           options));
 
         Data::SyntheticOptions data;
         data.batch_size = K_BATCH;
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
-        const Data::SyntheticClassification dataset(engine, data);
+        SA_TRY_ASSIGN(std::unique_ptr<Data::SyntheticClassification> dataset,
+                      Data::SyntheticClassification::make(engine, data));
 
         ScaledRun result;
         for (int64_t epoch = 0; epoch < epochs; ++epoch)
-            for (std::size_t batch = 0; batch < dataset.batch_count(); ++batch)
-                result.last_loss = trainer.run_step(dataset.batch(batch)).loss;
+            for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
+            {
+                SA_TRY_ASSIGN(const Train::StepMetrics metrics,
+                              trainer->run_step(dataset->batch(batch)));
+                result.last_loss = metrics.loss;
+            }
 
-        result.compiles = trainer.compile_count();
-        result.skipped = scaler.skipped_steps();
-        result.backoffs = scaler.backoffs();
-        result.growths = scaler.growths();
-        result.final_scale = scaler.scale();
-        result.optimizer_steps = optimizer.step_count();
+        result.compiles = trainer->compile_count();
+        result.skipped = scaler->skipped_steps();
+        result.backoffs = scaler->backoffs();
+        result.growths = scaler->growths();
+        result.final_scale = scaler->scale();
+        result.optimizer_steps = optimizer->step_count();
         return result;
     }
 
@@ -167,7 +177,9 @@ namespace
     bool all_finite(const SushiBLAS::Tensor& tensor)
     {
         for (double value : SaTest::read_tensor(tensor))
-            if (!std::isfinite(value)) return false;
+            if (!std::isfinite(value))
+                return false;
+
         return true;
     }
 }
@@ -182,10 +194,13 @@ TEST_F(Regression_LossScaling, AnFp16OverflowIsDetectedAndBacksTheScaleOff)
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
-    options.growth_interval = 1000;   // out of reach, so growth cannot confuse the reading
+
+    // The interval is out of reach, so growth cannot confuse the reading.
+    options.growth_interval = 1000;
 
     const MixedPrecisionPolicy mixed;
-    const ScaledRun run = train_scaled(engine, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS);
+    SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
+                            train_scaled(engine, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS));
 
     EXPECT_GT(run.skipped, 0u) << "no step was thrown away, so nothing overflowed - "
                                   "the detector is not seeing the infinities";
@@ -219,7 +234,8 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
     options.growth_interval = 1000;
 
     const UniformPrecisionPolicy fp32;
-    const ScaledRun run = train_scaled(engine, &fp32, options, /*epochs=*/2);
+    SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
+                            train_scaled(engine, &fp32, options, /*epochs=*/2));
 
     EXPECT_EQ(run.skipped, 0u);
     EXPECT_EQ(run.backoffs, 0u);
@@ -235,34 +251,40 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor factor, allocate_tensor(engine, Shape{1}));
     SaTest::write_tensor(parameter, initial_parameter());
 
     std::vector<Optim::ParameterSlot> slots{Optim::ParameterSlot{"p", parameter, gradient}};
 
     Optim::AdamWOptions adamw;
     adamw.learning_rate = 1e-2;
-    adamw.weight_decay = 1e-2;   // so a "skip" that still decays would show up
-    Optim::AdamW optimizer(engine, slots, adamw);
+
+    // A skip that still decays would show up through this non-zero decay.
+    adamw.weight_decay = 1e-2;
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(engine, slots, adamw));
 
     LossScaleOptions options;
     options.initial = 1024.0;
-    LossScaler scaler(engine, factor, slots.size(), options);
-    optimizer.set_loss_scaler(&scaler);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LossScaler> scaler,
+                            LossScaler::make(engine, factor, slots.size(), options));
+    SA_EXPECT_OK(optimizer->set_loss_scaler(scaler.get()));
 
     // The moments are non-zero before the poison; see tests/functional/regression/README.md.
     SaTest::write_tensor(gradient, finite_gradient());
-    optimizer.step();
-    ASSERT_FALSE(scaler.last_step_skipped());
-    ASSERT_EQ(optimizer.step_count(), 1u);
+    SA_EXPECT_OK(optimizer->step());
+    ASSERT_FALSE(scaler->last_step_skipped());
+    ASSERT_EQ(optimizer->step_count(), 1u);
 
     const std::vector<unsigned char> theta_before = SaTest::read_tensor_bytes(parameter);
     const std::vector<unsigned char> m_before =
-        SaTest::read_tensor_bytes(optimizer.first_moment(0));
+        SaTest::read_tensor_bytes(optimizer->first_moment(0));
     const std::vector<unsigned char> v_before =
-        SaTest::read_tensor_bytes(optimizer.second_moment(0));
+        SaTest::read_tensor_bytes(optimizer->second_moment(0));
 
     // The gradient holds real infinities and a NaN; see tests/functional/regression/README.md.
     std::vector<double> poisoned = finite_gradient();
@@ -271,22 +293,22 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
     poisoned[13] = std::numeric_limits<double>::quiet_NaN();
     SaTest::write_tensor(gradient, poisoned);
 
-    optimizer.step();
+    SA_EXPECT_OK(optimizer->step());
 
-    EXPECT_TRUE(scaler.last_step_skipped());
-    EXPECT_EQ(scaler.scale(), 512.0);
+    EXPECT_TRUE(scaler->last_step_skipped());
+    EXPECT_EQ(scaler->scale(), 512.0);
 
     // The step counter did not move; see tests/functional/regression/README.md.
-    EXPECT_EQ(optimizer.step_count(), 1u);
+    EXPECT_EQ(optimizer->step_count(), 1u);
 
     EXPECT_EQ(SaTest::read_tensor_bytes(parameter), theta_before);
-    EXPECT_EQ(SaTest::read_tensor_bytes(optimizer.first_moment(0)), m_before)
+    EXPECT_EQ(SaTest::read_tensor_bytes(optimizer->first_moment(0)), m_before)
         << "the first moment moved on a skipped step - this is the 0 * inf trap";
-    EXPECT_EQ(SaTest::read_tensor_bytes(optimizer.second_moment(0)), v_before)
+    EXPECT_EQ(SaTest::read_tensor_bytes(optimizer->second_moment(0)), v_before)
         << "the second moment moved on a skipped step";
 
-    EXPECT_TRUE(all_finite(optimizer.first_moment(0)));
-    EXPECT_TRUE(all_finite(optimizer.second_moment(0)));
+    EXPECT_TRUE(all_finite(optimizer->first_moment(0)));
+    EXPECT_TRUE(all_finite(optimizer->second_moment(0)));
     EXPECT_TRUE(all_finite(parameter));
 }
 
@@ -299,34 +321,38 @@ TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor factor, allocate_tensor(engine, Shape{1}));
     SaTest::write_tensor(parameter, initial_parameter());
 
     std::vector<Optim::ParameterSlot> slots{Optim::ParameterSlot{"p", parameter, gradient}};
 
     Optim::AdamWOptions adamw;
     adamw.learning_rate = 1e-2;
-    Optim::AdamW optimizer(engine, slots, adamw);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(engine, slots, adamw));
 
-    LossScaler scaler(engine, factor, slots.size(), LossScaleOptions{});
-    optimizer.set_loss_scaler(&scaler);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LossScaler> scaler,
+                            LossScaler::make(engine, factor, slots.size(), LossScaleOptions{}));
+    SA_EXPECT_OK(optimizer->set_loss_scaler(scaler.get()));
 
     SaTest::write_tensor(gradient, finite_gradient());
-    optimizer.step();
+    SA_EXPECT_OK(optimizer->step());
 
     const std::vector<unsigned char> theta_before = SaTest::read_tensor_bytes(parameter);
     const std::vector<unsigned char> m_before =
-        SaTest::read_tensor_bytes(optimizer.first_moment(0));
+        SaTest::read_tensor_bytes(optimizer->first_moment(0));
 
     SaTest::write_tensor(gradient, finite_gradient());
-    optimizer.step();
+    SA_EXPECT_OK(optimizer->step());
 
-    EXPECT_FALSE(scaler.last_step_skipped());
-    EXPECT_EQ(optimizer.step_count(), 2u);
+    EXPECT_FALSE(scaler->last_step_skipped());
+    EXPECT_EQ(optimizer->step_count(), 2u);
     EXPECT_NE(SaTest::read_tensor_bytes(parameter), theta_before);
-    EXPECT_NE(SaTest::read_tensor_bytes(optimizer.first_moment(0)), m_before);
+    EXPECT_NE(SaTest::read_tensor_bytes(optimizer->first_moment(0)), m_before);
 }
 
 /**
@@ -335,13 +361,17 @@ TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
  */
 TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
 {
-    const auto drive = [](bool scaled) -> std::vector<unsigned char>
+    using Bytes = std::vector<unsigned char>;
+
+    const auto drive = [](bool scaled) -> Result<Bytes>
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
-        SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
-        SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
+        SA_TRY_ASSIGN(SushiBLAS::Tensor parameter,
+                      allocate_tensor(engine, Shape{K_ELEMENTS}));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor gradient,
+                      allocate_tensor(engine, Shape{K_ELEMENTS}));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor factor, allocate_tensor(engine, Shape{1}));
         SaTest::write_tensor(parameter, initial_parameter());
 
         std::vector<Optim::ParameterSlot> slots{Optim::ParameterSlot{"p", parameter, gradient}};
@@ -349,36 +379,45 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
         Optim::SGDOptions sgd;
         sgd.learning_rate = 1e-2;
         sgd.momentum = 0.9;
-        Optim::SGD optimizer(engine, slots, sgd);
+        SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
+                      Optim::SGD::make(engine, slots, sgd));
 
         LossScaleOptions options;
         options.initial = K_EXACT_SCALE;
-        options.growth_interval = 1000;  // out of reach: the scale must not move
+
+        // The interval is out of reach, so the scale does not move.
+        options.growth_interval = 1000;
         std::unique_ptr<LossScaler> scaler;
 
         if (scaled)
         {
-            scaler = std::make_unique<LossScaler>(engine, factor, slots.size(), options);
-            optimizer.set_loss_scaler(scaler.get());
+            SA_TRY_ASSIGN(scaler, LossScaler::make(engine, factor, slots.size(), options));
+            SA_TRY(optimizer->set_loss_scaler(scaler.get()));
         }
 
         for (int step = 0; step < K_EXACT_STEPS; ++step)
         {
             std::vector<double> values = finite_gradient();
             if (scaled)
-                for (double& value : values) value *= K_EXACT_SCALE;
+                for (double& value : values)
+                    value *= K_EXACT_SCALE;
 
             SaTest::write_tensor(gradient, values);
-            optimizer.step();
+            SA_TRY(optimizer->step());
         }
 
-        if (scaled) EXPECT_EQ(scaler->scale(), K_EXACT_SCALE);
-        EXPECT_EQ(optimizer.step_count(), static_cast<std::uint64_t>(K_EXACT_STEPS));
+        if (scaled)
+            EXPECT_EQ(scaler->scale(), K_EXACT_SCALE);
+
+        EXPECT_EQ(optimizer->step_count(), static_cast<std::uint64_t>(K_EXACT_STEPS));
 
         return SaTest::read_tensor_bytes(parameter);
     };
 
-    EXPECT_EQ(drive(true), drive(false))
+    SA_ASSERT_OK_AND_ASSIGN(const Bytes scaled_bytes, drive(true));
+    SA_ASSERT_OK_AND_ASSIGN(const Bytes unscaled_bytes, drive(false));
+
+    EXPECT_EQ(scaled_bytes, unscaled_bytes)
         << "a scaled run and an unscaled one did not agree bit for bit, so the "
            "unscale is not the exact inverse of the scale";
 }
@@ -396,7 +435,8 @@ TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
     options.growth_interval = 2;
 
     const UniformPrecisionPolicy fp32;
-    const ScaledRun run = train_scaled(engine, &fp32, options, /*epochs=*/2);
+    SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
+                            train_scaled(engine, &fp32, options, /*epochs=*/2));
 
     ASSERT_GT(run.growths, 0u) << "the scale never moved, so this run does not test "
                                   "what it claims to";
@@ -417,7 +457,8 @@ TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
     options.growth_interval = 1000;
 
     const MixedPrecisionPolicy mixed;
-    const ScaledRun run = train_scaled(engine, &mixed, options, /*epochs=*/1);
+    SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
+                            train_scaled(engine, &mixed, options, /*epochs=*/1));
 
     ASSERT_GT(run.backoffs, 0u);
     EXPECT_EQ(run.compiles, 1u);
@@ -431,17 +472,23 @@ TEST_F(Regression_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor gradient = allocate_tensor(engine, Shape{K_ELEMENTS});
-    SushiBLAS::Tensor factor = allocate_tensor(engine, Shape{1});
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient,
+                            allocate_tensor(engine, Shape{K_ELEMENTS}));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor factor, allocate_tensor(engine, Shape{1}));
 
     std::vector<Optim::ParameterSlot> slots{Optim::ParameterSlot{"p", parameter, gradient}};
 
     Optim::AdamWOptions adamw;
     adamw.kernel = Optim::UpdateKernel::Separate;
-    Optim::AdamW optimizer(engine, slots, adamw);
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
+                            Optim::AdamW::make(engine, slots, adamw));
 
-    LossScaler scaler(engine, factor, slots.size(), LossScaleOptions{});
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LossScaler> scaler,
+                            LossScaler::make(engine, factor, slots.size(), LossScaleOptions{}));
 
-    SA_EXPECT_ERROR(optimizer.set_loss_scaler(&scaler), "FUSED");
+    // The refusal names the fused kernel, which is the setting the user must change.
+    SA_EXPECT_FAILURE(optimizer->set_loss_scaler(scaler.get()),
+                      StatusCode::InvalidDescription, "UpdateKernel::Fused");
 }
