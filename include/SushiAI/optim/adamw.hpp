@@ -27,8 +27,11 @@
 
 #pragma once
 
+#include <cstddef>
+#include <memory>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/step_scalars.hpp>
 
@@ -74,14 +77,13 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Binds AdamW to @p parameters, allocates and zeroes its state.
-                 * @param engine The engine the update is recorded on.
-                 * @param parameters The parameters to update.
-                 * @param options The hyperparameters.
-                 * @throws Error If a beta is outside [0, 1) or eps is not positive.
+                 * @brief Validates the slots and options, then allocates and zeroes the state.
+                 * @return The optimizer, or the first failure of validation, of allocation or of
+                 *         the run that zeroes the state.
                  */
-                AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
-                      AdamWOptions options = {});
+                [[nodiscard]] static Result<std::unique_ptr<AdamW>> make(
+                    SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                    AdamWOptions options = {});
 
                 /** @brief True when the update is fused, and therefore replayable. */
                 bool is_replay_invariant() const noexcept override
@@ -95,25 +97,11 @@ namespace SushiAI
                 /** @brief Mutable access, for a learning-rate schedule. */
                 AdamWOptions& options() noexcept { return options_; }
 
-            protected:
-                /**
-                 * @brief Records the update for every parameter into the engine's builder.
-                 * @return One task per parameter when fused; twelve with decay
-                 *         and eleven without, when not.
-                 */
-                std::size_t record_update() override;
-
-                /**
-                 * @brief Recomputes this step's scalars into the device buffer.
-                 */
-                void write_step_scalars() override;
-
-            public:
                 /**
                  * @brief Returns parameter's first moment tensor for inspection.
                  * @param index Parameter slot index in registration order.
                  * @return First moment tensor reference.
-                 * @throws Error If index is out of range.
+                 * @pre index is less than parameter_count(); a larger index stops the process.
                  */
                 const SushiBLAS::Tensor& first_moment(std::size_t index) const;
 
@@ -121,9 +109,23 @@ namespace SushiAI
                  * @brief Parameter @p index's second moment, v.
                  * @param index Which parameter, in slot order.
                  * @return Its second moment.
-                 * @throws Error If @p index is out of range.
+                 * @pre index is less than parameter_count(); a larger index stops the process.
                  */
                 const SushiBLAS::Tensor& second_moment(std::size_t index) const;
+
+            protected:
+                /**
+                 * @brief Records the update for every parameter into @p recorder.
+                 * @param recorder The recorder the tasks are added to; nothing is executed.
+                 * @return One task per parameter when fused; twelve with decay
+                 *         and eleven without, when not.
+                 */
+                std::size_t record_update(SushiBLAS::TaskRecorder& recorder) override;
+
+                /**
+                 * @brief Recomputes this step's scalars into the device buffer.
+                 */
+                void write_step_scalars() override;
 
             private:
                 struct State
@@ -137,8 +139,18 @@ namespace SushiAI
                     SushiBLAS::Tensor ones;     /**< All ones, so eps can be added elementwise. */
                 };
 
-                std::size_t record_fused();
-                std::size_t record_separate();
+                /**
+                 * @brief Takes ownership of state that make() has already allocated.
+                 * @pre validate_slots(parameters) has returned success.
+                 */
+                AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                      AdamWOptions options, std::vector<State> state, StepScalars scalars) noexcept;
+
+                /** @brief Records one fused kernel per parameter; returns the task count. */
+                std::size_t record_fused(SushiBLAS::TaskRecorder& recorder);
+
+                /** @brief Records the twelve separate ops per parameter; returns the task count. */
+                std::size_t record_separate(SushiBLAS::TaskRecorder& recorder);
 
                 AdamWOptions options_;
                 std::vector<State> state_;

@@ -25,31 +25,45 @@
  * @author Mustafa Garip
  */
 
-#include <cstdint>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/shape.hpp>
 #include <SushiAI/optim/step_scalars.hpp>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+#include <SushiAI/core/allocation.hpp>
+#include <SushiAI/core/check.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiAI
 {
     namespace Optim
     {
-        StepScalars::StepScalars(SushiBLAS::Engine& engine, std::size_t count)
-            : count_(count)
+        Result<StepScalars> StepScalars::make(SushiBLAS::Engine& engine, std::size_t count)
         {
-            SA_THROW_IF(count == 0, "A step-scalar buffer needs at least one slot");
+            SA_FAIL_IF(count == 0, StatusCode::InvalidDescription,
+                       "A step-scalar buffer needs at least one slot");
 
-            buffer_ = allocate_tensor(engine, Shape{static_cast<int64_t>(count)},
-                                      DType::Float32);
-            data_ = buffer_.data_as<float>();
+            SA_TRY_ASSIGN(SushiBLAS::Tensor buffer,
+                          allocate_tensor(engine, Shape{static_cast<int64_t>(count)},
+                                          DType::Float32));
 
-            // Zero initialize shared USM buffer via host write before execution.
-            for (std::size_t i = 0; i < count_; ++i) data_[i] = 0.0f;
+            // The buffer is shared device memory; zero it from the host before first use.
+            std::fill_n(buffer.data_as<float>(), count, 0.0f);
+            return StepScalars(std::move(buffer), count);
+        }
+
+        StepScalars::StepScalars(SushiBLAS::Tensor buffer, std::size_t count) noexcept
+            : buffer_(std::move(buffer)), data_(buffer_.data_as<float>()), count_(count)
+        {
+
         }
 
         void StepScalars::write(SushiRuntime::span<const float> values)
         {
-            SA_THROW_IF(values.size() != count_,
+            SA_FATAL_IF(values.size() != count_,
                         "This step-scalar buffer holds {} slots but {} values were written",
                         count_, values.size());
 

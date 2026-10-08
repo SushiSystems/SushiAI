@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-08 — graph: Replaced the lowering chain with eight per-domain tables of 62 rows and added the rows of 14 operations that had none (`graph/lowering/`, `all.hpp`, `LoweringContext`).
+- 2026-10-08 — core: Added the seam that turns every SushiBLAS and SushiRuntime exception into a status, and moved recording onto the v0.1.0 recorder; breaks every throwing signature it replaced (`seam.hpp`).
+- 2026-10-08 — graph: Moved TensorPool to its own header and gave CompiledStep its own task graph and recorder (`tensor_pool.hpp`, `compiled_step.hpp`).
+- 2026-10-08 — optim: Changed the optimizers, the loss scaler, initialisation, datasets and checkpoints to factories and functions that return a status (`optimizer.hpp`, `init.hpp`, `dataset.hpp`, `checkpoint.hpp`).
 - 2026-10-08 — naming: Renamed every enumerator to PascalCase and every constant to K_ form, 2995 tokens in 158 files; breaks callers that spell the old names (`rename_map.tsv`, `apply_rename.py`).
 - 2026-10-07 — nn: Added the blocks ConvNorm, Bottleneck, C3k, C3k2 and SPPF, the node registry with `build_model`, and the YOLO26n model file (`nn/blocks/`, `node_registry.hpp`, `examples/yolo26/model.json`).
 - 2026-10-07 — nn: Added Buffer, ModuleList, Trace with two modes, the node seam, ModelGraph, and the layers BatchNorm2d, Concat, SiLU and Identity (`buffer.hpp`, `trace.hpp`, `node.hpp`, `model_graph.hpp`, `batch_norm2d.hpp`).

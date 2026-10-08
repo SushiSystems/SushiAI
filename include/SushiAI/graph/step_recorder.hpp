@@ -21,7 +21,7 @@
 
 /**
  * @file step_recorder.hpp
- * @brief Declares the IStepRecorder interface and the list that drives several as one.
+ * @brief Declares the StepRecorder interface and the list that drives several as one.
  * @author Mustafa Garip
  */
 
@@ -30,17 +30,22 @@
 #include <algorithm>
 #include <cstddef>
 #include <vector>
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
+
+namespace SushiBLAS
+{
+    class TaskRecorder;
+} // namespace SushiBLAS
 
 namespace SushiAI
 {
     namespace Graph
     {
         /**
-         * @class IStepRecorder
-         * @brief Device work recorded into the compiled step rather than flushed alone.
-         *
-         * Records replay-invariant tasks into the graph builder before compilation.
+         * @class StepRecorder
+         * @brief Records device work into a compiled step and follows each of its replays.
          */
         class StepRecorder
         {
@@ -48,18 +53,15 @@ namespace SushiAI
                 virtual ~StepRecorder() = default;
 
                 /**
-                 * @brief Records this work into the engine's task-graph builder.
-                 *
-                 * Called once before the step's single compile call.
-                 *
-                 * @return Count of recorded device tasks.
+                 * @brief Records this recorder's work into @p recorder and returns the task count.
                  */
-                virtual std::size_t record_into_step() = 0;
+                [[nodiscard]] virtual Result<std::size_t> record_into_step(
+                    SushiBLAS::TaskRecorder& recorder) = 0;
 
                 /**
-                 * @brief Refreshes state varying between replays on host.
+                 * @brief Refreshes the host state that varies between replays.
                  *
-                 * Executes before plan dispatch without recording device work.
+                 * Runs before the plan is dispatched and records no device work.
                  */
                 virtual void before_replay() {}
 
@@ -83,9 +85,9 @@ namespace SushiAI
                  */
                 void add(StepRecorder& recorder)
                 {
-                    SA_THROW_IF(&recorder == this,
+                    SA_FATAL_IF(&recorder == this,
                                 "StepRecorderList::add: a list cannot hold itself");
-                    SA_THROW_IF(std::find(members_.begin(), members_.end(), &recorder)
+                    SA_FATAL_IF(std::find(members_.begin(), members_.end(), &recorder)
                                     != members_.end(),
                                 "StepRecorderList::add: the recorder is already one of the {} "
                                 "members",
@@ -104,11 +106,15 @@ namespace SushiAI
                  * @brief Records every member's work into the step, first added first.
                  * @return Sum of the device tasks the members recorded.
                  */
-                std::size_t record_into_step() override
+                [[nodiscard]] Result<std::size_t> record_into_step(
+                    SushiBLAS::TaskRecorder& recorder) override
                 {
                     std::size_t recorded = 0;
                     for (StepRecorder* member : members_)
-                        recorded += member->record_into_step();
+                    {
+                        SA_TRY_ASSIGN(const std::size_t count, member->record_into_step(recorder));
+                        recorded += count;
+                    }
 
                     return recorded;
                 }

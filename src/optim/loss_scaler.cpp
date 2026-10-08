@@ -28,7 +28,9 @@
 #include <cmath>
 #include <utility>
 #include <SushiBLAS/core/format.hpp>
+#include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiAI/core/allocation.hpp>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
 
 namespace SushiAI
@@ -49,37 +51,71 @@ namespace SushiAI
                 int exponent = 0;
                 return std::frexp(value, &exponent) == 0.5;
             }
+
+            /**
+             * @brief Carves one int64 view per parameter out of @p arena, in slot order.
+             * @param engine The engine whose default layout the views take.
+             * @param arena Storage the views carve from; must outlive the views.
+             * @param parameter_count Number of views to carve.
+             * @return The views, or the failure of the allocation seam.
+             */
+            Result<std::vector<SushiBLAS::Tensor>> carve_count_views(
+                SushiBLAS::Engine& engine,
+                const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena,
+                std::size_t parameter_count)
+            {
+                return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+                {
+                    std::vector<SushiBLAS::Tensor> views;
+                    views.reserve(parameter_count);
+                    for (std::size_t i = 0; i < parameter_count; ++i)
+                        views.push_back(view_tensor(engine, arena, i * dtype_size(DType::Int64),
+                                                    Shape{1}, DType::Int64));
+                    return views;
+                });
+            }
         }
 
-        LossScaleState::LossScaleState(LossScaleOptions options)
-            : options_(options), scale_(options.initial)
+        Result<LossScaleState> LossScaleState::make(LossScaleOptions options)
         {
             // Validate all scale bounds and factors are powers of two.
-            SA_THROW_IF(!is_power_of_two(options_.initial),
-                        "The initial loss scale must be a power of two; got {}. Only a dyadic "
-                        "scale is exact in binary floating point, and exactness is what lets "
-                        "the unscale recover the gradient bit for bit instead of adding a "
-                        "rounding error nothing downstream could tell from a real one.",
-                        options_.initial);
-            SA_THROW_IF(!is_power_of_two(options_.growth) || options_.growth < 1.0,
-                        "The loss-scale growth factor must be a power of two of at least 1; got {}",
-                        options_.growth);
-            SA_THROW_IF(!is_power_of_two(options_.backoff) || options_.backoff > 1.0,
-                        "The loss-scale backoff factor must be a power of two in (0, 1]; got {}",
-                        options_.backoff);
-            SA_THROW_IF(!is_power_of_two(options_.minimum) || !is_power_of_two(options_.maximum),
-                        "The loss-scale bounds must both be powers of two; got [{}, {}]",
-                        options_.minimum, options_.maximum);
-            SA_THROW_IF(options_.minimum > options_.maximum,
-                        "The loss-scale floor {} is above its ceiling {}",
-                        options_.minimum, options_.maximum);
-            SA_THROW_IF(options_.initial < options_.minimum || options_.initial > options_.maximum,
-                        "The initial loss scale {} lies outside the bounds [{}, {}]",
-                        options_.initial, options_.minimum, options_.maximum);
-            SA_THROW_IF(options_.growth_interval == 0,
-                        "The loss-scale growth interval must be positive; a zero interval would "
-                        "double the scale after every clean step and spend the run oscillating "
-                        "between overflow and backoff.");
+            SA_FAIL_IF(!is_power_of_two(options.initial), StatusCode::InvalidDescription,
+                       "The initial loss scale must be a power of two; got {}. Only a dyadic "
+                       "scale is exact in binary floating point, and exactness is what lets "
+                       "the unscale recover the gradient bit for bit instead of adding a "
+                       "rounding error nothing downstream could tell from a real one.",
+                       options.initial);
+            SA_FAIL_IF(!is_power_of_two(options.growth) || options.growth < 1.0,
+                       StatusCode::InvalidDescription,
+                       "The loss-scale growth factor must be a power of two of at least 1; got {}",
+                       options.growth);
+            SA_FAIL_IF(!is_power_of_two(options.backoff) || options.backoff > 1.0,
+                       StatusCode::InvalidDescription,
+                       "The loss-scale backoff factor must be a power of two in (0, 1]; got {}",
+                       options.backoff);
+            SA_FAIL_IF(!is_power_of_two(options.minimum) || !is_power_of_two(options.maximum),
+                       StatusCode::InvalidDescription,
+                       "The loss-scale bounds must both be powers of two; got [{}, {}]",
+                       options.minimum, options.maximum);
+            SA_FAIL_IF(options.minimum > options.maximum, StatusCode::InvalidDescription,
+                       "The loss-scale floor {} is above its ceiling {}",
+                       options.minimum, options.maximum);
+            SA_FAIL_IF(options.initial < options.minimum || options.initial > options.maximum,
+                       StatusCode::InvalidDescription,
+                       "The initial loss scale {} lies outside the bounds [{}, {}]",
+                       options.initial, options.minimum, options.maximum);
+            SA_FAIL_IF(options.growth_interval == 0, StatusCode::InvalidDescription,
+                       "The loss-scale growth interval must be positive; a zero interval would "
+                       "double the scale after every clean step and spend the run oscillating "
+                       "between overflow and backoff.");
+
+            return LossScaleState(options);
+        }
+
+        LossScaleState::LossScaleState(LossScaleOptions options) noexcept
+            : options_(options), scale_(options.initial)
+        {
+
         }
 
         void LossScaleState::observe(bool overflow) noexcept
@@ -114,61 +150,81 @@ namespace SushiAI
             }
         }
 
-        LossScaler::LossScaler(SushiBLAS::Engine& engine,
-                               SushiBLAS::Tensor factor,
-                               std::size_t parameter_count,
-                               LossScaleOptions options)
-            : engine_(&engine), factor_(std::move(factor)), count_(parameter_count),
-              state_(options)
+        Result<std::unique_ptr<LossScaler>> LossScaler::make(SushiBLAS::Engine& engine,
+                                                             SushiBLAS::Tensor factor,
+                                                             std::size_t parameter_count,
+                                                             LossScaleOptions options)
         {
-            SA_THROW_IF(factor_.num_elements != 1,
-                        "A loss scaler's factor must be a single element; got {}",
-                        factor_.num_elements);
-            SA_THROW_IF(factor_.dtype != DType::Float32,
-                        "A loss scaler's factor must be float32; got {}. The graph value it "
-                        "backs is multiplied into the cross-entropy tail, which the precision "
-                        "policy keeps in the master type for exactly the reason the scale is "
-                        "applied there.",
-                        dtype_name(factor_.dtype));
-            SA_THROW_IF(parameter_count == 0,
-                        "A loss scaler with no parameters to screen would report every step "
-                        "clean and never back off.");
+            SA_FAIL_IF(factor.num_elements != 1, StatusCode::InvalidDescription,
+                       "A loss scaler's factor must be a single element; got {}",
+                       factor.num_elements);
+            SA_FAIL_IF(factor.dtype != DType::Float32, StatusCode::InvalidDescription,
+                       "A loss scaler's factor must be float32; got {}. The graph value it "
+                       "backs is multiplied into the cross-entropy tail, which the precision "
+                       "policy keeps in the master type for exactly the reason the scale is "
+                       "applied there.",
+                       dtype_name(factor.dtype));
+            SA_FAIL_IF(parameter_count == 0, StatusCode::InvalidDescription,
+                       "A loss scaler with no parameters to screen would report every step "
+                       "clean and never back off.");
+
+            SA_TRY_ASSIGN(auto state, LossScaleState::make(options));
 
             // Allocate contiguous int64 arena partitioned into 1-element parameter views.
-            arena_ = allocate_arena(engine, parameter_count * dtype_size(DType::Int64));
+            SA_TRY_ASSIGN(auto arena,
+                          allocate_arena(engine, parameter_count * dtype_size(DType::Int64)));
+            SA_TRY_ASSIGN(auto count_views, carve_count_views(engine, arena, parameter_count));
 
-            count_views_.reserve(parameter_count);
-            for (std::size_t i = 0; i < parameter_count; ++i)
-                count_views_.push_back(view_tensor(engine, arena_,
-                                                   i * dtype_size(DType::Int64),
-                                                   Shape{1}, DType::Int64));
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                std::unique_ptr<LossScaler> scaler(new LossScaler(std::move(factor),
+                                                                  std::move(arena),
+                                                                  std::move(count_views),
+                                                                  std::move(state)));
 
-            counts_ = count_views_.front().data_as<std::int64_t>();
+                // Initialize count buffer to zero before initial execution replay.
+                for (std::size_t i = 0; i < scaler->count_; ++i) scaler->counts_[i] = 0;
 
-            // Initialize count buffer to zero before initial execution replay.
-            for (std::size_t i = 0; i < parameter_count; ++i) counts_[i] = 0;
-
-            // Set initial loss scale factor before recording execution steps.
-            factor_.data_as<float>()[0] = static_cast<float>(state_.scale());
+                // Set initial loss scale factor before recording execution steps.
+                scaler->factor_.data_as<float>()[0] = static_cast<float>(scaler->state_.scale());
+                return scaler;
+            });
         }
 
-        std::size_t LossScaler::record_screens(const std::vector<SushiBLAS::Tensor*>& gradients)
+        LossScaler::LossScaler(SushiBLAS::Tensor factor,
+                               SushiRuntime::sushi_ptr<SushiBLAS::Storage> arena,
+                               std::vector<SushiBLAS::Tensor> count_views,
+                               LossScaleState state) noexcept
+            : factor_(std::move(factor)), arena_(std::move(arena)),
+              count_views_(std::move(count_views)), count_(count_views_.size()),
+              state_(std::move(state))
         {
-            SA_THROW_IF(gradients.size() != count_,
+            counts_ = count_views_.front().data_as<std::int64_t>();
+        }
+
+        Result<std::size_t> LossScaler::record_screens(
+            SushiBLAS::TaskRecorder& recorder,
+            const std::vector<SushiBLAS::Tensor*>& gradients)
+        {
+            SA_FATAL_IF(gradients.size() != count_,
                         "This loss scaler screens {} gradients but was handed {}; the gate's "
                         "slot index is a position in this list, so the two must agree",
                         count_, gradients.size());
 
-            for (std::size_t i = 0; i < count_; ++i)
+            return Detail::guard_value(Detail::SeamPhase::Record, [&]()
             {
-                SA_THROW_IF(gradients[i] == nullptr,
-                            "Gradient {} is null; every parameter must have one to screen", i);
+                SushiBLAS::ReductionOps reductions(recorder);
+                for (std::size_t i = 0; i < count_; ++i)
+                {
+                    SA_FATAL_IF(gradients[i] == nullptr,
+                                "Gradient {} is null; every parameter must have one to screen", i);
 
-                // Screen gradient non-finite values into parameter count view.
-                engine_->reductions().count_nonfinite(*gradients[i], count_views_[i]);
-            }
+                    // Screen gradient non-finite values into parameter count view.
+                    reductions.count_nonfinite(*gradients[i], count_views_[i]);
+                }
 
-            return count_;
+                return count_;
+            });
         }
 
         void LossScaler::before_replay()

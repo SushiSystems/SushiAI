@@ -27,11 +27,16 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/math/random.hpp>
 #include <SushiAI/core/common.hpp>
-#include <SushiAI/graph/lowering.hpp>
+#include <SushiAI/core/seam.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/module.hpp>
 
 namespace SushiAI
@@ -60,53 +65,58 @@ namespace SushiAI
         double calculate_gain(Nonlinearity nonlinearity, double negative_slope = 0.01) noexcept;
 
         /**
-         * @brief Fills @p tensor from N(0, (gain / sqrt(fan_in))^2).
-         * @param engine The engine whose Philox stream supplies the numbers.
-         * @param tensor The tensor to fill.
-         * @param fan_in Inputs feeding one output unit.
-         * @param gain The nonlinearity's gain.
+         * @brief Records a fill of @p tensor with @p value.
+         * @return Success, or the seam's failure of the recording.
          */
-        void kaiming_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
-                            int64_t fan_in, double gain);
+        [[nodiscard]] Status constant(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+                                      double value);
 
         /**
-         * @brief Fills @p tensor uniformly on [-b, b] with b = gain * sqrt(3 / fan_in).
+         * @brief Records a fill of @p tensor from N(0, (gain / sqrt(fan_in))^2).
          * @param engine The engine whose Philox stream supplies the numbers.
-         * @param tensor The tensor to fill.
-         * @param fan_in Inputs feeding one output unit.
-         * @param gain The nonlinearity's gain.
+         * @param fan_in Inputs feeding one output unit; must be positive.
+         * @return Success, InvalidDescription for a fan-in that is not positive, or the seam's
+         *         failure of the recording.
          */
-        void kaiming_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
-                             int64_t fan_in, double gain);
+        [[nodiscard]] Status kaiming_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+                                            int64_t fan_in, double gain);
 
         /**
-         * @brief Fills @p tensor from N(0, (gain * sqrt(2 / (fan_in + fan_out)))^2).
+         * @brief Records a fill of @p tensor uniformly on [-b, b] with b = gain * sqrt(3 / fan_in).
          * @param engine The engine whose Philox stream supplies the numbers.
-         * @param tensor The tensor to fill.
-         * @param fan_in Inputs feeding one output unit.
-         * @param fan_out Outputs one input unit feeds.
-         * @param gain The nonlinearity's gain.
+         * @param fan_in Inputs feeding one output unit; must be positive.
+         * @return Success, InvalidDescription for a fan-in that is not positive, or the seam's
+         *         failure of the recording.
          */
-        void xavier_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
-                           int64_t fan_in, int64_t fan_out, double gain);
+        [[nodiscard]] Status kaiming_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+                                             int64_t fan_in, double gain);
 
         /**
-         * @brief Fills @p tensor uniformly on [-a, a] with a = gain * sqrt(6 / (fan_in + fan_out)).
-         * @param engine The engine whose Philox stream supplies the numbers.
-         * @param tensor The tensor to fill.
+         * @brief Records a fill of @p tensor from N(0, (gain * sqrt(2 / (fan_in + fan_out)))^2).
          * @param fan_in Inputs feeding one output unit.
-         * @param fan_out Outputs one input unit feeds.
-         * @param gain The nonlinearity's gain.
+         * @param fan_out Outputs one input unit feeds; the two fans must sum to a positive value.
+         * @return Success, InvalidDescription when the fans do not sum to a positive value, or
+         *         the seam's failure of the recording.
          */
-        void xavier_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
-                            int64_t fan_in, int64_t fan_out, double gain);
+        [[nodiscard]] Status xavier_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+                                           int64_t fan_in, int64_t fan_out, double gain);
 
         /**
-         * @brief Fills @p tensor with zeros.
-         * @param engine The engine to record the fill on.
-         * @param tensor The tensor to zero.
+         * @brief Records a uniform fill of @p tensor on [-a, a].
+         * @param fan_in Inputs feeding one output unit.
+         * @param fan_out Outputs one input unit feeds; the two fans must sum to a positive value.
+         * @param gain Scales the bound: a = gain * sqrt(6 / (fan_in + fan_out)).
+         * @return Success, InvalidDescription when the fans do not sum to a positive value, or
+         *         the seam's failure of the recording.
          */
-        void zeros(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor);
+        [[nodiscard]] Status xavier_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+                                            int64_t fan_in, int64_t fan_out, double gain);
+
+        /**
+         * @brief Records a fill of @p tensor with zeros.
+         * @return Success, or the seam's failure of the recording.
+         */
+        [[nodiscard]] Status zeros(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor);
 
         /**
          * @enum InitFamily
@@ -146,33 +156,36 @@ namespace SushiAI
         namespace Detail
         {
             /**
-             * @brief Applies policy initialization to one parameter tensor.
-             * @param engine Engine used to execute tensor fill operations.
-             * @param tensor Destination parameter tensor to fill.
-             * @param parameter Parameter metadata containing shape and role.
-             * @param policy Initialization policy configuration.
+             * @brief Records the initial fill of one parameter tensor.
+             * @param parameter Parameter whose init() and fans select the fill.
              * @param is_final_layer True if parameter belongs to final classifier layer.
+             * @return Success, or the failure of the fill it records.
              */
-            void apply_initializer(SushiBLAS::Engine& engine,
-                                   SushiBLAS::Tensor& tensor,
-                                   const Parameter& parameter,
-                                   const InitPolicy& policy,
-                                   bool is_final_layer);
+            [[nodiscard]] Status apply_initializer(SushiBLAS::Engine& engine,
+                                                   SushiBLAS::Tensor& tensor,
+                                                   const Parameter& parameter,
+                                                   const InitPolicy& policy,
+                                                   bool is_final_layer);
         }
 
         /**
-         * @brief Initializes every parameter of module and flushes the device.
-         * @param engine Engine managing parameter tensor memory.
-         * @param module Model to initialize whose parameters were declared during trace.
-         * @param pool Tensor pool binding parameter values.
-         * @param policy Initialization policy configuration.
-         * @throws Error If a parameter tensor is not bound in pool.
+         * @brief Records the initial fill of every parameter of module and runs the recording.
+         * @param module Model whose parameters were declared during trace.
+         * @return Success, or the failure of a fill or of the run.
+         * @pre Every parameter of module is bound in pool, and the engine's graph holds no
+         *      other recorded task; the run executes all of it.
          */
         template<typename M>
-        void initialize(SushiBLAS::Engine& engine, M& module, Graph::TensorPool& pool,
-                        const InitPolicy& policy = {})
+        [[nodiscard]] Status initialize(SushiBLAS::Engine& engine, M& module,
+                                        Graph::TensorPool& pool,
+                                        const InitPolicy& policy = {})
         {
-            engine.random().set_seed(policy.seed);
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
+            {
+                SushiBLAS::RandomOps random(engine);
+                random.set_seed(policy.seed);
+                return Status();
+            }));
 
             std::vector<Parameter*> parameters;
             for_each_parameter(module, [&parameters](const std::string&, Parameter& parameter)
@@ -187,12 +200,11 @@ namespace SushiAI
             for (std::size_t i = 0; i < parameters.size(); ++i)
             {
                 const bool is_final = policy.zero_final_layer && i >= final_weight;
-                Detail::apply_initializer(engine, pool.tensor(parameters[i]->id()),
-                                          *parameters[i], policy, is_final);
+                SA_TRY(Detail::apply_initializer(engine, pool.tensor(parameters[i]->id()),
+                                                 *parameters[i], policy, is_final));
             }
 
-            engine.execute();
-            engine.get_context().wait_all();
+            return SushiAI::Detail::run_recorded(engine);
         }
 
     } // namespace NN

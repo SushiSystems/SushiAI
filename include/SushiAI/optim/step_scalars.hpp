@@ -31,6 +31,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
 
 namespace SushiAI
 {
@@ -44,19 +45,24 @@ namespace SushiAI
          * one address its kernels captured, and a copy would suggest there can
          * be two.
          */
-        class StepScalars
+        class StepScalars final
         {
             public:
                 /**
-                 * @brief Allocates and zeroes shared device buffer for step scalars.
-                 * @param engine Engine managing device memory context.
-                 * @param count Number of scalar float elements to allocate.
-                 * @throws Error If count is zero or allocation fails.
+                 * @brief Allocates and zeroes the device buffer for step scalars.
+                 * @param engine Engine whose context owns the allocator.
+                 * @param count Number of float scalars the buffer holds; must be positive.
+                 * @return The buffer, or InvalidDescription for a zero count, or the failure
+                 *         allocate_tensor returns.
                  */
-                StepScalars(SushiBLAS::Engine& engine, std::size_t count);
+                [[nodiscard]] static Result<StepScalars> make(SushiBLAS::Engine& engine,
+                                                              std::size_t count);
 
                 StepScalars(const StepScalars&) = delete;
                 StepScalars& operator=(const StepScalars&) = delete;
+                StepScalars(StepScalars&&) noexcept = default;
+                StepScalars& operator=(StepScalars&&) noexcept = default;
+                ~StepScalars() = default;
 
                 /**
                  * @brief The address a device kernel captures by value.
@@ -70,8 +76,7 @@ namespace SushiAI
 
                 /**
                  * @brief Overwrites buffer contents from the host before replay.
-                 * @param values Span containing exactly count() float scalar values.
-                 * @throws Error If values span size does not match count().
+                 * @pre @p values holds exactly count() elements; a mismatch stops the process.
                  */
                 void write(SushiRuntime::span<const float> values);
 
@@ -79,8 +84,20 @@ namespace SushiAI
                 std::size_t count() const noexcept { return count_; }
 
             private:
+                /**
+                 * @brief Takes ownership of an allocated buffer.
+                 * @param buffer Tensor of @p count float elements, owned from here on.
+                 * @param count Number of elements in @p buffer.
+                 */
+                StepScalars(SushiBLAS::Tensor buffer, std::size_t count) noexcept;
+
+                /// @brief The tensor that owns the device storage.
                 SushiBLAS::Tensor buffer_;
+
+                /// @brief Element 0 of buffer_, cached so that device_pointer() is free.
                 float* data_ = nullptr;
+
+                /// @brief Number of elements in buffer_.
                 std::size_t count_ = 0;
         };
 

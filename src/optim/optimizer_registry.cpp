@@ -27,10 +27,12 @@
 
 #include <SushiAI/optim/optimizer_registry.hpp>
 
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/registry.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiAI
 {
@@ -88,10 +90,10 @@ namespace SushiAI
             }
         }
 
-        std::unique_ptr<Optimizer> make_adamw(SushiBLAS::Engine& engine,
-                                              std::vector<ParameterSlot> parameters,
-                                              const Config::Value& attributes,
-                                              std::string_view context)
+        Result<std::unique_ptr<Optimizer>> make_adamw(SushiBLAS::Engine& engine,
+                                                      std::vector<ParameterSlot> parameters,
+                                                      const Config::Value& attributes,
+                                                      std::string_view context)
         {
             attributes.reject_unknown_keys(context, as_span(K_ADAMW_KEYS));
 
@@ -105,17 +107,20 @@ namespace SushiAI
             options.weight_decay = read_real(attributes, "weight_decay", prefix,
                                              options.weight_decay);
 
-            SA_THROW_IF(options.learning_rate <= 0.0,
-                        "{} 'learning_rate' must be positive, but it is {}",
-                        prefix, options.learning_rate);
+            SA_FAIL_IF(options.learning_rate <= 0.0, StatusCode::InvalidDescription,
+                       "{} 'learning_rate' must be positive, but it is {}",
+                       prefix, options.learning_rate);
 
-            return std::make_unique<AdamW>(engine, std::move(parameters), options);
+            SA_TRY_ASSIGN(std::unique_ptr<AdamW> made,
+                          AdamW::make(engine, std::move(parameters), options));
+            std::unique_ptr<Optimizer> base = std::move(made);
+            return std::move(base);
         }
 
-        std::unique_ptr<Optimizer> make_sgd(SushiBLAS::Engine& engine,
-                                            std::vector<ParameterSlot> parameters,
-                                            const Config::Value& attributes,
-                                            std::string_view context)
+        Result<std::unique_ptr<Optimizer>> make_sgd(SushiBLAS::Engine& engine,
+                                                    std::vector<ParameterSlot> parameters,
+                                                    const Config::Value& attributes,
+                                                    std::string_view context)
         {
             attributes.reject_unknown_keys(context, as_span(K_SGD_KEYS));
 
@@ -129,18 +134,21 @@ namespace SushiAI
                                              options.weight_decay);
             options.nesterov = read_bool(attributes, "nesterov", prefix, options.nesterov);
 
-            SA_THROW_IF(options.learning_rate <= 0.0,
-                        "{} 'learning_rate' must be positive, but it is {}",
-                        prefix, options.learning_rate);
+            SA_FAIL_IF(options.learning_rate <= 0.0, StatusCode::InvalidDescription,
+                       "{} 'learning_rate' must be positive, but it is {}",
+                       prefix, options.learning_rate);
 
-            return std::make_unique<SGD>(engine, std::move(parameters), options);
+            SA_TRY_ASSIGN(std::unique_ptr<SGD> made,
+                          SGD::make(engine, std::move(parameters), options));
+            std::unique_ptr<Optimizer> base = std::move(made);
+            return std::move(base);
         }
 
-        std::unique_ptr<Optimizer> make_optimizer(SushiBLAS::Engine& engine,
-                                                  std::string_view type,
-                                                  std::vector<ParameterSlot> parameters,
-                                                  const Config::Value& attributes,
-                                                  std::string_view context)
+        Result<std::unique_ptr<Optimizer>> make_optimizer(SushiBLAS::Engine& engine,
+                                                          std::string_view type,
+                                                          std::vector<ParameterSlot> parameters,
+                                                          const Config::Value& attributes,
+                                                          std::string_view context)
         {
             return Config::find_entry(K_OPTIMIZER_REGISTRY, type, "optimizer type")
                        .make(engine, std::move(parameters), attributes, context);

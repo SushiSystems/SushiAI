@@ -33,6 +33,7 @@
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/config/value.hpp>
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
@@ -47,9 +48,9 @@ namespace SushiAI
          * @param parameters The parameter/gradient pairs to update; moved in.
          * @param attributes The optimizer's own keys; the factory rejects any it does not know.
          * @param context What to call this optimizer in a diagnostic.
-         * @return The optimizer.
+         * @return The optimizer, or the failure that refused its configuration.
          */
-        using OptimizerFactory = std::unique_ptr<Optimizer> (*)(
+        using OptimizerFactory = Result<std::unique_ptr<Optimizer>> (*)(
             SushiBLAS::Engine& engine,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
@@ -74,12 +75,13 @@ namespace SushiAI
          * @param parameters Parameter and gradient slots moved into optimizer.
          * @param attributes Optional hyperparameters (learning_rate, beta1, beta2, etc.).
          * @param context Descriptive string for diagnostic error messages.
-         * @return Constructed AdamW optimizer instance.
+         * @return Constructed AdamW optimizer instance, or a failure when an option is refused.
          */
-        std::unique_ptr<Optimizer> make_adamw(SushiBLAS::Engine& engine,
-                                              std::vector<ParameterSlot> parameters,
-                                              const Config::Value& attributes,
-                                              std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Optimizer>> make_adamw(
+            SushiBLAS::Engine& engine,
+            std::vector<ParameterSlot> parameters,
+            const Config::Value& attributes,
+            std::string_view context);
 
         /**
          * @brief Builds an SGD optimizer from configuration attributes.
@@ -87,12 +89,13 @@ namespace SushiAI
          * @param parameters Parameter and gradient slots moved into optimizer.
          * @param attributes Optional hyperparameters (learning_rate, momentum, etc.).
          * @param context Descriptive string for diagnostic error messages.
-         * @return Constructed SGD optimizer instance.
+         * @return Constructed SGD optimizer instance, or a failure when an option is refused.
          */
-        std::unique_ptr<Optimizer> make_sgd(SushiBLAS::Engine& engine,
-                                            std::vector<ParameterSlot> parameters,
-                                            const Config::Value& attributes,
-                                            std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Optimizer>> make_sgd(
+            SushiBLAS::Engine& engine,
+            std::vector<ParameterSlot> parameters,
+            const Config::Value& attributes,
+            std::string_view context);
 
         /** @brief Every optimizer a configuration file may name. */
         inline constexpr std::array<OptimizerEntry, 2> K_OPTIMIZER_REGISTRY = {
@@ -106,13 +109,14 @@ namespace SushiAI
          * @param type Registry key identifying optimizer type.
          * @param parameters Parameter and gradient slots moved into optimizer.
          * @param attributes Optimizer configuration attributes.
-         * @return Constructed optimizer instance.
+         * @return Constructed optimizer instance, or a failure when its configuration is refused.
          */
-        std::unique_ptr<Optimizer> make_optimizer(SushiBLAS::Engine& engine,
-                                                  std::string_view type,
-                                                  std::vector<ParameterSlot> parameters,
-                                                  const Config::Value& attributes,
-                                                  std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Optimizer>> make_optimizer(
+            SushiBLAS::Engine& engine,
+            std::string_view type,
+            std::vector<ParameterSlot> parameters,
+            const Config::Value& attributes,
+            std::string_view context);
 
     } // namespace Optim
 } // namespace SushiAI

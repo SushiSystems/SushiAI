@@ -21,18 +21,23 @@
 
 /**
  * @file compiled_step.hpp
- * @brief Declares the CompiledStep class for lowering, compiling, and replaying a step.
+ * @brief Declares the CompiledStep class, which lowers, compiles and replays one step.
  * @author Mustafa Garip
  */
 
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>
+#include <SushiRuntime/graph/task_graph.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering.hpp>
@@ -44,77 +49,114 @@ namespace SushiAI
     {
         /**
          * @class CompiledStep
-         * @brief Manages the lowered and compiled execution plan for a graph.
+         * @brief Owns the task graph of one step, compiles it once and replays its plan.
          */
-        class CompiledStep
+        class CompiledStep final
         {
             public:
                 /**
-                 * @brief Lowers @p graph, compiles it once, and arms it for execution.
-                 * @param engine Recording engine; must outlive this step.
-                 * @param graph The graph to lower.
-                 * @param pool Memory pool behind values; must outlive this step.
-                 * @param trailing Optional extra recorder for trailing replay work.
-                 * @param selector Fusion selector, or null for default.
+                 * @brief Lowers @p graph into a new step, compiles it once and arms it.
+                 * @param engine Must outlive the step.
+                 * @param pool Holds the tensor of each value; must outlive the step.
+                 * @param trailing Records extra work behind the graph's; must outlive the step.
+                 * @param selector Picks the form of a fusible node; null selects by device.
+                 * @return The step, or the first refusal of the recording or the compilation.
                  */
-                CompiledStep(SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
-                             StepRecorder* trailing = nullptr,
-                             const FusionSelector* selector = nullptr);
+                [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
+                    SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
+                    StepRecorder* trailing = nullptr, const FusionSelector* selector = nullptr);
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;
                 CompiledStep(CompiledStep&&) = delete;
                 CompiledStep& operator=(CompiledStep&&) = delete;
+                ~CompiledStep() = default;
 
-                /**
-                 * @brief Re-arms the plan, executes it, and waits for completion.
-                 */
-                void run();
+                /** @brief Re-arms the plan, runs it and waits until it has finished. */
+                [[nodiscard]] Status run();
 
-                /** @brief Whether extra non-IR work was folded into this plan. */
-                bool has_trailing_work() const noexcept { return trailing_ != nullptr; }
+                /** @brief Returns whether a trailing recorder added work to this step. */
+                [[nodiscard]] bool has_trailing_work() const noexcept
+                {
+                    return trailing_ != nullptr;
+                }
 
-                /**
-                 * @brief How many times this step has been compiled.
-                 *
-                 * One, always, for the life of the object - that is the point.
-                 * Exposed so a test can hold the guarantee to account.
-                 */
-                std::size_t compile_count() const noexcept { return compile_count_; }
+                /** @brief Returns how many times this step has been compiled. */
+                [[nodiscard]] std::size_t compile_count() const noexcept
+                {
+                    return compile_count_;
+                }
 
-                /** @brief How many times run() has executed the plan. */
-                std::size_t run_count() const noexcept { return run_count_; }
+                /** @brief Returns how many times run() has executed the plan. */
+                [[nodiscard]] std::size_t run_count() const noexcept
+                {
+                    return run_count_;
+                }
 
-                /** @brief Whether the graph lowered to no runnable work at all. */
-                bool empty() const noexcept { return empty_; }
+                /** @brief Returns whether the graph lowered to no runnable work. */
+                [[nodiscard]] bool empty() const noexcept
+                {
+                    return empty_;
+                }
 
-                /** @brief How many SushiBLAS calls the step is made of. */
-                std::size_t operation_count() const noexcept { return operations_; }
+                /** @brief Returns how many SushiBLAS tasks the step is made of. */
+                [[nodiscard]] std::size_t operation_count() const noexcept
+                {
+                    return operations_;
+                }
 
-                /** @brief What the selector chose for each fused node; see Lowering. */
-                SushiRuntime::span<const FusionSelection> selections() const noexcept
+                /** @brief Returns what the selector chose for each fused node. */
+                [[nodiscard]] SushiRuntime::span<const FusionSelection> selections() const noexcept
                 {
                     return SushiRuntime::span<const FusionSelection>(selections_.data(),
                                                                      selections_.size());
                 }
 
                 /**
-                 * @brief The compiled plan, for profiling.
-                 *
-                 * Exposed only so a caller can hand it to
-                 * @c IExecutionEngine::reset_profiling / @c collect_profiling.
-                 * Do not compile, rearm or execute it yourself.
+                 * @brief Returns the compiled plan, for the profiling calls of the execution
+                 *        engine.
+                 * @pre The caller does not compile, re-arm or execute the plan.
                  */
-                SushiRuntime::Execution::CompiledGraph& plan() noexcept { return plan_; }
+                [[nodiscard]] SushiRuntime::Execution::CompiledGraph& plan() noexcept
+                {
+                    return plan_;
+                }
 
             private:
+                /**
+                 * @brief Builds an empty step whose recorder is bound to its own graph.
+                 * @param engine Must outlive the step.
+                 */
+                CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing);
+
+                /// @brief The engine whose context runs the plan.
                 SushiBLAS::Engine* engine_;
+
+                /// @brief The recorder of the trailing work, or null; not owned.
                 StepRecorder* trailing_;
+
+                /// @brief The task graph the step records into and compiles.
+                SushiRuntime::Graph::TaskGraph graph_;
+
+                /// @brief The recorder bound to graph_.
+                SushiBLAS::TaskRecorder recorder_;
+
+                /// @brief The plan compiled from graph_.
                 SushiRuntime::Execution::CompiledGraph plan_;
+
+                /// @brief The fusion decisions of the lowering, in execution order.
                 std::vector<FusionSelection> selections_;
+
+                /// @brief The number of times graph_ has been compiled.
                 std::size_t compile_count_ = 0;
+
+                /// @brief The number of times run() has executed the plan.
                 std::size_t run_count_ = 0;
+
+                /// @brief The number of tasks the lowering and the trailing recorder recorded.
                 std::size_t operations_ = 0;
+
+                /// @brief Whether the plan holds no root.
                 bool empty_ = false;
         };
 
