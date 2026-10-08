@@ -148,12 +148,36 @@ namespace
         0.000865, 0.000353, 0.000528, 0.002215,
     };
 
-    /** @brief How far a step's loss may drift before it counts as a change. */
+    /** @brief Steps from this index on are compared relatively; earlier steps absolutely. */
+    constexpr std::size_t K_TAIL_FIRST_STEP = 6;
+
+    /** @brief Absolute drift a head step's loss may show before it counts as a change. */
     constexpr double K_LOSS_TOLERANCE = 0.02;
+
+    /**
+     * @brief Relative drift a tail step's loss may show, as a fraction of its reference.
+     *
+     * Two per cent pins each tail value to about its second significant digit.
+     */
+    constexpr double K_LOSS_RELATIVE_TOLERANCE = 0.02;
+
+    /**
+     * @brief Tells whether one step's loss matches its reference within that step's tolerance.
+     *
+     * Head steps pass within K_LOSS_TOLERANCE; tail steps pass within K_LOSS_RELATIVE_TOLERANCE.
+     */
+    bool within_tolerance(std::size_t step, double observed, double reference)
+    {
+        const double drift = std::abs(observed - reference);
+        if (step < K_TAIL_FIRST_STEP)
+            return drift <= K_LOSS_TOLERANCE;
+
+        return drift <= K_LOSS_RELATIVE_TOLERANCE * std::abs(reference);
+    }
 }
 
 /**
- * @brief Tests that every step's loss is within K_LOSS_TOLERANCE of the recorded reference.
+ * @brief Tests that every step's loss is within its tolerance of the recorded reference.
  * @see tests/functional/regression/README.md
  */
 TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
@@ -167,8 +191,10 @@ TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
     bool matched = true;
     for (std::size_t step = 0; step < losses.size(); ++step)
     {
-        EXPECT_NEAR(losses[step], K_REFERENCE[step], K_LOSS_TOLERANCE) << "at step " << step;
-        if (std::abs(losses[step] - K_REFERENCE[step]) > K_LOSS_TOLERANCE)
+        const bool within = within_tolerance(step, losses[step], K_REFERENCE[step]);
+        EXPECT_TRUE(within) << "at step " << step << ": observed " << losses[step]
+                            << ", reference " << K_REFERENCE[step];
+        if (!within)
             matched = false;
     }
 

@@ -174,8 +174,9 @@ namespace SushiAI
                  * @brief Makes one result share the storage of one operand.
                  * @param result_index Position of the result in the node's result list.
                  * @param operand_index Position of the operand in the node's operand list.
+                 * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  */
-                void alias_output(std::size_t result_index, std::size_t operand_index) const;
+                [[nodiscard]] Status alias_output(std::size_t result_index, std::size_t operand_index) const;
 
                 /**
                  * @brief A scratch tensor private to this node and slot, reused across replays.

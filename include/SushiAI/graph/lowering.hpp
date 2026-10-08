@@ -61,10 +61,6 @@ namespace SushiAI
 
                 }
 
-                /** @brief Returns the values of @p graph that need an allocation of their own. */
-                [[nodiscard]] static std::vector<ValueId> values_needing_own_allocation(
-                    const Graph& graph);
-
                 /**
                  * @brief Records every node of @p graph, in node order.
                  * @return Success, or the first refusal, annotated with the node's operation.

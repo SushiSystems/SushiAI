@@ -69,7 +69,7 @@ namespace SushiAI
         };
 
         /**
-         * @class IPrecisionPolicy
+         * @class PrecisionPolicy
          * @brief Interface selecting execution element types per operation.
          *
          * Implementations must be idempotent and reproducible.

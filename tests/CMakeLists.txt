@@ -121,6 +121,7 @@ add_executable(sushiai_tests
     functional/integration/test_engine_smoke.cpp
     functional/integration/test_arena.cpp
     functional/integration/test_forward.cpp
+    functional/integration/test_lowered_operations.cpp
     functional/integration/test_autograd_numeric.cpp
     functional/integration/test_training.cpp
     functional/integration/test_mixed_precision.cpp

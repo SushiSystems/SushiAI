@@ -33,6 +33,8 @@
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
+#include <SushiAI/core/seam.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiBLAS
 {
@@ -81,9 +83,10 @@ namespace SushiAI
                  * @brief Appends @p recorder behind the members already held.
                  * @param recorder Must outlive the list, and is neither the list nor a direct
                  *                 member. A recorder reached through a nested list is not checked.
+                 * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  * @pre No list of one tree holds a recorder twice, and no list reaches itself.
                  */
-                void add(StepRecorder& recorder)
+                [[nodiscard]] Status add(StepRecorder& recorder)
                 {
                     SA_FATAL_IF(&recorder == this,
                                 "StepRecorderList::add: a list cannot hold itself");
@@ -93,7 +96,12 @@ namespace SushiAI
                                 "members",
                                 members_.size());
 
-                    members_.push_back(&recorder);
+                    return ::SushiAI::Detail::guard(
+                        ::SushiAI::Detail::SeamPhase::Allocate, [&]()
+                    {
+                        members_.push_back(&recorder);
+                        return Status();
+                    });
                 }
 
                 /** @brief Returns whether the list holds no member. */

@@ -137,7 +137,8 @@ namespace SushiAI
                 return Status();
             }));
 
-            SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+            // Invariant: Moments and constant buffers are initialized eagerly before first step.
+            SA_TRY(Detail::record_and_run(engine, [&]()
             {
                 SushiBLAS::RandomOps random(engine);
                 for (State& entry : state)
@@ -151,9 +152,6 @@ namespace SushiAI
                 }
                 return Status();
             }));
-
-            // Invariant: Moments and constant buffers are initialized eagerly before first step.
-            SA_TRY(Detail::run_recorded(engine));
 
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {

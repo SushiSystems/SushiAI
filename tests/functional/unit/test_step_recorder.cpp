@@ -148,7 +148,7 @@ TEST_F(Unit_StepRecorder, AddMakesTheListNonEmpty)
     JournalRecorder a("a", 1, journal);
     StepRecorderList list;
 
-    list.add(a);
+    SA_EXPECT_OK(list.add(a));
 
     EXPECT_FALSE(list.empty());
     EXPECT_TRUE(journal.empty());
@@ -162,9 +162,9 @@ TEST_F(Unit_StepRecorder, RecordSumsTheMemberCounts)
     JournalRecorder b("b", 0, journal);
     JournalRecorder c("c", 5, journal);
     StepRecorderList list;
-    list.add(a);
-    list.add(b);
-    list.add(c);
+    SA_EXPECT_OK(list.add(a));
+    SA_EXPECT_OK(list.add(b));
+    SA_EXPECT_OK(list.add(c));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
     EXPECT_EQ(count, 7u);
@@ -178,9 +178,9 @@ TEST_F(Unit_StepRecorder, RecordCallsMembersInTheOrderAdded)
     JournalRecorder b("b", 1, journal);
     JournalRecorder c("c", 1, journal);
     StepRecorderList list;
-    list.add(a);
-    list.add(b);
-    list.add(c);
+    SA_EXPECT_OK(list.add(a));
+    SA_EXPECT_OK(list.add(b));
+    SA_EXPECT_OK(list.add(c));
 
     SA_EXPECT_OK(list.record_into_step(recorder_));
 
@@ -194,8 +194,8 @@ TEST_F(Unit_StepRecorder, OrderFollowsAddNotConstruction)
     JournalRecorder a("a", 1, journal);
     JournalRecorder b("b", 1, journal);
     StepRecorderList list;
-    list.add(b);
-    list.add(a);
+    SA_EXPECT_OK(list.add(b));
+    SA_EXPECT_OK(list.add(a));
 
     SA_EXPECT_OK(list.record_into_step(recorder_));
 
@@ -210,9 +210,9 @@ TEST_F(Unit_StepRecorder, BeforeReplayCallsMembersInTheOrderAdded)
     JournalRecorder b("b", 1, journal);
     JournalRecorder c("c", 1, journal);
     StepRecorderList list;
-    list.add(a);
-    list.add(b);
-    list.add(c);
+    SA_EXPECT_OK(list.add(a));
+    SA_EXPECT_OK(list.add(b));
+    SA_EXPECT_OK(list.add(c));
 
     list.before_replay();
 
@@ -227,9 +227,9 @@ TEST_F(Unit_StepRecorder, AfterReplayCallsMembersInTheOrderAdded)
     JournalRecorder b("b", 1, journal);
     JournalRecorder c("c", 1, journal);
     StepRecorderList list;
-    list.add(a);
-    list.add(b);
-    list.add(c);
+    SA_EXPECT_OK(list.add(a));
+    SA_EXPECT_OK(list.add(b));
+    SA_EXPECT_OK(list.add(c));
 
     list.after_replay();
 
@@ -243,8 +243,8 @@ TEST_F(Unit_StepRecorder, MemberWithoutReplayHooksIsDriven)
     JournalRecorder a("a", 4, journal);
     RecordOnlyRecorder plain;
     StepRecorderList list;
-    list.add(plain);
-    list.add(a);
+    SA_EXPECT_OK(list.add(plain));
+    SA_EXPECT_OK(list.add(a));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
     EXPECT_EQ(count, 7u);
@@ -261,8 +261,8 @@ TEST_F(Unit_StepRecorder, ListIsDrivenThroughTheInterface)
     JournalRecorder a("a", 2, journal);
     JournalRecorder b("b", 3, journal);
     StepRecorderList list;
-    list.add(a);
-    list.add(b);
+    SA_EXPECT_OK(list.add(a));
+    SA_EXPECT_OK(list.add(b));
     StepRecorder* trailing = &list;
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, trailing->record_into_step(recorder_));
@@ -282,11 +282,11 @@ TEST_F(Unit_StepRecorder, NestedListKeepsItsPlaceInTheOrder)
     JournalRecorder b("b", 2, journal);
     JournalRecorder c("c", 4, journal);
     StepRecorderList inner;
-    inner.add(b);
+    SA_EXPECT_OK(inner.add(b));
     StepRecorderList outer;
-    outer.add(a);
-    outer.add(inner);
-    outer.add(c);
+    SA_EXPECT_OK(outer.add(a));
+    SA_EXPECT_OK(outer.add(inner));
+    SA_EXPECT_OK(outer.add(c));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, outer.record_into_step(recorder_));
     EXPECT_EQ(count, 7u);
@@ -299,9 +299,9 @@ TEST_F(Unit_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
     std::vector<std::string> journal;
     JournalRecorder a("a", 2, journal);
     StepRecorderList list;
-    list.add(a);
+    SA_EXPECT_OK(list.add(a));
 
-    SA_EXPECT_FATAL(list.add(a), "StepRecorderList::add", "already");
+    SA_EXPECT_FATAL((void)list.add(a), "StepRecorderList::add", "already");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
     EXPECT_EQ(count, 2u);
@@ -313,7 +313,7 @@ TEST_F(Unit_StepRecorderDeathTest, AddRejectsTheListItself)
 {
     StepRecorderList list;
 
-    SA_EXPECT_FATAL(list.add(list), "StepRecorderList::add", "itself");
+    SA_EXPECT_FATAL((void)list.add(list), "StepRecorderList::add", "itself");
 
     EXPECT_TRUE(list.empty());
 }

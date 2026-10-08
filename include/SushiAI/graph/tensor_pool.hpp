@@ -96,9 +96,10 @@ namespace SushiAI
                  *
                  * @param id Value identifier to bind.
                  * @param tensor External tensor to associate.
+                 * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  * @pre @p id is not bound yet; a second binding stops the process.
                  */
-                void bind(ValueId id, SushiBLAS::Tensor tensor);
+                [[nodiscard]] Status bind(ValueId id, SushiBLAS::Tensor tensor);
 
                 /** @brief Whether @p id has a tensor behind it yet. */
                 bool is_bound(ValueId id) const noexcept
@@ -136,13 +137,13 @@ namespace SushiAI
 
                 /**
                  * @brief Aliases target value storage to an existing source tensor.
-                 *
                  * @param target Value identifier to alias.
                  * @param source Already-bound source value identifier.
+                 * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  * @pre @p source is bound, and @p target is unbound or already aliases it; any
                  *      other case stops the process.
                  */
-                void alias(ValueId target, ValueId source);
+                [[nodiscard]] Status alias(ValueId target, ValueId source);
 
                 /**
                  * @brief Retrieves or creates a shared constant all-ones tensor.
@@ -168,8 +169,9 @@ namespace SushiAI
                  * @brief Queues @p tensor to be filled with @p value once.
                  * @param tensor The tensor to fill; must outlive the flush.
                  * @param value The constant.
+                 * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  */
-                void request_constant(SushiBLAS::Tensor& tensor, double value);
+                [[nodiscard]] Status request_constant(SushiBLAS::Tensor& tensor, double value);
 
                 /**
                  * @brief Records every queued constant fill and runs it until it has finished.

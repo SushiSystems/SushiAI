@@ -86,7 +86,7 @@ namespace SushiAI
         };
 
         /**
-         * @class IFusionSelector
+         * @class FusionSelector
          * @brief Defines the interface for bind-time selection of fused forms.
          */
         class FusionSelector

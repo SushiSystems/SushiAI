@@ -84,11 +84,16 @@ namespace SushiAI
             return *arenas_;
         }
 
-        void TensorPool::bind(ValueId id, SushiBLAS::Tensor tensor)
+        Status TensorPool::bind(ValueId id, SushiBLAS::Tensor tensor)
         {
             SA_FATAL_IF(is_bound(id),
                         "Value {} is already bound to a tensor; a value has one buffer", id);
-            tensors_.emplace(id, std::move(tensor));
+
+            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                tensors_.emplace(id, std::move(tensor));
+                return Status();
+            });
         }
 
         SushiBLAS::Tensor& TensorPool::tensor(ValueId id)
@@ -162,7 +167,7 @@ namespace SushiAI
             return Status();
         }
 
-        void TensorPool::alias(ValueId target, ValueId source)
+        Status TensorPool::alias(ValueId target, ValueId source)
         {
             const auto it = tensors_.find(source);
             SA_FATAL_IF(it == tensors_.end(),
@@ -176,10 +181,14 @@ namespace SushiAI
                             || existing->second.storage_offset != it->second.storage_offset,
                             "Value {} is already bound to a different buffer; it cannot also "
                             "alias value {}", target, source);
-                return;
+                return Status();
             }
 
-            tensors_.emplace(target, it->second);
+            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                tensors_.emplace(target, it->second);
+                return Status();
+            });
         }
 
         Result<SushiBLAS::Tensor&> TensorPool::ones(const Shape& shape, DType dtype)
@@ -194,12 +203,7 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor& slot, store_tensor(ones_, key, std::move(fill)));
 
-            const Status queued = ::SushiAI::Detail::guard(
-                ::SushiAI::Detail::SeamPhase::Allocate, [&]()
-            {
-                request_constant(slot, 1.0);
-                return Status();
-            });
+            const Status queued = request_constant(slot, 1.0);
 
             // A ones tensor whose fill was not queued leaves the cache, so no caller reads it.
             if (!queued.is_ok())
@@ -224,25 +228,29 @@ namespace SushiAI
             return store_tensor(scratch_, key, std::move(buffer));
         }
 
-        void TensorPool::request_constant(SushiBLAS::Tensor& tensor, double value)
+        Status TensorPool::request_constant(SushiBLAS::Tensor& tensor, double value)
         {
-            pending_constants_.emplace_back(&tensor, value);
+            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                pending_constants_.emplace_back(&tensor, value);
+                return Status();
+            });
         }
 
         Status TensorPool::flush_constants()
         {
             if (pending_constants_.empty()) return Status();
 
-            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Record, [this]()
+            return ::SushiAI::Detail::record_and_run(*engine_, [this]()
             {
                 SushiBLAS::RandomOps filler(*engine_);
                 for (const auto& [tensor, value] : pending_constants_)
                     filler.constant(*tensor, value);
-                return Status();
-            }));
 
-            pending_constants_.clear();
-            return ::SushiAI::Detail::run_recorded(*engine_);
+                // The list empties once every fill is recorded, before any of them runs.
+                pending_constants_.clear();
+                return Status();
+            });
         }
 
         std::size_t TensorPool::tensor_count() const noexcept

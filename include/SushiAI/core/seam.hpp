@@ -89,6 +89,30 @@ namespace SushiAI
         /** @brief Takes the nodes recorded in @p graph and destroys them. */
         [[nodiscard]] Status discard_recorded(SushiRuntime::Graph::TaskGraph& graph) noexcept;
 
+        /**
+         * @brief Destroys every task recorded on @p engine that has not run.
+         * @pre No thread is recording on @p engine or running its tasks.
+         */
+        [[nodiscard]] Status discard_recorded(SushiBLAS::Engine& engine) noexcept;
+
+        /**
+         * @brief Discards what a failed recording left on @p engine.
+         * @param failure The failure of the recording; never a success.
+         * @return @p failure, prefixed with the failure of the discard when that fails too.
+         */
+        [[nodiscard]] Status abandon_recording(SushiBLAS::Engine& engine,
+                                               const Status& failure) noexcept;
+
+        /**
+         * @brief Runs @p record, then runs the tasks it recorded on @p engine and waits.
+         * @param record Called once with no argument; records on @p engine and returns Status.
+         * @pre @p engine holds no recorded task that must outlive a failure of @p record.
+         * @return Success, the failure of @p record with every task recorded on @p engine
+         *         discarded, or the failure of the run.
+         */
+        template<typename Record>
+        [[nodiscard]] Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept;
+
         template<typename Call>
         Status guard(SeamPhase phase, Call&& call) noexcept
         {
@@ -114,6 +138,16 @@ namespace SushiAI
             {
                 return status_of_current_exception(phase);
             }
+        }
+
+        template<typename Record>
+        Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept
+        {
+            const Status recorded = guard(SeamPhase::Record, std::forward<Record>(record));
+            if (!recorded.is_ok())
+                return abandon_recording(engine, recorded);
+
+            return run_recorded(engine);
         }
 
     } // namespace Detail

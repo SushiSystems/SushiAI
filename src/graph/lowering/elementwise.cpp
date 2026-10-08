@@ -229,7 +229,7 @@ namespace SushiAI
             context.require_arity(2, 1);
 
             // The result shares the accumulator's storage, so the axpy below writes it in place.
-            context.alias_output(0, 0);
+            SA_TRY(context.alias_output(0, 0));
             SushiBLAS::Tensor& accumulator = context.mutable_input(0);
             const SushiBLAS::Tensor& delta = context.input(1);
 

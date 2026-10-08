@@ -165,12 +165,12 @@ namespace SushiAI
             return pool_.is_bound(node().outputs[index]);
         }
 
-        void LoweringContext::alias_output(std::size_t result_index,
+        Status LoweringContext::alias_output(std::size_t result_index,
                                            std::size_t operand_index) const
         {
             check_output(result_index);
             check_input(operand_index);
-            pool_.alias(node().outputs[result_index], node().inputs[operand_index]);
+            return pool_.alias(node().outputs[result_index], node().inputs[operand_index]);
         }
 
         Result<SushiBLAS::Tensor&> LoweringContext::scratch(int slot, const Shape& shape,
