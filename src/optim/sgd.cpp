@@ -40,6 +40,7 @@
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/result.hpp>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/optim/sgd.hpp>
 
@@ -93,28 +94,34 @@ namespace SushiAI
             SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, SCALAR_COUNT));
 
             std::vector<State> state;
-            state.reserve(parameters.size());
-            for (const ParameterSlot& slot : parameters)
+            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                State entry;
-
-                // Allocate staging buffer for separate kernel launches.
-                if (separate)
+                state.reserve(parameters.size());
+                for (const ParameterSlot& slot : parameters)
                 {
-                    SA_TRY_ASSIGN(entry.staged, allocate_like(engine, slot.parameter));
-                }
-                if (has_momentum)
-                {
-                    SA_TRY_ASSIGN(entry.buffer, allocate_like(engine, slot.parameter));
-                }
+                    State entry;
 
-                state.push_back(std::move(entry));
-            }
+                    // Allocate staging buffer for separate kernel launches.
+                    if (separate)
+                    {
+                        SA_TRY_ASSIGN(entry.staged, allocate_like(engine, slot.parameter));
+                    }
+                    if (has_momentum)
+                    {
+                        SA_TRY_ASSIGN(entry.buffer, allocate_like(engine, slot.parameter));
+                    }
 
-            std::unique_ptr<SGD> made(new SGD(engine, std::move(parameters), options,
-                                              std::move(state), std::move(scalars),
-                                              has_momentum));
-            return std::move(made);
+                    state.push_back(std::move(entry));
+                }
+                return Status();
+            }));
+
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<SGD>(new SGD(engine, std::move(parameters), options,
+                                                    std::move(state), std::move(scalars),
+                                                    has_momentum));
+            });
         }
 
         SGD::SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,

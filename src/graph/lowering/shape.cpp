@@ -43,6 +43,7 @@ namespace SushiAI
     {
         Status lower_leaf(const LoweringContext& context)
         {
+            // A leaf takes any number of operands and results; only the binding is checked.
             const Node& node = context.node();
             for (std::size_t index = 0; index < node.outputs.size(); ++index)
             {

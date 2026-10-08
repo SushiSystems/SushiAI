@@ -248,7 +248,7 @@ namespace SushiAI
 
         Status lower_concat_channels(const LoweringContext& context)
         {
-            context.require_arity_at_least(1, 1);
+            context.require_variadic_arity(1, 1);
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor& out, context.output(0));
 

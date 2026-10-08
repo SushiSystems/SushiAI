@@ -107,6 +107,8 @@ namespace SushiAI
 
                 Optimizer(const Optimizer&) = delete;
                 Optimizer& operator=(const Optimizer&) = delete;
+                Optimizer(Optimizer&&) = delete;
+                Optimizer& operator=(Optimizer&&) = delete;
 
                 /**
                  * @brief Applies one update step standalone to every registered parameter.

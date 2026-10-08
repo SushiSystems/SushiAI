@@ -173,8 +173,12 @@ namespace SushiAI
                     std::size_t parameter_count,
                     LossScaleOptions options = {});
 
+                ~LossScaler() = default;
+
                 LossScaler(const LossScaler&) = delete;
                 LossScaler& operator=(const LossScaler&) = delete;
+                LossScaler(LossScaler&&) = delete;
+                LossScaler& operator=(LossScaler&&) = delete;
 
                 /**
                  * @brief Records non-finite gradient count kernels for each parameter.

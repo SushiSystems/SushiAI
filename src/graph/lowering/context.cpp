@@ -103,6 +103,17 @@ namespace SushiAI
                         current.outputs.size());
         }
 
+        void LoweringContext::require_variadic_arity(std::size_t inputs,
+                                                     std::size_t outputs) const
+        {
+            const Node& current = node();
+            SA_FATAL_IF(current.inputs.size() < inputs || current.outputs.size() != outputs,
+                        "{} (node {}) takes at least {} operand(s) and exactly {} result(s); it "
+                        "has {} and {}",
+                        name(), id_, inputs, outputs, current.inputs.size(),
+                        current.outputs.size());
+        }
+
         void LoweringContext::check_input(std::size_t index) const
         {
             SA_FATAL_IF(index >= node().inputs.size(),

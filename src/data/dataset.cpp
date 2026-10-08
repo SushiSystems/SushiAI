@@ -135,7 +135,11 @@ namespace SushiAI
                 SA_TRY_ASSIGN(batch.targets,
                               allocate_tensor(engine,
                                               SushiRuntime::span<const int64_t>(target_dims, 2)));
-                batch.labels.resize(static_cast<std::size_t>(rows));
+                SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
+                {
+                    batch.labels.resize(static_cast<std::size_t>(rows));
+                    return Status();
+                }));
 
                 return std::move(batch);
             }
@@ -279,34 +283,41 @@ namespace SushiAI
                                           SushiRuntime::span<const int64_t>(noise_dims, 2)));
 
             std::vector<Batch> batches;
-            batches.reserve(static_cast<std::size_t>(options.batches));
-
-            int64_t running = 0;
-            for (int64_t b = 0; b < options.batches; ++b)
+            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, features, classes));
+                batches.reserve(static_cast<std::size_t>(options.batches));
 
-                for (int64_t r = 0; r < rows; ++r)
-                    batch.labels[static_cast<std::size_t>(r)] =
-                        static_cast<int32_t>((running++) % classes);
-
-                write_one_hot(batch.targets, batch.labels, classes);
-
-                // Matrix multiplication by one-hot targets gathers each sample's class mean.
-                SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+                int64_t running = 0;
+                for (int64_t b = 0; b < options.batches; ++b)
                 {
-                    blas.gemm(batch.targets, means, batch.inputs);
-                    random.normal(noise, 0.0, options.noise);
-                    blas.axpy(1.0f, noise, batch.inputs);
-                    return Status();
-                }));
-                SA_TRY(Detail::run_recorded(engine));
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, features, classes));
 
-                batches.push_back(std::move(batch));
-            }
+                    for (int64_t r = 0; r < rows; ++r)
+                        batch.labels[static_cast<std::size_t>(r)] =
+                            static_cast<int32_t>((running++) % classes);
 
-            return std::unique_ptr<SyntheticClassification>(
-                new SyntheticClassification(options, std::move(batches)));
+                    write_one_hot(batch.targets, batch.labels, classes);
+
+                    // Matrix multiplication by one-hot targets gathers each sample's class mean.
+                    SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+                    {
+                        blas.gemm(batch.targets, means, batch.inputs);
+                        random.normal(noise, 0.0, options.noise);
+                        blas.axpy(1.0f, noise, batch.inputs);
+                        return Status();
+                    }));
+                    SA_TRY(Detail::run_recorded(engine));
+
+                    batches.push_back(std::move(batch));
+                }
+                return Status();
+            }));
+
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<SyntheticClassification>(
+                    new SyntheticClassification(options, std::move(batches)));
+            });
         }
 
         const Batch& SyntheticClassification::batch(std::size_t index) const
@@ -330,91 +341,112 @@ namespace SushiAI
                                            label_path(options).string());
         }
 
+        namespace
+        {
+            /**
+             * @brief Reads the MNIST split that @p options names into @p dataset.
+             * @param dataset Receives the batches; unchanged when the read fails.
+             * @return Success, FileNotFound when a file is absent, InvalidFile for a file that
+             *         is not the split, InvalidDescription for a batch size that is not
+             *         positive, or the failure of an allocation.
+             */
+            [[nodiscard]] Status read_mnist(SushiBLAS::Engine& engine,
+                                            const MnistOptions& options,
+                                            std::unique_ptr<Dataset>& dataset)
+            {
+                SA_FAIL_IF(!mnist_available(options), StatusCode::FileNotFound,
+                           "{}", mnist_expected_paths(options));
+
+                SA_FAIL_IF(options.batch_size <= 0, StatusCode::InvalidDescription,
+                           "MNIST needs a positive batch size; got {}", options.batch_size);
+
+                std::ifstream images(image_path(options), std::ios::binary);
+                std::ifstream labels(label_path(options), std::ios::binary);
+
+                SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
+                           "MNIST files exist but could not be opened ({})",
+                           mnist_expected_paths(options));
+
+                const std::uint32_t image_magic = read_be32(images);
+                const std::uint32_t image_count = read_be32(images);
+                const std::uint32_t image_rows = read_be32(images);
+                const std::uint32_t image_cols = read_be32(images);
+
+                const std::uint32_t label_magic = read_be32(labels);
+                const std::uint32_t label_count = read_be32(labels);
+
+                SA_FAIL_IF(image_magic != 0x00000803u, StatusCode::InvalidFile,
+                           "{} is not an IDX3 image file (magic 0x{:08x})",
+                           image_path(options).string(), image_magic);
+                SA_FAIL_IF(label_magic != 0x00000801u, StatusCode::InvalidFile,
+                           "{} is not an IDX1 label file (magic 0x{:08x})",
+                           label_path(options).string(), label_magic);
+                SA_FAIL_IF(image_count != label_count, StatusCode::InvalidFile,
+                           "MNIST holds {} images but {} labels", image_count, label_count);
+
+                const int64_t pixels = static_cast<int64_t>(image_rows) * image_cols;
+                const int64_t available = static_cast<int64_t>(image_count);
+                const int64_t wanted = options.max_samples > 0
+                                     ? std::min(available, options.max_samples)
+                                     : available;
+
+                const int64_t rows = options.batch_size;
+                const int64_t batch_total = wanted / rows;
+                SA_FAIL_IF(batch_total <= 0, StatusCode::InvalidFile,
+                           "MNIST has {} usable samples, fewer than one batch of {}", wanted, rows);
+
+                const int64_t classes = 10;
+
+                std::vector<unsigned char> raw(static_cast<std::size_t>(rows * pixels));
+                std::vector<unsigned char> raw_labels(static_cast<std::size_t>(rows));
+
+                std::vector<Batch> batches;
+                batches.reserve(static_cast<std::size_t>(batch_total));
+
+                for (int64_t b = 0; b < batch_total; ++b)
+                {
+                    images.read(reinterpret_cast<char*>(raw.data()),
+                                static_cast<std::streamsize>(raw.size()));
+                    labels.read(reinterpret_cast<char*>(raw_labels.data()),
+                                static_cast<std::streamsize>(raw_labels.size()));
+
+                    SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
+                               "MNIST file ended after {} of {} batches; the download is truncated",
+                               b, batch_total);
+
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, pixels, classes));
+
+                    float* pixel_data = batch.inputs.data_as<float>();
+                    for (std::size_t i = 0; i < raw.size(); ++i)
+                        pixel_data[i] = static_cast<float>(raw[i]) / 255.0f;
+
+                    for (int64_t r = 0; r < rows; ++r)
+                    {
+                        const int32_t label =
+                            static_cast<int32_t>(raw_labels[static_cast<std::size_t>(r)]);
+                        SA_FAIL_IF(label < 0 || label >= classes, StatusCode::InvalidFile,
+                                   "MNIST label {} is out of range", label);
+                        batch.labels[static_cast<std::size_t>(r)] = label;
+                    }
+
+                    write_one_hot(batch.targets, batch.labels, classes);
+                    batches.push_back(std::move(batch));
+                }
+
+                dataset = std::make_unique<MaterialisedDataset>(std::move(batches), rows, pixels,
+                                                                classes, "mnist");
+                return Status();
+            }
+        }
+
         Result<std::unique_ptr<Dataset>> try_load_mnist(SushiBLAS::Engine& engine,
                                                         const MnistOptions& options)
         {
-            SA_FAIL_IF(!mnist_available(options), StatusCode::FileNotFound,
-                       "{}", mnist_expected_paths(options));
-
-            SA_FAIL_IF(options.batch_size <= 0, StatusCode::InvalidDescription,
-                       "MNIST needs a positive batch size; got {}", options.batch_size);
-
-            std::ifstream images(image_path(options), std::ios::binary);
-            std::ifstream labels(label_path(options), std::ios::binary);
-
-            SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
-                       "MNIST files exist but could not be opened ({})",
-                       mnist_expected_paths(options));
-
-            const std::uint32_t image_magic = read_be32(images);
-            const std::uint32_t image_count = read_be32(images);
-            const std::uint32_t image_rows = read_be32(images);
-            const std::uint32_t image_cols = read_be32(images);
-
-            const std::uint32_t label_magic = read_be32(labels);
-            const std::uint32_t label_count = read_be32(labels);
-
-            SA_FAIL_IF(image_magic != 0x00000803u, StatusCode::InvalidFile,
-                       "{} is not an IDX3 image file (magic 0x{:08x})",
-                       image_path(options).string(), image_magic);
-            SA_FAIL_IF(label_magic != 0x00000801u, StatusCode::InvalidFile,
-                       "{} is not an IDX1 label file (magic 0x{:08x})",
-                       label_path(options).string(), label_magic);
-            SA_FAIL_IF(image_count != label_count, StatusCode::InvalidFile,
-                       "MNIST holds {} images but {} labels", image_count, label_count);
-
-            const int64_t pixels = static_cast<int64_t>(image_rows) * image_cols;
-            const int64_t available = static_cast<int64_t>(image_count);
-            const int64_t wanted = options.max_samples > 0
-                                 ? std::min(available, options.max_samples)
-                                 : available;
-
-            const int64_t rows = options.batch_size;
-            const int64_t batch_total = wanted / rows;
-            SA_FAIL_IF(batch_total <= 0, StatusCode::InvalidFile,
-                       "MNIST has {} usable samples, fewer than one batch of {}", wanted, rows);
-
-            const int64_t classes = 10;
-
-            std::vector<unsigned char> raw(static_cast<std::size_t>(rows * pixels));
-            std::vector<unsigned char> raw_labels(static_cast<std::size_t>(rows));
-
-            std::vector<Batch> batches;
-            batches.reserve(static_cast<std::size_t>(batch_total));
-
-            for (int64_t b = 0; b < batch_total; ++b)
+            std::unique_ptr<Dataset> dataset;
+            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
             {
-                images.read(reinterpret_cast<char*>(raw.data()),
-                            static_cast<std::streamsize>(raw.size()));
-                labels.read(reinterpret_cast<char*>(raw_labels.data()),
-                            static_cast<std::streamsize>(raw_labels.size()));
-
-                SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
-                           "MNIST file ended after {} of {} batches; the download is truncated",
-                           b, batch_total);
-
-                SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, pixels, classes));
-
-                float* pixel_data = batch.inputs.data_as<float>();
-                for (std::size_t i = 0; i < raw.size(); ++i)
-                    pixel_data[i] = static_cast<float>(raw[i]) / 255.0f;
-
-                for (int64_t r = 0; r < rows; ++r)
-                {
-                    const int32_t label =
-                        static_cast<int32_t>(raw_labels[static_cast<std::size_t>(r)]);
-                    SA_FAIL_IF(label < 0 || label >= classes, StatusCode::InvalidFile,
-                               "MNIST label {} is out of range", label);
-                    batch.labels[static_cast<std::size_t>(r)] = label;
-                }
-
-                write_one_hot(batch.targets, batch.labels, classes);
-                batches.push_back(std::move(batch));
-            }
-
-            std::unique_ptr<Dataset> dataset =
-                std::make_unique<MaterialisedDataset>(std::move(batches), rows, pixels, classes,
-                                                      "mnist");
+                return read_mnist(engine, options, dataset);
+            }));
             return std::move(dataset);
         }
 
@@ -454,36 +486,43 @@ namespace SushiAI
             std::normal_distribution<double> distractor(0.0, 1.0);
 
             std::vector<Batch> batches;
-            batches.reserve(static_cast<std::size_t>(options.batches));
-
-            int64_t running = 0;
-            for (int64_t b = 0; b < options.batches; ++b)
+            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, features, classes));
+                batches.reserve(static_cast<std::size_t>(options.batches));
 
-                float* x = batch.inputs.data_as<float>();
-
-                for (int64_t r = 0; r < rows; ++r)
+                int64_t running = 0;
+                for (int64_t b = 0; b < options.batches; ++b)
                 {
-                    // Round-robin class assignment balances every batch evenly.
-                    const int64_t label = (running++) % classes;
-                    batch.labels[static_cast<std::size_t>(r)] = static_cast<int32_t>(label);
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, features, classes));
 
-                    const double radius = static_cast<double>(label) + band_dist(rng);
-                    const double theta = theta_dist(rng);
+                    float* x = batch.inputs.data_as<float>();
 
-                    float* row = x + r * features;
-                    row[0] = static_cast<float>(radius * std::cos(theta) + jitter(rng));
-                    row[1] = static_cast<float>(radius * std::sin(theta) + jitter(rng));
-                    for (int64_t f = 0; f < options.distractor_features; ++f)
-                        row[2 + f] = static_cast<float>(distractor(rng));
+                    for (int64_t r = 0; r < rows; ++r)
+                    {
+                        // Round-robin class assignment balances every batch evenly.
+                        const int64_t label = (running++) % classes;
+                        batch.labels[static_cast<std::size_t>(r)] = static_cast<int32_t>(label);
+
+                        const double radius = static_cast<double>(label) + band_dist(rng);
+                        const double theta = theta_dist(rng);
+
+                        float* row = x + r * features;
+                        row[0] = static_cast<float>(radius * std::cos(theta) + jitter(rng));
+                        row[1] = static_cast<float>(radius * std::sin(theta) + jitter(rng));
+                        for (int64_t f = 0; f < options.distractor_features; ++f)
+                            row[2 + f] = static_cast<float>(distractor(rng));
+                    }
+
+                    write_one_hot(batch.targets, batch.labels, classes);
+                    batches.push_back(std::move(batch));
                 }
+                return Status();
+            }));
 
-                write_one_hot(batch.targets, batch.labels, classes);
-                batches.push_back(std::move(batch));
-            }
-
-            return std::unique_ptr<Rings>(new Rings(options, std::move(batches)));
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<Rings>(new Rings(options, std::move(batches)));
+            });
         }
 
         const Batch& Rings::batch(std::size_t index) const

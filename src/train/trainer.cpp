@@ -49,9 +49,14 @@ namespace SushiAI
             if (!pool.has_plan())
             {
                 // Lowering constraints determine which values require standalone allocations.
-                std::vector<Graph::ValueId> pinned =
-                    Graph::Lowering::values_needing_own_allocation(built.graph);
-                pinned.insert(pinned.end(), options.pinned.begin(), options.pinned.end());
+                SA_TRY_ASSIGN(const std::vector<Graph::ValueId> pinned,
+                              Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+                {
+                    std::vector<Graph::ValueId> values =
+                        Graph::Lowering::values_needing_own_allocation(built.graph);
+                    values.insert(values.end(), options.pinned.begin(), options.pinned.end());
+                    return values;
+                }));
 
                 Graph::PlanOptions planning = options;
                 planning.pinned =
@@ -63,7 +68,11 @@ namespace SushiAI
             SA_TRY(pool.materialise_leaves(built.graph));
 
             std::vector<Optim::ParameterSlot> slots;
-            slots.reserve(built.parameters.size());
+            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
+            {
+                slots.reserve(built.parameters.size());
+                return Status();
+            }));
 
             for (const ParameterBinding& binding : built.parameters)
             {
@@ -79,11 +88,14 @@ namespace SushiAI
                               pool.materialise(binding.gradient, gradient_value));
 
                 // Gradients are initialised to zero before the first backward execution.
-                pool.request_constant(gradient, 0.0);
-
-                slots.push_back(Optim::ParameterSlot{
-                    binding.name, pool.tensor(binding.value), gradient,
-                });
+                SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
+                {
+                    pool.request_constant(gradient, 0.0);
+                    slots.push_back(Optim::ParameterSlot{
+                        binding.name, pool.tensor(binding.value), gradient,
+                    });
+                    return Status();
+                }));
             }
 
             // Constant buffers must be flushed before optimizer initialisation.
@@ -203,11 +215,15 @@ namespace SushiAI
                                                        options.fusion_selector));
 
             const Shape& logits = graph.value(spec.logits).shape;
+            const int64_t rows = logits.dim(0);
+            const int64_t classes = logits.dim(1);
 
-            std::unique_ptr<Trainer> trainer(new Trainer(engine, pool, spec, optimizer, options,
-                                                         std::move(step), logits.dim(0),
-                                                         logits.dim(1)));
-            return std::move(trainer);
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<Trainer>(new Trainer(engine, pool, spec, optimizer,
+                                                            options, std::move(step), rows,
+                                                            classes));
+            });
         }
 
         Trainer::Trainer(SushiBLAS::Engine& engine, Graph::TensorPool& pool, StepSpec spec,

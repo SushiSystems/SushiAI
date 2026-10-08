@@ -26,6 +26,7 @@
  */
 
 #include <utility>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/graph/arena.hpp>
 
 namespace SushiAI
@@ -35,12 +36,17 @@ namespace SushiAI
         Result<ArenaSet> ArenaSet::make(SushiBLAS::Engine& engine, MemoryPlan plan)
         {
             Storages storages;
-            storages.reserve(plan.arenas().size());
-            for (const Arena& arena : plan.arenas())
+            SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+                                            [&]() -> Status
             {
-                SA_TRY_ASSIGN(auto storage, allocate_arena(engine, arena.bytes));
-                storages.push_back(std::move(storage));
-            }
+                storages.reserve(plan.arenas().size());
+                for (const Arena& arena : plan.arenas())
+                {
+                    SA_TRY_ASSIGN(auto storage, allocate_arena(engine, arena.bytes));
+                    storages.push_back(std::move(storage));
+                }
+                return Status();
+            }));
             return ArenaSet(engine, std::move(plan), std::move(storages));
         }
 
