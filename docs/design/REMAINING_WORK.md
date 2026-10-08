@@ -10,7 +10,8 @@ behind the library items is in [`ROADMAP.md`](ROADMAP.md) and
 Builds and test runs have been off since 2026-10-07, so everything written since then was checked
 by reading and by single-file syntax checks only. The first build has to settle:
 
-- **The tree compiles and links.** The library and test binaries in `build/` are from 2026-08-09.
+- **The suites pass.** The tree compiled and linked on 2026-10-09 with no error; no test has run
+  since the binaries of 2026-08-09.
 - **The `No kernel named` failure.** The test logs of 2026-09-16 and later show nearly every test
   failing with a SYCL "No kernel named" error; no document names the cause (stale binary, device
   selection or kernel bundle).
@@ -32,8 +33,8 @@ The library, the applications, the examples and the tests were moved on 2026-10-
 design is `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/SPEC.md`; section 7 of it lists the sixteen
 things the first build has to confirm, and `REPORT.md` beside it holds each wave's review.
 
-- **Build it.** Nothing of the migration has been compiled or run. Fourteen lowerings have never
-  run, and the death-test patterns and pinned numbers are unchecked.
+- **Run the tests.** The tree built without an error on 2026-10-09; no test has run. Fourteen
+  lowerings have never run, and the death-test patterns and pinned numbers are unchecked.
 - **The model graph's engine units** (M31 to M34 of the design): `ModelState`, `initialize` over
   it, buffers in the checkpoint, the step builders over `ModelOutputs`, and both applications on
   `build_model`. Their design is `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`.
