@@ -45,23 +45,23 @@ namespace
 
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    constexpr int64_t BATCH = 8;
+    constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
-    constexpr int64_t CLASSES = 4;
+    constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
 
     Mlp make_model()
     {
-        return Mlp(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, CLASSES});
+        return Mlp(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, K_CLASSES});
     }
 
     Data::SyntheticOptions make_data_options()
     {
         Data::SyntheticOptions options;
-        options.batch_size = BATCH;
+        options.batch_size = K_BATCH;
         options.batches = K_BATCHES;
         options.features = K_FEATURES;
-        options.classes = CLASSES;
+        options.classes = K_CLASSES;
         return options;
     }
 }
@@ -73,7 +73,7 @@ namespace
 TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 {
     Mlp model = make_model();
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -112,7 +112,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmediately)
 {
     Mlp model = make_model();
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -217,7 +217,7 @@ TEST_F(Regression_CompileOnce, TheVeryFirstRunDispatchesRatherThanReportingCompl
 TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps)
 {
     Mlp model = make_model();
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);

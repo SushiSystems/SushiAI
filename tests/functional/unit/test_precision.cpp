@@ -60,7 +60,7 @@ namespace
     constexpr int64_t K_ROWS = 4;
     constexpr int64_t K_IN_FEATURES = 3;
     constexpr int64_t K_HIDDEN = 5;
-    constexpr int64_t CLASSES = 2;
+    constexpr int64_t K_CLASSES = 2;
 
     /**
      * @struct Traced
@@ -88,11 +88,11 @@ namespace
         const GraphBuilder builder(traced.graph);
 
         traced.x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
-        traced.targets = builder.input(Shape{K_ROWS, CLASSES}, "targets");
+        traced.targets = builder.input(Shape{K_ROWS, K_CLASSES}, "targets");
         traced.w1 = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w1");
         traced.b1 = builder.parameter(Shape{K_HIDDEN}, "b1");
-        traced.w2 = builder.parameter(Shape{CLASSES, K_HIDDEN}, "w2");
-        traced.b2 = builder.parameter(Shape{CLASSES}, "b2");
+        traced.w2 = builder.parameter(Shape{K_CLASSES, K_HIDDEN}, "w2");
+        traced.b2 = builder.parameter(Shape{K_CLASSES}, "b2");
 
         const ValueId h = builder.relu(
             builder.bias_add(builder.matmul(traced.x, traced.w1, false, true), traced.b1));
@@ -475,8 +475,8 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
     const GraphBuilder builder(graph);
 
     const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
-    const ValueId targets = builder.input(Shape{K_ROWS, CLASSES}, "targets");
-    const ValueId w = builder.parameter(Shape{CLASSES, K_IN_FEATURES}, "w");
+    const ValueId targets = builder.input(Shape{K_ROWS, K_CLASSES}, "targets");
+    const ValueId w = builder.parameter(Shape{K_CLASSES, K_IN_FEATURES}, "w");
 
     // The same weight in two products, summed - the smallest fan-out there is.
     const ValueId a = builder.matmul(x, w, false, true);

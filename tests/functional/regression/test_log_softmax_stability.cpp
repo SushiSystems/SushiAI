@@ -50,7 +50,7 @@ namespace
     class Regression_LogSoftmaxStability : public SaTest::EngineTest {};
 
     /** @brief Classes per row in every case here. */
-    constexpr int64_t kClasses = 3;
+    constexpr int64_t K_CLASSES = 3;
 
     /** @brief `ln(1 + e^-1 + e^-2)`, the log-sum-exp of {a, a+1, a+2} minus `a + 2`. */
     const double kLse = std::log(1.0 + std::exp(-1.0) + std::exp(-2.0));
@@ -84,11 +84,11 @@ namespace
     double worst_error(const std::vector<double>& got)
     {
         double worst = 0.0;
-        for (std::size_t row = 0; row < got.size() / static_cast<std::size_t>(kClasses); ++row)
+        for (std::size_t row = 0; row < got.size() / static_cast<std::size_t>(K_CLASSES); ++row)
         {
-            for (std::size_t c = 0; c < static_cast<std::size_t>(kClasses); ++c)
+            for (std::size_t c = 0; c < static_cast<std::size_t>(K_CLASSES); ++c)
             {
-                const double value = got[row * static_cast<std::size_t>(kClasses) + c];
+                const double value = got[row * static_cast<std::size_t>(K_CLASSES) + c];
                 if (!std::isfinite(value)) return std::numeric_limits<double>::infinity();
                 worst = std::max(worst, std::fabs(value - kExpectedRow[c]));
             }
@@ -110,7 +110,7 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{2, kClasses}, "x");
+        const ValueId x = builder.input(Shape{2, K_CLASSES}, "x");
         const ValueId l = builder.log_softmax(x);
 
         TensorPool pool(*engine);
@@ -125,7 +125,7 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
 
         for (std::size_t i = 0; i < got.size(); ++i)
         {
-            const std::size_t c = i % static_cast<std::size_t>(kClasses);
+            const std::size_t c = i % static_cast<std::size_t>(K_CLASSES);
             EXPECT_TRUE(std::isfinite(got[i]))
                 << "element " << i << " is " << got[i] << " at a gap of " << gap
                 << ". A row whose exponentials all underflow under the batch's "
@@ -151,8 +151,8 @@ TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrec
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{2, kClasses}, "x");
-        const ValueId targets = builder.input(Shape{2, kClasses}, "targets");
+        const ValueId x = builder.input(Shape{2, K_CLASSES}, "x");
+        const ValueId targets = builder.input(Shape{2, K_CLASSES}, "targets");
         const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
 
         TensorPool pool(*engine);
@@ -187,8 +187,8 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.parameter(Shape{2, kClasses}, "x");
-        const ValueId targets = builder.input(Shape{2, kClasses}, "targets");
+        const ValueId x = builder.parameter(Shape{2, K_CLASSES}, "x");
+        const ValueId targets = builder.input(Shape{2, K_CLASSES}, "targets");
         const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
 
         const std::vector<ValueId> wrt = {x};
@@ -209,7 +209,7 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
 
         for (std::size_t i = 0; i < got.size(); ++i)
         {
-            const std::size_t c = i % static_cast<std::size_t>(kClasses);
+            const std::size_t c = i % static_cast<std::size_t>(K_CLASSES);
             const double target = (c == 0) ? 1.0 : 0.0;
             const double expected = (softmax_row[c] - target) / 2.0;
 
@@ -237,7 +237,7 @@ TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{2, kClasses}, "x");
+        const ValueId x = builder.input(Shape{2, K_CLASSES}, "x");
         const ValueId l = builder.log_softmax(x);
 
         TensorPool pool(*engine);

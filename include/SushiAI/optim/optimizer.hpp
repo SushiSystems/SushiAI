@@ -44,7 +44,7 @@ namespace SushiAI
          * @enum UpdateKernel
          * @brief How an optimizer spells its per-parameter update on the device.
          */
-        enum class UpdateKernel
+        enum class UpdateKernel : std::uint8_t
         {
             /**
              * @brief One fused kernel per parameter; the default.

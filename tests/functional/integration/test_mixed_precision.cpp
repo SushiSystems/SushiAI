@@ -52,18 +52,18 @@ namespace
         return Mlp(NN::Linear{features, hidden}, NN::ReLU{}, NN::Linear{hidden, classes});
     }
 
-    constexpr int64_t BATCH = 16;
+    constexpr int64_t K_BATCH = 16;
     constexpr int64_t K_FEATURES = 8;
     constexpr int64_t K_HIDDEN = 12;
-    constexpr int64_t CLASSES = 4;
+    constexpr int64_t K_CLASSES = 4;
 
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
-        options.batch_size = BATCH;
+        options.batch_size = K_BATCH;
         options.batches = 8;
         options.features = K_FEATURES;
-        options.classes = CLASSES;
+        options.classes = K_CLASSES;
         return options;
     }
 
@@ -82,11 +82,11 @@ namespace
 TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 {
     // Correctness is asserted; speed is not; see tests/functional/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, CLASSES);
+    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
     Train::TrainingGraph built = Train::build_classifier(
-        model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
+        model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
 
     ASSERT_GT(built.casts.count(), 0u) << "the mixed policy inserted nothing";
 
@@ -109,7 +109,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     EXPECT_TRUE(std::isfinite(report.last_loss));
 
     // ln(4) is where a zeroed classifier starts; see tests/functional/integration/README.md.
-    EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(CLASSES)), 1e-4);
+    EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(K_CLASSES)), 1e-4);
     EXPECT_LT(report.last_loss, 0.5 * report.first_loss);
     EXPECT_GT(report.last_accuracy, 0.75);
 }
@@ -117,11 +117,11 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 {
     // Tensors must carry the dtypes the IR claims; see tests/functional/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, CLASSES);
+    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
     Train::TrainingGraph built = Train::build_classifier(
-        model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
+        model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -162,8 +162,8 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
     // The graph skipped the cast pass on purpose; see tests/functional/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, CLASSES);
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     TensorPool pool(*engine);
     std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -190,8 +190,8 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
     // A half buffer must not be read as float; see tests/functional/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, CLASSES);
-    Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
+    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     // Deliberately narrow the logits: no observed list, so nothing pins them.
     const MixedPrecisionPolicy precision;

@@ -46,10 +46,10 @@ namespace
 
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    constexpr int64_t BATCH = 16;
+    constexpr int64_t K_BATCH = 16;
     constexpr int64_t K_FEATURES = 8;
     constexpr int64_t K_HIDDEN = 16;
-    constexpr int64_t CLASSES = 4;
+    constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 8;
     constexpr int64_t K_EPOCHS = 25;
 
@@ -84,10 +84,10 @@ namespace
      */
     TrainingRun train(SushiBLAS::Engine& engine, const Graph::PrecisionPolicy* precision)
     {
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
         Train::TrainingGraph built = Train::build_classifier(
-            model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{}, precision);
+            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, precision);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -100,10 +100,10 @@ namespace
         Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
 
         Data::SyntheticOptions data;
-        data.batch_size = BATCH;
+        data.batch_size = K_BATCH;
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
-        data.classes = CLASSES;
+        data.classes = K_CLASSES;
         const Data::SyntheticClassification dataset(engine, data);
 
         TrainingRun result;
@@ -220,15 +220,15 @@ TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
 {
     using GeluMlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
 
-    GeluMlp wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
-    GeluMlp narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
+    GeluMlp wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    GeluMlp narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const MixedPrecisionPolicy precision;
 
     const Train::TrainingGraph wide = Train::build_classifier(
-        wide_model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{}, nullptr);
+        wide_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, nullptr);
     const Train::TrainingGraph narrow = Train::build_classifier(
-        narrow_model, BATCH, K_FEATURES, CLASSES, DType::Float32, Graph::FusionOptions{},
+        narrow_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
         &precision);
 
     // The control: with nothing narrowing, the entry is reachable and taken.

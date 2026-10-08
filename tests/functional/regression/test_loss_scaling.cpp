@@ -50,17 +50,17 @@ namespace
 
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    constexpr int64_t BATCH = 16;
+    constexpr int64_t K_BATCH = 16;
     constexpr int64_t K_FEATURES = 8;
     constexpr int64_t K_HIDDEN = 16;
-    constexpr int64_t CLASSES = 4;
+    constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
 
     /**
      * @brief Holds 2^20, a loss scale high enough that the fp16 backward pass overflows.
      * @see tests/functional/regression/README.md
      */
-    constexpr double OVERFLOWING_SCALE = 1048576.0;
+    constexpr double K_OVERFLOWING_SCALE = 1048576.0;
 
     /** @brief How many epochs the overflowing run gets to back off into a clean scale. */
     constexpr int64_t K_OVERFLOW_EPOCHS = 4;
@@ -99,10 +99,10 @@ namespace
                            LossScaleOptions scale_options,
                            int64_t epochs)
     {
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
         Train::TrainingGraph built = Train::build_classifier(
-            model, BATCH, K_FEATURES, CLASSES, DType::Float32,
+            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
             Graph::FusionOptions{}, precision, /*loss_scaling=*/true);
 
         TensorPool pool(engine);
@@ -123,10 +123,10 @@ namespace
         Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
 
         Data::SyntheticOptions data;
-        data.batch_size = BATCH;
+        data.batch_size = K_BATCH;
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
-        data.classes = CLASSES;
+        data.classes = K_CLASSES;
         const Data::SyntheticClassification dataset(engine, data);
 
         ScaledRun result;
@@ -181,7 +181,7 @@ TEST_F(Regression_LossScaling, AnFp16OverflowIsDetectedAndBacksTheScaleOff)
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     LossScaleOptions options;
-    options.initial = OVERFLOWING_SCALE;
+    options.initial = K_OVERFLOWING_SCALE;
     options.growth_interval = 1000;   // out of reach, so growth cannot confuse the reading
 
     const MixedPrecisionPolicy mixed;
@@ -190,7 +190,7 @@ TEST_F(Regression_LossScaling, AnFp16OverflowIsDetectedAndBacksTheScaleOff)
     EXPECT_GT(run.skipped, 0u) << "no step was thrown away, so nothing overflowed - "
                                   "the detector is not seeing the infinities";
     EXPECT_GT(run.backoffs, 0u);
-    EXPECT_LT(run.final_scale, OVERFLOWING_SCALE);
+    EXPECT_LT(run.final_scale, K_OVERFLOWING_SCALE);
     EXPECT_EQ(run.growths, 0u);
 
     // The backed-off scale must reach the device; see tests/functional/regression/README.md.
@@ -215,7 +215,7 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     LossScaleOptions options;
-    options.initial = OVERFLOWING_SCALE;
+    options.initial = K_OVERFLOWING_SCALE;
     options.growth_interval = 1000;
 
     const UniformPrecisionPolicy fp32;
@@ -223,7 +223,7 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 
     EXPECT_EQ(run.skipped, 0u);
     EXPECT_EQ(run.backoffs, 0u);
-    EXPECT_EQ(run.final_scale, OVERFLOWING_SCALE);
+    EXPECT_EQ(run.final_scale, K_OVERFLOWING_SCALE);
     EXPECT_EQ(run.optimizer_steps, 2u * static_cast<std::uint64_t>(K_BATCHES));
 }
 
@@ -413,7 +413,7 @@ TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     LossScaleOptions options;
-    options.initial = OVERFLOWING_SCALE;
+    options.initial = K_OVERFLOWING_SCALE;
     options.growth_interval = 1000;
 
     const MixedPrecisionPolicy mixed;

@@ -225,7 +225,7 @@ namespace SushiAI
          * @enum OptimizerPlacement
          * @brief Whether the parameter update is part of the compiled step.
          */
-        enum class OptimizerPlacement
+        enum class OptimizerPlacement : std::uint8_t
         {
             /**
              * @brief Recorded into the same plan as forward and backward; the default.

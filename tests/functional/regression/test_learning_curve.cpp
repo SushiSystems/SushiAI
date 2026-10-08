@@ -48,24 +48,24 @@ namespace
 
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    constexpr int64_t BATCH = 8;
+    constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
     constexpr int64_t K_HIDDEN = 12;
-    constexpr int64_t CLASSES = 4;
+    constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
     constexpr int64_t K_EPOCHS = 4;
     constexpr double K_LEARNING_RATE = 0.25;
-    constexpr double MOMENTUM = 0.9;
+    constexpr double K_MOMENTUM = 0.9;
     constexpr std::uint64_t K_DATA_SEED = 0x0C0FFEE'5EEDull;
 
     /** @brief Everything the reference depends on, in one place. */
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
-        options.batch_size = BATCH;
+        options.batch_size = K_BATCH;
         options.batches = K_BATCHES;
         options.features = K_FEATURES;
-        options.classes = CLASSES;
+        options.classes = K_CLASSES;
         options.seed = K_DATA_SEED;
         return options;
     }
@@ -82,8 +82,8 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -91,7 +91,7 @@ namespace
 
         Optim::SGDOptions sgd;
         sgd.learning_rate = K_LEARNING_RATE;
-        sgd.momentum = MOMENTUM;
+        sgd.momentum = K_MOMENTUM;
         Optim::SGD optimizer(engine, slots, sgd);
 
         Train::TrainerOptions options;
@@ -173,7 +173,7 @@ TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
     const std::vector<double> losses = recorded_trajectory();
     ASSERT_FALSE(losses.empty());
 
-    EXPECT_NEAR(losses.front(), std::log(static_cast<double>(CLASSES)), 1e-4)
+    EXPECT_NEAR(losses.front(), std::log(static_cast<double>(K_CLASSES)), 1e-4)
         << "the zeroed classifier's first loss is ln(C) exactly, or something initialised it";
 
     for (std::size_t step = 0; step < losses.size(); ++step)
