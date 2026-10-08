@@ -122,6 +122,28 @@ the `detect` module and the `imaging` module.
 - **The detect module's open interface points** are listed in `PLAN.md` under "Detection host
   lane".
 
+## Darknet-era YOLO
+
+Inside the feature freeze of 0.1.0 by the owner's ruling of 2026-10-09; stage 6 of
+[`PROGRAMME.md`](PROGRAMME.md). No design document exists yet.
+
+- **Decide where the anchor unit lives.** The owner's decision, to be brought with the design:
+  inside `detect`, or in `detect/anchor/` beside the anchor-free head of YOLO26, sharing the box,
+  IoU and NMS bricks.
+- **Write the anchor-based detection unit**: a decoder (cell offset through a sigmoid, size
+  through an exponential times the anchor), a host assigner by best-anchor IoU with an ignore
+  threshold, and a loss. One unit with an options structure for the `region` form of v2 and the
+  `yolo` form of v3 and v4, not a class per version.
+- **Write the Darknet importer**: the `.cfg` text to a model graph and the `.weights` binary to
+  parameters and buffers, with batch normalisation stored as bias, scale, mean, variance and
+  then the weights.
+- **Add the layers the models need**: `reorg` for v2, `Mish` and a grouped `route` for v4, the
+  fully connected detection head of v1, and letterbox preprocessing with its inverse for boxes.
+- **Check `MaxPool2d` against YOLOv3-tiny's 2x2 pool of stride 1**, which Darknet pads on one
+  side only.
+- **Produce the references by running Darknet**, as the YOLO26 references are produced, never
+  stated. YOLOv3-tiny on its published weights is the first.
+
 ## Memory planning
 
 - **Pack the lowering's scratch.** `MemoryPlan::build` packs graph IR values into arenas.
