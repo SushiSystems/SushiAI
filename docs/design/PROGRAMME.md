@@ -1,6 +1,6 @@
 # SushiAI programme
 
-**Status:** Open — stage 0 of 6; every stage waits on the owner's first build
+**Status:** Open — stage 0 of 6; stage 1 and the naming half of stage 2 are written and unbuilt
 
 What SushiAI is being built towards, in what order, and the owner's rulings that fix the shape of
 the work. Open items are in [`REMAINING_WORK.md`](REMAINING_WORK.md); each stage's design is in the
@@ -35,7 +35,7 @@ Each was made by the owner on 2026-10-07.
 | YOLO26 validation | Both heads: one-to-one with top-k, and one-to-many with NMS |
 | YOLO26 data | The default augmentation pipeline in full; images decoded once into a raw cache by a separate tool with libjpeg-turbo |
 | YOLO26 references | Produced by running the pinned Ultralytics commit, never stated |
-| Batch normalisation | The batch variance is an output of `BATCHNORM2D`; the running statistics are updated beside the graph |
+| Batch normalisation | The batch variance is an output of `K_BATCHNORM2D`; the running statistics are updated beside the graph |
 
 ## Stages
 

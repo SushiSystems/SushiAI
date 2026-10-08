@@ -28,11 +28,28 @@ SushiBLAS removes the engine facades, makes every operation take a `TaskRecorder
 `Engine::get_graph()`. Its design is in the sushiblas repository under
 `docs/agent/2026_10_07_V010/`.
 
-- **Migrate the call sites**, about 130 in `src/`, most of them in `src/graph/lowering.cpp`.
-- **Split the lowering into per-domain tables in the same pass**, the shape the backward rules
-  have, and move `TensorPool` to its own header (estate audit findings C1 and C3).
-- **Own the task graph in `CompiledStep`**, since the engine no longer hands one out.
-- **Move the loss-scale factor to a declared operand** once the caller-functor seams take one.
+The library, the applications, the examples and the tests were moved on 2026-10-08, unbuilt. The
+design is `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/SPEC.md`; section 7 of it lists the sixteen
+things the first build has to confirm, and `REPORT.md` beside it holds each wave's review.
+
+- **Build it.** Nothing of the migration has been compiled or run. Fourteen lowerings have never
+  run, and the death-test patterns and pinned numbers are unchecked.
+- **The model graph's engine units** (M31 to M34 of the design): `ModelState`, `initialize` over
+  it, buffers in the checkpoint, the step builders over `ModelOutputs`, and both applications on
+  `build_model`. Their design is `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`.
+- **Ask SushiBLAS for `Engine::discard_recorded()`.** Work that runs at once records on the
+  engine's own graph, and a failed recording leaves its earlier tasks there; today a failed
+  status from such a call means the `Engine` is discarded.
+- **Four `void` functions cannot report a failed host allocation**: `TensorPool::bind`, `alias`,
+  `request_constant` and `StepRecorderList::add`. Diagnostic strings built beside `Config` and
+  `Shape` calls are unguarded for the same reason, until those units return a status.
+- **Delete `Lowering::values_needing_own_allocation`** in its own change after the build; its
+  premise no longer holds.
+- **Decide whether `DeviceFusionSelector` still declines GEMM epilogues under `ForceReference`**
+  once the build shows the fused and plain forms agree there.
+- **Name the death-test suites in the test READMEs**, and rename the four `test_checkpoint.cpp`
+  cases whose names still say "Throws" together with the README sections headed by them.
+
 - **State what the gradient check's reference mode proves.** The host reference path of v0.1.0
   shares the element functor with the SYCL path, so it separates launch and indexing errors and
   not an error in the functor's arithmetic.
@@ -51,13 +68,13 @@ executes a partition.
 ## Convolutional networks
 
 - **Batch normalisation**: a non-trainable `Buffer`, training and evaluation modes, a ones
-  initialiser and the running-statistics update (`BATCHNORM_UPDATE_STATS` has an identity and no
+  initialiser and the running-statistics update (`K_BATCHNORM_UPDATE_STATS` has an identity and no
   emitter or lowering).
 - **Layers with more than one input**: `Concat`, a residual block, named children.
 - **A rank-4 input leaf**, so images need no `Unflatten` layer.
 - **Asymmetric padding in the layers and the model file.** The builder's `_with_extents` emitters
   express it; `Conv2d`, the pools and the `padding` key do not.
-- **Make a contiguous `RESHAPE` a view in the lowering.** It copies today, so each step copies
+- **Make a contiguous `K_RESHAPE` a view in the lowering.** It copies today, so each step copies
   every convolution kernel and its gradient.
 - **One home for the layer-name prefix on a refused window**: `Conv2d`, both pools and
   `Upsample2d` each catch and re-throw the builder's message, and the two pools hold the same
@@ -78,8 +95,8 @@ reference exporter is `tools/reference/export_yolo26_reference.py`.
 Written and never run: the loss operations and their rules, any scalar loss root, stop-gradient,
 the `detect` module and the `imaging` module.
 
-- **Lowerings for thirteen operations.** DIV, MINIMUM, MAXIMUM, ABS, ATAN, SOFTPLUS,
-  SOFTPLUS_BACKWARD, SILU, SILU_BACKWARD, SELECT, LESS_EQUAL, CONSTANT and STOP_GRADIENT have an
+- **Lowerings for thirteen operations.** K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS,
+  K_SOFTPLUS_BACKWARD, K_SILU, K_SILU_BACKWARD, K_SELECT, K_LESS_EQUAL, K_CONSTANT and K_STOP_GRADIENT have an
   identity, an emitter and a rule and no lowering; `PLAN.md` names the SushiBLAS kernel for each.
   They are written once, after the migration.
 - **The detection objective.** No code builds the loss graph of SPEC section 4 from the
@@ -88,7 +105,7 @@ the `detect` module and the `imaging` module.
   then the full step, and what `CompiledStep` and `Trainer` need for it.
 - **The rest of the model graph.** Units U1 to U12 of `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`
   are written and never built; `PLAN.md` there lists what waits: the engine-side units U13 to U17
-  (the lowering of the fourth `BATCHNORM2D` output and of `BATCHNORM_FOLD`, an `initialize` that
+  (the lowering of the fourth `K_BATCHNORM2D` output and of `K_BATCHNORM_FOLD`, an `initialize` that
   fills a scale with one and fills buffers, checkpoints with buffers, the weight importer), the
   attention and head blocks behind rows 10, 22 and 23 of `examples/yolo26/model.json`, and how
   `BatchNorm2d` and a nested `ModelGraph` refuse a misfit when added (owner's ruling).
@@ -125,13 +142,13 @@ the `detect` module and the `imaging` module.
 
 ## Fusion and the IR
 
-- **Fuse row-wise log-softmax.** `LOG_SOFTMAX` lowers to nine SushiBLAS calls, the largest term
+- **Fuse row-wise log-softmax.** `K_LOG_SOFTMAX` lowers to nine SushiBLAS calls, the largest term
   in a step. `max_along` and `sum_along` exist in SushiBLAS, so what is missing is a fusion
   catalog entry (`include/SushiAI/graph/fusion.hpp`, `src/graph/lowering.cpp`).
-- **Fuse `NLL_LOSS`.** It lowers to three calls because the SushiBLAS whole-tensor reduction
+- **Fuse `K_NLL_LOSS`.** It lowers to three calls because the SushiBLAS whole-tensor reduction
   takes no transform functor, so the elementwise multiply cannot ride into the sum
   (`src/graph/lowering.cpp`).
-- **Differentiate standalone `LOG_SOFTMAX`.** The rule is `dx = dy - exp(L) * rowsum(dy)` and a
+- **Differentiate standalone `K_LOG_SOFTMAX`.** The rule is `dx = dy - exp(L) * rowsum(dy)` and a
   backward rule writes IR, so it needs an IR node for a row-wise sum: an op identity, a builder
   entry, a shape rule, a lowering and the rule (`include/SushiAI/core/ops.hpp`,
   `src/autograd/rules/loss.cpp`).

@@ -50,9 +50,9 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `blocks/sppf.hpp` | `SPPF`, `make_sppf_node` |
 | `loss.hpp` | `CrossEntropyLoss` |
 | `init.hpp` | `Nonlinearity`, `InitFamily`, `InitPolicy`, the five fills, `initialize` |
-| `ilayer.hpp` | `ILayer`, `LayerAdapter<L>` |
+| `layer.hpp` | `Layer`, `LayerAdapter<L>` |
 | `layer_stack.hpp` | `LayerStack` |
-| `layer_registry.hpp` | `LayerFactory`, `LayerEntry`, the fourteen `make_*` factories, `LAYER_REGISTRY`, `build_layer_stack` |
+| `layer_registry.hpp` | `LayerFactory`, `LayerEntry`, the fourteen `make_*` factories, `K_LAYER_REGISTRY`, `build_layer_stack` |
 | `node.hpp` | `Node`, `Port`, `ValueSpan`, `ShapeSpan`, `K_SINGLE_PORT_NAME`, `NodeFactory`, `NodeEntry` |
 | `module_node.hpp` | `ModuleNode<L>` |
 | `layer_node.hpp` | `LayerNode` |
@@ -158,14 +158,14 @@ Source: MG 2.10. PLAN unit U8.
 ### unflatten.hpp
 
 `Unflatten` views an [N, height * width * channels] value as [N, height, width, channels]
-through one RESHAPE.
+through one K_RESHAPE.
 
 Source: CV section 2, decision 1. MG 2.9 keeps it as a layer and a registry row.
 
 ### flatten.hpp
 
 `Flatten` folds [N, d1, ..., dk] into [N, d1 * ... * dk] without moving data. It traces one
-RESHAPE, or nothing for a rank-2 input.
+K_RESHAPE, or nothing for a rank-2 input.
 
 Source: CV section 3.
 
@@ -209,9 +209,9 @@ Source: CV section 3.
 ### batch_norm2d.hpp
 
 `BatchNorm2d` normalises an NHWC activation per channel and is a `ModalModule`.
-`trace_training` traces BATCHNORM2D over batch statistics and requests the two running
-updates. `trace_evaluation` traces BATCHNORM_FOLD over the running statistics and then
-CHANNEL_AFFINE. The layer holds gamma as the `SCALE` parameter `weight`, beta as `bias`, and
+`trace_training` traces K_BATCHNORM2D over batch statistics and requests the two running
+updates. `trace_evaluation` traces K_BATCHNORM_FOLD over the running statistics and then
+K_CHANNEL_AFFINE. The layer holds gamma as the `SCALE` parameter `weight`, beta as `bias`, and
 the buffers `running_mean` and `running_var`, which start at zero and one. `NormOptions` holds
 `epsilon`, 1e-5 by default, and `momentum`, 0.1 by default.
 
@@ -283,18 +283,18 @@ Source: neither spec. The header predates both.
 
 ## The run-time layer seam
 
-### ilayer.hpp
+### layer.hpp
 
-`ILayer` is one layer of a model whose architecture came from a file. `output_shape()` is the
+`Layer` is one layer of a model whose architecture came from a file. `output_shape()` is the
 virtual that reports the per-sample shape, and `output_features()` is derived from it.
-`LayerAdapter<L>` adapts a `Module` to `ILayer`. It asserts at compile time that `L` lists no
+`LayerAdapter<L>` adapts a `Module` to `Layer`. It asserts at compile time that `L` lists no
 buffer anywhere in its `fields()` tree, because the adapter walks parameters only.
 
 Source: CV section 2, decision 2. The buffer assertion is MG 2.2, PLAN unit U8.
 
 ### layer_stack.hpp
 
-`LayerStack` holds a run-time list of `ILayer`s, traces them in order and names each layer's
+`LayerStack` holds a run-time list of `Layer`s, traces them in order and names each layer's
 parameters by its index, as `Sequential` does. It reports the last layer's per-sample output
 shape.
 
@@ -302,7 +302,7 @@ Source: CV section 3, the shape-typed layer seam.
 
 ### layer_registry.hpp
 
-`LAYER_REGISTRY` is the constant table of the fourteen layer types a model file may name:
+`K_LAYER_REGISTRY` is the constant table of the fourteen layer types a model file may name:
 `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`,
 `avgpool2d`, `global_avgpool`, `flatten`, `upsample` and `silu`. A `LayerFactory` takes the
 per-sample input shape, the row's attributes and a context string, and refuses any key it
@@ -335,7 +335,7 @@ Source: MG 2.4. PLAN unit U8.
 
 ### layer_node.hpp
 
-`LayerNode` presents a run-time `ILayer` as a one-in one-out node. It owns the layer, traces
+`LayerNode` presents a run-time `Layer` as a one-in one-out node. It owns the layer, traces
 it through the trace's builder and walks its parameters; it has no buffer.
 
 Source: MG 2.4. PLAN unit U8.
@@ -343,7 +343,7 @@ Source: MG 2.4. PLAN unit U8.
 ### concat.hpp
 
 `Concat` joins its [H, W, C_i] inputs into one [H, W, sum(C_i)] result through one
-CONCAT_CHANNELS and holds no state. `Concat::create` refuses an empty list, an input that is
+K_CONCAT_CHANNELS and holds no state. `Concat::create` refuses an empty list, an input that is
 not rank 3, and two inputs that disagree on H or W. `make_concat_node` takes no key.
 
 Source: MG 2.5 and MG 2.10. PLAN unit U8.
@@ -383,9 +383,9 @@ Source: MG 2.5. PLAN unit U10.
 
 ### node_registry.hpp
 
-`K_NODE_REGISTRY` lists the seven node types `LAYER_REGISTRY` cannot hold, which its comment
+`K_NODE_REGISTRY` lists the seven node types `K_LAYER_REGISTRY` cannot hold, which its comment
 gives as several ports or a mode: `batchnorm2d`, `concat`, `conv`, `bottleneck`, `c3k`, `c3k2`
-and `sppf`. `make_node` builds a node of a type from that table, or else from a `LAYER_REGISTRY`
+and `sppf`. `make_node` builds a node of a type from that table, or else from a `K_LAYER_REGISTRY`
 row wrapped in a `LayerNode`; a type in neither table fails with a message that lists both.
 `build_model` builds the `ModelGraph` a `Config::ModelSpec` describes and names each row by
 its index. An empty outputs list publishes every port of the last row.

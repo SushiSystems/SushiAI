@@ -64,7 +64,7 @@ one that runs.
 `ActivationKind` has two entries where the library has more activations, because these two
 are the two kinds. ReLU's gradient reads its own output, so it folds into the GEMM epilogue
 with nothing else written. GELU's gradient reads its input, so it folds only because
-`FusedForm::GEMM_BIAS_GELU` spills that input to a second buffer.
+`FusedForm::GemmBiasGelu` spills that input to a second buffer.
 
 Running both from one binary turns the cost of that spill into a measurement. The fusion
 report, `ops per step` and the `Buffers` line are printed for whichever activation was asked

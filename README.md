@@ -74,7 +74,7 @@ feature that plan hasn't reached.
   hermetic seeded synthetic classification problem generated on device, an
   MNIST IDX loader that activates only when the files are present, and a
   trainer that reports its compile count.
-- **A model can be a JSON file** (`config/`, `nn/ilayer.hpp`,
+- **A model can be a JSON file** (`config/`, `nn/layer.hpp`,
   `nn/layer_stack.hpp`) — `sushiai train train.json` and
   `sushiai inference model.json model.ckpt eval.json` contain **no layer,
   loss, dataset or optimizer type name**; each arrives through a constant

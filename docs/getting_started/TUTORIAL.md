@@ -188,7 +188,7 @@ them exists.
 **Why the order of the two IR→IR passes is fixed.** Casts go in after
 differentiation (a backward node needs casting as much as a forward one, and
 there are none to cast before the transform has run) and before fusion (a
-conversion dropped into the middle of a `MATMUL → BIAS_ADD → RELU` chain would
+conversion dropped into the middle of a `K_MATMUL → K_BIAS_ADD → K_RELU` chain would
 break the chain). `graph/cast_insertion.hpp` argues both.
 
 ---
@@ -213,7 +213,7 @@ struct MyOffset
                                sa::Graph::ValueId x)
     {
         const sa::Graph::ValueId b = offset.declare(
-            builder, sa::Shape{width}, sa::NN::ParameterRole::BIAS,
+            builder, sa::Shape{width}, sa::NN::ParameterRole::Bias,
             width, width, "offset");
         return builder.bias_add(x, b);
     }
@@ -290,7 +290,7 @@ GELU is not. `gelu_backward` differentiates at its **input**. Fold it naively
 and nothing throws, nothing goes `NaN`, the loss still falls — and the model
 trains towards the wrong place.
 
-So `GEMM_BIAS_GELU` spills the pre-activation to a second buffer on the way past
+So `K_GEMM_BIAS_GELU` spills the pre-activation to a second buffer on the way past
 (cuBLASLt calls this `GELU_AUX_BIAS`), and the fusion report says so:
 
 ```
@@ -341,7 +341,7 @@ of the step.
 
 Which operations narrow is a policy (`graph/precision.hpp`), injected as an
 interface, and each rule is argued there rather than tabulated. One is worth
-repeating because it is forced rather than chosen: **`BIAS_ADD` and the foldable
+repeating because it is forced rather than chosen: **`K_BIAS_ADD` and the foldable
 activations must narrow with the GEMM.** A fused epilogue runs inside the GEMM's
 kernel in the GEMM's element type, so if the IR said the bias computes in fp32,
 fusing it into an fp16 GEMM would change the numbers — and fusion promises it
@@ -354,7 +354,7 @@ never does.
 > tensor cores, and none is made here.
 
 GELU and mixed precision do not combine, and that is deliberate: GELU stays
-fp32, so under a narrowing policy a `CAST` lands in the middle of the chain and
+fp32, so under a narrowing policy a `K_CAST` lands in the middle of the chain and
 no catalog entry matches. You can see it:
 
 ```bash

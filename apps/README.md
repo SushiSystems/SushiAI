@@ -20,7 +20,7 @@ The driver is written once and does not change as the library grows. It names no
 no loss, no dataset and no optimizer. Each of those arrives through a registry lookup keyed
 by a string out of a JSON file, so adding a layer, a detection loss or a COCO reader is a
 table row and a factory function in the library, and `train.cpp` stays as it is. The
-`conv2d` row of `NN::LAYER_REGISTRY` and the `mnist` row of `Data::DATASET_REGISTRY` are
+`conv2d` row of `NN::K_LAYER_REGISTRY` and the `mnist` row of `Data::K_DATASET_REGISTRY` are
 rows of that kind.
 
 The property can be checked: search the file for `Linear`, `GELU`, `Conv2d`, `CrossEntropy`,
