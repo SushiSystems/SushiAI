@@ -137,15 +137,15 @@ namespace
     /**
      * @brief The reference, recorded from a run of this configuration.
      *
-     * Recorded on 2026-08-03 against SushiBLAS at the storage_offset/RNG/scalar
-     * -precision revision current that day. Every value is the batch's mean
+     * Recorded on 2026-10-09 against SushiBLAS 266eeb7, whose generator draws four
+     * values per Philox block. Every value is the batch's mean
      * cross-entropy as the trainer reports it.
      */
     constexpr double K_REFERENCE[] = {
-        1.386294, 1.262154, 1.037548, 0.767985,
-        0.570578, 0.373737, 0.274389, 0.152003,
-        0.098416, 0.070900, 0.122845, 0.031372,
-        0.029982, 0.011396, 0.055688, 0.005311,
+        1.386294, 0.991878, 0.594361, 0.382508,
+        0.237015, 0.101345, 0.015991, 0.016213,
+        0.013401, 0.005473, 0.001037, 0.004709,
+        0.000865, 0.000353, 0.000528, 0.002215,
     };
 
     /** @brief How far a step's loss may drift before it counts as a change. */
