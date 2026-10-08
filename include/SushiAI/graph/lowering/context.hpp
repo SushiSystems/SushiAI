@@ -121,6 +121,14 @@ namespace SushiAI
                 void require_arity_at_least(std::size_t inputs, std::size_t outputs) const;
 
                 /**
+                 * @brief Stops the process unless the node has at least the given number of
+                 *        operands and exactly the given number of results.
+                 * @param inputs The minimum number of operands.
+                 * @param outputs The required number of results.
+                 */
+                void require_variadic_arity(std::size_t inputs, std::size_t outputs) const;
+
+                /**
                  * @brief The graph description of one operand.
                  * @param index Position in the node's operand list; must be in range.
                  * @return A reference into the graph, valid while the graph is unchanged.

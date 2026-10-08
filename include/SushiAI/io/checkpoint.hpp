@@ -118,7 +118,11 @@ namespace SushiAI
         {
             SA_TRY(SushiAI::Detail::run_recorded(engine));
 
-            const std::vector<Detail::BoundParameter> bound = Detail::bind(module, pool);
+            SA_TRY_ASSIGN(const std::vector<Detail::BoundParameter> bound,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                return Detail::bind(module, pool);
+            }));
 
             std::ofstream out(path, std::ios::binary);
             SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
@@ -150,14 +154,22 @@ namespace SushiAI
         [[nodiscard]] Status load_checkpoint(const std::filesystem::path& path, M& module,
                                              Graph::TensorPool& pool)
         {
-            std::vector<Detail::BoundParameter> bound = Detail::bind(module, pool);
+            SA_TRY_ASSIGN(const std::vector<Detail::BoundParameter> bound,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                return Detail::bind(module, pool);
+            }));
 
             std::ifstream in(path, std::ios::binary);
             SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
                        path.string());
 
             // Tracking filled slots prevents duplicate or missing parameter bindings.
-            std::vector<bool> filled(bound.size(), false);
+            SA_TRY_ASSIGN(std::vector<bool> filled,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::vector<bool>(bound.size(), false);
+            }));
 
             SA_TRY_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
             while (reader.read_count() < reader.count())

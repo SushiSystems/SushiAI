@@ -51,7 +51,11 @@ namespace SushiAI
                        "This graph holds a refused operation and cannot be compiled; the builder "
                        "call that refused it returned the reason");
 
-            std::unique_ptr<CompiledStep> step(new CompiledStep(engine, trailing));
+            SA_TRY_ASSIGN(std::unique_ptr<CompiledStep> step,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<CompiledStep>(new CompiledStep(engine, trailing));
+            }));
 
             const DeviceFusionSelector device = DeviceFusionSelector::for_engine(engine);
             Lowering lowering(step->recorder_, engine.get_rng(), pool,
@@ -60,8 +64,15 @@ namespace SushiAI
             Status recorded = lowering.record(graph);
             step->operations_ = lowering.emitted_operations();
 
-            const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
-            step->selections_.assign(chosen.begin(), chosen.end());
+            const Status copied = SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
+                                                         [&]()
+            {
+                const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
+                step->selections_.assign(chosen.begin(), chosen.end());
+                return Status();
+            });
+            if (recorded.is_ok())
+                recorded = copied;
 
             if (recorded.is_ok() && trailing)
             {

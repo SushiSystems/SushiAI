@@ -32,6 +32,7 @@
 #include <ostream>
 #include <string_view>
 #include <vector>
+#include <SushiAI/core/seam.hpp>
 
 namespace SushiAI
 {
@@ -212,7 +213,11 @@ namespace SushiAI
                        name_length, K_MAX_NAME_LENGTH);
 
             TensorRecord record;
-            record.name.resize(name_length);
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                record.name.resize(name_length);
+                return Status();
+            }));
             if (name_length != 0)
             {
                 in_->read(record.name.data(), static_cast<std::streamsize>(name_length));

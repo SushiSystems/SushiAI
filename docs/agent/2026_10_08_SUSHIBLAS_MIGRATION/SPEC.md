@@ -88,6 +88,12 @@ SushiRuntime, as used here: `Graph::TaskGraph(RuntimeContext&)`, `compile()`, `t
    of a neighbouring file of the same folder. A unit's files pass at the end of its own wave;
    files of later waves do not pass until their wave, and that is expected.
 
+10. **Host allocation.** Ruled by the owner on 2026-10-08: a `std::bad_alloc` from a host
+    allocation (`new`, `reserve`, `push_back`, `resize`, `emplace`) in a function that returns a
+    `Status` or a `Result` becomes `StatusCode::OutOfMemory`. The function runs the allocating
+    statements inside `Detail::guard` or `Detail::guard_value` under `SeamPhase::Allocate`, as
+    `LossScaler::make` does.
+
 ## 2. Inventory
 
 Measured with `grep` over `include/`, `src/`, `apps/`, `examples/` and `tests/` on 2026-10-08.

@@ -107,23 +107,27 @@ namespace SushiAI
             const bool separate = options.kernel == UpdateKernel::Separate;
 
             std::vector<State> state;
-            state.reserve(parameters.size());
-            for (const ParameterSlot& slot : parameters)
+            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                State entry;
-                SA_TRY_ASSIGN(entry.first, allocate_like(engine, slot.parameter));
-                SA_TRY_ASSIGN(entry.second, allocate_like(engine, slot.parameter));
-
-                // Scratch buffers are allocated only when separate kernels execute.
-                if (separate)
+                state.reserve(parameters.size());
+                for (const ParameterSlot& slot : parameters)
                 {
-                    SA_TRY_ASSIGN(entry.denom, allocate_like(engine, slot.parameter));
-                    SA_TRY_ASSIGN(entry.update, allocate_like(engine, slot.parameter));
-                    SA_TRY_ASSIGN(entry.ones, allocate_like(engine, slot.parameter));
-                }
+                    State entry;
+                    SA_TRY_ASSIGN(entry.first, allocate_like(engine, slot.parameter));
+                    SA_TRY_ASSIGN(entry.second, allocate_like(engine, slot.parameter));
 
-                state.push_back(std::move(entry));
-            }
+                    // Scratch buffers are allocated only when separate kernels execute.
+                    if (separate)
+                    {
+                        SA_TRY_ASSIGN(entry.denom, allocate_like(engine, slot.parameter));
+                        SA_TRY_ASSIGN(entry.update, allocate_like(engine, slot.parameter));
+                        SA_TRY_ASSIGN(entry.ones, allocate_like(engine, slot.parameter));
+                    }
+
+                    state.push_back(std::move(entry));
+                }
+                return Status();
+            }));
 
             SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
             {
@@ -143,9 +147,11 @@ namespace SushiAI
             // Invariant: Moments and constant buffers are initialized eagerly before first step.
             SA_TRY(Detail::run_recorded(engine));
 
-            std::unique_ptr<AdamW> made(new AdamW(engine, std::move(parameters), options,
-                                                  std::move(state), std::move(scalars)));
-            return std::move(made);
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<AdamW>(new AdamW(engine, std::move(parameters), options,
+                                                        std::move(state), std::move(scalars)));
+            });
         }
 
         AdamW::AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,

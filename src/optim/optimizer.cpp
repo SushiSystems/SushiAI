@@ -36,6 +36,26 @@ namespace SushiAI
 {
     namespace Optim
     {
+        namespace
+        {
+            /**
+             * @brief Lists the address of every slot's gradient, in slot order.
+             * @param slots Slots whose gradients are listed; must outlive the list.
+             * @return The addresses, or the failure of the allocation seam.
+             */
+            Result<std::vector<SushiBLAS::Tensor*>> list_gradients(
+                std::vector<ParameterSlot>& slots)
+            {
+                return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+                {
+                    std::vector<SushiBLAS::Tensor*> gradients;
+                    gradients.reserve(slots.size());
+                    for (ParameterSlot& slot : slots) gradients.push_back(&slot.gradient);
+                    return gradients;
+                });
+            }
+        }
+
         Status validate_slots(SushiRuntime::span<const ParameterSlot> slots)
         {
             for (const ParameterSlot& slot : slots)
@@ -126,10 +146,8 @@ namespace SushiAI
 
             if (scaler_ != nullptr)
             {
-                std::vector<SushiBLAS::Tensor*> gradients;
-                gradients.reserve(parameters_.size());
-                for (ParameterSlot& slot : parameters_) gradients.push_back(&slot.gradient);
-
+                SA_TRY_ASSIGN(const std::vector<SushiBLAS::Tensor*> gradients,
+                              list_gradients(parameters_));
                 SA_TRY_ASSIGN(const std::size_t screens,
                               scaler_->record_screens(recorder, gradients));
                 recorded += screens;

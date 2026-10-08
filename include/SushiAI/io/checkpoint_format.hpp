@@ -88,7 +88,7 @@ namespace SushiAI
          * @class CheckpointWriter
          * @brief Serializes checkpoint headers and tensor records to an output stream.
          */
-        class CheckpointWriter
+        class CheckpointWriter final
         {
             public:
                 /**
@@ -149,7 +149,7 @@ namespace SushiAI
          * @class CheckpointReader
          * @brief Deserializes checkpoint headers and records from an input stream.
          */
-        class CheckpointReader
+        class CheckpointReader final
         {
             public:
                 /**

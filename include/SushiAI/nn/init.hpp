@@ -188,10 +188,14 @@ namespace SushiAI
             }));
 
             std::vector<Parameter*> parameters;
-            for_each_parameter(module, [&parameters](const std::string&, Parameter& parameter)
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                parameters.push_back(&parameter);
-            });
+                for_each_parameter(module, [&parameters](const std::string&, Parameter& parameter)
+                {
+                    parameters.push_back(&parameter);
+                });
+                return Status();
+            }));
 
             std::size_t final_weight = parameters.size();
             for (std::size_t i = 0; i < parameters.size(); ++i)

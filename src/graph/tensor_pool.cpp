@@ -39,6 +39,27 @@ namespace SushiAI
 {
     namespace Graph
     {
+        namespace
+        {
+            /**
+             * @brief Adds @p tensor to @p map under @p key and returns the stored tensor.
+             * @param map A map from Key to SushiBLAS::Tensor; must outlive the reference.
+             * @return The tensor the map holds for @p key, or the failure of the allocation seam.
+             */
+            template<typename Map, typename Key, typename Stored>
+            [[nodiscard]] Result<SushiBLAS::Tensor&> store_tensor(Map& map, const Key& key,
+                                                                 Stored&& tensor)
+            {
+                SA_TRY_ASSIGN(SushiBLAS::Tensor* const stored,
+                              ::SushiAI::Detail::guard_value(
+                                  ::SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    return &map.emplace(key, std::forward<Stored>(tensor)).first->second;
+                }));
+                return *stored;
+            }
+        }
+
         Result<SushiBLAS::Tensor> TensorPool::create(const Shape& shape, DType dtype) const
         {
             return allocate_tensor(*engine_, shape, dtype);
@@ -106,7 +127,7 @@ namespace SushiAI
                 if (owner != id)
                 {
                     SA_TRY_ASSIGN(SushiBLAS::Tensor& shared, materialise(owner, value));
-                    return tensors_.emplace(id, shared).first->second;
+                    return store_tensor(tensors_, id, shared);
                 }
 
                 if (arenas_->holds(id))
@@ -121,13 +142,13 @@ namespace SushiAI
                     // Tracks counterfactual unpacked byte totals without reallocating storage.
                     unpacked_bytes_ += static_cast<std::size_t>(value.shape.num_elements())
                                      * dtype_size(value.dtype);
-                    return tensors_.emplace(id, std::move(slice)).first->second;
+                    return store_tensor(tensors_, id, std::move(slice));
                 }
             }
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor own, create(value.shape, value.dtype));
             note_standalone(value.shape, value.dtype);
-            return tensors_.emplace(id, std::move(own)).first->second;
+            return store_tensor(tensors_, id, std::move(own));
         }
 
         Status TensorPool::materialise_leaves(const Graph& graph)
@@ -171,8 +192,21 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor fill, create(shape, dtype));
             note_standalone(shape, dtype);
 
-            SushiBLAS::Tensor& slot = ones_.emplace(key, std::move(fill)).first->second;
-            request_constant(slot, 1.0);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& slot, store_tensor(ones_, key, std::move(fill)));
+
+            const Status queued = ::SushiAI::Detail::guard(
+                ::SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                request_constant(slot, 1.0);
+                return Status();
+            });
+
+            // A ones tensor whose fill was not queued leaves the cache, so no caller reads it.
+            if (!queued.is_ok())
+            {
+                ones_.erase(key);
+                return queued;
+            }
             return slot;
         }
 
@@ -187,7 +221,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor buffer, create(shape, dtype));
             note_standalone(shape, dtype);
 
-            return scratch_.emplace(key, std::move(buffer)).first->second;
+            return store_tensor(scratch_, key, std::move(buffer));
         }
 
         void TensorPool::request_constant(SushiBLAS::Tensor& tensor, double value)
