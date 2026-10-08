@@ -122,6 +122,18 @@ the `detect` module and the `imaging` module.
 - **The detect module's open interface points** are listed in `PLAN.md` under "Detection host
   lane".
 
+## Domain modules
+
+The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md). Nothing is
+moved yet. It runs after the model graph's engine units and before the rest of YOLO26, so that
+new vision code is written into `vision/`.
+
+- **Phase 1: registries become values.** `NodeRegistry` and `DatasetRegistry` replace the
+  `constexpr` tables; each module registers its own rows; a program composes them.
+- **Phase 2: vision moves.** `detect`, `imaging`, the YOLO blocks and MNIST go under `vision/`.
+- **Phase 3: the second target.** `sushiai_vision` with its umbrella header and test binary.
+- **Phase 4: the layering check.** `check_layering.py` declares the tiers.
+
 ## Darknet-era YOLO
 
 Inside the feature freeze of 0.1.0 by the owner's ruling of 2026-10-09; stage 6 of
