@@ -923,8 +923,8 @@ The owner allowed one build. `sa build` (release, `-Wall -Wextra -Werror -pedant
 
 | Model | Units of waves 1 to 9 | Compile errors at the first build |
 | --- | --- | --- |
-| `haiku` | 37 | 0 |
-| `opus` `low` | 19 | 0 |
+| `haiku` | 39 | 0 |
+| `opus` `low` | 14 | 0 |
 
 Every unit had passed a single-file syntax check with the same flags and an `opus` `low` review
 before the build, so the table says the two checks together left nothing for the compiler; it
