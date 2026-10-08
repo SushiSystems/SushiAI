@@ -1,13 +1,12 @@
 # Contributing to SushiAI
 
-SushiAI is currently a personal project developed by Mustafa Garip, at the
-**AI-1 stage** — a graph-native autograd core that trains an MLP end to end,
-with memory planning, fusion and mixed precision — dtype plumbing and
-gradient loss scaling both — landed. To maintain a
-unified vision while the architecture is still being designed, **external
-pull requests are not being accepted at this stage** — but bug reports and
-design discussion are welcome, and this document is the reference for how the
-project is actually built.
+SushiAI is currently a personal project developed by Mustafa Garip. Its state is
+recorded in [`docs/design/PROGRAMME.md`](design/PROGRAMME.md): stage 1, the
+SushiBLAS v0.1.0 migration, is built and passing, and the naming half of stage 2
+is done. To maintain a unified vision while the architecture is still being
+designed, **external pull requests are not being accepted at this stage**. Bug
+reports and design discussion are welcome, and this document is the reference
+for how the project is built.
 
 Contributions from outside Sushi Systems are not accepted yet. SushiAI is
 source-available, free for non-commercial use under the PolyForm Noncommercial
@@ -16,10 +15,10 @@ Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 
 > New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md) — it walks from
 > an empty checkout to a model that trains, and then explains what the library
-> did with it. Then [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) for the design, and
-> [`docs/design/ROADMAP.md`](design/ROADMAP.md)
-> for what's actually planned and in what order. `sa demo mlp` is the
-> fastest way to see the whole pipeline do something.
+> did with it. Then [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) for the design,
+> [`docs/design/PROGRAMME.md`](design/PROGRAMME.md) for the stages in the order they
+> are planned, and [`REMAINING_WORK.md`](design/REMAINING_WORK.md) for what is still
+> open. `sa demo mlp` is the fastest way to see the whole pipeline do something.
 
 ---
 
@@ -50,12 +49,13 @@ See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
 
 - This is a personal project; if you're not the maintainer, the productive
   path is an issue — a bug report or a design discussion — not a PR.
-- **AI-2 onward is where the open design decisions are.** The IR, the
-  differentiation transform, the layer/optimizer/data/training layers, the
-  compile-once contract, memory planning, fusion and the precision policy are
-  all decided in code now, and so is mixed precision's *numerics* half — loss
-  scaling and overflow backoff. §25 of the master plan revises what §17–19
-  originally said about the passes; read it before assuming a shape.
+- **The open design decisions are in [`PROGRAMME.md`](design/PROGRAMME.md).** The
+  IR, the differentiation transform, the layer/optimizer/data/training layers, the
+  compile-once contract, memory planning, fusion and the precision policy are all
+  decided in code now, and so is mixed precision's *numerics* half: loss scaling
+  and overflow backoff. Read the design document of a stage before changing the
+  subsystem it covers; the open items are in
+  [`REMAINING_WORK.md`](design/REMAINING_WORK.md).
 - **Keep changes focused.** One logical change per commit.
 
 ---
@@ -72,9 +72,16 @@ sa test --suite unit              # fast, run this often
 sa test --suite integration
 sa test --suite regression
 sa test --suite all
+sa run sushiai_tests -- --gtest_brief=1   # the test binary, one process; args after -- go to it
 
 sa demo mlp --epochs 1 --batches 2   # the showcase, in a couple of seconds
 ```
+
+`sa test` runs the CTest labels that the GTest suite prefixes assign.
+`sa run sushiai_tests` runs the same cases in one process. At the last recorded
+run it held 1803 cases, all passing (`docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`).
+SushiBLAS's own test suite does not enter this tree: its `SB_BUILD_TESTS` option
+defaults to off when SushiBLAS is added as a subdirectory, as this tree does.
 
 Expectations for a mergeable change:
 
@@ -87,7 +94,9 @@ Expectations for a mergeable change:
    in `tests/functional/regression/` (see `test_compile_once.cpp`).
    **The GTest suite-name prefix is the only thing that assigns a CTest
    label**, so a suite named without `Unit_`/`Integration_`/`Regression_` is
-   invisible rather than failing.
+   invisible rather than failing. A new test file is also listed in the
+   `add_executable` list of `tests/CMakeLists.txt`; a file that is not listed is
+   not compiled.
 3. **A CMake or CLI change is verified end to end** — configure, build,
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
@@ -119,7 +128,9 @@ nobody types it by hand.
   for the full reasoning and the table of C++17 spellings this implies
   (`SushiRuntime::span`, `SushiBLAS::Core::format`, `constexpr bool` traits in
   place of concepts, `constexpr` in place of `consteval`). 4-space indentation.
-- **Classes/structs/namespaces**: `PascalCase` (`Engine`, `SushiAI`).
+- **Classes/structs/namespaces**: `PascalCase` (`CompiledStep`, `TensorPool`, `SushiAI`).
+- **Enumerators**: `PascalCase` (`Lifetime::Parameter`, `StatusCode::Ok`). **Constants**
+  carry the `K_` prefix (`K_ALL`, `K_LAYER_REGISTRY`).
 - **Functions and variables**: `snake_case`.
 - **Private members**: trailing underscore.
 - **Allman braces** for multi-statement blocks; a single-statement
@@ -130,7 +141,20 @@ nobody types it by hand.
 ### Documentation
 
 Source comments follow the `source-comments` skill, which this page does not restate.
-`python tools/documentation/check_source_comments.py include src` checks them.
+`python tools/documentation/check_source_comments.py include src` checks them. A comment
+block is at most eight lines, which the checker holds; a `//` comment is one line that
+states an invariant. The `cpp-code-style` skill sets the 100-column limit.
+
+### Failures
+
+- A content error, one a caller can cause with the input it supplies, is a `Status` or a
+  `Result<T>` (`core/status.hpp`, `core/result.hpp`). `SA_FAIL_IF` makes one; `SA_TRY` and
+  `SA_TRY_ASSIGN` pass one on.
+- A programmer's misuse stops the process with `SA_FATAL_IF` (`core/check.hpp`).
+- No exception crosses the public surface. A sibling's exception becomes a `Status` only in
+  the guards of `core/seam.hpp`.
+- This is the target of stage 2 of [`PROGRAMME.md`](design/PROGRAMME.md). The tree does not
+  meet it yet; [`KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md) lists where it does not.
 
 ### Build-system names are prefixed with the full program name
 
@@ -144,7 +168,7 @@ This is a **SushiStack-wide convention**: `sushiruntime_`, `sushiblas_`,
 repo's `cmake/` directory on. A name defined twice in one configure (e.g. two
 repos both defining a bare `sushi_apply_build_policy`) is a hard CMake error
 with no scoping to fall back on — see
-[ARCHITECTURE.md §4](architecture/ARCHITECTURE.md#4-packaging) for the exact collision this
+[ARCHITECTURE.md §6](architecture/ARCHITECTURE.md#6-packaging) for the exact collision this
 prevents. `Vcpkg.cmake` and `Toolchain.cmake` are the deliberate exception:
 their logic is idempotent regardless of which sibling's copy loads first, so
 they stay unprefixed.
@@ -219,7 +243,81 @@ and `sa doctor`; `hub install` provisions several checkouts at once.
 
 ---
 
-## 8. Reporting bugs and requesting features
+## 8. Adding an operation
+
+An operation is one identity and one row in each table that owns a piece of it. The
+headers named below carry `static_assert`s that fail the build when a row is missing or
+doubled, so the compiler lists what is left.
+
+1. **Identity.** Declare it in `include/SushiAI/core/ops.hpp` and add it to `K_ALL`. Use
+   `differentiable_op` when a backward rule must exist, `gradient_barrier_op` when its
+   result lets no gradient reach its operands, and `op` otherwise. The name is dotted and
+   starts with `sushiai.`.
+
+   ```cpp
+   // include/SushiAI/core/ops.hpp, inside namespace Ops
+   inline constexpr OpName K_SOFTSIGN = differentiable_op("sushiai.softsign");
+   ```
+
+2. **Builder call and shape rule.** Declare the emitter in
+   `include/SushiAI/graph/builder.hpp` and define it in `src/graph/builder.cpp`. The body
+   is the shape rule: it sets the result's `Shape` and element type from its operands and
+   refuses an operand it cannot use. `unary` and `elementwise` do this for the common
+   cases.
+
+   ```cpp
+   // src/graph/builder.cpp
+   ValueId GraphBuilder::softsign(ValueId x) const
+   {
+       return unary(Ops::K_SOFTSIGN.id, x);
+   }
+   ```
+
+3. **Gradient rule row.** Declare the rule in the header of its domain under
+   `include/SushiAI/autograd/rules/`, define it in `src/autograd/rules/`, and add one row
+   to the domain table, raising that table's `std::array` size by one.
+
+   ```cpp
+   // include/SushiAI/autograd/rules/elementwise.hpp
+   void softsign_backward(const GradientTape& tape);
+
+   inline constexpr std::array<RuleEntry, 13> K_ELEMENTWISE_RULES = {{
+       // ... the twelve existing rows ...
+       {Ops::K_SOFTSIGN.id, &softsign_backward},
+   }};
+   ```
+
+   An activation takes one row in `K_ACTIVATIONS` (`core/ops.hpp`) and one in
+   `K_ACTIVATION_RULES`, and its gradient is a plain `op` identity with its own lowering row.
+
+4. **Lowering row.** Declare `[[nodiscard]] Status lower_softsign(const LoweringContext& context);`
+   in the domain header under `include/SushiAI/graph/lowering/`, define it in
+   `src/graph/lowering/`, and add one row to the domain table, raising its `std::array` size.
+   The row records its SushiBLAS work on `context.recorder()` and returns a `Status`.
+
+   ```cpp
+   // src/graph/lowering/elementwise.cpp
+   Status lower_div(const LoweringContext& context)
+   {
+       return record_binary(context, &SushiBLAS::ElementwiseOps::div);
+   }
+   ```
+
+   `graph/lowering/all.hpp` fails the build when an identity has no row, two rows, or a row
+   and a place in `K_UNLOWERED`. `K_UNLOWERED` lists the three operations recorded beside
+   the graph (the two optimizer updates and the batch-statistics update), so a graph
+   operation takes a row there, never a place.
+
+5. **Test.** Add a unit test under `tests/functional/unit/` for the shape rule, and one case
+   per row under `tests/functional/integration/` that runs the operation through a compiled
+   step. `test_lowered_operations.cpp` shows the shape: twelve forward cases in FLOAT32 and,
+   for two gradient rows, a FLOAT64 case against the closed form. List a new test file in the
+   `add_executable` list of `tests/CMakeLists.txt`. Build and run the change as §3 says, and add the CHANGELOG line
+   as §5 says.
+
+---
+
+## 9. Reporting bugs and requesting features
 
 Use the GitHub issue templates. A good bug report includes the platform and
 toolchain, the build type, the exact `sa` command, and the smallest
@@ -228,7 +326,7 @@ do **not** open a public issue — follow [`SECURITY.md`](reference/SECURITY.md)
 
 ---
 
-## 9. Questions
+## 10. Questions
 
 Open a GitHub Discussion, join the community Discord (see
 [`SECURITY.md`](reference/SECURITY.md) for the current invite), or email

@@ -23,14 +23,15 @@ unchanged.
 
 One consequence worth planning around: `include/SushiAI/SushiAI.h` pulls in
 both lanes. The **host lane** — `core/common.hpp`, `core/ops.hpp`,
-`core/shape.hpp`, `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
+`core/shape.hpp`, `core/check.hpp`, `core/status.hpp`, `core/result.hpp`,
+`graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
 `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
 `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS *engine*
 and no SYCL (only sibling *vocabulary* headers: the dtype/layout enums, the
 message formatter, `SushiRuntime::span` and `OpID`), so a translation unit
 that only builds or inspects a graph can include those headers directly and
-stay off the device compiler. Everything else, `core/allocation.hpp`
-included, is the device lane. See
+stay off the device compiler. Everything else, `core/allocation.hpp` and
+`core/seam.hpp` included, is the device lane. See
 [ARCHITECTURE.md §3](../architecture/ARCHITECTURE.md#3-the-library-target).
 
 ---
@@ -169,6 +170,14 @@ the whole target) is being compiled by a non-SYCL compiler — see §1.
 `StepScalars::write`, a gradcheck entry point, or anything reached through
 `Train::build_classifier`.** Your translation unit is being compiled at C++20
 against a C++17 library. Compile it at C++17 — see §3.
+
+**A warning about an ignored return value.** These device-lane entry points
+are `[[nodiscard]]` and return a `Status` or a `Result<T>`: `Trainer::make`,
+`AdamW::make`, `SGD::make`, `CompiledStep::compile`, `bind_parameters`,
+`NN::initialize`, `Trainer::fit`. Test `is_ok()` or `has_value()` before
+`value()`; reading the value of a failed `Result` stops the process. Host-lane
+calls such as `Train::build_classifier` and `Autograd::differentiate` report a
+bad graph by throwing `SushiAI::Error`.
 
 **Link errors on a BLAS symbol you expected `SushiAI` to provide.** SushiAI
 defines no ops of its own — check you're calling `SushiBLAS::sushiblas`'s API

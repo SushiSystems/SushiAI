@@ -11,8 +11,9 @@ Each header has one source under `src/imaging/` and one test file under
 `tests/functional/unit/`, named `test_imaging_<header>.cpp`. Three files break that pairing:
 `partner_source.hpp` is an interface with no source; `test_imaging_partners.cpp` tests both of
 its implementations; `src/imaging/bilinear.hpp` and `bilinear.cpp` are private and hold the
-fixed-point arithmetic the resize, the letterbox and the warp share. No source or test has run:
-the owner builds once the programme's code is written (`docs/design/PROGRAMME.md`).
+fixed-point arithmetic the resize, the letterbox and the warp share. The unit files are compiled
+into `sushiai_tests`, which passed all 1803 cases in the run of 2026-10-09
+(`docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`).
 
 The rulings this module implements are in `docs/design/PROGRAMME.md` and
 `docs/agent/2026_10_07_YOLO26/SPEC.md`, section 8: the default augmentation pipeline in full and

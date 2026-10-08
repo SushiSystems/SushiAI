@@ -15,6 +15,8 @@ helpers in `SushiAI::Test` reachable from a test body.
 
 ## test_arena.cpp
 
+Suites: `Integration_Arena`, `Integration_ArenaDeathTest`.
+
 The memory planner rests on three device-side claims, and the file checks each one.
 
 1. Two values packed into one arena report non-overlapping `ResourceRegion`s over the same
@@ -65,6 +67,8 @@ to 128, so packing them costs memory. The saving belongs to realistic tensor siz
 measured where that holds, in `Regression_StaticMemory`.
 
 ## test_autograd_numeric.cpp
+
+Suites: `Integration_Autograd`.
 
 The whole graph (forward, loss and backward) runs on the device in double precision. The
 analytic gradient it produces is compared against a central difference of the loss the same
@@ -295,6 +299,8 @@ numerically and not by shape.
 
 ## test_checkpoint.cpp
 
+Suites: `Integration_Checkpoint`.
+
 The file covers the device half of checkpointing: binding records to the pool's tensors. The
 byte format's malformed-file surface needs no device and lives in
 `tests/functional/unit/test_checkpoint_format.cpp`.
@@ -323,18 +329,32 @@ models disagree about what they hold.
 The return trip, `LayerStack` to `Sequential`, loads into a third model. That makes it a real
 load and not a comparison against values that were already there.
 
-### AShapeMismatchThrowsWithBothShapes
+### AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt
+
+The file is saved from a shallower model, so it has no `2.weight` or `2.bias`. Loading it into the
+deeper model is refused with a message that names `2.weight`, and the load reports
+`StatusCode::Incompatible` as a failure.
+
+### AParameterTheModelDoesNotHaveIsRefusedAndNamesIt
+
+The direction is reversed: the file is saved from the deeper model and loaded into the shallower
+one, so the file holds `2.weight`, which the model does not have. The load is refused with a
+message that names `2.weight` and says that this model does not have it.
+
+### AShapeMismatchIsRefusedWithBothShapes
 
 The two models have the same parameter names and different widths. An element-count comparison
 would catch this pair but would miss a transpose, so the loader compares shapes.
 
-### ADuplicatedNameThrowsAndNamesTheDuplicate
+### ADuplicatedNameIsRefusedAndNamesTheDuplicate
 
 The file is built by hand because `save_checkpoint` cannot produce one: the walk yields each
 name once. A counter-based loader would accept this file and leave a parameter reading
 uninitialised device memory.
 
 ## test_engine_smoke.cpp
+
+Suites: `Integration_EngineSmoke`.
 
 ### AxpyThroughSushiBLAS
 
@@ -343,6 +363,8 @@ chain, SushiRuntime and SushiBLAS both linked through SushiAI, compiles, links a
 operation end to end. It does not stand in for the autograd operation coverage of AI-1.
 
 ## test_forward.cpp
+
+Suites: `Integration_Forward`, `Integration_ForwardDeathTest`.
 
 Every lowered operation is checked against values worked out by hand. This tier catches a
 transposed gemm, a bias broadcast down the wrong axis, and a log-softmax whose stabilising
@@ -424,9 +446,8 @@ and the maximum is 3.
 ### ALayoutConvertRoundTripActuallyPermutesAndComesBack
 
 This case closes the gap that let a dropped layout tag hide. Every other layout test stops at
-the tag. The numerical claim behind them is that a tag reaching
-`Lowering::record_layout_convert` intact makes a transpose happen, and nothing tested that
-half.
+the tag. The numerical claim behind them is that a tag reaching `lower_layout_convert`
+(`src/graph/lowering/shape.cpp`) intact makes a transpose happen, and nothing tested that half.
 
 A round trip alone would not test it either. Two no-ops compose to the identity, and the final
 assertion would pass. So the intermediate is read out and asserted, by value, to be the
@@ -483,7 +504,93 @@ The variance is biased, dividing by N*H*W and not by N*H*W - 1. The forward norm
 value and the backward reads the saved statistics, so an unbiased divisor in the test would be
 a different function.
 
+## test_lowered_operations.cpp
+
+Suites: `Integration_LoweredOperations`.
+
+`tests/CMakeLists.txt` does not list this file yet, so `sushiai_tests` does not hold its cases and
+no run has executed them.
+
+This file runs fourteen lowerings through a compiled step and compares the result with values
+computed on the host: twelve forward cases on FLOAT32 and two gradient cases on FLOAT64. Each case
+builds a graph with one operation, compiles it with `CompiledStep::compile`, runs it, and reads the
+result back. The gradient cases reach the gradient through `Autograd::differentiate`, on a
+negative log-likelihood root, and compare it with the closed-form derivative.
+
+The forward cases allow an absolute error of 1e-6 and a relative error of 1e-5. The gradient cases
+allow 1e-12 and 1e-9. These bounds are estimates, and nothing has checked them against the device
+kernels.
+
+Before this file, the integration and regression tiers built none of these operations. The unit
+tier builds them as nodes and never compiles them. The fixture is a local copy of `OneShot` from
+`test_forward.cpp`.
+
+### DivDividesElementwise
+
+DIV writes the element-wise quotient of two FLOAT32 rows.
+
+### MinimumTakesTheSmallerOperand
+
+MINIMUM writes the smaller of each pair of elements.
+
+### MaximumTakesTheLargerOperand
+
+MAXIMUM writes the larger of each pair of elements.
+
+### AbsReturnsTheMagnitude
+
+ABS writes the magnitude of each element.
+
+### AtanReturnsTheArctangent
+
+ATAN writes the arctangent of each element.
+
+### LessEqualWritesOneForLessAndForEqual
+
+LESS_EQUAL writes 1 where the left operand is less than or equal to the right, so the pairs that
+are equal count, and 0 elsewhere.
+
+### SelectTakesEachBranchWhereTheMaskSaysSo
+
+SELECT takes the first branch where the mask is 1 and the second branch where it is 0.
+
+### ConstantFillsEveryElementWithItsValue
+
+CONSTANT fills a tensor with its value, and CONSTANT_LIKE fills one with the shape of another
+operand. The step runs twice, and the outputs are checked after each run.
+
+### SiluMatchesItsDefinition
+
+SILU writes x * sigmoid(x) for each element.
+
+### SoftplusMatchesItsDefinition
+
+SOFTPLUS writes log(1 + exp(x)) for each element.
+
+### SiluBackwardMatchesTheClosedFormDerivative
+
+SILU_BACKWARD, reached through `Autograd::differentiate` on a FLOAT64 graph, matches the closed-form
+derivative of SiLU.
+
+### SoftplusBackwardMatchesTheClosedFormDerivative
+
+SOFTPLUS_BACKWARD, reached through `Autograd::differentiate` on a FLOAT64 graph, matches the
+closed-form derivative of softplus.
+
+### StopGradientCopiesItsOperand
+
+STOP_GRADIENT copies its operand forward unchanged. The case checks only that forward copy. It does
+not check that the gradient is blocked on the device.
+
+### BatchNormFoldWritesTheScaleAndTheShift
+
+BATCHNORM_FOLD writes `scale = gamma / sqrt(variance + epsilon)` and
+`shift = beta - mean * scale`. One of the variances is zero, so epsilon alone sets that element's
+denominator.
+
 ## test_mixed_precision.cpp
+
+Suites: `Integration_MixedPrecision`.
 
 This is the device half of AI-4. `tests/functional/unit/test_precision.cpp` pins the graph
 shape with no hardware. This file holds what only a real Engine can answer:
@@ -540,6 +647,8 @@ caller running the pass themselves can, and gets an error.
 
 ## test_registries.cpp
 
+Suites: `Integration_Registries`.
+
 Two registries need an Engine to exercise: datasets allocate device tensors, and optimizers
 allocate their state buffers. The layer and objective registries are host-lane and live in the
 unit tier.
@@ -581,8 +690,8 @@ the unknown type "coco" contains "'mnist'", so the row also reaches the list a u
 
 ### MnistRefusesADirectoryWithoutTheFiles
 
-`make_dataset` for "mnist" with an absent directory throws. The message contains the context
-"data", the directory, "MNIST train split", the image path followed by ", labels", and all
+`make_dataset` for "mnist" with an absent directory returns a failure. The message contains the
+context "data", the directory, "MNIST train split", the image path followed by ", labels", and all
 four file names: `train-images-idx3-ubyte`, `train-labels-idx1-ubyte`,
 `t10k-images-idx3-ubyte` and `t10k-labels-idx1-ubyte`. The split defaults to "train" when the
 key is absent. `Data::try_load_mnist` returns null for absent files, because the demo falls
@@ -597,8 +706,8 @@ for.
 
 ### MnistRequiresADirectory
 
-An object with a split and no "directory" throws with a message containing "data", "has no"
-and "'directory'". The factory does not fall back to the default directory of
+An object with a split and no "directory" throws an `Error` whose message contains "data",
+"has no" and "'directory'". `Config::Value` raises it before the factory can return a status. The factory does not fall back to the default directory of
 `Data::MnistOptions`.
 
 ### AnUnknownMnistKeyIsRejectedByItsOwnFactory
@@ -609,8 +718,8 @@ the key, so the factory checks its keys before it looks for a file.
 
 ### MnistRefusesASplitItDoesNotKnow
 
-`"split": "validation"` throws with a message containing "data", "'split'", "'validation'",
-"'train'" and "'test'".
+`"split": "validation"` returns a failure with a message containing "data", "'split'",
+"'validation'", "'train'" and "'test'".
 
 ### TheOptimizerRegistryBuildsBothRulesFromAConfigValue
 
@@ -629,6 +738,8 @@ against. SEPARATE also cannot join the compiled plan. A config file that could s
 be able to change what a run is, so "kernel" is not an accepted key.
 
 ## test_rematerialise.cpp
+
+Suites: `Integration_Rematerialise`.
 
 The file covers the half of the K_IM2COL rematerialisation pass that the host-lane tier cannot
 reach. `Unit_Rematerialise` proves the rewrite has the right shape; this file proves the
@@ -664,6 +775,8 @@ against the planner and does not infer it from the lifetime field. The planner t
 shortened live range into an arena decision, and it has to agree.
 
 ## test_resilience.cpp
+
+Suites: `Integration_Resilience`, `Integration_ResilienceDeathTest`.
 
 The file checks what the library does when it is handed something it cannot serve, and what it
 does at the edges of what it can. The happy path belongs to `test_forward.cpp` and
@@ -792,14 +905,17 @@ inside the runtime is tolerated; a per-iteration leak is not.
 
 CV-7 keeps a BatchNorm's running statistics out of the IR. They are recorded into the training
 step beside the graph, the same way `src/optim/` emits K_SGD_UPDATE and K_ADAMW_UPDATE directly.
-K_BATCHNORM_UPDATE_STATS is therefore the one declared identity with no case in
-`Lowering::record_node`, and that is deliberate.
+K_BATCHNORM_UPDATE_STATS is therefore one of the three identities listed in `K_UNLOWERED`
+(`include/SushiAI/graph/lowering/unlowered.hpp`), and it has no row in `K_LOWERINGS`. That is
+deliberate.
 
 From the outside a deliberate gap and an omission look the same, which is why the test exists.
-Pinning the throw records the decision. If somebody later adds a lowering, the test fails and
+Pinning the fatal stop records the decision. If somebody later adds a lowering, the test fails and
 asks them to say why.
 
 ## test_training.cpp
+
+Suites: `Integration_Training`.
 
 This is the end-to-end gate: a real MLP on the synthetic classification dataset that has to
 converge, with the compile-once guarantee checked across every step.

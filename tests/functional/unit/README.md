@@ -70,6 +70,7 @@ tests.
 | [`test_leaky_relu.cpp`](test_leaky_relu.cpp) | The LeakyReLU layer's trace, shape inference and slope range. |
 | [`test_loss_roots.cpp`](test_loss_roots.cpp) | Which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT barrier. |
 | [`test_loss_scaling.cpp`](test_loss_scaling.cpp) | The dynamic loss-scaling rule on LossScaleState, with no device involved. |
+| [`test_lowering_table.cpp`](test_lowering_table.cpp) | That every operation identity has one lowering row or is listed as unlowered, across the eight domain tables. |
 | [`test_max_pool2d.cpp`](test_max_pool2d.cpp) | The MaxPool2d layer's trace, shape inference and rejections. |
 | [`test_memory_plan.cpp`](test_memory_plan.cpp) | That the memory planner never shares a byte between two values live together. |
 | [`test_model_graph.cpp`](test_model_graph.cpp) | ModelGraph: what add and output refuse, what a trace emits, and the state names. |
@@ -88,6 +89,7 @@ tests.
 | [`test_rule_table.cpp`](test_rule_table.cpp) | That every domain's backward rules reach the combined table exactly once. |
 | [`test_scope_partitioner.cpp`](test_scope_partitioner.cpp) | The region keys ScopePartitioner gives the nodes of a differentiated graph. |
 | [`test_scope_trace.cpp`](test_scope_trace.cpp) | How ScopeTrace cuts a trace into segments and which calls it rejects. |
+| [`test_seam.cpp`](test_seam.cpp) | The Status that core/seam.hpp gives each exception type a guard catches, and what the guards pass through. |
 | [`test_shape.cpp`](test_shape.cpp) | Shape's extents, indexing, validation, equality and hash. |
 | [`test_silu.cpp`](test_silu.cpp) | The SiLU layer's trace, shape inference and empty state. |
 | [`test_spatial_shapes.cpp`](test_spatial_shapes.cpp) | The shapes the builder infers for spatial operations and the layouts it refuses. |
@@ -101,6 +103,8 @@ tests.
 | [`test_version.cpp`](test_version.cpp) | That the runtime version agrees with the compile-time macros. |
 
 ## test_avg_pool2d.cpp
+
+Suites: `Unit_AvgPool2d`.
 
 Tests the shapes the AvgPool2d layer traces and reports, and the inputs it refuses.
 
@@ -211,6 +215,8 @@ After a trace the parameter walk visits nothing and `parameter_count` is 0. The 
 two values, the input and the pooled result.
 
 ## test_backward.cpp
+
+Suites: `Unit_Backward`.
 
 Tests the graph that differentiation emits and the coverage of the backward rule table.
 
@@ -489,6 +495,8 @@ the lifetime `GRADIENT`, and the buffer keeps the lifetime `BUFFER`.
 
 ## test_batch_norm2d.cpp
 
+Suites: `Unit_BatchNorm2d`, `Unit_BatchNorm2dDeathTest`.
+
 Tests BatchNorm2d's two trace forms and the running-statistic update.
 
 This file needs no device. `NN::BatchNorm2d` in `include/SushiAI/nn/batch_norm2d.hpp` is a
@@ -717,6 +725,8 @@ variance on this case as 1.4e-5.
 
 ## test_block_bottleneck.cpp
 
+Suites: `Unit_BlockBottleneck`.
+
 Tests Bottleneck's trace, its state names against YOLO26n row 2, and its factory.
 
 This file needs no device. `NN::Bottleneck` in `include/SushiAI/nn/blocks/bottleneck.hpp` is
@@ -824,6 +834,8 @@ A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two K_BATCHNORM2D no
 updates, and `expect_norm_options` finds those two values on all of them.
 
 ## test_block_c3k.cpp
+
+Suites: `Unit_BlockC3k`.
 
 Tests C3k's trace, its state names against YOLO26n row 6, and its factory.
 
@@ -945,6 +957,8 @@ A row with `repeats` 2, `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces seven K
 nodes and 14 updates, and `expect_norm_options` finds those two values on all of them.
 
 ## test_block_c3k2.cpp
+
+Suites: `Unit_BlockC3k2`.
 
 Tests C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factories.
 
@@ -1117,6 +1131,8 @@ block.
 
 ## test_block_conv_norm.cpp
 
+Suites: `Unit_BlockConvNorm`.
+
 Tests ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node.
 
 This file needs no device. `NN::ConvNorm` in `include/SushiAI/nn/blocks/conv_norm.hpp` is a
@@ -1241,6 +1257,8 @@ Two input shapes fail with a message containing the context, "one input" and "2"
 shape [192] fails with "[192]" and "rank-3".
 
 ## test_block_sppf.cpp
+
+Suites: `Unit_BlockSppf`.
 
 Tests SPPF's trace, its state names against YOLO26n row 9, and its factory.
 
@@ -1376,6 +1394,8 @@ are kernel_h, kernel_w and pad_top, are 3, 3 and 1. The `cv2` weight is [64, 1, 
 
 ## test_buffer.cpp
 
+Suites: `Unit_Buffer`, `Unit_BufferDeathTest`.
+
 Tests Buffer: its description, its one leaf per graph and its identity.
 
 This file needs no device. `NN::Buffer` in `include/SushiAI/nn/buffer.hpp` is state a model
@@ -1484,6 +1504,8 @@ process with a report containing "'running_mean'" and "before define()".
 
 ## test_checkpoint_format.cpp
 
+Suites: `Unit_CheckpointFormat`, `Unit_CheckpointFormatDeathTest`.
+
 Tests the checkpoint format's round trip and its refusal of each malformed byte pattern.
 
 This file holds the checkpoint format's whole malformed-file surface in the device-free tier.
@@ -1507,6 +1529,8 @@ weight load into a [3, 2] one. The shape is recorded, so the two records are not
 interchangeable.
 
 ## test_concat.cpp
+
+Suites: `Unit_Concat`.
 
 Tests the Concat node's shape check, its port and the node it traces.
 
@@ -1594,6 +1618,8 @@ After a trace, `walk_state("merge", visitor)` calls neither the parameter callba
 buffer callback.
 
 ## test_config.cpp
+
+Suites: `Unit_Config`.
 
 Tests how the config layer parses its JSON documents and which ones it refuses.
 
@@ -1820,6 +1846,8 @@ document is an error; it is not silently preferred over the one on the command l
 
 ## test_conv2d.cpp
 
+Suites: `Unit_Conv2d`.
+
 Tests the 2-D convolution layer's trace, parameters, shape inference and rejections.
 
 This file needs no device. `NN::Conv2d` in `include/SushiAI/nn/conv2d.hpp` declares a weight
@@ -2030,6 +2058,8 @@ no number.
 
 ## test_detect_anchors.cpp
 
+Suites: `Unit_DetectAnchors`, `Unit_DetectAnchorLeaves`, `Unit_DetectLevelRows`.
+
 Tests the anchor grid, the per-image anchor leaves and the copies between a level and the joined
 anchor axis.
 
@@ -2133,6 +2163,8 @@ A level of two anchors at offset 4 of five throws with a message containing "2 a
 containing "12 level values", "20 joined values" and "got 10 and 20".
 
 ## test_detect_assigner.cpp
+
+Suites: `Unit_DetectAssigner`, `Unit_DetectGroundTruth`, `Unit_DetectTargetLeaves`.
 
 Tests the task-aligned assigner, its presets, the padded ground truth and the target leaves.
 
@@ -2408,6 +2440,8 @@ is absent.
 
 ## test_detect_average_precision.cpp
 
+Suites: `Unit_AveragePrecision`.
+
 Tests detection matching, the 101-point average precision and the validation table.
 
 This file needs no device and reads no fixture. Every case in `Unit_AveragePrecision` builds
@@ -2589,6 +2623,8 @@ values ("need 10 values", "got 9").
 
 ## test_detect_boxes.cpp
 
+Suites: `Unit_DetectBoxes`.
+
 Tests box decoding and encoding, the two box formats and the IoU forms.
 
 This file needs no device. `Unit_DetectBoxes` covers `include/SushiAI/detect/box_coding.hpp`,
@@ -2710,6 +2746,8 @@ IoU of box n with box m: 1, 1 / 7, 0, then 1 / 4, 0, 0.
 Arrays of 8 and 4 values with an output of 2 throw with a message containing "got 8, 4 and 2".
 
 ## test_detect_postprocess.cpp
+
+Suites: `Unit_DetectTopK`, `Unit_DetectPostprocess`.
 
 Tests the top-k selection, both postprocess paths and the overlap suppression.
 
@@ -2898,6 +2936,8 @@ scores" and "8 and 6 values".
 
 ## test_diagnostics.cpp
 
+Suites: `Unit_Diagnostics`.
+
 Tests that each host-lane precondition raises a message carrying the values that disagree.
 
 This file needs no device. It holds every host-lane precondition to the message it promises.
@@ -2982,6 +3022,8 @@ buggy rule would. It builds a graph by hand whose K_SUB claims a result of a dif
 its operands, so the rule contributes a [4, 3] gradient to a [2, 6] value.
 
 ## test_elementwise_ops.cpp
+
+Suites: `Unit_ElementwiseOps`.
 
 Tests the nodes the builder emits for the elementwise, comparison, selection and constant
 operations.
@@ -3168,6 +3210,8 @@ identities.
 
 ## test_flatten.cpp
 
+Suites: `Unit_Flatten`.
+
 Tests the Flatten layer's trace, shape rule, rejections and parameter walk.
 
 This file needs no device. `NN::Flatten` in `include/SushiAI/nn/flatten.hpp` has no field and
@@ -3224,6 +3268,8 @@ shape of a batch equals the batch extent followed by that one extent.
 `parameter_elements` is 0.
 
 ## test_fusion.cpp
+
+Suites: `Unit_Fusion`.
 
 Tests the matches and the refusals of the static fusion pass on synthetic graphs.
 
@@ -3399,6 +3445,8 @@ and `has_refusal()` is still true.
 
 ## test_global_avg_pool.cpp
 
+Suites: `Unit_GlobalAvgPool`.
+
 Tests the shapes GlobalAvgPool traces and reports, and the inputs it refuses.
 
 This file needs no device. `NN::GlobalAvgPool` in `include/SushiAI/nn/global_avg_pool.hpp` has
@@ -3467,6 +3515,8 @@ A [1, 4, 4, 3] input is converted to NCHW, and `forward()` throws on the convert
 
 ## test_gradcheck.cpp
 
+Suites: `Unit_GradCheck`.
+
 Tests the gradient checker against closed-form functions and a wrong gradient.
 
 This file needs no device. The gradient checker is the instrument the integration tier measures
@@ -3489,6 +3539,8 @@ The `unshifted` point straddles the kink. The quotient taken across it reports t
 the two one-sided derivatives, which no correct rule can match.
 
 ## test_identity.cpp
+
+Suites: `Unit_Identity`.
 
 Tests that the Identity layer returns its input, emits nothing and holds no state.
 
@@ -3514,6 +3566,8 @@ The graph's node count and value count are the same before and after `forward`.
 After a trace, `NN::for_each_parameter` calls its visitor zero times.
 
 ## test_imaging_affine.cpp
+
+Suites: `Unit_ImagingAffine`.
 
 Tests the plan and the application of the scale and translation warp to an image and its
 labels.
@@ -3713,6 +3767,8 @@ the translation moves into it is kept, with class 1 and the box (40, 10, 80, 50)
 
 ## test_imaging_boxes.cpp
 
+Suites: `Unit_ImagingBoxes`.
+
 Tests the two box forms, their conversions and the candidate filter.
 
 This file needs no device. `Unit_ImagingBoxes` covers `include/SushiAI/imaging/boxes.hpp`: a
@@ -3856,6 +3912,8 @@ after is rejected.
 
 ## test_imaging_flip.cpp
 
+Suites: `Unit_ImagingFlip`.
+
 Tests the plan and the application of the horizontal flip to an image and its labels.
 
 This file needs no device. `Unit_ImagingFlip` covers `include/SushiAI/imaging/flip.hpp`.
@@ -3971,6 +4029,8 @@ An unflipped plan returns the polygon's vertices as they are.
 
 ## test_imaging_gray.cpp
 
+Suites: `Unit_ImagingGray`.
+
 Tests the expansion of a one-channel image to three equal channels.
 
 This file needs no device. `Unit_ImagingGray` covers `expand_gray` of
@@ -4002,6 +4062,8 @@ rows, throw with "destination holds the source's pixels". The image keeps its si
 count and bytes.
 
 ## test_imaging_hsv.cpp
+
+Suites: `Unit_ImagingHsv`.
 
 Tests the hue, saturation and value jitter: its plan, its tables and both colour conversions.
 
@@ -4168,6 +4230,8 @@ Two applications of one plan to one image give the same bytes.
 
 ## test_imaging_image.cpp
 
+Suites: `Unit_ImagingImage`.
+
 Tests the owned image, the view over foreign pixels and the checks both share.
 
 This file needs no device. `Unit_ImagingImage` covers `include/SushiAI/imaging/image.hpp`:
@@ -4312,6 +4376,8 @@ destination.
 
 ## test_imaging_label_set.cpp
 
+Suites: `Unit_ImagingLabelSet`.
+
 Tests the label set that holds classes, boxes and polygons in step, and its conversions.
 
 This file needs no device. `Unit_ImagingLabelSet` covers
@@ -4404,6 +4470,8 @@ With one polygon of 1200 vertices in the set, both polygons are resampled to 120
 A set whose one polygon is empty comes back with the polygon empty and the box unchanged.
 
 ## test_imaging_labels.cpp
+
+Suites: `Unit_ImagingLabels`.
 
 Tests the parser of a label file's text.
 
@@ -4595,6 +4663,8 @@ vertices differ.
 
 ## test_imaging_letterbox.cpp
 
+Suites: `Unit_ImagingLetterbox`.
+
 Tests the plan and the application of the letterbox to an image and its labels.
 
 This file needs no device. `Unit_ImagingLetterbox` covers
@@ -4748,6 +4818,8 @@ In the tall plan the vertices (10, 20), (30, 40) and (-4, 210) move to (42, 10),
 (35, 105). An object without a polygon still has none.
 
 ## test_imaging_mosaic.cpp
+
+Suites: `Unit_ImagingMosaic`.
 
 Tests the draw, the plan and the application of the four-image mosaic.
 
@@ -4963,6 +5035,8 @@ whose patch span is one pixel narrower than its canvas span throws with "patch 3
 
 ## test_imaging_partners.cpp
 
+Suites: `Unit_ImagingPartners`.
+
 Tests the two sources of a mosaic's three partner images.
 
 This file needs no device. `Unit_ImagingPartners` covers `DatasetPartners` of
@@ -5039,6 +5113,8 @@ A dataset size of 0 and batch sizes of 0 and -3 throw. `choose(4)` on a dataset 
 with "index 4", makes no draw and leaves the buffer empty.
 
 ## test_imaging_pipeline.cpp
+
+Suites: `Unit_ImagingPipeline`.
 
 Tests the training and the validation pipeline that compose the imaging transforms into a
 sample.
@@ -5292,6 +5368,8 @@ for an empty source ("no image"). `make_sample` throws for index 9 of five image
 
 ## test_imaging_polygon.cpp
 
+Suites: `Unit_ImagingPolygon`.
+
 Tests polygon resampling, mapping, clamping, the point test and the visible box.
 
 This file needs no device. `Unit_ImagingPolygon` covers
@@ -5394,6 +5472,8 @@ A triangle that contains the image's origin gives (0, 0, 36.666664, 33), and a s
 the whole image gives the image, (0, 0, 100, 80).
 
 ## test_imaging_random.cpp
+
+Suites: `Unit_ImagingRandom`.
 
 Tests the generator every augmentation draws from.
 
@@ -5526,6 +5606,8 @@ A copy taken after one draw equals the original, and their next 16 draws are equ
 Two generators of one seed are equal, and are unequal after one of them draws.
 
 ## test_imaging_raw_cache.cpp
+
+Suites: `Unit_ImagingRawCache`.
 
 Tests the raw image file: its bytes, its header checks and its file reader and writer.
 
@@ -5749,6 +5831,8 @@ destination is untouched.
 
 ## test_imaging_rectangle.cpp
 
+Suites: `Unit_ImagingRectangle`.
+
 Tests the plan that orders a dataset by aspect ratio and gives each batch one shape.
 
 This file needs no device. `Unit_ImagingRectangle` covers
@@ -5807,6 +5891,8 @@ An image size of `K_MAX_IMAGE_SIDE` with pad 0.5 gives a side above the bound, a
 throws with "batch side" and "16384".
 
 ## test_imaging_resize.cpp
+
+Suites: `Unit_ImagingResize`.
 
 Tests the bilinear resize and the fit of an image's long side.
 
@@ -5973,6 +6059,8 @@ count".
 
 ## test_ir.cpp
 
+Suites: `Unit_Ir`, `Unit_IR`.
+
 Tests the IR's single-assignment and ordering rules and the builder's shape inference.
 
 This file needs no device. The IR and its builder are host-lane, which is the point of keeping
@@ -6011,7 +6099,8 @@ assumes symmetric padding, and an asymmetric window grid can derive to its own t
 the same window count, which every downstream shape check accepts.
 
 Nothing downstream caps the ten. Nothing copies an attribute into a fixed-width metadata array:
-`src/graph/lowering.cpp` reads slots with `get()` and passes the values straight to SushiBLAS.
+the lowering reads each input through `LoweringContext::input` and passes the tensor straight to
+SushiBLAS.
 
 ### ABufferLeafIsPersistentAndNeedsNoGradient
 
@@ -6074,6 +6163,8 @@ After a move construction the target peeks the source's identity and the source 
 `K_NO_STATE`. A move assignment over a holder that had drawn does the same.
 
 ## test_layer_registry.cpp
+
+Suites: `Unit_LayerRegistry`.
 
 Tests the layer registry: each row's factory, the keys it reads and the model it builds.
 
@@ -6337,6 +6428,8 @@ before it". The row it names is the row above; the port is what the chain refuse
 
 ## test_layer_stack.cpp
 
+Suites: `Unit_LayerStack`.
+
 Tests the runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread.
 
 This file needs no device. A LayerStack is host-lane, and the first property this file pins,
@@ -6442,6 +6535,8 @@ and "flatten". Given [48], the same object builds.
 
 ## test_layout.cpp
 
+Suites: `Unit_Layout`.
+
 Tests that every value carries a tensor layout and that the rebuilding passes keep it.
 
 This file needs no device. The IR and its builder are host-lane, which is the point of keeping
@@ -6481,9 +6576,10 @@ missing.
 to `add_value`'s default, which is NHWC. A dropped tag is therefore a wrong layout, not a
 missing one, and every shape check downstream still agrees with it.
 
-The cost of a dropped tag shows in `Lowering::record_layout_convert`, which decides whether to
-relabel a side into [N,H,W,C] by reading these two tags. A genuine NCHW -> NHWC convert that
-reads as NHWC -> NHWC applies no transpose and copies transposed data straight through.
+The cost of a dropped tag shows in `lower_layout_convert` in `src/graph/lowering/shape.cpp`, which
+decides from these two tags whether each side is read or written through a transpose. A genuine
+NCHW -> NHWC convert that reads as NHWC -> NHWC applies no transpose and copies transposed data
+straight through.
 
 ### CastInsertionCarriesTheLayoutTagAcrossItsRebuild
 
@@ -6531,6 +6627,8 @@ The rename must not quietly drop the behaviour the old name described. The asser
 same one `test_ir.cpp` made.
 
 ## test_leaky_relu.cpp
+
+Suites: `Unit_LeakyReLU`.
 
 Tests the LeakyReLU layer's trace, shape inference and slope range.
 
@@ -6632,6 +6730,8 @@ After `forward()` throws for a slope of 1, the node count and the value count ar
 `parameter_elements` is 0.
 
 ## test_loss_roots.cpp
+
+Suites: `Unit_LossRoots`.
 
 Tests which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT
 barrier.
@@ -6811,6 +6911,8 @@ through its second operand.
 
 ## test_loss_scaling.cpp
 
+Suites: `Unit_LossScaling`.
+
 Tests the dynamic loss-scaling rule on LossScaleState, with no device involved.
 
 This file tests the dynamic-scaling rule with no device in the measurement.
@@ -6851,7 +6953,43 @@ The loss-scaling design is arranged around this property, and the test asserts i
 itself. Whatever sequence of backoffs and growths the machine takes, the scale is a power of
 two, so the reciprocal is exact and the round trip is lossless.
 
+## test_lowering_table.cpp
+
+Suites: `Unit_LoweringTable`.
+
+Tests the table that maps each operation identity to its lowering. The lowering is eight domain
+tables under `include/SushiAI/graph/lowering/`, which `all.hpp` joins into `K_LOWERINGS`. The
+identities that have no row are listed in `K_UNLOWERED`, in `unlowered.hpp`.
+
+The file needs no device. It reads the constants and the constexpr helpers of `all.hpp`. The
+`static_assert`s in `all.hpp` prove the same counts at build time. These cases name the identity
+or the domain whose count is wrong, so a change to one table reads as one line in the report.
+
+### EveryIdentityIsLoweredOrListedAsUnlowered
+
+Each entry of `Ops::K_ALL` has exactly one row, or it is listed in `K_UNLOWERED` and has none.
+
+### TheUnloweredIdentitiesHaveNoRow
+
+`K_UNLOWERED` holds three identities, and none of them has a row.
+
+### NoOperationHasTwoRows
+
+No identity appears in two rows of `K_LOWERINGS`.
+
+### TheCombinedTableCoversTheOperationTable
+
+Every identity is accounted for, and the rows plus the unlowered identities add up to the
+operation table's size.
+
+### EachDomainTableHasItsRowCount
+
+The domain tables hold 17, 14, 3, 2, 4, 12, 4 and 6 rows, in the order elementwise, activation,
+linalg, loss, shape, spatial, norm and fused. The joined table holds 62.
+
 ## test_max_pool2d.cpp
+
+Suites: `Unit_MaxPool2d`.
 
 Tests the 2-D max pooling layer's trace, shape inference and rejections.
 
@@ -6977,6 +7115,8 @@ A 2x5 window over [8, 4, 3] throws. The window fits the height, so the width che
 
 ## test_memory_plan.cpp
 
+Suites: `Unit_MemoryPlan`.
+
 Tests that the memory planner never shares a byte between two values live together.
 
 This file needs no device: no engine, no allocator, no SYCL. The memory planner is a pure
@@ -7074,6 +7214,8 @@ an inference from an existing rule and not a rule of its own, so a future rewrit
 `precedes()` could take it away silently.
 
 ## test_model_graph.cpp
+
+Suites: `Unit_ModelGraph`, `Unit_ModelGraphDeathTest`.
 
 Tests ModelGraph: what add and output refuse, what a trace emits, and the state names.
 
@@ -7326,6 +7468,8 @@ are both named "low" stops the process with a report containing "'pair'" and "tw
 
 ## test_model_outputs.cpp
 
+Suites: `Unit_ModelOutputs`, `Unit_ModelOutputsDeathTest`.
+
 Tests ModelOutputs: publishing named values and reading them back.
 
 This file needs no device. `NN::ModelOutputs` in `include/SushiAI/nn/model_outputs.hpp` is
@@ -7399,6 +7543,8 @@ for.
 scores".
 
 ## test_module.cpp
+
+Suites: `Unit_Module`.
 
 Tests Parameter across graphs and the state walk over layers, containers and fields.
 
@@ -7709,6 +7855,8 @@ and "1.bias:[3]".
 
 ## test_module_list.cpp
 
+Suites: `Unit_ModuleList`, `Unit_ModuleListDeathTest`.
+
 Tests ModuleList: its storage, its index names and its place in the state walk.
 
 This file needs no device. `NN::ModuleList<M>` in `include/SushiAI/nn/module_list.hpp` holds
@@ -7784,6 +7932,8 @@ The case is in the suite `Unit_ModuleListDeathTest`. `list[2]` on a list of two 
 process with a report containing "index 2" and "holds 2 children".
 
 ## test_node.cpp
+
+Suites: `Unit_Node`, `Unit_NodeDeathTest`.
 
 Tests ModuleNode, LayerNode and the buffer check LayerAdapter makes at compile time.
 
@@ -7944,6 +8094,8 @@ The case is in the suite `Unit_NodeDeathTest`. Constructing a `LayerNode` from a
 stops the process with a report containing "LayerNode" and "null layer".
 
 ## test_node_registry.cpp
+
+Suites: `Unit_NodeRegistry`.
 
 Tests the node registry, make_node, build_model and the YOLO26n model file.
 
@@ -8258,6 +8410,8 @@ equal the manifest's records for rows 0 to 9 followed by its 145 records for row
 
 ## test_objective.cpp
 
+Suites: `Unit_Objective`.
+
 Tests the objective seam: the leaves it declares, the loss it emits and the resulting IR.
 
 This file needs no device. Declaring leaves and emitting a loss are IR-to-IR, so the whole
@@ -8287,6 +8441,8 @@ Cross-entropy has no hyperparameters, so a key written onto it is an error and n
 author believed it did something.
 
 ## test_ops.cpp
+
+Suites: `Unit_Ops`.
 
 Tests that the operation table is complete and that the reverse lookup resolves names.
 
@@ -8380,6 +8536,8 @@ false and `blocks_gradient` false. `test_backward.cpp` holds what differentiatio
 gradient reaches the node.
 
 ## test_precision.cpp
+
+Suites: `Unit_Precision`, `Unit_CastInsertion`.
 
 Tests the mixed-precision policy and where the cast insertion pass places its casts.
 
@@ -8596,6 +8754,8 @@ the two results are all FLOAT32.
 
 ## test_provenance.cpp
 
+Suites: `Unit_Provenance`.
+
 Tests the forward origin that differentiation records for every node it appends.
 
 This file needs no device. `Autograd::differentiate()` fills a `Provenance` while it appends
@@ -8668,6 +8828,8 @@ inputs and outputs. Recording is therefore an observation of the transform and n
 it.
 
 ## test_region_signature.cpp
+
+Suites: `Unit_RegionSignature`.
 
 Tests the signature that `signature_of` computes for one region of a partition.
 
@@ -8882,6 +9044,8 @@ The identity vector is cleared, so the id of `x` lies beyond its end. The messag
 
 ## test_rematerialise.cpp
 
+Suites: `Unit_Rematerialise`.
+
 Tests the structure of the graph that the K_IM2COL rematerialisation pass rewrites.
 
 This file needs no device. The K_IM2COL rematerialisation pass is an IR-to-IR rewrite, so what it
@@ -8947,6 +9111,8 @@ rematerialise its own output. If it did, the pass would not terminate on a graph
 consumers.
 
 ## test_result.cpp
+
+Suites: `Unit_Result`.
 
 Tests Result, its reference form and SA_TRY_ASSIGN.
 
@@ -9087,6 +9253,8 @@ from a success Status".
 
 ## test_rule_table.cpp
 
+Suites: `Unit_RuleTable`.
+
 Tests that every domain's backward rules reach the combined table exactly once.
 
 ### EveryDomainsRulesReachTheCombinedTable
@@ -9127,6 +9295,8 @@ and false for the `backward` one. `Autograd::K_ACTIVATION_RULES` has as many ent
 is false for K_BATCHNORM_FOLD, and `Autograd::K_NORM_RULES` has two entries.
 
 ## test_scope_partitioner.cpp
+
+Suites: `Unit_ScopePartitioner`.
 
 Tests the region keys ScopePartitioner gives the nodes of a differentiated graph.
 
@@ -9313,6 +9483,8 @@ leaves".
 
 ## test_scope_trace.cpp
 
+Suites: `Unit_ScopeTrace`.
+
 Tests how ScopeTrace cuts a trace into segments and which calls it rejects.
 
 This file needs no device. A `ScopeTrace` reads the node count of a graph, so every case
@@ -9413,7 +9585,79 @@ A second `seal()` throws with a message containing "seal()" and "sealed trace".
 After `seal()`, `open("late")` and `close()` both throw with "sealed trace" in the message, and
 the depth stays 0.
 
+## test_seam.cpp
+
+Suites: `Unit_Seam`.
+
+Tests the seam in `include/SushiAI/core/seam.hpp`, the one place where an exception of SushiBLAS
+or SushiRuntime, or of another standard type, becomes a `Status`. `guard` and `guard_value` run a
+call and return its Status or its value. `status_of_current_exception` chooses the code from the
+type of the exception and from the `SeamPhase` the call was in: `Record`, `Allocate` or `Execute`.
+
+The file needs no device. It builds each exception it maps by hand.
+
+### GuardReturnsTheStatusOfACallThatDoesNotThrow
+
+A success passes through `guard`, and a failure Status returns with its code and its message.
+
+### GuardValueReturnsTheValueOfACallThatDoesNotThrow
+
+`guard_value` returns the value of a call that does not throw, as an ok `Result`.
+
+### GuardValueReturnsTheStatusOfWhatTheCallThrew
+
+A `std::bad_alloc` thrown by the call becomes a failed `Result` of code `OutOfMemory`.
+
+### UnsupportedExecutionIsUnsupportedThoughItIsAnInvalidArgument
+
+`SushiBLAS::UnsupportedExecution` derives from `std::invalid_argument`, and it maps to
+`Unsupported`, not `InvalidDescription`. The message is kept.
+
+### InvalidArgumentIsInvalidDescription
+
+A plain `std::invalid_argument` maps to `InvalidDescription`, and its text is kept.
+
+### PlainRuntimeErrorTakesItsCodeFromThePhase
+
+A plain SushiRuntime error maps to `OutOfMemory` when the call was allocating, and to
+`DeviceFailed` when it was recording or executing.
+
+### RuntimeFailureThatTheUserCanActOnMapsByItsCode
+
+A SushiRuntime failure that carries a code the user can act on keeps it: `OutOfMemory` for a
+missing USM allocation, `DeviceFailed` for a device fault or an unplugged device, and `Unsupported`
+for a missing fp16 path.
+
+### RuntimeFailureWithTheOkCodeTakesItsCodeFromThePhase
+
+A SushiRuntime failure that carries the `Ok` code takes its code from the phase, as a plain error
+does.
+
+### RuntimeFailureThatReportsADefectIsFatal
+
+A SushiRuntime failure that reports a defect stops the process rather than returning a Status.
+The case checks four defect codes with `SA_EXPECT_FATAL`: `invalid_graph`, `compile_failed`,
+`invalid_access` and `dangling_resource`.
+
+### ErrorOfAHostUnitIsFatalWithItsText
+
+A `SushiAI::Error` thrown while recording stops the process, and the report carries its text.
+
+### BadAllocIsOutOfMemoryInEveryPhase
+
+`std::bad_alloc` maps to `OutOfMemory` in each of the three phases.
+
+### AnyOtherStandardExceptionIsDeviceFailed
+
+Any other standard exception maps to `DeviceFailed` and keeps its text.
+
+### ExceptionOfAnUnknownTypeIsDeviceFailed
+
+An exception that derives from no standard type maps to `DeviceFailed`.
+
 ## test_shape.cpp
+
+Suites: `Unit_Shape`.
 
 Tests Shape's extents, indexing, validation, equality and hash.
 
@@ -9426,6 +9670,8 @@ RuntimeContext, which is what keeps the unit tier fast.
 the extents would collide them, and the tensor pool keys its constant operands on this hash.
 
 ## test_silu.cpp
+
+Suites: `Unit_SiLU`.
 
 Tests the SiLU layer's trace, shape inference and empty state.
 
@@ -9462,6 +9708,8 @@ converted value's shape.
 After a trace, `NN::for_each_parameter` calls its visitor zero times.
 
 ## test_spatial_shapes.cpp
+
+Suites: `Unit_SpatialShapes`.
 
 Tests the shapes the builder infers for spatial operations and the layouts it refuses.
 
@@ -9790,6 +10038,8 @@ told so, and is not told that the window is too large.
 
 ## test_status.cpp
 
+Suites: `Unit_Status`.
+
 Tests Status, its macros, the fatal family and the assertions of test_status.hpp.
 
 This file needs no device. `Status` and the `SA_FAIL_IF`, `SA_TRY` and `SA_ANNOTATE` macros are
@@ -9988,11 +10238,14 @@ condition: the counter stays at zero. Without it, `assert_positive(1)` returns a
 
 ## test_step_recorder.cpp
 
+Suites: `Unit_StepRecorder`, `Unit_StepRecorderDeathTest`.
+
 Tests that StepRecorderList drives its members as one recorder, in the order added.
 
 This file needs no device. `Graph::StepRecorder` and `Graph::StepRecorderList` are in
-`include/SushiAI/graph/step_recorder.hpp`. The list is itself an `StepRecorder` and holds
-references to its members; it does not own them.
+`include/SushiAI/graph/step_recorder.hpp`. The list is itself a `StepRecorder` and holds
+references to its members; it does not own them. `add` returns a Status, and each case checks
+its call with `SA_EXPECT_OK`.
 
 ### JournalRecorder
 
@@ -10058,15 +10311,19 @@ An outer list of a, an inner list holding b, and c records 7 tasks and journals 
 
 ### AddRejectsARecorderAlreadyHeld
 
-A second `add` of the same recorder throws with a message containing "StepRecorderList::add"
-and "already". The list still records that member once: 2 tasks and one journal entry.
+A second `add` of the same recorder is a programmer's misuse, so it stops the process with a report
+containing "StepRecorderList::add" and "already". The case runs as a death test in
+`Unit_StepRecorderDeathTest`. The parent process then checks that the list still records that
+member once: 2 tasks and one journal entry.
 
 ### AddRejectsTheListItself
 
-`list.add(list)` throws with a message containing "StepRecorderList::add" and "itself", and
-the list stays empty.
+`list.add(list)` stops the process with a report containing "StepRecorderList::add" and "itself".
+It is a death test in `Unit_StepRecorderDeathTest`, and the list stays empty.
 
 ## test_throwing_bridge.cpp
+
+Suites: `Unit_ThrowingBridge`, `Unit_ThrowingBridgeDeathTest`.
 
 Tests bridge_throwing: a value passes through and a thrown Error becomes a Status.
 
@@ -10118,6 +10375,8 @@ The case is in the suite `Unit_ThrowingBridgeDeathTest`. `bridge_a_logic_error` 
 process with a report containing "other than Error" and "an index was out of range".
 
 ## test_trace.cpp
+
+Suites: `Unit_Trace`, `Unit_TraceDeathTest`.
 
 Tests Trace, the buffer-update sinks, the three layer forms and trace_layer.
 
@@ -10339,6 +10598,8 @@ and walks the same parameter names.
 
 ## test_traced.cpp
 
+Suites: `Unit_Traced`.
+
 Tests Traced and the refusal it carries through a chain of emitters.
 
 This file needs no device. `Graph::Traced` in `include/SushiAI/graph/traced.hpp` holds a
@@ -10466,6 +10727,8 @@ of a failed `Result<int>` returns the failure and marks the graph.
 
 ## test_unflatten.cpp
 
+Suites: `Unit_Unflatten`.
+
 Tests the trace, the shape rule and the rejected inputs of the Unflatten layer.
 
 This file needs no device. `NN::Unflatten` in `include/SushiAI/nn/unflatten.hpp` holds a
@@ -10556,6 +10819,8 @@ positive extents".
 raises the value count by one, the reshaped value, so it declares no parameter.
 
 ## test_upsample2d.cpp
+
+Suites: `Unit_Upsample2d`.
 
 Tests the shape, layout and rejections of the Upsample2d layer.
 
@@ -10655,5 +10920,7 @@ raises this message.
 After a trace the walk visits nothing and `parameter_count` is 0.
 
 ## test_version.cpp
+
+Suites: `Unit_Version`.
 
 Tests that the runtime version agrees with the compile-time macros.

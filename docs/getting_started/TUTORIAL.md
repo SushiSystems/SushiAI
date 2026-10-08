@@ -10,8 +10,8 @@ it does, the file is wrong — please treat it as a bug.
 
 > **Conventions.** `sa` is SushiAI's CLI; never invoke `cmake`, `ninja` or
 > `ctest` directly ([CONTRIBUTING.md](../CONTRIBUTING.md)). Code samples use the
-> short namespace aliases `sa::`, `sb::`, `sr::` that `<SushiAI/SushiAI.h>`
-> defines.
+> short namespace aliases `sa::` and `sr::`, which `<SushiAI/SushiAI.h>` brings
+> in, and `sb::`, which a program declares itself: `namespace sb = SushiBLAS;`.
 
 ---
 
@@ -59,11 +59,13 @@ sa build --type release
 sa test --suite all
 ```
 
-At the time of writing that reports **690 tests, all passing** (85 integration,
-70 regression, 535 unit). That count *includes* SushiBLAS's own 403, because
-SushiAI compiles it from source via `add_subdirectory` and one `ctest` run walks
-the whole build tree. So 287 of the 690 are SushiAI's own. This surprises people
-and is not a bug.
+On 2026-10-09 the suite held **1803 cases in 121 suites, all passing**. Every
+one is SushiAI's own: SushiBLAS is still compiled from source via
+`add_subdirectory`, but it builds its tests only when it is the top-level
+project (`SB_BUILD_TESTS`), so none of them enter this tree.
+
+`sa test` starts one process per case through CTest. `sa run sushiai_tests`
+runs the same 1803 cases in one process.
 
 > **A warning about `--clean`.** It exists, and on most machines you should not
 > reach for it. Because SushiBLAS is compiled from source here, a clean build of
@@ -127,24 +129,37 @@ sa::NN::Sequential model{
 sa::Train::TrainingGraph built =
     sa::Train::build_classifier(model, batch, features, classes);
 
-// 3. Memory. The planner has already decided every offset; this allocates them.
+// 3. Memory. bind_parameters plans every offset and allocates the leaves.
 sa::Graph::TensorPool pool(engine);
-std::vector<sa::Optim::ParameterSlot> parameters = sa::Train::bind_parameters(built, pool);
-sa::NN::initialize(engine, model, pool);
+SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
+              sa::Train::bind_parameters(built, pool));
+SA_TRY(sa::NN::initialize(engine, model, pool));
 
 // 4. An optimizer over those exact parameters.
 sa::Optim::AdamWOptions adam;
 adam.learning_rate = 3e-3;
-sa::Optim::AdamW optimizer(engine, parameters, adam);
+SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
+              sa::Optim::AdamW::make(engine, std::move(parameters), adam));
 
-// 5. The Trainer's *constructor* lowers and compiles. That is the only compile.
+// 5. Trainer::make lowers and compiles. That is the only compile.
 sa::Train::TrainerOptions options;
 options.epochs = 8;
-sa::Train::Trainer trainer(engine, built.graph, pool, built.spec, optimizer, options);
+SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
+              sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                                       options));
 
-const sa::Train::RunReport report = trainer.fit(*dataset);
+SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*dataset));
 std::cout << report.to_string();
 ```
+
+The statements sit in a function that returns `sa::Status`, as `run()` does in
+`examples/example.cpp`. From step 3 on, every call allocates, compiles or runs,
+so it returns a `Status` or a `Result<T>` (`core/status.hpp`,
+`core/result.hpp`). `SA_TRY` returns a failed status to the caller, and
+`SA_TRY_ASSIGN` does the same or binds the value. `AdamW`, `SGD`, `Trainer` and
+the datasets are built by a static `make`, and `CompiledStep` by
+`CompiledStep::compile`; each returns a `Result`. Steps 1 and 2 touch no device
+and report a bad model by throwing `sa::Error`.
 
 Three things worth pausing on:
 
@@ -153,9 +168,9 @@ holding IR, a `StepSpec` naming the four values the loop cares about, the
 parameter bindings, and reports from the cast and fusion passes. You can inspect
 and assert on all of it before a single kernel exists.
 
-**Step 5's constructor is where compilation happens**, not `fit()`. This is
-deliberate: it means a graph that cannot be lowered fails at construction, in
-the line that named it, rather than three steps into training.
+**`Trainer::make` is where compilation happens**, not `fit()`. A graph that
+cannot be lowered therefore fails there, with a status that names the
+operation, and not three steps into training.
 
 **`bind_parameters` comes before `initialize`.** The parameter tensors have to
 exist before random values can be written into them.
@@ -171,11 +186,23 @@ The pipeline, in order. Each stage is a separate header you can read on its own:
   differentiate()         →  autograd/backward.hpp IR → IR
   insert_casts()          →  graph/cast_insertion.hpp  IR → IR
   fuse()                  →  graph/fusion.hpp      IR → IR
-  plan_memory()           →  graph/memory_plan.hpp annotates IR
+  MemoryPlan::build()     →  graph/memory_plan.hpp annotates IR
   Lowering::record()      →  graph/lowering.hpp    IR → SushiBLAS calls
-  TaskGraph::compile()    →  once
-  replay                  →  per batch
+  CompiledStep::compile() →  graph/compiled_step.hpp  once
+  CompiledStep::run()     →  per batch
 ```
+
+**How a node becomes SushiBLAS calls.** `Lowering::record` walks the nodes in
+order and looks each operation up in `K_LOWERINGS` (`graph/lowering/all.hpp`),
+the concatenation of eight tables: elementwise, linalg, activation, loss,
+shape, spatial, norm and fused, each in its own header under `graph/lowering/`
+and its own file under `src/graph/lowering/`. The row receives a
+`LoweringContext` for that one node, which holds the step's
+`SushiBLAS::TaskRecorder` and the `TensorPool` (`graph/tensor_pool.hpp`); every
+SushiBLAS call a row makes goes through a view built from that recorder. A
+`static_assert` in `all.hpp` requires `K_LOWERINGS` and `K_UNLOWERED` together
+to cover every operation. `CompiledStep` owns the `TaskGraph` and the
+recorder.
 
 **Why differentiation is IR→IR and not "emit backward kernels".** Four reasons,
 argued in full at the top of `graph/ir.hpp`, but the shortest one is decisive: a
@@ -226,8 +253,8 @@ compares **shape and dtype**, so multiplying an `[N, width]` activation by a
 rows is what `bias_add` is; there is no implicit broadcast anywhere in this
 builder, and that is on purpose.
 
-`ParameterRole` decides initialisation: `WEIGHT` gets a fan-scaled random draw,
-`BIAS` always starts at zero. `Parameter::declare` is idempotent, so tracing a
+`ParameterRole` decides initialisation: `Weight` gets a fan-scaled random draw,
+`Bias` always starts at zero. `Parameter::declare` is idempotent, so tracing a
 model twice does not accumulate duplicates.
 
 `fields()` is what makes a parameter discoverable — the generic walk
@@ -235,12 +262,13 @@ model twice does not accumulate duplicates.
 differentiate with respect to, and the same one `initialize` uses. Two failure
 modes, and they are not symmetric:
 
-- **Listed but not wired into `forward()`** — caught, by name:
-  `Parameter 'x' receives no gradient. It is not on any path from the loss, so
-  no optimizer could ever move it` (`src/train/trainer.cpp:65`).
+- **Listed but not wired into `forward()`** — caught, by name.
+  `bind_parameters` returns `InvalidDescription`: `Parameter 'x' receives no
+  gradient. It is not on any path from the loss, so no optimizer could ever
+  move it` (`src/train/trainer.cpp:65`).
 - **Wired into `forward()` but missing from `fields()`** — **not** caught. It is
   declared in the graph, gets no gradient, gets no optimizer slot, and silently
-  never trains. Nothing throws.
+  never trains. No call reports it.
 
 So the list is the thing to get right. Its virtue is not that omissions are
 detected; it is that there is exactly one list, in the struct, next to the
@@ -442,7 +470,7 @@ project real debugging time:
 
 The unifying lesson: **a wrong answer with nothing to report it is the expensive
 kind of bug**, and most of the assertions and `static_assert`s in this codebase
-exist to convert one of those into a build failure or a throw. When you find one
+exist to convert one of those into a build failure, a refused status or a throw. When you find one
 of them in your way, it is usually right.
 
 ---
@@ -455,6 +483,7 @@ sa test --suite integration   # several units together
 sa test --suite regression    # guarantees whose failure is SILENT
 sa test --suite all
 sa test --filter 'Unit_Precision.*'
+sa run sushiai_tests -- --gtest_filter='Unit_Precision.*'   # the same, in one process
 ```
 
 The tiers come from the GTest suite-name prefix and nothing else. `regression`
