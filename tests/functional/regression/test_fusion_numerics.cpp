@@ -46,10 +46,10 @@ namespace
 {
     class Regression_Fusion : public ::testing::Test {};
 
-    constexpr int64_t BATCH = 8;
+    constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
     constexpr int64_t K_HIDDEN = 12;
-    constexpr int64_t CLASSES = 4;
+    constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
     constexpr int64_t K_EPOCHS = 3;
 
@@ -57,10 +57,10 @@ namespace
     Data::SyntheticOptions data_options()
     {
         Data::SyntheticOptions options;
-        options.batch_size = BATCH;
+        options.batch_size = K_BATCH;
         options.batches = K_BATCHES;
         options.features = K_FEATURES;
-        options.classes = CLASSES;
+        options.classes = K_CLASSES;
         options.seed = 0x0F05'ED00'1234ull;
         return options;
     }
@@ -94,7 +94,7 @@ namespace
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
         Train::TrainingGraph built = Train::build_classifier(
-            model, BATCH, K_FEATURES, CLASSES, DType::Float32, fusion);
+            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, fusion);
 
         TensorPool pool(engine);
         std::vector<Optim::ParameterSlot> slots = Train::bind_parameters(built, pool);
@@ -197,8 +197,8 @@ TEST_F(Regression_Fusion, AReluMlpTrainsIdenticallyFusedAndUnfused)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
@@ -217,8 +217,8 @@ TEST_F(Regression_Fusion, ATanhMlpTrainsIdenticallyFusedAndUnfused)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::Tanh, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
@@ -231,8 +231,8 @@ TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::Sigmoid, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
@@ -249,8 +249,8 @@ TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
@@ -271,10 +271,10 @@ TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
 TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const Train::TrainingGraph built =
-        Train::build_classifier(model, BATCH, K_FEATURES, CLASSES);
+        Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
 
     ASSERT_EQ(built.fusion.count(FusedForm::GemmBiasGelu), 1u) << built.fusion.to_string();
 
@@ -412,8 +412,8 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
 
     using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
 
-    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const RefuseEverything refuse;
     const TrainedRun taken = train(taken_model, FusionOptions{});
@@ -434,8 +434,8 @@ TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::K_GELU, NN::Linear>;
 
-    Mlp folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::K_GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const std::vector<FusedForm> without{FusedForm::GemmBiasGelu};
     FusionOptions narrowed;
@@ -461,8 +461,8 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const TrainedRun fused = train(fused_model, FusionOptions{});
     const TrainedRun plain = train(plain_model, off());
@@ -484,7 +484,7 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{BATCH, K_FEATURES}, "x");
+    const Graph::ValueId x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
     const Graph::ValueId w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
     const Graph::ValueId b = builder.parameter(Shape{K_HIDDEN}, "b");
     builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b));
@@ -524,14 +524,14 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{BATCH, K_FEATURES}, "x");
+    const Graph::ValueId x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
     const Graph::ValueId w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
     const Graph::ValueId b = builder.parameter(Shape{K_HIDDEN}, "b");
     const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
     const Graph::ValueId out = builder.gelu(pre);
 
     // Emitted after the GELU, as gelu_backward is; see tests/functional/regression/README.md.
-    const Graph::ValueId dy = builder.input(Shape{BATCH, K_HIDDEN}, "dy");
+    const Graph::ValueId dy = builder.input(Shape{K_BATCH, K_HIDDEN}, "dy");
     (void)builder.activation_backward(Ops::K_GELU_BACKWARD.id, dy, pre);
 
     const std::vector<Graph::ValueId> observed{out};
@@ -568,8 +568,8 @@ TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
 {
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp whole_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp narrowed_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp whole_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp narrowed_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const std::vector<FusedForm> without{FusedForm::GemmBiasRelu};
     FusionOptions narrowed;
@@ -600,8 +600,8 @@ TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
 
     using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
-    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, CLASSES});
+    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const RefuseEverything refuse;
     const TrainedRun taken = train(taken_model, FusionOptions{});

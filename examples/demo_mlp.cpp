@@ -48,7 +48,7 @@ namespace sb = SushiBLAS;
 namespace
 {
     /** @brief Selects the update rule the demo trains with. */
-    enum class OptimizerKind
+    enum class OptimizerKind : std::uint8_t
     {
         Adamw, /**< AdamW, the default; converges on this problem without tuning. */
         Sgd,   /**< SGD with momentum, for comparison. */
@@ -58,7 +58,7 @@ namespace
      * @brief Selects the activation of the demo's one hidden layer.
      * @see examples/README.md, "The two activations".
      */
-    enum class ActivationKind
+    enum class ActivationKind : std::uint8_t
     {
         Relu, /**< The default; folds with nothing spilled. */
         Gelu, /**< Folds only via the auxiliary pre-activation spill. */

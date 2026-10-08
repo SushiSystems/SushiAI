@@ -747,7 +747,7 @@ TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
 {
     // Variance is biased, divided by N*H*W; see tests/functional/integration/README.md.
-    constexpr double EPSILON = 1e-5;
+    constexpr double K_EPSILON = 1e-5;
 
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -755,7 +755,7 @@ TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     const ValueId x = builder.input(Shape{2, 2, 1, 2}, "x");
     const ValueId gamma = builder.input(Shape{2}, "gamma");
     const ValueId beta = builder.input(Shape{2}, "beta");
-    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, EPSILON);
+    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, K_EPSILON);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 10, 2, 20, 3, 30, 4, 40});
@@ -770,8 +770,8 @@ TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     EXPECT_NEAR(mean[0], 2.5, 1e-6);
     EXPECT_NEAR(mean[1], 25.0, 1e-6);
 
-    const double inv0 = 1.0 / std::sqrt(1.25 + EPSILON);
-    const double inv1 = 1.0 / std::sqrt(125.0 + EPSILON);
+    const double inv0 = 1.0 / std::sqrt(1.25 + K_EPSILON);
+    const double inv1 = 1.0 / std::sqrt(125.0 + K_EPSILON);
 
     const std::vector<double> inv_std = read_tensor(run.pool.tensor(bn.saved_inv_std));
     ASSERT_EQ(inv_std.size(), 2u);

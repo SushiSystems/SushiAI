@@ -36,13 +36,13 @@ namespace SushiAI
         TEST(Unit_RuleTable, EveryDomainsRulesReachTheCombinedTable)
         {
             // A domain left out of all.hpp still compiles; see tests/functional/unit/README.md.
-            constexpr std::size_t domains =
+            constexpr std::size_t K_DOMAINS =
                 Autograd::K_ELEMENTWISE_RULES.size() + Autograd::K_LINALG_RULES.size()
                 + Autograd::K_ACTIVATION_RULES.size() + Autograd::K_LOSS_RULES.size()
                 + Autograd::K_SHAPE_RULES.size() + Autograd::K_SPATIAL_RULES.size()
                 + Autograd::K_NORM_RULES.size();
 
-            EXPECT_EQ(Autograd::K_RULES.size(), domains);
+            EXPECT_EQ(Autograd::K_RULES.size(), K_DOMAINS);
         }
 
         TEST(Unit_RuleTable, NoOperationHasTwoRules)

@@ -36,9 +36,9 @@ int main()
     sr::Execution::RuntimeContext ctx;
     sb::Engine engine(ctx);
 
-    constexpr int64_t N = 64;
-    auto x = engine.create_tensor({N});
-    auto y = engine.create_tensor({N});
+    constexpr int64_t K_N = 64;
+    auto x = engine.create_tensor({K_N});
+    auto y = engine.create_tensor({K_N});
 
     engine.blas().axpy(2.0f, x, y);
     engine.execute();
