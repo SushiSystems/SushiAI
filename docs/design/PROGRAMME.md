@@ -1,6 +1,6 @@
 # SushiAI programme
 
-**Status:** Open — stage 0 of 6; stage 1 and the naming half of stage 2 are written and unbuilt
+**Status:** Open — stage 1 of 6 built and passing; the naming half of stage 2 is done
 
 What SushiAI is being built towards, in what order, and the owner's rulings that fix the shape of
 the work. Open items are in [`REMAINING_WORK.md`](REMAINING_WORK.md); each stage's design is in the

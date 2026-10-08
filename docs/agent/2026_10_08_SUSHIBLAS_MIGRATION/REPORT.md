@@ -1,5 +1,5 @@
 # SushiBLAS v0.1.0 migration report
-**Status:** Open — built; 1794 of 1803 tests pass; one pinned reference moved
+**Status:** Open — built; 1803 of 1803 tests pass on 2026-10-09
 
 ## Wave 1
 
@@ -975,3 +975,16 @@ loss is below the absolute tolerance of 0.02, so the last ten values pin little.
 A rebuild and rerun to confirm the eight corrected expectations and the new reference was
 started and stopped: a SushiBLAS build from another session was running at the same time and the
 SushiBLAS working tree held uncommitted changes. The confirmation is open.
+
+## The confirming run
+
+After the SushiBLAS tree settled at `7f04834`, `sa build` ended with exit 0 and
+`sa run sushiai_tests -- --gtest_brief=1` printed:
+
+    [==========] 1803 tests from 121 test suites ran. (29673 ms total)
+    [  PASSED  ] 1803 tests.
+
+The eight corrected expectations and the re-recorded learning-curve reference are in that count.
+No test was skipped. This closes items 1 to 3, 7 to 9 and 13 of section 7 of the design as far
+as the suite reaches them; the demo transcript, `sa train` on MNIST and a HALF comparison under
+`ForceReference` were not run.
