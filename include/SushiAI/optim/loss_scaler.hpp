@@ -29,10 +29,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
 
 namespace SushiAI
 {
@@ -54,7 +56,7 @@ namespace SushiAI
              */
             double initial = 65536.0;
 
-            /** @brief What the scale is multiplied by after a clean run; must be a power of two >= 1. */
+            /** @brief What the scale is multiplied by after a clean run; a power of two >= 1. */
             double growth = 2.0;
 
             /** @brief What it is multiplied by on overflow; must be a power of two in (0, 1]. */
@@ -85,13 +87,14 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Builds a state machine over @p options.
-                 * @param options The four constants; all must be powers of two.
-                 * @throws Error If a constant is not a power of two, if the
-                 *         bounds do not bracket the initial scale, if growth is
-                 *         below one or backoff is not in (0, 1].
+                 * @brief Builds a state machine over @p options, or refuses the options.
+                 * @param options The constants; each must satisfy its documented bound.
+                 * @return The state machine, or InvalidDescription when a constant is not a
+                 *         power of two, when the bounds do not bracket the initial scale, when
+                 *         growth is below one or backoff is not in (0, 1], or when the growth
+                 *         interval is zero.
                  */
-                explicit LossScaleState(LossScaleOptions options = {});
+                [[nodiscard]] static Result<LossScaleState> make(LossScaleOptions options = {});
 
                 /**
                  * @brief Folds one step's verdict into the state.
@@ -131,6 +134,12 @@ namespace SushiAI
                 const LossScaleOptions& options() const noexcept { return options_; }
 
             private:
+                /**
+                 * @brief Holds @p options as given and starts at their initial scale.
+                 * @param options Constants already checked by make().
+                 */
+                explicit LossScaleState(LossScaleOptions options) noexcept;
+
                 LossScaleOptions options_;
                 double scale_ = 0.0;
                 std::uint64_t good_ = 0;
@@ -151,27 +160,31 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Constructs a loss scaler bound to device factor and gradient counts.
-                 * @param engine Engine executing screen kernels and holding count buffer.
-                 * @param factor Single-element float tensor scaled for backward seeding.
-                 * @param parameter_count Number of parameter gradients screened.
-                 * @param options Configuration options for scale adjustments.
+                 * @brief Builds a loss scaler bound to a device factor and a count of gradients.
+                 * @param factor Single-element float32 tensor scaled for backward seeding.
+                 * @param parameter_count Number of parameter gradients screened; must be positive.
+                 * @return The scaler, or InvalidDescription for a factor that is not one float32
+                 *         element, a zero parameter count, or options that LossScaleState::make
+                 *         refuses; OutOfMemory when the count buffer cannot be allocated.
                  */
-                LossScaler(SushiBLAS::Engine& engine,
-                           SushiBLAS::Tensor factor,
-                           std::size_t parameter_count,
-                           LossScaleOptions options = {});
+                [[nodiscard]] static Result<std::unique_ptr<LossScaler>> make(
+                    SushiBLAS::Engine& engine,
+                    SushiBLAS::Tensor factor,
+                    std::size_t parameter_count,
+                    LossScaleOptions options = {});
 
                 LossScaler(const LossScaler&) = delete;
                 LossScaler& operator=(const LossScaler&) = delete;
 
                 /**
                  * @brief Records non-finite gradient count kernels for each parameter.
+                 * @param recorder Recorder the count tasks are added to; must outlive the call.
                  * @param gradients Pointers to gradient tensors in slot order.
-                 * @return Number of device tasks recorded into the execution plan.
-                 * @throws Error If gradient count does not match parameter count.
+                 * @return The number of gradients screened, or a failure from the seam.
                  */
-                std::size_t record_screens(const std::vector<SushiBLAS::Tensor*>& gradients);
+                [[nodiscard]] Result<std::size_t> record_screens(
+                    SushiBLAS::TaskRecorder& recorder,
+                    const std::vector<SushiBLAS::Tensor*>& gradients);
 
                 /**
                  * @brief Publishes current step scale into device memory before replay.
@@ -221,7 +234,19 @@ namespace SushiAI
                 std::string to_string() const;
 
             private:
-                SushiBLAS::Engine* engine_;
+                /**
+                 * @brief Takes ownership of the device buffers and the state machine.
+                 * @param factor The scale tensor; moved in.
+                 * @param arena The storage the count views carve from; moved in.
+                 * @param count_views One int64 view per gradient, in slot order; moved in.
+                 * @param state The state machine; moved in.
+                 * @pre count_views is not empty; make() refuses a zero count first.
+                 */
+                LossScaler(SushiBLAS::Tensor factor,
+                           SushiRuntime::sushi_ptr<SushiBLAS::Storage> arena,
+                           std::vector<SushiBLAS::Tensor> count_views,
+                           LossScaleState state) noexcept;
+
                 SushiBLAS::Tensor factor_;
                 SushiRuntime::sushi_ptr<SushiBLAS::Storage> arena_;
                 std::vector<SushiBLAS::Tensor> count_views_;

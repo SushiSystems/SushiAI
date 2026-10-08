@@ -28,12 +28,21 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/core/allocation.hpp>
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/ops.hpp>
+#include <SushiAI/core/seam.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/optim/adamw.hpp>
 
 namespace SushiAI
@@ -78,44 +87,72 @@ namespace SushiAI
                           "the fused update's task name must be the string its OpID hashes");
         }
 
-        AdamW::AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
-                     AdamWOptions options)
-            : Optimizer(engine, std::move(parameters)), options_(options),
-              scalars_(engine, SCALAR_COUNT)
+        Result<std::unique_ptr<AdamW>> AdamW::make(SushiBLAS::Engine& engine,
+                                                   std::vector<ParameterSlot> parameters,
+                                                   AdamWOptions options)
         {
-            SA_THROW_IF(options_.beta1 < 0.0 || options_.beta1 >= 1.0,
-                        "AdamW beta1 must lie in [0, 1); got {}", options_.beta1);
-            SA_THROW_IF(options_.beta2 < 0.0 || options_.beta2 >= 1.0,
-                        "AdamW beta2 must lie in [0, 1); got {}", options_.beta2);
-            SA_THROW_IF(options_.eps <= 0.0,
-                        "AdamW eps must be positive; got {}", options_.eps);
+            SA_TRY(validate_slots(parameters));
 
-            const bool separate = options_.kernel == UpdateKernel::Separate;
+            SA_FAIL_IF(options.beta1 < 0.0 || options.beta1 >= 1.0,
+                       StatusCode::InvalidDescription,
+                       "AdamW beta1 must lie in [0, 1); got {}", options.beta1);
+            SA_FAIL_IF(options.beta2 < 0.0 || options.beta2 >= 1.0,
+                       StatusCode::InvalidDescription,
+                       "AdamW beta2 must lie in [0, 1); got {}", options.beta2);
+            SA_FAIL_IF(options.eps <= 0.0, StatusCode::InvalidDescription,
+                       "AdamW eps must be positive; got {}", options.eps);
 
-            state_.reserve(slots().size());
-            for (const ParameterSlot& slot : slots())
+            SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, SCALAR_COUNT));
+
+            const bool separate = options.kernel == UpdateKernel::Separate;
+
+            std::vector<State> state;
+            state.reserve(parameters.size());
+            for (const ParameterSlot& slot : parameters)
             {
-                State state;
-                state.first = allocate_state(slot.parameter);
-                state.second = allocate_state(slot.parameter);
-
-                engine.random().constant(state.first, 0.0);
-                engine.random().constant(state.second, 0.0);
+                State entry;
+                SA_TRY_ASSIGN(entry.first, allocate_like(engine, slot.parameter));
+                SA_TRY_ASSIGN(entry.second, allocate_like(engine, slot.parameter));
 
                 // Scratch buffers are allocated only when separate kernels execute.
                 if (separate)
                 {
-                    state.denom = allocate_state(slot.parameter);
-                    state.update = allocate_state(slot.parameter);
-                    state.ones = allocate_state(slot.parameter);
-                    engine.random().constant(state.ones, 1.0);
+                    SA_TRY_ASSIGN(entry.denom, allocate_like(engine, slot.parameter));
+                    SA_TRY_ASSIGN(entry.update, allocate_like(engine, slot.parameter));
+                    SA_TRY_ASSIGN(entry.ones, allocate_like(engine, slot.parameter));
                 }
 
-                state_.push_back(std::move(state));
+                state.push_back(std::move(entry));
             }
 
+            SA_TRY(Detail::guard(Detail::SeamPhase::Record, [&]()
+            {
+                SushiBLAS::RandomOps random(engine);
+                for (State& entry : state)
+                {
+                    random.constant(entry.first, 0.0);
+                    random.constant(entry.second, 0.0);
+                    if (separate)
+                    {
+                        random.constant(entry.ones, 1.0);
+                    }
+                }
+                return Status();
+            }));
+
             // Invariant: Moments and constant buffers are initialized eagerly before first step.
-            flush();
+            SA_TRY(Detail::run_recorded(engine));
+
+            std::unique_ptr<AdamW> made(new AdamW(engine, std::move(parameters), options,
+                                                  std::move(state), std::move(scalars)));
+            return std::move(made);
+        }
+
+        AdamW::AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                     AdamWOptions options, std::vector<State> state, StepScalars scalars) noexcept
+            : Optimizer(engine, std::move(parameters)), options_(options),
+              state_(std::move(state)), scalars_(std::move(scalars))
+        {
         }
 
         void AdamW::write_step_scalars()
@@ -145,7 +182,7 @@ namespace SushiAI
 
         const SushiBLAS::Tensor& AdamW::first_moment(std::size_t index) const
         {
-            SA_THROW_IF(index >= state_.size(),
+            SA_FATAL_IF(index >= state_.size(),
                         "This AdamW updates {} parameters; there is no moment {}",
                         state_.size(), index);
             return state_[index].first;
@@ -153,19 +190,19 @@ namespace SushiAI
 
         const SushiBLAS::Tensor& AdamW::second_moment(std::size_t index) const
         {
-            SA_THROW_IF(index >= state_.size(),
+            SA_FATAL_IF(index >= state_.size(),
                         "This AdamW updates {} parameters; there is no moment {}",
                         state_.size(), index);
             return state_[index].second;
         }
 
-        std::size_t AdamW::record_update()
+        std::size_t AdamW::record_update(SushiBLAS::TaskRecorder& recorder)
         {
-            return options_.kernel == UpdateKernel::Fused ? record_fused()
-                                                          : record_separate();
+            return options_.kernel == UpdateKernel::Fused ? record_fused(recorder)
+                                                          : record_separate(recorder);
         }
 
-        std::size_t AdamW::record_fused()
+        std::size_t AdamW::record_fused(SushiBLAS::TaskRecorder& recorder)
         {
             // Device pointer captures step scalars by reference across replays.
             const float* const s = scalars_.device_pointer();
@@ -182,7 +219,7 @@ namespace SushiAI
                     &slot.parameter, &slot.gradient, &state.first, &state.second,
                 };
 
-                SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
+                SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
                     K_TASK_NAME, Ops::K_ADAMW_UPDATE.id,
                     [s, gate, i](auto& theta, auto& g_scaled, auto& m, auto& v)
                     {
@@ -219,8 +256,11 @@ namespace SushiAI
             return slots().size();
         }
 
-        std::size_t AdamW::record_separate()
+        std::size_t AdamW::record_separate(SushiBLAS::TaskRecorder& recorder)
         {
+            SushiBLAS::BLASOps blas(recorder);
+            SushiBLAS::ElementwiseOps elementwise(recorder);
+
             // Invariant: Separate reference path reads identical device scalar constants.
             const float* const s = scalars_.device_pointer();
 
@@ -243,28 +283,28 @@ namespace SushiAI
                 // 1. Decoupled decay, on theta_{t-1}, before anything else.
                 if (decay_factor != 1.0f)
                 {
-                    engine().blas().scal(decay_factor, slot.parameter);
+                    blas.scal(decay_factor, slot.parameter);
                     ++recorded;
                 }
 
                 // 2. m <- beta1 * m + (1 - beta1) * g
-                engine().blas().scal(beta1, state.first);
-                engine().blas().axpy(one_minus_beta1, slot.gradient, state.first);
+                blas.scal(beta1, state.first);
+                blas.axpy(one_minus_beta1, slot.gradient, state.first);
 
                 // 3. v <- beta2 * v + (1 - beta2) * g^2, borrowing denom for g^2.
-                engine().elementwise().mul(slot.gradient, slot.gradient, state.denom);
-                engine().blas().scal(beta2, state.second);
-                engine().blas().axpy(one_minus_beta2, state.denom, state.second);
+                elementwise.mul(slot.gradient, slot.gradient, state.denom);
+                blas.scal(beta2, state.second);
+                blas.axpy(one_minus_beta2, state.denom, state.second);
 
                 // Invariant: Bias correction scales v before square root and epsilon addition.
-                engine().blas().copy(state.second, state.denom);
-                engine().blas().scal(inverse_correction2, state.denom);
-                engine().elementwise().sqrt(state.denom);
-                engine().blas().axpy(eps, state.ones, state.denom);
+                blas.copy(state.second, state.denom);
+                blas.scal(inverse_correction2, state.denom);
+                elementwise.sqrt(state.denom);
+                blas.axpy(eps, state.ones, state.denom);
 
                 // 5. theta <- theta - (lr / bc1) * m / denom
-                engine().elementwise().div(state.first, state.denom, state.update);
-                engine().blas().axpy(step_size, state.update, slot.parameter);
+                elementwise.div(state.first, state.denom, state.update);
+                blas.axpy(step_size, state.update, slot.parameter);
 
                 recorded += 11;
             }

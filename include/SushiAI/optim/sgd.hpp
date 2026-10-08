@@ -27,8 +27,11 @@
 
 #pragma once
 
+#include <cstddef>
+#include <memory>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/step_scalars.hpp>
 
@@ -74,13 +77,11 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Binds SGD to parameters and allocates momentum state buffers.
-                 * @param engine Engine used to record update kernels.
-                 * @param parameters Parameter and gradient slots to update.
-                 * @param options Hyperparameters configuring learning rate and momentum.
-                 * @throws Error If nesterov is set without momentum, or with dampening.
+                 * @brief Validates the slots and options and allocates the state.
+                 * @return The optimizer, or the first failure of validation or allocation.
                  */
-                SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                [[nodiscard]] static Result<std::unique_ptr<SGD>> make(
+                    SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
                     SGDOptions options = {});
 
                 /** @brief True when the update is fused, and therefore replayable. */
@@ -97,26 +98,42 @@ namespace SushiAI
 
             protected:
                 /**
-                 * @brief Records the update for every parameter into the engine's builder.
+                 * @brief Records the update for every parameter onto @p recorder.
+                 * @param recorder The recorder the update tasks are added to.
                  * @return One task per parameter when fused, four or five each when not.
                  */
-                std::size_t record_update() override;
+                std::size_t record_update(SushiBLAS::TaskRecorder& recorder) override;
 
                 /**
                  * @brief Recomputes this step's scalars into the device buffer.
-                 * @throws Error If momentum is enabled without allocated buffer.
+                 * @pre options() asks for momentum or nesterov only if make() allocated the
+                 *      momentum buffer; otherwise the process stops.
                  */
                 void write_step_scalars() override;
 
             private:
                 struct State
                 {
-                    SushiBLAS::Tensor buffer;   /**< The momentum buffer b; absent when momentum is off. */
-                    SushiBLAS::Tensor staged;   /**< SEPARATE only: g_t, kept off the graph's own gradient buffer. */
+                    /** @brief The momentum buffer b; absent when momentum is off. */
+                    SushiBLAS::Tensor buffer;
+
+                    /** @brief SEPARATE only: g_t, kept off the graph's own gradient buffer. */
+                    SushiBLAS::Tensor staged;
                 };
 
-                std::size_t record_fused();
-                std::size_t record_separate();
+                /**
+                 * @brief Takes ownership of state that make() has already allocated.
+                 * @pre validate_slots(parameters) has returned success.
+                 */
+                SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                    SGDOptions options, std::vector<State> state, StepScalars scalars,
+                    bool has_momentum) noexcept;
+
+                /** @brief Records one fused kernel per parameter; returns the task count. */
+                std::size_t record_fused(SushiBLAS::TaskRecorder& recorder);
+
+                /** @brief Records the separate ops of every parameter; returns the task count. */
+                std::size_t record_separate(SushiBLAS::TaskRecorder& recorder);
 
                 SGDOptions options_;
                 std::vector<State> state_;

@@ -32,7 +32,10 @@
 #include <string>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
 
@@ -87,21 +90,19 @@ namespace SushiAI
         };
 
         /**
+         * @brief Checks that each slot's parameter and gradient agree and hold a real float.
+         * @param slots The slots to check, in the order they will be updated.
+         * @return Success, or an InvalidDescription status naming the first failing slot.
+         */
+        [[nodiscard]] Status validate_slots(SushiRuntime::span<const ParameterSlot> slots);
+
+        /**
          * @class Optimizer
          * @brief Common base class providing parameter update recording and lifecycle hooks.
          */
         class Optimizer : public Graph::StepRecorder
         {
             public:
-                /**
-                 * @brief Binds an optimizer to a fixed set of parameters.
-                 * @param engine The engine the update is recorded on; must outlive this object.
-                 * @param parameters The parameters to update, with their gradients.
-                 * @throws Error If a slot's parameter and gradient disagree in
-                 *         shape or dtype, or the element type is not a real float.
-                 */
-                Optimizer(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters);
-
                 ~Optimizer() override = default;
 
                 Optimizer(const Optimizer&) = delete;
@@ -109,12 +110,12 @@ namespace SushiAI
 
                 /**
                  * @brief Applies one update step standalone to every registered parameter.
-                 * @throws Error If optimizer has already been recorded into a compiled step.
+                 * @return Success, or the status of the recording or the run that failed.
                  */
-                void step();
+                [[nodiscard]] Status step();
 
                 /**
-                 * @brief Indicates whether recorded update operations survive graph replays unchanged.
+                 * @brief Indicates whether the recorded update survives graph replays unchanged.
                  * @return True if updates can be embedded directly into compiled training steps.
                  */
                 virtual bool is_replay_invariant() const noexcept = 0;
@@ -126,14 +127,18 @@ namespace SushiAI
                 std::uint64_t step_count() const noexcept { return step_; }
 
                 /** @brief The parameters, for inspection. */
-                const std::vector<ParameterSlot>& parameters() const noexcept { return parameters_; }
+                const std::vector<ParameterSlot>& parameters() const noexcept
+                {
+                    return parameters_;
+                }
 
                 /**
                  * @brief Attaches a gradient loss scaler to this optimizer.
                  * @param scaler Loss scaler to attach, or nullptr to detach.
-                 * @throws Error If optimizer updates are not replay-invariant.
+                 * @return Success, or an InvalidDescription status if the scaler cannot be
+                 *         attached to this optimizer.
                  */
-                void set_loss_scaler(LossScaler* scaler);
+                [[nodiscard]] Status set_loss_scaler(LossScaler* scaler);
 
                 /** @brief The scaler attached to this optimizer, or null. */
                 LossScaler* loss_scaler() const noexcept { return scaler_; }
@@ -149,10 +154,12 @@ namespace SushiAI
                 void after_replay() final;
 
                 /**
-                 * @brief Records parameter update operations into compiled execution plan.
-                 * @return Number of device tasks recorded.
+                 * @brief Records parameter update operations into a compiled execution plan.
+                 * @param recorder The recorder the step's tasks are added to.
+                 * @return Number of device tasks recorded, or the failure of the recording.
                  */
-                std::size_t record_into_step() final;
+                [[nodiscard]] Result<std::size_t> record_into_step(
+                    SushiBLAS::TaskRecorder& recorder) final;
 
                 /**
                  * @brief Whether a compiled step has taken ownership of this update.
@@ -163,19 +170,28 @@ namespace SushiAI
 
             protected:
                 /**
+                 * @brief Stores the engine and the slots; checks nothing.
+                 * @pre validate_slots(parameters) has returned success.
+                 */
+                Optimizer(SushiBLAS::Engine& engine,
+                          std::vector<ParameterSlot> parameters) noexcept;
+
+                /**
                  * @brief Records one update for every parameter; the subclass's job.
                  *
-                 * Records only - nothing is executed and nothing is waited on.
+                 * Records only: nothing is executed and nothing is waited on. A SushiBLAS
+                 * exception may escape; record_all() is the only caller and guards it.
                  *
                  * @return How many device tasks were recorded.
                  */
-                virtual std::size_t record_update() = 0;
+                virtual std::size_t record_update(SushiBLAS::TaskRecorder& recorder) = 0;
 
                 /**
                  * @brief Records loss scaler screens followed by parameter updates.
-                 * @return Total number of device tasks recorded.
+                 * @param recorder The recorder the tasks are added to.
+                 * @return Total number of device tasks recorded, or the failure of the recording.
                  */
-                std::size_t record_all();
+                [[nodiscard]] Result<std::size_t> record_all(SushiBLAS::TaskRecorder& recorder);
 
                 /**
                  * @brief Writes current step scalars into device memory before execution.
@@ -195,10 +211,11 @@ namespace SushiAI
                 const std::int64_t* gradient_gate() const noexcept;
 
                 /** @brief Runs the recorded update and waits for the device. */
-                void flush();
+                [[nodiscard]] Status flush();
 
                 /** @brief Allocates a state buffer shaped like @p like, with its own Storage. */
-                SushiBLAS::Tensor allocate_state(const SushiBLAS::Tensor& like) const;
+                [[nodiscard]] Result<SushiBLAS::Tensor> allocate_state(
+                    const SushiBLAS::Tensor& like) const;
 
                 /** @brief The engine the update is recorded on. */
                 SushiBLAS::Engine& engine() const noexcept { return *engine_; }

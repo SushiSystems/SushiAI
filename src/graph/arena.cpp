@@ -32,26 +32,36 @@ namespace SushiAI
 {
     namespace Graph
     {
-        ArenaSet::ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan)
-            : engine_(&engine), plan_(std::move(plan))
+        Result<ArenaSet> ArenaSet::make(SushiBLAS::Engine& engine, MemoryPlan plan)
         {
-            storages_.reserve(plan_.arenas().size());
-            for (const Arena& arena : plan_.arenas())
-                storages_.push_back(allocate_arena(engine, arena.bytes));
+            Storages storages;
+            storages.reserve(plan.arenas().size());
+            for (const Arena& arena : plan.arenas())
+            {
+                SA_TRY_ASSIGN(auto storage, allocate_arena(engine, arena.bytes));
+                storages.push_back(std::move(storage));
+            }
+            return ArenaSet(engine, std::move(plan), std::move(storages));
+        }
+
+        ArenaSet::ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan, Storages storages) noexcept
+            : engine_(&engine), plan_(std::move(plan)), storages_(std::move(storages))
+        {
+
         }
 
         SushiBLAS::Tensor ArenaSet::view(ValueId id, const Shape& shape, DType dtype) const
         {
             const Placement& placement = plan_.placement(id);
 
-            SA_THROW_IF(placement.arena == K_NO_ARENA,
+            SA_FATAL_IF(placement.arena == K_NO_ARENA,
                         "Value {} was not packed into an arena; it owns its own allocation", id);
 
             const std::size_t bytes = static_cast<std::size_t>(shape.num_elements())
                                     * dtype_size(dtype);
 
             // Requested view byte size must not exceed the planned arena slot allocation.
-            SA_THROW_IF(bytes > placement.bytes,
+            SA_FATAL_IF(bytes > placement.bytes,
                         "Value {} was planned {} bytes but a {} {} view needs {}; the shape or "
                         "element type being materialised is not the one that was planned",
                         id, placement.bytes, dtype_name(dtype), shape.to_string(), bytes);

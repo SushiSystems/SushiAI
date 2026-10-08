@@ -113,6 +113,8 @@ add_executable(sushiai_tests
     functional/unit/test_node_registry.cpp
     functional/unit/test_silu.cpp
     functional/unit/test_step_recorder.cpp
+    functional/unit/test_seam.cpp
+    functional/unit/test_lowering_table.cpp
     functional/unit/test_trace.cpp
     functional/unit/test_throwing_bridge.cpp
 

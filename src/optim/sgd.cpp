@@ -27,12 +27,20 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
+#include <SushiBLAS/engine/blas.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/core/allocation.hpp>
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/ops.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/optim/sgd.hpp>
 
 namespace SushiAI
@@ -64,43 +72,69 @@ namespace SushiAI
                           "the fused update's task name must be the string its OpID hashes");
         }
 
-        SGD::SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
-                 SGDOptions options)
-            : Optimizer(engine, std::move(parameters)), options_(options),
-              scalars_(engine, SCALAR_COUNT)
+        Result<std::unique_ptr<SGD>> SGD::make(SushiBLAS::Engine& engine,
+                                               std::vector<ParameterSlot> parameters,
+                                               SGDOptions options)
         {
-            SA_THROW_IF(options_.nesterov && options_.momentum <= 0.0,
-                        "Nesterov momentum needs a positive momentum coefficient; got {}",
-                        options_.momentum);
-            SA_THROW_IF(options_.nesterov && options_.dampening != 0.0,
-                        "Nesterov momentum is undefined with dampening; got {}",
-                        options_.dampening);
+            SA_TRY(validate_slots(parameters));
 
-            has_momentum_ = options_.momentum != 0.0;
-            const bool separate = options_.kernel == UpdateKernel::Separate;
+            SA_FAIL_IF(options.nesterov && options.momentum <= 0.0,
+                       StatusCode::InvalidDescription,
+                       "Nesterov momentum needs a positive momentum coefficient; got {}",
+                       options.momentum);
+            SA_FAIL_IF(options.nesterov && options.dampening != 0.0,
+                       StatusCode::InvalidDescription,
+                       "Nesterov momentum is undefined with dampening; got {}",
+                       options.dampening);
 
-            state_.reserve(slots().size());
-            for (const ParameterSlot& slot : slots())
+            const bool has_momentum = options.momentum != 0.0;
+            const bool separate = options.kernel == UpdateKernel::Separate;
+
+            SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, SCALAR_COUNT));
+
+            std::vector<State> state;
+            state.reserve(parameters.size());
+            for (const ParameterSlot& slot : parameters)
             {
-                State state;
+                State entry;
 
                 // Allocate staging buffer for separate kernel launches.
-                if (separate) state.staged = allocate_state(slot.parameter);
-                if (has_momentum_) state.buffer = allocate_state(slot.parameter);
+                if (separate)
+                {
+                    SA_TRY_ASSIGN(entry.staged, allocate_like(engine, slot.parameter));
+                }
+                if (has_momentum)
+                {
+                    SA_TRY_ASSIGN(entry.buffer, allocate_like(engine, slot.parameter));
+                }
 
-                state_.push_back(std::move(state));
+                state.push_back(std::move(entry));
             }
+
+            std::unique_ptr<SGD> made(new SGD(engine, std::move(parameters), options,
+                                              std::move(state), std::move(scalars),
+                                              has_momentum));
+            return std::move(made);
+        }
+
+        SGD::SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                 SGDOptions options, std::vector<State> state, StepScalars scalars,
+                 bool has_momentum) noexcept
+            : Optimizer(engine, std::move(parameters)), options_(options),
+              state_(std::move(state)), scalars_(std::move(scalars)),
+              has_momentum_(has_momentum)
+        {
         }
 
         void SGD::write_step_scalars()
         {
             // Validate momentum buffer configuration is structural at initialization.
-            SA_THROW_IF(!has_momentum_ && options_.momentum != 0.0,
+            SA_FATAL_IF(!has_momentum_ && options_.momentum != 0.0,
                         "SGD was constructed with momentum 0, so it has no momentum buffer; "
                         "setting momentum to {} afterwards cannot take effect. Construct the "
                         "optimizer with the momentum you intend to use.",
                         options_.momentum);
-            SA_THROW_IF(options_.nesterov && !has_momentum_,
+            SA_FATAL_IF(options_.nesterov && !has_momentum_,
                         "Nesterov momentum needs a momentum buffer, and this SGD was "
                         "constructed without one.");
 
@@ -120,13 +154,13 @@ namespace SushiAI
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
-        std::size_t SGD::record_update()
+        std::size_t SGD::record_update(SushiBLAS::TaskRecorder& recorder)
         {
-            return options_.kernel == UpdateKernel::Fused ? record_fused()
-                                                          : record_separate();
+            return options_.kernel == UpdateKernel::Fused ? record_fused(recorder)
+                                                          : record_separate(recorder);
         }
 
-        std::size_t SGD::record_fused()
+        std::size_t SGD::record_fused(SushiBLAS::TaskRecorder& recorder)
         {
             const float* const s = scalars_.device_pointer();
 
@@ -142,7 +176,7 @@ namespace SushiAI
                 {
                     std::array<SushiBLAS::Tensor*, 2> operands{&slot.parameter, &slot.gradient};
 
-                    SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
+                    SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
                         K_TASK_NAME, Ops::K_SGD_UPDATE.id,
                         [s, gate, i](auto& theta, auto& g)
                         {
@@ -166,7 +200,7 @@ namespace SushiAI
                     &slot.parameter, &slot.gradient, &state.buffer,
                 };
 
-                SushiBLAS::Dispatch::execute_zip_inplace(engine(), operands,
+                SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
                     K_TASK_NAME, Ops::K_SGD_UPDATE.id,
                     [s, gate, i](auto& theta, auto& g, auto& b)
                     {
@@ -199,10 +233,12 @@ namespace SushiAI
             return slots().size();
         }
 
-        std::size_t SGD::record_separate()
+        std::size_t SGD::record_separate(SushiBLAS::TaskRecorder& recorder)
         {
             // Read scalar parameters from common device buffer for separate kernel launches.
             const float* const s = scalars_.device_pointer();
+
+            SushiBLAS::BLASOps blas(recorder);
 
             const float neg_learning_rate = s[NEG_LEARNING_RATE];
             const float momentum = s[MOMENTUM];
@@ -219,12 +255,12 @@ namespace SushiAI
                 State& state = state_[i];
 
                 // Copy gradient into staging buffer to avoid modifying forward graph memory.
-                engine().blas().copy(slot.gradient, state.staged);
+                blas.copy(slot.gradient, state.staged);
                 ++recorded;
 
                 if (decay != 0.0f)
                 {
-                    engine().blas().axpy(decay, slot.parameter, state.staged);
+                    blas.axpy(decay, slot.parameter, state.staged);
                     ++recorded;
                 }
 
@@ -233,24 +269,24 @@ namespace SushiAI
                     if (first)
                     {
                         // Initialize momentum buffer directly on first step to omit dampening.
-                        engine().blas().copy(state.staged, state.buffer);
+                        blas.copy(state.staged, state.buffer);
                         ++recorded;
                     }
                     else
                     {
-                        engine().blas().scal(momentum, state.buffer);
-                        engine().blas().axpy(retained, state.staged, state.buffer);
+                        blas.scal(momentum, state.buffer);
+                        blas.axpy(retained, state.staged, state.buffer);
                         recorded += 2;
                     }
 
                     if (nesterov)
-                        engine().blas().axpy(momentum, state.buffer, state.staged);
+                        blas.axpy(momentum, state.buffer, state.staged);
                     else
-                        engine().blas().copy(state.buffer, state.staged);
+                        blas.copy(state.buffer, state.staged);
                     ++recorded;
                 }
 
-                engine().blas().axpy(neg_learning_rate, state.staged, slot.parameter);
+                blas.axpy(neg_learning_rate, state.staged, slot.parameter);
                 ++recorded;
             }
 

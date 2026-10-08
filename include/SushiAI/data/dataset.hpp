@@ -38,6 +38,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
 
 namespace SushiAI
 {
@@ -91,7 +92,7 @@ namespace SushiAI
                  * @brief One batch.
                  * @param index Which batch, in [0, batch_count()).
                  * @return The batch; owned by the dataset.
-                 * @throws Error If @p index is out of range.
+                 * @pre @p index is in range; one that is not stops the process.
                  */
                 virtual const Batch& batch(std::size_t index) const = 0;
 
@@ -144,19 +145,32 @@ namespace SushiAI
                  * @brief Generates the whole dataset and waits for it.
                  * @param engine The engine that allocates and fills the tensors.
                  * @param options The problem's shape.
-                 * @throws Error If any extent in @p options is not positive.
+                 * @return The dataset, or InvalidDescription when an extent in @p options is
+                 *         not positive, or the failure of an allocation or of the fill.
                  */
-                SyntheticClassification(SushiBLAS::Engine& engine, SyntheticOptions options = {});
+                [[nodiscard]] static Result<std::unique_ptr<SyntheticClassification>> make(
+                    SushiBLAS::Engine& engine,
+                    SyntheticOptions options = {});
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
                 int64_t input_dim() const noexcept override { return options_.features; }
                 int64_t num_classes() const noexcept override { return options_.classes; }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 const Batch& batch(std::size_t index) const override;
-                std::string_view name() const noexcept override { return "synthetic-classification"; }
+                std::string_view name() const noexcept override
+                {
+                    return "synthetic-classification";
+                }
 
             private:
+                /** @brief Holds @p batches, which were generated from @p options. */
+                SyntheticClassification(SyntheticOptions options,
+                                        std::vector<Batch> batches) noexcept;
+
+                /** @brief Holds the shape the batches were generated from. */
                 SyntheticOptions options_;
+
+                /** @brief Holds every batch of the epoch, in order. */
                 std::vector<Batch> batches_;
         };
 
@@ -202,20 +216,31 @@ namespace SushiAI
                  * @brief Generates the whole dataset.
                  * @param engine The engine that allocates the tensors.
                  * @param options The problem's shape.
-                 * @throws Error If any extent in @p options is not positive, or
-                 *         the distractor count is negative.
+                 * @return The dataset, or InvalidDescription when @p options holds an extent,
+                 *         a width or a noise out of range, or the failure of an allocation.
                  */
-                Rings(SushiBLAS::Engine& engine, RingsOptions options = {});
+                [[nodiscard]] static Result<std::unique_ptr<Rings>> make(
+                    SushiBLAS::Engine& engine,
+                    RingsOptions options = {});
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
-                int64_t input_dim() const noexcept override { return 2 + options_.distractor_features; }
+                int64_t input_dim() const noexcept override
+                {
+                    return 2 + options_.distractor_features;
+                }
                 int64_t num_classes() const noexcept override { return options_.classes; }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 const Batch& batch(std::size_t index) const override;
                 std::string_view name() const noexcept override { return "rings"; }
 
             private:
+                /** @brief Holds @p batches, which were generated from @p options. */
+                Rings(RingsOptions options, std::vector<Batch> batches) noexcept;
+
+                /** @brief Holds the shape the batches were generated from. */
                 RingsOptions options_;
+
+                /** @brief Holds every batch of the epoch, in order. */
                 std::vector<Batch> batches_;
         };
 
@@ -253,25 +278,27 @@ namespace SushiAI
         std::string mnist_expected_paths(const MnistOptions& options);
 
         /**
-         * @brief Loads MNIST from IDX files, returning nullptr if absent.
+         * @brief Loads MNIST from IDX files.
          * @param engine Engine allocating device tensors.
          * @param options Directory, split, and sample count limits.
-         * @return Loaded dataset or nullptr when files are missing.
-         * @throws Error If an existing IDX file is malformed.
+         * @return The dataset, never null; or FileNotFound when a file of the split is absent,
+         *         InvalidFile when one is unreadable or malformed, InvalidDescription when the
+         *         batch size is not positive, or the failure of an allocation.
          */
-        std::unique_ptr<Dataset> try_load_mnist(SushiBLAS::Engine& engine,
-                                                const MnistOptions& options = {});
+        [[nodiscard]] Result<std::unique_ptr<Dataset>> try_load_mnist(
+            SushiBLAS::Engine& engine,
+            const MnistOptions& options = {});
 
         /**
          * @brief Builds one dataset from its configuration attributes.
          * @param engine The engine that allocates and fills the tensors.
          * @param attributes The dataset's own keys; the factory rejects any it does not know.
          * @param context What to call this dataset in a diagnostic.
-         * @return The dataset.
+         * @return The dataset, never null, or the failure that kept it from being built.
          */
-        using DatasetFactory = std::unique_ptr<Dataset> (*)(SushiBLAS::Engine& engine,
-                                                            const Config::Value& attributes,
-                                                            std::string_view context);
+        using DatasetFactory = Result<std::unique_ptr<Dataset>> (*)(SushiBLAS::Engine& engine,
+                                                                    const Config::Value& attributes,
+                                                                    std::string_view context);
 
         /**
          * @struct DatasetEntry
@@ -290,24 +317,23 @@ namespace SushiAI
          * @brief Builds a @ref Rings dataset from configuration attributes.
          * @param attributes Dataset parameters dictionary.
          * @param context Diagnostic context string.
-         * @return Constructed dataset instance.
-         * @throws Error If an attribute key is unknown or value is invalid.
+         * @return The dataset, never null, or the failure Rings::make returns.
          */
-        std::unique_ptr<Dataset> make_rings(SushiBLAS::Engine& engine,
-                                            const Config::Value& attributes,
-                                            std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,
+                                                                  const Config::Value& attributes,
+                                                                  std::string_view context);
 
         /**
          * @brief Builds the MNIST dataset from configuration attributes.
-         *
-         * Reads "directory" (required), "split" ("train" or "test"), "batch_size" and
-         * "max_samples". A relative directory is used as given, so it resolves against
-         * the working directory of the process.
-         * @return The loaded dataset; never null.
+         * @param attributes Holds "directory" (required), "split" ("train" or "test"),
+         *                   "batch_size" and "max_samples"; a relative directory resolves
+         *                   against the working directory of the process.
+         * @return The dataset, never null; or InvalidDescription for a "split" that is neither
+         *         name, or the failure try_load_mnist returns.
          */
-        std::unique_ptr<Dataset> make_mnist(SushiBLAS::Engine& engine,
-                                            const Config::Value& attributes,
-                                            std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Dataset>> make_mnist(SushiBLAS::Engine& engine,
+                                                                  const Config::Value& attributes,
+                                                                  std::string_view context);
 
         /**
          * @brief Every dataset type a configuration file may name.
@@ -324,12 +350,13 @@ namespace SushiAI
          * @brief Builds the dataset named @p type from the registry.
          * @param type Registry key identifying dataset implementation.
          * @param attributes Dataset configuration attributes.
-         * @return Constructed dataset instance.
-         * @throws Error If @p type is not registered.
+         * @return The dataset, never null, or the failure the type's factory returns.
          */
-        std::unique_ptr<Dataset> make_dataset(SushiBLAS::Engine& engine, std::string_view type,
-                                              const Config::Value& attributes,
-                                              std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Dataset>> make_dataset(
+            SushiBLAS::Engine& engine,
+            std::string_view type,
+            const Config::Value& attributes,
+            std::string_view context);
 
     } // namespace Data
 } // namespace SushiAI

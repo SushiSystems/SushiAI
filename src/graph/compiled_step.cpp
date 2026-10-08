@@ -21,56 +21,97 @@
 
 /**
  * @file compiled_step.cpp
- * @brief Implements CompiledStep lowerings, graph compilation, and replays.
+ * @brief Implements the lowering, the single compilation and the replay of CompiledStep.
  * @author Mustafa Garip
  */
 
 #include <SushiAI/graph/compiled_step.hpp>
 
+#include <utility>
+
+#include <SushiAI/core/check.hpp>
+#include <SushiAI/core/seam.hpp>
+
 namespace SushiAI
 {
     namespace Graph
     {
-        CompiledStep::CompiledStep(SushiBLAS::Engine& engine, const Graph& graph,
-                                   TensorPool& pool, StepRecorder* trailing,
-                                   const FusionSelector* selector)
-            : engine_(&engine), trailing_(trailing)
+        CompiledStep::CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing)
+            : engine_(&engine), trailing_(trailing), graph_(engine.get_context()),
+              recorder_(graph_, engine.get_scratch_pool(), engine.get_mode())
         {
-            Lowering lowering(engine, pool, selector);
-            lowering.record(graph);
-            operations_ = lowering.emitted_operations();
 
-            const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
-            selections_.assign(chosen.begin(), chosen.end());
-
-            // Trailing device work is recorded into this plan before compilation.
-            if (trailing_) operations_ += trailing_->record_into_step();
-
-            // Single step compilation drains the builder before constant fills are flushed.
-            plan_ = engine.get_graph().compile();
-            ++compile_count_;
-
-            empty_ = plan_.roots.empty();
-
-            pool.flush_constants();
-
-            // Base state capture must follow graph compilation to arm in-degree sentinels.
-            plan_.capture_base_state();
         }
 
-        void CompiledStep::run()
+        Result<std::unique_ptr<CompiledStep>> CompiledStep::compile(
+            SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
+            StepRecorder* trailing, const FusionSelector* selector)
         {
-            if (empty_) return;
+            SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
+                       "This graph holds a refused operation and cannot be compiled; the builder "
+                       "call that refused it returned the reason");
 
-            // Host state refresh executes between device synchronization and dispatch.
-            if (trailing_) trailing_->before_replay();
+            std::unique_ptr<CompiledStep> step(new CompiledStep(engine, trailing));
+
+            const DeviceFusionSelector device = DeviceFusionSelector::for_engine(engine);
+            Lowering lowering(step->recorder_, engine.get_rng(), pool,
+                              selector ? *selector : device);
+
+            Status recorded = lowering.record(graph);
+            step->operations_ = lowering.emitted_operations();
+
+            const SushiRuntime::span<const FusionSelection> chosen = lowering.selections();
+            step->selections_.assign(chosen.begin(), chosen.end());
+
+            if (recorded.is_ok() && trailing)
+            {
+                const Result<std::size_t> trailed = trailing->record_into_step(step->recorder_);
+                if (trailed.has_value())
+                    step->operations_ += trailed.value();
+                else
+                    recorded = trailed.status();
+            }
+
+            if (!recorded.is_ok())
+            {
+                const Status dropped = SushiAI::Detail::discard_recorded(step->graph_);
+                SA_FATAL_IF(!dropped.is_ok(), "A failed recording could not be dropped: {}",
+                            dropped.message());
+                return recorded;
+            }
+
+            SA_TRY(SushiAI::Detail::compile_graph(step->graph_, step->plan_));
+            ++step->compile_count_;
+            step->empty_ = step->plan_.roots.empty();
+
+            SA_TRY(pool.flush_constants());
+
+            // The base state is captured after compilation, which sets the in-degrees it reads.
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Execute, [&]()
+            {
+                step->plan_.capture_base_state();
+                return Status();
+            }));
+
+            return std::move(step);
+        }
+
+        Status CompiledStep::run()
+        {
+            if (empty_)
+                return Status();
+
+            if (trailing_)
+                trailing_->before_replay();
 
             plan_.rearm();
-            engine_->get_context().get_execution_engine().execute(plan_);
-            engine_->get_context().wait_all();
+            SA_TRY(SushiAI::Detail::run_plan(engine_->get_context(), plan_));
             ++run_count_;
 
-            if (trailing_) trailing_->after_replay();
+            if (trailing_)
+                trailing_->after_replay();
+
+            return Status();
         }
 
     } // namespace Graph

@@ -34,9 +34,13 @@
 #include <string>
 #include <vector>
 #include <SushiBLAS/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/shape.hpp>
-#include <SushiAI/graph/lowering.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/nn/module.hpp>
 
@@ -73,7 +77,7 @@ namespace SushiAI
                                                    NN::Parameter& parameter)
                 {
                     SushiBLAS::Tensor& tensor = pool.tensor(parameter.id());
-                    SA_THROW_IF(!tensor.is_contiguous(),
+                    SA_FATAL_IF(!tensor.is_contiguous(),
                                 "'{}' is a strided view, and a checkpoint records its "
                                 "elements in layout order", name);
                     bound.push_back(BoundParameter{name, &tensor});
@@ -104,27 +108,34 @@ namespace SushiAI
          * @param path Target filesystem path for the checkpoint.
          * @param module Traced model providing declared parameters.
          * @param pool Storage pool containing parameter tensors.
-         * @param engine Engine flushed prior to reading tensor memory.
+         * @param engine Engine whose recorded tasks run before the tensor memory is read.
+         * @return Success, or InvalidFile when the file cannot be written.
          */
         template<typename M>
-        void save_checkpoint(const std::filesystem::path& path, M& module,
-                             Graph::TensorPool& pool, SushiBLAS::Engine& engine)
+        [[nodiscard]] Status save_checkpoint(const std::filesystem::path& path, M& module,
+                                             Graph::TensorPool& pool,
+                                             SushiBLAS::Engine& engine)
         {
-            engine.execute();
-            engine.get_context().wait_all();
+            SA_TRY(SushiAI::Detail::run_recorded(engine));
 
             const std::vector<Detail::BoundParameter> bound = Detail::bind(module, pool);
 
             std::ofstream out(path, std::ios::binary);
-            SA_THROW_IF(!out, "could not open '{}' for writing", path.string());
+            SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
+                       path.string());
 
-            CheckpointWriter writer(out, static_cast<std::uint32_t>(bound.size()));
+            SA_TRY_ASSIGN(CheckpointWriter writer,
+                          CheckpointWriter::create(out, static_cast<std::uint32_t>(bound.size())));
             for (const Detail::BoundParameter& entry : bound)
-                writer.write(Detail::record_for(entry.name, *entry.tensor),
-                             entry.tensor->data());
+            {
+                SA_TRY(writer.write(Detail::record_for(entry.name, *entry.tensor),
+                                    entry.tensor->data()));
+            }
             writer.finish();
 
-            SA_THROW_IF(!out, "failed writing the checkpoint to '{}'", path.string());
+            SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing the checkpoint to '{}'",
+                       path.string());
+            return Status();
         }
 
         /**
@@ -132,55 +143,67 @@ namespace SushiAI
          * @param path Checkpoint path to read from disk.
          * @param module Traced model matching the checkpoint structure.
          * @param pool Storage pool where parameters are materialized.
+         * @return Success, FileNotFound when the file cannot be opened, or Incompatible when
+         *         a record does not match a parameter of the model.
          */
         template<typename M>
-        void load_checkpoint(const std::filesystem::path& path, M& module,
-                             Graph::TensorPool& pool)
+        [[nodiscard]] Status load_checkpoint(const std::filesystem::path& path, M& module,
+                                             Graph::TensorPool& pool)
         {
             std::vector<Detail::BoundParameter> bound = Detail::bind(module, pool);
 
             std::ifstream in(path, std::ios::binary);
-            SA_THROW_IF(!in, "could not open '{}' for reading", path.string());
+            SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
+                       path.string());
 
             // Tracking filled slots prevents duplicate or missing parameter bindings.
             std::vector<bool> filled(bound.size(), false);
 
-            CheckpointReader reader(in);
+            SA_TRY_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
             while (reader.read_count() < reader.count())
             {
-                const TensorRecord record = reader.next();
+                SA_TRY_ASSIGN(const TensorRecord record, reader.next());
 
                 std::size_t index = bound.size();
                 for (std::size_t i = 0; i < bound.size(); ++i)
-                    if (bound[i].name == record.name) { index = i; break; }
+                {
+                    if (bound[i].name == record.name)
+                    {
+                        index = i;
+                        break;
+                    }
+                }
 
-                SA_THROW_IF(index == bound.size(),
-                            "'{}' holds a parameter '{}', which this model does not have",
-                            path.string(), record.name);
-                SA_THROW_IF(filled[index],
-                            "'{}' supplies '{}' twice", path.string(), record.name);
+                SA_FAIL_IF(index == bound.size(), StatusCode::Incompatible,
+                           "'{}' holds a parameter '{}', which this model does not have",
+                           path.string(), record.name);
+                SA_FAIL_IF(filled[index], StatusCode::Incompatible,
+                           "'{}' supplies '{}' twice", path.string(), record.name);
 
                 const TensorRecord expected =
                     Detail::record_for(record.name, *bound[index].tensor);
 
-                SA_THROW_IF(record.dtype != expected.dtype,
-                            "'{}' holds '{}' as {}, but this model's is {}",
-                            path.string(), record.name,
-                            dtype_name(record.dtype), dtype_name(expected.dtype));
-                SA_THROW_IF(record.shape != expected.shape,
-                            "'{}' holds '{}' with shape {}, but this model's is {}",
-                            path.string(), record.name,
-                            record.shape.to_string(), expected.shape.to_string());
+                SA_FAIL_IF(record.dtype != expected.dtype, StatusCode::Incompatible,
+                           "'{}' holds '{}' as {}, but this model's is {}",
+                           path.string(), record.name,
+                           dtype_name(record.dtype), dtype_name(expected.dtype));
+                SA_FAIL_IF(record.shape != expected.shape, StatusCode::Incompatible,
+                           "'{}' holds '{}' with shape {}, but this model's is {}",
+                           path.string(), record.name,
+                           record.shape.to_string(), expected.shape.to_string());
 
                 // Payloads are streamed directly into allocated destination memory.
-                reader.read_payload(record, bound[index].tensor->data());
+                SA_TRY(reader.read_payload(record, bound[index].tensor->data()));
                 filled[index] = true;
             }
 
             for (std::size_t i = 0; i < bound.size(); ++i)
-                SA_THROW_IF(!filled[i],
-                            "'{}' does not supply this model's '{}'",
-                            path.string(), bound[i].name);
+            {
+                SA_FAIL_IF(!filled[i], StatusCode::Incompatible,
+                           "'{}' does not supply this model's '{}'",
+                           path.string(), bound[i].name);
+            }
+            return Status();
         }
 
     } // namespace IO

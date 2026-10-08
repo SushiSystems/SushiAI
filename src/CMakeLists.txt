@@ -20,6 +20,7 @@ set(SUSHIAI_SOURCES
 
     core/allocation.cpp
     core/check.cpp
+    core/seam.cpp
     core/status.cpp
 
     graph/builder.cpp
@@ -29,8 +30,18 @@ set(SUSHIAI_SOURCES
     graph/rematerialise.cpp
     graph/memory_plan.cpp
     graph/arena.cpp
+    graph/tensor_pool.cpp
     graph/fusion_selector.cpp
     graph/lowering.cpp
+    graph/lowering/activation.cpp
+    graph/lowering/context.cpp
+    graph/lowering/elementwise.cpp
+    graph/lowering/fused.cpp
+    graph/lowering/linalg.cpp
+    graph/lowering/loss.cpp
+    graph/lowering/norm.cpp
+    graph/lowering/shape.cpp
+    graph/lowering/spatial.cpp
     graph/compiled_step.cpp
 
     autograd/differentiator.cpp

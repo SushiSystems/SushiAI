@@ -39,9 +39,7 @@ namespace SushiAI
     {
         namespace
         {
-            /**
-             * @brief Lists every supported datatype that a checkpoint may encode.
-             */
+            /** @brief Lists every element type a checkpoint may encode. */
             constexpr std::array<DType, 7> K_KNOWN_DTYPES = {
                 DType::Half, DType::Float32, DType::Float64,
                 DType::Complex32, DType::Complex64,
@@ -49,14 +47,16 @@ namespace SushiAI
             };
 
             /**
-             * @brief Whether @p encoded names a DType this build knows.
-             * @param encoded The raw value read from the file.
-             * @return True when it matches an entry of @ref K_KNOWN_DTYPES.
+             * @brief Returns whether @p encoded is the value of an entry of @ref K_KNOWN_DTYPES.
              */
-            bool is_known_dtype(std::uint32_t encoded) noexcept
+            [[nodiscard]] bool is_known_dtype(std::uint32_t encoded) noexcept
             {
                 for (DType dtype : K_KNOWN_DTYPES)
-                    if (static_cast<std::uint32_t>(dtype) == encoded) return true;
+                {
+                    if (static_cast<std::uint32_t>(dtype) == encoded)
+                        return true;
+                }
+
                 return false;
             }
 
@@ -81,67 +81,74 @@ namespace SushiAI
 
             /**
              * @brief Reads four little-endian bytes.
-             * @param in Where the bytes come from.
-             * @param what What is being read, for the truncation diagnostic.
-             * @return The decoded value.
-             * @throws Error If the stream ends first.
+             * @param what Names what is being read, in the failure's message.
+             * @return The decoded value, or InvalidFile when the stream ends first.
              */
-            std::uint32_t get_u32(std::istream& in, std::string_view what)
+            [[nodiscard]] Result<std::uint32_t> get_u32(std::istream& in, std::string_view what)
             {
                 char bytes[4];
                 in.read(bytes, 4);
-                SA_THROW_IF(!in, "the checkpoint ended while reading {}", what);
+                SA_FAIL_IF(!in, StatusCode::InvalidFile,
+                           "the checkpoint ended while reading {}", what);
 
                 std::uint32_t value = 0;
                 for (int i = 0; i < 4; ++i)
-                    value |= static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[i])) << (8 * i);
+                    value |= static_cast<std::uint32_t>(static_cast<unsigned char>(bytes[i]))
+                             << (8 * i);
                 return value;
             }
 
             /**
              * @brief Reads eight little-endian bytes as a signed value.
-             * @param in Where the bytes come from.
-             * @param what What is being read, for the truncation diagnostic.
-             * @return The decoded value.
-             * @throws Error If the stream ends first.
+             * @param what Names what is being read, in the failure's message.
+             * @return The decoded value, or InvalidFile when the stream ends first.
              */
-            std::int64_t get_i64(std::istream& in, std::string_view what)
+            [[nodiscard]] Result<std::int64_t> get_i64(std::istream& in, std::string_view what)
             {
                 char bytes[8];
                 in.read(bytes, 8);
-                SA_THROW_IF(!in, "the checkpoint ended while reading {}", what);
+                SA_FAIL_IF(!in, StatusCode::InvalidFile,
+                           "the checkpoint ended while reading {}", what);
 
                 std::uint64_t bits = 0;
                 for (int i = 0; i < 8; ++i)
-                    bits |= static_cast<std::uint64_t>(static_cast<unsigned char>(bytes[i])) << (8 * i);
+                    bits |= static_cast<std::uint64_t>(static_cast<unsigned char>(bytes[i]))
+                            << (8 * i);
                 return static_cast<std::int64_t>(bits);
             }
-        }
 
-        CheckpointWriter::CheckpointWriter(std::ostream& out, std::uint32_t count)
-            : out_(&out), declared_(count)
+        } // namespace
+
+        Result<CheckpointWriter> CheckpointWriter::create(std::ostream& out, std::uint32_t count)
         {
-            SA_THROW_IF(count > K_MAX_TENSOR_COUNT,
-                        "a checkpoint may hold at most {} tensors; {} were declared",
-                        K_MAX_TENSOR_COUNT, count);
+            SA_FAIL_IF(count > K_MAX_TENSOR_COUNT, StatusCode::InvalidDescription,
+                       "a checkpoint may hold at most {} tensors; {} were declared",
+                       K_MAX_TENSOR_COUNT, count);
 
             put_u32(out, K_CHECKPOINT_MAGIC);
             put_u32(out, K_CHECKPOINT_VERSION);
             put_u32(out, count);
-            SA_THROW_IF(!out, "failed writing the checkpoint header");
+            SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing the checkpoint header");
+
+            return CheckpointWriter(out, count);
         }
 
-        void CheckpointWriter::write(const TensorRecord& record, const void* payload)
+        CheckpointWriter::CheckpointWriter(std::ostream& out, std::uint32_t count) noexcept
+            : out_(&out), declared_(count)
         {
-            SA_THROW_IF(written_ >= declared_,
+        }
+
+        Status CheckpointWriter::write(const TensorRecord& record, const void* payload)
+        {
+            SA_FATAL_IF(written_ >= declared_,
                         "this checkpoint declared {} records and a further one "
                         "('{}') was written", declared_, record.name);
-            SA_THROW_IF(payload == nullptr,
+            SA_FATAL_IF(payload == nullptr,
                         "'{}' was written with no payload", record.name);
-            SA_THROW_IF(record.name.size() > K_MAX_NAME_LENGTH,
-                        "'{}...' is {} bytes long; a checkpoint name may be at most {}",
-                        record.name.substr(0, 32), record.name.size(), K_MAX_NAME_LENGTH);
-            SA_THROW_IF(record.shape.rank() > K_MAX_RANK,
+            SA_FAIL_IF(record.name.size() > K_MAX_NAME_LENGTH, StatusCode::InvalidDescription,
+                       "'{}...' is {} bytes long; a checkpoint name may be at most {}",
+                       record.name.substr(0, 32), record.name.size(), K_MAX_NAME_LENGTH);
+            SA_FATAL_IF(record.shape.rank() > K_MAX_RANK,
                         "'{}' is rank {}; a checkpoint tensor may be at most rank {}",
                         record.name, record.shape.rank(), K_MAX_RANK);
 
@@ -154,74 +161,88 @@ namespace SushiAI
 
             out_->write(static_cast<const char*>(payload),
                         static_cast<std::streamsize>(record.payload_bytes()));
-            SA_THROW_IF(!*out_, "failed writing '{}' to the checkpoint", record.name);
+            SA_FAIL_IF(!*out_, StatusCode::InvalidFile,
+                       "failed writing '{}' to the checkpoint", record.name);
 
             ++written_;
+            return Status();
         }
 
         void CheckpointWriter::finish() const
         {
-            SA_THROW_IF(written_ != declared_,
+            SA_FATAL_IF(written_ != declared_,
                         "this checkpoint declared {} records but {} were written",
                         declared_, written_);
         }
 
-        CheckpointReader::CheckpointReader(std::istream& in) : in_(&in)
+        Result<CheckpointReader> CheckpointReader::open(std::istream& in)
         {
-            const std::uint32_t magic = get_u32(in, "the magic number");
-            SA_THROW_IF(magic != K_CHECKPOINT_MAGIC,
-                        "this is not a SushiAI checkpoint: expected the magic bytes "
-                        "'SACP' (0x{:08X}), got 0x{:08X}", K_CHECKPOINT_MAGIC, magic);
+            SA_TRY_ASSIGN(const std::uint32_t magic, get_u32(in, "the magic number"));
+            SA_FAIL_IF(magic != K_CHECKPOINT_MAGIC, StatusCode::InvalidFile,
+                       "this is not a SushiAI checkpoint: expected the magic bytes "
+                       "'SACP' (0x{:08X}), got 0x{:08X}", K_CHECKPOINT_MAGIC, magic);
 
-            const std::uint32_t version = get_u32(in, "the version");
-            SA_THROW_IF(version != K_CHECKPOINT_VERSION,
-                        "this checkpoint is version {}; this build reads version {}",
-                        version, K_CHECKPOINT_VERSION);
+            SA_TRY_ASSIGN(const std::uint32_t version, get_u32(in, "the version"));
+            SA_FAIL_IF(version != K_CHECKPOINT_VERSION, StatusCode::InvalidFile,
+                       "this checkpoint is version {}; this build reads version {}",
+                       version, K_CHECKPOINT_VERSION);
 
-            count_ = get_u32(in, "the tensor count");
-            SA_THROW_IF(count_ > K_MAX_TENSOR_COUNT,
-                        "this checkpoint declares {} tensors; at most {} are allowed",
-                        count_, K_MAX_TENSOR_COUNT);
+            SA_TRY_ASSIGN(const std::uint32_t count, get_u32(in, "the tensor count"));
+            SA_FAIL_IF(count > K_MAX_TENSOR_COUNT, StatusCode::InvalidFile,
+                       "this checkpoint declares {} tensors; at most {} are allowed",
+                       count, K_MAX_TENSOR_COUNT);
+
+            return CheckpointReader(in, count);
         }
 
-        TensorRecord CheckpointReader::next()
+        CheckpointReader::CheckpointReader(std::istream& in, std::uint32_t count) noexcept
+            : in_(&in), count_(count)
         {
-            SA_THROW_IF(read_ >= count_,
+        }
+
+        Result<TensorRecord> CheckpointReader::next()
+        {
+            SA_FATAL_IF(read_ >= count_,
                         "this checkpoint declared {} records and a further one was requested",
                         count_);
 
-            const std::uint32_t name_length = get_u32(*in_, "a record's name length");
-            SA_THROW_IF(name_length > K_MAX_NAME_LENGTH,
-                        "a checkpoint record declares a {}-byte name; at most {} are allowed",
-                        name_length, K_MAX_NAME_LENGTH);
+            SA_TRY_ASSIGN(const std::uint32_t name_length, get_u32(*in_, "a record's name length"));
+            SA_FAIL_IF(name_length > K_MAX_NAME_LENGTH, StatusCode::InvalidFile,
+                       "a checkpoint record declares a {}-byte name; at most {} are allowed",
+                       name_length, K_MAX_NAME_LENGTH);
 
             TensorRecord record;
             record.name.resize(name_length);
             if (name_length != 0)
             {
                 in_->read(record.name.data(), static_cast<std::streamsize>(name_length));
-                SA_THROW_IF(!*in_, "the checkpoint ended while reading a record's name");
+                SA_FAIL_IF(!*in_, StatusCode::InvalidFile,
+                           "the checkpoint ended while reading a record's name");
             }
 
-            const std::uint32_t encoded_dtype = get_u32(*in_, "'" + record.name + "'s dtype");
-            SA_THROW_IF(!is_known_dtype(encoded_dtype),
-                        "'{}' declares dtype {}, which this build does not know",
-                        record.name, encoded_dtype);
+            SA_TRY_ASSIGN(const std::uint32_t encoded_dtype,
+                          get_u32(*in_, "'" + record.name + "'s dtype"));
+            SA_FAIL_IF(!is_known_dtype(encoded_dtype), StatusCode::InvalidFile,
+                       "'{}' declares dtype {}, which this build does not know",
+                       record.name, encoded_dtype);
             record.dtype = static_cast<DType>(encoded_dtype);
 
-            const std::uint32_t rank = get_u32(*in_, "'" + record.name + "'s rank");
-            SA_THROW_IF(rank > static_cast<std::uint32_t>(K_MAX_RANK),
-                        "'{}' declares rank {}; at most {} is allowed",
-                        record.name, rank, K_MAX_RANK);
+            SA_TRY_ASSIGN(const std::uint32_t rank, get_u32(*in_, "'" + record.name + "'s rank"));
+            SA_FAIL_IF(rank > static_cast<std::uint32_t>(K_MAX_RANK), StatusCode::InvalidFile,
+                       "'{}' declares rank {}; at most {} is allowed",
+                       record.name, rank, K_MAX_RANK);
 
-            // Extents are validated before Shape construction to provide record context.
+            // rank is at most K_MAX_RANK and every extent is positive when the Shape is built.
             std::array<std::int64_t, static_cast<std::size_t>(K_MAX_RANK)> dims{};
             for (std::uint32_t i = 0; i < rank; ++i)
             {
-                dims[i] = get_i64(*in_, "'" + record.name + "'s extents");
-                SA_THROW_IF(dims[i] <= 0,
-                            "'{}' declares extent {} for dimension {}; every extent must be positive",
-                            record.name, dims[i], i);
+                SA_TRY_ASSIGN(const std::int64_t extent,
+                              get_i64(*in_, "'" + record.name + "'s extents"));
+                SA_FAIL_IF(extent <= 0, StatusCode::InvalidFile,
+                           "'{}' declares extent {} for dimension {}; "
+                           "every extent must be positive",
+                           record.name, extent, i);
+                dims[i] = extent;
             }
             record.shape = Shape(SushiRuntime::span<const int64_t>(dims.data(), rank));
 
@@ -229,16 +250,18 @@ namespace SushiAI
             return record;
         }
 
-        void CheckpointReader::read_payload(const TensorRecord& record, void* destination)
+        Status CheckpointReader::read_payload(const TensorRecord& record, void* destination)
         {
-            SA_THROW_IF(destination == nullptr,
+            SA_FATAL_IF(destination == nullptr,
                         "'{}' was read with no destination", record.name);
 
             in_->read(static_cast<char*>(destination),
                       static_cast<std::streamsize>(record.payload_bytes()));
-            SA_THROW_IF(!*in_,
-                        "the checkpoint ended while reading '{}'s {} payload bytes",
-                        record.name, record.payload_bytes());
+            SA_FAIL_IF(!*in_, StatusCode::InvalidFile,
+                       "the checkpoint ended while reading '{}'s {} payload bytes",
+                       record.name, record.payload_bytes());
+
+            return Status();
         }
 
     } // namespace IO
