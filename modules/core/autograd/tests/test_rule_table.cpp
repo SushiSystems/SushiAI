@@ -114,5 +114,18 @@ namespace SushiAI
             EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_FOLD.id));
             EXPECT_EQ(Autograd::K_NORM_RULES.size(), 2u);
         }
+
+        /** @brief Tests that the depthwise forward has the spatial table's ninth rule. */
+        TEST(Unit_RuleTable, TheDepthwiseForwardHasItsRuleAndItsGradientsHaveNone)
+        {
+            EXPECT_EQ(Autograd::K_SPATIAL_RULES.size(), 9u);
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_DEPTHWISE_CONV2D.id));
+
+            // The two gradient identities are not differentiable, so they need no row.
+            EXPECT_FALSE(Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.differentiable);
+            EXPECT_FALSE(Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.differentiable);
+            EXPECT_FALSE(Autograd::has_rule(Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id));
+            EXPECT_FALSE(Autograd::has_rule(Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id));
+        }
     }
 }

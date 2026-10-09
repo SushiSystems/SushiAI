@@ -91,8 +91,15 @@ namespace SushiAI
          */
         void slice_channels_backward(const GradientTape& tape);
 
+        /**
+         * @brief DEPTHWISE_CONV2D's gradient: the input gradient and the taps gradient,
+         *        each emitted only when its operand needs one.
+         * @param tape The differentiation state for this node.
+         */
+        void depthwise_conv2d_backward(const GradientTape& tape);
+
         /** @brief Spatial operations' backward rules. */
-        inline constexpr std::array<RuleEntry, 8> K_SPATIAL_RULES = {{
+        inline constexpr std::array<RuleEntry, 9> K_SPATIAL_RULES = {{
             {Ops::K_IM2COL.id, &im2col_backward},
             {Ops::K_COL2IM.id, &col2im_backward},
             {Ops::K_MAXPOOL2D.id, &maxpool2d_backward},
@@ -101,6 +108,7 @@ namespace SushiAI
             {Ops::K_SPATIAL_MEAN.id, &spatial_mean_backward},
             {Ops::K_CONCAT_CHANNELS.id, &concat_channels_backward},
             {Ops::K_SLICE_CHANNELS.id, &slice_channels_backward},
+            {Ops::K_DEPTHWISE_CONV2D.id, &depthwise_conv2d_backward},
         }};
     }
 }

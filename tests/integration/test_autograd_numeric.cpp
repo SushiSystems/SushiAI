@@ -1128,3 +1128,34 @@ TEST_F(Integration_Autograd, ChannelAffinesShiftGradientSumsOverNHAndW)
 
     expect_gradient_matches(probe, point);
 }
+
+TEST_F(Integration_Autograd, DepthwiseConvolutionDifferentiatesOverItsInputAndItsTaps)
+{
+    // The image and the taps are slices of one flat variable, so one check covers both.
+    constexpr int64_t K_IMAGE_ELEMENTS = 2 * 5 * 5 * 3;
+    constexpr int64_t K_TAP_ELEMENTS = 3 * 3 * 3;
+
+    Probe probe(*engine, Shape{1, 1, 1, K_IMAGE_ELEMENTS + K_TAP_ELEMENTS},
+                [](const GraphBuilder& b, ValueId flat)
+    {
+        const ValueId image = b.reshape(b.slice_channels(flat, 0, K_IMAGE_ELEMENTS),
+                                        Shape{2, 5, 5, 3});
+        const ValueId taps = b.reshape(b.slice_channels(flat, K_IMAGE_ELEMENTS, K_TAP_ELEMENTS),
+                                       Shape{3, 3, 3});
+
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.stride_h = 2; g.stride_w = 2;
+        g.pad_top = 1;  g.pad_left = 1;
+
+        const ValueId windows = b.depthwise_conv2d(image, taps, g);   // [2, 3, 3, 3]
+        return b.log_softmax(b.spatial_mean(windows));                // [2, 3]
+    });
+
+    probe.fill_one_hot(2, 3);
+
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(601).fill(point, 1.0);
+
+    expect_gradient_matches(probe, point);
+}

@@ -39,6 +39,10 @@ namespace SushiAI
             /** @brief Builds a rank-1 or rank-2 Shape from loose extents. */
             Shape shape_of(int64_t rows) { return Shape{rows}; }
             Shape shape_of(int64_t rows, int64_t cols) { return Shape{rows, cols}; }
+            Shape shape_of(int64_t batch, int64_t rows, int64_t cols)
+            {
+                return Shape{batch, rows, cols};
+            }
 
             /** @brief Throws unless @p value is tagged NHWC, naming the emitter @p what. */
             void require_nhwc(const Value& value, std::string_view what)
@@ -164,28 +168,36 @@ namespace SushiAI
         {
             const Value& va = graph_->value(a);
             const Value& vb = graph_->value(b);
+            const int32_t rank = va.shape.rank();
 
-            SA_THROW_IF(va.shape.rank() != 2 || vb.shape.rank() != 2,
-                        "MATMUL needs two rank-2 operands; got {} and {}",
+            SA_THROW_IF((rank != 2 && rank != 3) || vb.shape.rank() != rank,
+                        "MATMUL needs two rank-2 operands or two rank-3 batches; got {} and {}",
                         va.shape.to_string(), vb.shape.to_string());
             SA_THROW_IF(va.dtype != vb.dtype,
                         "MATMUL needs operands of one element type; got {} and {}",
                         dtype_name(va.dtype), dtype_name(vb.dtype));
 
-            const int64_t m = transpose_a ? va.shape[1] : va.shape[0];
-            const int64_t ka = transpose_a ? va.shape[0] : va.shape[1];
-            const int64_t kb = transpose_b ? vb.shape[1] : vb.shape[0];
-            const int64_t n = transpose_b ? vb.shape[0] : vb.shape[1];
+            // A rank-3 operand is [B, rows, cols]; the matrix axes start at `first`.
+            const int32_t first = rank - 2;
+            const int64_t m = transpose_a ? va.shape[first + 1] : va.shape[first];
+            const int64_t ka = transpose_a ? va.shape[first] : va.shape[first + 1];
+            const int64_t kb = transpose_b ? vb.shape[first + 1] : vb.shape[first];
+            const int64_t n = transpose_b ? vb.shape[first] : vb.shape[first + 1];
 
             SA_THROW_IF(ka != kb,
                         "MATMUL contracts {} against {}; the inner extents must agree "
                         "(operands {} and {}, transposed {}/{})",
                         ka, kb, va.shape.to_string(), vb.shape.to_string(),
                         transpose_a, transpose_b);
+            SA_THROW_IF(rank == 3 && va.shape[0] != vb.shape[0],
+                        "MATMUL batches must agree; got {} and {}",
+                        va.shape.to_string(), vb.shape.to_string());
+
+            // The shape is read before declare_like, which may grow the table va and vb refer to.
+            const Shape product = rank == 3 ? shape_of(va.shape[0], m, n) : shape_of(m, n);
 
             // Propagate layout from operand to trigger build-time checks across contractions.
-            const ValueId out = declare_like(a, shape_of(m, n), va.dtype, Lifetime::Activation,
-                                             "matmul");
+            const ValueId out = declare_like(a, product, va.dtype, Lifetime::Activation, "matmul");
 
             Attributes attributes{};
             attributes.values[0] = transpose_a ? 1.0 : 0.0;
@@ -454,6 +466,23 @@ namespace SushiAI
             return out;
         }
 
+        ValueId GraphBuilder::softmax(ValueId x) const
+        {
+            // Shapes are copied out: a declaration below grows the table a reference points into.
+            const Shape in = graph_->value(x).shape;
+            SA_THROW_IF(in.rank() < 2, "softmax needs a rank-2 or higher operand; got {}",
+                        in.to_string());
+
+            // Every axis but the last is a row; LOG_SOFTMAX normalises each row.
+            int64_t rows = 1;
+            for (int32_t axis = 0; axis + 1 < in.rank(); ++axis)
+                rows *= in[axis];
+
+            const ValueId flat = reshape(x, shape_of(rows, in[in.rank() - 1]));
+            const ValueId probs = exp(log_softmax(flat));
+            return reshape(probs, in);
+        }
+
         ValueId GraphBuilder::nll_loss(ValueId log_probs, ValueId one_hot) const
         {
             require_same(log_probs, one_hot, "NLL_LOSS");
@@ -689,6 +718,120 @@ namespace SushiAI
             const ValueId rows = bias == K_NO_VALUE ? product : bias_add(product, bias);
 
             return reshape(rows, Shape({image[0], out.height, out.width, filter[0]}));
+        }
+
+        namespace
+        {
+            /** @brief Throws unless @p taps is the [kernel_h, kernel_w, C] weight of @p g. */
+            void require_depthwise_taps(const Shape& taps, int64_t channels, const ConvGeometry& g,
+                                        std::string_view what)
+            {
+                SA_THROW_IF(taps.rank() != 3,
+                            "{} needs a rank-3 [kernel_h, kernel_w, C] weight; got {}",
+                            what, taps.to_string());
+                SA_THROW_IF(taps[0] != g.kernel_h || taps[1] != g.kernel_w || taps[2] != channels,
+                            "{} with a {}x{} window over {} channels needs a [{}, {}, {}] weight; "
+                            "got {}",
+                            what, g.kernel_h, g.kernel_w, channels, g.kernel_h, g.kernel_w,
+                            channels, taps.to_string());
+            }
+
+            /** @brief Throws unless @p a and @p b hold one element type, naming @p what. */
+            void require_one_dtype(DType a, DType b, std::string_view what)
+            {
+                SA_THROW_IF(a != b, "{} needs operands of one element type; got {} and {}",
+                            what, dtype_name(a), dtype_name(b));
+            }
+
+            /**
+             * @brief Throws unless @p grid is the [N,out_h,out_w,C] window grid over @p image.
+             */
+            void require_window_grid(const Shape& grid, const Shape& image,
+                                     const SpatialExtents& out, std::string_view what)
+            {
+                SA_THROW_IF(grid.rank() != 4,
+                            "{} needs a rank-4 [N,H,W,C] output gradient; got {}",
+                            what, grid.to_string());
+                SA_THROW_IF(grid[0] != image[0] || grid[1] != out.height || grid[2] != out.width
+                                || grid[3] != image[3],
+                            "{} was given an output gradient of {}, but a window over {} yields "
+                            "[{}, {}, {}, {}]",
+                            what, grid.to_string(), image.to_string(), image[0], out.height,
+                            out.width, image[3]);
+            }
+        } // namespace
+
+        ValueId GraphBuilder::depthwise_conv2d(ValueId x, ValueId weight,
+                                               const ConvGeometry& g) const
+        {
+            // Shapes are copied out: a declaration below grows the table a reference points into.
+            const Shape image = graph_->value(x).shape;
+            const DType dtype = graph_->value(x).dtype;
+
+            SA_THROW_IF(image.rank() != 4,
+                        "depthwise_conv2d needs a rank-4 [N,H,W,C] input; got {}",
+                        image.to_string());
+            require_nhwc(graph_->value(x), "depthwise_conv2d");
+            require_depthwise_taps(graph_->value(weight).shape, image[3], g, "depthwise_conv2d");
+            require_one_dtype(graph_->value(weight).dtype, dtype, "depthwise_conv2d");
+
+            const SpatialExtents out = window_extents(image[1], image[2], g);
+
+            const ValueId result = declare_like(
+                x, Shape({image[0], out.height, out.width, image[3]}), dtype,
+                Lifetime::Activation, "depthwise");
+            graph_->add_node(Ops::K_DEPTHWISE_CONV2D.id, {x, weight}, {result},
+                             geometry_attributes(g));
+            return result;
+        }
+
+        ValueId GraphBuilder::depthwise_conv2d_backward_input(ValueId dy, ValueId weight,
+                                                              Shape input_shape,
+                                                              const ConvGeometry& g) const
+        {
+            const Shape grad = graph_->value(dy).shape;
+            const DType dtype = graph_->value(dy).dtype;
+
+            SA_THROW_IF(input_shape.rank() != 4,
+                        "depthwise_conv2d_backward_input returns a rank-4 [N,H,W,C] input "
+                        "gradient; got {}", input_shape.to_string());
+            require_nhwc(graph_->value(dy), "depthwise_conv2d_backward_input");
+            require_depthwise_taps(graph_->value(weight).shape, input_shape[3], g,
+                                   "depthwise_conv2d_backward_input");
+            require_one_dtype(graph_->value(weight).dtype, dtype,
+                              "depthwise_conv2d_backward_input");
+
+            const SpatialExtents out = window_extents(input_shape[1], input_shape[2], g);
+            require_window_grid(grad, input_shape, out, "depthwise_conv2d_backward_input");
+
+            const ValueId result = declare_like(dy, input_shape, dtype, Lifetime::Activation, "dx");
+            graph_->add_node(Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, {dy, weight}, {result},
+                             geometry_attributes(g));
+            return result;
+        }
+
+        ValueId GraphBuilder::depthwise_conv2d_backward_weight(ValueId dy, ValueId x,
+                                                               const ConvGeometry& g) const
+        {
+            const Shape image = graph_->value(x).shape;
+            const Shape grad = graph_->value(dy).shape;
+            const DType dtype = graph_->value(dy).dtype;
+
+            SA_THROW_IF(image.rank() != 4,
+                        "depthwise_conv2d_backward_weight needs a rank-4 [N,H,W,C] input; got {}",
+                        image.to_string());
+            require_nhwc(graph_->value(x), "depthwise_conv2d_backward_weight");
+            require_nhwc(graph_->value(dy), "depthwise_conv2d_backward_weight");
+            require_one_dtype(graph_->value(x).dtype, dtype, "depthwise_conv2d_backward_weight");
+
+            const SpatialExtents out = window_extents(image[1], image[2], g);
+            require_window_grid(grad, image, out, "depthwise_conv2d_backward_weight");
+
+            const ValueId result = declare_like(dy, Shape({g.kernel_h, g.kernel_w, image[3]}),
+                                                dtype, Lifetime::Activation, "dweight");
+            graph_->add_node(Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id, {dy, x}, {result},
+                             geometry_attributes(g));
+            return result;
         }
 
         PoolResult GraphBuilder::maxpool2d(ValueId x, const ConvGeometry& g) const

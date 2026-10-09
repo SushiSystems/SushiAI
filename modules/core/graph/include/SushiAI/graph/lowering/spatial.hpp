@@ -70,8 +70,17 @@ namespace SushiAI
         /** @brief Records SLICE_CHANNELS, which copies a channel range out of its operand. */
         [[nodiscard]] Status lower_slice_channels(const LoweringContext& context);
 
+        /** @brief Records DEPTHWISE_CONV2D, which filters each channel with its own taps. */
+        [[nodiscard]] Status lower_depthwise_conv2d(const LoweringContext& context);
+
+        /** @brief Records DEPTHWISE_CONV2D_BACKWARD_INPUT, which gathers each input gradient. */
+        [[nodiscard]] Status lower_depthwise_conv2d_backward_input(const LoweringContext& context);
+
+        /** @brief Records DEPTHWISE_CONV2D_BACKWARD_WEIGHT, which sums each tap's gradient. */
+        [[nodiscard]] Status lower_depthwise_conv2d_backward_weight(const LoweringContext& context);
+
         /** @brief Pairs each spatial operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 12> K_SPATIAL_LOWERINGS = {{
+        inline constexpr std::array<LoweringEntry, 15> K_SPATIAL_LOWERINGS = {{
             {Ops::K_IM2COL.id, &lower_im2col},
             {Ops::K_COL2IM.id, &lower_col2im},
             {Ops::K_MAXPOOL2D.id, &lower_maxpool2d},
@@ -84,6 +93,9 @@ namespace SushiAI
             {Ops::K_SPATIAL_MEAN_BACKWARD.id, &lower_spatial_mean_backward},
             {Ops::K_CONCAT_CHANNELS.id, &lower_concat_channels},
             {Ops::K_SLICE_CHANNELS.id, &lower_slice_channels},
+            {Ops::K_DEPTHWISE_CONV2D.id, &lower_depthwise_conv2d},
+            {Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, &lower_depthwise_conv2d_backward_input},
+            {Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id, &lower_depthwise_conv2d_backward_weight},
         }};
     } // namespace Graph
 } // namespace SushiAI

@@ -50,6 +50,7 @@ add_executable(sushiai_tests
     unit/test_loss_scaling.cpp
     unit/test_seam.cpp
     integration/test_arena.cpp
+    integration/test_attention_operations.cpp
     integration/test_autograd_numeric.cpp
     integration/test_buffer_update_recorder.cpp
     integration/test_checkpoint.cpp

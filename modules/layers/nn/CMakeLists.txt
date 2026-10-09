@@ -12,6 +12,7 @@ sushiai_add_module(NAME nn TIER layers
         source/batch_norm2d.cpp
         source/concat.cpp
         source/conv2d.cpp
+        source/depthwise_conv2d.cpp
         source/flatten.cpp
         source/global_avg_pool.cpp
         source/identity.cpp
@@ -38,6 +39,7 @@ sushiai_add_module(NAME nn TIER layers
         tests/test_buffer.cpp
         tests/test_concat.cpp
         tests/test_config.cpp
+        tests/test_depthwise_conv2d.cpp
         tests/test_flatten.cpp
         tests/test_global_avg_pool.cpp
         tests/test_identity.cpp

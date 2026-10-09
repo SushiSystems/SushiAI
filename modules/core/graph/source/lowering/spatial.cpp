@@ -281,5 +281,53 @@ namespace SushiAI
             context.count(1);
             return Status();
         }
+
+        Status lower_depthwise_conv2d(const LoweringContext& context)
+        {
+            context.require_arity(2, 1);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(context.node());
+
+            const SushiBLAS::Tensor& in = context.input(0);
+            const SushiBLAS::Tensor& weights = context.input(1);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& out, context.output(0));
+
+            SushiBLAS::SpatialOps spatial(context.recorder());
+            spatial.window_dot(in, weights, out, g);
+            context.count(1);
+            return Status();
+        }
+
+        Status lower_depthwise_conv2d_backward_input(const LoweringContext& context)
+        {
+            context.require_arity(2, 1);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(context.node());
+
+            const SushiBLAS::Tensor& dy = context.input(0);
+            const SushiBLAS::Tensor& weights = context.input(1);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& dx, context.output(0));
+
+            SushiBLAS::SpatialOps spatial(context.recorder());
+            spatial.window_dot_backward(dy, weights, dx, g);
+            context.count(1);
+            return Status();
+        }
+
+        Status lower_depthwise_conv2d_backward_weight(const LoweringContext& context)
+        {
+            context.require_arity(2, 1);
+
+            const SushiBLAS::Spatial::ConvGeometry g = blas_geometry_of(context.node());
+
+            const SushiBLAS::Tensor& dy = context.input(0);
+            const SushiBLAS::Tensor& in = context.input(1);
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& dweights, context.output(0));
+
+            SushiBLAS::SpatialOps spatial(context.recorder());
+            spatial.window_dot_weights_backward(dy, in, dweights, g);
+            context.count(1);
+            return Status();
+        }
     } // namespace Graph
 } // namespace SushiAI
