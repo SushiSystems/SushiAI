@@ -34,12 +34,12 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/vision/detect/assigner_config.hpp>
-#include <SushiAI/vision/detect/assignment.hpp>
+#include <SushiAI/vision/detect/free/assigner_config.hpp>
+#include <SushiAI/vision/detect/free/assignment.hpp>
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /**
          * @brief Holds the predictions and the ground truth of one assigner call.
@@ -128,5 +128,5 @@ namespace SushiAI
                 std::vector<std::int64_t> selected_;
         };
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

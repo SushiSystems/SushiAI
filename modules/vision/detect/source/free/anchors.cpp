@@ -26,7 +26,7 @@
  * @see modules/vision/detect/README.md
  */
 
-#include <SushiAI/vision/detect/anchors.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
 
 #include <cstddef>
 
@@ -34,7 +34,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         std::int64_t count_anchors(SushiRuntime::span<const FeatureLevel> levels)
         {
@@ -94,5 +94,5 @@ namespace SushiAI
             }
         }
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

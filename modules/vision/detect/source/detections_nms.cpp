@@ -33,6 +33,7 @@
 
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 namespace SushiAI

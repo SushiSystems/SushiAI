@@ -35,7 +35,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /** @brief Holds the distance from a cell's index to its centre, in grid units. */
         inline constexpr float K_GRID_CELL_OFFSET = 0.5f;
@@ -77,5 +77,5 @@ namespace SushiAI
                           SushiRuntime::span<const float> strides,
                           SushiRuntime::span<float> scaled);
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

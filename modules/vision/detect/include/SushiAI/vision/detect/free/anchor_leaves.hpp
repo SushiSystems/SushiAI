@@ -33,15 +33,15 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/vision/detect/anchors.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /**
          * @brief Holds the anchor points and strides of every image of a batch, as FLOAT32 leaves.
-         * @see modules/vision/detect/include/SushiAI/vision/detect/target_leaves.hpp
+         * @see modules/vision/detect/include/SushiAI/vision/detect/free/target_leaves.hpp
          */
         struct AnchorLeaves
         {
@@ -58,5 +58,5 @@ namespace SushiAI
                                  std::int64_t batch,
                                  AnchorLeaves& leaves);
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

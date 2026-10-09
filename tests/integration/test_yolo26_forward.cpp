@@ -62,11 +62,11 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
-#include <SushiAI/vision/detect/anchors.hpp>
-#include <SushiAI/vision/detect/box_coding.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
+#include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_topk.hpp>
-#include <SushiAI/vision/detect/level_rows.hpp>
+#include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/registration.hpp>
 #include <common/reference_fixture.hpp>
@@ -84,8 +84,8 @@ namespace
     using SaTest::ReferenceFile;
     using SaTest::ReferenceTensor;
     using SaTest::near_reference;
-    using Vision::Detect::FeatureLevel;
-    using Vision::Detect::LevelPlacement;
+    using Vision::Detect::Free::FeatureLevel;
+    using Vision::Detect::Free::LevelPlacement;
     using Vision::Detect::PredictionShape;
 
     /** @brief Holds every published tensor of one forward pass, by its published name. */
@@ -423,7 +423,7 @@ namespace
                                            std::string_view kind, std::int64_t channels,
                                            std::vector<float>& joined)
     {
-        const std::int64_t anchors = Vision::Detect::count_anchors(K_LEVELS);
+        const std::int64_t anchors = Vision::Detect::Free::count_anchors(K_LEVELS);
         joined.assign(static_cast<std::size_t>(anchors * channels), 0.0f);
 
         std::int64_t offset = 0;
@@ -441,8 +441,9 @@ namespace
                                                      << found->second.size() << " values, not "
                                                      << expected;
 
-            Vision::Detect::join_level(found->second,
-                                       LevelPlacement{1, anchors, channels, offset, cells}, joined);
+            Vision::Detect::Free::join_level(found->second,
+                                             LevelPlacement{1, anchors, channels, offset, cells},
+                                             joined);
             offset += cells;
         }
 
@@ -468,13 +469,13 @@ namespace
             return scores;
 
         const std::size_t anchors =
-            static_cast<std::size_t>(Vision::Detect::count_anchors(K_LEVELS));
-        std::vector<float> points(anchors * Vision::Detect::K_POINT_VALUES);
+            static_cast<std::size_t>(Vision::Detect::Free::count_anchors(K_LEVELS));
+        std::vector<float> points(anchors * Vision::Detect::Free::K_POINT_VALUES);
         std::vector<float> strides(anchors);
-        Vision::Detect::make_anchors(K_LEVELS, points, strides);
+        Vision::Detect::Free::make_anchors(K_LEVELS, points, strides);
 
         decode(decoded.boxes, points, decoded.boxes);
-        Vision::Detect::scale_boxes(decoded.boxes, strides, decoded.boxes);
+        Vision::Detect::Free::scale_boxes(decoded.boxes, strides, decoded.boxes);
         for (float& score : decoded.scores)
             score = sigmoid(score);
 
@@ -578,8 +579,8 @@ TEST_F(Integration_Yolo26Forward, TheHostDecodeMatchesTheReferenceDecodes)
     SA_RUN_FORWARD_OR_SKIP(ours, forward);
 
     const std::pair<std::string_view, BoxDecode> branches[] = {
-        {"one2many", &Vision::Detect::decode_xywh},
-        {"one2one", &Vision::Detect::decode_xyxy},
+        {"one2many", &Vision::Detect::Free::decode_xywh},
+        {"one2one", &Vision::Detect::Free::decode_xyxy},
     };
     for (const std::pair<std::string_view, BoxDecode>& branch : branches)
     {
@@ -606,9 +607,9 @@ TEST_F(Integration_Yolo26Forward, TheTopScoresMatchTheReferenceDetections)
     SA_READ_REFERENCE_OR_FAIL(reference, forward, "one2one.detections");
 
     DecodedBranch decoded;
-    ASSERT_TRUE(decode_branch(*ours, "one2one", &Vision::Detect::decode_xyxy, decoded));
+    ASSERT_TRUE(decode_branch(*ours, "one2one", &Vision::Detect::Free::decode_xyxy, decoded));
 
-    const PredictionShape shape{1, Vision::Detect::count_anchors(K_LEVELS), K_CLASSES};
+    const PredictionShape shape{1, Vision::Detect::Free::count_anchors(K_LEVELS), K_CLASSES};
     const std::int64_t rows =
         Vision::Detect::count_top_detections(shape, Vision::Detect::K_MAX_DETECTIONS);
     std::vector<float> detections(static_cast<std::size_t>(rows) * K_DETECTION_VALUES);

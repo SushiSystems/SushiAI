@@ -34,7 +34,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /** @brief Holds where one level's rows sit in a `[B, A, C]` array over all anchors. */
         struct LevelPlacement
@@ -66,5 +66,5 @@ namespace SushiAI
                          const LevelPlacement& placement,
                          SushiRuntime::span<float> level);
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

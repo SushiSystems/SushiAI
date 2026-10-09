@@ -26,7 +26,7 @@
  * @see modules/vision/detect/README.md
  */
 
-#include <SushiAI/vision/detect/level_rows.hpp>
+#include <SushiAI/vision/detect/free/level_rows.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -35,7 +35,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         namespace
         {
@@ -109,5 +109,5 @@ namespace SushiAI
             }
         }
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

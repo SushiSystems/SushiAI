@@ -1,6 +1,6 @@
 # Domain modules
 
-**Status:** Shipped — built and passing on 2026-10-09, the package suite included. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
+**Status:** Open — the module tree is built and passing; the split of `vision/detect` and the module `vision/training` are ruled and being written. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
 
 How SushiAI keeps what belongs to one field of use (vision today; language, physics and
 reinforcement learning later) apart from the library every field shares, so that a field can be
@@ -21,6 +21,10 @@ Each was made by the owner on 2026-10-09.
 | Tier of `train` and `io` | The layers tier, beside `nn`: both include it, for `ModelState`, `ModelOutputs` and `Trace` |
 | `NodeRegistry` | One registry with two `add` overloads, `find_node` and `find_layer` |
 | Vision switched off | The programs link a registration file with or without vision; the examples are built only with it |
+| Detection | `vision/detect` stays one module, split inside itself: the root holds what both families use (boxes, IoU, suppression, top-k, average precision), `free/` the anchor-free path of YOLO26 (`Vision::Detect::Free`) and `anchor/` the anchor-box path of the Darknet-era models (`Vision::Detect::Anchor`) |
+| Detection training | The detection objectives, the host stage and the training step live in a module `vision/training`, which depends on `train` and `vision/detect`; `vision/detect` keeps depending on `core` alone |
+| Anchoring | Anchors are derived, assigned to heads and checked against a dataset by the unit, as automatically as sound engineering allows; an imported model keeps the anchors of its file |
+| Reference implementations | Nothing is quoted from one. Darknet and Ultralytics are run outside the repository to produce tensors; SushiAI's own implementation is written from the behaviour |
 
 Decided by the engineer the owner delegated them to:
 
@@ -69,7 +73,8 @@ the names of the first.
 | Module of `modules/<domain>/` | Holds | Vision's content |
 | --- | --- | --- |
 | One per kind of data | The data type, its transforms and its file readers | `imaging` |
-| One per task | Geometry, assignment, loss terms, decoding and metrics of one task | `detect` |
+| One per task | Geometry, assignment, decoding and metrics of one task | `detect`, with `free/` and `anchor/` inside it |
+| `training` | The objectives of the domain's tasks and the steps that train them | Not created yet |
 | `blocks` | Model blocks built from `nn` layers that one family of models uses | `ConvNorm`, `Bottleneck`, `C3k`, `C3k2`, `SPPF` |
 | `datasets` | Dataset types of the domain | MNIST |
 | `importers` | Readers of other frameworks' model and weight files | Not created yet; the Darknet importer |
@@ -120,9 +125,6 @@ binary of its library collects them.
 
 ## Open
 
-- Whether the detection objective and the detection trainer step live in `vision/detect` or in
-  a `vision/training` module beside it is decided when stage 5 of
-  [`PROGRAMME.md`](PROGRAMME.md) designs them.
 - What a domain may add to the core tier. An operation, a gradient rule or a lowering a domain
   needs is written in the core tier, in its operation's domain file, because the IR is one; a
   domain adds layers and algorithms, not operations.

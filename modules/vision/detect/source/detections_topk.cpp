@@ -34,13 +34,15 @@
 
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 namespace SushiAI
 {
     namespace Vision::Detect
     {
-        std::int64_t count_top_detections(const PredictionShape& shape, std::int64_t max_detections)
+        std::int64_t count_top_detections(const PredictionShape& shape,
+                                          std::int64_t max_detections)
         {
             SA_THROW_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0 ||
                             max_detections <= 0,

@@ -26,20 +26,20 @@
  * @see modules/vision/detect/README.md
  */
 
-#include <SushiAI/vision/detect/assigner.hpp>
+#include <SushiAI/vision/detect/free/assigner.hpp>
 
 #include <algorithm>
 #include <cmath>
 
 #include <SushiAI/core/common.hpp>
-#include <SushiAI/vision/detect/anchors.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         namespace
         {
@@ -350,5 +350,5 @@ namespace SushiAI
             }
         }
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

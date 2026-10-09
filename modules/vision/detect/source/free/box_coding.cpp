@@ -26,17 +26,17 @@
  * @see modules/vision/detect/README.md
  */
 
-#include <SushiAI/vision/detect/box_coding.hpp>
+#include <SushiAI/vision/detect/free/box_coding.hpp>
 
 #include <cstddef>
 
 #include <SushiAI/core/common.hpp>
-#include <SushiAI/vision/detect/anchors.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         namespace
         {
@@ -131,5 +131,5 @@ namespace SushiAI
             }
         }
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI
