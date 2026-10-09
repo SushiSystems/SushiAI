@@ -31,9 +31,11 @@
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/vision/blocks/bottleneck.hpp>
+#include <SushiAI/vision/blocks/c2psa.hpp>
 #include <SushiAI/vision/blocks/c3k.hpp>
 #include <SushiAI/vision/blocks/c3k2.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
+#include <SushiAI/vision/blocks/detect_head.hpp>
 #include <SushiAI/vision/blocks/sppf.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 
@@ -46,6 +48,8 @@ namespace SushiAI::Vision
         SA_TRY(registry.add(NN::NodeEntry{"c3k", &Blocks::make_c3k_node}));
         SA_TRY(registry.add(NN::NodeEntry{"c3k2", &Blocks::make_c3k2_node}));
         SA_TRY(registry.add(NN::NodeEntry{"sppf", &Blocks::make_sppf_node}));
+        SA_TRY(registry.add(NN::NodeEntry{"c2psa", &Blocks::make_c2psa_node}));
+        SA_TRY(registry.add(NN::NodeEntry{"detect", &Blocks::make_detect_node}));
 
         return Status();
     }

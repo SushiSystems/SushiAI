@@ -2,8 +2,9 @@
 
 ## Owns
 
-The two functions that fill the registries with vision rows. `register_nodes` adds the five block
-node types, conv, bottleneck, c3k, c3k2 and sppf, to an `NN::NodeRegistry`. `register_datasets`
+The two functions that fill the registries with vision rows. `register_nodes` adds the seven block
+node types, conv, bottleneck, c3k, c3k2, sppf, c2psa and detect, to an `NN::NodeRegistry`, in that
+order. `register_datasets`
 adds the mnist row to a `Data::DatasetRegistry`. Each returns a `Status`: success, or the first
 failure of the registry's `add()`. The header forward-declares both registries; their
 declarations live in `node_registry.hpp` and `dataset_registry.hpp`.

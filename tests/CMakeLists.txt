@@ -210,6 +210,8 @@ if(SA_BUILD_VISION)
     add_executable(sushiai_vision_tests
         common/test_main.cpp
         ${SUSHIAI_VISION_MODULE_TESTS}
+
+        integration/test_yolo26_forward.cpp
     )
 
     target_include_directories(sushiai_vision_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

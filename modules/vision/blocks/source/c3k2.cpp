@@ -27,6 +27,7 @@
 
 #include <SushiAI/vision/blocks/c3k2.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string>
@@ -51,8 +52,17 @@ namespace SushiAI
             /** @brief Names the inner block make_c3k2_of_c3k() builds. */
             constexpr std::string_view K_INNER_C3K = "c3k";
 
+            /** @brief Names the inner block make_c3k2_of_bottleneck_psa() builds. */
+            constexpr std::string_view K_INNER_BOTTLENECK_PSA = "bottleneck_psa";
+
             /** @brief Names the inner block of a row that states none. */
             constexpr std::string_view K_DEFAULT_INNER = K_INNER_BOTTLENECK;
+
+            /** @brief Holds the channels per head of a PSABlock that states no head count. */
+            constexpr int64_t K_CHANNELS_PER_PSA_HEAD = 64;
+
+            /** @brief Holds the smallest channel count of a PSABlock head, as Attention has it. */
+            constexpr int64_t K_SMALLEST_PSA_HEAD_WIDTH = 2;
 
             /** @brief Holds the smallest hidden width, which every inner block halves. */
             constexpr int64_t K_SMALLEST_HIDDEN = 2;
@@ -141,6 +151,37 @@ namespace SushiAI
                 return C3k(row.hidden, row.hidden, K_INNER_C3K_REPEATS, row.shortcut, row.norm);
             }
 
+            /** @brief Returns max(hidden / K_CHANNELS_PER_PSA_HEAD, 1), the PSABlock head count. */
+            [[nodiscard]] constexpr int64_t psa_head_count(int64_t hidden) noexcept
+            {
+                return std::max<int64_t>(hidden / K_CHANNELS_PER_PSA_HEAD, 1);
+            }
+
+            /** @brief Builds the Bottleneck and the PSABlock one inner slot of @p row holds. */
+            [[nodiscard]] NN::Sequential<Bottleneck, PSABlock> bottleneck_psa_of(
+                const C3k2Row& row)
+            {
+                return NN::Sequential<Bottleneck, PSABlock>(
+                    bottleneck_of(row), PSABlock(row.hidden, psa_head_count(row.hidden), row.norm));
+            }
+
+            /**
+             * @brief Builds a C3k2 node from a row that has been read and checked.
+             * @param make_inner Called once per inner slot of the row.
+             */
+            template<typename Inner>
+            [[nodiscard]] Result<std::unique_ptr<NN::Node>> build_c3k2_of(
+                const C3k2Row& row, Inner (*make_inner)(const C3k2Row&))
+            {
+                NN::ModuleList<Inner> inner;
+                for (int64_t index = 0; index < row.repeats; ++index)
+                    inner.push_back(make_inner(row));
+
+                return Detail::wrap_block(
+                    C3k2<Inner>(row.input[2], row.filters, row.hidden, std::move(inner), row.norm),
+                    row.input);
+            }
+
             /**
              * @brief Builds a C3k2 node whose inner blocks @p make_inner produces.
              * @param kind The name K_C3K2_INNER gives this inner block.
@@ -153,13 +194,7 @@ namespace SushiAI
             {
                 SA_TRY_ASSIGN(const C3k2Row row, read_row(inputs, attributes, context, kind));
 
-                NN::ModuleList<Inner> inner;
-                for (int64_t index = 0; index < row.repeats; ++index)
-                    inner.push_back(make_inner(row));
-
-                return Detail::wrap_block(
-                    C3k2<Inner>(row.input[2], row.filters, row.hidden, std::move(inner), row.norm),
-                    row.input);
+                return build_c3k2_of(row, make_inner);
             }
 
             /** @brief Joins the names of K_C3K2_INNER into "a, b" for a diagnostic. */
@@ -199,6 +234,22 @@ namespace SushiAI
                                                            std::string_view context)
         {
             return make_c3k2_of<C3k>(inputs, attributes, context, K_INNER_C3K, &c3k_of);
+        }
+
+        Result<std::unique_ptr<NN::Node>> make_c3k2_of_bottleneck_psa(
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context)
+        {
+            SA_TRY_ASSIGN(const C3k2Row row,
+                          read_row(inputs, attributes, context, K_INNER_BOTTLENECK_PSA));
+
+            // PSABlock throws on a width or head count its attention refuses; refuse them here.
+            const int64_t heads = psa_head_count(row.hidden);
+            SA_FAIL_IF(row.hidden % heads != 0 || row.hidden / heads < K_SMALLEST_PSA_HEAD_WIDTH,
+                       StatusCode::InvalidDescription,
+                       "{} 'hidden' must split into {} parts of at least {} channels; it is {}",
+                       context, heads, K_SMALLEST_PSA_HEAD_WIDTH, row.hidden);
+
+            return build_c3k2_of(row, &bottleneck_psa_of);
         }
 
         Result<std::unique_ptr<NN::Node>> make_c3k2_node(NN::ShapeSpan inputs,

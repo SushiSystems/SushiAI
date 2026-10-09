@@ -36,6 +36,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/conv2d.hpp>
+#include <SushiAI/nn/depthwise_conv2d.hpp>
 #include <SushiAI/nn/identity.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node.hpp>
@@ -114,9 +115,18 @@ namespace SushiAI
         /** @brief Names the Ultralytics Conv built with act=False, which ends at the norm. */
         using ConvLinear = ConvNorm<NN::Conv2d, NN::Identity>;
 
+        /** @brief Names the Ultralytics DWConv: depthwise convolution, batch norm, SiLU. */
+        using DWConv = ConvNorm<NN::DepthwiseConv2d, NN::SiLU>;
+
+        /** @brief Names the Ultralytics DWConv built with act=False, which ends at the norm. */
+        using DWConvLinear = ConvNorm<NN::DepthwiseConv2d, NN::Identity>;
+
         static_assert(NN::TraceModule<Conv>, "Conv must satisfy the TraceModule contract");
         static_assert(NN::TraceModule<ConvLinear>,
                       "ConvLinear must satisfy the TraceModule contract");
+        static_assert(NN::TraceModule<DWConv>, "DWConv must satisfy the TraceModule contract");
+        static_assert(NN::TraceModule<DWConvLinear>,
+                      "DWConvLinear must satisfy the TraceModule contract");
 
         /**
          * @brief Builds a Conv node from "filters", with optional "kernel" and "stride", 1 when

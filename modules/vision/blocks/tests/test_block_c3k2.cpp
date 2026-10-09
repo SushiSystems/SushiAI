@@ -21,7 +21,7 @@
 
 /**
  * @file test_block_c3k2.cpp
- * @brief Tests C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factories.
+ * @brief Tests C3k2's trace, its state names against YOLO26n rows 2, 6 and 22, and its factories.
  * @author Mustafa Garip
  */
 
@@ -235,6 +235,60 @@ namespace
         };
     }
 
+    /** @brief Lists the 45 records MANIFEST.json holds under model.22, from line 5757. */
+    std::vector<std::string> row22_records()
+    {
+        return {
+            record("model.22.cv1.conv.weight", Shape{256, 1, 1, 384}, StateKind::Parameter),
+            record("model.22.cv1.bn.weight", Shape{256}, StateKind::Parameter),
+            record("model.22.cv1.bn.bias", Shape{256}, StateKind::Parameter),
+            record("model.22.cv1.bn.running_mean", Shape{256}, StateKind::Buffer),
+            record("model.22.cv1.bn.running_var", Shape{256}, StateKind::Buffer),
+            record("model.22.cv2.conv.weight", Shape{256, 1, 1, 384}, StateKind::Parameter),
+            record("model.22.cv2.bn.weight", Shape{256}, StateKind::Parameter),
+            record("model.22.cv2.bn.bias", Shape{256}, StateKind::Parameter),
+            record("model.22.cv2.bn.running_mean", Shape{256}, StateKind::Buffer),
+            record("model.22.cv2.bn.running_var", Shape{256}, StateKind::Buffer),
+            record("model.22.m.0.0.cv1.conv.weight", Shape{64, 3, 3, 128}, StateKind::Parameter),
+            record("model.22.m.0.0.cv1.bn.weight", Shape{64}, StateKind::Parameter),
+            record("model.22.m.0.0.cv1.bn.bias", Shape{64}, StateKind::Parameter),
+            record("model.22.m.0.0.cv1.bn.running_mean", Shape{64}, StateKind::Buffer),
+            record("model.22.m.0.0.cv1.bn.running_var", Shape{64}, StateKind::Buffer),
+            record("model.22.m.0.0.cv2.conv.weight", Shape{128, 3, 3, 64}, StateKind::Parameter),
+            record("model.22.m.0.0.cv2.bn.weight", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.0.cv2.bn.bias", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.0.cv2.bn.running_mean", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.0.cv2.bn.running_var", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.1.attn.qkv.conv.weight", Shape{256, 1, 1, 128},
+                   StateKind::Parameter),
+            record("model.22.m.0.1.attn.qkv.bn.weight", Shape{256}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.qkv.bn.bias", Shape{256}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.qkv.bn.running_mean", Shape{256}, StateKind::Buffer),
+            record("model.22.m.0.1.attn.qkv.bn.running_var", Shape{256}, StateKind::Buffer),
+            record("model.22.m.0.1.attn.proj.conv.weight", Shape{128, 1, 1, 128},
+                   StateKind::Parameter),
+            record("model.22.m.0.1.attn.proj.bn.weight", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.proj.bn.bias", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.proj.bn.running_mean", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.1.attn.proj.bn.running_var", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.1.attn.pe.conv.weight", Shape{3, 3, 128}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.pe.bn.weight", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.pe.bn.bias", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.1.attn.pe.bn.running_mean", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.1.attn.pe.bn.running_var", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.1.ffn.0.conv.weight", Shape{256, 1, 1, 128}, StateKind::Parameter),
+            record("model.22.m.0.1.ffn.0.bn.weight", Shape{256}, StateKind::Parameter),
+            record("model.22.m.0.1.ffn.0.bn.bias", Shape{256}, StateKind::Parameter),
+            record("model.22.m.0.1.ffn.0.bn.running_mean", Shape{256}, StateKind::Buffer),
+            record("model.22.m.0.1.ffn.0.bn.running_var", Shape{256}, StateKind::Buffer),
+            record("model.22.m.0.1.ffn.1.conv.weight", Shape{128, 1, 1, 256}, StateKind::Parameter),
+            record("model.22.m.0.1.ffn.1.bn.weight", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.1.ffn.1.bn.bias", Shape{128}, StateKind::Parameter),
+            record("model.22.m.0.1.ffn.1.bn.running_mean", Shape{128}, StateKind::Buffer),
+            record("model.22.m.0.1.ffn.1.bn.running_var", Shape{128}, StateKind::Buffer),
+        };
+    }
+
     /** @brief Builds row 2 of YOLO26n: C3k2(32, 64, 16) over one Bottleneck(16, 16, 8). */
     C3k2<Bottleneck> make_row2()
     {
@@ -404,14 +458,69 @@ TEST(Unit_BlockC3k2, StateMatchesManifestRow6)
     EXPECT_EQ(walk(block, "model.6"), row6_records());
 }
 
-/** @brief Tests that K_C3K2_INNER lists the bottleneck and the C3k, each with a factory. */
-TEST(Unit_BlockC3k2, TheInnerTableListsBottleneckAndC3k)
+/**
+ * @brief Tests that K_C3K2_INNER lists the bottleneck, the C3k and the bottleneck_psa pair,
+ *        each with a factory.
+ */
+TEST(Unit_BlockC3k2, TheInnerTableListsEachInnerBlockWithItsFactory)
 {
-    ASSERT_EQ(Vision::Blocks::K_C3K2_INNER.size(), 2u);
+    ASSERT_EQ(Vision::Blocks::K_C3K2_INNER.size(), 3u);
     EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[0].name, "bottleneck");
     EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[0].make, &Vision::Blocks::make_c3k2_of_bottleneck);
     EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[1].name, "c3k");
     EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[1].make, &Vision::Blocks::make_c3k2_of_c3k);
+    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[2].name, "bottleneck_psa");
+    EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[2].make, &Vision::Blocks::make_c3k2_of_bottleneck_psa);
+}
+
+/**
+ * @brief Tests that make_c3k2_node builds row 22 from its file row, whose inner block is a
+ *        Bottleneck and a PSABlock: the port's shape, the 45 manifest records, the 18 buffer
+ *        updates and the row's norm options on all nine norms.
+ */
+TEST(Unit_BlockC3k2, TheFactoryBuildsRow22)
+{
+    const Shape input{20, 20, 384};
+    const Config::Value attributes = attributes_of(
+        R"({"filters": 256, "hidden": 128, "repeats": 1, "inner": "bottleneck_psa",
+            "shortcut": true, "bn_epsilon": 0.001, "bn_momentum": 0.03})");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_c3k2_node(one_input(input), attributes,
+                                                           K_CONTEXT));
+    ASSERT_EQ(node->ports().size(), 1u);
+    EXPECT_EQ(node->ports()[0].shape, (Shape{20, 20, 256}));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 384}, "x");
+    BufferUpdateList list;
+    std::vector<Graph::ValueId> outputs;
+    SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
+
+    ASSERT_EQ(outputs.size(), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 5u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 4u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 8u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 3u);
+    EXPECT_EQ(list.updates().size(), 18u);
+    expect_norm_options(graph, list, K_YOLO_NORM);
+    EXPECT_EQ(walk(*node, "model.22"), row22_records());
+}
+
+/**
+ * @brief Tests that the factory refuses a hidden width whose head count does not divide it:
+ *        200 channels take max(200 / 64, 1) = 3 heads, and 3 does not divide 200.
+ */
+TEST(Unit_BlockC3k2, TheFactoryRefusesAPsaHeadCountThatDoesNotDivideHidden)
+{
+    const Shape input{4, 4, 192};
+    const Config::Value attributes =
+        attributes_of(R"({"filters": 256, "hidden": 200, "inner": "bottleneck_psa"})");
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), attributes, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'hidden'", "must split into 3 parts");
 }
 
 /**
@@ -554,12 +663,12 @@ TEST(Unit_BlockC3k2, TheFactoryRefusesAnInnerBlockItDoesNotList)
 {
     const Shape input{4, 4, 32};
     const Config::Value unlisted =
-        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "bottleneck_psa"})");
+        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c2psa"})");
     const Config::Value numbered = attributes_of(R"({"filters": 64, "hidden": 16, "inner": 2})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), unlisted, K_CONTEXT),
-                      StatusCode::InvalidDescription, "layer 2 'c3k2'", "'bottleneck_psa'",
-                      "bottleneck, c3k");
+                      StatusCode::InvalidDescription, "layer 2 'c3k2'", "'c2psa'",
+                      "bottleneck, c3k, bottleneck_psa");
     SA_EXPECT_FAILURE(Vision::Blocks::make_c3k2_node(one_input(input), numbered, K_CONTEXT),
                       StatusCode::InvalidDescription, "'inner'", "string");
 }
@@ -617,4 +726,22 @@ TEST(Unit_BlockC3k2, AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock)
     SA_EXPECT_OK(
         Vision::Blocks::make_c3k2_of_bottleneck(one_input(input), of_bottleneck, K_CONTEXT));
     SA_EXPECT_OK(Vision::Blocks::make_c3k2_of_c3k(one_input(input), of_c3k, K_CONTEXT));
+}
+
+/**
+ * @brief Tests that the bottleneck_psa factory refuses a row whose "inner" names the C3k, and
+ *        accepts a row that names its own block.
+ */
+TEST(Unit_BlockC3k2, TheBottleneckPsaFactoryRefusesARowThatNamesAnotherInnerBlock)
+{
+    const Shape input{4, 4, 32};
+    const Config::Value of_c3k = attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c3k"})");
+    const Config::Value of_psa =
+        attributes_of(R"({"filters": 64, "hidden": 16, "inner": "bottleneck_psa"})");
+
+    SA_EXPECT_FAILURE(
+        Vision::Blocks::make_c3k2_of_bottleneck_psa(one_input(input), of_c3k, K_CONTEXT),
+        StatusCode::InvalidDescription, "'inner' is 'c3k'", "builds 'bottleneck_psa'");
+    SA_EXPECT_OK(
+        Vision::Blocks::make_c3k2_of_bottleneck_psa(one_input(input), of_psa, K_CONTEXT));
 }
