@@ -1,9 +1,8 @@
 # Model graph engine units: report
 
 Covers waves 1 to 4 of [`PLAN.md`](PLAN.md), written on 2026-10-09 by workflow
-`wf_3f76e1ed-de3`. Nothing in these waves has been built or run. Every `.cpp` file passed
-`clang++ -fsyntax-only` with the flags of its `compile_commands.json` entry, one file at a time;
-the templates in `steps.hpp` were not instantiated by any of those checks.
+`wf_3f76e1ed-de3`. The waves were written without a build; section "Build and run" records the build and the runs
+that followed.
 
 ## Dispatches
 
@@ -60,20 +59,25 @@ gradients, lowering with the optimizer and then the buffer updates.
   (`tools/contract/site_classes.tsv`) and moved two rows to their new lines.
 - `check_source_comments.py`, `check_contract.py` and `check_docs_layout.py` print no finding.
 
-## What the first build and run must confirm
+## Build and run, 2026-10-09
 
-1. Everything compiles and links, including the instantiations of `steps.hpp`.
-2. `test_steps.cpp:93-100`: the golden of 17 operations was derived by reading the passes, not
-   recorded from a run.
-3. Two compiled plans over one storage (plan section 12): the second case of
-   `test_evaluation_step.cpp` settles it. If it fails, the fallback of SPEC lines 1022-1025
-   adds a copy between the steps and keeps every signature.
-4. The probe case of `test_training.cpp` assumes `ModelState::attach` skips a buffer no leaf
-   reads. The wave-4 reviewer did not read `attach`.
-5. `AnImageLayoutYieldsRankFourBatches` reports skipped where the MNIST files are absent.
-6. The same run is the first for commit `9e9f8a7`: `record_and_run`, the memory plan without
-   `values_needing_own_allocation`, the 14 lowering cases and the tail tolerance of the
-   learning curve.
+Built against SushiBLAS `494ff8e` and run on the RTX 3080 Ti with
+`sa run sushiai_tests -- --gtest_brief=1`. The last of four runs: 1878 tests in 131 suites,
+1877 passed, 1 skipped, 0 failed, 35 s. The first build of the four waves had no error. The same
+runs were the first for commit `9e9f8a7`.
+
+| Run | Result | Cause | Repair |
+| --- | --- | --- | --- |
+| 1 | Two cases of `Integration_Training` read an accuracy of 0.31 and 0.125 | `9e9f8a7` removed `Lowering::values_needing_own_allocation`, which had kept the logits out of the arena as a side effect; the planner then packed them under later values | A training graph pins its loss and outputs, the pool form of `bind_parameters` passes `built.pinned` to the planner, and `EvaluationStep` pins its outputs (`steps.cpp`, `trainer.cpp`, `evaluation_step.cpp`) |
+| 2 | Fatal in `bind_buffer_updates`: a source was not bound | Nothing materialised an update's source before the step was compiled | The state form of `bind_parameters` materialises the sources (`trainer.cpp`) |
+| 3 | `APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm` saw three parameters stay still | The case's expectation: with a zeroed classifier the first gradient reaches `3.weight` alone | The case checks `3.weight` (`test_training.cpp`) |
+| 4 | All passed | | |
+
+Confirmed by the runs: the instantiations of `steps.hpp` compile; the 17-operation golden of
+`test_steps.cpp` holds; two compiled plans work over one storage; `ModelState::attach` skips a
+buffer no leaf reads; the 14 lowering cases and the tail tolerance of the learning curve pass.
+`AnImageLayoutYieldsRankFourBatches` is the skipped case: the MNIST files are absent, so the
+`image` layout has not been read from a file.
 
 ## Open
 

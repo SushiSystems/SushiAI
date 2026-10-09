@@ -256,6 +256,10 @@ namespace SushiAI
                     if (built.loss_scale != Graph::K_NO_VALUE)
                         observed.push_back(built.loss_scale);
                     append_outputs(built.outputs, observed);
+
+                    // The host reads the loss and the outputs after the run.
+                    built.pinned.push_back(built.spec.loss);
+                    append_outputs(built.outputs, built.pinned);
                     return Status();
                 }));
                 SA_TRY(retain(built.updates, observed, built.pinned));

@@ -60,9 +60,17 @@ namespace SushiAI
             // The plan is adopted before any leaf or value of the graph is materialised.
             if (!pool.has_plan())
             {
+                // The host reads every output after the run, so none is packed.
                 SA_TRY_ASSIGN(Graph::MemoryPlan plan, NN::Detail::bridge_throwing([&traced]()
                 {
-                    return Graph::MemoryPlan::build(traced.graph);
+                    std::vector<Graph::ValueId> pinned;
+                    for (const NN::ModelOutputs::Entry& entry : traced.outputs.all())
+                        pinned.push_back(entry.second);
+
+                    Graph::PlanOptions options;
+                    options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
+                                                                              pinned.size());
+                    return Graph::MemoryPlan::build(traced.graph, options);
                 }));
                 SA_TRY(pool.adopt(std::move(plan)));
             }
