@@ -73,6 +73,7 @@ set(SUSHIAI_SOURCES
     nn/layer_node.cpp
     nn/model_graph.cpp
     nn/model_outputs.cpp
+    nn/model_state.cpp
     nn/node_registry.cpp
     nn/silu.cpp
     nn/trace.cpp
@@ -132,9 +133,16 @@ set(SUSHIAI_SOURCES
     eager/region_signature.cpp
 
     io/checkpoint_format.cpp
+    io/import_weights.cpp
+    io/checkpoint.cpp
 
     train/objective.cpp
+    train/steps.cpp
+    train/buffer_update_recorder.cpp
     train/trainer.cpp
+    train/training_step.cpp
+    train/feed.cpp
+    train/evaluation_step.cpp
 )
 
 add_library(sushiai STATIC ${SUSHIAI_SOURCES})

@@ -91,8 +91,8 @@ namespace
         };
 
         // Tracing, the loss and differentiation are IR-to-IR; no device work happens yet.
-        sa::Train::TrainingGraph built =
-            sa::Train::build_classifier(model, batch, features, classes);
+        SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
+                      sa::Train::build_classifier(model, batch, features, classes));
 
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,

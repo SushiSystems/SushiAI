@@ -206,7 +206,8 @@ namespace
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+        SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                                Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
         TensorPool pool(engine);
         SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -459,7 +460,8 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -491,7 +493,8 @@ TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThe
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,

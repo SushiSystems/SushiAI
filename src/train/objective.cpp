@@ -29,6 +29,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/registry.hpp>
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/nn/loss.hpp>
 
 namespace SushiAI
@@ -77,9 +78,14 @@ namespace SushiAI
 
         Graph::ValueId CrossEntropyObjective::loss(const Graph::GraphBuilder& builder,
                                                    const Graph::Graph& graph,
-                                                   Graph::ValueId output,
+                                                   const NN::ModelOutputs& outputs,
                                                    const ObjectiveLeaves& leaves) const
         {
+            // Cross-entropy reads exactly one output; a model with several must be refused.
+            const Result<Graph::ValueId> single = outputs.only();
+            SA_THROW_IF(!single.has_value(), "{}", single.status().message());
+            const Graph::ValueId output = single.value();
+
             // By value: every emission below can reallocate the value vector.
             const Shape output_shape = graph.value(output).shape;
             const Shape expected_shape{batch_, classes_};

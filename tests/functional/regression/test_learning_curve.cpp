@@ -82,7 +82,8 @@ namespace
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-        Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+        SA_TRY_ASSIGN(Train::TrainingGraph built,
+                      Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots, Train::bind_parameters(built, pool));

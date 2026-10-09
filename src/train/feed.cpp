@@ -1,0 +1,81 @@
+/**************************************************************************/
+/* feed.cpp                                                               */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file feed.cpp
+ * @brief Implements check_feed.
+ * @author Mustafa Garip
+ */
+
+#include <SushiAI/train/feed.hpp>
+
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
+#include <SushiBLAS/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/nn/throwing_bridge.hpp>
+
+namespace SushiAI
+{
+    namespace Train
+    {
+        namespace
+        {
+            /**
+             * @brief Returns the extents of @p tensor as a Shape.
+             * @throws Error for an extent that is not positive or a rank above K_MAX_RANK.
+             */
+            Shape shape_of(const SushiBLAS::Tensor& tensor)
+            {
+                return Shape(SushiRuntime::span<const int64_t>(
+                    tensor.shape.data(), static_cast<std::size_t>(tensor.rank)));
+            }
+        } // namespace
+
+        Status check_feed(const SushiBLAS::Tensor& source, const SushiBLAS::Tensor& destination,
+                          std::string_view what)
+        {
+            SA_TRY_ASSIGN(const Shape fed, NN::Detail::bridge_throwing([&source]()
+            {
+                return shape_of(source);
+            }));
+            SA_TRY_ASSIGN(const Shape expected, NN::Detail::bridge_throwing([&destination]()
+            {
+                return shape_of(destination);
+            }));
+
+            SA_FAIL_IF(fed != expected, StatusCode::Incompatible,
+                       "The batch's {} have shape {} but the compiled step expects {}",
+                       what, fed.to_string(), expected.to_string());
+            SA_FAIL_IF(source.dtype != destination.dtype, StatusCode::Incompatible,
+                       "The batch's {} are {} but the compiled step expects {}",
+                       what, dtype_name(source.dtype), dtype_name(destination.dtype));
+
+            return Status();
+        }
+
+    } // namespace Train
+} // namespace SushiAI

@@ -1,0 +1,327 @@
+/**************************************************************************/
+/* steps.hpp                                                              */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file steps.hpp
+ * @brief Declares the builders that trace a model into a training, probe or evaluation graph.
+ * @author Mustafa Garip
+ */
+
+#pragma once
+
+#include <cstdint>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+#include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/seam.hpp>
+#include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/precision.hpp>
+#include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/throwing_bridge.hpp>
+#include <SushiAI/nn/trace.hpp>
+#include <SushiAI/train/objective.hpp>
+#include <SushiAI/train/training_graph.hpp>
+
+namespace SushiAI
+{
+    namespace Train
+    {
+        /** @brief States how a step's graph is built. */
+        struct GraphOptions
+        {
+            /** @brief Names the element type of the input leaf. */
+            DType dtype = DType::Float32;
+
+            /** @brief Configures the fusion pass; its observed list is added to the step's. */
+            Graph::FusionOptions fusion{};
+
+            /** @brief Points at the precision policy of the cast pass, or null for uniform. */
+            const Graph::PrecisionPolicy* precision = nullptr;
+
+            /** @brief Asks for the loss-scale leaf; read by build_training_graph() only. */
+            bool loss_scaling = false;
+        };
+
+        /** @brief Holds one forward-only graph and what a step reads from it. */
+        struct TracedStep
+        {
+            /** @brief Holds the forward IR. */
+            Graph::Graph graph;
+
+            /** @brief Names the minibatch input leaf, rewritten per step. */
+            Graph::ValueId input = Graph::K_NO_VALUE;
+
+            /** @brief Holds every value the model published, by name. */
+            NN::ModelOutputs outputs;
+
+            /** @brief Holds what the cast pass converted, and where. */
+            Graph::CastReport casts;
+
+            /** @brief Holds what the fusion pass did to @c graph, and what it refused. */
+            Graph::FusionReport fusion;
+        };
+
+        /**
+         * @brief Returns [batch, sample...].
+         * @return InvalidDescription for a batch that is not positive or a sample of
+         *         K_MAX_RANK extents.
+         */
+        [[nodiscard]] Result<Shape> batch_shape(int64_t batch, const Shape& sample);
+
+        /**
+         * @brief Appends the source of every update to both lists.
+         * @return OutOfMemory when a list cannot grow.
+         */
+        [[nodiscard]] Status retain(const NN::BufferUpdateList& updates,
+                                    std::vector<Graph::ValueId>& observed,
+                                    std::vector<Graph::ValueId>& pinned);
+
+        namespace Detail
+        {
+            /** @brief Detects trace(const Trace&, ValueId) returning Result<ModelOutputs> on M. */
+            template<typename M, typename = void>
+            struct TracesToOutputs : std::false_type
+            {
+
+            };
+
+            /** @brief Holds for an M whose trace publishes its outputs by name. */
+            template<typename M>
+            struct TracesToOutputs<M, std::enable_if_t<std::is_same<
+                decltype(std::declval<M&>().trace(
+                    std::declval<const NN::Trace&>(),
+                    std::declval<Graph::ValueId>())),
+                Result<NN::ModelOutputs>>::value>>
+                : std::true_type
+            {
+
+            };
+
+            /** @brief Declares the input leaf of a step over @p batch_shape and returns it. */
+            [[nodiscard]] Result<Graph::ValueId> declare_input(const Graph::GraphBuilder& builder,
+                                                               const Shape& batch_shape,
+                                                               DType dtype);
+
+            /** @brief Returns a set that holds @p id under NN::K_SINGLE_PORT_NAME. */
+            [[nodiscard]] Result<NN::ModelOutputs> single_output(Graph::ValueId id);
+
+            /** @brief Records the leaves @p objective declares in @c built.leaves. */
+            [[nodiscard]] Status declare_objective(TrainingGraph& built,
+                                                   const Graph::GraphBuilder& builder,
+                                                   const Objective& objective);
+
+            /**
+             * @brief Appends the loss over @c built.outputs and fills the rest of @c built.spec.
+             * @pre @c built.outputs holds what the model published.
+             */
+            [[nodiscard]] Status add_loss(TrainingGraph& built,
+                                          const Graph::GraphBuilder& builder,
+                                          const Objective& objective);
+
+            /**
+             * @brief Differentiates the loss, then runs the cast pass and the fusion pass.
+             * @pre add_loss() succeeded and @c built.parameters lists the model's parameters.
+             * @return InvalidDescription naming a parameter that has no leaf in the graph.
+             */
+            [[nodiscard]] Status differentiate_and_finish(TrainingGraph& built,
+                                                          const Graph::GraphBuilder& builder,
+                                                          const GraphOptions& options);
+
+            /**
+             * @brief Runs the cast pass and the fusion pass over a forward-only graph.
+             * @pre @c step.input and @c step.outputs are set.
+             */
+            [[nodiscard]] Status finish_traced_step(TracedStep& step, const GraphOptions& options);
+
+            /**
+             * @brief Traces @p model once and returns what it published.
+             *
+             * A model whose trace returns its outputs is called as it is. Any other Traceable
+             * goes through NN::trace_layer and publishes one value as NN::K_SINGLE_PORT_NAME.
+             * @return The failure of the model, or the one a layer recorded on @p trace.
+             */
+            template<typename M>
+            [[nodiscard]] Result<NN::ModelOutputs> trace_outputs(M& model, const NN::Trace& trace,
+                                                                 Graph::ValueId input)
+            {
+                if constexpr (TracesToOutputs<M>::value)
+                {
+                    return model.trace(trace, input);
+                }
+                else
+                {
+                    SA_TRY_ASSIGN(const Graph::ValueId traced,
+                                  NN::Detail::bridge_throwing([&model, &trace, input]()
+                    {
+                        return NN::trace_layer(model, trace, input);
+                    }));
+                    SA_TRY(trace.status());
+
+                    return single_output(traced);
+                }
+            }
+
+            /**
+             * @brief Lists every declared parameter of @p model with its leaf in @p graph.
+             * @return The bindings in walk order; a parameter with no leaf holds K_NO_VALUE.
+             */
+            template<typename M>
+            [[nodiscard]] Result<std::vector<ParameterBinding>> list_parameters(
+                M& model, const Graph::Graph& graph)
+            {
+                std::vector<ParameterBinding> parameters;
+                SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+                                                [&]() -> Status
+                {
+                    NN::for_each_parameter(model, [&](const std::string& name,
+                                                      NN::Parameter& parameter)
+                    {
+                        parameters.push_back(ParameterBinding{name, parameter.id_in(graph),
+                                                              Graph::K_NO_VALUE});
+                    });
+                    return Status();
+                }));
+
+                return Result<std::vector<ParameterBinding>>(std::move(parameters));
+            }
+
+        } // namespace Detail
+
+        /**
+         * @brief Traces @p model in Training mode, appends the loss and differentiates it.
+         * @param batch_shape The extents of the input leaf, batch first.
+         * @return The graph after the cast pass and the fusion pass, or the failure of the
+         *         model, the objective or a pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TrainingGraph> build_training_graph(M& model,
+                                                                 const Objective& objective,
+                                                                 const Shape& batch_shape,
+                                                                 GraphOptions options = {})
+        {
+            TrainingGraph built;
+            const Graph::GraphBuilder builder(built.graph);
+
+            SA_TRY_ASSIGN(built.spec.inputs,
+                          Detail::declare_input(builder, batch_shape, options.dtype));
+
+            // The objective's leaves precede the model's nodes, which fixes their value ids.
+            SA_TRY(Detail::declare_objective(built, builder, objective));
+
+            {
+                const NN::Trace trace = NN::Trace::training(builder, built.updates);
+                SA_TRY_ASSIGN(built.outputs,
+                              Detail::trace_outputs(model, trace, built.spec.inputs));
+            }
+
+            SA_TRY(Detail::add_loss(built, builder, objective));
+            SA_TRY_ASSIGN(built.parameters, Detail::list_parameters(model, built.graph));
+            SA_TRY(Detail::differentiate_and_finish(built, builder, options));
+
+            return Result<TrainingGraph>(std::move(built));
+        }
+
+        /**
+         * @brief Traces @p model in Training mode with every buffer update dropped.
+         * @param batch_shape The extents of the input leaf, batch first.
+         * @return The forward graph after the cast pass and the fusion pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TracedStep> build_probe_graph(M& model, const Shape& batch_shape,
+                                                           GraphOptions options = {})
+        {
+            TracedStep step;
+            const Graph::GraphBuilder builder(step.graph);
+
+            SA_TRY_ASSIGN(step.input, Detail::declare_input(builder, batch_shape, options.dtype));
+
+            {
+                const NN::Trace trace = NN::Trace::training(builder, NN::discard_updates());
+                SA_TRY_ASSIGN(step.outputs, Detail::trace_outputs(model, trace, step.input));
+            }
+
+            SA_TRY(Detail::finish_traced_step(step, options));
+
+            return Result<TracedStep>(std::move(step));
+        }
+
+        /**
+         * @brief Traces @p model in Evaluation mode.
+         * @param batch_shape The extents of the input leaf, batch first.
+         * @return The forward graph after the cast pass and the fusion pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TracedStep> build_evaluation_graph(M& model, const Shape& batch_shape,
+                                                                GraphOptions options = {})
+        {
+            TracedStep step;
+            const Graph::GraphBuilder builder(step.graph);
+
+            SA_TRY_ASSIGN(step.input, Detail::declare_input(builder, batch_shape, options.dtype));
+
+            {
+                const NN::Trace trace = NN::Trace::evaluation(builder);
+                SA_TRY_ASSIGN(step.outputs, Detail::trace_outputs(model, trace, step.input));
+            }
+
+            SA_TRY(Detail::finish_traced_step(step, options));
+
+            return Result<TracedStep>(std::move(step));
+        }
+
+        /**
+         * @brief Traces @p module into a cross-entropy training graph over [batch, features].
+         * @param classes How many classes the one-hot target leaf spans.
+         * @return What build_training_graph() returns for a CrossEntropyObjective.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TrainingGraph> build_classifier(
+            M& module, int64_t batch, int64_t features, int64_t classes,
+            DType dtype = DType::Float32, Graph::FusionOptions fusion = {},
+            const Graph::PrecisionPolicy* precision = nullptr, bool loss_scaling = false)
+        {
+            const CrossEntropyObjective objective(batch, classes, dtype);
+
+            GraphOptions options;
+            options.dtype = dtype;
+            options.fusion = fusion;
+            options.precision = precision;
+            options.loss_scaling = loss_scaling;
+
+            SA_TRY_ASSIGN(const Shape inputs, NN::Detail::bridge_throwing([batch, features]()
+            {
+                return Shape{batch, features};
+            }));
+
+            return build_training_graph(module, objective, inputs, options);
+        }
+
+    } // namespace Train
+} // namespace SushiAI

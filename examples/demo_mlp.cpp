@@ -624,9 +624,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
         const bool scaling = settings.loss_scale > 0.0;
 
-        sa::Train::TrainingGraph built = sa::Train::build_classifier(
-            model, settings.batch_size, features, classes, sa::DType::Float32, fusion,
-            precision, scaling);
+        SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
+                      sa::Train::build_classifier(model, settings.batch_size, features, classes,
+                                                  sa::DType::Float32, fusion, precision, scaling));
 
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
