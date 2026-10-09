@@ -213,12 +213,18 @@ if(SA_BUILD_VISION)
         common/test_main.cpp
         ${SUSHIAI_VISION_MODULE_TESTS}
 
-        common/darknet_reference.cpp
+        vision_support/darknet_forward.cpp
+        vision_support/darknet_reference.cpp
         integration/test_anchor_training_step.cpp
         integration/test_darknet_decode.cpp
         integration/test_darknet_store.cpp
+        integration/test_darknet_yolov3_forward.cpp
         integration/test_darknet_yolov3_tiny_forward.cpp
         integration/test_darknet_yolov3_tiny_layers.cpp
+        integration/test_darknet_yolov4_forward.cpp
+        integration/test_darknet_yolov4_tiny_forward.cpp
+        integration/test_darknet_yolov7_forward.cpp
+        integration/test_darknet_yolov7_tiny_forward.cpp
         integration/test_head_delta_loss.cpp
         integration/test_yolo26_forward.cpp
     )

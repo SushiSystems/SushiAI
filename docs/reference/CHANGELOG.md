@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-09 — tests: Added forward parity against Darknet for YOLOv3, v4-tiny, v4, v7-tiny and v7, and a layer-by-layer comparison over a table of models (`tests/vision_support/darknet_forward.hpp`, `test_darknet_yolov7_forward.cpp`).
+- 2026-10-09 — vision: Added the IoU box gradient in an analytic and a Darknet-compatible form, and plan_anchors, the one call of the automatic anchoring (`detect/iou_gradient.hpp`, `detect/anchor/anchor_plan.hpp`).
 - 2026-10-09 — vision: Added the cfg and weights importer of the Darknet-era YOLO models, with batch norm folded or kept separate (`vision/importers/`, `darknet_config.hpp`, `darknet_weights.hpp`, `darknet_model.hpp`).
 - 2026-10-09 — vision: Added the anchor-box path: head decode in both codings, suppression criteria, the training delta and the automatic anchoring (`detect/anchor/`, `suppression_criterion.hpp`, `anchor_clustering.hpp`).
 - 2026-10-09 — vision: Added the training module with the delta loss, the anchor objective and its step (`vision/training/`, `head_delta_loss.hpp`, `anchor_objective.hpp`, `anchor_training_step.hpp`).

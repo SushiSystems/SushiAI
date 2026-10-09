@@ -1,6 +1,6 @@
 # Darknet-era YOLO: reference run and source findings
 
-**Status:** Forward and `[yolo]` training references exist for all six models; every layer of `yolov3-tiny` is dumped; one training step under batch statistics exists for `yolov3-tiny` and `yolov7-tiny`. Sections 8 to 14 are the second pass, section 15 the implementation so far, sections 16 to 24 the third pass.
+**Status:** Forward and `[yolo]` training references exist for all six models; every layer of `yolov3-tiny` is dumped; one training step under batch statistics exists for `yolov3-tiny` and `yolov7-tiny`. Sections 8 to 14 are the second pass, section 15 the implementation so far, sections 16 to 24 the third pass, sections 25 to 29 the fourth. Section 25 supersedes every inference-mode dump of `yolov4`, `yolov7` and `yolov7-tiny` taken before it: the `plain_pool` directories are the reference for those three.
 
 This report describes what AlexeyAB's Darknet does, in words and formulas, so that the behaviour can be implemented from scratch. It quotes no Darknet code. File, function and line pointers refer to commit `59596d7880f6504768df41d6daa586f5cb2b932f` (2025-12-15) of `https://github.com/AlexeyAB/darknet`, paths relative to the clone's root. The clone, the build and the patch live in `D:\Projects\.sushisystems\models\darknet\_darknet\` and are deleted with it; nothing from them is in this repository.
 
@@ -1294,3 +1294,260 @@ Three things the table shows that are easy to miss: the head order is coarse-to-
 - `out/SHA256SUMS.txt` now lists 994 files.
 - `_darknet/out` is 569 MB; `_darknet` is 591 MB (`src` 17 MB, `build` 5.5 MB), inside the 600 MB budget with 9 MB to spare. Another pass needs `out` moved first.
 - The patch is 377 diff lines (334 added), SHA-256 `5e721e000eb370bf146840b39671ee19e964744169753545009fda44a2cdeba8`. New switches: `DARKNET_DUMP_ACTIVATION_LAYER=<k>` and `DARKNET_TRAIN_STEP_NO_FIRST_OUTPUT`. With them unset the earlier files are written unchanged: the 728 files of the second pass were re-checked after a rerun of `yolov4`, and only its `run_log.txt` (a timing) differed.
+
+## 25. A defect in Darknet's CPU max pooling, and what it does to the references
+
+Section 3.4 said inference uses a second pooling implementation "with the same offset rule". The offset rule is the same; the border handling is not. This section corrects that.
+
+Where. `src/maxpool_layer.c`, `forward_maxpool_layer`, line 276: in inference, with equal strides, the layer calls the routine in `src/gemm.c`, `forward_maxpool_layer_avx`, line 1870. For stride 1 on a CPU with AVX that routine handles eight output columns at a time (lines 1886-1904), then finishes the row one column at a time.
+
+What goes wrong. A block of eight starts at output column `j0 = 0, 8, 16, ...` and runs while `j0 < out_w - 8 - (size - 1)`. Inside a block, each tap of the window is tested for being inside the input once, for the block's first column, and a tap that fails is skipped for all eight columns. With `p = padding / 2` columns of padding on the left:
+
+- In the block at `j0 = 0`, taps `0 .. p - 1` are outside the input for column 0, so they are skipped for columns 1 to 7 as well, where some of them are inside.
+- Output column `j`, for `1 <= j <= 7`, therefore reads input columns `j .. j + size - 1 - p` instead of `j - p .. j + size - 1 - p`. Rows are handled correctly.
+- Column 0 and every column from 8 on are correct. Later blocks start inside the input, and the right border is handled by the one-column loop.
+
+When it triggers: stride 1, inference, AVX available, and `out_w > size + 7`, so that at least one block runs.
+
+| Model | SPP map | size 5 | size 9 | size 13 |
+| --- | --- | --- | --- | --- |
+| `yolov7-tiny` (416) | 13 x 13 | wrong in columns 1-7 | correct | correct |
+| `yolov4` (608) | 19 x 19 | wrong in columns 1-7 | wrong in columns 1-7 | correct |
+| `yolov7` (640) | 20 x 20 | wrong in columns 1-7 | wrong in columns 1-7 | correct |
+| `yolov3-tiny` (416) | 13 x 13, size 2 | correct: its left padding is 0, so no tap is ever outside on the left | | |
+
+`yolov3` and `yolov4-tiny` have no stride-1 pool. The size-2, stride-2 pools take another branch and recompute exactly.
+
+Measured on the dump of `yolov7-tiny` (`_darknet/check_layers.py`), each pool recomputed from its dumped input with the rule of section 3.4:
+
+| Layer | Largest difference, default path | Largest difference, plain path |
+| --- | --- | --- |
+| 36, size 5 | 3.697319746 (9110 of 43 264 cells differ, all in columns 1 to 7; each of those columns equals the maximum over input columns `j .. j + 2` and rows `i - 2 .. i + 2`) | 0 |
+| 38, size 9 | 0 | 0 |
+| 40, size 13 | 0 | 0 |
+| 9, size 2, stride 2 | 0 | 0 |
+
+What is and is not affected.
+
+- Affected: every inference-mode dump of `yolov4`, `yolov7` and `yolov7-tiny` from the first three passes: heads, `[yolo]` outputs, decoded rows, detections, and the training-mode `[yolo]` deltas of section 2.3, which were computed on those heads.
+- Not affected: everything of `yolov3-tiny`, `yolov3`, `yolov4-tiny`; all six batch-statistics training steps (sections 13 and 21), because training mode takes the layer's own loop; `layer_087` of `yolov4` (section 20), which lies before the SPP block.
+- Size of the effect on the raw heads, default path against plain path: `yolov7-tiny` 0.143, 0.249, 0.220; `yolov7` 0.183, 0.292, 0.448; `yolov4` 1.565, 1.760, 3.859. These are the magnitudes SushiAI was off by.
+- The GPU pooling kernel was not read. The layer's own loop, which training uses, follows section 3.4.
+
+The plain path. The patch gained one switch in a second file (`src/maxpool_layer.c`): with `DARKNET_PLAIN_MAXPOOL` set, inference uses the layer's own loop. With it unset the binary reproduces `yolov7_tiny_layers` byte for byte (246 files compared after the rebuild). The patch is now 398 diff lines over two files, SHA-256 `f0cf21bb3f28f56c56c0e5d2292940078df9b217c1f7a4e82520da9119c54dad`.
+
+Which reference to use is the owner's decision. The `*_plain_pool*` directories below are what section 3.4 describes and what SushiAI should equal if it implements that rule. The earlier directories are what a CPU-built Darknet prints on an AVX machine. Reproducing the defect in SushiAI would mean copying a bug.
+
+## 26. Border rules, stated exactly and checked
+
+Max pooling, stride 1, size `s` (5, 9, 13): padding is `s - 1` in total, `(s - 1) / 2` before and the same after, since `s` is odd. Output cell `(i, j)` is the maximum over input rows `i - (s - 1) / 2 .. i + (s - 1) / 2` and columns `j - (s - 1) / 2 .. j + (s - 1) / 2`, intersected with the input; a position outside never wins. The output has the input's extent. Checked: table above, plain path, difference 0 for all three.
+
+Route with several inputs: the output's channels are the inputs' channels laid end to end, in the order the cfg lists them, not in layer order. Layer 41 lists `-1,-3,-5,-6`, which is layers 40, 38, 36, 35: channels 0-255 are the size-13 pool, 256-511 the size-9 pool, 512-767 the size-5 pool, 768-1023 the unpooled map. Checked by concatenating the dumped inputs: difference 0 for layer 41, for layer 7 (inputs 2, 4, 5, 6) and for layer 70 (inputs 69, 56, a relative and an absolute index mixed).
+
+Upsample: layer 46 equals layer 45 with every value repeated twice along rows and columns; difference 0.
+
+Convolution with `size=3`, `stride=2`, `pad=1`: padding is 1 on every side. Output cell `(i, j)` reads input rows `2i - 1 .. 2i + 1` and columns `2j - 1 .. 2j + 1`; the first tap of the first cell is at index -1, in the padding. With an even input extent the last cell reads rows `H - 3 .. H - 1`, so the padding after the last row and column is never read. Checked on layer 0 by reading its weights and statistics from the `.weights` file and computing the layer in double precision (convolution, batch norm with epsilon 1e-5 inside the root, leaky): largest difference 8.1e-6 against the dump, and `output[0, 0, 0]` 0.91194731 against 0.91194725. With the padding placed after only (first tap at index 0) the difference is 24 and the first value 0.0167. A convolution with `size=1` and `pad=1` has padding 0, because padding is `size / 2`.
+
+## 27. `yolov7-tiny`: every layer
+
+`out/yolov7_tiny_layers/`, 416 x 416, the section 2.1 input, inference, batch norm folded, default pooling path. 99 layers; every shape below was compared with the dump's JSON. File `layer_<k>_<type>.bin` holds `4 * C * h * w` bytes; the directory holds 85 244 348 bytes of `.bin`, of which the 99 layer outputs are 72 222 488, the figure section 9 predicted. Every route has `groups` 1 and `group_id` 0. No `padding` key is written on any max pool. `bn` is `batch_normalize`.
+
+The 27 files this directory shares with the earlier `yolov7_tiny` (input, the three head inputs and outputs, deltas, assignments, decoded rows, detections, truth) have the same SHA-256 as in the 994-line list: 54 `.bin` and `.json` files compared, all equal.
+
+| Layer | Type | Keys | Output `[C, h, w]` | min | max | mean | SHA-256 of `layer_<k>_<type>.bin` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | convolutional | filters 32, size 3, stride 2, pad 1 (1 per side), leaky, bn 1 | `[32, 208, 208]` | -3.25297332 | 26.6152515 | 0.914168501 | `6f2658103110c109c682788192dfcaaeeacf8e8037b8465db3ddbdb421a6f3ba` |
+| 1 | convolutional | filters 64, size 3, stride 2, pad 1 (1 per side), leaky, bn 1 | `[64, 104, 104]` | -3.48546457 | 38.3997002 | 1.3533651 | `d875ceed3bd78a2aee69a499f3c3364c124c56ab676f1e3db0cc1c964890dea1` |
+| 2 | convolutional | filters 32, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[32, 104, 104]` | -2.54590392 | 26.0234032 | 0.529891711 | `7c0e378d9b25ee20c987b0857c8bb6b62af7071880e2e89b6f18de38a919809e` |
+| 3 | route | layers -2 -> 1 | `[64, 104, 104]` | -3.48546457 | 38.3997002 | 1.3533651 | `d875ceed3bd78a2aee69a499f3c3364c124c56ab676f1e3db0cc1c964890dea1` |
+| 4 | convolutional | filters 32, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[32, 104, 104]` | -2.73239183 | 15.6770372 | 0.52010961 | `ba232b1ae95e0d64a67766fbb57204d13266a977c8f7b8e2f3adf9d58ec1ff23` |
+| 5 | convolutional | filters 32, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[32, 104, 104]` | -2.6756475 | 16.2227688 | 0.570644605 | `3b41d58f025303f4675d9759ae44abac0e741167044603f5bd636470f0b3e5a8` |
+| 6 | convolutional | filters 32, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[32, 104, 104]` | -2.08770418 | 11.4448986 | 1.00395808 | `08005bbeb6318a308fae0a391058453d115d5bc30791575d81f7e59df673b224` |
+| 7 | route | layers -5,-3,-2,-1 -> 2, 4, 5, 6 | `[128, 104, 104]` | -2.73239183 | 26.0234032 | 0.656151002 | `da2ad90cc3edaa156efa71fd6f6508dba33a43d4020cc4476d7116354a5b5408` |
+| 8 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 104, 104]` | -1.85142982 | 17.6683102 | 0.742621737 | `c616e55407c2b1cfcc7c95a78760ac320f5af9efa6826510369c1e5f15945ebe` |
+| 9 | maxpool | size 2, stride 2, padding 1 total (0 before, 1 after), first window at 0 | `[64, 52, 52]` | -1.17073321 | 17.6683102 | 1.26177337 | `add4756c775542637f8f76981b56b96bb514bf668b2a41100f01aa0aa80fc385` |
+| 10 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 52, 52]` | -1.19710529 | 14.7395821 | 0.493997301 | `ac621c3483db0219d656b130f363ade9b8013036e665e98462697d1bf24dec30` |
+| 11 | route | layers -2 -> 9 | `[64, 52, 52]` | -1.17073321 | 17.6683102 | 1.26177337 | `add4756c775542637f8f76981b56b96bb514bf668b2a41100f01aa0aa80fc385` |
+| 12 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 52, 52]` | -1.13198698 | 11.0223866 | 0.661258157 | `4d48c7fe1a197dbd4232e29cbe44723ea42666381db6a91b50b00052bba0a6dd` |
+| 13 | convolutional | filters 64, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[64, 52, 52]` | -1.31379998 | 13.6470833 | 0.174889297 | `bc3a8e13d369d83e66fa1df669fc16e8df2137fee8a033a9d88260d2a13a989f` |
+| 14 | convolutional | filters 64, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[64, 52, 52]` | -1.06378973 | 13.2747498 | 0.460082042 | `8d18bdbb70122096071d817090e0998706ba0bf050092731fb4a192aaf2afd68` |
+| 15 | route | layers -5,-3,-2,-1 -> 10, 12, 13, 14 | `[256, 52, 52]` | -1.31379998 | 14.7395821 | 0.447556699 | `5b2a983bc3f7b5922b1217bc0d067e9db4bbe841d8d3752a9d2f147efe3bb5fa` |
+| 16 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 52, 52]` | -1.67432153 | 13.8384848 | 0.170441149 | `fe4e009747f90ef66f2493ec443cca3969f81dee6c8de57cf20f353b8f86d472` |
+| 17 | maxpool | size 2, stride 2, padding 1 total (0 before, 1 after), first window at 0 | `[128, 26, 26]` | -1.08588886 | 13.8384848 | 0.392495838 | `e3a994b24e97f5acbf814bf716c9d702695b5ea10be34b63ebbbb4a265a91485` |
+| 18 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 26, 26]` | -0.651999891 | 7.62829685 | 0.291544986 | `e1d102cbb7b004cec0a4eb8d96f350351489872e623223b3d9648bdd2ada6820` |
+| 19 | route | layers -2 -> 17 | `[128, 26, 26]` | -1.08588886 | 13.8384848 | 0.392495838 | `e3a994b24e97f5acbf814bf716c9d702695b5ea10be34b63ebbbb4a265a91485` |
+| 20 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 26, 26]` | -1.10680473 | 6.1606555 | 0.0793852068 | `7ae203828604f434496d0ed848618a91fa37e60451fc8986529787e86ce324e3` |
+| 21 | convolutional | filters 128, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[128, 26, 26]` | -0.789677322 | 5.20680904 | 0.0642220043 | `bdda26abf43825c7566198122183771d3f8c405a3c327ad502c5490642c827fc` |
+| 22 | convolutional | filters 128, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[128, 26, 26]` | -0.747401714 | 8.35359955 | 0.205167344 | `792fc3fcc339cf6b78764893bc4cff76fa050a3571176148e28324ddc76f62a2` |
+| 23 | route | layers -5,-3,-2,-1 -> 18, 20, 21, 22 | `[512, 26, 26]` | -1.10680473 | 8.35359955 | 0.160079885 | `ca984ffd2300f3a73cf4b1193b86a4e9a311244072836db6c65736e8550458ff` |
+| 24 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 26, 26]` | -0.75498718 | 7.57341623 | 0.016887986 | `b4e440e2dc8f10f45aca61a96d769434223d1b384e4e7e207895f41c82853817` |
+| 25 | maxpool | size 2, stride 2, padding 1 total (0 before, 1 after), first window at 0 | `[256, 13, 13]` | -0.496919394 | 7.57341623 | 0.12870278 | `2c0a5dc543f4c85c743a1975e9dfdb36e081a5fd91a8f584c55874ccaec80a8b` |
+| 26 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.606224716 | 6.27018833 | 0.196835915 | `3fd87ab9cfa614fa37358c9c5248b31f8631e95922fcf21f091d9043969c6451` |
+| 27 | route | layers -2 -> 25 | `[256, 13, 13]` | -0.496919394 | 7.57341623 | 0.12870278 | `2c0a5dc543f4c85c743a1975e9dfdb36e081a5fd91a8f584c55874ccaec80a8b` |
+| 28 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.42688784 | 3.65867949 | 0.00706621002 | `cad6842609767196119a8793d67ef8b22a856fc1bae79b2afc609fdb53f77760` |
+| 29 | convolutional | filters 256, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[256, 13, 13]` | -0.499327719 | 3.56019568 | 0.0457020174 | `dee5d0eff313ad523e7b964a506ff0abd9ac1d6923d9923afc5661527492944a` |
+| 30 | convolutional | filters 256, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[256, 13, 13]` | -0.578418672 | 4.47313309 | 0.137137956 | `0cd5d578c28ecfec5848e6db9134f184ab846a64056d6332dac0fc93d196fd5a` |
+| 31 | route | layers -5,-3,-2,-1 -> 26, 28, 29, 30 | `[1024, 13, 13]` | -0.606224716 | 6.27018833 | 0.0966855247 | `68a35c5feade5dddccddcab3c9fd35937e84e5bd47440656be7a9731c3efd4c5` |
+| 32 | convolutional | filters 512, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[512, 13, 13]` | -0.558000743 | 3.93006849 | 0.0834438995 | `fb7b407b335b602e9572c28cef6f11826f15100bf3352a059223389a21180270` |
+| 33 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.407811731 | 4.09909344 | 0.0513682383 | `1c28501fa58eb941838b7fdc1fe84692e8cb9ef06ad1290b7702783f8fe337de` |
+| 34 | route | layers -2 -> 32 | `[512, 13, 13]` | -0.558000743 | 3.93006849 | 0.0834438995 | `fb7b407b335b602e9572c28cef6f11826f15100bf3352a059223389a21180270` |
+| 35 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.615638435 | 5.87882328 | 0.209671163 | `b93dcffebf83b62865a2eda1a5b257a134cae025f8db7f2b1ef283e0563ae555` |
+| 36 | maxpool | size 5, stride 1, padding 4 total (2 before, 2 after), first window at -2 | `[256, 13, 13]` | -0.294125766 | 5.87882328 | 0.63806357 | `a4ccc8a42f8d21023c259b65fbf7131184c3bdda028979e025cc4edf0b6d4296` (defective path) |
+| 37 | route | layers -2 -> 35 | `[256, 13, 13]` | -0.615638435 | 5.87882328 | 0.209671163 | `b93dcffebf83b62865a2eda1a5b257a134cae025f8db7f2b1ef283e0563ae555` |
+| 38 | maxpool | size 9, stride 1, padding 8 total (4 before, 4 after), first window at -4 | `[256, 13, 13]` | -0.21193257 | 5.87882328 | 0.956591842 | `38d4957d1b332e56d2bd6ccfaf2503778f0b4c2003aff0cede427e1c147b26e3` |
+| 39 | route | layers -4 -> 35 | `[256, 13, 13]` | -0.615638435 | 5.87882328 | 0.209671163 | `b93dcffebf83b62865a2eda1a5b257a134cae025f8db7f2b1ef283e0563ae555` |
+| 40 | maxpool | size 13, stride 1, padding 12 total (6 before, 6 after), first window at -6 | `[256, 13, 13]` | -0.187990367 | 5.87882328 | 1.12313272 | `33e72a723e54b419f2266191e6374e09ad5d8614e99484b22ea961b17fb49f0a` |
+| 41 | route | layers -1,-3,-5,-6 -> 40, 38, 36, 35 | `[1024, 13, 13]` | -0.615638435 | 5.87882328 | 0.731864825 | `4e10042ab176916a555e96291fe403bf6b23338d30c6b2f6aca04f3ecda63b14` |
+| 42 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.522141635 | 2.83669281 | -0.00480134933 | `5e6c746ba8a2662bcddd71cca2fd3548e12494d3e5cc16dd08e824a75865021a` |
+| 43 | route | layers -10,-1 -> 33, 42 | `[512, 13, 13]` | -0.522141635 | 4.09909344 | 0.0232834445 | `f378be0c396b2850e2ffadfcb314ae0bd78c95dfa1f6fb748ab4fc39816364e2` |
+| 44 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.539699078 | 3.53327084 | 0.0866131305 | `363d0cb076a98921a80c7454371f775adc77c8d7c06d3049866b3f006b863337` |
+| 45 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 13, 13]` | -0.427424908 | 3.98749924 | 0.278791225 | `d183e82e7c5e8d05edbdd59f79a2368e7c0d0598b586ed4d075cfabc70c60818` |
+| 46 | upsample | stride 2 | `[128, 26, 26]` | -0.427424908 | 3.98749924 | 0.278791225 | `55c6107cdd6b0aa567ddfc5eb00526512a54cf74f32748165a0e733412c049df` |
+| 47 | route | layers 24 -> 24 | `[256, 26, 26]` | -0.75498718 | 7.57341623 | 0.016887986 | `b4e440e2dc8f10f45aca61a96d769434223d1b384e4e7e207895f41c82853817` |
+| 48 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 26, 26]` | -0.76914072 | 4.57938766 | 0.214671863 | `19a52a9f14ed23f7a72b30655a769c1fdc107650361a6216fbe967141789c4a6` |
+| 49 | route | layers -1,-3 -> 48, 46 | `[256, 26, 26]` | -0.76914072 | 4.57938766 | 0.246731544 | `54828cd8f34cd792e7e8c16cffc9015923efca8cb4a4ee7d77c4e351d3f6c5bc` |
+| 50 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 26, 26]` | -0.451583833 | 4.50717211 | 0.150817767 | `2ce32911b72c4391f9084d21a834ce6e7caa0f69cb29f0cd3b50ef2e98b85e44` |
+| 51 | route | layers -2 -> 49 | `[256, 26, 26]` | -0.76914072 | 4.57938766 | 0.246731544 | `54828cd8f34cd792e7e8c16cffc9015923efca8cb4a4ee7d77c4e351d3f6c5bc` |
+| 52 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 26, 26]` | -0.50212425 | 2.97415352 | 0.262340772 | `edc85e6fae000578e50656e9d4d78cc0a5eedb478deffb7347cfa600277a63c6` |
+| 53 | convolutional | filters 64, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[64, 26, 26]` | -0.490791231 | 2.09351683 | 0.0442920174 | `866d862d9c703be6f6bfd2db4b3f7f1dab6475a1b51a3d04a51f61699bfefc9d` |
+| 54 | convolutional | filters 64, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[64, 26, 26]` | -0.347845703 | 3.17029476 | 0.0940979396 | `dc8abbd9a2aa3008bcd3c87d5466326018476301a30c93a492fba445a794875a` |
+| 55 | route | layers -5,-3,-2,-1 -> 50, 52, 53, 54 | `[256, 26, 26]` | -0.50212425 | 4.50717211 | 0.137887124 | `f82fae3d8c34c01fbb6354c6055af94c291142752b7519bedfc9213a6a4a33b9` |
+| 56 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 26, 26]` | -0.306569755 | 2.81682754 | 0.258521416 | `73c9737b472986071a00782f16d6eb81f2dc3c6fea43aae082311d417c22cba3` |
+| 57 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 26, 26]` | -0.339276075 | 3.06734657 | 0.462728737 | `7bd88724077dd03512f2ce1dae62a688b3ddd7783ef8f3e9cf57158a71a0e73e` |
+| 58 | upsample | stride 2 | `[64, 52, 52]` | -0.339276075 | 3.06734657 | 0.462728737 | `a0b9bfc3d4b8244bd219919b5b7ba7125c4ebffcf768916a8460168d47cef1dd` |
+| 59 | route | layers 16 -> 16 | `[128, 52, 52]` | -1.67432153 | 13.8384848 | 0.170441149 | `fe4e009747f90ef66f2493ec443cca3969f81dee6c8de57cf20f353b8f86d472` |
+| 60 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 52, 52]` | -0.970102727 | 9.06834602 | 0.501249825 | `a950ff61a1de195493ee8a7e547d8bc11b9c7c544bb362abeed2119c124ebbc4` |
+| 61 | route | layers -1,-3 -> 60, 58 | `[128, 52, 52]` | -0.970102727 | 9.06834602 | 0.481989281 | `d934e5215322471a21cda320e5bf29ed3551c6262ca5e3a458f5f25472ce4140` |
+| 62 | convolutional | filters 32, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[32, 52, 52]` | -0.649720669 | 4.02220392 | 0.617484744 | `216ccf589b97a297960b31766e187c91565a14858f40b7aff4f02e6e6f51e012` |
+| 63 | route | layers -2 -> 61 | `[128, 52, 52]` | -0.970102727 | 9.06834602 | 0.481989281 | `d934e5215322471a21cda320e5bf29ed3551c6262ca5e3a458f5f25472ce4140` |
+| 64 | convolutional | filters 32, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[32, 52, 52]` | -0.646864951 | 4.92564774 | 0.538270521 | `53ff248cca6f03df7c9c0f639de0fd2dd6927505e1edd7964d8647cec82ecc7c` |
+| 65 | convolutional | filters 32, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[32, 52, 52]` | -0.516792417 | 4.28896904 | 0.118686452 | `80300b5901434b39624507ed8b62450c0bbbb07b70ae9d506e801251bc065fd3` |
+| 66 | convolutional | filters 32, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[32, 52, 52]` | -0.659052074 | 6.78535175 | 0.33765615 | `47f2a6b3d6846188aa56362ce32312c592928a9ea741dd95cc98974b57af2578` |
+| 67 | route | layers -5,-3,-2,-1 -> 62, 64, 65, 66 | `[128, 52, 52]` | -0.659052074 | 6.78535175 | 0.403024467 | `eba7fdab53507b5662cdca0dc3e73726b1bc6c8535c3434e2bcdaf032952999b` |
+| 68 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 52, 52]` | -0.674794614 | 5.13327074 | 0.55726828 | `f6f44d0f5369afd86d87db05d0305c6100367bb4c61460668f4084a63bb03862` |
+| 69 | convolutional | filters 128, size 3, stride 2, pad 1 (1 per side), leaky, bn 1 | `[128, 26, 26]` | -0.582573354 | 3.80255222 | 0.0407975785 | `743b099aa72a13b29c2dcc61259df9d66ceb1a822202383aee375dfc0753f925` |
+| 70 | route | layers -1,56 -> 69, 56 | `[256, 26, 26]` | -0.582573354 | 3.80255222 | 0.149659497 | `3ac7399e9de02c6147e534eff772a9c56c27576c919b02358c010ff029c7390a` |
+| 71 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 26, 26]` | -0.327524036 | 3.25308371 | 0.240402502 | `ca6ef8726f303776eeb68301d0c86618633716575303820b6917af3b346ff722` |
+| 72 | route | layers -2 -> 70 | `[256, 26, 26]` | -0.582573354 | 3.80255222 | 0.149659497 | `3ac7399e9de02c6147e534eff772a9c56c27576c919b02358c010ff029c7390a` |
+| 73 | convolutional | filters 64, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[64, 26, 26]` | -0.352882475 | 2.80834866 | 0.192239494 | `3bc45e50c5fc335a5dd0555fbd6c3cb803945e5e4bc5dad9deb7c8637f860074` |
+| 74 | convolutional | filters 64, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[64, 26, 26]` | -0.525291622 | 3.11334276 | 0.0440795814 | `db2576c5fe3fbdb6b3b8d692e4f67d8c87c47d188af60222a00dd7dcfdfc2f79` |
+| 75 | convolutional | filters 64, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[64, 26, 26]` | -0.539809883 | 3.90393949 | 0.250275943 | `e241f8ad8fe2accec4116e81bbc8a526d5aac077d2fec4512900366c9c172353` |
+| 76 | route | layers -5,-3,-2,-1 -> 71, 73, 74, 75 | `[256, 26, 26]` | -0.539809883 | 3.90393949 | 0.18174938 | `192fbbf3505bf916d126773c442359caa0701a3937676b42a2e030e3a85eac2b` |
+| 77 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 26, 26]` | -0.579899907 | 3.44631052 | 0.263736558 | `51c2505ef5d0a13475493092ad4e4567d0b3cded55b4a022b201b6037d80982b` |
+| 78 | convolutional | filters 256, size 3, stride 2, pad 1 (1 per side), leaky, bn 1 | `[256, 13, 13]` | -0.384415746 | 3.19467831 | 0.0496673954 | `5f3e19cbc618cc08f36f73aa9d0183bed4a2182e7d6c4a185b4976768ba6c390` |
+| 79 | route | layers -1,44 -> 78, 44 | `[512, 13, 13]` | -0.539699078 | 3.53327084 | 0.068140263 | `65da6390990ce0c571ee9bac7354c0215b4c179696d8379c9d3ed01a0e06f85d` |
+| 80 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 13, 13]` | -0.301520228 | 3.46449637 | 0.289977411 | `b94289623560ea385b525c897fe4035ac1e7f6ac6f2efbf99747b70ac34bc787` |
+| 81 | route | layers -2 -> 79 | `[512, 13, 13]` | -0.539699078 | 3.53327084 | 0.068140263 | `65da6390990ce0c571ee9bac7354c0215b4c179696d8379c9d3ed01a0e06f85d` |
+| 82 | convolutional | filters 128, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[128, 13, 13]` | -0.301734298 | 2.44972587 | 0.0827794281 | `aa619645e21ee875b2dbebbe2ec6ec4a09614b924dabc9b48e3eaee0199b9877` |
+| 83 | convolutional | filters 128, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[128, 13, 13]` | -0.325627536 | 2.19875431 | 0.0335912937 | `4938dad19a028edaf3c9b0eef58f2b676ad6688e7c4c53b9a3dac7fe292e2e33` |
+| 84 | convolutional | filters 128, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[128, 13, 13]` | -0.50227809 | 3.46492171 | 0.141005863 | `d01e32d8b590d2197071738d08908357c6d6d56c0670761e1567b6991d92bb4a` |
+| 85 | route | layers -5,-3,-2,-1 -> 80, 82, 83, 84 | `[512, 13, 13]` | -0.50227809 | 3.46492171 | 0.136838499 | `c30fc9477c59c058afb93c07e17a2c6d60c812475278020120be785d1f522397` |
+| 86 | convolutional | filters 256, size 1, stride 1, pad 1 (0 per side), leaky, bn 1 | `[256, 13, 13]` | -0.52466923 | 4.66847229 | 0.172332178 | `fcab1f83dde55dbc1e4aa9d2ac1fb568acb33807383a230ca9b2436d673cb797` |
+| 87 | route | layers 68 -> 68 | `[64, 52, 52]` | -0.674794614 | 5.13327074 | 0.55726828 | `f6f44d0f5369afd86d87db05d0305c6100367bb4c61460668f4084a63bb03862` |
+| 88 | convolutional | filters 128, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[128, 52, 52]` | -1.64464784 | 17.4323769 | 1.26924496 | `51efae9c04063c842286e99a7fb4404146f694242353cb8afb8c56c360d1a1c7` |
+| 89 | convolutional | filters 255, size 1, stride 1, pad 1 (0 per side), logistic, bn 0 | `[255, 52, 52]` | 6.93933515e-08 | 0.948225021 | 0.0364591207 | `4c04055f50409bceb5f64d913261173e4ea394c77eb3d22ae862a6c55bfd411a` |
+| 90 | yolo | mask 0,1,2 | `[255, 52, 52]` | -0.193316162 | 1.26769745 | 0.0368043951 | `6fc024da8453a9715c3dd1f11b120110f4f921ce372de06e73a74a252474638b` |
+| 91 | route | layers 77 -> 77 | `[128, 26, 26]` | -0.579899907 | 3.44631052 | 0.263736558 | `51c2505ef5d0a13475493092ad4e4567d0b3cded55b4a022b201b6037d80982b` |
+| 92 | convolutional | filters 256, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[256, 26, 26]` | -1.20480406 | 9.68115807 | 0.697500661 | `e01ece1b7a0ace38716916a82681b0823b6263df365f703f84ef1fde55e52bcc` |
+| 93 | convolutional | filters 255, size 1, stride 1, pad 1 (0 per side), logistic, bn 0 | `[255, 26, 26]` | 1.22107195e-07 | 0.930993378 | 0.0366641243 | `fe9dd886b76b7493a7f1fecc61446fabcfcb08e21d50bf454df9eca2b2029bff` |
+| 94 | yolo | mask 3,4,5 | `[255, 26, 26]` | -0.33257103 | 1.31507206 | 0.0370520925 | `2075b49fd365fd0c32ab8cc61584afcea5fb111d8e4943a79ab463d1f902c97a` |
+| 95 | route | layers 86 -> 86 | `[256, 13, 13]` | -0.52466923 | 4.66847229 | 0.172332178 | `fcab1f83dde55dbc1e4aa9d2ac1fb568acb33807383a230ca9b2436d673cb797` |
+| 96 | convolutional | filters 512, size 3, stride 1, pad 1 (1 per side), leaky, bn 1 | `[512, 13, 13]` | -0.903474987 | 13.3566236 | 0.547234298 | `788b67bdceea36f1305fef3760bd3ebcf4f5f5a440de9cc47916934167be9412` |
+| 97 | convolutional | filters 255, size 1, stride 1, pad 1 (0 per side), logistic, bn 0 | `[255, 13, 13]` | 9.64712488e-09 | 0.930199385 | 0.0298295907 | `7fc82c8e12b39703cd6567e4b03bb4c1d9a026e9396accb9aeac9d6e6a517cb4` |
+| 98 | yolo | mask 6,7,8 | `[255, 13, 13]` | -0.301275015 | 1.31922197 | 0.0301769127 | `314e8ad160cab91e82ee634e609021d3d9950da540a2bdebf9a525c000b81128` |
+
+In this directory layers 0 to 35, 37 to 40 follow section 3.4; layer 36 carries the defect, and every layer from 41 on that depends on it differs from the plain path. Layers 47, 59, 87 and the layers that read only from before layer 36 are unaffected.
+
+## 28. Plain-path references for the three affected models
+
+Written with `DARKNET_PLAIN_MAXPOOL=1`, otherwise as before. Per-file shapes, bytes, statistics and SHA-256 of all six new directories are in `out/TABLES_PASS4.md` (45 KB) and every hash is in `out/SHA256SUMS.txt`; the heads are repeated here.
+
+| Directory | Content | Bytes of `.bin` |
+| --- | --- | --- |
+| `yolov7_tiny_layers` | every layer, default path (section 27) | 85 244 348 |
+| `yolov7_tiny_layers_plain_pool` | every layer, plain path, threshold 0.25 | 85 244 348 |
+| `yolov7_tiny_plain_pool_thresh_0p01` | first-pass file set, plain path | 16 642 176 |
+| `yolov4_plain_pool`, `yolov4_plain_pool_thresh_0p01` | first-pass file set, plain path | 35 548 492, 35 548 632 |
+| `yolov7_plain_pool_thresh_0p01` | first-pass file set, plain path | 39 389 124 |
+
+In `yolov7_tiny_layers_plain_pool`, layers 0 to 35 and 37 to 40 are byte-identical to `yolov7_tiny_layers`; the first file that differs is `layer_036_maxpool.bin`.
+
+| File | Shape | min | max | mean | SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| `yolov7_tiny_layers_plain_pool/layer_036_maxpool` | `[256, 13, 13]` | | | | `f701328a93a76c19571ff88223771120c5cbc19a7c46fc48f92891653913c2e0` |
+| `.../layer_041_route` | `[1024, 13, 13]` | | | | `ec2fac582f75a3b0d80cae8ecfc5c63260ea7d27407a447b169c61b286247633` |
+| `.../layer_042_convolutional` | `[256, 13, 13]` | | | | `df55d895080d7efbc5ef7d926f2b5d6caf275726df33d6adf0a0bfd67fc5cfbe` |
+| `.../layer_089_yolo_input` | `[255, 52, 52]` | 6.28939532e-08 | 0.947838306 | 0.036531848 | `778dad4d007fe50cb66ada2e9d982e00afdeaf59876cb771cd87ff56d34d4826` |
+| `.../layer_090_yolo` | `[255, 52, 52]` | -0.1882433 | 1.26681018 | 0.0368733522 | `2234765c66464c9ceb2ff9755f29ea1c8ec3254c6f0c88e9ecf62c329093e9ba` |
+| `.../layer_093_yolo_input` | `[255, 26, 26]` | 7.76270923e-08 | 0.934977233 | 0.0366608781 | `fb1413dedebcb49912a842e69befe82f8bbebaedbda4e4cecf5acee26060ca8d` |
+| `.../layer_094_yolo` | `[255, 26, 26]` | -0.333949983 | 1.33521724 | 0.0370387837 | `14677c188725e271c50004231cf49e13fe27c98008fc3f5760d95b8fdf1c2463` |
+| `.../layer_097_yolo_input` | `[255, 13, 13]` | 3.25077432e-09 | 0.9207955 | 0.0296797664 | `80b88c4dccd7cee88b94ba0f6db539781a9f2393a6321c65f91e579d5cf00b09` |
+| `.../layer_098_yolo` | `[255, 13, 13]` | -0.298743814 | 1.31911814 | 0.029974146 | `49d17e8c0f4229bbf4f954cae3aa330790f09fb68d931338f3989e586a179870` |
+| `yolov4_plain_pool/layer_138_yolo_input` | `[255, 76, 76]` | -19.9334793 | 3.32445955 | -6.0723723 | `20f737e921873cd64ce4904758d8441f0cf6ffa21219456b1831a6611ed44a8e` |
+| `.../layer_139_yolo` | `[255, 76, 76]` | -2.20020413 | 1.55204272 | 0.0238557158 | `2af95c66e90122a52f8b900a52fd866f4b4acd201c1f6380ac027c8dd9f9dcbd` |
+| `.../layer_149_yolo_input` | `[255, 38, 38]` | -18.4016609 | 2.44846129 | -5.53230514 | `620c033b33e9a03f942add7634a338a2b4f1e52e2e19bb009994f1c84857756b` |
+| `.../layer_150_yolo` | `[255, 38, 38]` | -1.63356149 | 1.44611228 | 0.0305583276 | `51e249339c6c2bb09f294dea5eafdcc347358429b5da97cbc9353ad794643553` |
+| `.../layer_160_yolo_input` | `[255, 19, 19]` | -18.3739471 | 3.78838444 | -6.00890135 | `61744328f8f1b7c7c03beb22f153741698ca0034b92915cec02164ef1429601e` |
+| `.../layer_161_yolo` | `[255, 19, 19]` | -1.50353241 | 1.46000004 | 0.0227780386 | `345c0f7104e6861dbb4f592a577837302bd3f4f2e98bd7043366b57f26add9c9` |
+| `yolov7_plain_pool_thresh_0p01/layer_133_yolo_input` | `[255, 80, 80]` | 3.78334875e-09 | 0.976695359 | 0.0351272274 | `c80fd0ea07149926d6b2026921222e0313fa05415f5f42dd2b4723a89c3fb9b0` |
+| `.../layer_134_yolo` | `[255, 80, 80]` | -0.293618619 | 1.20404863 | 0.0350866648 | `fcb9e62b3601983c35821e3b5ef49fdaa1e5801a3179b378ca6989351efd751b` |
+| `.../layer_137_yolo_input` | `[255, 40, 40]` | 2.35281172e-09 | 0.958701372 | 0.0334698779 | `893faf29e5293e8c36fc7b9bef897c6945c319a038e1830a2d4553fc4de583c8` |
+| `.../layer_138_yolo` | `[255, 40, 40]` | -0.318634033 | 1.40052402 | 0.0332446538 | `52c3b89582d78881dd355d9f7fa72683d1335b9eb9d0f07b2cebe4647e4c463e` |
+| `.../layer_141_yolo_input` | `[255, 20, 20]` | 1.95132071e-08 | 0.973696887 | 0.0345568625 | `e1d6630b9025dfdc09789a9f80c16e1725c7bfa9ee03eef919c42b7a722d997d` |
+| `.../layer_142_yolo` | `[255, 20, 20]` | -0.40904358 | 1.25043416 | 0.0346289467 | `845326a5ba1772922bb7a07f51ae145834a212d2f2b4c5657af0d79c8b941397` |
+
+Detections on the plain path (`x y w h objectness score class`):
+
+- `yolov7-tiny`, 0.25: 0 rows from 2 candidates. At 0.01: 12 rows from 203 candidates, file SHA-256 `516e2804425eed221c9064c8466d4dbb1b56d5df7505156a00a3b3c5f1cc7d69`.
+- `yolov4`, 0.25: 1 row from 1 candidate, `0.496728897 0.501437247 1.07234502 1.01939344 0.946602404 0.315725982 0`, SHA-256 `8c49891a6a996e7bce62655c10308df708fcb512bee7f36db34f8c364123f732`. At 0.01: 6 rows from 11 candidates, SHA-256 `e2d0ead5561ac44bd2bd2cd63c26a143a9701d59f2ed9f57594fecd0dcc99219`.
+- `yolov7`, 0.01: 9 rows from 53 candidates, SHA-256 `65347687afcbab913265f785155251c1fbcad3ed8878b5ca55bec596ea8b9c6d`.
+
+The rows are in `out/TABLES_PASS4.md`.
+
+Stored cost of the training-mode `[yolo]` pass on the plain-path heads: `yolov7-tiny` 1.05197299, 5.69186687, 7.90927315; `yolov4` 0.000435579073, 8.904109, 9.70098877; `yolov7` 0.00564183062, 4.12445354, 6.84989786.
+
+## 29. Housekeeping of the fourth pass
+
+- Copy check: `sha256sum -c` of the 994-line list inside `D:\Projects\.sushisystems\models\darknet\references\` reported 994 files `OK` and none failing. Only then were the 17 model directories under `_darknet/out` deleted. The top-level input and truth files were kept.
+- `out/SHA256SUMS.txt` was regenerated and now has 726 lines, covering what `out` holds now. The 994-line list of the third pass is at `_darknet/SHA256SUMS_pass3.txt` and in `references`. Copy the new list under another name.
+- `_darknet/out` is 300 MB; `_darknet` is 323 MB.
+- A full-body dump of `yolov4` would be 692 320 024 bytes (section 9). It was not written and does not fit beside the current content.
+- New helpers in `_darknet`: `layer_table.py`, `check_layers.py`. Scratchpad: nothing of mine.
+
+## 30. Implementation: the six forward passes
+
+Written on 2026-10-09 by workflow `wf_4451d03d-0c6` and two single dispatches, under the same rule on sources as section 15.
+
+```
+dispatch: shared forward runner — opus low, passed, rung 1
+dispatch: T02 the IoU gradient in two forms — opus low, passed, rung 1
+dispatch: A07 plan_anchors — opus low, passed, rung 1
+dispatch: F15 to F19, forward parity of five models — haiku high, passed, rung 1
+dispatch: review — opus low, passed, rung 1
+dispatch: layer-by-layer parity over a table of models — opus low, passed, rung 1
+dispatch: Darknet passes three and four — opus low, passed, rung 1
+```
+
+The first run against the references of the first three passes: `yolov3` and `yolov4-tiny` matched; `yolov4`, `yolov7` and `yolov7-tiny` were off by 0.1 to 4 at their heads. Section 25 is the cause: those references carried Darknet's pooling defect. Against the plain-path references of section 28 the same SushiAI code matches, with no change to the library. Three row counts of the detection cases, written from the defective dumps, were corrected to those of section 28 (6, 9 and 12 rows at threshold 0.01).
+
+Last run, RTX 3080 Ti, SushiBLAS `983d430`, `SA_REFERENCE_DATA_DIR` set: `sushiai_tests` 1386 passed; `sushiai_vision_tests` 950 passed, 1 skipped.
+
+| Model | Raw heads, largest difference | Detection rows at 0.25 and 0.01 | Largest row difference |
+| --- | --- | --- | --- |
+| `yolov3-tiny` | 3.8e-5 | 0, 16 | 1.3e-6 |
+| `yolov3` | 5.4e-5 | 2, 3 | 2.0e-6 |
+| `yolov4-tiny` | 5.1e-5 | 0, 16 | 1.2e-6 |
+| `yolov4` | 7.8e-5 | 1, 6 | 1.7e-6 |
+| `yolov7-tiny` | 5.6e-6 | 0, 12 | 2.0e-6 |
+| `yolov7` | 5.8e-6 | none taken, 9 | 3.6e-7 |
+
+The bound on a head is 1e-3 plus 1e-4 of the reference, and on a row 1e-4. Every body layer of `yolov3-tiny` (22) and of `yolov7-tiny` (its 99-layer plain-path dump) is compared one by one; the largest difference over all of them is 5.8e-5. Each model's Separate form, with batch norm kept as layers, computes the heads of its Folded form within the same bound.
+
+The test support that only vision tests use sits in `tests/vision_support/`, so `tests/common/` still names no domain and the layering check stays clean without an exemption.
+
+Open:
+
+- The decode parity of `test_darknet_decode.cpp` still reads the first-pass directories of the three affected models. It compares SushiAI's decode with Darknet's decode of the same head tensor, so the defect upstream of the head does not affect what it pins.
+- T07, the step schedule, can now be written from section 16.
+- The training units (T03, T04, T10 to T16) are not written. The training-mode `[yolo]` deltas of `yolov4`, `yolov7` and `yolov7-tiny` from before the fourth pass were computed on defective heads; the plain-path directories hold their replacements.
+- REPORT section 11 does not say what the gradient returns when the enclosing box has no diagonal.

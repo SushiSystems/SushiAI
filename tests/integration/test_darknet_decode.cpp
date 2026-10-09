@@ -43,7 +43,7 @@
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
-#include <common/darknet_reference.hpp>
+#include <vision_support/darknet_reference.hpp>
 #include <common/test_status.hpp>
 
 using namespace SushiAI;

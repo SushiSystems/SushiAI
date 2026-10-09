@@ -36,17 +36,16 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
+#include <vision_support/darknet_forward.hpp>
 #include <common/test_status.hpp>
 
 using namespace SushiAI;
 
 namespace
 {
-    using Vision::Importers::DarknetConfig;
+    using Test::sources_of_row;
+    using Test::translate_darknet_text;
     using Vision::Importers::DarknetModel;
-    using Vision::Importers::DarknetTranslation;
-    using Vision::Importers::parse_darknet_config;
-    using Vision::Importers::translate_darknet_model;
 
     /** @brief Holds the first section of an 8 by 8 network with 3 input channels. */
     constexpr std::string_view K_NETWORK = "[net]\nwidth=8\nheight=8\nchannels=3\n";
@@ -61,23 +60,6 @@ namespace
         "[convolutional]\nfilters=18\nsize=1\nstride=1\npad=0\nactivation=linear\n"
         "[yolo]\nmask=0,1,2\nanchors=4,8, 8,16, 16,24\nclasses=1\nnum=3\n";
 
-    /** @brief Returns the model of @p text, translated in the separate normalisation. */
-    Result<DarknetModel> translate(std::string_view text)
-    {
-        SA_TRY_ASSIGN(const DarknetConfig config, parse_darknet_config(text, "test.cfg"));
-        return translate_darknet_model(config, DarknetTranslation{});
-    }
-
-    /** @brief Returns the sources row @p row reads, as the row indices they name. */
-    std::vector<std::int64_t> sources_of(const DarknetModel& model, std::size_t row)
-    {
-        std::vector<std::int64_t> sources;
-        for (const Config::SourceSpec& source : model.spec.layers.at(row).from)
-            sources.push_back(source.node);
-
-        return sources;
-    }
-
 } // namespace
 
 TEST(Unit_DarknetShortcut, NegativeFromAddsTheLayerBeforeAndTheNamedLayer)
@@ -85,12 +67,12 @@ TEST(Unit_DarknetShortcut, NegativeFromAddsTheLayerBeforeAndTheNamedLayer)
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-2\n").append(K_HEAD_TAIL);
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model, translate(text));
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model, translate_darknet_text(text));
 
     ASSERT_EQ(model.spec.layers.size(), 4u);
     EXPECT_EQ(model.spec.layers[2].type, "add");
     EXPECT_TRUE(model.spec.layers[2].attributes.keys().empty());
-    EXPECT_EQ(sources_of(model, 2), (std::vector<std::int64_t>{1, 0}));
+    EXPECT_EQ(sources_of_row(model, 2), (std::vector<std::int64_t>{1, 0}));
 }
 
 TEST(Unit_DarknetShortcut, AbsoluteFromAddsTheSameTwoRows)
@@ -99,11 +81,11 @@ TEST(Unit_DarknetShortcut, AbsoluteFromAddsTheSameTwoRows)
                                  .append("[shortcut]\nfrom=0\nactivation=linear\n")
                                  .append(K_HEAD_TAIL);
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model, translate(text));
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model, translate_darknet_text(text));
 
     ASSERT_EQ(model.spec.layers.size(), 4u);
     EXPECT_EQ(model.spec.layers[2].type, "add");
-    EXPECT_EQ(sources_of(model, 2), (std::vector<std::int64_t>{1, 0}));
+    EXPECT_EQ(sources_of_row(model, 2), (std::vector<std::int64_t>{1, 0}));
 }
 
 TEST(Unit_DarknetShortcut, FromAboveTheShortcutIsRefusedNamingItsLine)
@@ -111,7 +93,7 @@ TEST(Unit_DarknetShortcut, FromAboveTheShortcutIsRefusedNamingItsLine)
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=2\n");
 
-    SA_EXPECT_FAILURE(translate(text), StatusCode::InvalidDescription, "line 18",
+    SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::InvalidDescription, "line 18",
                       "only layers 0 to 1");
 }
 
@@ -123,7 +105,7 @@ TEST(Unit_DarknetShortcut, DifferentChannelCountsAreRefusedNamingItsLine)
             .append("[convolutional]\nfilters=5\nsize=1\nstride=1\npad=0\nactivation=linear\n")
             .append("[shortcut]\nfrom=0\n");
 
-    SA_EXPECT_FAILURE(translate(text), StatusCode::InvalidDescription, "line 18",
+    SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::InvalidDescription, "line 18",
                       "share their shape");
 }
 
@@ -132,7 +114,7 @@ TEST(Unit_DarknetShortcut, NonLinearActivationIsRefusedNamingItsLine)
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-2\nactivation=leaky\n");
 
-    SA_EXPECT_FAILURE(translate(text), StatusCode::Unsupported, "line 19", "'leaky'");
+    SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::Unsupported, "line 19", "'leaky'");
 }
 
 TEST(Unit_DarknetShortcut, WeightsTypeIsRefusedNamingItsLine)
@@ -140,7 +122,8 @@ TEST(Unit_DarknetShortcut, WeightsTypeIsRefusedNamingItsLine)
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-2\nweights_type=per_feature\n");
 
-    SA_EXPECT_FAILURE(translate(text), StatusCode::Unsupported, "line 19", "weights_type");
+    SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::Unsupported, "line 19",
+                      "weights_type");
 }
 
 TEST(Unit_DarknetShortcut, MissingFromIsRefusedNamingTheSection)
@@ -148,7 +131,7 @@ TEST(Unit_DarknetShortcut, MissingFromIsRefusedNamingTheSection)
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nactivation=linear\n");
 
-    SA_EXPECT_FAILURE(translate(text), StatusCode::InvalidDescription, "no 'from'");
+    SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::InvalidDescription, "no 'from'");
 }
 
 TEST(Unit_DarknetShortcut, MoreThanOneFromIsRefused)
@@ -156,5 +139,6 @@ TEST(Unit_DarknetShortcut, MoreThanOneFromIsRefused)
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-1,-2\n");
 
-    SA_EXPECT_FAILURE(translate(text), StatusCode::InvalidDescription, "names one layer");
+    SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::InvalidDescription,
+                      "names one layer");
 }
