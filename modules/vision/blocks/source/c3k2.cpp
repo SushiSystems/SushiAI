@@ -27,7 +27,6 @@
 
 #include <SushiAI/vision/blocks/c3k2.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string>
@@ -57,12 +56,6 @@ namespace SushiAI
 
             /** @brief Names the inner block of a row that states none. */
             constexpr std::string_view K_DEFAULT_INNER = K_INNER_BOTTLENECK;
-
-            /** @brief Holds the channels per head of a PSABlock that states no head count. */
-            constexpr int64_t K_CHANNELS_PER_PSA_HEAD = 64;
-
-            /** @brief Holds the smallest channel count of a PSABlock head, as Attention has it. */
-            constexpr int64_t K_SMALLEST_PSA_HEAD_WIDTH = 2;
 
             /** @brief Holds the smallest hidden width, which every inner block halves. */
             constexpr int64_t K_SMALLEST_HIDDEN = 2;
@@ -151,18 +144,13 @@ namespace SushiAI
                 return C3k(row.hidden, row.hidden, K_INNER_C3K_REPEATS, row.shortcut, row.norm);
             }
 
-            /** @brief Returns max(hidden / K_CHANNELS_PER_PSA_HEAD, 1), the PSABlock head count. */
-            [[nodiscard]] constexpr int64_t psa_head_count(int64_t hidden) noexcept
-            {
-                return std::max<int64_t>(hidden / K_CHANNELS_PER_PSA_HEAD, 1);
-            }
-
             /** @brief Builds the Bottleneck and the PSABlock one inner slot of @p row holds. */
             [[nodiscard]] NN::Sequential<Bottleneck, PSABlock> bottleneck_psa_of(
                 const C3k2Row& row)
             {
                 return NN::Sequential<Bottleneck, PSABlock>(
-                    bottleneck_of(row), PSABlock(row.hidden, psa_head_count(row.hidden), row.norm));
+                    bottleneck_of(row),
+                    PSABlock(row.hidden, Detail::default_head_count(row.hidden), row.norm));
             }
 
             /**
@@ -243,11 +231,12 @@ namespace SushiAI
                           read_row(inputs, attributes, context, K_INNER_BOTTLENECK_PSA));
 
             // PSABlock throws on a width or head count its attention refuses; refuse them here.
-            const int64_t heads = psa_head_count(row.hidden);
-            SA_FAIL_IF(row.hidden % heads != 0 || row.hidden / heads < K_SMALLEST_PSA_HEAD_WIDTH,
+            const int64_t heads = Detail::default_head_count(row.hidden);
+            SA_FAIL_IF(row.hidden % heads != 0 ||
+                           row.hidden / heads < Detail::K_SMALLEST_HEAD_WIDTH,
                        StatusCode::InvalidDescription,
                        "{} 'hidden' must split into {} parts of at least {} channels; it is {}",
-                       context, heads, K_SMALLEST_PSA_HEAD_WIDTH, row.hidden);
+                       context, heads, Detail::K_SMALLEST_HEAD_WIDTH, row.hidden);
 
             return build_c3k2_of(row, &bottleneck_psa_of);
         }
