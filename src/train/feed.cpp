@@ -35,6 +35,7 @@
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/tensor_shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 
@@ -42,19 +43,6 @@ namespace SushiAI
 {
     namespace Train
     {
-        namespace
-        {
-            /**
-             * @brief Returns the extents of @p tensor as a Shape.
-             * @throws Error for an extent that is not positive or a rank above K_MAX_RANK.
-             */
-            Shape shape_of(const SushiBLAS::Tensor& tensor)
-            {
-                return Shape(SushiRuntime::span<const int64_t>(
-                    tensor.shape.data(), static_cast<std::size_t>(tensor.rank)));
-            }
-        } // namespace
-
         Status check_feed(const SushiBLAS::Tensor& source, const SushiBLAS::Tensor& destination,
                           std::string_view what)
         {

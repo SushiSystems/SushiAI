@@ -44,6 +44,8 @@
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
@@ -279,6 +281,21 @@ namespace SushiAI
                 }));
 
                 return run_passes(step.graph, observed, options, step.casts, step.fusion);
+            }
+
+            Status adopt_plan(const Graph::Graph& graph, Graph::TensorPool& pool,
+                              const Graph::PlanOptions& options)
+            {
+                if (pool.has_plan())
+                    return Status();
+
+                SA_TRY_ASSIGN(Graph::MemoryPlan plan,
+                              NN::Detail::bridge_throwing([&graph, &options]()
+                {
+                    return Graph::MemoryPlan::build(graph, options);
+                }));
+
+                return pool.adopt(std::move(plan));
             }
 
         } // namespace Detail

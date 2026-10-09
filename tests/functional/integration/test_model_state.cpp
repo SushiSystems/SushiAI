@@ -56,6 +56,8 @@ namespace
 {
     class Integration_ModelState : public SaTest::EngineTest {};
 
+    using Integration_ModelStateDeathTest = Integration_ModelState;
+
     /** @brief The absolute tolerance of a value that is stored and read back unchanged. */
     constexpr double K_STORED_TOLERANCE = 0.0;
 
@@ -172,6 +174,15 @@ TEST_F(Integration_ModelState, TwoEntriesWithOneNameAreRefused)
 
     const auto result = NN::ModelState::from_entries(*engine, std::move(entries));
     SA_EXPECT_FAILURE(result, StatusCode::InvalidDescription, "shared");
+}
+
+/** @brief Tests that an entry with no identity stops the process and the report names it. */
+TEST_F(Integration_ModelStateDeathTest, AnEntryWithNoIdentityIsFatal)
+{
+    std::vector<NN::StateEntry> entries{make_entry("orphan", 0)};
+
+    SA_EXPECT_FATAL((void)NN::ModelState::from_entries(*engine, std::move(entries)), "'orphan'",
+                    "no identity");
 }
 
 /** @brief Tests that the name form and the identity form return the same tensor. */

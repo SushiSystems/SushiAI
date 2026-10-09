@@ -30,6 +30,7 @@
 #include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas.hpp>
 #include <SushiBLAS/tensor.hpp>
@@ -61,18 +62,20 @@ namespace SushiAI
             if (!pool.has_plan())
             {
                 // The host reads every output after the run, so none is packed.
-                SA_TRY_ASSIGN(Graph::MemoryPlan plan, NN::Detail::bridge_throwing([&traced]()
+                SA_TRY_ASSIGN(const std::vector<Graph::ValueId> pinned,
+                              NN::Detail::bridge_throwing([&traced]()
                 {
-                    std::vector<Graph::ValueId> pinned;
+                    std::vector<Graph::ValueId> ids;
                     for (const NN::ModelOutputs::Entry& entry : traced.outputs.all())
-                        pinned.push_back(entry.second);
+                        ids.push_back(entry.second);
 
-                    Graph::PlanOptions options;
-                    options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
-                                                                              pinned.size());
-                    return Graph::MemoryPlan::build(traced.graph, options);
+                    return ids;
                 }));
-                SA_TRY(pool.adopt(std::move(plan)));
+
+                Graph::PlanOptions options;
+                options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
+                                                                          pinned.size());
+                SA_TRY(Detail::adopt_plan(traced.graph, pool, options));
             }
 
             SA_TRY(state.attach(traced.graph, pool));

@@ -41,7 +41,9 @@
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/precision.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
@@ -159,6 +161,14 @@ namespace SushiAI
              * @pre @c step.input and @c step.outputs are set.
              */
             [[nodiscard]] Status finish_traced_step(TracedStep& step, const GraphOptions& options);
+
+            /**
+             * @brief Adopts a plan of @p graph into @p pool unless the pool holds one.
+             * @param options Its pinned span must stay valid for the length of the call.
+             * @return The failure of the planner or of the pool.
+             */
+            [[nodiscard]] Status adopt_plan(const Graph::Graph& graph, Graph::TensorPool& pool,
+                                            const Graph::PlanOptions& options);
 
             /**
              * @brief Traces @p model once and returns what it published.

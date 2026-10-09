@@ -39,6 +39,7 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/tensor_shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -53,13 +54,6 @@ namespace SushiAI
         {
             /** @brief Counts the device tasks one slot records: a scale and an axpy. */
             constexpr std::size_t K_TASKS_PER_SLOT = 2;
-
-            /** @brief Returns the extents of @p tensor as a Shape. */
-            Shape shape_of(const SushiBLAS::Tensor& tensor)
-            {
-                return Shape(SushiRuntime::span<const int64_t>(
-                    tensor.shape.data(), static_cast<std::size_t>(tensor.rank)));
-            }
         } // namespace
 
         Result<std::vector<BufferUpdateSlot>> bind_buffer_updates(
