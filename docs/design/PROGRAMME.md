@@ -35,7 +35,7 @@ Each was made by the owner on 2026-10-07.
 | YOLO26 validation | Both heads: one-to-one with top-k, and one-to-many with NMS |
 | YOLO26 data | The default augmentation pipeline in full; images decoded once into a raw cache by a separate tool with libjpeg-turbo |
 | YOLO26 references | Produced by running the pinned Ultralytics commit, never stated |
-| Darknet-era YOLO | Ruled on 2026-10-09: the Darknet-era models run on the library, YOLOv3-tiny first, through one anchor-based detection unit; they are inside the feature freeze of 0.1.0 |
+| Darknet-era YOLO | Ruled on 2026-10-09: YOLOv3, YOLOv4, YOLOv7 and their tiny variants run and train on the library, YOLOv3-tiny first, through one anchor-based detection unit; they are inside the feature freeze of 0.1.0. YOLOv1 and YOLOv2 are outside it. References come from AlexeyAB's Darknet, built outside the repository for that purpose and deleted afterwards |
 | Domain modules | Ruled on 2026-10-09: a field of use is a top folder and its own library target; vision is the first; layers stay in `nn`. The design is [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md) |
 | Batch normalisation | The batch variance is an output of `K_BATCHNORM2D`; the running statistics are updated beside the graph |
 
@@ -49,7 +49,7 @@ Each was made by the owner on 2026-10-07.
 | 3 | Convolutional networks | A CNN trains on MNIST from a JSON file; batch normalisation, multi-input layers and a rank-4 input exist | `docs/agent/2026_10_07_CV_CLOSE/SPEC.md`, `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md` |
 | 4 | Eager front end | A model traced under scopes trains to the same loss as the compiled path, and a changed scope rebuilds only its own regions | `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md` |
 | 5 | YOLO26 | Stages a to e of its map: body forward, imported-weight parity, loss parity, overfit, full run | `docs/agent/2026_10_07_YOLO26/SPEC.md` |
-| 6 | Darknet-era YOLO | YOLOv3-tiny runs its forward pass on imported Darknet weights and equals a reference; the other Darknet-era models follow through the same anchor unit | Not written; `REMAINING_WORK.md`, section "Darknet-era YOLO" |
+| 6 | Darknet-era YOLO | YOLOv3-tiny runs its forward pass on imported Darknet weights and equals a reference, then trains; v3, v4-tiny, v4, v7-tiny and v7 follow through the same anchor unit | `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` and `PLAN.md` |
 | 7 | Release 0.1.0 | The readiness list is closed | `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` |
 
 Stages 1 and 2 touch the same files and are planned as one pass over the library. Stages 3 to 5
