@@ -69,6 +69,25 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
     EXPECT_EQ(counts, (std::vector<int>{8, 8, 8, 8}));
 }
 
+TEST_F(Integration_Registries, RingsReportItsSampleShape)
+{
+    Data::RingsOptions options;
+    options.batch_size = 8;
+    options.batches = 1;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
+                            Data::Rings::make(*engine, options));
+
+    // The default options add four distractors to the two ring coordinates.
+    EXPECT_EQ(dataset->sample_shape(), Shape{6});
+    EXPECT_EQ(dataset->sample_shape().num_elements(), dataset->input_dim());
+
+    // The batch axis is prepended: [rows, sample...], here [8, 6].
+    const SushiBLAS::Tensor& inputs = dataset->batch(0).inputs;
+    EXPECT_EQ(inputs.rank, 2);
+    EXPECT_EQ(inputs.shape[0], 8);
+    EXPECT_EQ(inputs.shape[1], 6);
+}
+
 TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
 {
     // The class is a function of x^2 + y^2; see tests/functional/integration/README.md.
@@ -217,6 +236,41 @@ TEST_F(Integration_Registries, MnistRefusesASplitItDoesNotKnow)
             attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "validation"})"),
             "data"),
         StatusCode::InvalidDescription, "data", "'split'", "'validation'", "'train'", "'test'");
+}
+
+/** @brief Tests that "mnist" refuses a layout other than "flat" or "image" before any file. */
+TEST_F(Integration_Registries, AnMnistLayoutOtherThanFlatOrImageIsRefused)
+{
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(
+            *engine, "mnist",
+            attributes_from(R"({"directory": "sushiai_absent_mnist", "layout": "tiled"})"),
+            "data"),
+        StatusCode::InvalidDescription, "data", "'layout'", "'tiled'", "'flat'", "'image'");
+}
+
+/** @brief Tests that the "image" layout yields [N, rows, cols, 1] batches from the IDX files. */
+TEST_F(Integration_Registries, AnImageLayoutYieldsRankFourBatches)
+{
+    Data::MnistOptions options;
+    options.layout = Data::MnistLayout::Image;
+    options.batch_size = 16;
+    options.max_samples = 32;
+    if (!Data::mnist_available(options))
+        GTEST_SKIP() << "MNIST IDX files are absent from " << options.directory.string();
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
+                            Data::try_load_mnist(*engine, options));
+
+    EXPECT_EQ(dataset->sample_shape(), (Shape{28, 28, 1}));
+    EXPECT_EQ(dataset->input_dim(), 784);
+
+    const SushiBLAS::Tensor& inputs = dataset->batch(0).inputs;
+    ASSERT_EQ(inputs.rank, 4);
+    EXPECT_EQ(inputs.shape[0], 16);
+    EXPECT_EQ(inputs.shape[1], 28);
+    EXPECT_EQ(inputs.shape[2], 28);
+    EXPECT_EQ(inputs.shape[3], 1);
 }
 
 TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)

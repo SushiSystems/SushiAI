@@ -39,6 +39,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
+#include <SushiAI/core/shape.hpp>
 
 namespace SushiAI
 {
@@ -50,7 +51,7 @@ namespace SushiAI
          */
         struct Batch
         {
-            /** @brief An [N, D] matrix of samples. */
+            /** @brief An [N, sample...] tensor, where sample is Dataset::sample_shape(). */
             SushiBLAS::Tensor inputs;
 
             /** @brief An [N, C] one-hot target matrix. */
@@ -81,6 +82,9 @@ namespace SushiAI
 
                 /** @brief Features per sample. */
                 virtual int64_t input_dim() const noexcept = 0;
+
+                /** @brief Returns the shape of one sample, batch axis left out. */
+                virtual Shape sample_shape() const = 0;
 
                 /** @brief How many classes the targets span. */
                 virtual int64_t num_classes() const noexcept = 0;
@@ -154,6 +158,7 @@ namespace SushiAI
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
                 int64_t input_dim() const noexcept override { return options_.features; }
+                Shape sample_shape() const override { return Shape{options_.features}; }
                 int64_t num_classes() const noexcept override { return options_.classes; }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 const Batch& batch(std::size_t index) const override;
@@ -228,6 +233,7 @@ namespace SushiAI
                 {
                     return 2 + options_.distractor_features;
                 }
+                Shape sample_shape() const override { return Shape{input_dim()}; }
                 int64_t num_classes() const noexcept override { return options_.classes; }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 const Batch& batch(std::size_t index) const override;
@@ -242,6 +248,16 @@ namespace SushiAI
 
                 /** @brief Holds every batch of the epoch, in order. */
                 std::vector<Batch> batches_;
+        };
+
+        /**
+         * @enum MnistLayout
+         * @brief How one MNIST sample is shaped in a batch.
+         */
+        enum class MnistLayout : std::uint8_t
+        {
+            Flat,  /**< The pixels as one row: [784] for MNIST. */
+            Image, /**< The pixels as one channel image: [28, 28, 1] for MNIST. */
         };
 
         /**
@@ -261,6 +277,9 @@ namespace SushiAI
 
             /** @brief Load the test split rather than the training split. */
             bool test_split = false;
+
+            /** @brief The shape of one sample; Flat unless an image is wanted. */
+            MnistLayout layout = MnistLayout::Flat;
         };
 
         /**
@@ -326,10 +345,10 @@ namespace SushiAI
         /**
          * @brief Builds the MNIST dataset from configuration attributes.
          * @param attributes Holds "directory" (required), "split" ("train" or "test"),
-         *                   "batch_size" and "max_samples"; a relative directory resolves
-         *                   against the working directory of the process.
-         * @return The dataset, never null; or InvalidDescription for a "split" that is neither
-         *         name, or the failure try_load_mnist returns.
+         *                   "layout" ("flat" or "image"), "batch_size" and "max_samples"; a
+         *                   relative directory resolves against the working directory.
+         * @return The dataset, never null; or InvalidDescription for a "split" or "layout"
+         *         that names neither of its values, or the failure try_load_mnist returns.
          */
         [[nodiscard]] Result<std::unique_ptr<Dataset>> make_mnist(SushiBLAS::Engine& engine,
                                                                   const Config::Value& attributes,
