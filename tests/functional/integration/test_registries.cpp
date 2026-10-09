@@ -44,12 +44,11 @@ namespace
     class Integration_Registries : public SaTest::EngineTest
     {
         protected:
-            /** @brief Adds the rows the dataset tests name: "rings" and "mnist". */
+            /** @brief Adds the "rings" row the dataset tests name. */
             void SetUp() override
             {
                 SaTest::EngineTest::SetUp();
                 SA_EXPECT_OK(Data::register_datasets(datasets));
-                SA_EXPECT_OK(Data::register_mnist(datasets));
             }
 
             /** @brief Holds the dataset rows the tests build from. */
@@ -182,106 +181,6 @@ TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
         Data::make_dataset(datasets, *engine, "rings",
                            attributes_from(R"({"batch_size": 0})"), "data"),
         StatusCode::InvalidDescription, "positive");
-}
-
-/** @brief Tests that the dataset registry carries a row named "mnist". */
-TEST_F(Integration_Registries, TheDatasetRegistryListsMnist)
-{
-    EXPECT_NE(datasets.find("mnist"), nullptr);
-
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(datasets, *engine, "coco", attributes_from("{}"), "data"),
-        StatusCode::InvalidDescription, "'mnist'");
-}
-
-/** @brief Tests that "mnist" fails, naming the directory and its files, when they are absent. */
-TEST_F(Integration_Registries, MnistRefusesADirectoryWithoutTheFiles)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(datasets, *engine, "mnist",
-                           attributes_from(R"({"directory": "sushiai_absent_mnist"})"),
-                           "data"),
-        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST train split",
-        "train-images-idx3-ubyte, labels", "train-labels-idx1-ubyte", "t10k-images-idx3-ubyte",
-        "t10k-labels-idx1-ubyte");
-}
-
-/** @brief Tests that the "test" split of "mnist" looks for the t10k file pair. */
-TEST_F(Integration_Registries, MnistTestSplitLooksForTheT10kFiles)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "test"})"),
-            "data"),
-        StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST test split",
-        "t10k-images-idx3-ubyte, labels");
-}
-
-/** @brief Tests that "mnist" throws when the required "directory" key is absent. */
-TEST_F(Integration_Registries, MnistRequiresADirectory)
-{
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(datasets, *engine, "mnist",
-                                 attributes_from(R"({"split": "test"})"), "data"),
-        "data", "has no", "'directory'");
-}
-
-/** @brief Tests that "mnist" rejects a key it does not know before it looks for any file. */
-TEST_F(Integration_Registries, AnUnknownMnistKeyIsRejectedByItsOwnFactory)
-{
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "batch_sizes": 16})"),
-            "data"),
-        "data", "'batch_sizes'", "'batch_size'");
-}
-
-/** @brief Tests that "mnist" rejects a split other than "train" or "test". */
-TEST_F(Integration_Registries, MnistRefusesASplitItDoesNotKnow)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "validation"})"),
-            "data"),
-        StatusCode::InvalidDescription, "data", "'split'", "'validation'", "'train'", "'test'");
-}
-
-/** @brief Tests that "mnist" refuses a layout other than "flat" or "image" before any file. */
-TEST_F(Integration_Registries, AnMnistLayoutOtherThanFlatOrImageIsRefused)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(
-            datasets, *engine, "mnist",
-            attributes_from(R"({"directory": "sushiai_absent_mnist", "layout": "tiled"})"),
-            "data"),
-        StatusCode::InvalidDescription, "data", "'layout'", "'tiled'", "'flat'", "'image'");
-}
-
-/** @brief Tests that the "image" layout yields [N, rows, cols, 1] batches from the IDX files. */
-TEST_F(Integration_Registries, AnImageLayoutYieldsRankFourBatches)
-{
-    Data::MnistOptions options;
-    options.layout = Data::MnistLayout::Image;
-    options.batch_size = 16;
-    options.max_samples = 32;
-    if (!Data::mnist_available(options))
-        GTEST_SKIP() << "MNIST IDX files are absent from " << options.directory.string();
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
-                            Data::try_load_mnist(*engine, options));
-
-    EXPECT_EQ(dataset->sample_shape(), (Shape{28, 28, 1}));
-    EXPECT_EQ(dataset->input_dim(), 784);
-
-    const SushiBLAS::Tensor& inputs = dataset->batch(0).inputs;
-    ASSERT_EQ(inputs.rank, 4);
-    EXPECT_EQ(inputs.shape[0], 16);
-    EXPECT_EQ(inputs.shape[1], 28);
-    EXPECT_EQ(inputs.shape[2], 28);
-    EXPECT_EQ(inputs.shape[3], 1);
 }
 
 TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)

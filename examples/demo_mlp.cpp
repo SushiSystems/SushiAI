@@ -39,6 +39,7 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -443,13 +444,13 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      */
     [[nodiscard]] sa::Result<DataChoice> load_dataset(sb::Engine& engine, const Settings& settings)
     {
-        sa::Data::MnistOptions mnist;
+        sa::Vision::Datasets::MnistOptions mnist;
         mnist.directory = settings.mnist_directory;
         mnist.batch_size = settings.batch_size;
         mnist.max_samples = settings.batch_size * settings.batches;
 
         sa::Result<std::unique_ptr<sa::Data::Dataset>> loaded =
-            sa::Data::try_load_mnist(engine, mnist);
+            sa::Vision::Datasets::try_load_mnist(engine, mnist);
 
         if (loaded.has_value())
         {
@@ -478,7 +479,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             std::move(generated),
             SushiBLAS::Core::format("SYNTHETIC FALLBACK - no MNIST here.\n"
                                     "           Looked for {}.",
-                                    sa::Data::mnist_expected_paths(mnist)),
+                                    sa::Vision::Datasets::mnist_expected_paths(mnist)),
             false,
         };
     }

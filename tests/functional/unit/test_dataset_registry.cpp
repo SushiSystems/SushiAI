@@ -39,8 +39,8 @@ namespace
     /** @brief The "rings" row, as register_datasets adds it. */
     constexpr Data::DatasetEntry K_RINGS_ROW{"rings", &Data::make_rings};
 
-    /** @brief The "mnist" row, as register_mnist adds it. */
-    constexpr Data::DatasetEntry K_MNIST_ROW{"mnist", &Data::make_mnist};
+    /** @brief A second row, under a type no module registers. */
+    constexpr Data::DatasetEntry K_SECOND_ROW{"moons", &Data::make_rings};
 } // namespace
 
 /** @brief Tests that rows() returns the rows in the order add() received them. */
@@ -48,12 +48,12 @@ TEST(Unit_DatasetRegistry, AddKeepsInsertionOrder)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(registry.add(K_RINGS_ROW));
-    SA_EXPECT_OK(registry.add(K_MNIST_ROW));
+    SA_EXPECT_OK(registry.add(K_SECOND_ROW));
 
     const SushiRuntime::span<const Data::DatasetEntry> rows = registry.rows();
     ASSERT_EQ(rows.size(), 2u);
     EXPECT_EQ(rows[0].type, "rings");
-    EXPECT_EQ(rows[1].type, "mnist");
+    EXPECT_EQ(rows[1].type, "moons");
 }
 
 /** @brief Tests that find returns null for a type no row holds and the row of one it holds. */
