@@ -155,12 +155,12 @@ TEST(Unit_Module, TracingTwiceDoesNotDuplicateParameters)
     const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
 
     (void)layer.forward(builder, x);
-    const Graph::ValueId first_weight = layer.weight.id();
+    const Graph::ValueId first_weight = layer.weight.id_in(graph);
     const std::size_t values_after_first = graph.value_count();
 
     (void)layer.forward(builder, x);
 
-    EXPECT_EQ(layer.weight.id(), first_weight);
+    EXPECT_EQ(layer.weight.id_in(graph), first_weight);
     // The second trace declares no new parameter; see tests/functional/unit/README.md.
     EXPECT_EQ(graph.value_count(), values_after_first + 2);
     EXPECT_EQ(NN::parameter_count(layer), 2u);
@@ -175,9 +175,9 @@ TEST(Unit_Module, ParametersAreDeclaredAsGradientRequiringLeaves)
     const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
     (void)layer.forward(builder, x);
 
-    EXPECT_TRUE(graph.value(layer.weight.id()).requires_grad);
-    EXPECT_TRUE(graph.value(layer.bias.id()).requires_grad);
-    EXPECT_EQ(graph.value(layer.weight.id()).lifetime, Graph::Lifetime::Parameter);
+    EXPECT_TRUE(graph.value(layer.weight.id_in(graph)).requires_grad);
+    EXPECT_TRUE(graph.value(layer.bias.id_in(graph)).requires_grad);
+    EXPECT_EQ(graph.value(layer.weight.id_in(graph)).lifetime, Graph::Lifetime::Parameter);
     EXPECT_FALSE(graph.value(x).requires_grad);
 }
 
@@ -540,13 +540,11 @@ TEST(Unit_Module, ACopiedLayerHasANewStateId)
     EXPECT_EQ(copy.weight.state(), Graph::K_NO_STATE);
     EXPECT_EQ(copy.weight.id_in(graph), Graph::K_NO_VALUE);
 
-    // id() is copied with the description, so an untraced copy reports the original's leaf.
     EXPECT_TRUE(copy.weight.declared());
-    EXPECT_EQ(copy.weight.id(), original.weight.id());
 
     (void)copy.forward(builder, x);
 
-    EXPECT_EQ(copy.weight.id(), copy.weight.id_in(graph));
+    EXPECT_NE(copy.weight.id_in(graph), Graph::K_NO_VALUE);
 
     EXPECT_NE(copy.weight.state(), Graph::K_NO_STATE);
     EXPECT_NE(copy.weight.state(), original.weight.state());
@@ -576,45 +574,6 @@ TEST(Unit_Module, AMovedLayerKeepsItsStateId)
 
     // A second trace of the moved layer adds the two activations and no parameter leaf.
     EXPECT_EQ(graph.value_count(), values_after_trace + 2);
-}
-
-/** @brief Tests that id() returns the leaf of the most recent declare. */
-TEST(Unit_Module, IdReturnsTheLeafOfTheMostRecentDeclare)
-{
-    Graph::Graph first;
-    Graph::Graph second;
-    const Graph::GraphBuilder first_builder(first);
-    const Graph::GraphBuilder second_builder(second);
-    (void)second_builder.input(Shape{2, 3}, "padding");
-
-    Parameter parameter;
-    EXPECT_EQ(parameter.id(), Graph::K_NO_VALUE);
-
-    const Graph::ValueId first_leaf = declare_weight(parameter, first_builder);
-    EXPECT_EQ(parameter.id(), first_leaf);
-
-    const Graph::ValueId second_leaf = declare_weight(parameter, second_builder);
-    EXPECT_NE(second_leaf, first_leaf);
-    EXPECT_EQ(parameter.id(), second_leaf);
-}
-
-/** @brief Tests that id() follows a declare back into a graph that already holds the leaf. */
-TEST(Unit_Module, IdFollowsADeclareBackIntoAnEarlierGraph)
-{
-    Graph::Graph first;
-    Graph::Graph second;
-    const Graph::GraphBuilder first_builder(first);
-    const Graph::GraphBuilder second_builder(second);
-    (void)first_builder.input(Shape{2, 3}, "padding");
-
-    Parameter parameter;
-    const Graph::ValueId first_leaf = declare_weight(parameter, first_builder);
-    const Graph::ValueId second_leaf = declare_weight(parameter, second_builder);
-    ASSERT_NE(first_leaf, second_leaf);
-    ASSERT_EQ(parameter.id(), second_leaf);
-
-    EXPECT_EQ(declare_weight(parameter, first_builder), first_leaf);
-    EXPECT_EQ(parameter.id(), first_leaf);
 }
 
 /** @brief Tests that a role declare records the fill the role stands for. */

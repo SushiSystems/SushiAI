@@ -209,10 +209,11 @@ namespace
         SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                                 Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+        SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                                Train::bind_parameters(built, pool));
-        SA_EXPECT_OK(NN::initialize(engine, model, pool));
+                                Train::bind_parameters(built, state, pool));
+        SA_EXPECT_OK(NN::initialize(engine, state));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
@@ -463,10 +464,11 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(engine, state));
 
     Optim::AdamWOptions adam;
     adam.kernel = UpdateKernel::Separate;
@@ -496,10 +498,11 @@ TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThe
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(engine, slots, Optim::AdamWOptions{}));

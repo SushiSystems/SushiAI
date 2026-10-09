@@ -193,7 +193,7 @@ TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
 {
     const SushiAI::Config::ModelSpec model = model_from(K_GOOD_MODEL);
 
-    EXPECT_EQ(model.input_features, 6);
+    EXPECT_EQ(model.input_shape.num_elements(), 6);
     ASSERT_EQ(model.layers.size(), 3u);
     EXPECT_EQ(model.layers[0].type, "linear");
     EXPECT_EQ(model.layers[1].type, "gelu");
@@ -378,7 +378,7 @@ namespace
     std::string spec_text(const ModelSpec& model)
     {
         std::string text = "input " + model.input_shape.to_string() + " features "
-                         + std::to_string(model.input_features) + "\n";
+                         + std::to_string(model.input_shape.num_elements()) + "\n";
 
         for (const SushiAI::Config::LayerSpec& layer : model.layers)
         {
@@ -428,7 +428,7 @@ TEST(Unit_Config, AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount)
     const ModelSpec model = model_from(K_GOOD_MODEL);
 
     EXPECT_EQ(model.input_shape, (SushiAI::Shape{6}));
-    EXPECT_EQ(model.input_features, 6);
+    EXPECT_EQ(model.input_shape.num_elements(), 6);
     EXPECT_EQ(SushiAI::Config::K_MODEL_VERSION, 2);
 }
 
@@ -440,7 +440,7 @@ TEST(Unit_Config, AVersionTwoInputShapeKeepsItsRankAndCountsItsElements)
     })");
 
     EXPECT_EQ(model.input_shape, (SushiAI::Shape{28, 28, 1}));
-    EXPECT_EQ(model.input_features, 784);
+    EXPECT_EQ(model.input_shape.num_elements(), 784);
 }
 
 /** @brief Tests that an input shape that is empty or holds a non-positive extent is refused. */

@@ -628,13 +628,14 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                       sa::Train::build_classifier(model, settings.batch_size, features, classes,
                                                   sa::DType::Float32, fusion, precision, scaling));
 
+        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                      sa::Train::bind_parameters(built, pool));
+                      sa::Train::bind_parameters(built, state, pool));
 
         sa::NN::InitPolicy init;
         init.seed = settings.seed;
-        SA_TRY(sa::NN::initialize(engine, model, pool, init));
+        SA_TRY(sa::NN::initialize(engine, state, init));
 
         const std::size_t parameter_count = parameters.size();
 

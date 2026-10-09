@@ -21,7 +21,7 @@
 
 /**
  * @file test_checkpoint.cpp
- * @brief Tests checkpoint binding to pool tensors and the Sequential and LayerStack exchange.
+ * @brief Tests checkpoints over a model state and the Sequential and LayerStack exchange.
  * @author Mustafa Garip
  */
 
@@ -67,42 +67,50 @@ namespace
     }
 
     /**
+     * @brief Traces @p model into @p graph, then creates the state of the traced model.
+     * @return The state; a failed create is reported and stops the process on value().
+     */
+    template<typename M>
+    NN::ModelState traced_state(SushiBLAS::Engine& engine, M& model, Graph::Graph& graph)
+    {
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
+        (void)model.forward(builder, x);
+
+        Result<NN::ModelState> created = NN::ModelState::create(engine, model);
+        SA_EXPECT_OK(created);
+        return std::move(created).value();
+    }
+
+    /**
      * @class Materialised
-     * @brief A traced, bound and initialised model, and the pool behind it.
+     * @brief A traced and initialised model, and the state that holds its tensors.
      *
-     * Owns the pool, because a TensorPool hands out references into its own
-     * map and every tensor a test holds has to outlive the comparison.
+     * Owns the state, because every tensor a test holds has to outlive the comparison.
      */
     template<typename M>
     class Materialised
     {
         public:
             Materialised(SushiBLAS::Engine& engine, M model, std::uint64_t seed)
-                : model_(std::move(model)), pool_(engine)
+                : model_(std::move(model)), state_(traced_state(engine, model_, graph_))
             {
-                const Graph::GraphBuilder builder(graph_);
-                const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
-                (void)model_.forward(builder, x);
-
-                // One call allocates every leaf; see tests/functional/integration/README.md.
-                SA_EXPECT_OK(pool_.materialise_leaves(graph_));
-
                 NN::InitPolicy policy;
                 policy.seed = seed;
                 policy.zero_final_layer = false;   // so every parameter carries real numbers
-                SA_EXPECT_OK(NN::initialize(engine, model_, pool_, policy));
+                SA_EXPECT_OK(NN::initialize(engine, state_, policy));
             }
 
             M& model() noexcept { return model_; }
-            Graph::TensorPool& pool() noexcept { return pool_; }
+            NN::ModelState& state() noexcept { return state_; }
 
             /** @brief Every parameter's raw bit patterns, in walk order. */
             std::vector<std::uint32_t> bits()
             {
                 std::vector<std::uint32_t> out;
-                NN::for_each_parameter(model_, [&](const std::string&, NN::Parameter& parameter)
+                NN::for_each_parameter(model_, [&](const std::string& name, NN::Parameter&)
                 {
-                    const SushiBLAS::Tensor& tensor = pool_.tensor(parameter.id());
+                    const SushiBLAS::Tensor& tensor = tensor_named(name);
                     const float* values = tensor.data_as<float>();
                     for (int64_t i = 0; i < tensor.num_elements; ++i)
                     {
@@ -126,9 +134,21 @@ namespace
             }
 
         private:
+            /**
+             * @brief Returns the state tensor of the parameter called @p name.
+             * @return The tensor; stops the process when no entry has that name, which the walk
+             *         of the same model rules out.
+             */
+            SushiBLAS::Tensor& tensor_named(const std::string& name)
+            {
+                Result<SushiBLAS::Tensor*> found = state_.tensor(name);
+                SA_EXPECT_OK(found);
+                return *found.value();
+            }
+
             M model_;
             Graph::Graph graph_{};
-            Graph::TensorPool pool_;
+            NN::ModelState state_;
     };
 
     /**
@@ -168,13 +188,13 @@ TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
     Materialised<Mlp> trained(*engine, make_sequential(), 11);
     const std::vector<std::uint32_t> expected = trained.bits();
 
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), trained.model(), trained.pool(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), trained.state(), *engine));
 
     // A different seed, so a load that did nothing at all would be visible.
     Materialised<Mlp> fresh(*engine, make_sequential(), 22);
     ASSERT_NE(fresh.bits(), expected);
 
-    SA_EXPECT_OK(IO::load_checkpoint(file.path(), fresh.model(), fresh.pool()));
+    SA_EXPECT_OK(IO::load_checkpoint(file.path(), fresh.state()));
     EXPECT_EQ(fresh.bits(), expected);
 }
 
@@ -196,18 +216,16 @@ TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerSt
     ASSERT_NE(run_time.bits(), sequential_bits);
 
     // Sequential -> LayerStack
-    SA_EXPECT_OK(IO::save_checkpoint(from_sequential.path(), compile_time.model(),
-                                     compile_time.pool(), *engine));
-    SA_EXPECT_OK(IO::load_checkpoint(from_sequential.path(), run_time.model(), run_time.pool()));
+    SA_EXPECT_OK(IO::save_checkpoint(from_sequential.path(), compile_time.state(), *engine));
+    SA_EXPECT_OK(IO::load_checkpoint(from_sequential.path(), run_time.state()));
     EXPECT_EQ(run_time.bits(), sequential_bits);
 
     // The return trip loads into a third model; see tests/functional/integration/README.md.
     Materialised<Mlp> third(*engine, make_sequential(), 123);
     ASSERT_NE(third.bits(), sequential_bits);
 
-    SA_EXPECT_OK(IO::save_checkpoint(from_stack.path(), run_time.model(), run_time.pool(),
-                                     *engine));
-    SA_EXPECT_OK(IO::load_checkpoint(from_stack.path(), third.model(), third.pool()));
+    SA_EXPECT_OK(IO::save_checkpoint(from_stack.path(), run_time.state(), *engine));
+    SA_EXPECT_OK(IO::load_checkpoint(from_stack.path(), third.state()));
     EXPECT_EQ(third.bits(), sequential_bits);
 }
 
@@ -218,10 +236,10 @@ TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt
     // A different architecture, so the file lacks 2.weight and 2.bias.
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.model(), shallow.pool(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.state(), *engine));
 
     Materialised<Mlp> deep(*engine, make_sequential(), 6);
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), deep.model(), deep.pool()),
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), deep.state()),
                       StatusCode::Incompatible, "does not supply", "2.weight");
 }
 
@@ -230,12 +248,12 @@ TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
     const ScratchFile file("sushiai_extra.ckpt");
 
     Materialised<Mlp> deep(*engine, make_sequential(), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.model(), deep.pool(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.state(), *engine));
 
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 6);
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), shallow.model(), shallow.pool()),
-                      StatusCode::Incompatible, "2.weight", "which this model does not have");
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), shallow.state()),
+                      StatusCode::Incompatible, "2.weight", "this model has no such entry");
 }
 
 TEST_F(Integration_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
@@ -245,10 +263,10 @@ TEST_F(Integration_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
     // Shapes are compared, not element counts; see tests/functional/integration/README.md.
     using OneLayer = NN::Sequential<NN::Linear>;
     Materialised<OneLayer> wide(*engine, OneLayer(NN::Linear{6, 8}), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.model(), wide.pool(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.state(), *engine));
 
     Materialised<OneLayer> narrow(*engine, OneLayer(NN::Linear{6, 4}), 6);
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), narrow.model(), narrow.pool()),
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), narrow.state()),
                       StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
 }
 
@@ -276,6 +294,6 @@ TEST_F(Integration_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
         writer.finish();
     }
 
-    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), model.model(), model.pool()),
+    SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), model.state()),
                       StatusCode::Incompatible, "supplies", "0.bias", "twice");
 }

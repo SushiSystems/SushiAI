@@ -102,13 +102,14 @@ namespace
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
                                               fusion));
 
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         if (!packed)
             SA_TRY(pool.adopt(MemoryPlan{}));
 
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, pool));
-        SA_TRY(NN::initialize(engine, model, pool));
+                      Train::bind_parameters(built, state, pool));
+        SA_TRY(NN::initialize(engine, state));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
@@ -161,10 +162,11 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     ASSERT_TRUE(pool.has_plan());
     ASSERT_GT(pool.arenas().arena_count(), 0u) << "nothing was packed, so this proves nothing";

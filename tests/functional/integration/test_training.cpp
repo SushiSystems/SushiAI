@@ -149,10 +149,11 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
@@ -186,10 +187,11 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
@@ -231,10 +233,11 @@ TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
@@ -271,10 +274,11 @@ TEST_F(Integration_Training, SgdDrivesTheLossDownOnASeparableProblem)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.2;
@@ -314,10 +318,11 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.02;
@@ -356,14 +361,15 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(layer, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
+                            Train::bind_parameters(built, state, pool));
 
     // No zeroed classifier here: a zero gradient would make the ratio 0/eps.
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, layer, pool, policy));
+    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.05;
@@ -417,13 +423,14 @@ TEST_F(Integration_Training, SgdWithoutMomentumIsExactlyMinusLearningRateTimesTh
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(layer, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
+                            Train::bind_parameters(built, state, pool));
 
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, layer, pool, policy));
+    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
@@ -464,10 +471,11 @@ TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherT
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
@@ -505,11 +513,12 @@ TEST_F(Integration_Training, ADisconnectedParameterIsRejectedRatherThanSilentlyS
                             Train::build_classifier(layer, batch, features, classes));
 
     // "ghost" is a parameter no gradient reaches; see tests/functional/integration/README.md.
-    built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id(),
+    built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id_in(built.graph),
                                                        Graph::K_NO_VALUE});
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
-    SA_EXPECT_FAILURE(Train::bind_parameters(built, pool), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(Train::bind_parameters(built, state, pool), StatusCode::InvalidDescription,
                       "'ghost'");
 }
 
@@ -700,10 +709,11 @@ TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
