@@ -50,6 +50,8 @@ add_executable(sushiai_tests
     unit/test_loss_scaling.cpp
     unit/test_seam.cpp
     integration/test_arena.cpp
+    integration/test_max_pool_trailing.cpp
+    integration/test_mish_values.cpp
     integration/test_attention_operations.cpp
     integration/test_autograd_numeric.cpp
     integration/test_buffer_update_recorder.cpp
@@ -211,6 +213,13 @@ if(SA_BUILD_VISION)
         common/test_main.cpp
         ${SUSHIAI_VISION_MODULE_TESTS}
 
+        common/darknet_reference.cpp
+        integration/test_anchor_training_step.cpp
+        integration/test_darknet_decode.cpp
+        integration/test_darknet_store.cpp
+        integration/test_darknet_yolov3_tiny_forward.cpp
+        integration/test_darknet_yolov3_tiny_layers.cpp
+        integration/test_head_delta_loss.cpp
         integration/test_yolo26_forward.cpp
     )
 

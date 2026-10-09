@@ -9,6 +9,8 @@
 
 add_subdirectory(imaging)
 add_subdirectory(detect)
+add_subdirectory(importers)
+add_subdirectory(training)
 add_subdirectory(blocks)
 add_subdirectory(datasets)
 add_subdirectory(registration)

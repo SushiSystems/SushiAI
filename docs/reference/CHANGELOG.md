@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-09 — vision: Added the cfg and weights importer of the Darknet-era YOLO models, with batch norm folded or kept separate (`vision/importers/`, `darknet_config.hpp`, `darknet_weights.hpp`, `darknet_model.hpp`).
+- 2026-10-09 — vision: Added the anchor-box path: head decode in both codings, suppression criteria, the training delta and the automatic anchoring (`detect/anchor/`, `suppression_criterion.hpp`, `anchor_clustering.hpp`).
+- 2026-10-09 — vision: Added the training module with the delta loss, the anchor objective and its step (`vision/training/`, `head_delta_loss.hpp`, `anchor_objective.hpp`, `anchor_training_step.hpp`).
+- 2026-10-09 — nn: Added the Add node, the ChannelSlice and Mish layers and a trailing padding on MaxPool2d (`add.hpp`, `channel_slice.hpp`, `mish.hpp`, `max_pool2d.hpp`).
+- 2026-10-09 — tests: Added YOLOv3-tiny forward parity against Darknet, layer by layer, and the decode parity of six models (`test_darknet_yolov3_tiny_forward.cpp`, `test_darknet_decode.cpp`).
 - 2026-10-09 — vision: Moved the anchor-free detection path into detect/free and Vision::Detect::Free; breaks the paths and namespace of eight headers (`detect/free/assigner.hpp`, `detect/free/anchors.hpp`).
 - 2026-10-09 — vision: Added the Attention, PSABlock, C2PSA and DetectHead blocks and the bottleneck_psa row of c3k2; every row of the YOLO26 model file builds (`attention.hpp`, `c2psa.hpp`, `detect_head.hpp`, `registration.cpp`).
 - 2026-10-09 — tests: Added the YOLO26 forward parity against the Ultralytics reference: feature maps, twelve raw outputs, decodes and top scores (`tests/integration/test_yolo26_forward.cpp`).

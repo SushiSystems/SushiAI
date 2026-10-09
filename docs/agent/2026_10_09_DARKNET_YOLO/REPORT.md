@@ -840,3 +840,72 @@ v3 (iou loss, Normalizer: (iou: 0.05, obj: 1.00, cls: 0.50) Region 98 Avg (IOU: 
 ### Sizes
 
 `_darknet/out` is 310 MB in 13 directories plus five input files; `_darknet` is 333 MB (`src` 17 MB, `build` 5.5 MB). Budget was 600 MB.
+
+## 15. Implementation, waves 1 to 4
+
+Written on 2026-10-09 by workflow `wf_5a220fdc-b48` from `SPEC.md`, `PLAN.md` and the sections above; no worker opened the Darknet clone, and each wave's reviewer checked, as a named item, that no code reads as a port and no comment names a foreign function. None was found.
+
+```
+dispatch: specification and plan, three revisions — opus low, passed, rung 1
+dispatch: Darknet build, dump and source reading, two passes — opus low, passed, rung 1
+dispatch: T07 — haiku medium, 10 turns, passed, rung 1
+dispatch: F03 — haiku high, 21 turns, passed, rung 1
+dispatch: F02 — haiku high, 22 turns, passed, rung 1
+dispatch: F08 — haiku high, 35 turns, passed, rung 1
+dispatch: F04 — haiku high, 36 turns, passed, rung 1
+dispatch: F06 — opus low, 18 turns, passed, rung 1
+dispatch: F07 — haiku high, 35 turns, passed, rung 1
+dispatch: F09 — haiku high, 43 turns, passed, rung 1
+dispatch: F01 — haiku high, 72 turns, passed, rung 1
+dispatch: review wave 1 — opus low, 43 turns, passed, rung 1
+dispatch: F05 — haiku medium, 25 turns, passed, rung 1
+dispatch: A02 — opus low, 9 turns, passed, rung 1
+dispatch: T08 — opus low, 17 turns, passed, rung 1
+dispatch: A01 — opus low, 15 turns, passed, rung 1
+dispatch: T01 — opus low, 20 turns, passed, rung 1
+dispatch: F10 — haiku high, 50 turns, passed, rung 1
+dispatch: review wave 2 — opus low, 30 turns, passed, rung 1
+dispatch: A04 — opus low, 9 turns, passed, rung 1
+dispatch: T05 — haiku medium, 29 turns, passed, rung 1
+dispatch: A03 — opus low, 16 turns, passed, rung 1
+dispatch: T06 — haiku high, 35 turns, passed, rung 1
+dispatch: F11 — opus low, 34 turns, passed, rung 1
+dispatch: review wave 3 — opus low, 33 turns, passed, rung 1
+dispatch: A06 — opus low, 13 turns, passed, rung 1
+dispatch: F12 — haiku medium, 33 turns, passed, rung 1
+dispatch: F13 — haiku medium, 29 turns, passed, rung 1
+dispatch: A05 — opus low, 15 turns, passed, rung 1
+dispatch: F14 — opus low, 21 turns, passed, rung 1
+dispatch: T09 — opus low, 30 turns, passed, rung 1
+dispatch: review wave 4 — opus low, 26 turns, passed, rung 1
+dispatch: F20 — haiku high, 28 turns, passed, rung 1
+dispatch: F21 — haiku high, 28 turns, passed, rung 1
+dispatch: review wave 4b — opus low, 12 turns, passed, rung 1
+```
+
+T07, the step schedule, was not written: SPEC 4.8 does not say when a step applies, whether scales compound or how steps meet the warm-up. Other gaps the workers stopped at: a per-layer tolerance, the `[net]` solver defaults, the default of `ignore_thresh`, the head count of the Blob case.
+
+The orchestrator wrote the build files of the two new modules, `vision/importers` and `vision/training`, added their rows to `cmake/SushiAILayers.cmake` and `tools/layering/check_layering.py`, 26 headers to the two umbrellas, 8 root tests to the two test binaries and 7 rows to `site_classes.tsv`.
+
+Build B1, RTX 3080 Ti, SushiBLAS main: the first build had no error.
+
+| Run | Result | Repair |
+| --- | --- | --- |
+| 1 | `sushiai_tests` 1383 passed, 3 failed; `sushiai_vision_tests` 907 passed, 3 failed, 1 skipped. Every parity case passed | Five expectations: two registry tests that listed 14 layer rows, a diagnostic that reads `-1,-1`, two shortcut texts without a `[yolo]` section. One order of checks: a head given no anchor is refused before the sum is tested |
+| 2 | `sushiai_tests` 1386 passed; `sushiai_vision_tests` 910 passed, 1 skipped | |
+
+Without `SA_REFERENCE_DATA_DIR` the parity cases are reported skipped.
+
+Measured against the Darknet dumps, with the bound each test states:
+
+| Comparison | Largest difference | Bound |
+| --- | --- | --- |
+| `yolov3-tiny`, the two raw heads, on a folded import | 3.8e-5 | 1e-3 + 1e-4 of the reference |
+| `yolov3-tiny`, the two `[yolo]` outputs | 6.1e-6 | the same |
+| `yolov3-tiny`, 22 body layers, one by one | 5.2e-5, at layer 12 | the same |
+| `yolov3-tiny`, 16 detection rows at threshold 0.01 | 1.3e-6 | 1e-4 |
+| Separate batch norm against the folded import | 4.4e-5 | 1e-3 + 1e-4 of the reference |
+| Decoded boxes of all six models, 14 heads | 1.2e-7 | 1e-6 |
+| Scores of all six models | 8.9e-8 | 1e-6 |
+
+The head values reach 17 in magnitude, so 3.8e-5 is about two parts in a million.

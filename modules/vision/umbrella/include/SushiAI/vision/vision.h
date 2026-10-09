@@ -80,3 +80,29 @@
 #include <SushiAI/vision/datasets/mnist.hpp>
 
 #include <SushiAI/vision/registration.hpp>
+
+#include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_count.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_fit.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_review.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_size.hpp>
+#include <SushiAI/vision/detect/anchor/assignment_thresholds.hpp>
+#include <SushiAI/vision/detect/anchor/head_assignment.hpp>
+#include <SushiAI/vision/detect/anchor/head_cost.hpp>
+#include <SushiAI/vision/detect/anchor/head_decode.hpp>
+#include <SushiAI/vision/detect/anchor/head_delta.hpp>
+#include <SushiAI/vision/detect/anchor/head_options.hpp>
+#include <SushiAI/vision/detect/anchor/head_training_options.hpp>
+#include <SushiAI/vision/detect/suppression_criterion.hpp>
+
+#include <SushiAI/vision/importers/darknet_config.hpp>
+#include <SushiAI/vision/importers/darknet_fold.hpp>
+#include <SushiAI/vision/importers/darknet_model.hpp>
+#include <SushiAI/vision/importers/darknet_store.hpp>
+#include <SushiAI/vision/importers/darknet_training.hpp>
+#include <SushiAI/vision/importers/darknet_weights.hpp>
+
+#include <SushiAI/vision/training/anchor_objective.hpp>
+#include <SushiAI/vision/training/anchor_training_step.hpp>
+#include <SushiAI/vision/training/head_delta_loss.hpp>
