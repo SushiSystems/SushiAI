@@ -27,16 +27,10 @@
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
-#include <string>
-#include <vector>
 #include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
 #include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/status.hpp>
-#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 
@@ -169,49 +163,6 @@ namespace SushiAI
                                                    int64_t fan_in, int64_t fan_out,
                                                    const InitPolicy& policy,
                                                    bool is_final_layer);
-        }
-
-        /**
-         * @brief Records the initial fill of every parameter of module and runs the recording.
-         * @param module Model whose parameters were declared during trace.
-         * @return Success, or the failure of a fill or of the run.
-         * @pre Every parameter of module is bound in pool, and the engine's graph holds no
-         *      other recorded task; the run executes all of it.
-         */
-        template<typename M>
-        [[nodiscard]] Status initialize(SushiBLAS::Engine& engine, M& module,
-                                        Graph::TensorPool& pool,
-                                        const InitPolicy& policy = {})
-        {
-            std::vector<Parameter*> parameters;
-            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
-            {
-                for_each_parameter(module, [&parameters](const std::string&, Parameter& parameter)
-                {
-                    parameters.push_back(&parameter);
-                });
-                return Status();
-            }));
-
-            std::size_t final_weight = parameters.size();
-            for (std::size_t i = 0; i < parameters.size(); ++i)
-                if (parameters[i]->role() == ParameterRole::Weight) final_weight = i;
-
-            return SushiAI::Detail::record_and_run(engine, [&]() -> Status
-            {
-                SushiBLAS::RandomOps random(engine);
-                random.set_seed(policy.seed);
-
-                for (std::size_t i = 0; i < parameters.size(); ++i)
-                {
-                    const bool is_final = policy.zero_final_layer && i >= final_weight;
-                    SA_TRY(Detail::apply_initializer(engine, pool.tensor(parameters[i]->id()),
-                                                     parameters[i]->init(),
-                                                     parameters[i]->fan_in(),
-                                                     parameters[i]->fan_out(), policy, is_final));
-                }
-                return Status();
-            });
         }
 
         /**

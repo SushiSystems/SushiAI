@@ -144,22 +144,6 @@ namespace SushiAI
         } // namespace
 
         Result<std::vector<Optim::ParameterSlot>> bind_parameters(const TrainingGraph& built,
-                                                                  Graph::TensorPool& pool,
-                                                                  Graph::PlanOptions options)
-        {
-            SA_TRY_ASSIGN(const std::vector<Graph::ValueId> pinned,
-                          merged_pins(options, built.pinned));
-            options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
-                                                                      pinned.size());
-
-            // Memory planning must precede leaf and tensor materialisation.
-            SA_TRY(ensure_plan(built.graph, pool, options));
-            SA_TRY(pool.materialise_leaves(built.graph));
-
-            return pair_with_gradients(built, pool);
-        }
-
-        Result<std::vector<Optim::ParameterSlot>> bind_parameters(const TrainingGraph& built,
                                                                   const NN::ModelState& state,
                                                                   Graph::TensorPool& pool,
                                                                   Graph::PlanOptions options)

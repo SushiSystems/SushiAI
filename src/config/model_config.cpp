@@ -476,7 +476,6 @@ namespace SushiAI
                 ModelSpec model;
                 model.input_shape = parse_input_shape(root.at("input", origin),
                                                       "'" + std::string(origin) + "'s 'input'");
-                model.input_features = model.input_shape.num_elements();
 
                 const Value no_defaults = Value::object({}, {});
                 const Value& defaults = root.at_or("defaults", no_defaults);

@@ -99,9 +99,6 @@ namespace SushiAI
 
             /** @brief Lists what the model publishes; never empty after a parse. */
             std::vector<OutputSpec> outputs;
-
-            /** @brief Holds the element count of @ref input_shape. */
-            std::int64_t input_features = 0;
         };
 
         /**

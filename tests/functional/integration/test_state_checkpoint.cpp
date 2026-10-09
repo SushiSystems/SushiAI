@@ -40,7 +40,6 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
@@ -60,22 +59,6 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     class Integration_StateCheckpoint : public SaTest::EngineTest {};
-
-    /** @brief The architecture the module-form case traces. */
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
-
-    Mlp make_mlp()
-    {
-        return Mlp(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
-    }
-
-    /** @brief Traces @p model into @p graph from a [4, 6] input. */
-    void trace_mlp(Mlp& model, Graph::Graph& graph)
-    {
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
-        static_cast<void>(model.forward(builder, x));
-    }
 
     /**
      * @struct NormModel
@@ -135,38 +118,6 @@ namespace
                 out.push_back(pattern);
             }
         }
-    }
-
-    /** @brief Writes a distinct value into every parameter of @p model, through @p pool. */
-    void fill_module(Mlp& model, Graph::TensorPool& pool)
-    {
-        float offset = 1.0f;
-        NN::for_each_parameter(model, [&](const std::string&, NN::Parameter& parameter)
-        {
-            SushiBLAS::Tensor& tensor = pool.tensor(parameter.id());
-            float* values = tensor.data_as<float>();
-            for (int64_t i = 0; i < tensor.num_elements; ++i)
-                values[i] = offset + 0.25f * static_cast<float>(i);
-            offset += 1.0f;
-        });
-    }
-
-    /** @brief Writes every parameter of @p model, through @p pool, into @p out as bit patterns. */
-    void collect_module_bits(Mlp& model, Graph::TensorPool& pool,
-                             std::vector<std::uint32_t>& out)
-    {
-        out.clear();
-        NN::for_each_parameter(model, [&](const std::string&, NN::Parameter& parameter)
-        {
-            const SushiBLAS::Tensor& tensor = pool.tensor(parameter.id());
-            const float* values = tensor.data_as<float>();
-            for (int64_t i = 0; i < tensor.num_elements; ++i)
-            {
-                std::uint32_t pattern = 0;
-                std::memcpy(&pattern, &values[i], sizeof(pattern));
-                out.push_back(pattern);
-            }
-        });
     }
 
     /** @brief Writes a checkpoint that holds the parameters of @p state and no buffer. */
@@ -311,36 +262,6 @@ TEST_F(Integration_StateCheckpoint, ACheckpointWithoutBuffersIsRefusedAndNamesTh
 
     SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), state), StatusCode::Incompatible,
                       "running_mean");
-}
-
-/**
- * @brief Tests that a file the module form wrote loads into a state of the same model, bit for
- *        bit, because both forms share one format.
- */
-TEST_F(Integration_StateCheckpoint, AModuleFormCheckpointLoadsIntoAState)
-{
-    const ScratchFile file("sushiai_state_module_form.ckpt");
-
-    Mlp source = make_mlp();
-    Graph::Graph source_graph;
-    trace_mlp(source, source_graph);
-    Graph::TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.materialise_leaves(source_graph));
-    fill_module(source, pool);
-    std::vector<std::uint32_t> expected;
-    collect_module_bits(source, pool, expected);
-
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), source, pool, *engine));
-
-    Mlp target = make_mlp();
-    Graph::Graph target_graph;
-    trace_mlp(target, target_graph);
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, target));
-    SA_EXPECT_OK(IO::load_checkpoint(file.path(), state));
-
-    std::vector<std::uint32_t> loaded;
-    collect_bits(state, loaded);
-    EXPECT_EQ(loaded, expected);
 }
 
 /**

@@ -61,17 +61,6 @@ namespace SushiAI
     namespace Train
     {
         /**
-         * @brief Plans memory, allocates leaves, and pairs parameters with gradients.
-         * @param built The traced graph.
-         * @param pool Destination tensor pool.
-         * @param options Memory packing options.
-         * @return Parameter slots paired with gradients, or InvalidDescription for a
-         *         parameter no gradient reaches, or the pool's failure.
-         */
-        [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_parameters(
-            const TrainingGraph& built, Graph::TensorPool& pool, Graph::PlanOptions options = {});
-
-        /**
          * @brief Plans memory, binds the state's storage, and pairs parameters with gradients.
          * @param built The traced graph; its pinned values follow those of @p options.
          * @param state The state of the model @p built was traced from; it owns the parameters.

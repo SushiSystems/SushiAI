@@ -177,12 +177,6 @@ namespace SushiAI
                 /** @brief Returns this parameter's identity, or K_NO_STATE when none was drawn. */
                 [[nodiscard]] Graph::StateId state() const noexcept { return identity_.peek(); }
 
-                /**
-                 * @brief Returns the leaf of the most recent declare, or NO_VALUE before one.
-                 * @return An id of the graph that declare ran in; id_in() serves any graph.
-                 */
-                Graph::ValueId id() const noexcept { return id_; }
-
                 /** @brief The parameter's extents. */
                 const Shape& shape() const noexcept { return shape_; }
 
@@ -234,14 +228,11 @@ namespace SushiAI
                     Graph::Graph& graph = builder.graph();
                     const Graph::ValueId held = graph.state_leaf(identity_.peek());
                     if (held != Graph::K_NO_VALUE)
-                    {
-                        id_ = held;
                         return held;
-                    }
 
-                    id_ = builder.parameter(shape_, debug_name, dtype_);
-                    graph.bind_state_leaf(identity_.get(), id_);
-                    return id_;
+                    const Graph::ValueId leaf = builder.parameter(shape_, debug_name, dtype_);
+                    graph.bind_state_leaf(identity_.get(), leaf);
+                    return leaf;
                 }
 
                 Shape shape_{};
@@ -252,7 +243,6 @@ namespace SushiAI
                 /** @brief Holds the fill the first declare stated. */
                 ParameterInit init_{};
 
-                Graph::ValueId id_ = Graph::K_NO_VALUE;
                 DType dtype_ = DType::Float32;
                 ParameterRole role_ = ParameterRole::Weight;
                 int64_t fan_in_ = 0;

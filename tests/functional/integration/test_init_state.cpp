@@ -114,21 +114,6 @@ namespace
         for (const double value : SaTest::read_tensor(*tensor))
             EXPECT_NEAR(value, expected, K_STORED_TOLERANCE);
     }
-
-    /**
-     * @brief Binds a freshly allocated tensor, of each parameter's shape and dtype, to @p pool.
-     * @pre @p pool binds none of the parameters of @p model yet.
-     */
-    void bind_fresh_parameters(SushiBLAS::Engine& engine, Mlp& model, Graph::TensorPool& pool)
-    {
-        NN::for_each_parameter(model, [&engine, &pool](const std::string&,
-                                                       NN::Parameter& parameter)
-        {
-            SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor tensor,
-                                    allocate_tensor(engine, parameter.shape(), parameter.dtype()));
-            SA_EXPECT_OK(pool.bind(parameter.id(), std::move(tensor)));
-        });
-    }
 } // namespace
 
 /**
@@ -211,35 +196,4 @@ TEST_F(Integration_InitState, TheSameSeedGivesTheSameBits)
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* b, second.tensor(entry.name));
         EXPECT_EQ(SaTest::read_tensor_bytes(*a), SaTest::read_tensor_bytes(*b));
     }
-}
-
-/**
- * @brief Tests that the state form fills each parameter with the bits the module form fills.
- */
-TEST_F(Integration_InitState, TheStateFormMatchesTheModuleFormBitForBit)
-{
-    NN::InitPolicy policy;
-    policy.zero_final_layer = false;
-
-    Mlp state_model = make_mlp();
-    Graph::Graph state_graph;
-    trace_mlp(state_model, state_graph);
-    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
-                            NN::ModelState::create(*engine, state_model));
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
-
-    Mlp module_model = make_mlp();
-    Graph::Graph module_graph;
-    trace_mlp(module_model, module_graph);
-    Graph::TensorPool pool(*engine);
-    bind_fresh_parameters(*engine, module_model, pool);
-    SA_EXPECT_OK(NN::initialize(*engine, module_model, pool, policy));
-
-    NN::for_each_parameter(module_model, [&state, &pool](const std::string& name,
-                                                         NN::Parameter& parameter)
-    {
-        SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* held, state.tensor(name));
-        EXPECT_EQ(SaTest::read_tensor_bytes(*held),
-                  SaTest::read_tensor_bytes(pool.tensor(parameter.id())));
-    });
 }
