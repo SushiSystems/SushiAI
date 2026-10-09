@@ -28,7 +28,7 @@
 #include <cmath>
 #include <utility>
 #include <SushiBLAS/core/format.hpp>
-#include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>

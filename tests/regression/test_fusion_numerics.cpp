@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/math/elementwise.hpp>
+#include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>

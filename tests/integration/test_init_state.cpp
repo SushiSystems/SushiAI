@@ -31,7 +31,7 @@
 #include <string_view>
 #include <utility>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>

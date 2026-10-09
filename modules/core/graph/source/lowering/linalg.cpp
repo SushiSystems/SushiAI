@@ -27,7 +27,7 @@
 
 #include <SushiAI/graph/lowering/linalg.hpp>
 
-#include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/blas/blas.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>

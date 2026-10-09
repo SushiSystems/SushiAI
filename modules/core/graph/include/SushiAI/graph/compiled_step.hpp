@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>

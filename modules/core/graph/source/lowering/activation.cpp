@@ -27,8 +27,8 @@
 
 #include <SushiAI/graph/lowering/activation.hpp>
 
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/math/nonlinear.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/nonlinear/nonlinear.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 

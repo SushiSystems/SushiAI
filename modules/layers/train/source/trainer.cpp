@@ -32,7 +32,7 @@
 #include <vector>
 
 #include <SushiBLAS/core/format.hpp>
-#include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/blas/blas.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/core/seam.hpp>

@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/status.hpp>

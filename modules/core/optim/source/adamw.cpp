@@ -33,10 +33,10 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/math/elementwise.hpp>
-#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/elementwise/elementwise.hpp>
+#include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/check.hpp>

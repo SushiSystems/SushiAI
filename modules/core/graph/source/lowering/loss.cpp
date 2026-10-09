@@ -28,9 +28,9 @@
 #include <SushiAI/graph/lowering/loss.hpp>
 
 #include <cstdint>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/math/elementwise.hpp>
-#include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/elementwise/elementwise.hpp>
+#include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>

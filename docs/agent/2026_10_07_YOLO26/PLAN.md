@@ -523,3 +523,303 @@ Written and syntax-checked only; nothing below has been built or run. The module
   writes it.
 - No changelog entry is written, and `tests/functional/unit/README.md` has no section for the
   four detect test files. Both are outside this package's files.
+
+## Inference: the forward pass against the reference
+
+Planned on 2026-10-09 from the tree after the layout move; nothing below is written, built or
+run. `U:` is the pinned Ultralytics installed in the conda environment `sushiai-yolo26-ref`; a
+"region" was read around the cited line. `MF` is `tests/fixtures/yolo26/MANIFEST.json`, `mj` is
+`applications/examples/yolo26/model.json`, `sb:` is `D:\Projects\sushiblas\modules`.
+
+### Measured
+
+**Row 10, `c2psa`** (`mj:22`: filters 256, hidden 128, repeats 1, heads 2), at batch 1, N = 400.
+
+| Step | Reference | Result |
+| --- | --- | --- |
+| `cv1`, Conv 1x1 with BN and SiLU | `U:nn/modules/block.py:1479-1480` region, `Conv(c1, 2c)` | `[1,20,20,256]` |
+| split in two | `block.py:1492` | `a`, `b`: `[1,20,20,128]` |
+| `m.0.attn.qkv`, Conv 1x1, BN, no activation | `block.py:1307` region; `h = dim + 2 * heads * key_dim` | `[1,20,20,256]` |
+| per head (2): q, k, v on the channel axis, head-major | `block.py:1323`; `head_dim = 64`, `key_dim = 32` | q, k `[1,20,20,32]`, v `[1,20,20,64]`; head `h` starts at channel `128 * h` |
+| tokens | view to `[B, heads, kd, N]` | q, k `[1,400,32]`, v `[1,400,64]` by reshape, no permute in NHWC |
+| scale | `block.py:1304`, `key_dim ** -0.5`, applied to q before the product (`:1331`) | 0.17677669529663687 |
+| scores, then softmax on the last axis | `block.py:1331` | `[1,400,400]` |
+| product with v | `block.py:1332` | `[1,400,64]`, then `[1,20,20,64]`; heads joined to `[1,20,20,128]` |
+| `pe`, depthwise 3x3, stride 1, pad 1, BN, no activation, over v of both heads joined | `block.py:1309`, `:1332` | `[1,20,20,128]`, added to the line above |
+| `proj`, Conv 1x1, BN, no activation | `block.py:1308` region | `[1,20,20,128]` |
+| `b = b + attn(b)` | `PSABlock.forward` | `[1,20,20,128]` |
+| `ffn.0` Conv 1x1 to 256 with SiLU, `ffn.1` Conv 1x1 to 128 without | `block.py:1370` | `[1,20,20,128]`; `b = b + ffn(b)` |
+| `cv2` over `a` and `b` joined | `block.py:1494` | `[1,20,20,256]` |
+
+State, in file order (`MF:2842`, records 165 to 199 of `weights.sacp`): `cv1`, `cv2`,
+`m.0.attn.qkv`, `.proj`, `.pe`, `m.0.ffn.0`, `m.0.ffn.1`, each with `conv.weight`, `bn.weight`,
+`bn.bias`, `bn.running_mean`, `bn.running_var`. Weights: `cv1`, `cv2` `[256,1,1,256]`; `qkv`
+`[256,1,1,128]`; `proj` `[128,1,1,128]`; `pe` `[3,3,128]`; `ffn.0` `[256,1,1,128]`; `ffn.1`
+`[128,1,1,256]`. Row 22 (`mj:34`) holds the same `PSABlock` under `m.0.1`, after a
+`Bottleneck(128, 128, 64)` under `m.0.0` (records 345 to 389), with 2 heads and no `heads` key.
+
+**Operations the attention needs.** Every identity of `ops.hpp` has a lowering row today
+(`modules/core/graph/include/SushiAI/graph/lowering/all.hpp`: 62 rows, 3 unlowered).
+
+| Need | Emitter and shape rule | Gradient rule | Lowering | SushiBLAS kernel |
+| --- | --- | --- | --- | --- |
+| `[B,H,W,C]` to tokens | `reshape`, `builder.cpp:1113` | exists | copy, `lowering/shape.cpp:60` | `copy` |
+| transpose or permute | not needed: `matmul` takes two flags | | | none exists in `sb:operations` |
+| batched product | **missing**: `matmul` throws unless both operands are rank 2 (`builder.cpp:168`) | `matmul_backward` builds its results through `matmul` with flags (`autograd/source/rules/linalg.cpp:34-66`), so it serves rank 3 once the emitter does | exists unchanged: one `gemm` (`lowering/linalg.cpp:49`) | `gemm` is batched above rank 2, contiguous operands, the output sets the batch count (`sb:operations/blas/include/SushiBLAS/blas/level3.hpp:45-53`; `blas/README.md:399-405`) |
+| softmax on the last axis | **no emitter**; composable as `reshape`, `log_softmax` (rank 2, `builder.cpp:445`), `exp`, `reshape` | missing: `LOG_SOFTMAX` is `op()` (`ops.hpp:249`); inference does not need it | exists for each part (`lowering/loss.cpp:43`, 9 tasks, then `exp`) | no softmax kernel; `max_along`, `ger`, `exp`, `gemv`, `log` |
+| scale by a constant | `scale`, `builder.cpp:291` | exists | exists | `scal` |
+| depthwise convolution | **missing**: no identity, no emitter; `conv2d` requires weight `C_in` equal to input C (`builder.cpp:663`) | missing | missing | **exists**: `window_dot`, `window_dot_backward`, `window_dot_weights_backward`, taps `[kernel_h, kernel_w, C]` (`sb:operations/spatial/include/SushiBLAS/spatial/spatial.hpp:127-150`), the fixture's weight layout |
+| split and join on channels | `slice_channels` `builder.cpp:918`, `concat_channels` `:876` | exist | exist | exist |
+
+**Row 23, `detect`** (`mj:35`, reads rows 16, 19, 22; `U:nn/modules/head.py:123-143` region).
+Per level, with input widths 64, 128, 256: a box branch `Conv 3x3 (x to 16)`, `Conv 3x3 (16 to
+16)`, a biased 1x1 convolution to 4; a class branch `DWConv 3x3 (x) + Conv 1x1 (x to 80)`,
+`DWConv 3x3 (80) + Conv 1x1 (80 to 80)`, a biased 1x1 convolution to 80. `DWConv` is a depthwise
+convolution with BN and SiLU. The fixture shows direct regression: `reg_max` is 1, the box
+outputs have 4 channels and there is no DFL state. The head exists twice, as `cv2`, `cv3` and as
+`one2one_cv2`, `one2one_cv3` (records 390 to 593, from `MF:6485`); training detaches the
+features that enter the second copy (`head.py:196`), evaluation does not. Raw outputs in
+`forward.sacp`: `<branch>.level<l>.boxes` `[1,H,W,4]` and `.scores` `[1,H,W,80]`, logits, for
+`one2many`, `one2one` and H = W = 80, 40, 20. The `detect` module decodes host arrays:
+`decode_xyxy` and `decode_xywh` read `[B,A,4]` distances and `[A,2]` anchor points, `scale_boxes`
+an `[A]` stride (`modules/vision/detect/include/SushiAI/vision/detect/box_coding.hpp:42-71`), and
+`select_top_detections` reads `[B,A,4]` xyxy boxes and `[B,A,C]` probabilities
+(`detections_topk.hpp:58`), so the levels are joined and the sigmoid applied first.
+
+**`forward.sacp`** (`MF:9856`; 21 tensors, all float32): `features.level0..2` (`[1,80,80,64]`,
+`[1,40,40,128]`, `[1,20,20,256]`, the outputs of rows 16, 19 and 22), the 12 raw outputs,
+`<branch>.decoded.boxes` `[1,8400,4]` and `.scores` `[1,8400,80]` (one-to-many in xywh pixels,
+one-to-one in xyxy pixels, scores after the sigmoid), `one2one.detections` `[1,300,6]` and
+`one2many.suppressed.detections` `[300,6]`. A parity test can compare three intermediate tensors
+and everything from the head on. All three features depend on row 10, and no tensor isolates it.
+
+Tolerances of the earlier fixture tests, all absolute (`tests/common/reference_fixture.hpp:238`):
+0 for top-k and suppression rows (`test_detect_postprocess.cpp:52`), `1.3e-4` for a decode from
+reference raw outputs, `1.6e-5` for the round trip, `1e-6` for IoU (`test_detect_boxes.cpp:50-59`).
+
+`weights.sacp` holds 594 records named `model.<row>...`; `ModelState` names are the same without
+the prefix, so one rule serves: `IO::RenameRule{"model.", ""}`. `import_weights` fails on a
+record the model lacks and on a tensor the file lacks (`modules/layers/io/source/import_weights.cpp:105`,
+`:135`), so only the whole model imports. The batch normalisation is not folded: every layer
+carries `running_mean` and `running_var`, drawn at random by the exporter, with epsilon `1e-3`.
+
+**The `inference` program** stops when a model publishes more than one output
+(`applications/programs/source/inference.cpp:112-114`) and counts classes over labelled vectors.
+A detection report needs an image source, the letterbox and its inverse, the decode, top-k, the
+confidence cut and a box output format. The first and the last are public interfaces nobody has
+designed, so the report is a later plan; this one ends at the parity test.
+
+### Units
+
+Hierarchy order; the dispatch is `model effort`; `vb/` is `modules/vision/blocks/`, and a bare
+header name is under `vb/include/SushiAI/vision/blocks/`. Each block type below also declares
+`static constexpr auto fields()`, `Graph::ValueId forward(const NN::Trace& trace, Graph::ValueId x)`
+and `Shape output_shape(const Shape& input) const`, as `SPPF` does.
+
+**U1. Depthwise identities and emitters.** `haiku high`. Files:
+`modules/core/core/include/SushiAI/core/ops.hpp`, `modules/core/graph/include/SushiAI/graph/builder.hpp`,
+`modules/core/graph/source/builder.cpp`, `modules/core/core/tests/test_ops.cpp`, new
+`modules/core/graph/tests/test_depthwise_ops.cpp`.
+```cpp
+inline constexpr OpName K_DEPTHWISE_CONV2D = differentiable_op("sushiai.depthwise_conv2d");
+inline constexpr OpName K_DEPTHWISE_CONV2D_BACKWARD_INPUT = op("sushiai.depthwise_conv2d_backward_input");
+inline constexpr OpName K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT = op("sushiai.depthwise_conv2d_backward_weight");
+ValueId GraphBuilder::depthwise_conv2d(ValueId x, ValueId weight, const ConvGeometry& g) const;
+ValueId GraphBuilder::depthwise_conv2d_backward_input(ValueId dy, ValueId weight, Shape input_shape, const ConvGeometry& g) const;
+ValueId GraphBuilder::depthwise_conv2d_backward_weight(ValueId dy, ValueId x, const ConvGeometry& g) const;
+```
+Shape rule: `x` rank 4 NHWC `[N,H,W,C]`; `weight` rank 3 `[g.kernel_h, g.kernel_w, C]` of the same
+element type; result `[N, out_h, out_w, C]` from `window_extents`, padded symmetrically as
+`conv2d` is, geometry in the attribute slots `maxpool2d` uses. Tests (`Unit_DepthwiseOps`): the
+identity, operands, shape and layout of each emitter; refusal of a rank-4 weight, a wrong tap or
+channel extent, an NCHW input; `test_ops.cpp` lists 68 identities. Acceptance: both suites pass.
+
+**U2. Rank-3 `MATMUL` and the softmax emitter.** `haiku high`. Waits on U1, which holds the
+same files. Files: `builder.hpp`, `builder.cpp`, `ops.hpp` (the comment of `K_MATMUL`), new
+`modules/core/graph/tests/test_batched_matmul.cpp`, new `tests/integration/test_attention_operations.cpp`.
+```cpp
+ValueId GraphBuilder::matmul(ValueId a, ValueId b, bool transpose_a = false, bool transpose_b = false) const;
+ValueId GraphBuilder::softmax(ValueId x) const;                 // over the last axis, rank >= 2
+```
+`matmul` accepts two rank-3 operands whose first extents agree and yields `[B, m, n]`; mixed
+ranks throw. `softmax` emits `reshape` to `[elements / last, last]`, `log_softmax`, `exp` and
+`reshape` back; it adds no identity and has no gradient. Tests (`Unit_BatchedMatmul`): the four
+flag combinations at rank 3; refusal of mixed ranks and unequal batches; the four nodes of
+`softmax`; `matmul_backward` over a rank-3 node emits rank-3 products.
+`Integration_AttentionOperations` (device): a `[2,3,4]` by `[2,5,4]` transposed product and a
+`[2,3,3]` softmax against values computed in double, `1e-6` absolute. Acceptance: both pass.
+
+**U3. Depthwise lowerings.** `haiku high`. Waits on U1. Files:
+`modules/core/graph/include/SushiAI/graph/lowering/spatial.hpp`,
+`modules/core/graph/source/lowering/spatial.cpp`, `modules/core/graph/tests/test_lowering_table.cpp`,
+`tests/integration/test_lowered_operations.cpp`. `Status lower_<name>(const LoweringContext& context)`
+for `depthwise_conv2d` (`window_dot`), `depthwise_conv2d_backward_input` (`window_dot_backward`)
+and `depthwise_conv2d_backward_weight` (`window_dot_weights_backward`); `K_SPATIAL_LOWERINGS` has
+15 rows. Tests: the table holds 65 rows; a 3x3, stride 1, pad 1 forward over `[1,4,4,2]` against
+three nested loops in the test, `1e-6`. Acceptance: both pass.
+
+**U4. Depthwise gradient rule.** `haiku high`. Waits on U1. Files:
+`modules/core/autograd/include/SushiAI/autograd/rules/spatial.hpp`,
+`modules/core/autograd/source/rules/spatial.cpp`, `modules/core/autograd/tests/test_rule_table.cpp`,
+`modules/core/autograd/tests/test_precision.cpp`, `tests/integration/test_autograd_numeric.cpp`.
+`void depthwise_conv2d_backward(const GradientTape& tape)` contributes the two gradient emitters
+of U1 to `x` and to the weight, each only when its operand needs a gradient; `K_SPATIAL_RULES`
+has 9 rows. Tests: the row exists; the three identities stay wide under mixed precision; one
+finite-difference case over input and weight. Acceptance: that case passes.
+
+**U5. `NN::DepthwiseConv2d`.** `haiku high`. Waits on U1. Files: new
+`modules/layers/nn/include/SushiAI/nn/depthwise_conv2d.hpp`, `modules/layers/nn/source/depthwise_conv2d.cpp`,
+`modules/layers/nn/tests/test_depthwise_conv2d.cpp`; `modules/layers/nn/README.md`.
+```cpp
+struct DepthwiseConv2d
+{
+    int64_t channels = 0;
+    Graph::ConvGeometry geometry{};
+    Parameter weight{};     // [kernel_h, kernel_w, channels]
+    static constexpr auto fields();                       // field("weight", ...)
+    [[nodiscard]] static DepthwiseConv2d same_padded(int64_t in_channels, int64_t out_channels,
+                                                     int64_t kernel, int64_t stride);
+    Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x);
+    Shape output_shape(const Shape& input) const;
+};
+```
+Shaped as `Conv2d`; `same_padded` refuses unequal widths. State name: `weight`. Tests
+(`Unit_DepthwiseConv2d`): the node it emits, the declared weight shape, `output_shape` at strides
+1 and 2, the refusals, the state walk. Acceptance: the suite passes.
+
+**U6. `Attention` and the depthwise aliases.** `opus low`. Waits on U2, U5. Files:
+`conv_norm.hpp`, `vb/tests/test_block_conv_norm.cpp`; new `attention.hpp`,
+`vb/source/attention.cpp`, `vb/tests/test_block_attention.cpp`.
+```cpp
+using DWConv = ConvNorm<NN::DepthwiseConv2d, NN::SiLU>;
+using DWConvLinear = ConvNorm<NN::DepthwiseConv2d, NN::Identity>;
+struct Attention            // fields: child "qkv", "proj", "pe"
+{
+    int64_t heads = 0, head_dim = 0, key_dim = 0;   // head_dim = channels / heads, key_dim = head_dim / 2
+    ConvLinear qkv;                                 // channels -> channels + 2 * heads * key_dim
+    ConvLinear proj;
+    DWConvLinear pe;
+    Attention(int64_t channels, int64_t head_count, NN::NormOptions norm);
+};
+```
+`forward` follows the table under "Measured" and scales q before the product. Tests
+(`Unit_BlockAttention`), for two heads: 6 slices, 2 scales, 4 products, 2 softmax groups, 1 add;
+the operands and flags of each product; the scale against `1 / sqrt(32)`; state names and shapes
+against manifest records 175 to 189; refusal of an indivisible width. Acceptance: it passes.
+
+**U7. `PSABlock` and `C2PSA`.** `haiku high`. Waits on U6. Files: new `psa_block.hpp`,
+`c2psa.hpp`, `vb/source/psa_block.cpp`, `vb/source/c2psa.cpp`,
+`vb/tests/test_block_psa_block.cpp`, `vb/tests/test_block_c2psa.cpp`; `vb/README.md`.
+```cpp
+struct PSABlock             // fields: child "attn", "ffn"; forward: x += attn(x); x += ffn(x)
+{
+    Attention attn;
+    NN::Sequential<Conv, ConvLinear> ffn;                 // c -> 2c -> c
+    PSABlock(int64_t channels, int64_t heads, NN::NormOptions norm);
+};
+struct C2PSA                // fields: child "cv1", "cv2", "m"
+{
+    int64_t hidden = 0;
+    Conv cv1;               // in -> 2 * hidden
+    Conv cv2;               // 2 * hidden -> out
+    NN::ModuleList<PSABlock> m;
+    C2PSA(int64_t in_channels, int64_t out_channels, int64_t hidden_channels, int64_t repeats, int64_t heads, NN::NormOptions norm);
+};
+[[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c2psa_node(NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+```
+Keys of a `c2psa` row: `filters`, `hidden`; optional `repeats` (1), `heads`
+(`max(hidden / 64, 1)`), `bn_epsilon`, `bn_momentum`; `filters` must equal the input width.
+Tests: the two adds of `PSABlock` and what each reads; `C2PSA` chains off its second slice;
+state against records 165 to 199; the factory builds row 10. Acceptance: both suites pass.
+
+**U8. `DetectHead`.** `opus low`. Waits on U6. Files: new `detect_head.hpp`,
+`vb/source/detect_head.cpp`, `vb/tests/test_block_detect_head.cpp`.
+```cpp
+using BoxBranch = NN::Sequential<Conv, Conv, NN::Conv2d>;
+using ClassStage = NN::Sequential<DWConv, Conv>;
+using ClassBranch = NN::Sequential<ClassStage, ClassStage, NN::Conv2d>;
+class DetectHead final : public NN::Node   // overrides forward, walk_state, input_count, ports
+{
+    public:
+        [[nodiscard]] static Result<std::unique_ptr<DetectHead>> create(NN::ShapeSpan levels, int64_t classes, NN::NormOptions norm);
+};
+[[nodiscard]] Result<std::unique_ptr<NN::Node>> make_detect_node(NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+```
+State: `cv2.<l>.<0..2>`, `cv3.<l>.<0..1>.<0..1>`, `cv3.<l>.2`, and the same under `one2one_cv2`
+and `one2one_cv3`. Widths: box branch `max(16, C0 / 4, 4)`, class branch
+`max(C0, min(classes, 100))`. Ports, four per level, in the fixture's order and names:
+`one2many.level<l>.boxes`, `one2many.level<l>.scores`, then the two `one2one` groups. A training
+trace passes each feature through `stop_gradient` before the second copy; an evaluation trace
+does not. Keys of a `detect` row: `classes`; optional `bn_epsilon`, `bn_momentum`. Tests
+(`Unit_BlockDetectHead`): port names and shapes; the 204 state names and shapes against records
+390 to 593; three `STOP_GRADIENT` nodes in training, none in evaluation. Acceptance: it passes.
+
+**U9. The `bottleneck_psa` row of `c3k2`.** `haiku medium`. Waits on U7. Files: `c3k2.hpp`,
+`vb/source/c3k2.cpp`, `vb/tests/test_block_c3k2.cpp`. `make_c3k2_of_bottleneck_psa`, a
+`NodeFactory`, builds a `C3k2` over `NN::Sequential<Bottleneck, PSABlock>` of `Bottleneck(hidden,
+hidden, hidden / 2)` and `PSABlock(hidden, max(hidden / 64, 1))`, and is the `"bottleneck_psa"` row
+of `K_C3K2_INNER`. Tests: the factory builds row 22; state against records 345 to 389.
+Acceptance: `Unit_BlockC3k2` passes.
+
+**U10. Registration and the model file.** `haiku medium`. Waits on U7, U8. Files:
+`modules/vision/registration/source/registration.cpp`, `.../registration/tests/test_registration.cpp`,
+`.../registration/README.md`, `applications/examples/yolo26/README.md`,
+`modules/layers/nn/tests/test_node_registry.cpp`. `register_nodes` adds
+`{"c2psa", &Blocks::make_c2psa_node}` and `{"detect", &Blocks::make_detect_node}`. Tests: seven
+rows in order; `model.json` builds whole and publishes twelve names; the walked state equals the
+594 manifest names without `model.`, shapes included. Acceptance: that name test passes.
+
+**U11. Forward parity.** `opus low`. Waits on U3, U9, U10. File: new
+`tests/integration/test_yolo26_forward.cpp`, suite `Integration_Yolo26Forward`, device. It loads
+`model.json`, publishes rows 16, 19 and 22 beside the head, builds the evaluation graph for
+`[1, 640, 640, 3]`, imports `weights.sacp` through `{"model.", ""}`, feeds `image` of
+`input.sacp` and runs one `EvaluationStep`. A case is skipped when the fixture is absent.
+Acceptance: the four cases pass at the tolerances of question 3; a miss is reported, not tuned.
+
+| Case | Compares |
+| --- | --- |
+| features | rows 16, 19, 22 against `features.level0..2` |
+| raw outputs | the twelve ports against their records |
+| decodes | the host decode of our raw outputs (sigmoid, `make_anchors`, `join_level`, `decode_xywh` or `decode_xyxy`, `scale_boxes`) against `<branch>.decoded.*` |
+| detections | the score column of `select_top_detections` against column 4 of `one2one.detections`; boxes and classes are not compared, because near-equal scores reorder rows |
+
+### Waves and builds
+
+| Wave | Units | Closes on | The orchestrator adds |
+| --- | --- | --- | --- |
+| 1 | U1 | syntax check | `modules/core/graph/CMakeLists.txt`: `tests/test_depthwise_ops.cpp` |
+| 2 | U2, U3, U4, U5 | **build 1**, `sushiai_tests` | graph: `tests/test_batched_matmul.cpp`; `modules/layers/nn/CMakeLists.txt`: the source and the test of U5; `SushiAI/SushiAI.h`: `nn/depthwise_conv2d.hpp`; `tests/CMakeLists.txt`: `integration/test_attention_operations.cpp` |
+| 3 | U6 | syntax check | `modules/vision/blocks/CMakeLists.txt`: `source/attention.cpp`, `tests/test_block_attention.cpp`; `SushiAI/vision/vision.h`: `blocks/attention.hpp` |
+| 4 | U7, U8 | syntax check | blocks: three sources, three tests; `vision.h`: three headers |
+| 5 | U9, U10, U11 | **build 2**, both test binaries | `tests/CMakeLists.txt`: `integration/test_yolo26_forward.cpp` in `sushiai_vision_tests`, the first root file that binary takes |
+
+`cmake/SushiAILayers.cmake` gains nothing: no module is added. Build 1 finds a wrong kernel call
+or gradient in a four-element test and not under 23 rows; one build at the end gives that up.
+The head stays beside the blocks (model-graph ruling 6a), so `vision/detect` keeps to `core`.
+
+### Questions for the owner
+
+1. **Rank-3 products.** `MATMUL` is documented as 2-D. (a) Widen it, as U2 plans: its lowering
+   and rule already serve rank 3. (b) A new `BATCH_MATMUL` identity. Recommendation: a.
+2. **Depthwise gradients now or later.** (a) Three identities now, as U1, U3 and U4 plan; the
+   kernels exist. (b) The forward identity alone as `op()`; U4 falls away, a training graph
+   throws "No backward rule", and the `differentiable` flag changes later. Recommendation: a.
+3. **Parity tolerance.** No run exists to take a number from. (a) Fix it now: `1e-4` absolute
+   on features and raw outputs, the existing `1.3e-4` on decoded boxes, `1e-6` on probabilities.
+   (b) Measure in build 2 and pin what the owner approves. Recommendation: a.
+4. **More reference tensors.** (a) Leave the fixture; a fault in row 10 shows only from row 16.
+   (b) Rerun the exporter with the outputs of rows 9, 10 and 21 added (1.4 MB on a 41.9 MB set
+   under a 64 MiB ceiling), as a unit before wave 5 and an approved fixture change. Recommendation: b.
+
+### Not in this plan, and not verified
+
+- Not planned: the detection report, initialisers (the head's biases among them), a softmax
+  gradient, a registry row for `depthwise_conv2d`.
+- That the SushiBLAS the build resolves has `window_dot`. SushiAI's lowerings include
+  `<SushiBLAS/engine/spatial.hpp>` (`lowering/norm.cpp:36`); the sibling tree, which is being
+  moved, has the header at `SushiBLAS/spatial/spatial.hpp` with no commit. Build 1 settles it,
+  and whether `gemm` runs on a batch. The cost of `log_softmax` over `[400, 400]` is unmeasured.
+- That `NN::Sequential` names its children `0`, `1` and takes a nested `Sequential` and a plain
+  `Conv2d` (`layers.hpp:181-300`, signatures only); the state tests of U7 to U9 pin it. How a
+  biased 1x1 `Conv2d` is built, the accessor of a trace's mode and the `ModelSpec` field of the
+  outputs were not read, which is why U8 and U11 are `opus low`.

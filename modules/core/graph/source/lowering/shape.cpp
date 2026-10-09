@@ -29,9 +29,9 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/spatial.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/spatial/spatial.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/graph/ir.hpp>

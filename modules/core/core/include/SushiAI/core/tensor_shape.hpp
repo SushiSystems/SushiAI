@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/core/shape.hpp>
 
 namespace SushiAI

@@ -31,8 +31,8 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>

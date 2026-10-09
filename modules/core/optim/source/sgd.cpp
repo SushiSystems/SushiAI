@@ -33,8 +33,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/check.hpp>

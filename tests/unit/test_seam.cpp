@@ -36,7 +36,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/errors.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/error.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>

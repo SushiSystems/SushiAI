@@ -31,9 +31,9 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/status.hpp>

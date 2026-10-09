@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>

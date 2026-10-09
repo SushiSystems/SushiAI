@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/compiled_step.hpp>

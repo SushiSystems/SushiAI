@@ -116,8 +116,6 @@ The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.m
 `modules/<tier>/<module>/` and was built on 2026-10-09. New vision code is written into
 `modules/vision/`.
 
-- **The package suite.** `sa test --suite package` fails on SushiBLAS's install, which does not
-  ship the headers of its moved modules; SushiAI's side installed and exported correctly.
 - **Carry the domain-tier key of the layering checker to SushiSkills.** The shared copy reads
   `<SushiAI/vision/detect/x.hpp>` as a module named `vision`.
 - **Split `sushiai_add_module`** into one function per concern (key, target, dependencies,

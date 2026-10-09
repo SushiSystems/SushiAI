@@ -127,9 +127,15 @@ orchestrator restored the unit notes the rewrite of `eager`'s README had dropped
 notes on the blocks from `nn`'s README to `vision/blocks`, and removed two dependencies `io`
 declared and did not use.
 
+Run 5, the same day: SushiBLAS moved its own tree to modules and renamed its public include
+paths (`tools/naming/sushiblas_include_paths_0_1_0.tsv` in that repository, 70 rows). SushiAI's
+89 include lines in 57 files follow the table. Against that working tree, which SushiBLAS had
+not committed, the build passed, `sushiai_tests` passed 1274, `sushiai_vision_tests` passed 611
+and skipped 1, both programs printed `compiles: 1`, and `sa test --suite package` built and ran
+both consumers. That run also compiled the last edits of wave 3.
+
 Open:
 
-- `sa test --suite package` fails until SushiBLAS installs the headers of its moved modules.
 - `sushiai_add_module` derives the key, makes the target, links, registers the tests and
   installs in one function, and looks the domain tier up in three places; the reviewer asks
   for one function per concern.

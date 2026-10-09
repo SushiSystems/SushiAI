@@ -28,11 +28,11 @@
 #include <SushiAI/graph/lowering/elementwise.hpp>
 
 #include <string_view>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/logic/logic.hpp>
-#include <SushiBLAS/engine/math/elementwise.hpp>
-#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/logic/logic.hpp>
+#include <SushiBLAS/elementwise/elementwise.hpp>
+#include <SushiBLAS/elementwise/dispatch.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/lowering/context.hpp>

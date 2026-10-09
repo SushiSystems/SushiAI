@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>

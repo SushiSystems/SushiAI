@@ -32,7 +32,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>

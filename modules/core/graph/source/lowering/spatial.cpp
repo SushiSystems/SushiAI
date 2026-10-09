@@ -29,8 +29,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <SushiBLAS/engine/math/reductions.hpp>
-#include <SushiBLAS/engine/spatial.hpp>
+#include <SushiBLAS/reductions/reductions.hpp>
+#include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/graph/lowering/context.hpp>

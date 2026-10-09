@@ -31,7 +31,7 @@
 #include <exception>
 #include <type_traits>
 #include <utility>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
 #include <SushiAI/core/result.hpp>
