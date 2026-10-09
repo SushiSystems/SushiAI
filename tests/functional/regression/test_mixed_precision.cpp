@@ -89,9 +89,9 @@ namespace
     {
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-        Train::TrainingGraph built = Train::build_classifier(
-            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
-            precision);
+        SA_TRY_ASSIGN(Train::TrainingGraph built,
+                      Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
+                                              Graph::FusionOptions{}, precision));
 
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -241,12 +241,14 @@ TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
 
     const MixedPrecisionPolicy precision;
 
-    const Train::TrainingGraph wide = Train::build_classifier(
-        wide_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
-        nullptr);
-    const Train::TrainingGraph narrow = Train::build_classifier(
-        narrow_model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{},
-        &precision);
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph wide,
+                            Train::build_classifier(wide_model, K_BATCH, K_FEATURES, K_CLASSES,
+                                                    DType::Float32, Graph::FusionOptions{},
+                                                    nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph narrow,
+                            Train::build_classifier(narrow_model, K_BATCH, K_FEATURES, K_CLASSES,
+                                                    DType::Float32, Graph::FusionOptions{},
+                                                    &precision));
 
     // The control: with nothing narrowing, the entry is reachable and taken.
     EXPECT_EQ(wide.fusion.count(Graph::FusedForm::GemmBiasGelu), 1u)

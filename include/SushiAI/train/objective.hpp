@@ -41,6 +41,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/nn/model_outputs.hpp>
 
 namespace SushiAI
 {
@@ -128,16 +129,16 @@ namespace SushiAI
                                      ObjectiveLeaves& leaves) const = 0;
 
                 /**
-                 * @brief Computes scalar loss from model output.
+                 * @brief Computes the scalar loss from the model's named outputs.
                  * @param builder Where the nodes go.
                  * @param graph The graph, for checking shapes.
-                 * @param output The model output value.
+                 * @param outputs The model's outputs; the objective names the ones it reads.
                  * @param leaves Declared auxiliary leaves.
                  * @return The scalar loss value identifier.
                  */
                 virtual Graph::ValueId loss(const Graph::GraphBuilder& builder,
                                             const Graph::Graph& graph,
-                                            Graph::ValueId output,
+                                            const NN::ModelOutputs& outputs,
                                             const ObjectiveLeaves& leaves) const = 0;
 
                 /**
@@ -179,7 +180,7 @@ namespace SushiAI
 
                 Graph::ValueId loss(const Graph::GraphBuilder& builder,
                                     const Graph::Graph& graph,
-                                    Graph::ValueId output,
+                                    const NN::ModelOutputs& outputs,
                                     const ObjectiveLeaves& leaves) const override;
 
                 std::optional<Metric> score(const Data::Batch& batch,

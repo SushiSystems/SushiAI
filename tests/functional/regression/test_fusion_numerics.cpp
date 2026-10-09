@@ -99,8 +99,9 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Train::TrainingGraph built = Train::build_classifier(
-            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, fusion);
+        SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                                Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES,
+                                                        DType::Float32, fusion));
 
         TensorPool pool(engine);
         SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -290,8 +291,8 @@ TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
     using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
     Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const Train::TrainingGraph built =
-        Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
     ASSERT_EQ(built.fusion.count(FusedForm::GemmBiasGelu), 1u) << built.fusion.to_string();
 

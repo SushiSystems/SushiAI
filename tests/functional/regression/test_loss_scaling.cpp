@@ -100,9 +100,10 @@ namespace
     {
         Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-        Train::TrainingGraph built = Train::build_classifier(
-            model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
-            Graph::FusionOptions{}, precision, /*loss_scaling=*/true);
+        SA_TRY_ASSIGN(Train::TrainingGraph built,
+                      Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
+                                              Graph::FusionOptions{}, precision,
+                                              /*loss_scaling=*/true));
 
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,

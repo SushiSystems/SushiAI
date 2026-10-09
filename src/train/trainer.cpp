@@ -33,60 +33,137 @@
 
 #include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/engine/blas.hpp>
+#include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/core/seam.hpp>
+#include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/graph/arena.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
     namespace Train
     {
+        namespace
+        {
+            /** @brief Adopts a plan of @p graph into @p pool unless the pool holds one. */
+            [[nodiscard]] Status ensure_plan(const Graph::Graph& graph, Graph::TensorPool& pool,
+                                             const Graph::PlanOptions& options)
+            {
+                if (pool.has_plan())
+                    return Status();
+
+                SA_TRY_ASSIGN(Graph::MemoryPlan plan,
+                              NN::Detail::bridge_throwing([&graph, &options]()
+                {
+                    return Graph::MemoryPlan::build(graph, options);
+                }));
+
+                return pool.adopt(std::move(plan));
+            }
+
+            /** @brief Returns Incompatible when the plan of @p pool packs a value of @p pinned. */
+            [[nodiscard]] Status require_unpacked(const Graph::TensorPool& pool,
+                                                  const std::vector<Graph::ValueId>& pinned)
+            {
+                const Graph::MemoryPlan& plan = pool.arenas().plan();
+                for (const Graph::ValueId id : pinned)
+                {
+                    SA_FAIL_IF(plan.is_packed(plan.buffer_of(id)), StatusCode::Incompatible,
+                               "The pool's plan packs value {}, which the step must keep past "
+                               "its last reader. Plan the pool with TrainingGraph::pinned, or "
+                               "pass a pool that holds no plan.",
+                               id);
+                }
+
+                return Status();
+            }
+
+            /**
+             * @brief Materialises a zeroed gradient per parameter and pairs the two tensors.
+             * @pre @p pool holds the tensor of every parameter leaf of @p built.
+             * @return One slot per parameter, or InvalidDescription for a parameter no
+             *         gradient reaches, or the pool's failure.
+             */
+            [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> pair_with_gradients(
+                const TrainingGraph& built, Graph::TensorPool& pool)
+            {
+                std::vector<Optim::ParameterSlot> slots;
+                SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    slots.reserve(built.parameters.size());
+                    return Status();
+                }));
+
+                for (const ParameterBinding& binding : built.parameters)
+                {
+                    SA_FAIL_IF(binding.gradient == Graph::K_NO_VALUE,
+                               StatusCode::InvalidDescription,
+                               "Parameter '{}' receives no gradient. It is not on any path from "
+                               "the loss, so no optimizer could ever move it - either wire it "
+                               "into the model or stop listing it as a parameter.",
+                               binding.name);
+
+                    const Graph::Value& gradient_value = built.graph.value(binding.gradient);
+
+                    SA_TRY_ASSIGN(SushiBLAS::Tensor& gradient,
+                                  pool.materialise(binding.gradient, gradient_value));
+
+                    // Gradients are initialised to zero before the first backward execution.
+                    SA_TRY(pool.request_constant(gradient, 0.0));
+                    SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                    {
+                        slots.push_back(Optim::ParameterSlot{
+                            binding.name, pool.tensor(binding.value), gradient,
+                        });
+                        return Status();
+                    }));
+                }
+
+                // Constant buffers must be flushed before optimizer initialisation.
+                SA_TRY(pool.flush_constants());
+
+                return std::move(slots);
+            }
+        } // namespace
+
         Result<std::vector<Optim::ParameterSlot>> bind_parameters(const TrainingGraph& built,
                                                                   Graph::TensorPool& pool,
                                                                   Graph::PlanOptions options)
         {
             // Memory planning must precede leaf and tensor materialisation.
-            if (!pool.has_plan())
-            {
-                SA_TRY(pool.adopt(Graph::MemoryPlan::build(built.graph, options)));
-            }
-
+            SA_TRY(ensure_plan(built.graph, pool, options));
             SA_TRY(pool.materialise_leaves(built.graph));
 
-            std::vector<Optim::ParameterSlot> slots;
-            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
+            return pair_with_gradients(built, pool);
+        }
+
+        Result<std::vector<Optim::ParameterSlot>> bind_parameters(const TrainingGraph& built,
+                                                                  const NN::ModelState& state,
+                                                                  Graph::TensorPool& pool,
+                                                                  Graph::PlanOptions options)
+        {
+            std::vector<Graph::ValueId> pinned;
+            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                slots.reserve(built.parameters.size());
+                pinned.reserve(options.pinned.size() + built.pinned.size());
+                pinned.insert(pinned.end(), options.pinned.begin(), options.pinned.end());
+                pinned.insert(pinned.end(), built.pinned.begin(), built.pinned.end());
                 return Status();
             }));
+            options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
+                                                                      pinned.size());
 
-            for (const ParameterBinding& binding : built.parameters)
-            {
-                SA_FAIL_IF(binding.gradient == Graph::K_NO_VALUE, StatusCode::InvalidDescription,
-                           "Parameter '{}' receives no gradient. It is not on any path from the "
-                           "loss, so no optimizer could ever move it - either wire it into the "
-                           "model or stop listing it as a parameter.",
-                           binding.name);
+            SA_TRY(ensure_plan(built.graph, pool, options));
+            SA_TRY(require_unpacked(pool, pinned));
 
-                const Graph::Value& gradient_value = built.graph.value(binding.gradient);
+            // The state binds its leaves first, so materialise_leaves() allocates the rest.
+            SA_TRY(state.attach(built.graph, pool));
+            SA_TRY(pool.materialise_leaves(built.graph));
 
-                SA_TRY_ASSIGN(SushiBLAS::Tensor& gradient,
-                              pool.materialise(binding.gradient, gradient_value));
-
-                // Gradients are initialised to zero before the first backward execution.
-                SA_TRY(pool.request_constant(gradient, 0.0));
-                SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
-                {
-                    slots.push_back(Optim::ParameterSlot{
-                        binding.name, pool.tensor(binding.value), gradient,
-                    });
-                    return Status();
-                }));
-            }
-
-            // Constant buffers must be flushed before optimizer initialisation.
-            SA_TRY(pool.flush_constants());
-
-            return std::move(slots);
+            return pair_with_gradients(built, pool);
         }
 
         std::string RunReport::to_string() const
@@ -113,38 +190,18 @@ namespace SushiAI
 
             text += "per-node timing:\n";
             for (const SushiRuntime::Core::NodeTiming& timing : node_timings)
-                text += SushiBLAS::Core::format("  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
-                                                timing.plan_index, timing.name, timing.invocations,
-                                                timing.device_ms, timing.host_ms);
+            {
+                text += SushiBLAS::Core::format(
+                    "  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
+                    timing.plan_index, timing.name, timing.invocations, timing.device_ms,
+                    timing.host_ms);
+            }
 
             return text;
         }
 
         namespace
         {
-            /**
-             * @brief Returns the recorder whose work is folded into the compiled step.
-             * @return The optimizer for InPlan, null for PerStep, or InvalidDescription when
-             *         InPlan is asked of an optimizer that is not replay invariant.
-             */
-            [[nodiscard]] Result<Graph::StepRecorder*> placement_recorder(
-                Optim::Optimizer& optimizer, const TrainerOptions& options)
-            {
-                Graph::StepRecorder* recorder = nullptr;
-                if (options.optimizer_placement == OptimizerPlacement::PerStep)
-                    return recorder;
-
-                SA_FAIL_IF(!optimizer.is_replay_invariant(), StatusCode::InvalidDescription,
-                           "This optimizer's update is recorded as separate operations whose "
-                           "scalars are baked in at record time, so it cannot be compiled into "
-                           "the step: every replay would reuse the first step's bias "
-                           "corrections. Use Optim::UpdateKernel::Fused, or ask for "
-                           "TrainerOptions::optimizer_placement = OptimizerPlacement::PerStep.");
-
-                recorder = &optimizer;
-                return recorder;
-            }
-
             /**
              * @brief Checks the operand types of @p graph against the precision policy.
              * @return Success when no policy is set or every node agrees with it, otherwise
@@ -176,12 +233,18 @@ namespace SushiAI
                                                        const Graph::Graph& graph,
                                                        Graph::TensorPool& pool, StepSpec spec,
                                                        Optim::Optimizer& optimizer,
-                                                       TrainerOptions options)
+                                                       TrainerOptions options,
+                                                       std::vector<BufferUpdateSlot> updates)
         {
             SA_FAIL_IF(spec.inputs == Graph::K_NO_VALUE || spec.targets == Graph::K_NO_VALUE
-                       || spec.logits == Graph::K_NO_VALUE || spec.loss == Graph::K_NO_VALUE,
+                       || spec.loss == Graph::K_NO_VALUE,
                        StatusCode::InvalidDescription,
-                       "The trainer needs all four of inputs, targets, logits and loss");
+                       "The trainer needs all three of inputs, targets and loss");
+            SA_FAIL_IF(options.track_accuracy && spec.logits == Graph::K_NO_VALUE,
+                       StatusCode::InvalidDescription,
+                       "Accuracy tracking needs the logits and this step names none. A model "
+                       "that publishes several outputs leaves them unset; switch "
+                       "TrainerOptions::track_accuracy off");
 
             const Graph::Value& loss = graph.value(spec.loss);
 
@@ -192,33 +255,48 @@ namespace SushiAI
                        "The loss is {}; only float32 and float64 can be read back",
                        dtype_name(loss.dtype));
 
-            SA_TRY(verify_precision(graph, options));
-            SA_TRY_ASSIGN(Graph::StepRecorder* const trailing,
-                          placement_recorder(optimizer, options));
-            SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> step,
-                          Graph::CompiledStep::compile(engine, graph, pool, trailing,
-                                                       options.fusion_selector));
-
-            const Shape& logits = graph.value(spec.logits).shape;
-            const int64_t rows = logits.dim(0);
-            const int64_t classes = logits.dim(1);
-
-            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            int64_t classes = 0;
+            if (spec.logits != Graph::K_NO_VALUE)
             {
-                return std::unique_ptr<Trainer>(new Trainer(engine, pool, spec, optimizer,
-                                                            options, std::move(step), rows,
-                                                            classes));
+                const Shape& logits = graph.value(spec.logits).shape;
+                SA_FAIL_IF(options.track_accuracy && logits.rank() != 2,
+                           StatusCode::InvalidDescription,
+                           "Accuracy tracking needs [rows, classes] logits and these have "
+                           "shape {}; switch TrainerOptions::track_accuracy off",
+                           logits.to_string());
+
+                if (logits.rank() == 2)
+                    classes = logits.dim(1);
+            }
+
+            const Shape& inputs = graph.value(spec.inputs).shape;
+            SA_FAIL_IF(inputs.rank() == 0, StatusCode::InvalidDescription,
+                       "The inputs have no batch extent; the trainer needs [rows, sample...]");
+            const int64_t rows = inputs.dim(0);
+
+            SA_TRY(verify_precision(graph, options));
+
+            TrainingStepOptions step_options;
+            step_options.optimizer_placement = options.optimizer_placement;
+            step_options.fusion_selector = options.fusion_selector;
+
+            SA_TRY_ASSIGN(std::unique_ptr<TrainingStep> step,
+                          TrainingStep::make(engine, graph, pool, optimizer, std::move(updates),
+                                             step_options));
+
+            return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                return std::unique_ptr<Trainer>(new Trainer(engine, pool, spec, options,
+                                                            std::move(step), rows, classes));
             });
         }
 
         Trainer::Trainer(SushiBLAS::Engine& engine, Graph::TensorPool& pool, StepSpec spec,
-                         Optim::Optimizer& optimizer, TrainerOptions options,
-                         std::unique_ptr<Graph::CompiledStep> step, int64_t rows,
-                         int64_t classes) noexcept
+                         TrainerOptions options, std::unique_ptr<TrainingStep> step,
+                         int64_t rows, int64_t classes) noexcept
             : engine_(&engine),
               pool_(&pool),
               spec_(spec),
-              optimizer_(&optimizer),
               options_(options),
               step_(std::move(step)),
               rows_(rows),
@@ -245,6 +323,10 @@ namespace SushiAI
 
         Result<double> Trainer::score_accuracy(const Data::Batch& batch) const
         {
+            SA_FAIL_IF(classes_ == 0, StatusCode::InvalidDescription,
+                       "Accuracy needs [rows, classes] logits and this step has none; switch "
+                       "TrainerOptions::track_accuracy off");
+
             const SushiBLAS::Tensor& logits = pool_->tensor(spec_.logits);
 
             // Accuracy evaluation requires readable host float32 or float64 logits.
@@ -287,16 +369,11 @@ namespace SushiAI
             SushiBLAS::Tensor& inputs = pool_->tensor(spec_.inputs);
             SushiBLAS::Tensor& targets = pool_->tensor(spec_.targets);
 
-            SA_FAIL_IF(batch.inputs.num_elements != inputs.num_elements, StatusCode::Incompatible,
-                       "The batch holds {} input elements but the compiled step expects {}",
-                       batch.inputs.num_elements, inputs.num_elements);
-            SA_FAIL_IF(batch.targets.num_elements != targets.num_elements,
-                       StatusCode::Incompatible,
-                       "The batch holds {} target elements but the compiled step expects {}",
-                       batch.targets.num_elements, targets.num_elements);
+            SA_TRY(check_feed(batch.inputs, inputs, "inputs"));
+            SA_TRY(check_feed(batch.targets, targets, "targets"));
 
             // Minibatch tensors are copied into fixed address buffers read by the plan.
-            SA_TRY(Detail::record_and_run(*engine_, [&]()
+            SA_TRY(SushiAI::Detail::record_and_run(*engine_, [&]()
             {
                 SushiBLAS::BLASOps blas(*engine_);
                 blas.copy(batch.inputs, inputs);
@@ -304,7 +381,7 @@ namespace SushiAI
                 return Status();
             }));
 
-            // The compiled step executes forward, backward, loss, and update in-plan.
+            // The step replays the plan and steps a per-step optimizer itself.
             SA_TRY(step_->run());
 
             StepMetrics metrics;
@@ -315,8 +392,6 @@ namespace SushiAI
                 metrics.accuracy = accuracy;
             }
 
-            if (!step_->has_trailing_work())
-                SA_TRY(optimizer_->step());
             ++steps_;
 
             return metrics;
@@ -329,7 +404,8 @@ namespace SushiAI
             SA_FAIL_IF(dataset.batch_size() != rows_, StatusCode::Incompatible,
                        "The dataset's batch size is {} but the step was compiled for {}",
                        dataset.batch_size(), rows_);
-            SA_FAIL_IF(dataset.num_classes() != classes_, StatusCode::Incompatible,
+            SA_FAIL_IF(classes_ != 0 && dataset.num_classes() != classes_,
+                       StatusCode::Incompatible,
                        "The dataset has {} classes but the step was compiled for {}",
                        dataset.num_classes(), classes_);
 
@@ -337,10 +413,10 @@ namespace SushiAI
                 engine_->get_context().get_execution_engine();
 
             if (options_.profile)
-                execution.reset_profiling(step_->plan());
+                execution.reset_profiling(step_->step().plan());
 
             RunReport report;
-            report.operations_per_step = step_->operation_count();
+            report.operations_per_step = step_->step().operation_count();
 
             const auto started = std::chrono::steady_clock::now();
 
@@ -369,11 +445,11 @@ namespace SushiAI
             if (options_.profile)
             {
                 SushiRuntime::Core::RunReport runtime_report;
-                execution.collect_profiling(step_->plan(), runtime_report);
+                execution.collect_profiling(step_->step().plan(), runtime_report);
                 report.node_timings = std::move(runtime_report.node_timings);
             }
 
-            report.compile_count = step_->compile_count();
+            report.compile_count = step_->step().compile_count();
             return report;
         }
 

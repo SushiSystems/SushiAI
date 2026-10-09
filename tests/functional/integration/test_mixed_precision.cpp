@@ -87,8 +87,10 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
-    Train::TrainingGraph built = Train::build_classifier(
-        model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES,
+                                                    DType::Float32, Graph::FusionOptions{},
+                                                    &precision));
 
     ASSERT_GT(built.casts.count(), 0u) << "the mixed policy inserted nothing";
 
@@ -127,8 +129,10 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
-    Train::TrainingGraph built = Train::build_classifier(
-        model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32, Graph::FusionOptions{}, &precision);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES,
+                                                    DType::Float32, Graph::FusionOptions{},
+                                                    &precision));
 
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -176,7 +180,8 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
     // The graph skipped the cast pass on purpose; see tests/functional/integration/README.md.
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
-    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -206,7 +211,8 @@ TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
     // A half buffer must not be read as float; see tests/functional/integration/README.md.
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
-    Train::TrainingGraph built = Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
     // Deliberately narrow the logits: no observed list, so nothing pins them.
     const MixedPrecisionPolicy precision;

@@ -107,6 +107,7 @@
 #include "nn/layer_node.hpp"
 #include "nn/model_graph.hpp"
 #include "nn/model_outputs.hpp"
+#include "nn/model_state.hpp"
 #include "nn/module_list.hpp"
 #include "nn/module_node.hpp"
 #include "nn/node.hpp"
@@ -176,7 +177,14 @@
 #include "eager/region_signature.hpp"
 
 #include "io/checkpoint_format.hpp"
+#include "io/import_weights.hpp"
 #include "io/checkpoint.hpp"
 
 #include "train/objective.hpp"
+#include "train/training_graph.hpp"
+#include "train/steps.hpp"
+#include "train/buffer_update_recorder.hpp"
 #include "train/trainer.hpp"
+#include "train/training_step.hpp"
+#include "train/feed.hpp"
+#include "train/evaluation_step.hpp"

@@ -31,11 +31,20 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
+#include <SushiAI/core/ops.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/layers.hpp>
+#include <SushiAI/nn/model_graph.hpp>
+#include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/nn/node.hpp>
 #include <SushiAI/train/objective.hpp>
-#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/steps.hpp>
+#include <SushiAI/train/training_graph.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
@@ -70,6 +79,20 @@ namespace
         }
         return rows;
     }
+
+    /** @brief Builds body, GELU and head over [6], published as "features" and "logits". */
+    Result<NN::ModelGraph> build_two_output_model()
+    {
+        NN::ModelGraph model(Shape{6});
+
+        SA_TRY_ASSIGN(const NN::NodeRef body, model.add("body", NN::Linear{6, 8}, model.input()));
+        SA_TRY_ASSIGN(const NN::NodeRef features, model.add("activation", NN::GELU{}, body));
+        SA_TRY_ASSIGN(const NN::NodeRef logits, model.add("head", NN::Linear{8, 3}, features));
+        SA_TRY(model.output("features", features));
+        SA_TRY(model.output("logits", logits));
+
+        return model;
+    }
 }
 
 TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIr)
@@ -79,11 +102,15 @@ TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIr)
     const int64_t classes = 3;
 
     Mlp through_wrapper = make_model(features, 8, classes);
-    Train::TrainingGraph a = Train::build_classifier(through_wrapper, batch, features, classes);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const Train::TrainingGraph a,
+        Train::build_classifier(through_wrapper, batch, features, classes));
 
     Mlp through_seam = make_model(features, 8, classes);
     const CrossEntropyObjective objective(batch, classes);
-    Train::TrainingGraph b = Train::build_graph(through_seam, objective, batch, features);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const Train::TrainingGraph b,
+        Train::build_training_graph(through_seam, objective, Shape{batch, features}));
 
     EXPECT_EQ(a.graph.value_count(), b.graph.value_count());
     EXPECT_EQ(a.graph.node_count(), b.graph.node_count());
@@ -101,7 +128,8 @@ TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
     // The target leaf sits between the input and the model; see tests/functional/unit/README.md.
     Mlp model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
-    Train::TrainingGraph built = Train::build_graph(model, objective, 4, 6);
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_training_graph(model, objective, Shape{4, 6}));
 
     EXPECT_EQ(built.spec.inputs, 0);
     EXPECT_EQ(built.spec.targets, 1);
@@ -115,8 +143,8 @@ TEST(Unit_Objective, TheObjectiveOwnsTheOutputShapeCheck)
     Mlp model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 5);   // asks for 5 classes, model gives 3
 
-    SA_EXPECT_ERROR((void)Train::build_graph(model, objective, 4, 6),
-                    "[4, 3]", "[4, 5]");
+    SA_EXPECT_FAILURE(Train::build_training_graph(model, objective, Shape{4, 6}),
+                      StatusCode::InvalidDescription, "[4, 3]", "[4, 5]");
 }
 
 TEST(Unit_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
@@ -134,6 +162,40 @@ TEST(Unit_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
     EXPECT_TRUE(leaves.has("targets"));
     EXPECT_FALSE(leaves.has("collocation"));
     EXPECT_EQ(leaves.all().size(), 1u);
+}
+
+/** @brief Tests that the loss is computed from the value the model published as "output". */
+TEST(Unit_Objective, CrossEntropyReadsTheOnlyOutput)
+{
+    Mlp model = make_model(6, 8, 3);
+    const CrossEntropyObjective objective(4, 3);
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_training_graph(model, objective, Shape{4, 6}));
+
+    ASSERT_EQ(built.outputs.all().size(), 1u);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId published,
+                            built.outputs.at(NN::K_SINGLE_PORT_NAME));
+
+    const Graph::NodeId loss_node = built.graph.value(built.spec.loss).producer;
+    ASSERT_NE(loss_node, Graph::K_NO_NODE);
+    ASSERT_EQ(built.graph.node(loss_node).op, Ops::K_NLL_LOSS.id);
+
+    // NLL_LOSS reads the log-softmax, and the log-softmax reads the model's output.
+    const Graph::ValueId log_probabilities = built.graph.node(loss_node).inputs.at(0);
+    const Graph::NodeId softmax_node = built.graph.value(log_probabilities).producer;
+    ASSERT_NE(softmax_node, Graph::K_NO_NODE);
+    ASSERT_EQ(built.graph.node(softmax_node).op, Ops::K_LOG_SOFTMAX.id);
+    EXPECT_EQ(built.graph.node(softmax_node).inputs.at(0), published);
+}
+
+/** @brief Tests that cross-entropy refuses a model with two outputs and names both. */
+TEST(Unit_Objective, CrossEntropyRefusesTwoOutputs)
+{
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, build_two_output_model());
+    const CrossEntropyObjective objective(4, 3);
+
+    SA_EXPECT_FAILURE(Train::build_training_graph(model, objective, Shape{4, 6}),
+                      StatusCode::InvalidDescription, "features", "logits");
 }
 
 TEST(Unit_Objective, AnEmptyLeafSetSaysSoRatherThanListingNothing)

@@ -58,6 +58,7 @@ add_executable(sushiai_tests
     functional/unit/test_layer_stack.cpp
     functional/unit/test_config.cpp
     functional/unit/test_objective.cpp
+    functional/unit/test_steps.cpp
     functional/unit/test_spatial_shapes.cpp
     functional/unit/test_rematerialise.cpp
     functional/unit/test_provenance.cpp
@@ -124,6 +125,12 @@ add_executable(sushiai_tests
     functional/integration/test_lowered_operations.cpp
     functional/integration/test_autograd_numeric.cpp
     functional/integration/test_training.cpp
+    functional/integration/test_model_state.cpp
+    functional/integration/test_init_state.cpp
+    functional/integration/test_import_weights.cpp
+    functional/integration/test_state_checkpoint.cpp
+    functional/integration/test_buffer_update_recorder.cpp
+    functional/integration/test_evaluation_step.cpp
     functional/integration/test_mixed_precision.cpp
     functional/integration/test_resilience.cpp
     functional/integration/test_registries.cpp

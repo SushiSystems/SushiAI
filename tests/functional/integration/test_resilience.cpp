@@ -125,6 +125,7 @@ namespace
 
             int64_t batch_size() const noexcept override { return batch_; }
             int64_t input_dim() const noexcept override { return features_; }
+            Shape sample_shape() const override { return Shape{features_}; }
             int64_t num_classes() const noexcept override { return classes_; }
             std::size_t batch_count() const noexcept override { return 0; }
             std::string_view name() const noexcept override { return "no-batches"; }
@@ -172,7 +173,8 @@ namespace
         Fixture fixture{Mlp(NN::Linear{features, hidden}, NN::ReLU{},
                             NN::Linear{hidden, classes}), {}, nullptr, {}};
 
-        fixture.built = Train::build_classifier(fixture.model, batch, features, classes);
+        SA_TRY_ASSIGN(fixture.built,
+                      Train::build_classifier(fixture.model, batch, features, classes));
         fixture.pool = std::make_unique<TensorPool>(engine);
         SA_TRY_ASSIGN(fixture.slots, Train::bind_parameters(fixture.built, *fixture.pool));
         SA_TRY(NN::initialize(engine, fixture.model, *fixture.pool));
@@ -274,7 +276,7 @@ TEST_F(Integration_Resilience, AdamWNamesTheHyperparameterThatIsOutOfRange)
 TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
 {
     NN::Linear layer{4, 3};
-    Train::TrainingGraph built = Train::build_classifier(layer, 4, 4, 3);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built, Train::build_classifier(layer, 4, 4, 3));
     built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id(),
                                                        Graph::K_NO_VALUE});
 
@@ -338,7 +340,7 @@ TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledS
                             Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
 
     SA_EXPECT_FAILURE(trainer->run_step(wrong->batch(0)), StatusCode::Incompatible,
-                      "24 input elements", "expects 48");
+                      "[4, 6]", "[8, 6]");
 }
 
 TEST_F(Integration_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
@@ -405,7 +407,8 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
     const int64_t classes = 3;
 
     NN::Linear layer{features, classes};
-    Train::TrainingGraph built = Train::build_classifier(layer, batch, features, classes);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(layer, batch, features, classes));
 
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
@@ -450,7 +453,8 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
     const int64_t classes = 1;
 
     NN::Linear layer{features, classes};
-    Train::TrainingGraph built = Train::build_classifier(layer, batch, features, classes);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(layer, batch, features, classes));
 
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,

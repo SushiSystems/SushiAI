@@ -95,9 +95,10 @@ namespace
                                       dataset->num_classes(), spec.objective_attributes,
                                       "the objective block");
 
-        sa::Train::TrainingGraph built =
-            sa::Train::build_graph(model, *objective, dataset->batch_size(),
-                                   dataset->input_dim());
+        SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
+                      sa::Train::build_training_graph(
+                          model, *objective,
+                          sa::Shape{dataset->batch_size(), dataset->input_dim()}));
 
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
