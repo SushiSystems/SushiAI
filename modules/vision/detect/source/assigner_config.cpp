@@ -23,7 +23,7 @@
  * @file assigner_config.cpp
  * @brief Implements the two branch presets of the task-aligned label assigner.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/assigner_config.hpp>

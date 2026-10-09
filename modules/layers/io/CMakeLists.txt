@@ -11,6 +11,6 @@ sushiai_add_module(NAME io TIER layers
         source/checkpoint.cpp
         source/checkpoint_format.cpp
         source/import_weights.cpp
-    PUBLIC_DEPENDS core graph config nn
+    PUBLIC_DEPENDS core nn
     TESTS
         tests/test_checkpoint_format.cpp)

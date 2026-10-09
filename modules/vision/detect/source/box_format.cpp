@@ -23,7 +23,7 @@
  * @file box_format.cpp
  * @brief Implements the conversions between corner boxes and centre-size boxes.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/box_format.hpp>

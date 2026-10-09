@@ -35,7 +35,7 @@ namespace SushiAI
     {
         TEST(Unit_RuleTable, EveryDomainsRulesReachTheCombinedTable)
         {
-            // A domain left out of all.hpp still compiles; see tests/functional/unit/README.md.
+            // A domain left out of all.hpp still compiles; see tests/unit/README.md.
             constexpr std::size_t K_DOMAINS =
                 Autograd::K_ELEMENTWISE_RULES.size() + Autograd::K_LINALG_RULES.size()
                 + Autograd::K_ACTIVATION_RULES.size() + Autograd::K_LOSS_RULES.size()
@@ -47,7 +47,7 @@ namespace SushiAI
 
         TEST(Unit_RuleTable, NoOperationHasTwoRules)
         {
-            // The first of two entries would win silently; see tests/functional/unit/README.md.
+            // The first of two entries would win silently; see tests/unit/README.md.
             for (std::size_t i = 0; i < Autograd::K_RULES.size(); ++i)
                 for (std::size_t j = i + 1; j < Autograd::K_RULES.size(); ++j)
                     EXPECT_NE(Autograd::K_RULES[i].op, Autograd::K_RULES[j].op)
@@ -57,7 +57,7 @@ namespace SushiAI
 
         TEST(Unit_RuleTable, TheRulesThatExistedBeforeTheSplitStillDo)
         {
-            // These fourteen rules predate the split; see tests/functional/unit/README.md.
+            // These fourteen rules predate the split; see tests/unit/README.md.
             for (OpID op : {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_ADD.id,
                                  Ops::K_SUB.id, Ops::K_MUL.id, Ops::K_SCALE.id, Ops::K_EXP.id,
                                  Ops::K_RELU.id, Ops::K_GELU.id, Ops::K_SIGMOID.id,

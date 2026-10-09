@@ -23,7 +23,7 @@
  * @file test_log_softmax_stability.cpp
  * @brief Tests that log-softmax stays finite and exact for a row far below the batch maximum.
  * @author Mustafa Garip
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 
 #include <algorithm>
@@ -103,7 +103,7 @@ namespace
 
 /**
  * @brief Tests that log-softmax of a row far below the batch maximum is finite and within 1e-4.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
 {
@@ -145,7 +145,7 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
 
 /**
  * @brief Tests that cross-entropy over such a row is finite and equals 2 + k.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
 {
@@ -178,7 +178,7 @@ TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrec
 
 /**
  * @brief Tests that the cross-entropy gradient over such a row is finite and matches the softmax.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
 {
@@ -233,7 +233,7 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
 
 /**
  * @brief Tests that the log-probabilities are exactly equal at every gap.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
 {

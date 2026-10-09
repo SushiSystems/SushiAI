@@ -19,7 +19,7 @@ CTestTestfile.cmake
 _deps/
 
 # Docs
-# Doxyfile is committed at docs/Doxyfile. Generated documentation output is ignored.
+# Doxyfile is committed at .config/doxygen/Doxyfile. Generated documentation output is ignored.
 /docs/api-site/
 docs/api-site/html/
 docs/api-site/doxygen-warnings.log

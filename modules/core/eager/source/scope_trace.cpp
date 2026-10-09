@@ -23,7 +23,7 @@
  * @file scope_trace.cpp
  * @brief Implements ScopeTrace, which splits a trace into segments as scopes open and close.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <SushiAI/eager/scope_trace.hpp>

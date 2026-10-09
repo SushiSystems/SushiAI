@@ -21,7 +21,7 @@ compiler even if it only calls `SushiAI::version_string()`. See SushiBLAS's own
 for exactly why the flag has to be `PUBLIC` there — SushiAI inherits it
 unchanged.
 
-One consequence worth planning around: `include/SushiAI/SushiAI.h` pulls in
+One consequence worth planning around: `modules/layers/umbrella/include/SushiAI/SushiAI.h` pulls in
 both lanes. The **host lane** — `core/common.hpp`, `core/ops.hpp`,
 `core/shape.hpp`, `core/check.hpp`, `core/status.hpp`, `core/result.hpp`,
 `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,

@@ -23,7 +23,7 @@
  * @file partition.hpp
  * @brief Declares Partition, the assignment of a differentiated graph's nodes to regions.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -59,7 +59,7 @@ namespace SushiAI
 
         /**
          * @brief Assigns every node of one differentiated graph to a region.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         struct Partition
         {

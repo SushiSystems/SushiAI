@@ -23,7 +23,7 @@
  * @file segment.hpp
  * @brief Declares Segment, one run of consecutively traced nodes under one scope.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -39,7 +39,7 @@ namespace SushiAI
     {
         /**
          * @brief Names a maximal run of consecutively traced nodes with one innermost scope.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         struct Segment
         {

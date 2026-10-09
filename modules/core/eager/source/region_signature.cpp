@@ -23,7 +23,7 @@
  * @file region_signature.cpp
  * @brief Implements signature_of, which hashes the structure of one region.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <SushiAI/eager/region_signature.hpp>
@@ -168,7 +168,7 @@ namespace SushiAI
              * @param layout The nodes of the signed region that precede the reader.
              * @param external_identity One identity per value id; read when no node in @p layout
              *        writes @p operand, or when a LEAF does.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             void hash_operand(Fnv1a& hasher,
                               const Graph::Graph& graph,

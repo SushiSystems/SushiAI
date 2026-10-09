@@ -82,7 +82,7 @@ namespace
 
 TEST(Unit_Module, AnUntracedLayerYieldsNoParameters)
 {
-    // An untraced layer has no parameters to walk; see tests/functional/unit/README.md.
+    // An untraced layer has no parameters to walk; see tests/unit/README.md.
     Linear layer{4, 3};
     EXPECT_TRUE(walk(layer).empty());
     EXPECT_EQ(NN::parameter_count(layer), 0u);
@@ -115,7 +115,7 @@ TEST(Unit_Module, ABiasFreeLayerSimplyHasNoBiasEntry)
 
 TEST(Unit_Module, SequentialNamesParametersByLayerIndex)
 {
-    // The index is the layer's position, as in PyTorch; see tests/functional/unit/README.md.
+    // The index is the layer's position, as in PyTorch; see tests/unit/README.md.
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
@@ -161,7 +161,7 @@ TEST(Unit_Module, TracingTwiceDoesNotDuplicateParameters)
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.id_in(graph), first_weight);
-    // The second trace declares no new parameter; see tests/functional/unit/README.md.
+    // The second trace declares no new parameter; see tests/unit/README.md.
     EXPECT_EQ(graph.value_count(), values_after_first + 2);
     EXPECT_EQ(NN::parameter_count(layer), 2u);
 }
@@ -207,7 +207,7 @@ TEST(Unit_Module, LinearRejectsAnInputWhoseInnerExtentIsWrong)
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }
 
-// Matches docs/getting_started/TUTORIAL.md §6 verbatim; see tests/functional/unit/README.md.
+// Matches docs/getting_started/TUTORIAL.md §6 verbatim; see tests/unit/README.md.
 
 namespace
 {
@@ -244,7 +244,7 @@ TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"offset:[4]"}));
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
 
-    // The role decides the initialiser; see tests/functional/unit/README.md.
+    // The role decides the initialiser; see tests/unit/README.md.
     EXPECT_EQ(layer.offset.role(), NN::ParameterRole::Bias);
 
     // It satisfies the Module contract, so it composes.
@@ -253,7 +253,7 @@ TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
 
 TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
 {
-    // mul goes through require_same and never broadcasts; see tests/functional/unit/README.md.
+    // mul goes through require_same and never broadcasts; see tests/unit/README.md.
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
@@ -264,7 +264,7 @@ TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
     EXPECT_NO_THROW((void)builder.bias_add(x, b));
 }
 
-// WalkableStub is deliberately not a LayerStack; see tests/functional/unit/README.md.
+// WalkableStub is deliberately not a LayerStack; see tests/unit/README.md.
 
 namespace
 {
@@ -321,14 +321,14 @@ TEST(Unit_Module, AWalkableLeafIsEnumeratedByItsOwnWalk)
 
 TEST(Unit_Module, AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther)
 {
-    // The container supplies "0.", the child the leaf names; see tests/functional/unit/README.md.
+    // The container supplies "0.", the child the leaf names; see tests/unit/README.md.
     StubHolder holder;
     EXPECT_EQ(walk(holder), (std::vector<std::string>{"0.weight:[2, 3]", "0.bias:[2]"}));
 }
 
 TEST(Unit_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
 {
-    // layers.hpp asserts the same at build time; see tests/functional/unit/README.md.
+    // layers.hpp asserts the same at build time; see tests/unit/README.md.
     static_assert(NN::Detail::HasParameterWalk<WalkableStub>::value,
                   "the stub must be detected as walking itself");
     static_assert(!NN::Detail::HasParameterWalk<Linear>::value,

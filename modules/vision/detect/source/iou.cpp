@@ -23,7 +23,7 @@
  * @file iou.cpp
  * @brief Implements intersection over union and complete IoU in float32.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/iou.hpp>

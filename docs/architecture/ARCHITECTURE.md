@@ -1,7 +1,7 @@
 # SushiAI Architecture
 
 This document describes how SushiAI is built today, and names only what
-actually exists under `include/SushiAI/`, `src/`, and `cmake/`. **AI-1** has
+actually exists under `modules/`, `applications/`, and `cmake/`. **AI-1** has
 landed: the graph IR, the differentiation transform, the lowering to
 SushiBLAS, the layer/optimizer/data/training layers, and an MLP that trains
 end to end. It will keep growing section by section — see
@@ -25,7 +25,8 @@ queue or writes a `parallel_for`. Every compute call is recorded through a
 SushiBLAS operation view (`BLASOps`, `ElementwiseOps`, `RandomOps`, `SpatialOps`
 and their siblings) built from a `SushiBLAS::TaskRecorder`. The lowering is the
 one place that turns *IR* into those calls: the driver in
-`src/graph/lowering.cpp` and the eight domain files under `src/graph/lowering/`
+`modules/core/graph/source/lowering.cpp` and the eight domain files under
+`modules/core/graph/source/lowering/`
 (§5.0). That keeps the differentiation, fusion and memory-planning passes
 device-free and testable without hardware.
 
@@ -55,7 +56,7 @@ the step is compiled exactly once no matter how many batches run
 (`CompiledStep::compile_count()`), and the steady state allocates nothing
 (`TensorPool::allocated_bytes()` stops moving after the first step). The
 first of those is additionally pinned in the `regression` tier
-(`tests/functional/regression/test_compile_once.cpp`) and in the demo's own
+(`tests/regression/test_compile_once.cpp`) and in the demo's own
 CTest smoke test, because a recompile-per-step still converges — it just
 quietly pays graph analysis every step, and nothing else would notice.
 
@@ -65,8 +66,8 @@ consumer, a three-tier test suite with CTest labels (`unit` / `integration` /
 `regression`), and the `sa` CLI. The suite is one binary, `sushiai_tests`, of
 1803 cases: `sa run sushiai_tests` runs them in one process and `sa test` runs
 them through CTest. `sa demo mlp` runs the showcase —
-`examples/demo_mlp.cpp`, a flag-driven training program, deliberately a
-separate binary from the `examples/example.cpp` teaching file.
+`applications/examples/source/demo_mlp.cpp`, a flag-driven training program, deliberately a
+separate binary from the `applications/examples/source/example.cpp` teaching file.
 
 ### The whole stack is C++17, and that is not a style choice
 
@@ -100,7 +101,7 @@ The pieces C++20 had been supplying are C++17 spellings now:
 | `std::format` | `SushiBLAS::Core::format` | `SA_FAIL_IF`, `SA_FATAL_IF`, `SA_THROW_IF` and every report/diagnostic string |
 | `concept Module` / `ModuleContainer` | `constexpr bool` variable templates over `std::void_t` detectors | `nn/module.hpp` |
 | `template<Module... Ls>` | `template<typename... Ls>` + a `static_assert` fold | `nn/layers.hpp`'s `Sequential` |
-| `consteval` | `constexpr` (called only from `static_assert`, so still proven at compile time) | `core/ops.hpp`, `src/graph/fusion.cpp` |
+| `consteval` | `constexpr` (called only from `static_assert`, so still proven at compile time) | `core/ops.hpp`, `modules/core/graph/source/fusion.cpp` |
 
 `SushiBLAS::Core::format` is **shared, not copied**: SushiBLAS carries the
 stand-in as an installed public header and SushiAI links SushiBLAS
@@ -140,26 +141,27 @@ aliases regardless of which mode actually resolved them.
 
 ## 3. The library target
 
-`src/CMakeLists.txt` defines one target, built from one source list:
+Each module is declared by `sushiai_add_module()`, called from its own `CMakeLists.txt`.
+`sushiai_add_library()` archives the modules of a tier into one library. Both functions are in
+`cmake/SushiAIModule.cmake`, and `cmake/SushiAILayers.cmake` holds the tier table: the tier of each
+module, and the library each tier is archived into. The `core` and `layers` tiers form the
+`sushiai` library, and the `vision` domain forms `sushiai_vision`, which links `sushiai`.
 
 ```cmake
-set(SUSHIAI_SOURCES version.cpp graph/... autograd/... nn/... optim/... data/... train/...)
+sushiai_add_module(NAME graph TIER core
+    SOURCES source/builder.cpp source/fusion.cpp ...
+    PUBLIC_DEPENDS core
+    TESTS tests/test_ir.cpp ...)
 
-add_library(sushiai STATIC ${SUSHIAI_SOURCES})
-add_library(SushiAI::sushiai ALIAS sushiai)
-
-target_link_libraries(sushiai PUBLIC
-    SushiRuntime::SushiRuntime
-    SushiBLAS::sushiblas
-)
-
-sushiai_apply_sycl(sushiai SOURCES ${SUSHIAI_SOURCES})
+sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
+    UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.h")
 ```
 
-`SUSHIAI_SOURCES` feeds both `add_library()` and `sushiai_apply_sycl()`, so
-a source added directly to `add_library()` would compile without `-fsycl` on
-the intel-llvm path and fail to link the moment it touches a SushiBLAS
-kernel. One variable, both consumers.
+A module's `SOURCES` feed both its `OBJECT` library and `sushiai_apply_sycl()`, so a source that
+was compiled outside that list would lack `-fsycl` on the intel-llvm path and would fail to link
+the moment it touched a SushiBLAS kernel. One list, both consumers. `sushiai_add_library()` gives
+each library the same `PUBLIC` links to `SushiRuntime::SushiRuntime` and `SushiBLAS::sushiblas`,
+and the vision library adds `DEPENDS sushiai`.
 
 Both dependencies are linked `PUBLIC` — the lowering needs SushiBLAS, and
 every consumer needs it to construct an `Engine` anyway. SushiAI therefore
@@ -168,8 +170,9 @@ contract transitively rather than owning a copy of that guarantee, which is
 also why gradient accumulation is ordered through the graph's edges rather
 than through atomics (see `autograd/backward.hpp`).
 
-`include/SushiAI/SushiAI.h` is the master header and includes every public
-header. Two lanes live under it:
+`modules/layers/umbrella/include/SushiAI/SushiAI.h` is the master header and includes every
+public header of the `sushiai` library. Two lanes live under it. Each header name below is
+relative to `SushiAI/` under the `include/` of the module that owns it:
 
 - The **host lane** — `core/` (except `core/allocation.hpp` and
   `core/seam.hpp`), `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
@@ -232,7 +235,7 @@ file.
 
 ## 4. The IR, and why differentiation writes IR
 
-`include/SushiAI/graph/ir.hpp` defines a single-assignment DAG of
+`modules/core/graph/include/SushiAI/graph/ir.hpp` defines a single-assignment DAG of
 `Value`s and `Node`s. `graph/builder.hpp` is the only thing that creates
 nodes, so every operation's shape inference is stated exactly once.
 
@@ -258,13 +261,13 @@ There is no `backward.cpp`. The implementation is three kinds of file:
 
 | File | What it owns |
 |---|---|
-| `src/autograd/differentiator.cpp` | `differentiate()`, the reverse traversal, and the seed |
-| `src/autograd/tape.cpp` | `GradientTape` — how a rule reads its node and contributes a gradient |
-| `src/autograd/rules/<domain>.cpp` | The rules themselves, one file per domain |
+| `modules/core/autograd/source/differentiator.cpp` | `differentiate()`, the reverse traversal, and the seed |
+| `modules/core/autograd/source/tape.cpp` | `GradientTape` — how a rule reads its node and contributes a gradient |
+| `modules/core/autograd/source/rules/<domain>.cpp` | The rules themselves, one file per domain |
 
 The domains are `elementwise`, `activation`, `linalg`, `loss`, `shape`,
 `spatial` and `norm`, each with a header beside it in
-`include/SushiAI/autograd/rules/`. `rules/all.hpp` is the one place that joins
+`modules/core/autograd/include/SushiAI/autograd/rules/`. `rules/all.hpp` is the one place that joins
 them.
 
 The property this buys is a rule about *diffs*, and it is the reason the split
@@ -275,7 +278,7 @@ normalisation rule, a loss rule — edited the same 600-line file, which is how
 four unrelated reasons to change end up sharing a merge conflict.
 
 A rule sees `GradientTape` and nothing else. `Differentiator`'s definition
-lives in `src/autograd/differentiator.hpp`, outside the public include tree,
+lives in `modules/core/autograd/source/differentiator.hpp`, outside the public include tree,
 reachable from exactly the two translation units that construct or call back
 into it.
 
@@ -324,7 +327,7 @@ exposure there is the *consumer*'s node, not `K_ZERO`'s.
 `Lowering::record()` proves it once more before recording anything. That is the
 one gate every path passes through, so the pass-level proofs are
 belt-and-braces rather than load-bearing — and it is where the tag stops being
-bookkeeping, since `lower_layout_convert()` (`src/graph/lowering/shape.cpp`)
+bookkeeping, since `lower_layout_convert()` (`modules/core/graph/source/lowering/shape.cpp`)
 reads it to decide whether to relabel a side into `[N,H,W,C]`.
 
 **The `differentiable` flag is split from its proof.** `core/ops.hpp` carries
@@ -415,7 +418,7 @@ This is only safe because SushiBLAS now honours `storage_offset` everywhere
 and `Tensor::region()` reports a view's own byte interval rather than the
 bare allocation base; two disjoint tensors in one arena therefore produce
 non-overlapping `ResourceRegion`s and do not falsely serialise. That claim is
-checked directly in `tests/functional/integration/test_arena.cpp`.
+checked directly in `tests/integration/test_arena.cpp`.
 
 The two reduction operands of `K_LOG_SOFTMAX` and `K_NLL_LOSS` are planned like
 any other value. SushiBLAS builds the regions of `execute_reduction` and
@@ -445,8 +448,8 @@ using LoweringRule = Status (*)(const LoweringContext&);
 ```
 
 The rows live in eight domain tables, each a header under
-`include/SushiAI/graph/lowering/` with its functions in the `.cpp` of the same
-name under `src/graph/lowering/`: `elementwise`, `activation`, `linalg`,
+`modules/core/graph/include/SushiAI/graph/lowering/` with its functions in the `.cpp` of the
+same name under `modules/core/graph/source/lowering/`: `elementwise`, `activation`, `linalg`,
 `loss`, `shape`, `spatial`, `norm` and `fused`. `all.hpp` joins them with
 `concat_lowerings` into the 62 rows of `K_LOWERINGS`, and `find_lowering`
 searches that array. No rule calls the next one.
@@ -523,7 +526,7 @@ writes, so the tracker already sees that the update reads the gradients the
 backward pass wrote and writes the parameters the forward pass read.
 
 Two guarantees hold this down, both in the regression tier
-(`tests/functional/regression/test_fused_optimizer.cpp`): the fused kernel and
+(`tests/regression/test_fused_optimizer.cpp`): the fused kernel and
 the separate operations agree **byte for byte** (they can, because the whole
 stack builds with `-ffp-contract=off` and every expression keeps the operand
 order of the kernel it replaced), and folding the update into the plan changes
@@ -570,7 +573,7 @@ work follows from that one fact:
   `ForceSycl` or `ForceReference`), it chooses which matched entry to actually
   spell. Device facts live only here; the IR is the same on every machine and
   only one node's spelling changes.
-- **`src/graph/lowering/fused.cpp` holds the functors**, because a functor
+- **`modules/core/graph/source/lowering/fused.cpp` holds the functors**, because a functor
   inlined into a SushiBLAS kernel is device code.
 
 Adding a form is four mechanical edits: an identity, a `FusedForm`, a `K_CATALOG`
@@ -673,7 +676,7 @@ This used to be paid for with a `Lowering::declare_epilogue_operand()` that
 emitted a `TaskGraph::add_native` node running nothing, present only for its two
 access declarations - one node per fused GEMM, no kernel launch, counted apart by
 a `RunReport::ordering_nodes_per_step`. All of that is gone.
-`record_fused_gemm` (`src/graph/lowering/fused.cpp`) hands SushiBLAS the
+`record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) hands SushiBLAS the
 epilogue and its operands together,
 `gemm_epilogue(BiasReluEpilogue{...}).reads(bias)`. Each row of the fused table
 builds its own epilogue and access set, because the access set belongs to the
@@ -693,7 +696,7 @@ graph: the first layer's `gemm+bias+relu` replaces five calls with one, the
 second layer's `gemm+bias` replaces three with one, and the cross-entropy
 gradient's `exp/sub/scale` tail replaces five with one. Every fused form is
 compared byte for byte against the unfused spelling in
-`tests/functional/regression/test_fusion_numerics.cpp`, and
+`tests/regression/test_fusion_numerics.cpp`, and
 `FusionOptions::enabled = false` keeps that reference reachable, exactly as
 `Optim::UpdateKernel::Separate` does for the optimizer. The demo's loss
 trajectory is identical to the last printed digit with the pass on and off.
@@ -853,7 +856,7 @@ owning it and therefore allocates nothing.
 ### Four registries, and why they are constant tables
 
 ```
-apps/train.cpp  (no type names; never edited again)
+applications/programs/source/train.cpp  (no type names; never edited again)
    |
    +-- NN::K_LAYER_REGISTRY       "linear", "gelu", "relu", "tanh", "sigmoid",
    |                            "leaky_relu", "unflatten", "conv2d",
@@ -876,13 +879,13 @@ unknown `type` or key is an **error listing what is available**, so a typed
 `"unitss": 256` cannot train silently against a default.
 
 The layer seam carries a per-sample `Shape`, batch axis excluded.
-`Layer::output_shape()` in `include/SushiAI/nn/layer.hpp` is the virtual, and a
-`LayerFactory` in `include/SushiAI/nn/layer_registry.hpp` receives the shape the
+`Layer::output_shape()` in `modules/layers/nn/include/SushiAI/nn/layer.hpp` is the virtual, and
+a `LayerFactory` in `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` receives the shape the
 layer before it reports, so a convolution, a pool and a flatten chain through
 `build_layer_stack` with no width restated in the file. `GraphBuilder::conv2d`
-in `include/SushiAI/graph/builder.hpp` owns the convolution's node sequence, a
+in `modules/core/graph/include/SushiAI/graph/builder.hpp` owns the convolution's node sequence, a
 reshape of the rank-4 weight, K_IM2COL, K_MATMUL, an optional K_BIAS_ADD and a reshape
-back to NHWC, and `NN::Conv2d` in `include/SushiAI/nn/conv2d.hpp` calls it and
+back to NHWC, and `NN::Conv2d` in `modules/layers/nn/include/SushiAI/nn/conv2d.hpp` calls it and
 does not restate it.
 
 `Train::Objective` is the seam that keeps the classifier from being fixed:
@@ -935,7 +938,7 @@ library, aliased in-tree and exported out-of-tree under the same name),
 guarded by a TARGET-guard so a consumer that already resolved either
 dependency itself doesn't get a duplicate), `SameMinorVersion` package
 version compatibility (pre-1.0), and a version-drift check between
-`include/SushiAI/version.hpp` and the CMake project version at configure
+`modules/core/version/include/SushiAI/version.hpp` and the CMake project version at configure
 time.
 
 `sushiai_apply_build_policy()` (`cmake/SushiAIBuildPolicy.cmake`) composes

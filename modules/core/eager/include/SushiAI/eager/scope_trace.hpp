@@ -23,7 +23,7 @@
  * @file scope_trace.hpp
  * @brief Declares ScopeTrace, which splits a trace into segments as scopes open and close.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -44,7 +44,7 @@ namespace SushiAI
     {
         /**
          * @brief Splits the nodes traced into one graph into segments, by the scope open at each.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         class ScopeTrace final
         {

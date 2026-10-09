@@ -23,7 +23,7 @@
  * @file scope.hpp
  * @brief Declares Scope, the guard that opens a scope on a ScopeTrace and closes it.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -38,7 +38,7 @@ namespace SushiAI
     {
         /**
          * @brief Opens a named scope for its own lifetime.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         class Scope final
         {

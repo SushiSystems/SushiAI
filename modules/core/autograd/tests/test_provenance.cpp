@@ -23,7 +23,7 @@
  * @file test_provenance.cpp
  * @brief Tests the forward origin that differentiation records for every node it appends.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <cstddef>

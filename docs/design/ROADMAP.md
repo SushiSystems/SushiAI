@@ -437,8 +437,8 @@ the runtime's FP contract — travel). Policy targets split `sushiblas_warnings`
 ## 16. AI-0 — Scope reset
 
 The current `sushiai/` tree (CUDA/cuBLAS executable, `core/tensor.h` autograd) is retired —
-explicitly not a migration source. The new skeleton lands CLI-first (ST-2): `include/SushiAI/`,
-`src/`, `tests/`, `examples/`, `cli/`, `docs/` per stack convention; targets `sushiai` (library) +
+explicitly not a migration source. The new skeleton lands CLI-first (ST-2): `modules/`, `applications/`,
+`tests/`, `cli/`, `docs/` per stack convention; targets `sushiai` (library) +
 `sushiai_tests` + examples, all `sushiai_`-prefixed; `SushiAI::SushiAI` alias and packaging shape
 copied from SB-6 from day one. Upstreams resolved via the same D3 layered pattern for **both**
 SushiRuntime and SushiBLAS. Old prototype code is deleted on the new branch (git history preserves
@@ -639,7 +639,7 @@ MNIST-class supervised training, end to end, driven by `sa demo mlp`:
   test.
 
 **Status (2026-08-03): first cut landed, gates partly met.** `sa demo mlp` runs
-`examples/demo_mlp.cpp` — a flag-driven MLP classifier (epochs, batches, batch size, hidden
+`applications/examples/source/demo_mlp.cpp` — a flag-driven MLP classifier (epochs, batches, batch size, hidden
 width, features, classes, lr, optimizer, seed, MNIST directory) that trains end to end and
 reports the compile count, the per-epoch loss trajectory, the final accuracy and the wall clock.
 It is a separate binary from `sushiai_example` on purpose: a demo is a supported entry point with

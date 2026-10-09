@@ -23,7 +23,7 @@
  * @file scope_partitioner.hpp
  * @brief Declares ScopePartitioner, which makes one region per segment and direction.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -36,7 +36,7 @@ namespace SushiAI
     {
         /**
          * @brief Cuts a graph only where the caller opened or closed a scope.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         class ScopePartitioner final : public RegionPartitioner
         {

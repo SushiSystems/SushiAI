@@ -116,14 +116,14 @@ TEST(Unit_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
     const std::vector<std::string> expected = traced_names(compile_time, 4, 6);
     EXPECT_EQ(traced_names(run_time, 4, 6), expected);
 
-    // Literals keep both paths from going empty together; see tests/functional/unit/README.md.
+    // Literals keep both paths from going empty together; see tests/unit/README.md.
     EXPECT_EQ(expected, (std::vector<std::string>{
         "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]", "2.bias:[4]"}));
 }
 
 TEST(Unit_LayerStack, KeepsTheIndexGapAParameterlessActivationLeaves)
 {
-    // Indices track layer positions, not parameter positions; see tests/functional/unit/README.md.
+    // Indices track layer positions, not parameter positions; see tests/unit/README.md.
     LayerStack stack = make_stack();
     const std::vector<std::string> names = traced_names(stack, 4, 6);
 
@@ -182,7 +182,7 @@ TEST(Unit_LayerStack, ReportsAnOutOfRangeLayerIndex)
 
 TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 {
-    // Both traces go into one graph; see tests/functional/unit/README.md.
+    // Both traces go into one graph; see tests/unit/README.md.
     LayerStack stack = make_stack();
 
     Graph::Graph graph;

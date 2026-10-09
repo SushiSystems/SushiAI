@@ -23,7 +23,7 @@
  * @file ground_truth.cpp
  * @brief Implements the padding of label rows into per-image ground truth.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/ground_truth.hpp>

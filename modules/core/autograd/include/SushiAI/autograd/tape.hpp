@@ -37,7 +37,10 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        /** @brief The differentiation run's private bookkeeping; see src/autograd/differentiator.cpp. */
+        /**
+         * @brief The differentiation run's private bookkeeping; see
+         * modules/core/autograd/source/differentiator.cpp.
+         */
         class Differentiator;
 
         /**

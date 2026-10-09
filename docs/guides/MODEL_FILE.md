@@ -2,8 +2,9 @@
 
 A model file is a JSON document that describes an architecture: the shape of one input sample,
 the layers, which values each layer reads and which values the model publishes. The `Config`
-module owns the format. `include/SushiAI/config/model_config.hpp` declares the reader and the
-`ModelSpec` it produces, and `src/config/model_config.cpp` holds the schema. Nothing in SushiAI
+module owns the format. `modules/core/config/include/SushiAI/config/model_config.hpp` declares
+the reader and the `ModelSpec` it produces, and `modules/core/config/source/model_config.cpp`
+holds the schema. Nothing in SushiAI
 writes a model file; a person or an export script does.
 
 The current version is 2.
@@ -104,8 +105,8 @@ Two functions build a parsed file. Both take the `ModelSpec` the reader returns.
 
 | Function | Declared in | Builds | Returns |
 | --- | --- | --- | --- |
-| `NN::build_model` | `include/SushiAI/nn/node_registry.hpp` | Any version 2 file | `Result<ModelGraph>` |
-| `NN::build_layer_stack` | `include/SushiAI/nn/layer_registry.hpp` | A chain | `LayerStack`, or it throws `Error` |
+| `NN::build_model` | `modules/layers/nn/include/SushiAI/nn/node_registry.hpp` | Any version 2 file | `Result<ModelGraph>` |
+| `NN::build_layer_stack` | `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` | A chain | `LayerStack`, or it throws `Error` |
 
 `build_model` makes one node per row and names it by the row's index, so the state of row 3 is
 named `3.<leaf>`. It resolves each `from` entry to a port of an earlier node, hands the factory

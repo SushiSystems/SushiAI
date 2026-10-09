@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks the failure sites of the library, the apps and the examples against the class table.
+"""Checks the failure sites of the library and of the applications against the class table.
 
 The table is tools/contract/site_classes.tsv.
 Usage: python tools/contract/check_contract.py [repository root] [--report] [--rule NAME]
@@ -13,6 +13,7 @@ The design is docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md, sections 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import sys
 from collections import Counter, defaultdict
@@ -26,8 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.checker import Checker, Issue, run  # noqa: E402
 
 K_SITE_TABLE = Path("tools/contract/site_classes.tsv")
-K_SOURCE_ROOTS = ("include", "src", "apps", "examples")
-K_LIBRARY_ROOTS = ("include", "src")
+K_LIBRARY_FOLDERS = ("modules/*/*/include", "modules/*/*/source")
+K_PROGRAM_FOLDERS = ("applications",)
+K_SITE_FOLDERS = K_LIBRARY_FOLDERS + K_PROGRAM_FOLDERS
+K_LIBRARY_DEPTH = 4
 K_SOURCE_SUFFIXES = (".hpp", ".cpp", ".h", ".inl")
 K_FROZEN: tuple[str, ...] = ()
 K_COLUMNS = (
@@ -226,13 +229,12 @@ def is_frozen(file: str) -> bool:
 
 
 def module_of(file: str) -> str:
-    """Returns the module a source file belongs to, from its path."""
+    """Returns the tier and module of a library file, or the folder of a program, from its path."""
     parts = file.split("/")
-    if parts[0] not in K_LIBRARY_ROOTS:
-        return parts[0]
-    if parts[0] == "include":
-        return parts[2] if len(parts) > 3 else "(root)"
-    return parts[1] if len(parts) > 2 else "(root)"
+    folder = "/".join(parts[:K_LIBRARY_DEPTH])
+    if any(fnmatch.fnmatchcase(folder, pattern) for pattern in K_LIBRARY_FOLDERS):
+        return "/".join(parts[1:3])
+    return "/".join(parts[:2]) if len(parts) > 2 else parts[0]
 
 
 class Repository:
@@ -245,12 +247,14 @@ class Repository:
 
     @cached_property
     def sources(self) -> dict[str, str]:
-        """Returns the text of every source file under the scanned roots, by relative path."""
+        """Returns the text of every source file under the site folders, by relative path."""
         found: dict[str, str] = {}
-        for top in K_SOURCE_ROOTS:
-            for path in sorted((self.root / top).rglob("*")):
-                if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
-                    found[path.relative_to(self.root).as_posix()] = path.read_text(encoding="utf-8")
+        for pattern in K_SITE_FOLDERS:
+            for folder in sorted(self.root.glob(pattern)):
+                for path in sorted(folder.rglob("*")):
+                    if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
+                        name = path.relative_to(self.root).as_posix()
+                        found[name] = path.read_text(encoding="utf-8")
         return found
 
     @cached_property

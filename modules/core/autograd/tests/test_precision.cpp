@@ -65,7 +65,7 @@ namespace
     /**
      * @struct Traced
      * @brief Holds a one-hidden-layer classifier, differentiated, with the ids named.
-     * @see tests/functional/unit/README.md
+     * @see tests/unit/README.md
      */
     struct Traced
     {
@@ -147,7 +147,7 @@ TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 
 TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
 {
-    // Every narrowing operation is listed here; see tests/functional/unit/README.md.
+    // Every narrowing operation is listed here; see tests/unit/README.md.
     const OpID narrows[] = {
         Ops::K_MATMUL.id,
         Ops::K_GEMM_BIAS.id, Ops::K_GEMM_BIAS_RELU.id,
@@ -155,7 +155,7 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::K_BIAS_ADD.id,
         Ops::K_RELU.id, Ops::K_SIGMOID.id, Ops::K_TANH.id,
         Ops::K_RELU_BACKWARD.id, Ops::K_SIGMOID_BACKWARD.id, Ops::K_TANH_BACKWARD.id,
-        // LEAKY_RELU narrows, as RELU does; see tests/functional/unit/README.md.
+        // LEAKY_RELU narrows, as RELU does; see tests/unit/README.md.
         Ops::K_LEAKY_RELU.id, Ops::K_LEAKY_RELU_BACKWARD.id,
     };
 
@@ -163,18 +163,18 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         EXPECT_TRUE(Graph::narrows_under_mixed_precision(op))
             << Ops::name_of(op) << " should compute low";
 
-    // Reductions stay wide; fp16 has ~11 significand bits; see tests/functional/unit/README.md.
+    // Reductions stay wide; fp16 has ~11 significand bits; see tests/unit/README.md.
     const OpID stays[] = {
         Ops::K_SUM_ROWS.id, Ops::K_LOG_SOFTMAX.id, Ops::K_NLL_LOSS.id, Ops::K_ACCUMULATE.id,
         Ops::K_EXP.id, Ops::K_SUB.id, Ops::K_SCALE.id, Ops::K_EXP_SUB_SCALE.id,
-        // DYNAMIC_SCALE applies the loss scale and stays wide; see tests/functional/unit/README.md.
+        // DYNAMIC_SCALE applies the loss scale and stays wide; see tests/unit/README.md.
         Ops::K_DYNAMIC_SCALE.id,
         Ops::K_ADD.id, Ops::K_MUL.id, Ops::K_ZERO.id,
-        // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/functional/unit/README.md.
+        // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/unit/README.md.
         Ops::K_GELU.id, Ops::K_GELU_BACKWARD.id, Ops::K_GEMM_BIAS_GELU.id,
         Ops::K_LEAF.id, Ops::K_CAST.id,
         Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id,
-        // The twenty spatial identities keep the default; see tests/functional/unit/README.md.
+        // The twenty spatial identities keep the default; see tests/unit/README.md.
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
         Ops::K_MAXPOOL2D.id, Ops::K_MAXPOOL2D_BACKWARD.id,
@@ -196,21 +196,21 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
             << Ops::name_of(op) << " should stay in the graph's own precision";
 
-    // The two lists account for every identity; see tests/functional/unit/README.md.
+    // The two lists account for every identity; see tests/unit/README.md.
     EXPECT_EQ(sizeof(narrows) / sizeof(narrows[0]) + sizeof(stays) / sizeof(stays[0]),
               Ops::K_ALL.size());
 }
 
 TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
-    // The catalog folds GELU and the policy keeps it wide; see tests/functional/unit/README.md.
+    // The catalog folds GELU and the policy keeps it wide; see tests/unit/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id))
         << "the catalog no longer folds GELU, so rule 5's first reason is back and this "
            "test is guarding nothing";
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::K_GELU.id));
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::K_GELU.id));
 
-    // The fused GELU form stays wide with it; see tests/functional/unit/README.md.
+    // The fused GELU form stays wide with it; see tests/unit/README.md.
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::K_GEMM_BIAS_GELU.id));
     EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::K_GEMM_BIAS_RELU.id));
 
@@ -220,7 +220,7 @@ TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
 
 TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
 {
-    // choose() is idempotent for every operation; see tests/functional/unit/README.md.
+    // choose() is idempotent for every operation; see tests/unit/README.md.
     const MixedPrecisionPolicy policy;
 
     for (const Ops::OpName& entry : Ops::K_ALL)
@@ -236,7 +236,7 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
 {
     const MixedPrecisionPolicy policy;
 
-    // An fp16 graph is already at the floor; see tests/functional/unit/README.md.
+    // An fp16 graph is already at the floor; see tests/unit/README.md.
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Half);
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Float64}).dtype,
@@ -246,7 +246,7 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Half}).dtype,
               DType::Half);
 
-    // A policy may narrow to fp32; see tests/functional/unit/README.md.
+    // A policy may narrow to fp32; see tests/unit/README.md.
     const MixedPrecisionPolicy to_single(DType::Float32);
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Float32);
@@ -272,7 +272,7 @@ TEST(Unit_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
 
 TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
 {
-    // The fp32 policy inserts zero casts; see tests/functional/unit/README.md.
+    // The fp32 policy inserts zero casts; see tests/unit/README.md.
     Traced traced = trace();
 
     const std::size_t nodes_before = traced.graph.node_count();
@@ -310,7 +310,7 @@ TEST(Unit_CastInsertion, NoPolicyMeansTheUniformPolicy)
 
 TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 {
-    // Every operand agrees with its node's computing type; see tests/functional/unit/README.md.
+    // Every operand agrees with its node's computing type; see tests/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -331,7 +331,7 @@ TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 
 TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 {
-    // Fusion runs after the casts and keeps the invariant; see tests/functional/unit/README.md.
+    // Fusion runs after the casts and keeps the invariant; see tests/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -371,7 +371,7 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 
 TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 {
-    // The checker reports a graph that is wrong; see tests/functional/unit/README.md.
+    // The checker reports a graph that is wrong; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -382,7 +382,7 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     const MixedPrecisionPolicy policy;
     const std::vector<DTypeMismatch> mismatches = Graph::find_dtype_mismatches(graph, policy);
 
-    // Two operands and one result are float32, not half; see tests/functional/unit/README.md.
+    // Two operands and one result are float32, not half; see tests/unit/README.md.
     ASSERT_EQ(mismatches.size(), 3u);
     for (const DTypeMismatch& mismatch : mismatches)
     {
@@ -413,7 +413,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
             << "a master weight was retyped in place";
         EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
 
-        // The GEMM reads a derived fp16 copy of the parameter; see tests/functional/unit/README.md.
+        // The GEMM reads a derived fp16 copy of the parameter; see tests/unit/README.md.
         const auto casts = report.casts();
         const auto found = std::find_if(casts.begin(), casts.end(),
             [parameter](const InsertedCast& cast) { return cast.source == parameter; });
@@ -429,7 +429,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 
 TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 {
-    // An fp16 gradient is widened into its fp32 buffer; see tests/functional/unit/README.md.
+    // An fp16 gradient is widened into its fp32 buffer; see tests/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -441,7 +441,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
-    // Only the weight gradients come from a low MATMUL; see tests/functional/unit/README.md.
+    // Only the weight gradients come from a low MATMUL; see tests/unit/README.md.
     for (ValueId weight_gradient : {traced.gradients[0], traced.gradients[2]})
     {
         ASSERT_NE(weight_gradient, K_NO_VALUE);
@@ -457,7 +457,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
         EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::K_MATMUL.id);
     }
 
-    // The bias gradients come from a wide reduction; see tests/functional/unit/README.md.
+    // The bias gradients come from a wide reduction; see tests/unit/README.md.
     for (ValueId bias_gradient : {traced.gradients[1], traced.gradients[3]})
     {
         EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::Float32);
@@ -470,7 +470,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 
 TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
 {
-    // ACCUMULATE's result aliases its accumulator's buffer; see tests/functional/unit/README.md.
+    // ACCUMULATE's result aliases its accumulator's buffer; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -513,7 +513,7 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
 
 TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 {
-    // An observed activation keeps its dtype; see tests/functional/unit/README.md.
+    // An observed activation keeps its dtype; see tests/unit/README.md.
     Traced pinned = trace();
     Traced loose = trace();
 
@@ -543,7 +543,7 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 
 TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
 {
-    // w2 has two readers and one conversion; see tests/functional/unit/README.md.
+    // w2 has two readers and one conversion; see tests/unit/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -667,7 +667,7 @@ TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
 
 TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
 {
-    // A conversion sits immediately before its consumer; see tests/functional/unit/README.md.
+    // A conversion sits immediately before its consumer; see tests/unit/README.md.
     Graph::Graph graph;
 
     const ValueId a = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "a");
@@ -688,7 +688,7 @@ namespace
     /**
      * @struct Pooled
      * @brief Holds a maxpool graph, differentiated, with the index buffer named.
-     * @see tests/functional/unit/README.md
+     * @see tests/unit/README.md
      */
     struct Pooled
     {
@@ -742,7 +742,7 @@ namespace
 
 TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
 {
-    // The INT64 argmax is not converted; see tests/functional/unit/README.md.
+    // The INT64 argmax is not converted; see tests/unit/README.md.
     Pooled p = trace_pool();
 
     ASSERT_EQ(p.graph.value(p.indices).dtype, DType::Int64);
@@ -776,7 +776,7 @@ TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
 
 TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 {
-    // A pinned argmax keeps its id and its INT64 buffer; see tests/functional/unit/README.md.
+    // A pinned argmax keeps its id and its INT64 buffer; see tests/unit/README.md.
     Pooled p = trace_pool();
 
     const std::vector<ValueId> observed{p.indices};

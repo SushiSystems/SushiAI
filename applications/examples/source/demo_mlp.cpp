@@ -23,7 +23,7 @@
  * @file demo_mlp.cpp
  * @brief Runs `sa demo mlp`: trains a configurable MLP classifier and reports its compile count.
  * @author Mustafa Garip
- * @see examples/README.md, "demo_mlp.cpp".
+ * @see applications/examples/README.md, "demo_mlp.cpp".
  */
 
 #include <cstdint>
@@ -58,7 +58,7 @@ namespace
 
     /**
      * @brief Selects the activation of the demo's one hidden layer.
-     * @see examples/README.md, "The two activations".
+     * @see applications/examples/README.md, "The two activations".
      */
     enum class ActivationKind : std::uint8_t
     {
@@ -68,7 +68,7 @@ namespace
 
     /**
      * @brief Holds everything the demo takes from the command line.
-     * @see examples/README.md, "Settings and their defaults".
+     * @see applications/examples/README.md, "Settings and their defaults".
      */
     struct Settings
     {
@@ -236,7 +236,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     /**
      * @brief Rejects a setting that cannot describe a training run.
      * @return Success, or InvalidDescription when an extent or the rate is out of range.
-     * @see examples/README.md, "Command line parsing".
+     * @see applications/examples/README.md, "Command line parsing".
      */
     [[nodiscard]] sa::Status validate(const Settings& settings)
     {
@@ -263,7 +263,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @param wants_help Set when --help was asked for; nothing else is filled in.
      * @return The settings, or InvalidDescription on an unknown flag, a missing value or a
      *         bad value.
-     * @see examples/README.md, "Command line parsing".
+     * @see applications/examples/README.md, "Command line parsing".
      */
     [[nodiscard]] sa::Result<Settings> parse_command_line(int argc, char** argv, bool& wants_help)
     {
@@ -397,7 +397,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @brief Builds the requested optimizer over @p parameters.
      * @param learning_rate Receives the rate actually used, for the report.
      * @return The optimizer, owned by the caller, or the failure of its factory.
-     * @see examples/README.md, "Learning-rate defaults".
+     * @see applications/examples/README.md, "Learning-rate defaults".
      */
     [[nodiscard]] sa::Result<std::unique_ptr<sa::Optim::Optimizer>> make_optimizer(
         sb::Engine& engine,
@@ -428,7 +428,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
     /**
      * @brief Holds the dataset the run got and the note that names it.
-     * @see examples/README.md, "Data source".
+     * @see applications/examples/README.md, "Data source".
      */
     struct DataChoice
     {
@@ -440,7 +440,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     /**
      * @brief Loads MNIST when its files are present, else the synthetic problem.
      * @return The dataset and its provenance, or the failure of the load or of the generation.
-     * @see examples/README.md, "Data source".
+     * @see applications/examples/README.md, "Data source".
      */
     [[nodiscard]] sa::Result<DataChoice> load_dataset(sb::Engine& engine, const Settings& settings)
     {
@@ -486,7 +486,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
     /**
      * @brief Renders a byte count as "N B" below a kibibyte and "N.N KiB" above it.
-     * @see examples/README.md, "The configuration report".
+     * @see applications/examples/README.md, "The configuration report".
      */
     std::string human_bytes(std::size_t bytes)
     {
@@ -497,7 +497,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     /**
      * @brief Renders the fusion pass's lines of the configuration report.
      * @return One line plus one per decision; always newline-terminated.
-     * @see examples/README.md, "The configuration report".
+     * @see applications/examples/README.md, "The configuration report".
      */
     std::string describe_fusion(const sa::Graph::FusionReport& report)
     {
@@ -536,7 +536,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     /**
      * @brief Renders the cast pass's line of the configuration report.
      * @return One newline-terminated line.
-     * @see examples/README.md, "The configuration report".
+     * @see applications/examples/README.md, "The configuration report".
      */
     std::string describe_precision(const sa::Graph::CastReport& report)
     {
@@ -555,7 +555,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     /**
      * @brief Renders the memory planner's line of the configuration report.
      * @return One line, or two when reuse was declined; always newline-terminated.
-     * @see examples/README.md, "The configuration report".
+     * @see applications/examples/README.md, "The configuration report".
      */
     std::string describe_arenas(const sa::Graph::TensorPool& pool)
     {
@@ -600,7 +600,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @param model The model to train; its parameters are declared by the trace.
      * @return Success, or the first failure of a call, or InvalidDescription when the step
      *         was not compiled exactly once.
-     * @see examples/README.md, "One template, two models".
+     * @see applications/examples/README.md, "One template, two models".
      */
     template<typename M>
     [[nodiscard]] sa::Status train_and_report(sb::Engine& engine, M& model, const DataChoice& data,
@@ -711,7 +711,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                        settings.epochs, dataset.batch_count(), total_steps,
                                        settings.seed);
 
-        // The trajectory is collected and printed as one block; see examples/README.md.
+        // The trajectory is collected and printed as a block; see applications/examples/README.md.
         std::string trajectory;
         sa::Train::RunReport run;
 

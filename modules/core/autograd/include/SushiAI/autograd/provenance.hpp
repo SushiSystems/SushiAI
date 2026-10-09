@@ -23,7 +23,7 @@
  * @file provenance.hpp
  * @brief Declares Provenance, the forward node each backward node was emitted for.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -40,7 +40,7 @@ namespace SushiAI
     {
         /**
          * @brief Records, for every node differentiate() appended, the forward node it serves.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         struct Provenance
         {

@@ -23,7 +23,7 @@
  * @file differentiator.hpp
  * @brief Declares internal bookkeeping for reverse-mode differentiation runs.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -84,7 +84,7 @@ namespace SushiAI
 
                 /**
                  * @brief Returns the gradient a caller requested for @p value, after run().
-                 * @see include/SushiAI/eager/README.md, "Provenance".
+                 * @see modules/core/eager/README.md, "Provenance".
                  */
                 Graph::ValueId resolve_requested(Graph::ValueId value);
 
@@ -126,7 +126,7 @@ namespace SushiAI
 
                 /**
                  * @brief Records @p origin for every node appended since the last call.
-                 * @see include/SushiAI/eager/README.md, "Provenance".
+                 * @see modules/core/eager/README.md, "Provenance".
                  */
                 void stamp_appended(Graph::NodeId origin);
 

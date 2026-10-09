@@ -23,7 +23,7 @@
  * @file detections_nms.cpp
  * @brief Implements the non-maximum-suppression postprocess of the one-to-many head.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/detections_nms.hpp>

@@ -114,7 +114,7 @@ TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIr)
 
 TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 {
-    // The target leaf sits between the input and the model; see tests/functional/unit/README.md.
+    // The target leaf sits between the input and the model; see tests/unit/README.md.
     Mlp model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
@@ -128,7 +128,7 @@ TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 
 TEST(Unit_Objective, TheObjectiveOwnsTheOutputShapeCheck)
 {
-    // The objective owns the output shape message; see tests/functional/unit/README.md.
+    // The objective owns the output shape message; see tests/unit/README.md.
     Mlp model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 5);   // asks for 5 classes, model gives 3
 
@@ -207,7 +207,7 @@ TEST(Unit_Objective, TheRegistryBuildsCrossEntropyAndListsWhatItHas)
 
 TEST(Unit_Objective, CrossEntropyTakesNoKeysAtAll)
 {
-    // Cross-entropy accepts no key; see tests/functional/unit/README.md.
+    // Cross-entropy accepts no key; see tests/unit/README.md.
     const Config::Value stray = Config::parse_json(R"({"label_smoothing": 0.1})", "<test>");
     SA_EXPECT_ERROR((void)Train::make_objective("cross_entropy", 4, 3, stray, "objective"),
                     "objective", "'label_smoothing'");

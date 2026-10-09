@@ -57,14 +57,14 @@ namespace
 
 TEST(Unit_Diagnostics, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
 {
-    // The limit in the message is SushiBLAS's MAX_RANK; see tests/functional/unit/README.md.
+    // The limit in the message is SushiBLAS's MAX_RANK; see tests/unit/README.md.
     SA_EXPECT_ERROR((void)Shape({1, 1, 1, 1, 1, 1, 1}),
                     "Shape rank 7", "exceeds the maximum of 6");
 }
 
 TEST(Unit_Diagnostics, ShapeNonPositiveExtentNamesTheOffendingExtent)
 {
-    // Shape itself refuses a zero-element tensor; see tests/functional/unit/README.md.
+    // Shape itself refuses a zero-element tensor; see tests/unit/README.md.
     SA_EXPECT_ERROR((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
     SA_EXPECT_ERROR((void)Shape({-3}), "Shape extents must be positive", "got -3");
 }
@@ -91,7 +91,7 @@ TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
 
 TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
 {
-    // The message shows both operand shapes; see tests/functional/unit/README.md.
+    // The message shows both operand shapes; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -199,7 +199,7 @@ TEST(Unit_Diagnostics, ASecondProducerNamesBothOperationsAndTheRule)
                                         Graph::Lifetime::Activation, "out");
     graph.add_node(Ops::K_RELU.id, {x}, {out});
 
-    // The message names both colliding operations; see tests/functional/unit/README.md.
+    // The message names both colliding operations; see tests/unit/README.md.
     SA_EXPECT_ERROR((void)graph.add_node(Ops::K_TANH.id, {x}, {out}),
                     "sushiai.tanh", "sushiai.relu", "single-assignment");
 }
@@ -319,7 +319,7 @@ TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // A loss with no producer has no operation to name; see tests/functional/unit/README.md.
+    // A loss with no producer has no operation to name; see tests/unit/README.md.
     const ValueId orphan = graph.add_value(Shape{1}, DType::Float32,
                                            Graph::Lifetime::Activation, "orphan");
     SA_EXPECT_ERROR(differentiate_wrt(graph, orphan, orphan), "nothing produces it", "NLL_LOSS");
@@ -343,7 +343,7 @@ TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
 
     const ValueId loss = builder.nll_loss(mystery, targets);
 
-    // A foreign identity prints as sushiai.unknown; see tests/functional/unit/README.md.
+    // A foreign identity prints as sushiai.unknown; see tests/unit/README.md.
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "No backward rule for", "sushiai.unknown", "node 2");
 }
@@ -358,14 +358,14 @@ TEST(Unit_Diagnostics, LogSoftmaxOutsideTheFusedPairExplainsTheRestriction)
     const ValueId detoured = builder.relu(builder.log_softmax(x));
     const ValueId loss = builder.nll_loss(detoured, targets);
 
-    // The message tells the caller to route through NLL_LOSS; see tests/functional/unit/README.md.
+    // The message tells the caller to route through NLL_LOSS; see tests/unit/README.md.
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "LOG_SOFTMAX", "row-wise reduction", "CrossEntropyLoss");
 }
 
 TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
 {
-    // A SUB with a mis-shaped result provokes the error; see tests/functional/unit/README.md.
+    // A SUB with a mis-shaped result provokes the error; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

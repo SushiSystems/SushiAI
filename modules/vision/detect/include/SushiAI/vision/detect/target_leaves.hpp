@@ -23,7 +23,7 @@
  * @file target_leaves.hpp
  * @brief Declares the full-shape arrays a masked detection loss reads from an assignment.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -56,7 +56,7 @@ namespace SushiAI
 
         /**
          * @brief Holds the FLOAT32 arrays one branch's loss reads, over every anchor of the batch.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct TargetLeaves
         {
@@ -87,7 +87,7 @@ namespace SushiAI
 
         /**
          * @brief Writes the loss leaves of @p assignment into @p leaves.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void build_target_leaves(const Assignment& assignment,
                                  const TargetLeafInputs& inputs,

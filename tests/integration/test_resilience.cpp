@@ -40,7 +40,7 @@
 
 using namespace SushiAI;
 
-// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
@@ -227,7 +227,7 @@ TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrong
 
 TEST_F(Integration_Resilience, AnOptimizerRefusesADtypeItCannotServeAndExplainsWhy)
 {
-    // The half refusal must say why in its message; see tests/functional/integration/README.md.
+    // The half refusal must say why in its message; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor complex_parameter,
                             allocate_tensor(*engine, Shape{4}, DType::Complex32));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor complex_gradient,
@@ -292,7 +292,7 @@ TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
 
 TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarbage)
 {
-    // An unwritten gradient must read as zero; see tests/functional/integration/README.md.
+    // An unwritten gradient must read as zero; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 12, 4));
 
     for (const Optim::ParameterSlot& slot : fixture.slots)
@@ -340,7 +340,7 @@ TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledS
                             Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
                                                  fixture.built.spec, *optimizer));
 
-    // A wrong-sized batch can only be reported; see tests/functional/integration/README.md.
+    // A wrong-sized batch can only be reported; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong,
                             Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
 
@@ -388,7 +388,7 @@ TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
     SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(empty_dims, 2)),
                       StatusCode::InvalidDescription, "Tensor extents must be positive", "got 0");
 
-    // Overflow is detected before the multiply; see tests/functional/integration/README.md.
+    // Overflow is detected before the multiply; see tests/integration/README.md.
     const int64_t overflowing[3] = {3'000'000'000LL, 3'000'000'000LL, 3'000'000'000LL};
     SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(overflowing, 3)),
                       StatusCode::InvalidDescription, "more than", "elements", "3000000000");
@@ -396,7 +396,7 @@ TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
 
 TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanTheKernel)
 {
-    // A petabyte: the error names shape and dtype; see tests/functional/integration/README.md.
+    // A petabyte: the error names shape and dtype; see tests/integration/README.md.
     const int64_t enormous[2] = {1LL << 25, 1LL << 25};
 
     SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(enormous, 2)),
@@ -453,7 +453,7 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
 
 TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
 {
-    // With C = 1 loss and gradient are exactly zero; see tests/functional/integration/README.md.
+    // With C = 1 loss and gradient are exactly zero; see tests/integration/README.md.
     const int64_t batch = 4;
     const int64_t features = 3;
     const int64_t classes = 1;
@@ -496,7 +496,7 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
 
 TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
 {
-    // 64 fills a GEMM block; 65 leaves a remainder; see tests/functional/integration/README.md.
+    // 64 fills a GEMM block; 65 leaves a remainder; see tests/integration/README.md.
     for (int64_t n : {int64_t{64}, int64_t{65}})
     {
         Graph::Graph graph;
@@ -522,7 +522,7 @@ TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
         const std::vector<double> got = SaTest::read_tensor(run->pool.tensor(y));
         ASSERT_EQ(got.size(), static_cast<std::size_t>(n * n));
 
-        // The reference uses the device's floats; see tests/functional/integration/README.md.
+        // The reference uses the device's floats; see tests/integration/README.md.
         const std::vector<double> x_seen = SaTest::read_tensor(run->pool.tensor(x));
         const std::vector<double> w_seen = SaTest::read_tensor(run->pool.tensor(w));
 
@@ -612,7 +612,7 @@ namespace
 
 TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitude)
 {
-    // A uniform row gives -log(C) at any offset; see tests/functional/integration/README.md.
+    // A uniform row gives -log(C) at any offset; see tests/integration/README.md.
     const int64_t rows = 3;
     const int64_t columns = 4;
     const double expected = -std::log(static_cast<double>(columns));
@@ -631,7 +631,7 @@ TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitud
 
 TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
 {
-    // The winner's log-probability is exactly zero; see tests/functional/integration/README.md.
+    // The winner's log-probability is exactly zero; see tests/integration/README.md.
     const int64_t rows = 2;
     const int64_t columns = 3;
 
@@ -652,7 +652,7 @@ TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
 
 TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
 {
-    // Each row is shifted by its own maximum; see tests/functional/integration/README.md.
+    // Each row is shifted by its own maximum; see tests/integration/README.md.
     const int64_t columns = 3;
 
     std::vector<double> logits = {
@@ -664,7 +664,7 @@ TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRan
                             log_softmax_of(*engine, 2, columns, logits));
     ASSERT_TRUE(all_finite(got, "log_softmax"));
 
-    // Equal spread gives equal log-probabilities; see tests/functional/integration/README.md.
+    // Equal spread gives equal log-probabilities; see tests/integration/README.md.
     for (std::size_t column = 0; column < 3; ++column)
         EXPECT_NEAR(got[column], got[column + 3], 1e-4) << "column " << column;
 
@@ -686,7 +686,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
-    // exp(80) overflows without the shift; see tests/functional/integration/README.md.
+    // exp(80) overflows without the shift; see tests/integration/README.md.
     const std::vector<double> confident = {
         80.0, -80.0, -80.0,
         -80.0, 80.0, -80.0,
@@ -702,7 +702,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
     EXPECT_TRUE(std::isfinite(correct));
     EXPECT_NEAR(correct, 0.0, 1e-5) << "a perfectly confident correct prediction costs nothing";
 
-    // A wrong confident loss is large but finite; see tests/functional/integration/README.md.
+    // A wrong confident loss is large but finite; see tests/integration/README.md.
     SaTest::write_tensor(run->pool.tensor(targets),
                          std::vector<double>{0.0, 1.0, 0.0, 1.0, 0.0, 0.0});
     ASSERT_TRUE(SaTest::status_is_ok(run->run()));
@@ -714,7 +714,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
 
 TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 {
-    // eps is added after the bias correction; see tests/functional/integration/README.md.
+    // eps is added after the bias correction; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{6}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient, allocate_tensor(*engine, Shape{6}));
 
@@ -740,14 +740,14 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
     for (std::size_t i = 0; i < initial.size(); ++i)
         EXPECT_NEAR(after[i], initial[i], 1e-6) << "at " << i;
 
-    // The bias corrections differ on step two; see tests/functional/integration/README.md.
+    // The bias corrections differ on step two; see tests/integration/README.md.
     SA_EXPECT_OK(optimizer->step());
     EXPECT_TRUE(all_finite(SaTest::read_tensor(parameter), "parameter after two steps"));
 }
 
 TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 {
-    // The context counts its live USM allocations; see tests/functional/integration/README.md.
+    // The context counts its live USM allocations; see tests/integration/README.md.
     const auto live_allocations = [this]()
     {
         return static_cast<std::int32_t>(engine->get_context().live_usm_count());
@@ -794,7 +794,7 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 
 TEST_F(Integration_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
 {
-    // BATCHNORM_UPDATE_STATS has no lowering; see tests/functional/integration/README.md.
+    // BATCHNORM_UPDATE_STATS has no lowering; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

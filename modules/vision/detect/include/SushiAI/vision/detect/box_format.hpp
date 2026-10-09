@@ -23,7 +23,7 @@
  * @file box_format.hpp
  * @brief Declares the conversions between corner boxes and centre-size boxes.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -42,7 +42,7 @@ namespace SushiAI
         /**
          * @brief Converts `[N, 4]` boxes from x1 y1 x2 y2 to centre x, centre y, width, height.
          * @param converted Receives `[N, 4]`; may be @p boxes.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void xyxy_to_xywh(SushiRuntime::span<const float> boxes,
                           SushiRuntime::span<float> converted);
@@ -50,7 +50,7 @@ namespace SushiAI
         /**
          * @brief Converts `[N, 4]` boxes from centre x, centre y, width, height to x1 y1 x2 y2.
          * @param converted Receives `[N, 4]`; may be @p boxes.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void xywh_to_xyxy(SushiRuntime::span<const float> boxes,
                           SushiRuntime::span<float> converted);

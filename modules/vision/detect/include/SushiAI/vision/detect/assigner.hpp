@@ -23,7 +23,7 @@
  * @file assigner.hpp
  * @brief Declares TaskAlignedAssigner, which gives ground-truth boxes to anchors on the host.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -43,7 +43,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds the predictions and the ground truth of one assigner call.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct AssignerInputs
         {
@@ -61,7 +61,7 @@ namespace SushiAI
 
         /**
          * @brief Assigns ground-truth boxes to anchors by the task-aligned metric.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         class TaskAlignedAssigner final
         {
@@ -72,7 +72,7 @@ namespace SushiAI
                 /**
                  * @brief Writes the targets of every anchor of @p inputs into @p assignment.
                  * @pre No input value is NaN.
-                 * @see include/SushiAI/vision/detect/README.md
+                 * @see modules/vision/detect/README.md
                  */
                 void assign(const AssignerInputs& inputs, Assignment& assignment);
 

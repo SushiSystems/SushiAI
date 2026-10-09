@@ -86,7 +86,7 @@ Each test in this file spells out its own setup and shares none of it through a 
 Trainer holds raw pointers into the pool and the optimizer, so the construction order (create the
 state, bind, then initialise, then optimizer, then trainer) is part of the contract, and a test that spells the order
 out fails loudly if that order ever stops working. The setup matches
-functional/integration/test_training.cpp line for line for the same reason.
+tests/integration/test_training.cpp line for line for the same reason.
 
 ### ManyFitCallsCompileTheStepExactlyOnce
 
@@ -116,7 +116,7 @@ So the test first poisons the buffer with a value the graph cannot produce, and 
 poison is gone. A run that dispatched nothing leaves the poison where it was.
 
 The test was verified by deleting the capture_base_state() call from the compile path in
-`src/graph/compiled_step.cpp`. It then
+`modules/core/graph/source/compiled_step.cpp`. It then
 fails on the first assertion and reports the poison still in place.
 
 The replay loop repeats the check three times. Each pass poisons the output again, changes the
@@ -477,7 +477,7 @@ zero, so a sufficiently negative element separates them by about |x|.
 ### ASelectorRefusalStillFillsTheSpillAndMovesNoBit
 
 This test is the control for TheSpillHoldsThePreActivationItself. With the fused arm declined, the
-aux buffer is filled by a separate copy in `record_fused_gemm` (`src/graph/lowering/fused.cpp`) and
+aux buffer is filled by a separate copy in `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) and
 not by the epilogue.
 That is a different code path to the same buffer, and the gradients have to come out identical.
 Deleting either write makes this comparison fail.

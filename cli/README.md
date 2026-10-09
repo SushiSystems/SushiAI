@@ -116,8 +116,9 @@ line that says so and names `sa test --suite package`.
 
 `_DEMO_TARGETS` maps `sa demo <name>` to the executable that is that demo. A demo is a
 separate binary from an example on purpose: it is a supported entry point with a stable flag
-and output contract, while `examples/example.cpp` is a teaching file people are meant to
-edit. [`examples/README.md`](../examples/README.md) has the full argument.
+and output contract, while `applications/examples/source/example.cpp` is a teaching file people
+are meant to edit. [`applications/examples/README.md`](../applications/examples/README.md) has
+the full argument.
 
 ### The package suite starts from nothing
 

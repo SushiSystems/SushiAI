@@ -23,7 +23,7 @@
  * @file top_k.hpp
  * @brief Declares the selection of the k largest values of an array, in a fixed order.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -42,7 +42,7 @@ namespace SushiAI
          * @param k At least 0 and at most the number of values.
          * @param indices Receives k indices; equal values are ordered by ascending index.
          * @pre No value is NaN.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void select_top_k(SushiRuntime::span<const float> values,
                           std::int64_t k,

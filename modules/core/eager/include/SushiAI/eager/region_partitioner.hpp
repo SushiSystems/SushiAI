@@ -23,7 +23,7 @@
  * @file region_partitioner.hpp
  * @brief Declares RegionPartitioner, the policy that cuts a differentiated graph into regions.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -41,7 +41,7 @@ namespace SushiAI
     {
         /**
          * @brief Assigns every node of a differentiated graph a region key.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         class RegionPartitioner
         {

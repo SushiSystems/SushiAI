@@ -79,14 +79,14 @@ TEST(Unit_Config, ParsesEveryScalarKind)
 
 TEST(Unit_Config, KeepsTheKeyOrderTheFileSpelled)
 {
-    // Key order follows the file; see tests/functional/unit/README.md.
+    // Key order follows the file; see tests/unit/README.md.
     const Value root = parse_json(R"({"zebra": 1, "apple": 2, "mango": 3})", "<test>");
     EXPECT_EQ(root.keys(), (std::vector<std::string>{"zebra", "apple", "mango"}));
 }
 
 TEST(Unit_Config, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
 {
-    // An integer widens to a real, never the reverse; see tests/functional/unit/README.md.
+    // An integer widens to a real, never the reverse; see tests/unit/README.md.
     const Value root = parse_json(R"({"lr": 3, "units": 2.5})", "<test>");
 
     EXPECT_DOUBLE_EQ(root.at("lr", "<test>").as_real("lr"), 3.0);
@@ -130,7 +130,7 @@ TEST(Unit_Config, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
     const std::string_view keys[] = {"type", "units"};
     EXPECT_NO_THROW(with_keys.reject_unknown_keys("layer 0", allowed(keys)));
 
-    // An empty allowed set refuses every key; see tests/functional/unit/README.md.
+    // An empty allowed set refuses every key; see tests/unit/README.md.
     const std::string_view none[] = {"type"};
     const Value stray = parse_json(R"({"type": "gelu", "units": 8})", "<test>");
     SA_EXPECT_ERROR(stray.reject_unknown_keys("layer 1 'gelu'", allowed(none)),
@@ -147,7 +147,7 @@ TEST(Unit_Config, WithoutRemovesTheDiscriminatorAndLeavesTheRest)
     EXPECT_TRUE(attributes.has("units"));
     EXPECT_EQ(attributes.keys(), (std::vector<std::string>{"units", "use_bias"}));
 
-    // Removing an absent key is not an error; see tests/functional/unit/README.md.
+    // Removing an absent key is not an error; see tests/unit/README.md.
     EXPECT_EQ(attributes.without("type").keys().size(), 2u);
 }
 
@@ -159,7 +159,7 @@ TEST(Unit_Config, AtOrFallsBackWithoutThrowing)
     EXPECT_EQ(root.at_or("units", fallback).as_int("units"), 256);
     EXPECT_TRUE(root.at_or("use_bias", fallback).as_bool("use_bias"));
 
-    // A non-object falls back instead of throwing; see tests/functional/unit/README.md.
+    // A non-object falls back instead of throwing; see tests/unit/README.md.
     const Value not_an_object = Value::integer(1);
     EXPECT_TRUE(not_an_object.at_or("use_bias", fallback).as_bool("use_bias"));
 }
@@ -204,7 +204,7 @@ TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
     EXPECT_EQ(model.layers[1].type, "gelu");
     EXPECT_EQ(model.layers[2].type, "linear");
 
-    // The attributes no longer carry "type"; see tests/functional/unit/README.md.
+    // The attributes no longer carry "type"; see tests/unit/README.md.
     EXPECT_FALSE(model.layers[0].attributes.has("type"));
     EXPECT_TRUE(model.layers[0].attributes.has("units"));
     EXPECT_EQ(model.layers[1].attributes.keys().size(), 0u);
@@ -218,7 +218,7 @@ TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
     EXPECT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.output_features(), 4);
 
-    // An activation keeps the width it was handed; see tests/functional/unit/README.md.
+    // An activation keeps the width it was handed; see tests/unit/README.md.
     EXPECT_EQ(stack.layer(0).output_features(), 8);
     EXPECT_EQ(stack.layer(1).output_features(), 8);
 }
@@ -257,7 +257,7 @@ TEST(Unit_Config, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
     SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), typo),
                     "layer 0 'linear'", "'unitss'");
 
-    // An activation accepts no attribute; see tests/functional/unit/README.md.
+    // An activation accepts no attribute; see tests/unit/README.md.
     const SushiAI::Config::ModelSpec stray = model_from(R"({
         "sushiai_model": 1,
         "input": {"features": 6},
@@ -797,7 +797,7 @@ TEST(Unit_Config, LeavesAnAbsolutePathAlone)
     const std::filesystem::path absolute =
         std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
 
-    // generic_string() writes '/', which JSON does not escape; see tests/functional/unit/README.md.
+    // generic_string() writes '/', which JSON does not escape; see tests/unit/README.md.
     const std::string text =
         R"({"sushiai_train": 1, "model": ")" + absolute.generic_string() +
         R"(", "objective": {"type": "cross_entropy"},
@@ -884,7 +884,7 @@ TEST(Unit_Config, ParsesAnEvalDocument)
 
 TEST(Unit_Config, AnEvalDocumentCarriesNoModelBlock)
 {
-    // An eval document naming a model is an error; see tests/functional/unit/README.md.
+    // An eval document naming a model is an error; see tests/unit/README.md.
     SA_EXPECT_ERROR((void)SushiAI::Config::parse_data(
         parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"}, "model": "m.json"})",
                    "eval.json"), "eval.json"), "'model'", "'data'");

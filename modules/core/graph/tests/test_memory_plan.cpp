@@ -184,7 +184,7 @@ TEST(Unit_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
 
 TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 {
-    // Four chained activations need exactly two buffers; see tests/functional/unit/README.md.
+    // Four chained activations need exactly two buffers; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -209,7 +209,7 @@ TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 
 TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 {
-    // Nothing orders node 2 before node 3; see tests/functional/unit/README.md.
+    // Nothing orders node 2 before node 3; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -242,7 +242,7 @@ TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 
 TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
 {
-    // Only ACTIVATION and SCRATCH reach an arena; see tests/functional/unit/README.md.
+    // Only ACTIVATION and SCRATCH reach an arena; see tests/unit/README.md.
     Graph::Graph graph;
 
     const ValueId parameter = graph.add_value(unit_shape(), DType::Float32, Lifetime::Parameter, "w");
@@ -282,7 +282,7 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
 
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
-    // An ACTIVATION with no producer lives the whole run; see tests/functional/unit/README.md.
+    // An ACTIVATION with no producer lives the whole run; see tests/unit/README.md.
     Graph::Graph graph;
 
     const ValueId orphan = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "?");
@@ -297,7 +297,7 @@ TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 
 TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
 {
-    // ACCUMULATE's result is its accumulator's storage; see tests/functional/unit/README.md.
+    // ACCUMULATE's result is its accumulator's storage; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -323,7 +323,7 @@ TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
 
 TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
 {
-    // The float64 buffer starts at 24, not at 20; see tests/functional/unit/README.md.
+    // The float64 buffer starts at 24, not at 20; see tests/unit/README.md.
     Graph::Graph graph;
 
     const ValueId narrow_leaf = graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
@@ -374,7 +374,7 @@ TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
 
 TEST(Unit_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
 {
-    // Over the node limit the planner declines to overlap; see tests/functional/unit/README.md.
+    // Over the node limit the planner declines to overlap; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -438,7 +438,7 @@ TEST(Unit_MemoryPlan, ZeroAlignmentThrows)
 
 TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 {
-    // The pass relies on topological order; see tests/functional/unit/README.md.
+    // The pass relies on topological order; see tests/unit/README.md.
     Graph::Graph graph;
 
     const ValueId a = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "a");
@@ -452,7 +452,7 @@ TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 
 TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 {
-    // Two builds give byte-identical offsets; see tests/functional/unit/README.md.
+    // Two builds give byte-identical offsets; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -476,7 +476,7 @@ TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 
 TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
 {
-    // A node does not reach itself, so its results conflict; see tests/functional/unit/README.md.
+    // A node does not reach itself, so its results conflict; see tests/unit/README.md.
     Graph::Graph graph;
 
     const ValueId input = graph.add_value(Shape{8, 4}, DType::Float32, Lifetime::Activation, "x");

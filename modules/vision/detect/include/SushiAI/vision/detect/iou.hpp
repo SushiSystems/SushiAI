@@ -23,7 +23,7 @@
  * @file iou.hpp
  * @brief Declares intersection over union and complete IoU of x1 y1 x2 y2 boxes in float32.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -40,7 +40,7 @@ namespace SushiAI
         /**
          * @brief Returns the IoU of two boxes.
          * @pre Each span holds the four values of one box.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         [[nodiscard]] float intersection_over_union(SushiRuntime::span<const float> box1,
                                                     SushiRuntime::span<const float> box2) noexcept;
@@ -48,7 +48,7 @@ namespace SushiAI
         /**
          * @brief Returns the complete IoU of two boxes, which is at most their IoU.
          * @pre Each span holds the four values of one box.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         [[nodiscard]] float complete_iou(SushiRuntime::span<const float> box1,
                                          SushiRuntime::span<const float> box2) noexcept;
@@ -72,7 +72,7 @@ namespace SushiAI
         /**
          * @brief Writes the IoU of every row of @p boxes1 with every row of @p boxes2.
          * @param ious Receives `[N, M]` for `[N, 4]` and `[M, 4]` inputs.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void pairwise_iou(SushiRuntime::span<const float> boxes1,
                           SushiRuntime::span<const float> boxes2,

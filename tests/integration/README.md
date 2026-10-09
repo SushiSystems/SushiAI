@@ -2,7 +2,7 @@
 
 The integration tier runs on a real `SushiBLAS::Engine`. Each file here checks a claim that
 needs a device to answer; the host-only half of the same claim lives in
-`tests/functional/unit/`. This document holds the reasoning behind the tests: why a case is
+`tests/unit/`. This document holds the reasoning behind the tests: why a case is
 shaped the way it is, which wrong implementation it is built to catch, and the numbers worked
 out by hand. The source keeps one line per case and cites this file.
 
@@ -336,7 +336,7 @@ Suites: `Integration_Checkpoint`.
 
 The file covers the device half of checkpointing: saving and loading records against the tensors
 of a `NN::ModelState`. The byte format's malformed-file surface needs no device and lives in
-`tests/functional/unit/test_checkpoint_format.cpp`.
+`modules/layers/io/tests/test_checkpoint_format.cpp`.
 
 The last equivalence test is the point of the file. A `Sequential` and a `LayerStack` built
 from the equivalent `model.json` are two spellings of one model. The proof that they are one
@@ -515,7 +515,7 @@ and the maximum is 3.
 
 This case closes the gap that let a dropped layout tag hide. Every other layout test stops at
 the tag. The numerical claim behind them is that a tag reaching `lower_layout_convert`
-(`src/graph/lowering/shape.cpp`) intact makes a transpose happen, and nothing tested that half.
+(`modules/core/graph/source/lowering/shape.cpp`) intact makes a transpose happen, and nothing tested that half.
 
 A round trip alone would not test it either. Two no-ops compose to the identity, and the final
 assertion would pass. So the intermediate is read out and asserted, by value, to be the
@@ -742,7 +742,7 @@ denominator.
 
 Suites: `Integration_MixedPrecision`.
 
-This is the device half of AI-4. `tests/functional/unit/test_precision.cpp` pins the graph
+This is the device half of AI-4. `modules/core/autograd/tests/test_precision.cpp` pins the graph
 shape with no hardware. This file holds what only a real Engine can answer:
 
 - `sycl::half` executes here, so the fp16 path is a computed answer and not a graph nobody ran.
@@ -895,7 +895,7 @@ is why `dataset.hpp` warns about `set_seed`.
 ### The mnist cases
 
 The eight cases below cover the "mnist" row of `Data::K_DATASET_REGISTRY` and its factory,
-`Data::make_mnist` in `src/data/dataset.cpp`. Six of them ask for the directory
+`Data::make_mnist` in `modules/core/data/source/dataset.cpp`. Six of them ask for the directory
 `sushiai_absent_mnist`, which does not exist, or omit the directory, so each call ends in an error
 and the case asserts what the message contains. `TheDatasetRegistryListsMnist` reads the registry
 and asks for the unknown type `coco`. `AnImageLayoutYieldsRankFourBatches` is the only case that
@@ -1097,7 +1097,7 @@ The boundary is gone: the shift is each row's own maximum, so the gap does not r
 arithmetic. The case is kept unchanged. It is the shape a training run produces, and a
 regression that brought back a global shift would still pass every test whose rows sit on top
 of each other. The gaps that break a global shift are pinned separately, with their measured
-errors, in `tests/functional/regression/test_log_softmax_stability.cpp`.
+errors, in `tests/regression/test_log_softmax_stability.cpp`.
 
 Both rows have the same internal spread, so both must produce the same log-probabilities. That
 is the claim of shift invariance.
@@ -1135,9 +1135,9 @@ inside the runtime is tolerated; a per-iteration leak is not.
 ### BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo
 
 CV-7 keeps a BatchNorm's running statistics out of the IR. They are recorded into the training
-step beside the graph, the same way `src/optim/` emits K_SGD_UPDATE and K_ADAMW_UPDATE directly.
+step beside the graph, the same way `modules/core/optim/source/` emits K_SGD_UPDATE and K_ADAMW_UPDATE directly.
 K_BATCHNORM_UPDATE_STATS is therefore one of the three identities listed in `K_UNLOWERED`
-(`include/SushiAI/graph/lowering/unlowered.hpp`), and it has no row in `K_LOWERINGS`. That is
+(`modules/core/graph/include/SushiAI/graph/lowering/unlowered.hpp`), and it has no row in `K_LOWERINGS`. That is
 deliberate.
 
 From the outside a deliberate gap and an omission look the same, which is why the test exists.

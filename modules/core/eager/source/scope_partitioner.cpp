@@ -23,7 +23,7 @@
  * @file scope_partitioner.cpp
  * @brief Implements ScopePartitioner, which makes one region per segment and direction.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <SushiAI/eager/scope_partitioner.hpp>
@@ -50,7 +50,7 @@ namespace SushiAI
 
             /**
              * @brief Throws unless @p provenance records the backward nodes of @p graph.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             void validate_provenance(const Graph::Graph& graph,
                                      const Autograd::Provenance& provenance)
@@ -72,7 +72,7 @@ namespace SushiAI
 
             /**
              * @brief Throws unless @p segments cover nodes 0 to @p forward_count without a gap.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             void validate_segments(SushiRuntime::span<const Segment> segments,
                                    std::size_t forward_count)
@@ -112,7 +112,7 @@ namespace SushiAI
             /**
              * @brief Returns the key of the backward region of segment @p number.
              * @param number Segment number, counted from 1.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             RegionKey backward_key_of_segment(RegionKey segment_count, RegionKey number)
             {
@@ -160,7 +160,7 @@ namespace SushiAI
              * @brief Returns the key of backward node @p node.
              * @param segment_of_node Segment number of every forward node, from 1.
              * @param region_of_node Keys of every node below @p node.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             RegionKey backward_key(const Graph::Graph& graph, Graph::NodeId node,
                                    Graph::NodeId origin,
@@ -185,7 +185,7 @@ namespace SushiAI
             /**
              * @brief Throws when a node reads a value that a region with a higher key produces.
              * @param region_of_node Key of every node of @p graph.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             void require_producers_first(const Graph::Graph& graph,
                                          const std::vector<RegionKey>& region_of_node)
@@ -220,7 +220,7 @@ namespace SushiAI
             /**
              * @brief Lists the regions that hold a node, in ascending key order.
              * @param region_of_node Key of every node; K_NO_REGION for a leaf.
-             * @see include/SushiAI/eager/README.md
+             * @see modules/core/eager/README.md
              */
             std::vector<RegionInfo> list_regions(const std::vector<RegionKey>& region_of_node,
                                                  SushiRuntime::span<const Segment> segments)

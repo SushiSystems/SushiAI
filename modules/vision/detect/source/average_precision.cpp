@@ -23,7 +23,7 @@
  * @file average_precision.cpp
  * @brief Implements detection matching, the 101-point average precision and the metric table.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/average_precision.hpp>

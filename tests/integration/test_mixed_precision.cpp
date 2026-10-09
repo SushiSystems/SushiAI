@@ -71,7 +71,7 @@ namespace
 
     /**
      * @brief Returns AdamW options at the 3e-3 rate `sa demo mlp` uses; see
-     *        tests/functional/integration/README.md.
+     *        tests/integration/README.md.
      */
     Optim::AdamWOptions optimizer_options()
     {
@@ -83,7 +83,7 @@ namespace
 
 TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 {
-    // Correctness is asserted; speed is not; see tests/functional/integration/README.md.
+    // Correctness is asserted; speed is not; see tests/integration/README.md.
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
@@ -118,7 +118,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     EXPECT_TRUE(std::isfinite(report.first_loss));
     EXPECT_TRUE(std::isfinite(report.last_loss));
 
-    // ln(4) is where a zeroed classifier starts; see tests/functional/integration/README.md.
+    // ln(4) is where a zeroed classifier starts; see tests/integration/README.md.
     EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(K_CLASSES)), 1e-4);
     EXPECT_LT(report.last_loss, 0.5 * report.first_loss);
     EXPECT_GT(report.last_accuracy, 0.75);
@@ -126,7 +126,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 
 TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 {
-    // Tensors must carry the dtypes the IR claims; see tests/functional/integration/README.md.
+    // Tensors must carry the dtypes the IR claims; see tests/integration/README.md.
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
@@ -170,7 +170,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
     EXPECT_GT(half_buffers, 0u);
 
-    // SushiBLAS refuses a mixed-dtype gemm by name; see tests/functional/integration/README.md.
+    // SushiBLAS refuses a mixed-dtype gemm by name; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options()));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
@@ -180,7 +180,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
 TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
-    // The graph skipped the cast pass on purpose; see tests/functional/integration/README.md.
+    // The graph skipped the cast pass on purpose; see tests/integration/README.md.
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
@@ -212,7 +212,7 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 
 TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
-    // A half buffer must not be read as float; see tests/functional/integration/README.md.
+    // A half buffer must not be read as float; see tests/integration/README.md.
     Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));

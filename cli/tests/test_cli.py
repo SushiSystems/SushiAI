@@ -40,7 +40,7 @@ K_PUBLISH_LIST = (
     'api = false\n'
 )
 K_ARCHIVE = "docs-bundle-1.2.3.tar.gz"
-K_DOXYFILE = Path(__file__).resolve().parents[2] / "Doxyfile"
+K_DOXYFILE = Path(__file__).resolve().parents[2] / ".config" / "doxygen" / "Doxyfile"
 
 
 def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_path):

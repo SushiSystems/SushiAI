@@ -23,7 +23,7 @@
  * @file box_coding.hpp
  * @brief Declares the coding of boxes as left, top, right, bottom distances about anchor points.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -37,7 +37,7 @@ namespace SushiAI
         /**
          * @brief Decodes `[B, A, 4]` distances about `[A, 2]` anchor points into x1 y1 x2 y2.
          * @param boxes Receives `[B, A, 4]` in the units of @p anchor_points; may be @p distances.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void decode_xyxy(SushiRuntime::span<const float> distances,
                          SushiRuntime::span<const float> anchor_points,
@@ -46,7 +46,7 @@ namespace SushiAI
         /**
          * @brief Decodes `[B, A, 4]` distances about `[A, 2]` anchor points into centre and size.
          * @param boxes Receives `[B, A, 4]` in the units of @p anchor_points; may be @p distances.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void decode_xywh(SushiRuntime::span<const float> distances,
                          SushiRuntime::span<const float> anchor_points,
@@ -55,7 +55,7 @@ namespace SushiAI
         /**
          * @brief Encodes `[B, A, 4]` x1 y1 x2 y2 boxes as distances about `[A, 2]` anchor points.
          * @param distances Receives `[B, A, 4]`, not clamped; may be @p boxes.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void encode_distances(SushiRuntime::span<const float> anchor_points,
                               SushiRuntime::span<const float> boxes,
@@ -64,7 +64,7 @@ namespace SushiAI
         /**
          * @brief Multiplies `[B, A, 4]` boxes by the `[A]` stride of their anchor.
          * @param scaled Receives `[B, A, 4]`; may be @p boxes.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void scale_boxes(SushiRuntime::span<const float> boxes,
                          SushiRuntime::span<const float> strides,

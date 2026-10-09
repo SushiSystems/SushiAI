@@ -23,7 +23,7 @@
  * @file anchors.cpp
  * @brief Implements the anchor points and per-anchor strides of a detector's feature levels.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/anchors.hpp>

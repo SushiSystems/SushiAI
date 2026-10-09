@@ -1,15 +1,15 @@
 # mnist_cnn: a small convolutional network on MNIST, from JSON
 
 Three JSON files describe a two-stage convolutional classifier for the MNIST digits and the
-runs that train and evaluate it. There is no C++ in this directory. `apps/train.cpp` and
-`apps/inference.cpp` read the files, as they do for [`heavy_mlp`](../heavy_mlp/README.md).
+runs that train and evaluate it. There is no C++ in this directory. `applications/programs/source/train.cpp` and
+`applications/programs/source/inference.cpp` read the files, as they do for [`heavy_mlp`](../heavy_mlp/README.md).
 
 No run has been made with these files. The values in them are untuned first guesses, chosen
 small with the aim of a CPU run that ends in minutes, and nobody has timed one.
 
 ## The data
 
-The loader in `src/data/dataset.cpp` reads the four IDX files under their original names,
+The loader in `modules/core/data/source/dataset.cpp` reads the four IDX files under their original names,
 uncompressed:
 
 | File | Split | Holds |
@@ -26,19 +26,19 @@ and the four file names.
 
 `sa` starts both drivers from the repository root, so `data/mnist` is
 `<repository>/data/mnist` and the paths on the command line are relative to the repository
-root, wherever `sa` is called from. `src/config/train_config.cpp` resolves `model` and
+root, wherever `sa` is called from. `modules/core/config/source/train_config.cpp` resolves `model` and
 `checkpoint` against the directory of the configuration file, but passes the `data` block
-through as written (see `make_mnist` in `src/data/dataset.cpp`). Write an absolute `directory`
+through as written (see `make_mnist` in `modules/core/data/source/dataset.cpp`). Write an absolute `directory`
 to keep the files elsewhere.
 
 ## Running it
 
 ```bash
 sa build
-sa train      examples/mnist_cnn/train.json
-sa inference  examples/mnist_cnn/model.json \
-              examples/mnist_cnn/mnist_cnn.ckpt \
-              examples/mnist_cnn/eval.json
+sa train      applications/examples/mnist_cnn/train.json
+sa inference  applications/examples/mnist_cnn/model.json \
+              applications/examples/mnist_cnn/mnist_cnn.ckpt \
+              applications/examples/mnist_cnn/eval.json
 ```
 
 `sa` and `sushiai` are the same program, so both commands also run under the `sushiai` name.
@@ -100,4 +100,4 @@ the loader takes the first images in file order and drops a final partial batch.
 - The loader scales pixels to the range 0 to 1 and does nothing else: no mean and deviation
   normalisation, no shuffling, no augmentation.
 - An unknown key in any block is an error.
-  [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) documents the schema.
+  [`docs/guides/CLI_GUIDE.md`](../../../docs/guides/CLI_GUIDE.md) documents the schema.

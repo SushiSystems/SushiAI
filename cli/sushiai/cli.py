@@ -207,7 +207,7 @@ def demo_mlp(ctx: typer.Context) -> None:
 @app.command(
     "train",
     rich_help_panel=K_MODELS,
-    epilog="sa train examples/heavy_mlp/train.json",
+    epilog="sa train applications/examples/heavy_mlp/train.json",
     context_settings=K_FORWARDING,
 )
 def train(ctx: typer.Context) -> None:
@@ -226,8 +226,8 @@ def train(ctx: typer.Context) -> None:
 @app.command(
     "inference",
     rich_help_panel=K_MODELS,
-    epilog="sa inference examples/heavy_mlp/model.json model.ckpt "
-           "examples/heavy_mlp/eval.json",
+    epilog="sa inference applications/examples/heavy_mlp/model.json model.ckpt "
+           "applications/examples/heavy_mlp/eval.json",
     context_settings=K_FORWARDING,
 )
 def inference(ctx: typer.Context) -> None:

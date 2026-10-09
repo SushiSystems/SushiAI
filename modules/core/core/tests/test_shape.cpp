@@ -117,7 +117,7 @@ TEST(Unit_Shape, EqualityComparesRankAndEveryExtent)
 
 TEST(Unit_Shape, HashSeparatesShapesThatDifferOnlyByRank)
 {
-    // The tensor pool keys constant operands on this hash; see tests/functional/unit/README.md.
+    // The tensor pool keys constant operands on this hash; see tests/unit/README.md.
     EXPECT_NE(Shape({4, 1}).hash(), Shape({4}).hash());
     EXPECT_EQ(Shape({4, 1}).hash(), Shape({4, 1}).hash());
 }

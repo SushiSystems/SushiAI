@@ -5,7 +5,7 @@ The class table of the error contract and the checker that holds the tree to it.
 
 | File | Is |
 | --- | --- |
-| `site_classes.tsv` | One row per failure site of `include/`, `src/`, `apps/` and `examples/`: where it is, why it fails and what it becomes |
+| `site_classes.tsv` | One row per failure site of the modules' `include/` and `source/` folders and of `applications/`: where it is, why it fails and what it becomes |
 | `check_contract.py` | The checker that compares the tree with the table |
 
 ## `site_classes.tsv`
@@ -32,7 +32,7 @@ script until the question is answered and the cell is emptied by hand. A key tha
 cell or how the row was read.
 
 A row whose cause and mechanism are `unclassified` holds a site no classifier has read. The rows
-of `apps/` and `examples/` are in that state until their wave.
+of `applications/` are in that state until their wave.
 
 A site and a row are the same site when `file`, `kind` and `message_head` agree. Two sites of one
 file with the same head pair with their rows in line order.
@@ -46,12 +46,13 @@ other header.
 python tools/contract/check_contract.py [repository root] [--report] [--rule NAME]
 ```
 
-It reads every `.hpp`, `.cpp`, `.h` and `.inl` file under `include/`, `src/`, `apps/` and
-`examples/`, and the table. It writes nothing. A comment, a string literal and the `#define` of
-`SA_THROW_IF` itself hold no site. Any other `#define` does: a macro that wraps `SA_THROW_IF` is
-a site of the file that defines it.
+It reads every `.hpp`, `.cpp`, `.h` and `.inl` file under `modules/<tier>/<module>/include/`,
+`modules/<tier>/<module>/source/` and `applications/`, and the table. It writes nothing. A
+comment, a string literal and the `#define` of `SA_THROW_IF` itself hold no site. Any other
+`#define` does: a macro that wraps `SA_THROW_IF` is a site of the file that defines it.
 
-`tests/` is not read. The test helpers that call `SA_THROW_IF` are outside the ratchet.
+Root `tests/` and a module's `tests/` folder are not read. The test helpers that call
+`SA_THROW_IF` are outside the ratchet.
 SPEC section 6 names `convert_tests.py` to convert them; that script is not in this folder yet.
 
 | Rule | Fails when |
@@ -71,11 +72,12 @@ Notes start with `note:` and never change the exit code:
 | `note_frozen_growth` | A frozen file gained a site or lost a row's site |
 | `note_unclassified` | A row has `unclassified` as its cause or mechanism |
 | `note_open_question` | One line per `open_question` key, at the first row that carries it, with the number of rows |
-| `note_bridge_count` | The `Detail::bridge(` calls per module and in total; the last wave requires zero |
+| `note_bridge_count` | The `Detail::bridge(` calls per module, named `<tier>/<module>`, and in total; the last wave requires zero |
 
 ## When to run
 
-- Before reporting any task that touched `include/`, `src/`, `apps/` or `examples/`.
+- Before reporting any task that touched a module's `include/` or `source/` folder, or
+  `applications/`.
 - After a conversion wave: delete the rows of the sites the wave converted, in the same commit,
   and run the checker. A converted site whose row stays is a `rule_stale_row` finding.
 - A new failure site uses `SA_FAIL_IF`, `SA_REFUSE_IF` or `SA_FATAL_IF`. A new `SA_THROW_IF` is a

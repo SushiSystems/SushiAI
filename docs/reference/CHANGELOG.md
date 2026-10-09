@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-09 — build: Moved the tree to modules/<tier>/<module>/ with include, source and tests per module; breaks every path under include/, src/, apps/ and examples/ (`modules/`, `applications/`, `.config/doxygen/`).
+- 2026-10-09 — build: Added sushiai_add_module and the tier table; a dependency up the tiers or between domains stops the configure (`cmake/SushiAIModule.cmake`, `cmake/SushiAILayers.cmake`).
+- 2026-10-09 — vision: Added the sushiai_vision library, its umbrella header, its test binary and SA_BUILD_VISION (`SushiAI::vision`, `vision/vision.h`, `sushiai_vision_tests`).
+- 2026-10-09 — tools: Rewrote the layering check for the module tree and pointed the contract check at modules/ and applications/ (`check_layering.py`, `check_contract.py`).
+- 2026-10-09 — docs: Added a README to each of the 18 modules (`modules/core/`, `modules/layers/`, `modules/vision/`).
 - 2026-10-09 — vision: Moved detect, imaging and the blocks under vision/ and into SushiAI::Vision; breaks their include paths and namespaces (`vision/detect/`, `vision/imaging/`, `vision/blocks/`, `vision/registration.hpp`).
 - 2026-10-09 — vision: Moved MNIST out of data into Vision::Datasets and made MaterialisedDataset, allocate_batch and write_one_hot public; breaks the Data::Mnist names (`vision/datasets/mnist.hpp`, `data/materialised_dataset.hpp`).
 - 2026-10-09 — nn: Moved the readers of a model-file row from the blocks into nn, where batch norm and the blocks both reach them (`nn/node_attributes.hpp`, `node_attributes.cpp`).

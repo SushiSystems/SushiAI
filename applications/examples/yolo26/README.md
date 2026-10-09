@@ -2,7 +2,7 @@
 
 `model.json` describes YOLO26n in version 2 of the model file: 24 rows, one per row of the
 Ultralytics `yolo26.yaml` at scale `n`, read by `NN::build_model`
-(`include/SushiAI/nn/node_registry.hpp`). There is no C++ and no training configuration in
+(`modules/layers/nn/include/SushiAI/nn/node_registry.hpp`). There is no C++ and no training configuration in
 this directory.
 
 The file does not build yet. Rows 10, 22 and 23 name blocks this build does not have, and
@@ -21,7 +21,7 @@ or evaluates this model today, and no run has been made with it.
 
 The three rows wait for three emitters the graph builder lacks: a depthwise convolution, a
 rank-3 matrix product and a differentiable softmax.
-`tests/functional/unit/test_node_registry.cpp` pins the three messages. It also pins the
+`modules/layers/nn/tests/test_node_registry.cpp` pins the three messages. It also pins the
 shapes below by building the file with row 10 replaced by a `silu` row, which keeps the shape
 `c2psa` keeps.
 
