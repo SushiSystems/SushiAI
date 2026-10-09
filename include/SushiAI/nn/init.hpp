@@ -37,6 +37,7 @@
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 
 namespace SushiAI
@@ -146,7 +147,7 @@ namespace SushiAI
             /** @brief The leaky-ReLU slope, when that is the nonlinearity. */
             double negative_slope = 0.01;
 
-            /** @brief Zero the last weight and bias, so the initial loss is exactly ln(C). */
+            /** @brief Zero the last fan-scaled entry. */
             bool zero_final_layer = true;
 
             /** @brief The Philox seed; the same seed gives the same weights. */
@@ -156,14 +157,16 @@ namespace SushiAI
         namespace Detail
         {
             /**
-             * @brief Records the initial fill of one parameter tensor.
-             * @param parameter Parameter whose init() and fans select the fill.
-             * @param is_final_layer True if parameter belongs to final classifier layer.
+             * @brief Records the initial fill of one tensor.
+             * @param init The fill the tensor starts from; a Constant fill is tested first.
+             * @param fan_in Inputs feeding one output unit, as the parameter declared them.
+             * @param fan_out Outputs one input unit feeds, as the parameter declared them.
+             * @param is_final_layer True if the tensor belongs to the final classifier layer.
              * @return Success, or the failure of the fill it records.
              */
             [[nodiscard]] Status apply_initializer(SushiBLAS::Engine& engine,
-                                                   SushiBLAS::Tensor& tensor,
-                                                   const Parameter& parameter,
+                                                   SushiBLAS::Tensor& tensor, ParameterInit init,
+                                                   int64_t fan_in, int64_t fan_out,
                                                    const InitPolicy& policy,
                                                    bool is_final_layer);
         }
@@ -203,11 +206,23 @@ namespace SushiAI
                 {
                     const bool is_final = policy.zero_final_layer && i >= final_weight;
                     SA_TRY(Detail::apply_initializer(engine, pool.tensor(parameters[i]->id()),
-                                                     *parameters[i], policy, is_final));
+                                                     parameters[i]->init(),
+                                                     parameters[i]->fan_in(),
+                                                     parameters[i]->fan_out(), policy, is_final));
                 }
                 return Status();
             });
         }
+
+        /**
+         * @brief Records the initial fill of every entry of @p state and runs the recording.
+         * @param state The state whose entries were listed by ModelState::create().
+         * @param policy How the fills are drawn and which entry is zeroed.
+         * @return Success, or the failure of a fill or of the run.
+         * @pre The engine's graph holds no other recorded task; the run executes all of it.
+         */
+        [[nodiscard]] Status initialize(SushiBLAS::Engine& engine, ModelState& state,
+                                        const InitPolicy& policy = {});
 
     } // namespace NN
 } // namespace SushiAI

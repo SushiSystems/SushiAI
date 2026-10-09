@@ -28,8 +28,11 @@
 #include <SushiAI/nn/init.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <SushiBLAS/engine/math/random.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/seam.hpp>
+#include <SushiAI/nn/model_state.hpp>
 
 namespace SushiAI
 {
@@ -130,12 +133,13 @@ namespace SushiAI
         {
             Status apply_initializer(SushiBLAS::Engine& engine,
                                      SushiBLAS::Tensor& tensor,
-                                     const Parameter& parameter,
+                                     ParameterInit init,
+                                     int64_t fan_in,
+                                     int64_t fan_out,
                                      const InitPolicy& policy,
                                      bool is_final_layer)
             {
-                // A constant fill named by init() is tested before the final-layer zeroing.
-                const ParameterInit init = parameter.init();
+                // A constant fill named by init is tested before the final-layer zeroing.
                 if (init.kind == ParameterInit::Kind::Constant)
                     return constant(engine, tensor, init.constant);
 
@@ -143,8 +147,6 @@ namespace SushiAI
                     return zeros(engine, tensor);
 
                 const double gain = calculate_gain(policy.nonlinearity, policy.negative_slope);
-                const int64_t fan_in = parameter.fan_in();
-                const int64_t fan_out = parameter.fan_out();
 
                 if (policy.family == InitFamily::Kaiming)
                 {
@@ -155,6 +157,32 @@ namespace SushiAI
                 if (policy.uniform) return xavier_uniform(engine, tensor, fan_in, fan_out, gain);
                 return xavier_normal(engine, tensor, fan_in, fan_out, gain);
             }
+        }
+
+        Status initialize(SushiBLAS::Engine& engine, ModelState& state, const InitPolicy& policy)
+        {
+            const SushiRuntime::span<const StateEntry> entries = state.entries();
+
+            // The final weight is the last entry drawn from its fans; a buffer never is.
+            std::size_t final_weight = entries.size();
+            for (std::size_t i = 0; i < entries.size(); ++i)
+                if (entries[i].init.kind == ParameterInit::Kind::FanScaled) final_weight = i;
+
+            return SushiAI::Detail::record_and_run(engine, [&]() -> Status
+            {
+                SushiBLAS::RandomOps random(engine);
+                random.set_seed(policy.seed);
+
+                for (std::size_t i = 0; i < entries.size(); ++i)
+                {
+                    SA_TRY_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entries[i].state));
+                    const bool is_final = policy.zero_final_layer && i == final_weight;
+                    SA_TRY(Detail::apply_initializer(engine, *tensor, entries[i].init,
+                                                     entries[i].fan_in, entries[i].fan_out,
+                                                     policy, is_final));
+                }
+                return Status();
+            });
         }
 
     } // namespace NN
