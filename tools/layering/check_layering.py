@@ -42,6 +42,8 @@ K_MODULE_TIERS: dict[str, str] = {
     "vision/detect": "vision",
     "vision/blocks": "vision",
     "vision/datasets": "vision",
+    "vision/importers": "vision",
+    "vision/training": "vision",
     "vision/registration": "vision",
     "vision/umbrella": "vision",
 }

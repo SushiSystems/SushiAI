@@ -4,6 +4,8 @@
 
 ## 1. Decisions
 
+Decided on 2026-10-09 by the engineer the owner delegated it to, after REPORT section 11 showed that Darknet's CIoU box gradient departs from the analytic derivative in three places: the box gradient is an option of the training settings, `BoxGradient::Analytic` or `BoxGradient::DarknetCompatible`. `Analytic` is the library's default and is the true derivative of the chosen IoU measure. The cfg importer selects `DarknetCompatible`, since importing a Darknet file asks for Darknet's behaviour, and the parity tests measure that form. T02 writes both as two functions behind one interface; the analytic form is checked against a finite difference in double. One Darknet behaviour is reproduced under neither setting: a CPU-built Darknet accumulates no bias update for a batch-normalised convolution (REPORT section 13), which is a defect, and SushiAI's gradient there is the mathematical one.
+
 Ruled by the owner on 2026-10-09:
 
 | # | Subject | Ruling |
