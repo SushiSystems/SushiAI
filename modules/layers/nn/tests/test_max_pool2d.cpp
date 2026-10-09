@@ -25,7 +25,9 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <gtest/gtest.h>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
@@ -293,6 +295,127 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsAWindowWiderThanTheInput)
     const MaxPool2d layer = make_pool(2, 5, 1, 1);
 
     EXPECT_THROW((void)layer.output_shape(Shape{8, 4, 3}), Error);
+}
+
+/** @brief Tests that a trailing row keeps 13x13 at stride one; without it the result is 12x12. */
+TEST(Unit_MaxPool2d, TrailingRowKeepsTheExtentOfAStrideOnePool)
+{
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    const Shape sample{13, 13, 4};
+
+    EXPECT_EQ(layer.output_shape(sample), (Shape{12, 12, 4}));
+
+    layer.trailing_pad_h = 1;
+    layer.trailing_pad_w = 1;
+
+    EXPECT_EQ(layer.output_shape(sample), (Shape{13, 13, 4}));
+    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample)));
+}
+
+/** @brief Tests that a trailing pad at stride two gives 7x7 over 13x13, as (13 + 1 - 2) / 2 + 1. */
+TEST(Unit_MaxPool2d, TrailingPadAtStrideTwoGivesSevenFromThirteen)
+{
+    MaxPool2d layer = make_pool(2, 2, 2, 2);
+    layer.trailing_pad_h = 1;
+    layer.trailing_pad_w = 1;
+
+    EXPECT_EQ(layer.output_shape(Shape{13, 13, 4}), (Shape{7, 7, 4}));
+    EXPECT_EQ(traced_shape(layer, 1, Shape{13, 13, 4}), (Shape{1, 7, 7, 4}));
+}
+
+/** @brief Tests that a 2/2 pool over 416 with one trailing row and column gives 208. */
+TEST(Unit_MaxPool2d, TrailingPadGivesTwoHundredEightFromFourHundredSixteen)
+{
+    MaxPool2d layer = make_pool(2, 2, 2, 2);
+    layer.trailing_pad_h = 1;
+    layer.trailing_pad_w = 1;
+
+    EXPECT_EQ(layer.output_shape(Shape{416, 416, 16}), (Shape{208, 208, 16}));
+}
+
+/** @brief Tests that the trailing pad is set per axis: one row alone gives 3x2 over 3x3 at 2/1. */
+TEST(Unit_MaxPool2d, TrailingPadAppliesToOneAxisOnly)
+{
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    layer.trailing_pad_h = 1;
+
+    EXPECT_EQ(layer.output_shape(Shape{3, 3, 2}), (Shape{3, 2, 2}));
+}
+
+/** @brief Tests that a trailing pad lets a 2-row window fit a 1-row input it would overrun. */
+TEST(Unit_MaxPool2d, TrailingPadLetsAWindowFitAShortInput)
+{
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    const Shape sample{1, 4, 3};
+
+    EXPECT_THROW((void)layer.output_shape(sample), Error);
+
+    layer.trailing_pad_h = 1;
+    layer.trailing_pad_w = 1;
+
+    EXPECT_EQ(layer.output_shape(sample), (Shape{1, 4, 3}));
+    EXPECT_EQ(traced_shape(layer, 1, sample), (Shape{1, 1, 4, 3}));
+}
+
+/** @brief Tests that output_shape() refuses a negative trailing pad and names the value. */
+TEST(Unit_MaxPool2d, OutputShapeRejectsANegativeTrailingPad)
+{
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    layer.trailing_pad_w = -1;
+
+    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 3}), "MaxPool2d",
+                    "non-negative trailing padding", "0,-1");
+}
+
+/** @brief Tests that forward() refuses a negative trailing pad before it emits a node. */
+TEST(Unit_MaxPool2d, ForwardRejectsANegativeTrailingPad)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    layer.trailing_pad_h = -2;
+    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const std::size_t nodes_before = graph.node_count();
+
+    SA_EXPECT_ERROR((void)layer.forward(builder, x), "MaxPool2d", "non-negative trailing padding",
+                    "-2,0");
+    EXPECT_EQ(graph.node_count(), nodes_before);
+}
+
+/** @brief Tests that a trailing pad too large for 64 bits is refused rather than wrapping. */
+TEST(Unit_MaxPool2d, OutputShapeRejectsATrailingPadThatOverflows)
+{
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    layer.trailing_pad_h = std::numeric_limits<int64_t>::max();
+
+    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 3}), "MaxPool2d", "within 64 bits");
+}
+
+/** @brief Tests that a trailing pad as tall as the window is refused: its last row is padding. */
+TEST(Unit_MaxPool2d, OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap)
+{
+    MaxPool2d layer = make_pool(2, 2, 1, 1);
+    layer.trailing_pad_h = 2;
+
+    SA_EXPECT_ERROR((void)layer.output_shape(Shape{3, 3, 2}), "MaxPool2d",
+                    "every window a tap inside the input", "2,0");
+}
+
+/** @brief Tests that forward() refuses an all-padding trailing window before it emits a node. */
+TEST(Unit_MaxPool2d, ForwardRejectsATrailingPadThatLeavesAWindowNoTap)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+
+    MaxPool2d layer = make_pool(2, 2, 2, 2);
+    layer.trailing_pad_w = 3;
+    const Graph::ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
+    const std::size_t nodes_before = graph.node_count();
+
+    SA_EXPECT_ERROR((void)layer.forward(builder, x), "MaxPool2d",
+                    "every window a tap inside the input", "0,3");
+    EXPECT_EQ(graph.node_count(), nodes_before);
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */

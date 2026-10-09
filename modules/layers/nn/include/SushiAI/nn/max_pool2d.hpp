@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <tuple>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -42,6 +43,12 @@ namespace SushiAI
         {
             /** @brief Holds the window; its top and left pads apply to both sides of an axis. */
             Graph::ConvGeometry geometry{};
+
+            /** @brief Holds the zero rows added below the input, beyond the symmetric pad. */
+            int64_t trailing_pad_h = 0;
+
+            /** @brief Holds the zero columns added right of the input, beyond the symmetric pad. */
+            int64_t trailing_pad_w = 0;
 
             /** @brief Lists this layer's parameters, of which there are none. */
             static constexpr auto fields()
