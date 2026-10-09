@@ -40,6 +40,7 @@
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/format.hpp>
+#include "registries.hpp"
 
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;
@@ -79,9 +80,11 @@ namespace
 
         // Everything below is selected by a string, not named by a type; see apps/README.md.
 
+        SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
+
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Data::Dataset> dataset,
-                      sa::Data::make_dataset(engine, spec.data.type, spec.data.attributes,
-                                             "the data block"));
+                      sa::Data::make_dataset(registries.datasets, engine, spec.data.type,
+                                             spec.data.attributes, "the data block"));
 
         const sa::Shape sample_shape = dataset->sample_shape();
         SA_FAIL_IF(sample_shape != model_spec.input_shape,
@@ -90,7 +93,7 @@ namespace
                    spec.model_path.string(), model_spec.input_shape.to_string(),
                    dataset->name(), sample_shape.to_string());
 
-        SA_TRY_ASSIGN(sa::NN::ModelGraph model, sa::NN::build_model(model_spec));
+        SA_TRY_ASSIGN(sa::NN::ModelGraph model, sa::NN::build_model(registries.nodes, model_spec));
 
         const std::unique_ptr<sa::Train::Objective> objective =
             sa::Train::make_objective(spec.objective_type, dataset->batch_size(),

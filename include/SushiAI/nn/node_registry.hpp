@@ -21,25 +21,21 @@
 
 /**
  * @file node_registry.hpp
- * @brief Declares the node registry, make_node and the builder of a model graph from a file.
+ * @brief Declares NodeRegistry, make_node and the builder of a model graph from a file.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <array>
 #include <memory>
 #include <string_view>
+#include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/result.hpp>
-#include <SushiAI/nn/batch_norm2d.hpp>
-#include <SushiAI/nn/blocks/bottleneck.hpp>
-#include <SushiAI/nn/blocks/c3k.hpp>
-#include <SushiAI/nn/blocks/c3k2.hpp>
-#include <SushiAI/nn/blocks/conv_norm.hpp>
-#include <SushiAI/nn/blocks/sppf.hpp>
-#include <SushiAI/nn/concat.hpp>
+#include <SushiAI/core/status.hpp>
+#include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/node.hpp>
 
@@ -47,38 +43,76 @@ namespace SushiAI
 {
     namespace NN
     {
-        /** @brief Lists the node types LAYER_REGISTRY cannot hold: several ports, or a mode. */
-        inline constexpr std::array<NodeEntry, 7> K_NODE_REGISTRY = {
-            NodeEntry{"batchnorm2d", &make_batch_norm2d_node},
-            NodeEntry{"concat",      &make_concat_node},
-            NodeEntry{"conv",        &make_conv_node},
-            NodeEntry{"bottleneck",  &make_bottleneck_node},
-            NodeEntry{"c3k",         &make_c3k_node},
-            NodeEntry{"c3k2",        &make_c3k2_node},
-            NodeEntry{"sppf",        &make_sppf_node},
+        /** @brief Holds the node rows and the layer rows a model file may name, by type. */
+        class NodeRegistry final
+        {
+            public:
+                /**
+                 * @brief Appends a node row.
+                 * @param row Its type text must outlive the registry; an empty type or a null
+                 *            factory is fatal.
+                 * @return InvalidDescription when a node row or a layer row holds the type.
+                 */
+                [[nodiscard]] Status add(const NodeEntry& row);
+
+                /**
+                 * @brief Appends a layer row.
+                 * @param row Its type text must outlive the registry; an empty type or a null
+                 *            factory is fatal.
+                 * @return InvalidDescription when a node row or a layer row holds the type.
+                 */
+                [[nodiscard]] Status add(const LayerEntry& row);
+
+                /** @brief Returns the node row of @p type, or null when none holds it. */
+                [[nodiscard]] const NodeEntry* find_node(std::string_view type) const noexcept;
+
+                /** @brief Returns the layer row of @p type, or null when none holds it. */
+                [[nodiscard]] const LayerEntry* find_layer(std::string_view type) const noexcept;
+
+                /**
+                 * @brief Returns the node rows in the order they were added.
+                 * @return A view the next add() invalidates.
+                 */
+                [[nodiscard]] SushiRuntime::span<const NodeEntry> nodes() const noexcept;
+
+                /**
+                 * @brief Returns the layer rows in the order they were added.
+                 * @return A view the next add() invalidates.
+                 */
+                [[nodiscard]] SushiRuntime::span<const LayerEntry> layers() const noexcept;
+
+            private:
+                /** @brief Holds the node rows in insertion order. */
+                std::vector<NodeEntry> nodes_;
+
+                /** @brief Holds the layer rows in insertion order. */
+                std::vector<LayerEntry> layers_;
         };
 
         /**
-         * @brief Builds a node of @p type: a K_NODE_REGISTRY row, else a LAYER_REGISTRY row
+         * @brief Builds a node of @p type: a node row of @p registry, else a layer row
          *        wrapped in a LayerNode.
-         * @param inputs The shapes of the row's sources; a LAYER_REGISTRY row reads one.
+         * @param inputs The shapes of the row's sources; a layer row reads one.
          * @param context What to call the row in a diagnostic, e.g. "layer 3 'concat'".
          * @return The node, or InvalidDescription when the factory refuses the row or
-         *         @p type is in neither table; the second message lists both tables.
+         *         @p registry holds no @p type; the second message lists every row.
          */
-        [[nodiscard]] Result<std::unique_ptr<Node>> make_node(std::string_view type,
+        [[nodiscard]] Result<std::unique_ptr<Node>> make_node(const NodeRegistry& registry,
+                                                              std::string_view type,
                                                               ShapeSpan inputs,
                                                               const Config::Value& attributes,
                                                               std::string_view context);
 
         /**
          * @brief Builds the graph @p model describes, naming each row by its index.
+         * @param registry The rows a type of @p model may name.
          * @param model A parsed model, or a spec built by hand, which is checked the same
          *              way; an empty outputs list publishes every port of the last row.
          * @return The graph with its outputs published, or InvalidDescription naming the
          *         first row or output that does not fit.
          */
-        [[nodiscard]] Result<ModelGraph> build_model(const Config::ModelSpec& model);
+        [[nodiscard]] Result<ModelGraph> build_model(const NodeRegistry& registry,
+                                                     const Config::ModelSpec& model);
 
     } // namespace NN
 } // namespace SushiAI

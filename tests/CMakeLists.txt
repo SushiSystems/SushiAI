@@ -112,6 +112,7 @@ add_executable(sushiai_tests
     functional/unit/test_module_list.cpp
     functional/unit/test_node.cpp
     functional/unit/test_node_registry.cpp
+    functional/unit/test_dataset_registry.cpp
     functional/unit/test_silu.cpp
     functional/unit/test_step_recorder.cpp
     functional/unit/test_seam.cpp

@@ -121,6 +121,7 @@
 #include "nn/blocks/c3k2.hpp"
 #include "nn/blocks/conv_norm.hpp"
 #include "nn/blocks/sppf.hpp"
+#include "nn/blocks/registration.hpp"
 
 #include "optim/step_scalars.hpp"
 #include "optim/loss_scaler.hpp"
@@ -130,6 +131,7 @@
 #include "optim/optimizer_registry.hpp"
 
 #include "data/dataset.hpp"
+#include "data/dataset_registry.hpp"
 
 #include "detect/anchors.hpp"
 #include "detect/assigner.hpp"

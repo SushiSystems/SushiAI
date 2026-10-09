@@ -42,6 +42,8 @@
 #include <SushiAI/nn/layer_stack.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/node_registry.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
@@ -53,6 +55,14 @@ using NN::Sequential;
 
 namespace
 {
+    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
+    NN::NodeRegistry make_layer_registry()
+    {
+        NN::NodeRegistry registry;
+        SA_EXPECT_OK(NN::register_layers(registry));
+        return registry;
+    }
+
     /** @brief Traces @p model and returns its parameters as "name:extents". */
     template<typename M>
     std::vector<std::string> traced_names(M& model, int64_t batch, int64_t features)
@@ -237,7 +247,7 @@ TEST(Unit_LayerStack, RefusesAnOutputShapeWhenEmpty)
 /** @brief Tests that build_layer_stack hands each layer's output shape to the next factory. */
 TEST(Unit_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
 {
-    const LayerStack stack = NN::build_layer_stack(hand_built_chain());
+    const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
 
     ASSERT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.layer(0).output_shape(), (Shape{8}));
@@ -254,7 +264,7 @@ TEST(Unit_LayerStack, BuildLayerStackSeedsTheChainFromTheInputShape)
     Config::ModelSpec model = hand_built_chain();
     model.input_shape = Shape{5};
 
-    const LayerStack stack = NN::build_layer_stack(model);
+    const LayerStack stack = NN::build_layer_stack(make_layer_registry(), model);
 
     const auto& first = dynamic_cast<const LayerAdapter<Linear>&>(stack.layer(0));
     EXPECT_EQ(first.layer().in_features, 5);
@@ -266,13 +276,14 @@ TEST(Unit_LayerStack, BuildLayerStackRefusesAHandBuiltRowWithoutASource)
     Config::ModelSpec model = hand_built_chain();
     model.layers[1].from.clear();
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 1 'gelu'", "the row before it");
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
+                    "layer 1 'gelu'", "the row before it");
 }
 
 /** @brief Tests that output_shape over an input shape is the last layer's output shape. */
 TEST(Unit_LayerStack, OutputShapeOfAnInputIsTheLastLayersOutputShape)
 {
-    const LayerStack stack = NN::build_layer_stack(hand_built_chain());
+    const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
 
     EXPECT_EQ(stack.output_shape(Shape{6}), (Shape{4}));
     EXPECT_EQ(stack.output_shape(Shape{6}), stack.output_shape());

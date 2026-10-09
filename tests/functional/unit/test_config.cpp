@@ -42,6 +42,8 @@
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/node_registry.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
 
 using SushiAI::Config::Kind;
@@ -55,6 +57,14 @@ namespace
     SushiRuntime::span<const std::string_view> allowed(const std::string_view (&keys)[N])
     {
         return SushiRuntime::span<const std::string_view>(keys, N);
+    }
+
+    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
+    SushiAI::NN::NodeRegistry make_layer_registry()
+    {
+        SushiAI::NN::NodeRegistry registry;
+        SA_EXPECT_OK(SushiAI::NN::register_layers(registry));
+        return registry;
     }
 }
 
@@ -207,7 +217,8 @@ TEST(Unit_Config, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
 
 TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
 {
-    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(K_GOOD_MODEL));
+    SushiAI::NN::LayerStack stack =
+        SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL));
 
     EXPECT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.output_features(), 4);
@@ -219,7 +230,8 @@ TEST(Unit_Config, ChainsLayerWidthsFromTheInputFeatures)
 
 TEST(Unit_Config, AConfiguredStackTracesToTheDeclaredOutputWidth)
 {
-    SushiAI::NN::LayerStack stack = SushiAI::NN::build_layer_stack(model_from(K_GOOD_MODEL));
+    SushiAI::NN::LayerStack stack =
+        SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL));
 
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
@@ -236,7 +248,7 @@ TEST(Unit_Config, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
         "layers": [{"type": "hologram", "units": 8}]
     })");
 
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(model),
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), model),
                     "hologram", "layer type", "'linear'", "'gelu'");
 }
 
@@ -247,7 +259,8 @@ TEST(Unit_Config, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
         "input": {"features": 6},
         "layers": [{"type": "linear", "unitss": 8}]
     })");
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(typo), "layer 0 'linear'", "'unitss'");
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), typo),
+                    "layer 0 'linear'", "'unitss'");
 
     // An activation accepts no attribute; see tests/functional/unit/README.md.
     const SushiAI::Config::ModelSpec stray = model_from(R"({
@@ -255,7 +268,8 @@ TEST(Unit_Config, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
         "input": {"features": 6},
         "layers": [{"type": "gelu", "units": 8}]
     })");
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(stray), "layer 0 'gelu'", "'units'");
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), stray),
+                    "layer 0 'gelu'", "'units'");
 }
 
 TEST(Unit_Config, ALayerFactoryRefusesANonPositiveWidth)
@@ -265,16 +279,18 @@ TEST(Unit_Config, ALayerFactoryRefusesANonPositiveWidth)
         "input": {"features": 6},
         "layers": [{"type": "linear", "units": 0}]
     })");
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(model), "layer 0 'linear'", "'units'");
+    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), model),
+                    "layer 0 'linear'", "'units'");
 }
 
 TEST(Unit_Config, UseBiasDefaultsToTrueAndCanBeTurnedOff)
 {
-    SushiAI::NN::LayerStack with_bias = SushiAI::NN::build_layer_stack(model_from(R"({
+    const SushiAI::NN::NodeRegistry registry = make_layer_registry();
+    SushiAI::NN::LayerStack with_bias = SushiAI::NN::build_layer_stack(registry, model_from(R"({
         "sushiai_model": 1, "input": {"features": 6},
         "layers": [{"type": "linear", "units": 4}]
     })"));
-    SushiAI::NN::LayerStack without_bias = SushiAI::NN::build_layer_stack(model_from(R"({
+    SushiAI::NN::LayerStack without_bias = SushiAI::NN::build_layer_stack(registry, model_from(R"({
         "sushiai_model": 1, "input": {"features": 6},
         "layers": [{"type": "linear", "units": 4, "use_bias": false}]
     })"));

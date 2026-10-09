@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -45,6 +44,9 @@ namespace SushiAI
 {
     namespace Data
     {
+        /** @brief The registry of dataset rows; declared in dataset_registry.hpp. */
+        class DatasetRegistry;
+
         /**
          * @struct Batch
          * @brief One minibatch, resident on the device.
@@ -309,30 +311,6 @@ namespace SushiAI
             const MnistOptions& options = {});
 
         /**
-         * @brief Builds one dataset from its configuration attributes.
-         * @param engine The engine that allocates and fills the tensors.
-         * @param attributes The dataset's own keys; the factory rejects any it does not know.
-         * @param context What to call this dataset in a diagnostic.
-         * @return The dataset, never null, or the failure that kept it from being built.
-         */
-        using DatasetFactory = Result<std::unique_ptr<Dataset>> (*)(SushiBLAS::Engine& engine,
-                                                                    const Config::Value& attributes,
-                                                                    std::string_view context);
-
-        /**
-         * @struct DatasetEntry
-         * @brief One row of @ref K_DATASET_REGISTRY.
-         */
-        struct DatasetEntry
-        {
-            /** @brief The "type" a configuration file spells. */
-            std::string_view type;
-
-            /** @brief What builds it. */
-            DatasetFactory make;
-        };
-
-        /**
          * @brief Builds a @ref Rings dataset from configuration attributes.
          * @param attributes Dataset parameters dictionary.
          * @param context Diagnostic context string.
@@ -355,27 +333,11 @@ namespace SushiAI
                                                                   std::string_view context);
 
         /**
-         * @brief Every dataset type a configuration file may name.
-         *
-         * A file-scope constant table; nothing self-registers. See
-         * config/registry.hpp for why that is forced rather than preferred.
+         * @brief Adds the "mnist" row to @p registry.
+         * @param registry The registry the row joins.
+         * @return Success, or InvalidDescription when "mnist" is already held.
          */
-        inline constexpr std::array<DatasetEntry, 2> K_DATASET_REGISTRY = {
-            DatasetEntry{"rings", &make_rings},
-            DatasetEntry{"mnist", &make_mnist},
-        };
-
-        /**
-         * @brief Builds the dataset named @p type from the registry.
-         * @param type Registry key identifying dataset implementation.
-         * @param attributes Dataset configuration attributes.
-         * @return The dataset, never null, or the failure the type's factory returns.
-         */
-        [[nodiscard]] Result<std::unique_ptr<Dataset>> make_dataset(
-            SushiBLAS::Engine& engine,
-            std::string_view type,
-            const Config::Value& attributes,
-            std::string_view context);
+        [[nodiscard]] Status register_mnist(DatasetRegistry& registry);
 
     } // namespace Data
 } // namespace SushiAI

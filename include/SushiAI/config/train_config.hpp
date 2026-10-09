@@ -50,7 +50,7 @@ namespace SushiAI
          */
         struct DataSpec
         {
-            /** @brief The @c Data::K_DATASET_REGISTRY key, e.g. "rings". */
+            /** @brief The type a @c Data::DatasetRegistry row is found by, e.g. "rings". */
             std::string type;
 
             /** @brief Every other key; the dataset's own factory validates them. */

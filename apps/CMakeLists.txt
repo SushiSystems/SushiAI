@@ -11,8 +11,8 @@
 # directory where it can be checked in one place.
 set(SUSHIAI_APP_TARGETS sushiai_train sushiai_inference)
 
-add_executable(sushiai_train train.cpp)
-add_executable(sushiai_inference inference.cpp)
+add_executable(sushiai_train train.cpp registries.cpp)
+add_executable(sushiai_inference inference.cpp registries.cpp)
 
 foreach(target IN LISTS SUSHIAI_APP_TARGETS)
     target_link_libraries(${target} PRIVATE sushiai)
