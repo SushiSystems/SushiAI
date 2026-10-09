@@ -208,5 +208,24 @@ namespace SushiAI
                 : tape.builder().concat_channels(
                       SushiRuntime::span<const Graph::ValueId>(parts.data(), parts.size())));
         }
+
+        void depthwise_conv2d_backward(const GradientTape& tape)
+        {
+            const Graph::ValueId dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+
+            // The operands and geometry are copied out before the first emission.
+            const Graph::Node& node = tape.node();
+            const Graph::ValueId x = node.inputs[0];
+            const Graph::ValueId weight = node.inputs[1];
+            const Graph::ConvGeometry g = geometry_of(node);
+
+            if (tape.input_requires_grad(0))
+                tape.contribute_input(0, tape.builder().depthwise_conv2d_backward_input(
+                    dy, weight, tape.graph().value(x).shape, g));
+
+            if (tape.input_requires_grad(1))
+                tape.contribute_input(1, tape.builder().depthwise_conv2d_backward_weight(dy, x, g));
+        }
     }
 }

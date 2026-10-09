@@ -174,9 +174,11 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::K_GELU.id, Ops::K_GELU_BACKWARD.id, Ops::K_GEMM_BIAS_GELU.id,
         Ops::K_LEAF.id, Ops::K_CAST.id,
         Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id,
-        // The twenty spatial identities keep the default; see tests/unit/README.md.
+        // The twenty-three spatial identities keep the default; see tests/unit/README.md.
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
+        Ops::K_DEPTHWISE_CONV2D.id, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id,
+        Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
         Ops::K_MAXPOOL2D.id, Ops::K_MAXPOOL2D_BACKWARD.id,
         Ops::K_AVGPOOL2D.id, Ops::K_AVGPOOL2D_BACKWARD.id,
         Ops::K_SPATIAL_MEAN.id, Ops::K_SPATIAL_MEAN_BACKWARD.id,
@@ -199,6 +201,26 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
     // The two lists account for every identity; see tests/unit/README.md.
     EXPECT_EQ(sizeof(narrows) / sizeof(narrows[0]) + sizeof(stays) / sizeof(stays[0]),
               Ops::K_ALL.size());
+}
+
+TEST(Unit_Precision, TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecision)
+{
+    // None of the three is in the narrowing set, so each keeps its declared type.
+    const MixedPrecisionPolicy policy;
+    const OpID depthwise[] = {
+        Ops::K_DEPTHWISE_CONV2D.id,
+        Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id,
+        Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
+    };
+
+    for (OpID op : depthwise)
+    {
+        EXPECT_FALSE(Graph::narrows_under_mixed_precision(op)) << Ops::name_of(op);
+
+        for (DType dtype : {DType::Float32, DType::Float64})
+            EXPECT_EQ(policy.choose(Graph::PrecisionQuery{op, dtype}).dtype, dtype)
+                << Ops::name_of(op) << " narrowed a " << dtype_name(dtype) << " operand";
+    }
 }
 
 TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)

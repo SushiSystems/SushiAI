@@ -90,6 +90,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/conv2d.hpp>
+#include <SushiAI/nn/depthwise_conv2d.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/avg_pool2d.hpp>
 #include <SushiAI/nn/global_avg_pool.hpp>

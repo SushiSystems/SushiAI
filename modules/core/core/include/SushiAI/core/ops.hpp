@@ -122,7 +122,11 @@ namespace SushiAI
          */
         inline constexpr OpName K_CAST = op("sushiai.cast");
 
-        /** @brief 2-D matrix product, transposition expressed by flags not views. */
+        /**
+         * @brief Matrix product of two rank-2 matrices, or of two rank-3 batches of matrices.
+         *
+         * Transposition is expressed by the attribute flags, not by views.
+         */
         inline constexpr OpName K_MATMUL = differentiable_op("sushiai.matmul");
         /** @brief Adds a row vector to every row of a matrix. */
         inline constexpr OpName K_BIAS_ADD = differentiable_op("sushiai.bias_add");
@@ -203,6 +207,15 @@ namespace SushiAI
         inline constexpr OpName K_IM2COL = differentiable_op("sushiai.im2col");
         /** @brief The adjoint of IM2COL; a gather, never an atomic scatter (CV-6). */
         inline constexpr OpName K_COL2IM = differentiable_op("sushiai.col2im");
+
+        /** @brief Windowed depthwise convolution: each channel is filtered by its own taps. */
+        inline constexpr OpName K_DEPTHWISE_CONV2D = differentiable_op("sushiai.depthwise_conv2d");
+        /** @brief Gradient of DEPTHWISE_CONV2D with respect to its input. */
+        inline constexpr OpName K_DEPTHWISE_CONV2D_BACKWARD_INPUT =
+            op("sushiai.depthwise_conv2d_backward_input");
+        /** @brief Gradient of DEPTHWISE_CONV2D with respect to its taps. */
+        inline constexpr OpName K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT =
+            op("sushiai.depthwise_conv2d_backward_weight");
 
         /** @brief Windowed maximum; also writes the argmax indices. */
         inline constexpr OpName K_MAXPOOL2D = differentiable_op("sushiai.maxpool2d");
@@ -305,6 +318,8 @@ namespace SushiAI
             K_EXP_SUB_SCALE,
             K_RESHAPE, K_LAYOUT_CONVERT, K_STOP_GRADIENT,
             K_IM2COL, K_COL2IM,
+            K_DEPTHWISE_CONV2D, K_DEPTHWISE_CONV2D_BACKWARD_INPUT,
+            K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT,
             K_MAXPOOL2D, K_MAXPOOL2D_BACKWARD, K_AVGPOOL2D, K_AVGPOOL2D_BACKWARD,
             K_SPATIAL_MEAN, K_SPATIAL_MEAN_BACKWARD, K_UPSAMPLE2D, K_UPSAMPLE2D_BACKWARD,
             K_CONCAT_CHANNELS, K_SLICE_CHANNELS,

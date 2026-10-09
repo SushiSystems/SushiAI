@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-09 — graph: Added the depthwise convolution with its two gradient operations, their lowerings and its gradient rule (`ops.hpp`, `builder.hpp`, `lowering/spatial.hpp`, `rules/spatial.hpp`).
+- 2026-10-09 — graph: Widened matmul to two rank-3 batches and added a softmax emitter over the last axis (`builder.hpp`, `GraphBuilder::matmul`, `GraphBuilder::softmax`).
+- 2026-10-09 — nn: Added the DepthwiseConv2d layer (`nn/depthwise_conv2d.hpp`, `depthwise_conv2d.cpp`).
 - 2026-10-09 — build: Followed SushiBLAS's module include paths in 57 files; needs the SushiBLAS tree that splits its library into modules (`<SushiBLAS/engine/engine.hpp>`, `<SushiBLAS/tensor/tensor.hpp>`).
 - 2026-10-09 — build: Moved the tree to modules/<tier>/<module>/ with include, source and tests per module; breaks every path under include/, src/, apps/ and examples/ (`modules/`, `applications/`, `.config/doxygen/`).
 - 2026-10-09 — build: Added sushiai_add_module and the tier table; a dependency up the tiers or between domains stops the configure (`cmake/SushiAIModule.cmake`, `cmake/SushiAILayers.cmake`).

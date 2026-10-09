@@ -498,3 +498,84 @@ TEST_F(Integration_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
     expect_elements(read_tensor(run.pool.tensor(fold.shift)), expected_shift,
                     K_FLOAT32_TOLERANCE);
 }
+
+/** @brief Tests that DEPTHWISE_CONV2D matches three nested loops over a padded 3x3 window. */
+TEST_F(Integration_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
+{
+    constexpr int64_t K_HEIGHT = 4;
+    constexpr int64_t K_WIDTH = 4;
+    constexpr int64_t K_CHANNELS = 2;
+    constexpr int64_t K_KERNEL = 3;
+    constexpr int64_t K_PAD = 1;
+
+    // Integer-valued data, so every product and sum is exact in FLOAT32.
+    std::vector<double> image(static_cast<std::size_t>(K_HEIGHT * K_WIDTH * K_CHANNELS));
+    for (std::size_t i = 0; i < image.size(); ++i)
+    {
+        image[i] = static_cast<double>((i * 7) % 11) - 5.0;
+    }
+
+    std::vector<double> taps(static_cast<std::size_t>(K_KERNEL * K_KERNEL * K_CHANNELS));
+    for (std::size_t i = 0; i < taps.size(); ++i)
+    {
+        taps[i] = static_cast<double>((i * 5) % 7) - 3.0;
+    }
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueId x = builder.input(Shape{1, K_HEIGHT, K_WIDTH, K_CHANNELS}, "x");
+    const ValueId weights = builder.input(Shape{K_KERNEL, K_KERNEL, K_CHANNELS}, "taps");
+
+    Graph::ConvGeometry g;
+    g.kernel_h = K_KERNEL;
+    g.kernel_w = K_KERNEL;
+    g.pad_top = K_PAD;
+    g.pad_left = K_PAD;
+    const ValueId y = builder.depthwise_conv2d(x, weights, g);
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), image);
+    write_tensor(run.pool.tensor(weights), taps);
+
+    ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
+
+    const auto pixel = [](int64_t row, int64_t col, int64_t c)
+    {
+        return static_cast<std::size_t>((row * K_WIDTH + col) * K_CHANNELS + c);
+    };
+    const auto tap = [](int64_t r, int64_t s, int64_t c)
+    {
+        return static_cast<std::size_t>((r * K_KERNEL + s) * K_CHANNELS + c);
+    };
+
+    // Each output sums the taps whose input pixel lies inside the image; the rest add nothing.
+    std::vector<double> expected(image.size(), 0.0);
+    for (int64_t row = 0; row < K_HEIGHT; ++row)
+    {
+        for (int64_t col = 0; col < K_WIDTH; ++col)
+        {
+            for (int64_t c = 0; c < K_CHANNELS; ++c)
+            {
+                for (int64_t r = 0; r < K_KERNEL; ++r)
+                {
+                    for (int64_t s = 0; s < K_KERNEL; ++s)
+                    {
+                        const int64_t in_row = row + r - K_PAD;
+                        const int64_t in_col = col + s - K_PAD;
+                        if (in_row < 0 || in_row >= K_HEIGHT || in_col < 0 || in_col >= K_WIDTH)
+                        {
+                            continue;
+                        }
+
+                        expected[pixel(row, col, c)] +=
+                            image[pixel(in_row, in_col, c)] * taps[tap(r, s, c)];
+                    }
+                }
+            }
+        }
+    }
+
+    const Tolerance window_tolerance = {1e-6, 0.0};
+    expect_elements(read_tensor(run.pool.tensor(y)), expected, window_tolerance);
+}

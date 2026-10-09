@@ -86,10 +86,10 @@ namespace SushiAI
             EXPECT_EQ(Graph::K_LINALG_LOWERINGS.size(), 3u);
             EXPECT_EQ(Graph::K_LOSS_LOWERINGS.size(), 2u);
             EXPECT_EQ(Graph::K_SHAPE_LOWERINGS.size(), 4u);
-            EXPECT_EQ(Graph::K_SPATIAL_LOWERINGS.size(), 12u);
+            EXPECT_EQ(Graph::K_SPATIAL_LOWERINGS.size(), 15u);
             EXPECT_EQ(Graph::K_NORM_LOWERINGS.size(), 4u);
             EXPECT_EQ(Graph::K_FUSED_LOWERINGS.size(), 6u);
-            EXPECT_EQ(Graph::K_LOWERINGS.size(), 62u);
+            EXPECT_EQ(Graph::K_LOWERINGS.size(), 65u);
         }
 
     } // namespace Test

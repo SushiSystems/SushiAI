@@ -30,6 +30,8 @@ sushiai_add_module(NAME graph TIER core
         source/tensor_pool.cpp
     PUBLIC_DEPENDS core
     TESTS
+        tests/test_batched_matmul.cpp
+        tests/test_depthwise_ops.cpp
         tests/test_elementwise_ops.cpp
         tests/test_fusion.cpp
         tests/test_ir.cpp

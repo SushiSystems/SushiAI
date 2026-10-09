@@ -105,6 +105,9 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.layout_convert"),
         std::string_view("sushiai.im2col"),
         std::string_view("sushiai.col2im"),
+        std::string_view("sushiai.depthwise_conv2d"),
+        std::string_view("sushiai.depthwise_conv2d_backward_input"),
+        std::string_view("sushiai.depthwise_conv2d_backward_weight"),
         std::string_view("sushiai.maxpool2d"),
         std::string_view("sushiai.maxpool2d_backward"),
         std::string_view("sushiai.avgpool2d"),
@@ -149,9 +152,11 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
 TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
 {
     // ALL is what the collision proof and name_of() read; see tests/unit/README.md.
-    const std::array<SushiAI::OpID, 20> declared = {
+    const std::array<SushiAI::OpID, 23> declared = {
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
+        Ops::K_DEPTHWISE_CONV2D.id, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id,
+        Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
         Ops::K_MAXPOOL2D.id, Ops::K_MAXPOOL2D_BACKWARD.id,
         Ops::K_AVGPOOL2D.id, Ops::K_AVGPOOL2D_BACKWARD.id,
         Ops::K_SPATIAL_MEAN.id, Ops::K_SPATIAL_MEAN_BACKWARD.id,

@@ -44,6 +44,7 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `unflatten.hpp` | `Unflatten` |
 | `flatten.hpp` | `Flatten` |
 | `conv2d.hpp` | `Conv2d` |
+| `depthwise_conv2d.hpp` | `DepthwiseConv2d` |
 | `max_pool2d.hpp` | `MaxPool2d` |
 | `avg_pool2d.hpp` | `AvgPool2d` |
 | `global_avg_pool.hpp` | `GlobalAvgPool` |
@@ -197,6 +198,16 @@ kernel / 2 on every side. `bias_init` is the value every bias element starts fro
 
 Source: CV section 2, decisions 3 and 4. `same_padded` is MG 2.10 and `bias_init` is MG 2.8;
 both are PLAN unit U9.
+
+### depthwise_conv2d.hpp
+
+`DepthwiseConv2d` filters each channel of an NHWC activation with its own window of taps. The
+weight is rank 3, [kernel_h, kernel_w, channels], and `GraphBuilder::depthwise_conv2d` owns the
+node. `DepthwiseConv2d::same_padded(in, out, kernel, stride)` builds a layer padded by
+kernel / 2 on every side; it throws when `in` and `out` differ. The layer has no bias. Both fans
+of the weight are kernel_h * kernel_w, since each channel reads and writes only its own taps.
+
+Source: YOLO26 plan, `docs/agent/2026_10_07_YOLO26/PLAN.md`, unit U5.
 
 ### max_pool2d.hpp
 

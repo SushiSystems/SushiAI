@@ -197,12 +197,12 @@ namespace SushiAI
                                DType dtype = DType::Float32) const;
 
                 /**
-                 * @brief Emits MATMUL: C = op(A) * op(B).
-                 * @param a Left operand matrix.
-                 * @param b Right operand matrix.
-                 * @param transpose_a Whether to transpose @p a.
-                 * @param transpose_b Whether to transpose @p b.
-                 * @return The product value id.
+                 * @brief Emits MATMUL, C = op(A) * op(B): [m, n], or [B, m, n] for rank 3.
+                 * @param a Left operand: a rank-2 matrix, or a rank-3 [B, rows, cols] batch.
+                 * @param b Right operand, of the same rank and batch count as @p a.
+                 * @param transpose_a Whether to transpose each matrix of @p a.
+                 * @param transpose_b Whether to transpose each matrix of @p b.
+                 * @throws Error If ranks differ or are not 2 or 3, or extents or batches disagree.
                  */
                 ValueId matmul(ValueId a, ValueId b,
                                bool transpose_a = false, bool transpose_b = false) const;
@@ -384,6 +384,16 @@ namespace SushiAI
                 ValueId log_softmax(ValueId x) const;
 
                 /**
+                 * @brief Emits a softmax over the last axis: RESHAPE, LOG_SOFTMAX, EXP, RESHAPE.
+                 * @param x The logits, of rank two or more; the last axis is normalised.
+                 * @return The probabilities' id, with the shape of @p x.
+                 * @throws Error If @p x has rank below two.
+                 *
+                 * Differentiating through LOG_SOFTMAX throws unless NLL_LOSS follows it.
+                 */
+                ValueId softmax(ValueId x) const;
+
+                /**
                  * @brief Emits @c K_NLL_LOSS: the mean negative log-likelihood.
                  *
                  * @param log_probs An [N, C] value, normally a @c K_LOG_SOFTMAX result.
@@ -499,6 +509,38 @@ namespace SushiAI
                  */
                 ValueId conv2d(ValueId x, ValueId weight, ValueId bias,
                                const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits K_DEPTHWISE_CONV2D: each channel filtered by its own taps.
+                 * @param x The [N,H,W,C] input; must be NHWC.
+                 * @param weight The [kernel_h,kernel_w,C] taps, of the input's element type.
+                 * @param g The window geometry; symmetric padding is assumed.
+                 * @return The [N,out_h,out_w,C] value id.
+                 * @throws Error If @p x, the taps or the window disagree with @p g.
+                 */
+                ValueId depthwise_conv2d(ValueId x, ValueId weight, const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits K_DEPTHWISE_CONV2D_BACKWARD_INPUT: the gradient of the input.
+                 * @param dy The [N,out_h,out_w,C] output gradient; must be NHWC.
+                 * @param weight The [kernel_h,kernel_w,C] taps the forward used.
+                 * @param input_shape The [N,H,W,C] shape of the forward input.
+                 * @param g The window geometry the forward used.
+                 * @throws Error If the shapes disagree with one another or with @p g.
+                 */
+                ValueId depthwise_conv2d_backward_input(ValueId dy, ValueId weight,
+                                                        Shape input_shape,
+                                                        const ConvGeometry& g) const;
+
+                /**
+                 * @brief Emits K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT: the gradient of the taps.
+                 * @param dy The [N,out_h,out_w,C] output gradient; must be NHWC.
+                 * @param x The [N,H,W,C] forward input; must be NHWC, of dy's element type.
+                 * @param g The window geometry the forward used.
+                 * @throws Error If the shapes disagree with one another or with @p g.
+                 */
+                ValueId depthwise_conv2d_backward_weight(ValueId dy, ValueId x,
+                                                         const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits @c K_MAXPOOL2D, with symmetric padding assumed.
