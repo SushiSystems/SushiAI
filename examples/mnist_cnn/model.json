@@ -1,8 +1,7 @@
 {
-  "sushiai_model": 1,
-  "input": { "features": 784 },
+  "format_version": 2,
+  "input": { "shape": [28, 28, 1] },
   "layers": [
-    { "type": "unflatten", "height": 28, "width": 28, "channels": 1 },
     { "type": "conv2d", "filters": 8, "kernel": 3, "stride": 1, "padding": 1,
       "dilation": 1, "use_bias": true },
     { "type": "relu" },

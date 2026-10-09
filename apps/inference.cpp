@@ -30,7 +30,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <iostream>
@@ -92,29 +91,41 @@ namespace
                       sa::Data::make_dataset(engine, data_spec.type, data_spec.attributes,
                                              "the data block"));
 
-        SA_FAIL_IF(dataset->input_dim() != model_spec.input_features,
+        const sa::Shape sample_shape = dataset->sample_shape();
+        SA_FAIL_IF(sample_shape != model_spec.input_shape,
                    sa::StatusCode::InvalidDescription,
-                   "'{}' declares {} input features, but the '{}' data supplies {}",
-                   model_path.string(), model_spec.input_features,
-                   dataset->name(), dataset->input_dim());
+                   "'{}' declares the input shape {}, but the '{}' data supplies {}",
+                   model_path.string(), model_spec.input_shape.to_string(),
+                   dataset->name(), sample_shape.to_string());
 
         // Only the forward pass is traced: no loss, no backward, no optimizer; see apps/README.md.
-        sa::NN::LayerStack model = sa::NN::build_layer_stack(model_spec);
+        SA_TRY_ASSIGN(sa::NN::ModelGraph model, sa::NN::build_model(model_spec));
         const int64_t rows = dataset->batch_size();
-        const int64_t outputs = model.output_features();
 
-        sa::Graph::Graph graph;
-        const sa::Graph::GraphBuilder builder(graph);
-        const sa::Graph::ValueId input =
-            builder.input(sa::Shape{rows, dataset->input_dim()}, "inputs");
-        const sa::Graph::ValueId output = model.forward(builder, input);
+        SA_TRY_ASSIGN(const sa::Shape batch_shape, sa::Train::batch_shape(rows, sample_shape));
+        SA_TRY_ASSIGN(const sa::Train::TracedStep traced,
+                      sa::Train::build_evaluation_graph(model, batch_shape));
+
+        const std::vector<sa::NN::ModelOutputs::Entry>& published = traced.outputs.all();
+        SA_FAIL_IF(published.size() != 1, sa::StatusCode::InvalidDescription,
+                   "'{}' publishes {} outputs, but the report counts classes and reads one",
+                   model_path.string(), published.size());
+
+        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
+        SA_TRY(sa::IO::load_checkpoint(checkpoint_path, state));
 
         sa::Graph::TensorPool pool(engine);
-        SA_TRY(pool.materialise_leaves(graph));
-        SA_TRY(sa::IO::load_checkpoint(checkpoint_path, model, pool));
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::EvaluationStep> step,
+                      sa::Train::EvaluationStep::make(engine, traced, state, pool));
 
-        SA_TRY_ASSIGN(const std::unique_ptr<sa::Graph::CompiledStep> step,
-                      sa::Graph::CompiledStep::compile(engine, graph, pool));
+        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const scores_tensor,
+                      step->output(published.front().first));
+        SA_FAIL_IF(scores_tensor->rank != 2, sa::StatusCode::InvalidDescription,
+                   "'{}' publishes '{}' with rank {}, but the report counts classes and reads "
+                   "[batch, classes]",
+                   model_path.string(), published.front().first, scores_tensor->rank);
+
+        const int64_t outputs = scores_tensor->shape[1];
 
         std::cout << "sushiai inference\n"
                   << "----------------------------------------------------------------\n"
@@ -125,7 +136,7 @@ namespace
                                              dataset->name(), dataset->batch_count(), rows);
 
         // Top-1 agreement needs an output width equal to the class count; see apps/README.md.
-        const bool labelled = model.output_features() == dataset->num_classes();
+        const bool labelled = outputs == dataset->num_classes();
 
         std::vector<std::size_t> predicted_counts(static_cast<std::size_t>(outputs), 0);
         std::size_t samples = 0;
@@ -134,19 +145,9 @@ namespace
         for (std::size_t b = 0; b < dataset->batch_count(); ++b)
         {
             const sa::Data::Batch& batch = dataset->batch(b);
-            SushiBLAS::Tensor& destination = pool.tensor(input);
+            SA_TRY(step->run(batch.inputs));
 
-            SA_FAIL_IF(batch.inputs.num_elements != destination.num_elements,
-                       sa::StatusCode::InvalidDescription,
-                       "batch {} holds {} input elements but the compiled step expects {}",
-                       b, batch.inputs.num_elements, destination.num_elements);
-
-            std::memcpy(destination.data(), batch.inputs.data(),
-                        static_cast<std::size_t>(batch.inputs.num_elements) * sizeof(float));
-
-            SA_TRY(step->run());
-
-            const float* scores = pool.tensor(output).data_as<float>();
+            const float* scores = scores_tensor->data_as<float>();
             for (int64_t r = 0; r < rows; ++r)
             {
                 const int64_t predicted = argmax_row(scores + r * outputs, outputs);
@@ -177,12 +178,12 @@ namespace
                 "is not comparable and is not reported.\n",
                 outputs, dataset->num_classes());
 
-        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", step->compile_count());
-        if (step->compile_count() != 1)
+        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", step->step().compile_count());
+        if (step->step().compile_count() != 1)
             std::cerr << "The step must be compiled exactly once.\n";
 
-        SA_FAIL_IF(step->compile_count() != 1, sa::StatusCode::InvalidDescription,
-                   "the step was compiled {} times", step->compile_count());
+        SA_FAIL_IF(step->step().compile_count() != 1, sa::StatusCode::InvalidDescription,
+                   "the step was compiled {} times", step->step().compile_count());
 
         return sa::Status();
     }

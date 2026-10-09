@@ -70,13 +70,14 @@ This file quotes no loss, accuracy or timing, because none has been measured.
 | `train.json` | the objective, the data, the optimizer, the epochs, the checkpoint |
 | `eval.json` | the data to evaluate on |
 
-`model.json` builds this chain. Activations are NHWC, and the shapes below leave out the batch
-axis.
+`model.json` is a version 2 model (`"format_version": 2`). Its input is the image shape itself,
+so the first layer is a convolution; version 1 took a 784-value vector and began with an
+`unflatten` layer, which this version drops. The two data blocks set `"layout": "image"` for the
+same reason. Activations are NHWC, and the shapes below leave out the batch axis.
 
 | Layer | Output shape |
 | --- | --- |
-| input | `[784]` |
-| `unflatten` to 28 x 28 x 1 | `[28, 28, 1]` |
+| input | `[28, 28, 1]` |
 | `conv2d`, 8 filters, kernel 3, padding 1 | `[28, 28, 8]` |
 | `relu` | `[28, 28, 8]` |
 | `maxpool2d`, kernel 2, stride 2 | `[14, 14, 8]` |
@@ -92,9 +93,9 @@ the loader takes the first images in file order and drops a final partial batch.
 
 ## Limits
 
-- Images enter flat. The loader hands each image over as 784 values, `input.features` is 784,
-  and `unflatten` must be the first layer so the convolutions see `[28, 28, 1]`. A `conv2d`
-  placed first receives a feature vector, not an image.
+- Images enter as images. Both data blocks set `"layout": "image"`, so the loader yields one
+  `[28, 28, 1]` image per sample, which is the `input.shape` of `model.json`. The default layout,
+  `flat`, yields one row of 784 values per sample and does not match this model.
 - There is no batch normalisation layer yet, so the model has none.
 - The loader scales pixels to the range 0 to 1 and does nothing else: no mean and deviation
   normalisation, no shuffling, no augmentation.
