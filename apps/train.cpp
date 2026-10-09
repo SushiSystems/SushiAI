@@ -35,6 +35,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -82,28 +83,32 @@ namespace
                       sa::Data::make_dataset(engine, spec.data.type, spec.data.attributes,
                                              "the data block"));
 
-        SA_FAIL_IF(dataset->input_dim() != model_spec.input_features,
+        const sa::Shape sample_shape = dataset->sample_shape();
+        SA_FAIL_IF(sample_shape != model_spec.input_shape,
                    sa::StatusCode::InvalidDescription,
-                   "'{}' declares {} input features, but the '{}' data supplies {}",
-                   spec.model_path.string(), model_spec.input_features,
-                   dataset->name(), dataset->input_dim());
+                   "'{}' declares the input shape {}, but the '{}' data supplies {}",
+                   spec.model_path.string(), model_spec.input_shape.to_string(),
+                   dataset->name(), sample_shape.to_string());
 
-        sa::NN::LayerStack model = sa::NN::build_layer_stack(model_spec);
+        SA_TRY_ASSIGN(sa::NN::ModelGraph model, sa::NN::build_model(model_spec));
 
         const std::unique_ptr<sa::Train::Objective> objective =
             sa::Train::make_objective(spec.objective_type, dataset->batch_size(),
                                       dataset->num_classes(), spec.objective_attributes,
                                       "the objective block");
 
+        SA_TRY_ASSIGN(const sa::Shape batch_shape,
+                      sa::Train::batch_shape(dataset->batch_size(), sample_shape));
         SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
-                      sa::Train::build_training_graph(
-                          model, *objective,
-                          sa::Shape{dataset->batch_size(), dataset->input_dim()}));
+                      sa::Train::build_training_graph(model, *objective, batch_shape));
+
+        // The trace above declared every parameter and buffer the state lists.
+        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
 
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                      sa::Train::bind_parameters(built, pool));
-        SA_TRY(sa::NN::initialize(engine, model, pool));
+                      sa::Train::bind_parameters(built, state, pool));
+        SA_TRY(sa::NN::initialize(engine, state));
 
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Optim::Optimizer> optimizer,
                       sa::Optim::make_optimizer(engine, spec.optimizer_type, parameters,
@@ -114,9 +119,12 @@ namespace
         // The objective owns the metric, so the trainer's accuracy path is off; see apps/README.md.
         options.track_accuracy = false;
 
+        SA_TRY_ASSIGN(std::vector<sa::Train::BufferUpdateSlot> updates,
+                      sa::Train::bind_buffer_updates(built.updates, state, pool));
+
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::Trainer> trainer,
                       sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
-                                               options));
+                                               options, std::move(updates)));
 
         std::cout << "sushiai train\n"
                   << "----------------------------------------------------------------\n"
@@ -146,7 +154,9 @@ namespace
                 const sa::Data::Batch& batch = dataset->batch(b);
                 SA_TRY_ASSIGN(const sa::Train::StepMetrics metrics, trainer->run_step(batch));
                 last_loss = metrics.loss;
-                last_metric = objective->score(batch, pool.tensor(built.spec.logits));
+                // spec.logits is unset when the model publishes several outputs.
+                if (built.spec.logits != sa::Graph::K_NO_VALUE)
+                    last_metric = objective->score(batch, pool.tensor(built.spec.logits));
             }
 
             if (epoch == 1 || epoch % 5 == 0 || epoch == spec.epochs)
@@ -173,7 +183,7 @@ namespace
 
         if (!spec.checkpoint.empty())
         {
-            SA_TRY(sa::IO::save_checkpoint(spec.checkpoint, model, pool, engine));
+            SA_TRY(sa::IO::save_checkpoint(spec.checkpoint, state, engine));
             std::cout << SushiBLAS::Core::format("wrote {} ({} scalars)\n",
                                                  spec.checkpoint.string(),
                                                  sa::NN::parameter_elements(model));

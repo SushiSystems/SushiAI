@@ -1,5 +1,5 @@
 {
   "sushiai_data": 1,
   "data": { "type": "mnist", "directory": "data/mnist", "split": "test",
-            "batch_size": 64, "max_samples": 2048 }
+            "layout": "image", "batch_size": 64, "max_samples": 2048 }
 }
