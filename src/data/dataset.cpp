@@ -27,10 +27,7 @@
 
 #include <SushiAI/data/dataset.hpp>
 
-#include <algorithm>
-#include <array>
 #include <cmath>
-#include <fstream>
 #include <random>
 #include <string>
 #include <utility>
@@ -40,7 +37,7 @@
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/seam.hpp>
-#include <SushiAI/data/dataset_registry.hpp>
+#include <SushiAI/data/materialised_dataset.hpp>
 
 namespace SushiAI
 {
@@ -53,35 +50,6 @@ namespace SushiAI
                 "batch_size", "batches", "classes", "distractors",
                 "ring_width", "position_noise", "seed",
             };
-
-            /** @brief Lists every key a "mnist" dataset accepts. */
-            constexpr std::string_view K_MNIST_KEYS[] = {
-                "directory", "split", "layout", "batch_size", "max_samples",
-            };
-
-            /** @brief Names the "split" value that selects the training files. */
-            constexpr std::string_view K_MNIST_SPLIT_TRAIN = "train";
-
-            /** @brief Names the "split" value that selects the test files. */
-            constexpr std::string_view K_MNIST_SPLIT_TEST = "test";
-
-            /** @brief Names the "layout" value that yields one row of pixels per sample. */
-            constexpr std::string_view K_MNIST_LAYOUT_FLAT = "flat";
-
-            /** @brief Names the "layout" value that yields one image per sample. */
-            constexpr std::string_view K_MNIST_LAYOUT_IMAGE = "image";
-
-            /** @brief Names the IDX image file of the training split. */
-            constexpr std::string_view K_MNIST_TRAIN_IMAGES = "train-images-idx3-ubyte";
-
-            /** @brief Names the IDX label file of the training split. */
-            constexpr std::string_view K_MNIST_TRAIN_LABELS = "train-labels-idx1-ubyte";
-
-            /** @brief Names the IDX image file of the test split. */
-            constexpr std::string_view K_MNIST_TEST_IMAGES = "t10k-images-idx3-ubyte";
-
-            /** @brief Names the IDX label file of the test split. */
-            constexpr std::string_view K_MNIST_TEST_LABELS = "t10k-labels-idx1-ubyte";
 
             /** @brief Wraps a literal key list as a span, for reject_unknown_keys. */
             template<std::size_t N>
@@ -121,165 +89,6 @@ namespace SushiAI
                 return attributes.at_or(key, spelled)
                                  .as_real(prefix + " '" + std::string(key) + "'");
             }
-
-            /**
-             * @brief Allocates the tensors of one batch and sizes its label list.
-             * @param rows Samples in the batch.
-             * @param sample The shape of one sample; the input tensor is [rows, sample...].
-             * @param classes Width of the target matrix.
-             * @return The batch, its contents unset, or the failure of an allocation.
-             */
-            [[nodiscard]] Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
-                                                       const Shape& sample, int64_t classes)
-            {
-                SA_FAIL_IF(sample.rank() + 1 > K_MAX_RANK, StatusCode::InvalidDescription,
-                           "A batch of samples shaped {} has rank {}, above the maximum of {}",
-                           sample.to_string(), sample.rank() + 1, K_MAX_RANK);
-
-                std::array<int64_t, static_cast<std::size_t>(K_MAX_RANK)> input_dims{};
-                input_dims[0] = rows;
-                for (int32_t d = 0; d < sample.rank(); ++d)
-                    input_dims[static_cast<std::size_t>(d) + 1] = sample[d];
-
-                const int64_t target_dims[2] = {rows, classes};
-
-                Batch batch;
-                SA_TRY_ASSIGN(batch.inputs,
-                              allocate_tensor(engine,
-                                              SushiRuntime::span<const int64_t>(
-                                                  input_dims.data(),
-                                                  static_cast<std::size_t>(sample.rank()) + 1)));
-                SA_TRY_ASSIGN(batch.targets,
-                              allocate_tensor(engine,
-                                              SushiRuntime::span<const int64_t>(target_dims, 2)));
-                SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
-                {
-                    batch.labels.resize(static_cast<std::size_t>(rows));
-                    return Status();
-                }));
-
-                return std::move(batch);
-            }
-
-            /** @brief Writes a one-hot row pattern straight into shared USM. */
-            void write_one_hot(SushiBLAS::Tensor& targets,
-                               const std::vector<int32_t>& labels,
-                               int64_t classes)
-            {
-                float* data = targets.data_as<float>();
-                std::fill(data, data + targets.num_elements, 0.0f);
-
-                for (std::size_t row = 0; row < labels.size(); ++row)
-                    data[static_cast<int64_t>(row) * classes + labels[row]] = 1.0f;
-            }
-
-            /** @brief Reads a big-endian 32-bit integer, as the IDX format stores them. */
-            std::uint32_t read_be32(std::istream& in)
-            {
-                unsigned char bytes[4] = {0, 0, 0, 0};
-                in.read(reinterpret_cast<char*>(bytes), 4);
-
-                return (static_cast<std::uint32_t>(bytes[0]) << 24)
-                     | (static_cast<std::uint32_t>(bytes[1]) << 16)
-                     | (static_cast<std::uint32_t>(bytes[2]) << 8)
-                     | static_cast<std::uint32_t>(bytes[3]);
-            }
-
-            /** @brief The IDX image file for a split. */
-            std::filesystem::path image_path(const MnistOptions& options)
-            {
-                return options.directory /
-                       (options.test_split ? K_MNIST_TEST_IMAGES : K_MNIST_TRAIN_IMAGES);
-            }
-
-            /** @brief The IDX label file for a split. */
-            std::filesystem::path label_path(const MnistOptions& options)
-            {
-                return options.directory /
-                       (options.test_split ? K_MNIST_TEST_LABELS : K_MNIST_TRAIN_LABELS);
-            }
-
-            /**
-             * @brief Reads the optional "split" key of a "mnist" dataset.
-             * @return True for the test split, false for the training split, and the
-             *         MnistOptions default for an absent key; InvalidDescription for a value
-             *         that names neither split.
-             */
-            [[nodiscard]] Result<bool> is_test_split(const Config::Value& attributes,
-                                                     const std::string& prefix)
-            {
-                const Config::Value spelled = Config::Value::string(std::string(
-                    MnistOptions().test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN));
-                const std::string& split =
-                    attributes.at_or("split", spelled).as_string(prefix + " 'split'");
-
-                SA_FAIL_IF(split != K_MNIST_SPLIT_TRAIN && split != K_MNIST_SPLIT_TEST,
-                           StatusCode::InvalidDescription,
-                           "{} 'split' is '{}'; it must be '{}' or '{}'",
-                           prefix, split, K_MNIST_SPLIT_TRAIN, K_MNIST_SPLIT_TEST);
-
-                return split == K_MNIST_SPLIT_TEST;
-            }
-
-            /**
-             * @brief Reads the optional "layout" key of a "mnist" dataset.
-             * @return Flat or Image, the MnistOptions default for an absent key; or
-             *         InvalidDescription for a value that names neither layout.
-             */
-            [[nodiscard]] Result<MnistLayout> read_layout(const Config::Value& attributes,
-                                                          const std::string& prefix)
-            {
-                const bool image_default = MnistOptions().layout == MnistLayout::Image;
-                const Config::Value spelled = Config::Value::string(std::string(
-                    image_default ? K_MNIST_LAYOUT_IMAGE : K_MNIST_LAYOUT_FLAT));
-                const std::string layout =
-                    attributes.at_or("layout", spelled).as_string(prefix + " 'layout'");
-
-                SA_FAIL_IF(layout != K_MNIST_LAYOUT_FLAT && layout != K_MNIST_LAYOUT_IMAGE,
-                           StatusCode::InvalidDescription,
-                           "{} 'layout' is '{}'; it must be '{}' or '{}'",
-                           prefix, layout, K_MNIST_LAYOUT_FLAT, K_MNIST_LAYOUT_IMAGE);
-
-                return layout == K_MNIST_LAYOUT_IMAGE ? MnistLayout::Image : MnistLayout::Flat;
-            }
-
-            /**
-             * @class MaterialisedDataset
-             * @brief A dataset whose batches are already on the device.
-             */
-            class MaterialisedDataset final : public Dataset
-            {
-                public:
-                    MaterialisedDataset(std::vector<Batch> batches, int64_t batch_size,
-                                        const Shape& sample, int64_t classes, std::string name)
-                        : batches_(std::move(batches)), batch_size_(batch_size),
-                          sample_shape_(sample), classes_(classes), name_(std::move(name)) {}
-
-                    int64_t batch_size() const noexcept override { return batch_size_; }
-                    int64_t input_dim() const noexcept override
-                    {
-                        return sample_shape_.num_elements();
-                    }
-                    Shape sample_shape() const override { return sample_shape_; }
-                    int64_t num_classes() const noexcept override { return classes_; }
-                    std::size_t batch_count() const noexcept override { return batches_.size(); }
-                    std::string_view name() const noexcept override { return name_; }
-
-                    const Batch& batch(std::size_t index) const override
-                    {
-                        SA_FATAL_IF(index >= batches_.size(),
-                                    "Batch {} is out of range; the dataset has {}",
-                                    index, batches_.size());
-                        return batches_[index];
-                    }
-
-                private:
-                    std::vector<Batch> batches_;
-                    int64_t batch_size_;
-                    Shape sample_shape_;
-                    int64_t classes_;
-                    std::string name_;
-            };
         }
 
         SyntheticClassification::SyntheticClassification(SyntheticOptions options,
@@ -367,135 +176,6 @@ namespace SushiAI
             SA_FATAL_IF(index >= batches_.size(),
                         "Batch {} is out of range; the dataset has {}", index, batches_.size());
             return batches_[index];
-        }
-
-        bool mnist_available(const MnistOptions& options)
-        {
-            std::error_code ignored;
-            return std::filesystem::is_regular_file(image_path(options), ignored)
-                && std::filesystem::is_regular_file(label_path(options), ignored);
-        }
-
-        std::string mnist_expected_paths(const MnistOptions& options)
-        {
-            return SushiBLAS::Core::format("images: {}, labels: {}",
-                                           image_path(options).string(),
-                                           label_path(options).string());
-        }
-
-        namespace
-        {
-            /**
-             * @brief Reads the MNIST split that @p options names into @p dataset.
-             * @param dataset Receives the batches; unchanged when the read fails.
-             * @return Success, FileNotFound when a file is absent, InvalidFile for a file that
-             *         is not the split, InvalidDescription for a batch size that is not
-             *         positive, or the failure of an allocation.
-             */
-            [[nodiscard]] Status read_mnist(SushiBLAS::Engine& engine,
-                                            const MnistOptions& options,
-                                            std::unique_ptr<Dataset>& dataset)
-            {
-                SA_FAIL_IF(!mnist_available(options), StatusCode::FileNotFound,
-                           "{}", mnist_expected_paths(options));
-
-                SA_FAIL_IF(options.batch_size <= 0, StatusCode::InvalidDescription,
-                           "MNIST needs a positive batch size; got {}", options.batch_size);
-
-                std::ifstream images(image_path(options), std::ios::binary);
-                std::ifstream labels(label_path(options), std::ios::binary);
-
-                SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
-                           "MNIST files exist but could not be opened ({})",
-                           mnist_expected_paths(options));
-
-                const std::uint32_t image_magic = read_be32(images);
-                const std::uint32_t image_count = read_be32(images);
-                const std::uint32_t image_rows = read_be32(images);
-                const std::uint32_t image_cols = read_be32(images);
-
-                const std::uint32_t label_magic = read_be32(labels);
-                const std::uint32_t label_count = read_be32(labels);
-
-                SA_FAIL_IF(image_magic != 0x00000803u, StatusCode::InvalidFile,
-                           "{} is not an IDX3 image file (magic 0x{:08x})",
-                           image_path(options).string(), image_magic);
-                SA_FAIL_IF(label_magic != 0x00000801u, StatusCode::InvalidFile,
-                           "{} is not an IDX1 label file (magic 0x{:08x})",
-                           label_path(options).string(), label_magic);
-                SA_FAIL_IF(image_count != label_count, StatusCode::InvalidFile,
-                           "MNIST holds {} images but {} labels", image_count, label_count);
-                SA_FAIL_IF(image_rows == 0 || image_cols == 0, StatusCode::InvalidFile,
-                           "MNIST images are {}x{}; both extents must be positive",
-                           image_rows, image_cols);
-
-                const int64_t pixels = static_cast<int64_t>(image_rows) * image_cols;
-                const Shape sample = options.layout == MnistLayout::Image
-                    ? Shape{static_cast<int64_t>(image_rows), static_cast<int64_t>(image_cols), 1}
-                    : Shape{pixels};
-                const int64_t available = static_cast<int64_t>(image_count);
-                const int64_t wanted = options.max_samples > 0
-                                     ? std::min(available, options.max_samples)
-                                     : available;
-
-                const int64_t rows = options.batch_size;
-                const int64_t batch_total = wanted / rows;
-                SA_FAIL_IF(batch_total <= 0, StatusCode::InvalidFile,
-                           "MNIST has {} usable samples, fewer than one batch of {}", wanted, rows);
-
-                const int64_t classes = 10;
-
-                std::vector<unsigned char> raw(static_cast<std::size_t>(rows * pixels));
-                std::vector<unsigned char> raw_labels(static_cast<std::size_t>(rows));
-
-                std::vector<Batch> batches;
-                batches.reserve(static_cast<std::size_t>(batch_total));
-
-                for (int64_t b = 0; b < batch_total; ++b)
-                {
-                    images.read(reinterpret_cast<char*>(raw.data()),
-                                static_cast<std::streamsize>(raw.size()));
-                    labels.read(reinterpret_cast<char*>(raw_labels.data()),
-                                static_cast<std::streamsize>(raw_labels.size()));
-
-                    SA_FAIL_IF(!images || !labels, StatusCode::InvalidFile,
-                               "MNIST file ended after {} of {} batches; the download is truncated",
-                               b, batch_total);
-
-                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, sample, classes));
-
-                    float* pixel_data = batch.inputs.data_as<float>();
-                    for (std::size_t i = 0; i < raw.size(); ++i)
-                        pixel_data[i] = static_cast<float>(raw[i]) / 255.0f;
-
-                    for (int64_t r = 0; r < rows; ++r)
-                    {
-                        const int32_t label =
-                            static_cast<int32_t>(raw_labels[static_cast<std::size_t>(r)]);
-                        SA_FAIL_IF(label < 0 || label >= classes, StatusCode::InvalidFile,
-                                   "MNIST label {} is out of range", label);
-                        batch.labels[static_cast<std::size_t>(r)] = label;
-                    }
-
-                    write_one_hot(batch.targets, batch.labels, classes);
-                    batches.push_back(std::move(batch));
-                }
-
-                dataset = std::make_unique<MaterialisedDataset>(std::move(batches), rows, sample,
-                                                                classes, "mnist");
-                return Status();
-            }
-        }
-
-        Result<std::unique_ptr<Dataset>> try_load_mnist(SushiBLAS::Engine& engine,
-                                                        const MnistOptions& options)
-        {
-            std::unique_ptr<Dataset> dataset;
-            SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
-            {
-                return read_mnist(engine, options, dataset);
-            }));
-            return std::move(dataset);
         }
 
         Rings::Rings(RingsOptions options, std::vector<Batch> batches) noexcept
@@ -605,42 +285,6 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(std::unique_ptr<Dataset> dataset, Rings::make(engine, options));
             return std::move(dataset);
-        }
-
-        Result<std::unique_ptr<Dataset>> make_mnist(SushiBLAS::Engine& engine,
-                                                    const Config::Value& attributes,
-                                                    std::string_view context)
-        {
-            attributes.reject_unknown_keys(context, as_span(K_MNIST_KEYS));
-
-            MnistOptions options;
-            const std::string prefix(context);
-
-            options.directory = attributes.at("directory", context)
-                                          .as_string(prefix + " 'directory'");
-            SA_TRY_ASSIGN(options.test_split, is_test_split(attributes, prefix));
-            SA_TRY_ASSIGN(options.layout, read_layout(attributes, prefix));
-            options.batch_size = read_int(attributes, "batch_size", prefix, options.batch_size);
-            options.max_samples = read_int(attributes, "max_samples", prefix, options.max_samples);
-
-            Result<std::unique_ptr<Dataset>> loaded = try_load_mnist(engine, options);
-
-            // A FileNotFound message holds the expected paths; the prefix names the directory.
-            if (loaded.status().code() == StatusCode::FileNotFound)
-                return SA_ANNOTATE(loaded.status(),
-                                   "{} 'directory' '{}' does not hold the MNIST {} split. A "
-                                   "complete directory holds {}, {}, {} and {}",
-                                   prefix, options.directory.string(),
-                                   options.test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN,
-                                   K_MNIST_TRAIN_IMAGES, K_MNIST_TRAIN_LABELS,
-                                   K_MNIST_TEST_IMAGES, K_MNIST_TEST_LABELS);
-
-            return loaded;
-        }
-
-        Status register_mnist(DatasetRegistry& registry)
-        {
-            return registry.add(DatasetEntry{"mnist", &make_mnist});
         }
 
     } // namespace Data

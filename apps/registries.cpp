@@ -31,9 +31,9 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
-#include <SushiAI/nn/blocks/registration.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
+#include <SushiAI/vision/registration.hpp>
 
 namespace SushiAI
 {
@@ -44,9 +44,9 @@ namespace SushiAI
             Registries registries;
 
             SA_TRY(NN::register_layers(registries.nodes));
-            SA_TRY(NN::register_blocks(registries.nodes));
+            SA_TRY(Vision::register_nodes(registries.nodes));
             SA_TRY(Data::register_datasets(registries.datasets));
-            SA_TRY(Data::register_mnist(registries.datasets));
+            SA_TRY(Vision::register_datasets(registries.datasets));
 
             return registries;
         }

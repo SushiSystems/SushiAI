@@ -559,17 +559,6 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
     }
 }
 
-TEST_F(Integration_Training, MnistFallsBackToSyntheticWhenTheFilesAreAbsent)
-{
-    Data::MnistOptions options;
-    options.directory = "this-directory-does-not-exist";
-
-    EXPECT_FALSE(Data::mnist_available(options));
-    SA_EXPECT_FAILURE(Data::try_load_mnist(*engine, options), StatusCode::FileNotFound,
-                      "this-directory-does-not-exist");
-    EXPECT_FALSE(Data::mnist_expected_paths(options).empty());
-}
-
 TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays)
 {
     // Each step applies the host form of the update to the batch mean of that step.

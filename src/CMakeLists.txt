@@ -75,15 +75,15 @@ set(SUSHIAI_SOURCES
     nn/model_outputs.cpp
     nn/model_state.cpp
     nn/node_registry.cpp
+    nn/node_attributes.cpp
     nn/silu.cpp
     nn/trace.cpp
-    nn/blocks/block_attributes.cpp
-    nn/blocks/bottleneck.cpp
-    nn/blocks/c3k.cpp
-    nn/blocks/c3k2.cpp
-    nn/blocks/conv_norm.cpp
-    nn/blocks/sppf.cpp
-    nn/blocks/registration.cpp
+    vision/blocks/bottleneck.cpp
+    vision/blocks/c3k.cpp
+    vision/blocks/c3k2.cpp
+    vision/blocks/conv_norm.cpp
+    vision/blocks/sppf.cpp
+    vision/registration.cpp
 
     optim/optimizer.cpp
     optim/step_scalars.cpp
@@ -94,41 +94,43 @@ set(SUSHIAI_SOURCES
 
     data/dataset.cpp
     data/dataset_registry.cpp
+    data/materialised_dataset.cpp
+    vision/datasets/mnist.cpp
 
-    detect/anchors.cpp
-    detect/assigner.cpp
-    detect/assigner_config.cpp
-    detect/box_coding.cpp
-    detect/box_format.cpp
-    detect/detections_nms.cpp
-    detect/detections_topk.cpp
-    detect/ground_truth.cpp
-    detect/iou.cpp
-    detect/level_rows.cpp
-    detect/target_leaves.cpp
-    detect/top_k.cpp
-    detect/anchor_leaves.cpp
-    detect/average_precision.cpp
+    vision/detect/anchors.cpp
+    vision/detect/assigner.cpp
+    vision/detect/assigner_config.cpp
+    vision/detect/box_coding.cpp
+    vision/detect/box_format.cpp
+    vision/detect/detections_nms.cpp
+    vision/detect/detections_topk.cpp
+    vision/detect/ground_truth.cpp
+    vision/detect/iou.cpp
+    vision/detect/level_rows.cpp
+    vision/detect/target_leaves.cpp
+    vision/detect/top_k.cpp
+    vision/detect/anchor_leaves.cpp
+    vision/detect/average_precision.cpp
 
-    imaging/affine.cpp
-    imaging/boxes.cpp
-    imaging/flip.cpp
-    imaging/hsv.cpp
-    imaging/image.cpp
-    imaging/labels.cpp
-    imaging/letterbox.cpp
-    imaging/mosaic.cpp
-    imaging/pipeline.cpp
-    imaging/random.cpp
-    imaging/raw_cache.cpp
-    imaging/resize.cpp
-    imaging/bilinear.cpp
-    imaging/dataset_partners.cpp
-    imaging/gray.cpp
-    imaging/label_set.cpp
-    imaging/polygon.cpp
-    imaging/recent_partners.cpp
-    imaging/rectangle.cpp
+    vision/imaging/affine.cpp
+    vision/imaging/boxes.cpp
+    vision/imaging/flip.cpp
+    vision/imaging/hsv.cpp
+    vision/imaging/image.cpp
+    vision/imaging/labels.cpp
+    vision/imaging/letterbox.cpp
+    vision/imaging/mosaic.cpp
+    vision/imaging/pipeline.cpp
+    vision/imaging/random.cpp
+    vision/imaging/raw_cache.cpp
+    vision/imaging/resize.cpp
+    vision/imaging/bilinear.cpp
+    vision/imaging/dataset_partners.cpp
+    vision/imaging/gray.cpp
+    vision/imaging/label_set.cpp
+    vision/imaging/polygon.cpp
+    vision/imaging/recent_partners.cpp
+    vision/imaging/rectangle.cpp
 
     eager/scope_trace.cpp
     eager/scope_partitioner.cpp

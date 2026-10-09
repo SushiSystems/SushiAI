@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-09 — vision: Moved detect, imaging and the blocks under vision/ and into SushiAI::Vision; breaks their include paths and namespaces (`vision/detect/`, `vision/imaging/`, `vision/blocks/`, `vision/registration.hpp`).
+- 2026-10-09 — vision: Moved MNIST out of data into Vision::Datasets and made MaterialisedDataset, allocate_batch and write_one_hot public; breaks the Data::Mnist names (`vision/datasets/mnist.hpp`, `data/materialised_dataset.hpp`).
+- 2026-10-09 — nn: Moved the readers of a model-file row from the blocks into nn, where batch norm and the blocks both reach them (`nn/node_attributes.hpp`, `node_attributes.cpp`).
 - 2026-10-09 — nn: Replaced the node and layer tables with NodeRegistry, a value build_model, make_node and build_layer_stack take; breaks their callers (`node_registry.hpp`, `layer_registry.hpp`, `blocks/registration.hpp`).
 - 2026-10-09 — data: Replaced the dataset table with DatasetRegistry, a value make_dataset takes; breaks its callers (`dataset_registry.hpp`, `dataset.hpp`).
 - 2026-10-09 — apps: Composed the registries of train and inference in one function (`apps/registries.hpp`, `apps/registries.cpp`, `compose_registries`).

@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 
 /** @brief Shortens the SushiBLAS namespace. */
@@ -48,13 +49,13 @@ namespace
 
         const int64_t batch = 32;
 
-        sa::Data::MnistOptions mnist;
+        sa::Vision::Datasets::MnistOptions mnist;
         mnist.batch_size = batch;
         mnist.max_samples = 2048;
 
         std::unique_ptr<sa::Data::Dataset> dataset;
         sa::Result<std::unique_ptr<sa::Data::Dataset>> loaded =
-            sa::Data::try_load_mnist(engine, mnist);
+            sa::Vision::Datasets::try_load_mnist(engine, mnist);
 
         if (loaded.has_value())
         {
@@ -63,7 +64,8 @@ namespace
         }
         else if (loaded.status().code() == sa::StatusCode::FileNotFound)
         {
-            std::cout << "Dataset  : MNIST not found (" << sa::Data::mnist_expected_paths(mnist)
+            std::cout << "Dataset  : MNIST not found ("
+                      << sa::Vision::Datasets::mnist_expected_paths(mnist)
                       << ");\n           falling back to the seeded synthetic problem.\n";
 
             sa::Data::SyntheticOptions synthetic;

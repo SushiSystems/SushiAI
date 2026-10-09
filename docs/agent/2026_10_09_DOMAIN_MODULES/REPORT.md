@@ -38,3 +38,39 @@ Open after phase 1:
 - The join that lists type names exists in `node_registry.cpp`, `layer_registry.cpp` and
   `dataset_registry.cpp`.
 - The READMEs of `apps`, `nn` and two test folders name the deleted tables.
+
+## Phase 2: vision moves
+
+The orchestrator moved the folders with `git mv` and repathed the build lists, the umbrella
+header and 131 rows of `site_classes.tsv`; workflow `wf_0c6bf947-1e0` edited the moved files.
+
+```
+dispatch: T2.1 — haiku high, 14 turns, passed, rung 1
+dispatch: T2.2 — haiku high, 24 turns, passed, rung 1
+dispatch: T2.3 — opus low, 12 turns, passed, rung 1
+dispatch: T2.4 — opus low, 10 turns, passed, rung 1
+dispatch: T2.5 — haiku medium, 17 turns, passed, rung 1
+dispatch: review step a — opus low, 16 turns, passed, rung 1
+dispatch: T2.10 — haiku medium, 12 turns, passed, rung 1
+dispatch: T2.7 — haiku high, 22 turns, passed, rung 1
+dispatch: T2.9 — haiku high, 22 turns, passed, rung 1
+dispatch: T2.6b — haiku high, 25 turns, passed, rung 1
+dispatch: T2.6a — haiku high, 36 turns, passed, rung 1
+dispatch: T2.8 — opus low, 19 turns, passed, rung 1
+dispatch: review step b — opus low, 23 turns, passed, rung 1
+```
+
+The step-b reviewer found that `src/nn/batch_norm2d.cpp` included the blocks' private
+`block_attributes.hpp`, which would have made `nn` depend on `vision`. The orchestrator moved
+the row readers both use to `include/SushiAI/nn/node_attributes.hpp` and
+`src/nn/node_attributes.cpp` (`NN::Detail`); `src/vision/blocks/block_attributes.hpp` keeps the
+three block defaults and names the readers with using-declarations.
+
+Build B2, 2026-10-09, same machine and SushiBLAS commit: no build error; `sushiai_tests`
+passed 1885 tests and skipped 1 on the first run; `sushiai_train`, `sushiai_inference` and
+`sushiai_demo_mlp` each printed `compiles: 1`.
+
+Open after phase 2:
+
+- Nine helpers are copied between `test_node_registry.cpp` and `tests/vision/test_registration.cpp`.
+- The READMEs and three documents name the old paths; `tests/vision/` has no README.

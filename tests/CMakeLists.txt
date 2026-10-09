@@ -74,36 +74,36 @@ add_executable(sushiai_tests
     functional/unit/test_leaky_relu.cpp
     functional/unit/test_upsample2d.cpp
     functional/unit/test_layer_registry.cpp
-    functional/unit/test_detect_anchors.cpp
-    functional/unit/test_detect_assigner.cpp
-    functional/unit/test_detect_boxes.cpp
-    functional/unit/test_detect_postprocess.cpp
+    vision/test_detect_anchors.cpp
+    vision/test_detect_assigner.cpp
+    vision/test_detect_boxes.cpp
+    vision/test_detect_postprocess.cpp
     functional/unit/test_elementwise_ops.cpp
-    functional/unit/test_imaging_affine.cpp
-    functional/unit/test_imaging_boxes.cpp
-    functional/unit/test_imaging_flip.cpp
-    functional/unit/test_imaging_hsv.cpp
-    functional/unit/test_imaging_image.cpp
-    functional/unit/test_imaging_labels.cpp
-    functional/unit/test_imaging_letterbox.cpp
-    functional/unit/test_imaging_mosaic.cpp
-    functional/unit/test_imaging_pipeline.cpp
-    functional/unit/test_imaging_random.cpp
-    functional/unit/test_imaging_raw_cache.cpp
-    functional/unit/test_imaging_resize.cpp
+    vision/test_imaging_affine.cpp
+    vision/test_imaging_boxes.cpp
+    vision/test_imaging_flip.cpp
+    vision/test_imaging_hsv.cpp
+    vision/test_imaging_image.cpp
+    vision/test_imaging_labels.cpp
+    vision/test_imaging_letterbox.cpp
+    vision/test_imaging_mosaic.cpp
+    vision/test_imaging_pipeline.cpp
+    vision/test_imaging_random.cpp
+    vision/test_imaging_raw_cache.cpp
+    vision/test_imaging_resize.cpp
     functional/unit/test_loss_roots.cpp
-    functional/unit/test_detect_average_precision.cpp
-    functional/unit/test_imaging_gray.cpp
-    functional/unit/test_imaging_label_set.cpp
-    functional/unit/test_imaging_partners.cpp
-    functional/unit/test_imaging_polygon.cpp
-    functional/unit/test_imaging_rectangle.cpp
+    vision/test_detect_average_precision.cpp
+    vision/test_imaging_gray.cpp
+    vision/test_imaging_label_set.cpp
+    vision/test_imaging_partners.cpp
+    vision/test_imaging_polygon.cpp
+    vision/test_imaging_rectangle.cpp
     functional/unit/test_batch_norm2d.cpp
-    functional/unit/test_block_bottleneck.cpp
-    functional/unit/test_block_c3k.cpp
-    functional/unit/test_block_c3k2.cpp
-    functional/unit/test_block_conv_norm.cpp
-    functional/unit/test_block_sppf.cpp
+    vision/test_block_bottleneck.cpp
+    vision/test_block_c3k.cpp
+    vision/test_block_c3k2.cpp
+    vision/test_block_conv_norm.cpp
+    vision/test_block_sppf.cpp
     functional/unit/test_buffer.cpp
     functional/unit/test_concat.cpp
     functional/unit/test_identity.cpp
@@ -113,6 +113,8 @@ add_executable(sushiai_tests
     functional/unit/test_node.cpp
     functional/unit/test_node_registry.cpp
     functional/unit/test_dataset_registry.cpp
+    vision/test_registration.cpp
+    vision/test_datasets_mnist.cpp
     functional/unit/test_silu.cpp
     functional/unit/test_step_recorder.cpp
     functional/unit/test_seam.cpp

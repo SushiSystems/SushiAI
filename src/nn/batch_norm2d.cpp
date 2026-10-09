@@ -35,7 +35,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
-#include "blocks/block_attributes.hpp"
+#include <SushiAI/nn/node_attributes.hpp>
 
 namespace SushiAI
 {

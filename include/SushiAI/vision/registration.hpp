@@ -1,0 +1,64 @@
+/**************************************************************************/
+/* registration.hpp                                                       */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file registration.hpp
+ * @brief Declares register_nodes and register_datasets, which fill the registries with vision rows.
+ * @author Mustafa Garip
+ */
+
+#pragma once
+
+#include <SushiAI/core/status.hpp>
+
+namespace SushiAI
+{
+    namespace NN
+    {
+        /** @brief The registry of node and layer rows; declared in node_registry.hpp. */
+        class NodeRegistry;
+    } // namespace NN
+
+    namespace Data
+    {
+        /** @brief The registry of dataset rows; declared in dataset_registry.hpp. */
+        class DatasetRegistry;
+    } // namespace Data
+} // namespace SushiAI
+
+namespace SushiAI::Vision
+{
+    /**
+     * @brief Adds the five block node types to @p registry, in the order conv, bottleneck,
+     *        c3k, c3k2 and sppf.
+     * @param registry The registry that receives the five rows.
+     * @return Success, or the first failure of NodeRegistry::add().
+     */
+    [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry);
+
+    /**
+     * @brief Adds the "mnist" dataset row to @p registry.
+     * @param registry The registry that receives the row.
+     * @return Success, or the first failure of DatasetRegistry::add().
+     */
+    [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry);
+
+} // namespace SushiAI::Vision
