@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/tensor_shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
@@ -58,8 +59,7 @@ namespace SushiAI
                 TensorRecord record;
                 record.name = name;
                 record.dtype = tensor.dtype;
-                record.shape = Shape(SushiRuntime::span<const int64_t>(
-                    tensor.shape.data(), static_cast<std::size_t>(tensor.rank)));
+                record.shape = shape_of(tensor);
                 return record;
             }
         }

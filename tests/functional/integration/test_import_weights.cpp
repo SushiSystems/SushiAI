@@ -55,36 +55,7 @@ namespace
 {
     class Integration_ImportWeights : public SaTest::EngineTest {};
 
-    /**
-     * @class ScratchFile
-     * @brief A checkpoint path that removes itself.
-     */
-    class ScratchFile
-    {
-        public:
-            explicit ScratchFile(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            ~ScratchFile()
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            ScratchFile(const ScratchFile&) = delete;
-            ScratchFile& operator=(const ScratchFile&) = delete;
-
-            /** @brief Returns the path this file removes on destruction. */
-            const std::filesystem::path& path() const noexcept { return path_; }
-
-        private:
-            /** @brief Holds the path of the scratch file. */
-            std::filesystem::path path_;
-    };
+    using SaTest::ScratchFile;
 
     /** @brief One record to write, with the tensor whose bytes its payload carries. */
     struct Source

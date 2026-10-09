@@ -21,7 +21,7 @@
 
 /**
  * @file test_utils.hpp
- * @brief Declares the per-test Engine fixture and the host-side tensor helpers device tests use.
+ * @brief Declares the Engine fixture, the tensor helpers and the builders that tests share.
  * @author Mustafa Garip
  * @see tests/common/README.md, "test_utils.hpp".
  */
@@ -30,7 +30,10 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <memory>
+#include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine.hpp>
@@ -164,6 +167,51 @@ namespace SushiAI
                 /** @brief Holds the splitmix state. */
                 std::uint64_t state_;
         };
+
+        /** @brief Names a file under the temporary directory and removes it on both ends. */
+        class ScratchFile
+        {
+            public:
+                /** @brief Removes any file a previous run left under @p name. */
+                explicit ScratchFile(const char* name)
+                    : path_(std::filesystem::temp_directory_path() / name)
+                {
+                    std::error_code ignored;
+                    std::filesystem::remove(path_, ignored);
+                }
+
+                /** @brief Removes the file. */
+                ~ScratchFile()
+                {
+                    std::error_code ignored;
+                    std::filesystem::remove(path_, ignored);
+                }
+
+                ScratchFile(const ScratchFile&) = delete;
+                ScratchFile& operator=(const ScratchFile&) = delete;
+
+                /** @brief Returns the path this file removes on destruction. */
+                const std::filesystem::path& path() const noexcept { return path_; }
+
+            private:
+                /** @brief Holds the path of the scratch file. */
+                std::filesystem::path path_;
+        };
+
+        /** @brief Builds Linear{6, 8}, GELU and Linear{8, 3}; publishes "features" and "logits". */
+        [[nodiscard]] inline Result<NN::ModelGraph> build_two_output_model()
+        {
+            NN::ModelGraph model(Shape{6});
+
+            SA_TRY_ASSIGN(const NN::NodeRef body,
+                          model.add("body", NN::Linear{6, 8}, model.input()));
+            SA_TRY_ASSIGN(const NN::NodeRef features, model.add("activation", NN::GELU{}, body));
+            SA_TRY_ASSIGN(const NN::NodeRef logits, model.add("head", NN::Linear{8, 3}, features));
+            SA_TRY(model.output("features", features));
+            SA_TRY(model.output("logits", logits));
+
+            return model;
+        }
 
     } // namespace Test
 } // namespace SushiAI

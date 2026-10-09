@@ -37,6 +37,7 @@
 #include "core/common.hpp"
 #include "core/ops.hpp"
 #include "core/shape.hpp"
+#include "core/tensor_shape.hpp"
 #include "core/allocation.hpp"
 #include "core/check.hpp"
 #include "core/status.hpp"

@@ -151,34 +151,7 @@ namespace
             NN::ModelState state_;
     };
 
-    /**
-     * @class ScratchFile
-     * @brief A checkpoint path that removes itself.
-     */
-    class ScratchFile
-    {
-        public:
-            explicit ScratchFile(const char* name)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            ~ScratchFile()
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            ScratchFile(const ScratchFile&) = delete;
-            ScratchFile& operator=(const ScratchFile&) = delete;
-
-            const std::filesystem::path& path() const noexcept { return path_; }
-
-        private:
-            std::filesystem::path path_;
-    };
+    using SaTest::ScratchFile;
 }
 
 TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)

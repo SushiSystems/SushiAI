@@ -46,6 +46,7 @@
 #include <SushiAI/train/training_graph.hpp>
 #include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
+#include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
 using Train::CrossEntropyObjective;
@@ -80,19 +81,7 @@ namespace
         return rows;
     }
 
-    /** @brief Builds body, GELU and head over [6], published as "features" and "logits". */
-    Result<NN::ModelGraph> build_two_output_model()
-    {
-        NN::ModelGraph model(Shape{6});
-
-        SA_TRY_ASSIGN(const NN::NodeRef body, model.add("body", NN::Linear{6, 8}, model.input()));
-        SA_TRY_ASSIGN(const NN::NodeRef features, model.add("activation", NN::GELU{}, body));
-        SA_TRY_ASSIGN(const NN::NodeRef logits, model.add("head", NN::Linear{8, 3}, features));
-        SA_TRY(model.output("features", features));
-        SA_TRY(model.output("logits", logits));
-
-        return model;
-    }
+    using Test::build_two_output_model;
 }
 
 TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIr)

@@ -40,7 +40,6 @@
 #include <SushiAI/graph/arena.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/nn/model_state.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -48,22 +47,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Adopts a plan of @p graph into @p pool unless the pool holds one. */
-            [[nodiscard]] Status ensure_plan(const Graph::Graph& graph, Graph::TensorPool& pool,
-                                             const Graph::PlanOptions& options)
-            {
-                if (pool.has_plan())
-                    return Status();
-
-                SA_TRY_ASSIGN(Graph::MemoryPlan plan,
-                              NN::Detail::bridge_throwing([&graph, &options]()
-                {
-                    return Graph::MemoryPlan::build(graph, options);
-                }));
-
-                return pool.adopt(std::move(plan));
-            }
-
             /** @brief Returns the caller's pins of @p options followed by @p pinned. */
             [[nodiscard]] Result<std::vector<Graph::ValueId>> merged_pins(
                 const Graph::PlanOptions& options, const std::vector<Graph::ValueId>& pinned)
@@ -153,7 +136,7 @@ namespace SushiAI
             options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
                                                                       pinned.size());
 
-            SA_TRY(ensure_plan(built.graph, pool, options));
+            SA_TRY(Detail::adopt_plan(built.graph, pool, options));
             SA_TRY(require_unpacked(pool, pinned));
 
             // The state binds its leaves first, so materialise_leaves() allocates the rest.

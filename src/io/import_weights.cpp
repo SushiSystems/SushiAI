@@ -40,6 +40,7 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/tensor_shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -59,17 +60,6 @@ namespace SushiAI
             bool starts_with(std::string_view name, std::string_view prefix) noexcept
             {
                 return name.size() >= prefix.size() && name.substr(0, prefix.size()) == prefix;
-            }
-
-            /**
-             * @brief Returns the extents of @p tensor as a Shape.
-             * @param tensor The tensor to describe.
-             * @return The shape the tensor holds.
-             */
-            Shape shape_of(const SushiBLAS::Tensor& tensor)
-            {
-                return Shape(SushiRuntime::span<const std::int64_t>(
-                    tensor.shape.data(), static_cast<std::size_t>(tensor.rank)));
             }
         } // namespace
 

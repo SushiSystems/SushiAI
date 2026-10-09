@@ -58,6 +58,7 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include "../../common/test_status.hpp"
+#include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
 using NN::BatchNorm2d;
@@ -169,21 +170,7 @@ namespace
         return states;
     }
 
-    /** @brief Builds body, GELU and head over [K_FEATURES]; publishes "features" and "logits". */
-    Result<NN::ModelGraph> build_two_output_model()
-    {
-        NN::ModelGraph model(Shape{K_FEATURES});
-
-        SA_TRY_ASSIGN(const NN::NodeRef body,
-                      model.add("body", NN::Linear{K_FEATURES, K_HIDDEN}, model.input()));
-        SA_TRY_ASSIGN(const NN::NodeRef features, model.add("activation", NN::GELU{}, body));
-        SA_TRY_ASSIGN(const NN::NodeRef logits,
-                      model.add("head", NN::Linear{K_HIDDEN, K_CLASSES}, features));
-        SA_TRY(model.output("features", features));
-        SA_TRY(model.output("logits", logits));
-
-        return model;
-    }
+    using Test::build_two_output_model;
 
     /** @brief Computes cross-entropy over the one output it is told to read, by name. */
     class NamedOutputObjective final : public Train::Objective
