@@ -51,6 +51,7 @@
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
+#include <vision_support/darknet_forward.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -60,16 +61,14 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    using SaTest::sources_of_row;
+    using SaTest::translate_darknet_text;
     using Vision::Detect::Anchor::HeadCoding;
     using Vision::Detect::SuppressionCriterion;
-    using Vision::Importers::DarknetConfig;
     using Vision::Importers::DarknetConvolutionShape;
     using Vision::Importers::DarknetModel;
     using Vision::Importers::DarknetNormalisation;
-    using Vision::Importers::DarknetTranslation;
     using Vision::Importers::DarknetWeightTarget;
-    using Vision::Importers::parse_darknet_config;
-    using Vision::Importers::translate_darknet_model;
 
     class Unit_DarknetModelState : public SaTest::EngineTest {};
 
@@ -129,30 +128,11 @@ namespace
     constexpr std::string_view K_SMALL_HEAD =
         "[yolo]\nmask=0,1,2\nanchors=4,8, 8,16, 16,24\nclasses=1\nnum=3\n";
 
-    /** @brief Returns the translation of @p text in the form @p normalisation. */
-    Result<DarknetModel> translate(std::string_view text, DarknetNormalisation normalisation)
-    {
-        SA_TRY_ASSIGN(const DarknetConfig config, parse_darknet_config(text, "test.cfg"));
-        DarknetTranslation translation;
-        translation.normalisation = normalisation;
-        return translate_darknet_model(config, translation);
-    }
-
     /** @brief Returns the translation of the whole yolov3-tiny text in @p normalisation. */
     Result<DarknetModel> translate_tiny(DarknetNormalisation normalisation)
     {
-        return translate(std::string(K_TINY_BACKBONE).append(K_TINY_HEADS), normalisation);
-    }
-
-    /** @brief Returns the row indices a row of @p model reads, in the order it reads them. */
-    std::vector<std::int64_t> sources_of(const DarknetModel& model, std::int64_t row)
-    {
-        std::vector<std::int64_t> sources;
-        const Config::LayerSpec& spec = model.spec.layers.at(static_cast<std::size_t>(row));
-        for (const Config::SourceSpec& source : spec.from)
-            sources.push_back(source.node);
-
-        return sources;
+        return translate_darknet_text(std::string(K_TINY_BACKBONE).append(K_TINY_HEADS),
+                                      normalisation);
     }
 
     /** @brief Returns the type of row @p row of @p model. */
@@ -236,7 +216,7 @@ TEST(Unit_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
     EXPECT_EQ(type_of(model, 0), "conv2d");
     EXPECT_EQ(type_of(model, 1), "batchnorm2d");
     EXPECT_EQ(type_of(model, 2), "leaky_relu");
-    EXPECT_EQ(sources_of(model, 0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
+    EXPECT_EQ(sources_of_row(model, 0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
     EXPECT_DOUBLE_EQ(model.spec.layers[2].attributes.at("slope", "s").as_real("s"), 0.1);
     EXPECT_DOUBLE_EQ(model.spec.layers[1].attributes.at("bn_epsilon", "e").as_real("e"), 1e-5);
     EXPECT_FALSE(model.spec.layers[0].attributes.at("use_bias", "b").as_bool("b"));
@@ -244,11 +224,11 @@ TEST(Unit_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
 
     // Layer 17 is a route of layer 13 alone, so layer 18's convolution reads layer 13's row.
     EXPECT_EQ(type_of(model, 34), "conv2d");
-    EXPECT_EQ(sources_of(model, 34), (std::vector<std::int64_t>{29}));
+    EXPECT_EQ(sources_of_row(model, 34), (std::vector<std::int64_t>{29}));
 
     // Layer 20 joins layer 19, the upsample, with layer 8, in the order the file lists them.
     EXPECT_EQ(type_of(model, 38), "concat");
-    EXPECT_EQ(sources_of(model, 38), (std::vector<std::int64_t>{37, 18}));
+    EXPECT_EQ(sources_of_row(model, 38), (std::vector<std::int64_t>{37, 18}));
 
     EXPECT_EQ(type_of(model, 23), "maxpool2d");
     const Config::Value& pool = model.spec.layers[23].attributes;
@@ -282,8 +262,8 @@ TEST(Unit_DarknetModel, FoldedFormHasNoNormalisationRow)
               (std::vector<std::int64_t>{1,  2,  4,  5,  7,  8,  10, 11, 13, 14, 16, 17,
                                          19, 21, 23, 24, 24, 21, 26, 27, 28, 30, 31, 31}));
     EXPECT_TRUE(model.spec.layers[0].attributes.at("use_bias", "b").as_bool("b"));
-    EXPECT_EQ(sources_of(model, 25), (std::vector<std::int64_t>{21}));
-    EXPECT_EQ(sources_of(model, 28), (std::vector<std::int64_t>{27, 13}));
+    EXPECT_EQ(sources_of_row(model, 25), (std::vector<std::int64_t>{21}));
+    EXPECT_EQ(sources_of_row(model, 28), (std::vector<std::int64_t>{27, 13}));
 
     ASSERT_EQ(model.targets.size(), 13u);
     EXPECT_EQ(model.targets[0].weight, "0.weight");
@@ -398,7 +378,7 @@ TEST(Unit_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
                                          "nms_kind=diounms\nbeta_nms=0.6\nnew_coords=1\n"
                                          "max_delta=2\n");
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
-                            translate(text, DarknetNormalisation::Separate));
+                            translate_darknet_text(text, DarknetNormalisation::Separate));
 
     ASSERT_EQ(model.heads.size(), 1u);
     EXPECT_EQ(model.heads[0].options.coding, HeadCoding::Activated);
@@ -420,13 +400,15 @@ TEST(Unit_DarknetModel, OnlyDiounmsReadsBetaNms)
 
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel greedy,
-        translate(head + "nms_kind=greedynms\nbeta_nms=0.3\n", DarknetNormalisation::Separate));
+        translate_darknet_text(head + "nms_kind=greedynms\nbeta_nms=0.3\n",
+                               DarknetNormalisation::Separate));
     EXPECT_EQ(greedy.criterion, SuppressionCriterion::DistanceIou);
     EXPECT_EQ(greedy.distance_exponent, 0.6f);
 
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel distance,
-        translate(head + "nms_kind=diounms\nbeta_nms=0.3\n", DarknetNormalisation::Separate));
+        translate_darknet_text(head + "nms_kind=diounms\nbeta_nms=0.3\n",
+                               DarknetNormalisation::Separate));
     EXPECT_EQ(distance.criterion, SuppressionCriterion::DistanceIou);
     EXPECT_EQ(distance.distance_exponent, 0.3f);
 }
@@ -440,7 +422,7 @@ TEST(Unit_DarknetModel, TheLastHeadDecidesTheCriterion)
             .append("nms_kind=diounms\nbeta_nms=0.3\n[route]\nlayers=0\n")
             .append(K_SMALL_HEAD);
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
-                            translate(text, DarknetNormalisation::Separate));
+                            translate_darknet_text(text, DarknetNormalisation::Separate));
 
     ASSERT_EQ(model.heads.size(), 2u);
     EXPECT_EQ(model.criterion, SuppressionCriterion::Iou);
@@ -452,8 +434,8 @@ TEST(Unit_DarknetModel, AnUnknownSectionIsRefusedNamingItsLine)
 {
     const std::string text = std::string(K_SMALL_NETWORK).append("[reorg]\nstride=2\n");
 
-    SA_EXPECT_FAILURE(translate(text, DarknetNormalisation::Separate), StatusCode::Unsupported,
-                      "line 11", "layer 1", "[reorg]");
+    SA_EXPECT_FAILURE(translate_darknet_text(text, DarknetNormalisation::Separate),
+                      StatusCode::Unsupported, "line 11", "layer 1", "[reorg]");
 }
 
 /** @brief Tests that an unknown key of a layer and of the first section is refused by line. */
@@ -461,16 +443,16 @@ TEST(Unit_DarknetModel, AnUnknownKeyIsRefusedNamingItsLine)
 {
     const std::string grouped =
         "[net]\nwidth=32\nheight=32\nchannels=3\n[convolutional]\nfilters=4\ngroups=2\n";
-    SA_EXPECT_FAILURE(translate(grouped, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(grouped, DarknetNormalisation::Separate),
                       StatusCode::Unsupported, "line 7", "[convolutional]", "'groups'");
 
     const std::string smoothed =
         std::string(K_SMALL_NETWORK).append(K_SMALL_HEAD).append("label_smooth_eps=0.1\n");
-    SA_EXPECT_FAILURE(translate(smoothed, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(smoothed, DarknetNormalisation::Separate),
                       StatusCode::Unsupported, "line 16", "[yolo]", "'label_smooth_eps'");
 
     const std::string cropped = "[net]\nwidth=32\nheight=32\nchannels=3\ncrop=1\n";
-    SA_EXPECT_FAILURE(translate(cropped, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(cropped, DarknetNormalisation::Separate),
                       StatusCode::Unsupported, "line 5", "'crop'");
 }
 
@@ -478,16 +460,16 @@ TEST(Unit_DarknetModel, AnUnknownKeyIsRefusedNamingItsLine)
 TEST(Unit_DarknetModel, UntranslatedValuesAreRefusedNamingTheirLine)
 {
     const std::string boxed = "[net]\nwidth=32\nheight=32\nchannels=3\nletter_box=1\n";
-    SA_EXPECT_FAILURE(translate(boxed, DarknetNormalisation::Separate), StatusCode::Unsupported,
-                      "line 5", "letter_box=1");
+    SA_EXPECT_FAILURE(translate_darknet_text(boxed, DarknetNormalisation::Separate),
+                      StatusCode::Unsupported, "line 5", "letter_box=1");
 
     const std::string scaled = std::string(K_SMALL_NETWORK).append("[upsample]\nscale=2\n");
-    SA_EXPECT_FAILURE(translate(scaled, DarknetNormalisation::Separate), StatusCode::Unsupported,
-                      "line 11", "scale 2");
+    SA_EXPECT_FAILURE(translate_darknet_text(scaled, DarknetNormalisation::Separate),
+                      StatusCode::Unsupported, "line 11", "scale 2");
 
     const std::string activated =
         "[net]\nwidth=32\nheight=32\nchannels=3\n[convolutional]\nactivation=relu\n";
-    SA_EXPECT_FAILURE(translate(activated, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(activated, DarknetNormalisation::Separate),
                       StatusCode::Unsupported, "line 6", "'relu'");
 }
 
@@ -496,25 +478,25 @@ TEST(Unit_DarknetModel, ValuesThatDoNotFitAreRefusedNamingTheirLine)
 {
     const std::string worded =
         "[net]\nwidth=32\nheight=32\nchannels=3\n[convolutional]\nfilters=many\n";
-    SA_EXPECT_FAILURE(translate(worded, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(worded, DarknetNormalisation::Separate),
                       StatusCode::InvalidDescription, "line 6", "'filters'", "'many'");
 
     const std::string forward = std::string(K_SMALL_NETWORK).append("[route]\nlayers=1\n");
-    SA_EXPECT_FAILURE(translate(forward, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(forward, DarknetNormalisation::Separate),
                       StatusCode::InvalidDescription, "line 12", "names layer 1");
 
     const std::string narrow =
         "[net]\nwidth=32\nheight=32\nchannels=3\n"
         "[convolutional]\nfilters=12\nactivation=linear\n"
         "[yolo]\nmask=0,1,2\nanchors=4,8, 8,16, 16,24\nclasses=1\n";
-    SA_EXPECT_FAILURE(translate(narrow, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(narrow, DarknetNormalisation::Separate),
                       StatusCode::InvalidDescription, "line 8", "reads 18 channels", "has 12");
 
     const std::string masked = std::string(K_SMALL_NETWORK).append(
         "[yolo]\nmask=1,2,3\nanchors=4,8, 8,16, 16,24\nclasses=1\n");
-    SA_EXPECT_FAILURE(translate(masked, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(masked, DarknetNormalisation::Separate),
                       StatusCode::InvalidDescription, "line 12", "names anchor 3");
 
-    SA_EXPECT_FAILURE(translate(K_SMALL_NETWORK, DarknetNormalisation::Separate),
+    SA_EXPECT_FAILURE(translate_darknet_text(K_SMALL_NETWORK, DarknetNormalisation::Separate),
                       StatusCode::InvalidDescription, "no [yolo] section");
 }

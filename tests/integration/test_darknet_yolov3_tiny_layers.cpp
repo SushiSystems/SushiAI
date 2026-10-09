@@ -21,44 +21,27 @@
 
 /**
  * @file test_darknet_yolov3_tiny_layers.cpp
- * @brief Tests every layer of the imported YOLOv3-tiny against the Darknet dump of its output.
+ * @brief Tests every layer of an imported Darknet model against the Darknet dump of its output.
  * @author Mustafa Garip
  */
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <iostream>
+#include <iterator>
 #include <map>
-#include <memory>
+#include <ostream>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
-#include <SushiAI/graph/tensor_pool.hpp>
-#include <SushiAI/nn/layer_registry.hpp>
-#include <SushiAI/nn/model_graph.hpp>
-#include <SushiAI/nn/model_state.hpp>
-#include <SushiAI/nn/node.hpp>
-#include <SushiAI/nn/node_registry.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
-#include <SushiAI/train/steps.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
-#include <SushiAI/vision/importers/darknet_fold.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
-#include <SushiAI/vision/importers/darknet_store.hpp>
-#include <SushiAI/vision/importers/darknet_weights.hpp>
-#include <common/darknet_reference.hpp>
+#include <vision_support/darknet_forward.hpp>
+#include <vision_support/darknet_reference.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -68,44 +51,49 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    using SaTest::DarknetFile;
-    using SaTest::DarknetReference;
+    using SaTest::DarknetForwardRequest;
+    using SaTest::DarknetForwardRun;
     using SaTest::DarknetTensor;
+    using SaTest::find_output;
+    using SaTest::within_tolerance;
     using Vision::Importers::DarknetConfig;
+    using Vision::Importers::DarknetHead;
     using Vision::Importers::DarknetModel;
     using Vision::Importers::DarknetNormalisation;
-    using Vision::Importers::DarknetTranslation;
-    using Vision::Importers::DarknetWeights;
 
-    /** @brief Names one layer of yolov3-tiny.cfg and the dump REPORT section 14 holds for it. */
-    struct LayerDump
+    /** @brief Names one model that has a dump of every layer and the folder that holds it. */
+    struct FullBodyCase
     {
-        std::int64_t layer;    /**< The index of the layer among the sections of the file. */
-        std::string_view type; /**< The section type the file gives the layer. */
-        std::string_view name; /**< The reference name of the layer's output. */
-        bool is_yolo;          /**< Whether the layer is a [yolo] section, not compared here. */
+        std::string_view stem;      /**< Names `<stem>.cfg` and `<stem>.weights`. */
+        std::string_view directory; /**< The folder of the dumps under `references`. */
     };
 
-    /** @brief Holds the published output of one layer, by layer index. */
-    using LayerOutputs = std::map<std::int64_t, std::vector<float>>;
-
-    /** @brief Holds a translated model and the output of every layer the test compares. */
-    struct LayerRun
+    /** @brief Names one layer of a file and the dump REPORT section 14 holds for it. */
+    struct BodyLayer
     {
-        DarknetModel model; /**< The translation of yolov3-tiny.cfg, in the folded form. */
-        LayerOutputs outputs; /**< The output of each non-[yolo] layer, row-major HWC. */
+        std::int64_t index; /**< The index of the layer among the sections of the file. */
+        std::string type;   /**< The section type the file gives the layer. */
+        std::string dump;   /**< The reference name of the layer's output. */
+        bool is_head;       /**< Whether the layer is a [yolo] section, not compared here. */
     };
 
-    /** @brief Holds the largest difference of a comparison and how many values fail it. */
-    struct Gap
-    {
-        double largest = 0.0;    /**< The largest absolute difference. */
-        std::size_t at = 0;      /**< The element that carries it. */
-        std::size_t outside = 0; /**< Elements beyond the absolute plus relative bound. */
+    /** @brief Lists every model whose layers are compared one by one. */
+    constexpr FullBodyCase K_FULL_BODY_CASES[] = {
+        {"yolov3-tiny", "yolov3_tiny"},
+        {"yolov7-tiny", "yolov7_tiny_layers_plain_pool"},
     };
 
-    /** @brief Holds the number of sections of yolov3-tiny.cfg. */
-    constexpr std::size_t K_LAYER_COUNT = 24;
+    /** @brief Holds the row of K_FULL_BODY_CASES whose sections K_YOLOV3_TINY_SECTIONS lists. */
+    constexpr const FullBodyCase& K_YOLOV3_TINY = K_FULL_BODY_CASES[0];
+
+    /** @brief Lists the type of each of the 24 sections of yolov3-tiny.cfg, in file order. */
+    constexpr std::string_view K_YOLOV3_TINY_SECTIONS[] = {
+        "convolutional", "maxpool",       "convolutional", "maxpool",       "convolutional",
+        "maxpool",       "convolutional", "maxpool",       "convolutional", "maxpool",
+        "convolutional", "maxpool",       "convolutional", "convolutional", "convolutional",
+        "convolutional", "yolo",          "route",         "convolutional", "upsample",
+        "route",         "convolutional", "convolutional", "yolo",
+    };
 
     /** @brief Holds the absolute bound on a layer value (SPEC 6.3, the head tolerance). */
     constexpr double K_LAYER_ABSOLUTE = 1e-3;
@@ -113,315 +101,314 @@ namespace
     /** @brief Holds the relative bound on a layer value (SPEC 6.3, the head tolerance). */
     constexpr double K_LAYER_RELATIVE = 1e-4;
 
-    /** @brief Holds the file name of the model's sections in the data directory. */
-    constexpr std::string_view K_CFG_FILE = "yolov3-tiny.cfg";
-
-    /** @brief Holds the file name of the model's weights in the data directory. */
-    constexpr std::string_view K_WEIGHTS_FILE = "yolov3-tiny.weights";
-
-    /** @brief Holds the reference directory of the run whose dumps are compared. */
-    constexpr std::string_view K_RUN = "yolov3_tiny";
+    /** @brief Holds the type of the section whose output is the host computation of SPEC 4.4. */
+    constexpr std::string_view K_HEAD_TYPE = "yolo";
 
     /** @brief Holds the name of the reference of the network input. */
-    constexpr std::string_view K_INPUT = "input";
+    constexpr std::string_view K_INPUT = SaTest::K_DARKNET_INPUT;
+
+    /** @brief Prints the folder of @p body where the test runner names a parameter. */
+    void PrintTo(const FullBodyCase& body, std::ostream* stream)
+    {
+        *stream << body.directory;
+    }
 
     /**
-     * @brief Lists the 24 layers of yolov3-tiny.cfg in file order, as REPORT section 14 names
-     *        their dumps.
+     * @brief Lists the layers of @p config in file order, each with the name of its dump.
      *
-     * A [yolo] layer adds no row; its output is the host computation of SPEC 4.4, which
-     * test_darknet_yolov3_tiny_forward.cpp compares with the `layer_<k>_yolo` dump.
+     * A [yolo] layer adds no row; the forward test of its model compares its output with the
+     * `layer_<k>_yolo` dump.
      */
-    constexpr LayerDump K_LAYERS[] = {
-        {0, "convolutional", "layer_000_convolutional", false},
-        {1, "maxpool", "layer_001_maxpool", false},
-        {2, "convolutional", "layer_002_convolutional", false},
-        {3, "maxpool", "layer_003_maxpool", false},
-        {4, "convolutional", "layer_004_convolutional", false},
-        {5, "maxpool", "layer_005_maxpool", false},
-        {6, "convolutional", "layer_006_convolutional", false},
-        {7, "maxpool", "layer_007_maxpool", false},
-        {8, "convolutional", "layer_008_convolutional", false},
-        {9, "maxpool", "layer_009_maxpool", false},
-        {10, "convolutional", "layer_010_convolutional", false},
-        {11, "maxpool", "layer_011_maxpool", false},
-        {12, "convolutional", "layer_012_convolutional", false},
-        {13, "convolutional", "layer_013_convolutional", false},
-        {14, "convolutional", "layer_014_convolutional", false},
-        {15, "convolutional", "layer_015_convolutional", false},
-        {16, "yolo", "layer_016_yolo", true},
-        {17, "route", "layer_017_route", false},
-        {18, "convolutional", "layer_018_convolutional", false},
-        {19, "upsample", "layer_019_upsample", false},
-        {20, "route", "layer_020_route", false},
-        {21, "convolutional", "layer_021_convolutional", false},
-        {22, "convolutional", "layer_022_convolutional", false},
-        {23, "yolo", "layer_023_yolo", true},
-    };
-
-    /** @brief Returns the name under which a run publishes the output of @p layer. */
-    std::string layer_output_name(std::int64_t layer)
+    std::vector<BodyLayer> list_layers(const DarknetConfig& config)
     {
-        return "layer." + std::to_string(layer);
-    }
-
-    /** @brief Returns why the first file this suite reads is missing, or an empty string. */
-    std::string first_missing_file()
-    {
-        for (const std::string_view name : {K_CFG_FILE, K_WEIGHTS_FILE})
+        std::vector<BodyLayer> layers;
+        layers.reserve(config.layers.size());
+        for (std::size_t i = 0; i < config.layers.size(); ++i)
         {
-            const DarknetFile file = SaTest::find_darknet_file(name);
-            if (!file.found)
-                return file.reason;
+            const std::int64_t index = static_cast<std::int64_t>(i);
+            const std::string& type = config.layers[i].type;
+            layers.push_back(
+                {index, type, SaTest::name_darknet_layer(index, type), type == K_HEAD_TYPE});
         }
 
-        const DarknetReference input = SaTest::find_darknet_reference(K_RUN, K_INPUT);
-        if (!input.found)
-            return input.reason;
-
-        for (const LayerDump& layer : K_LAYERS)
-        {
-            if (layer.is_yolo)
-                continue;
-
-            const DarknetReference reference = SaTest::find_darknet_reference(K_RUN, layer.name);
-            if (!reference.found)
-                return reference.reason;
-        }
-
-        return std::string();
+        return layers;
     }
 
-    /** @brief Runs on an engine, and skips every case when a file of the suite is missing. */
-    class Integration_DarknetYolov3TinyLayers : public SaTest::EngineTest
+    /** @brief Lists the index of every layer of @p layers that is not a [yolo] section. */
+    std::vector<std::int64_t> list_compared_layers(const std::vector<BodyLayer>& layers)
+    {
+        std::vector<std::int64_t> indices;
+        for (const BodyLayer& layer : layers)
+        {
+            if (!layer.is_head)
+                indices.push_back(layer.index);
+        }
+
+        return indices;
+    }
+
+    /** @brief Lists the index of every [yolo] section of @p layers, in file order. */
+    std::vector<std::int64_t> list_head_layers(const std::vector<BodyLayer>& layers)
+    {
+        std::vector<std::int64_t> indices;
+        for (const BodyLayer& layer : layers)
+        {
+            if (layer.is_head)
+                indices.push_back(layer.index);
+        }
+
+        return indices;
+    }
+
+    /** @brief Lists the layer of every head of @p model, in file order. */
+    std::vector<std::int64_t> list_translated_heads(const DarknetModel& model)
+    {
+        std::vector<std::int64_t> indices;
+        for (const DarknetHead& head : model.heads)
+            indices.push_back(head.layer);
+
+        return indices;
+    }
+
+    /** @brief Appends @p layer to @p reads unless @p reads already holds it. */
+    void append_once(std::vector<std::int64_t>& reads, std::int64_t layer)
+    {
+        for (const std::int64_t held : reads)
+        {
+            if (held == layer)
+                return;
+        }
+
+        reads.push_back(layer);
+    }
+
+    /**
+     * @brief Appends to @p reads the layers whose values row @p row of @p model reads.
+     *
+     * A source row that @p layer_of_row lacks was added by the reading layer itself, so its own
+     * sources are followed.
+     * @param layer_of_row The first layer that holds each row, over the layers before the reader.
+     */
+    void collect_read_layers(const DarknetModel& model,
+                             const std::map<std::int64_t, std::int64_t>& layer_of_row,
+                             std::int64_t row, std::vector<std::int64_t>& reads)
+    {
+        for (const std::int64_t source : SaTest::sources_of_row(model, row))
+        {
+            const auto held = layer_of_row.find(source);
+            if (source == Config::K_MODEL_INPUT)
+                append_once(reads, Config::K_MODEL_INPUT);
+            else if (held != layer_of_row.end())
+                append_once(reads, held->second);
+            else
+                collect_read_layers(model, layer_of_row, source, reads);
+        }
+    }
+
+    /**
+     * @brief Lists the layers whose values layer @p layer of @p model reads, in reading order.
+     *
+     * A layer that added no row, such as a one-layer route, reads the layer that holds its row.
+     * @return The layer indices; Config::K_MODEL_INPUT stands for the network input.
+     * @pre @p layer is a layer of the model.
+     */
+    std::vector<std::int64_t> list_read_layers(const DarknetModel& model, std::int64_t layer)
+    {
+        std::map<std::int64_t, std::int64_t> layer_of_row;
+        for (std::int64_t earlier = 0; earlier < layer; ++earlier)
+            layer_of_row.emplace(model.row_of_layer[static_cast<std::size_t>(earlier)], earlier);
+
+        const std::int64_t row = model.row_of_layer[static_cast<std::size_t>(layer)];
+        const auto held = layer_of_row.find(row);
+        if (held != layer_of_row.end())
+            return {held->second};
+
+        std::vector<std::int64_t> reads;
+        collect_read_layers(model, layer_of_row, row, reads);
+        return reads;
+    }
+
+    /** @brief Returns the index and the type of layer @p index, or names the network input. */
+    std::string name_layer(const std::vector<BodyLayer>& layers, std::int64_t index)
+    {
+        if (index == Config::K_MODEL_INPUT)
+            return "the network input";
+
+        return "layer " + std::to_string(index) + " [" +
+               layers[static_cast<std::size_t>(index)].type + "]";
+    }
+
+    /** @brief Returns one sentence naming @p layer and every layer of @p model it reads. */
+    std::string name_reads(const DarknetModel& model, const std::vector<BodyLayer>& layers,
+                           const BodyLayer& layer)
+    {
+        std::string names;
+        for (const std::int64_t read : list_read_layers(model, layer.index))
+            names += (names.empty() ? "" : ", ") + name_layer(layers, read);
+
+        return name_layer(layers, layer.index) + " reads " + names;
+    }
+
+    /**
+     * @brief Returns what a measurement of @p layer is printed under: the model, the layer's
+     *        index and type, and the extents of its dump as `H x W x C`.
+     */
+    std::string name_measurement(const FullBodyCase& body, const std::vector<BodyLayer>& layers,
+                                 const BodyLayer& layer, const std::vector<std::int64_t>& extents)
+    {
+        std::string shape;
+        for (const std::int64_t extent : extents)
+            shape += (shape.empty() ? "" : " x ") + std::to_string(extent);
+
+        return std::string(body.stem) + " " + name_layer(layers, layer.index) + ", " + shape;
+    }
+
+    /** @brief Runs on an engine over one model, and skips when a file of that model is missing. */
+    class FullBodyTest : public SaTest::EngineTest
     {
         protected:
-            /** @brief Builds the engine, then skips naming the first missing file. */
+            /**
+             * @brief Loads the cfg of @p body into config, or skips naming the model and the
+             *        first of its files that is missing.
+             */
+            void load_case(const FullBodyCase& body)
+            {
+                std::vector<std::string> names{std::string(K_INPUT)};
+                const std::string unread =
+                    SaTest::find_missing_darknet_file(body.stem, body.directory, names);
+                if (!unread.empty())
+                    GTEST_SKIP() << body.stem << ": " << unread;
+
+                SA_ASSERT_OK_AND_ASSIGN(config, SaTest::load_darknet_config_file(body.stem));
+                for (const BodyLayer& layer : list_layers(config))
+                {
+                    if (!layer.is_head)
+                        names.push_back(layer.dump);
+                }
+
+                const std::string missing =
+                    SaTest::find_missing_darknet_file(body.stem, body.directory, names);
+                if (!missing.empty())
+                    GTEST_SKIP() << body.stem << ": " << missing;
+            }
+
+            /** @brief Holds the sections of the model's cfg. */
+            DarknetConfig config;
+    };
+
+    /** @brief Runs over yolov3-tiny, the model whose sections this file lists. */
+    class Integration_DarknetYolov3TinyLayers : public FullBodyTest
+    {
+        protected:
+            /** @brief Builds the engine, then loads yolov3-tiny or skips. */
             void SetUp() override
             {
-                SaTest::EngineTest::SetUp();
-                const std::string missing = first_missing_file();
-                if (!missing.empty())
-                    GTEST_SKIP() << missing;
+                FullBodyTest::SetUp();
+                load_case(K_YOLOV3_TINY);
             }
     };
 
-    /** @brief Loads the reference tensor @p name of the run K_RUN. */
-    Result<DarknetTensor> load_reference(std::string_view name)
+    /** @brief Runs once per row of K_FULL_BODY_CASES. */
+    class Integration_DarknetLayers : public FullBodyTest,
+                                      public ::testing::WithParamInterface<FullBodyCase>
     {
-        return SaTest::load_darknet_tensor(SaTest::find_darknet_reference(K_RUN, name));
-    }
-
-    /** @brief Translates yolov3-tiny.cfg in the folded form and returns the translation. */
-    Result<DarknetModel> translate_model()
-    {
-        const DarknetFile file = SaTest::find_darknet_file(K_CFG_FILE);
-        SA_FAIL_IF(!file.found, StatusCode::FileNotFound, "{}", file.reason);
-        SA_TRY_ASSIGN(const DarknetConfig config,
-                      Vision::Importers::load_darknet_config(file.path));
-
-        DarknetTranslation translation;
-        translation.normalisation = DarknetNormalisation::Folded;
-        return Vision::Importers::translate_darknet_model(config, translation);
-    }
-
-    /**
-     * @brief Reads the file's weights for @p model with every normalised convolution folded.
-     * @return The weights, or the first failure of the read.
-     */
-    Result<DarknetWeights> read_folded_weights(const DarknetModel& model)
-    {
-        const DarknetFile file = SaTest::find_darknet_file(K_WEIGHTS_FILE);
-        SA_FAIL_IF(!file.found, StatusCode::FileNotFound, "{}", file.reason);
-        SA_TRY_ASSIGN(DarknetWeights weights,
-                      Vision::Importers::read_darknet_weights(file.path, model.convolutions));
-
-        for (std::size_t i = 0; i < model.convolutions.size(); ++i)
-        {
-            if (model.convolutions[i].normalised)
-                Vision::Importers::fold_darknet_normalisation(weights.convolutions[i]);
-        }
-
-        return Result<DarknetWeights>(std::move(weights));
-    }
-
-    /**
-     * @brief Runs one evaluation step of the folded model over @p input and publishes the
-     *        output of every non-[yolo] layer as a named model output.
-     *
-     * Each layer's output is the row that holds it in the graph (DarknetModel::row_of_layer).
-     * The outputs are added to a copy of the spec, not to the translation.
-     */
-    Result<LayerRun> run_layers(SushiBLAS::Engine& engine, const DarknetTensor& input)
-    {
-        LayerRun run;
-        SA_TRY_ASSIGN(run.model, translate_model());
-        SA_FAIL_IF(run.model.row_of_layer.size() != K_LAYER_COUNT, StatusCode::Incompatible,
-                   "the translation has {} rows of layer, not {}", run.model.row_of_layer.size(),
-                   K_LAYER_COUNT);
-        SA_TRY_ASSIGN(const DarknetWeights weights, read_folded_weights(run.model));
-
-        Config::ModelSpec spec = run.model.spec;
-        for (const LayerDump& layer : K_LAYERS)
-        {
-            if (layer.is_yolo)
-                continue;
-
-            Config::OutputSpec published;
-            published.node = run.model.row_of_layer[static_cast<std::size_t>(layer.layer)];
-            published.port = std::string(NN::K_SINGLE_PORT_NAME);
-            published.name = layer_output_name(layer.layer);
-            spec.outputs.push_back(published);
-        }
-
-        const Shape& sample = spec.input_shape;
-        SA_FAIL_IF(sample.rank() != 3 || input.extents.size() != 3 ||
-                       input.extents[0] != sample[0] || input.extents[1] != sample[1] ||
-                       input.extents[2] != sample[2],
-                   StatusCode::Incompatible, "the reference input does not have the shape {}",
-                   sample.to_string());
-        const Shape batch_shape{1, sample[0], sample[1], sample[2]};
-
-        NN::NodeRegistry registry;
-        SA_TRY(NN::register_layers(registry));
-        SA_TRY_ASSIGN(NN::ModelGraph graph, NN::build_model(registry, spec));
-        SA_TRY_ASSIGN(const Train::TracedStep traced,
-                      Train::build_evaluation_graph(graph, batch_shape));
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, graph));
-        SA_TRY(Vision::Importers::store_darknet_weights(weights, run.model.convolutions,
-                                                        run.model.targets, state));
-
-        Graph::TensorPool pool(engine);
-        SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                      Train::EvaluationStep::make(engine, traced, state, pool));
-        SA_TRY_ASSIGN(SushiBLAS::Tensor image, allocate_tensor(engine, batch_shape));
-        std::memcpy(image.data_as<float>(), input.values.data(),
-                    input.values.size() * sizeof(float));
-        SA_TRY(step->run(image));
-
-        for (const LayerDump& layer : K_LAYERS)
-        {
-            if (layer.is_yolo)
-                continue;
-
-            SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor,
-                          step->output(layer_output_name(layer.layer)));
-            const float* const values = tensor->data_as<float>();
-            run.outputs.emplace(layer.layer,
-                                std::vector<float>(values, values + tensor->num_elements));
-        }
-
-        return Result<LayerRun>(std::move(run));
-    }
-
-    /** @brief Measures @p actual against @p reference under `absolute + relative * |reference|`. */
-    Gap measure_gap(SushiRuntime::span<const float> actual,
-                    SushiRuntime::span<const float> reference, double absolute, double relative)
-    {
-        Gap gap;
-        for (std::size_t i = 0; i < actual.size(); ++i)
-        {
-            const double expected = static_cast<double>(reference[i]);
-            const double difference = std::fabs(static_cast<double>(actual[i]) - expected);
-            if (!(difference <= absolute + relative * std::fabs(expected)))
-                ++gap.outside;
-            if (!(difference <= gap.largest))
+        protected:
+            /** @brief Builds the engine, then loads the model of the parameter or skips. */
+            void SetUp() override
             {
-                gap.largest = difference;
-                gap.at = i;
+                FullBodyTest::SetUp();
+                load_case(GetParam());
             }
-        }
-
-        return gap;
-    }
-
-    /**
-     * @brief Checks @p actual against @p reference and prints the largest difference measured.
-     * @return Success, or a failure naming the count outside the bound and the worst element.
-     */
-    ::testing::AssertionResult within_tolerance(std::string_view what,
-                                                SushiRuntime::span<const float> actual,
-                                                SushiRuntime::span<const float> reference,
-                                                double absolute, double relative)
-    {
-        if (actual.size() != reference.size())
-            return ::testing::AssertionFailure() << what << ": " << actual.size()
-                                                 << " values against " << reference.size();
-
-        const Gap gap = measure_gap(actual, reference, absolute, relative);
-        std::cout << "[ MEASURED ] " << what << ": largest difference " << gap.largest
-                  << " at element " << gap.at << "; bound " << absolute << " + " << relative
-                  << " * |reference|\n";
-        if (gap.outside == 0)
-            return ::testing::AssertionSuccess();
-
-        return ::testing::AssertionFailure()
-               << what << ": " << gap.outside << " of " << actual.size()
-               << " values are outside " << absolute << " + " << relative
-               << " * |reference|; worst at " << gap.at << " (" << actual[gap.at] << " against "
-               << reference[gap.at] << ")";
-    }
-
-    /** @brief Returns the output of @p layer in @p run, or null when the run lacks it. */
-    const std::vector<float>* output_of(const LayerRun& run, std::int64_t layer)
-    {
-        const auto found = run.outputs.find(layer);
-        return found == run.outputs.end() ? nullptr : &found->second;
-    }
+    };
 
 } // namespace
 
 /**
- * @brief Tests that the cfg has the 24 sections REPORT section 14 names, in that order, and
- *        that a one-layer route takes no row of its own.
+ * @brief Tests that the cfg has the 24 sections REPORT section 14 names, in that order, that
+ *        its [yolo] sections are those of the parity table, that a one-layer route takes no
+ *        row of its own, and that the layers a layer reads are those the cfg gives it.
  */
 TEST_F(Integration_DarknetYolov3TinyLayers, TheSectionsAndRowsAreThoseOfTheDumps)
 {
-    const DarknetFile file = SaTest::find_darknet_file(K_CFG_FILE);
-    ASSERT_TRUE(file.found) << file.reason;
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetConfig config,
-                            Vision::Importers::load_darknet_config(file.path));
-    ASSERT_EQ(config.layers.size(), K_LAYER_COUNT);
-    for (const LayerDump& layer : K_LAYERS)
+    const std::size_t count = std::size(K_YOLOV3_TINY_SECTIONS);
+    const std::vector<BodyLayer> layers = list_layers(config);
+    ASSERT_EQ(layers.size(), count);
+    for (std::size_t i = 0; i < count; ++i)
     {
-        SCOPED_TRACE(std::string(layer.name));
-        EXPECT_EQ(config.layers[static_cast<std::size_t>(layer.layer)].type,
-                  std::string(layer.type));
+        SCOPED_TRACE(layers[i].dump);
+        EXPECT_EQ(layers[i].type, std::string(K_YOLOV3_TINY_SECTIONS[i]));
     }
+    EXPECT_EQ(list_head_layers(layers),
+              SaTest::find_darknet_parity_model(K_YOLOV3_TINY.stem).yolo_layers);
 
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model, translate_model());
-    ASSERT_EQ(model.row_of_layer.size(), K_LAYER_COUNT);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetModel model,
+        SaTest::translate_darknet_file(K_YOLOV3_TINY.stem, DarknetNormalisation::Folded));
+    ASSERT_EQ(model.row_of_layer.size(), count);
+    EXPECT_EQ(list_translated_heads(model), list_head_layers(layers));
     // SPEC 2.1: a one-layer route has no row; layer 17 reads the row of layer 13.
     EXPECT_EQ(model.row_of_layer[17], model.row_of_layer[13]);
+    EXPECT_EQ(list_read_layers(model, 0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
+    EXPECT_EQ(list_read_layers(model, 17), (std::vector<std::int64_t>{13}));
+    EXPECT_EQ(list_read_layers(model, 20), (std::vector<std::int64_t>{19, 8}));
 }
 
 /**
  * @brief Tests that the output of every non-[yolo] layer of the folded model equals its Darknet
- *        dump within 1e-3 absolute plus 1e-4 relative, and reports the first layer above it.
+ *        dump within 1e-3 absolute plus 1e-4 relative.
+ *
+ * Every layer prints its index, type, extents, largest difference and bound, in file order.
+ * The failure names the first layer outside the bound and the layers that layer reads.
  */
-TEST_F(Integration_DarknetYolov3TinyLayers, EveryLayerMatchesItsDumpWithinTolerance)
+TEST_P(Integration_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor input, load_reference(K_INPUT));
-    SA_ASSERT_OK_AND_ASSIGN(const LayerRun run, run_layers(*engine, input));
+    const FullBodyCase& body = GetParam();
+    const std::vector<BodyLayer> layers = list_layers(config);
 
-    std::string first_above;
-    for (const LayerDump& layer : K_LAYERS)
+    DarknetForwardRequest request;
+    request.stem = body.stem;
+    request.run = body.directory;
+    request.normalisation = DarknetNormalisation::Folded;
+    request.observed_layers = list_compared_layers(layers);
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun run,
+                            SaTest::run_darknet_forward(*engine, request));
+    ASSERT_EQ(run.model.row_of_layer.size(), layers.size());
+    ASSERT_EQ(list_translated_heads(run.model), list_head_layers(layers));
+
+    std::string first_outside;
+    std::size_t later_outside = 0;
+    for (const BodyLayer& layer : layers)
     {
-        if (layer.is_yolo)
+        if (layer.is_head)
             continue;
 
-        const std::string what = std::string(layer.name);
-        SCOPED_TRACE(what);
-        SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor reference, load_reference(layer.name));
-        const std::vector<float>* const ours = output_of(run, layer.layer);
+        SCOPED_TRACE(layer.dump);
+        SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor reference,
+                                SaTest::load_darknet_reference(body.directory, layer.dump));
+        const std::vector<float>* const ours =
+            find_output(run, SaTest::name_observed_layer(layer.index));
         ASSERT_NE(ours, nullptr);
 
-        const ::testing::AssertionResult result = within_tolerance(
-            what, *ours, reference.values, K_LAYER_ABSOLUTE, K_LAYER_RELATIVE);
-        EXPECT_TRUE(result);
-        if (!result && first_above.empty())
-            first_above = what;
+        const ::testing::AssertionResult result =
+            within_tolerance(name_measurement(body, layers, layer, reference.extents), *ours,
+                             reference.values, K_LAYER_ABSOLUTE, K_LAYER_RELATIVE);
+        if (result)
+            continue;
+
+        if (first_outside.empty())
+            first_outside =
+                std::string(result.message()) + "\n" + name_reads(run.model, layers, layer);
+        else
+            ++later_outside;
     }
 
-    EXPECT_TRUE(first_above.empty()) << "first layer above tolerance: " << first_above;
+    EXPECT_TRUE(first_outside.empty())
+        << "first layer outside tolerance: " << first_outside << "\n"
+        << later_outside << " later layers are outside it too";
 }
+
+INSTANTIATE_TEST_SUITE_P(, Integration_DarknetLayers, ::testing::ValuesIn(K_FULL_BODY_CASES),
+                         [](const ::testing::TestParamInfo<FullBodyCase>& info)
+                         {
+                             return std::string(info.param.directory);
+                         });

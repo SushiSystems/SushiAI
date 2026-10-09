@@ -106,3 +106,5 @@
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
 #include <SushiAI/vision/training/head_delta_loss.hpp>
+#include <SushiAI/vision/detect/iou_gradient.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_plan.hpp>

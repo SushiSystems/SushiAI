@@ -25,7 +25,7 @@
  * @author Mustafa Garip
  */
 
-#include <common/darknet_reference.hpp>
+#include <vision_support/darknet_reference.hpp>
 
 #include <cstddef>
 #include <cstdint>

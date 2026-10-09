@@ -12,6 +12,7 @@ sushiai_add_module(NAME detect TIER vision
         source/anchor/anchor_count.cpp
         source/anchor/anchor_fit.cpp
         source/anchor/anchor_layout.cpp
+        source/anchor/anchor_plan.cpp
         source/anchor/anchor_review.cpp
         source/anchor/anchor_size.cpp
         source/anchor/assignment_thresholds.cpp
@@ -36,6 +37,7 @@ sushiai_add_module(NAME detect TIER vision
         source/free/target_leaves.cpp
         source/ground_truth.cpp
         source/iou.cpp
+        source/iou_gradient.cpp
         source/suppression_criterion.cpp
         source/top_k.cpp
     PUBLIC_DEPENDS core
@@ -49,11 +51,13 @@ sushiai_add_module(NAME detect TIER vision
         tests/test_detect_anchor_fit.cpp
         tests/test_detect_anchor_head_assignment.cpp
         tests/test_detect_anchor_layout.cpp
+        tests/test_detect_anchor_plan.cpp
         tests/test_detect_anchor_review.cpp
         tests/test_detect_anchor_thresholds.cpp
         tests/test_detect_anchors.cpp
         tests/test_detect_assigner.cpp
         tests/test_detect_average_precision.cpp
         tests/test_detect_boxes.cpp
+        tests/test_detect_iou_gradient.cpp
         tests/test_detect_postprocess.cpp
         tests/test_detect_suppression_criterion.cpp)

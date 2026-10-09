@@ -37,17 +37,16 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
+#include <vision_support/darknet_forward.hpp>
 #include <common/test_status.hpp>
 
 using namespace SushiAI;
 
 namespace
 {
-    using Vision::Importers::DarknetConfig;
+    using Test::sources_of_row;
+    using Test::translate_darknet_text;
     using Vision::Importers::DarknetModel;
-    using Vision::Importers::DarknetTranslation;
-    using Vision::Importers::parse_darknet_config;
-    using Vision::Importers::translate_darknet_model;
 
     /** @brief Holds an 8 by 8 network of 3 channels and one 64-filter 1 by 1 convolution. */
     constexpr std::string_view K_WIDE_NETWORK =
@@ -58,24 +57,6 @@ namespace
     constexpr std::string_view K_HEAD_TAIL =
         "[convolutional]\nfilters=18\nsize=1\nstride=1\npad=0\nactivation=linear\n"
         "[yolo]\nmask=0,1,2\nanchors=4,8, 8,16, 16,24\nclasses=1\nnum=3\n";
-
-    /** @brief Returns the translation of @p text, read as "route.cfg". */
-    Result<DarknetModel> translate(std::string_view text)
-    {
-        SA_TRY_ASSIGN(const DarknetConfig config, parse_darknet_config(text, "route.cfg"));
-        return translate_darknet_model(config, DarknetTranslation{});
-    }
-
-    /** @brief Returns the row indices a row of @p model reads, in the order it reads them. */
-    std::vector<std::int64_t> sources_of(const DarknetModel& model, std::int64_t row)
-    {
-        std::vector<std::int64_t> sources;
-        const Config::LayerSpec& spec = model.spec.layers.at(static_cast<std::size_t>(row));
-        for (const Config::SourceSpec& source : spec.from)
-            sources.push_back(source.node);
-
-        return sources;
-    }
 
     /** @brief Returns the type of row @p row of @p model. */
     const std::string& type_of(const DarknetModel& model, std::int64_t row)
@@ -103,17 +84,17 @@ TEST(Unit_DarknetRouteGroups, OneSourceGroupIsOneSliceRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
-        translate(std::string(K_WIDE_NETWORK)
-                      .append("[route]\nlayers=-1\ngroups=2\ngroup_id=1\n")
-                      .append(K_HEAD_TAIL)));
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[route]\nlayers=-1\ngroups=2\ngroup_id=1\n")
+                                   .append(K_HEAD_TAIL)));
 
     ASSERT_EQ(model.spec.layers.size(), 3u);
     EXPECT_EQ(type_of(model, 0), "conv2d");
     EXPECT_EQ(type_of(model, 1), "slice_channels");
-    EXPECT_EQ(sources_of(model, 1), (std::vector<std::int64_t>{0}));
+    EXPECT_EQ(sources_of_row(model, 1), (std::vector<std::int64_t>{0}));
     EXPECT_EQ(int_attribute(model, 1, "offset"), 32);
     EXPECT_EQ(int_attribute(model, 1, "count"), 32);
-    EXPECT_EQ(sources_of(model, 2), (std::vector<std::int64_t>{1}));
+    EXPECT_EQ(sources_of_row(model, 2), (std::vector<std::int64_t>{1}));
 
     ASSERT_EQ(model.convolutions.size(), 2u);
     EXPECT_EQ(model.convolutions[1].channels, 32);
@@ -130,26 +111,26 @@ TEST(Unit_DarknetRouteGroups, EverySourceIsSlicedBeforeTheJoin)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
-        translate(std::string(K_WIDE_NETWORK)
-                      .append("[convolutional]\nfilters=64\nsize=1\nstride=1\npad=0\n"
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[convolutional]\nfilters=64\nsize=1\nstride=1\npad=0\n"
                               "activation=linear\n")
-                      .append("[route]\nlayers=-1,-2\ngroups=2\ngroup_id=1\n")
-                      .append(K_HEAD_TAIL)));
+                                   .append("[route]\nlayers=-1,-2\ngroups=2\ngroup_id=1\n")
+                                   .append(K_HEAD_TAIL)));
 
     ASSERT_EQ(model.spec.layers.size(), 6u);
     EXPECT_EQ(type_of(model, 2), "slice_channels");
-    EXPECT_EQ(sources_of(model, 2), (std::vector<std::int64_t>{1}));
+    EXPECT_EQ(sources_of_row(model, 2), (std::vector<std::int64_t>{1}));
     EXPECT_EQ(int_attribute(model, 2, "offset"), 32);
     EXPECT_EQ(int_attribute(model, 2, "count"), 32);
 
     EXPECT_EQ(type_of(model, 3), "slice_channels");
-    EXPECT_EQ(sources_of(model, 3), (std::vector<std::int64_t>{0}));
+    EXPECT_EQ(sources_of_row(model, 3), (std::vector<std::int64_t>{0}));
     EXPECT_EQ(int_attribute(model, 3, "offset"), 32);
     EXPECT_EQ(int_attribute(model, 3, "count"), 32);
 
     EXPECT_EQ(type_of(model, 4), "concat");
-    EXPECT_EQ(sources_of(model, 4), (std::vector<std::int64_t>{2, 3}));
-    EXPECT_EQ(sources_of(model, 5), (std::vector<std::int64_t>{4}));
+    EXPECT_EQ(sources_of_row(model, 4), (std::vector<std::int64_t>{2, 3}));
+    EXPECT_EQ(sources_of_row(model, 5), (std::vector<std::int64_t>{4}));
 
     ASSERT_EQ(model.convolutions.size(), 3u);
     EXPECT_EQ(model.convolutions[2].channels, 64);
@@ -162,11 +143,13 @@ TEST(Unit_DarknetRouteGroups, UngroupedSourceAddsNoRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
-        translate(std::string(K_WIDE_NETWORK).append("[route]\nlayers=-1\n").append(K_HEAD_TAIL)));
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[route]\nlayers=-1\n")
+                                   .append(K_HEAD_TAIL)));
 
     ASSERT_EQ(model.spec.layers.size(), 2u);
     EXPECT_EQ(type_of(model, 1), "conv2d");
-    EXPECT_EQ(sources_of(model, 1), (std::vector<std::int64_t>{0}));
+    EXPECT_EQ(sources_of_row(model, 1), (std::vector<std::int64_t>{0}));
 
     ASSERT_EQ(model.convolutions.size(), 2u);
     EXPECT_EQ(model.convolutions[1].channels, 64);
@@ -182,26 +165,26 @@ TEST(Unit_DarknetRouteGroups, UngroupedSourceAddsNoRow)
 TEST(Unit_DarknetRouteGroups, UnequalSplitsAndGroupsOutOfRangeAreRefused)
 {
     SA_EXPECT_FAILURE(
-        translate(std::string(K_WIDE_NETWORK)
-                      .append("[route]\nlayers=-1\ngroups=3\ngroup_id=0\n")
-                      .append(K_HEAD_TAIL)),
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[route]\nlayers=-1\ngroups=3\ngroup_id=0\n")
+                                   .append(K_HEAD_TAIL)),
         StatusCode::InvalidDescription, "line 12", "groups 3", "64 channels");
 
     SA_EXPECT_FAILURE(
-        translate(std::string(K_WIDE_NETWORK)
-                      .append("[route]\nlayers=-1\ngroups=2\ngroup_id=2\n")
-                      .append(K_HEAD_TAIL)),
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[route]\nlayers=-1\ngroups=2\ngroup_id=2\n")
+                                   .append(K_HEAD_TAIL)),
         StatusCode::InvalidDescription, "line 11", "group_id 2");
 
     SA_EXPECT_FAILURE(
-        translate(std::string(K_WIDE_NETWORK)
-                      .append("[route]\nlayers=-1\ngroups=0\ngroup_id=0\n")
-                      .append(K_HEAD_TAIL)),
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[route]\nlayers=-1\ngroups=0\ngroup_id=0\n")
+                                   .append(K_HEAD_TAIL)),
         StatusCode::InvalidDescription, "line 11", "groups 0");
 
     SA_EXPECT_FAILURE(
-        translate(std::string(K_WIDE_NETWORK)
-                      .append("[route]\nlayers=-1\ngroup_id=1\n")
-                      .append(K_HEAD_TAIL)),
+        translate_darknet_text(std::string(K_WIDE_NETWORK)
+                                   .append("[route]\nlayers=-1\ngroup_id=1\n")
+                                   .append(K_HEAD_TAIL)),
         StatusCode::InvalidDescription, "line 11", "group_id 1");
 }
