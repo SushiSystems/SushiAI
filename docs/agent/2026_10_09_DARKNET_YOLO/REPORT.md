@@ -1,6 +1,6 @@
 # Darknet-era YOLO: reference run and source findings
 
-**Status:** Forward and `[yolo]` training references exist for all six models; every layer of `yolov3-tiny` is dumped; one training step under batch statistics exists for `yolov3-tiny` and `yolov7-tiny`. Sections 8 to 14 are the second pass.
+**Status:** Forward and `[yolo]` training references exist for all six models; every layer of `yolov3-tiny` is dumped; one training step under batch statistics exists for `yolov3-tiny` and `yolov7-tiny`. Sections 8 to 14 are the second pass, section 15 the implementation so far, sections 16 to 24 the third pass.
 
 This report describes what AlexeyAB's Darknet does, in words and formulas, so that the behaviour can be implemented from scratch. It quotes no Darknet code. File, function and line pointers refer to commit `59596d7880f6504768df41d6daa586f5cb2b932f` (2025-12-15) of `https://github.com/AlexeyAB/darknet`, paths relative to the clone's root. The clone, the build and the patch live in `D:\Projects\.sushisystems\models\darknet\_darknet\` and are deleted with it; nothing from them is in this repository.
 
@@ -909,3 +909,388 @@ Measured against the Darknet dumps, with the bound each test states:
 | Scores of all six models | 8.9e-8 | 1e-6 |
 
 The head values reach 17 in magnitude, so 3.8e-5 is about two parts in a million.
+
+## 16. Learning rate and the update step
+
+`src/parser.c`, `parse_net_options`, line 1145; `src/network.c`, `get_current_batch` (65), `get_current_rate` (131), `update_network` (293), `train_network_datum` (361), `train_network_waitkey` (407); `src/convolutional_layer.c`, `update_convolutional_layer` (1599). Read from the source; no run exercised the update.
+
+`[net]` defaults:
+
+| Key | Default | Key | Default |
+| --- | --- | --- | --- |
+| `batch` | 1 | `learning_rate` | 0.001 |
+| `subdivisions` | 1 | `momentum` | 0.9 |
+| `max_batches` | 0 | `decay` | 0.0001 |
+| `policy` | `constant` | `burn_in` | 0 |
+| `power` | 4 | `steps`, `scales` | required when `policy=steps` |
+
+Counters. With `B` the cfg's `batch` and `S` its `subdivisions`, the mini-batch is `m = B / S` (integer division). `seen` counts images and grows by `m` before each forward pass. The iteration counter grows by one after the `S` forward and backward passes of one iteration. Training runs while the iteration counter is below `max_batches`. The schedule reads `n = seen / (m * S)` with integer division, which equals the number of completed iterations including the current one, because `seen` is advanced before the rate is read. The first update therefore sees `n = 1`.
+
+Rate, with `lr` the cfg's `learning_rate`:
+
+```
+n < burn_in:              rate = lr * (n / burn_in) ^ power
+otherwise, policy steps:  rate = lr * product of scales[i] over every i with steps[i] <= n
+otherwise, constant:      rate = lr
+```
+
+- A step applies at its listed iteration: the test is `steps[i] <= n`.
+- The scales compound, in list order. The walk stops at the first step still ahead, so the list is expected in ascending order.
+- The warm-up replaces the policy while `n < burn_in`; the two are not multiplied.
+- Other policies exist (`step`, `exp`, `poly`, `sigmoid`, `random`, `sgdr`); none of the six cfgs uses them. `poly` is `lr * (1 - n / max_batches) ^ power`.
+
+The six cfgs:
+
+| Model | `batch` / `subdivisions` | `learning_rate` | `momentum` | `decay` | `burn_in` | `max_batches` | `steps` | `scales` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `yolov3-tiny`, `yolov3` | 1 / 1 as shipped (64 / 2 and 64 / 16 are commented out) | 0.001 | 0.9 | 0.0005 | 1000 | 500200 | 400000, 450000 | 0.1, 0.1 |
+| `yolov4-tiny` | 64 / 1 | 0.00261 | 0.9 | 0.0005 | 1000 | 2000200 | 1600000, 1800000 | 0.1, 0.1 |
+| `yolov4` | 64 / 8 | 0.0013 | 0.949 | 0.0005 | 1000 | 500500 | 400000, 450000 | 0.1, 0.1 |
+| `yolov7-tiny` | 64 / 1 | 0.00261 | 0.9 | 0.0005 | 1000 | 2000200 | 1600000, 1800000 | 0.1, 0.1 |
+| `yolov7` | 8 / 1 | 0.00261 | 0.9 | 0.0005 | 1000 | 2000200 | 1600000, 1800000 | 0.1, 0.1 |
+
+One iteration, in order. `U` is a layer's accumulated update for a parameter `W`; it starts at zero and is never cleared, only scaled.
+
+1. For each of the `S` mini-batches: advance `seen` by `m`; forward in training mode; backward, which adds this mini-batch's descent direction to `U` (section 13: summed over images and positions, not divided by anything).
+2. Advance the iteration counter. Read `rate` from the schedule.
+3. For every convolution, with `B = m * S`:
+
+```
+weights:  U <- U - decay * B * W       W <- W + (rate / B) * U       U <- momentum * U
+biases:                                b <- b + (rate / B) * Ub      Ub <- momentum * Ub
+scales (batch norm):                   g <- g + (rate / B) * Ug      Ug <- momentum * Ug
+```
+
+So with `G` the summed descent direction of the iteration, `U_t = momentum * U_(t-1) + G_t - decay * B * W`, and the step is `rate / B` times `U_t`. Decay acts on weights only, and it enters the momentum buffer. A per-layer `learning_rate` key (default 1) multiplies `rate` for that layer; none of the six cfgs sets it. The loss the trainer prints for an iteration is the sum of the per-mini-batch network costs divided by `S * m`.
+
+## 17. `[yolo]` keys: defaults and where each acts
+
+`src/parser.c`, `parse_yolo`, lines 448-534; uses in `src/yolo_layer.c`.
+
+| Key | Default | Where it acts |
+| --- | --- | --- |
+| `classes` | 20 | Channel count check: the layer before must have `len(mask) * (5 + classes)` channels, or Darknet stops |
+| `num` | 1 | Number of anchors in `anchors`; the best-anchor search runs over all of them |
+| `mask` | all `num` anchors, in order | Which anchors this layer owns |
+| `anchors` | every value 0.5 | Pairs in input pixels; values beyond `2 * num` are ignored |
+| `max` | 200 | Truth rows per image the layer reads; also sizes the truth buffer |
+| `ignore_thresh` | 0.5 | Training, step 1 of section 4 |
+| `truth_thresh` | 1 | Training, step 1; never fires at 1 |
+| `iou_thresh` | 1 | Training, step 2: extra anchors, and step 3 runs only below 1 |
+| `iou_thresh_kind` | `iou` | Measure used for `iou_thresh`; also `giou`, `diou`, `ciou`; anything else warns and falls back to `iou` |
+| `iou_loss` | `mse` | Box delta branch; also `giou`, `diou`, `ciou`; anything else is taken as `iou` |
+| `iou_normalizer` | 0.75 | Multiplies the box deltas in every branch, `mse` included |
+| `obj_normalizer` | 1 | Multiplies every objectness delta; also scales the reported class loss |
+| `cls_normalizer` | 1 | Multiplies the truth class's delta only when `counters_per_class` is given. Without that key it has no effect, so the 0.5 of the v7 cfgs changes nothing in the deltas although the log line prints it |
+| `delta_normalizer` | 1 | GPU backward only, where the delta passed down is multiplied by it and by `[net] loss_scale`; the CPU backward adds the delta unscaled |
+| `max_delta` | unset (no clipping) | Clips the IoU-branch box deltas; also caps the `counters_per_class` multipliers |
+| `label_smooth_eps` | 0 | Class targets become `t * (1 - eps) + 0.5 * eps` |
+| `scale_x_y` | 1 | Forward, section 3.6 |
+| `new_coords` | 0 | Forward, decode, and the `w`, `h` chain of the deltas |
+| `objectness_smooth` | 0 | Training, sections 4 and 11 |
+| `focal_loss` | 0 | Replaces the class deltas by a focal form; unused by the six cfgs |
+| `counters_per_class` | none | Per-class multiplier `largest count / count`, capped at `max_delta`, on the box and class deltas of a truth of that class |
+| `nms_kind` | `default` | Read by `detector test` from the last `[yolo]` layer. Accepted spellings: `default`, `greedynms`, `diounms`. Any other string silently becomes `default` |
+| `beta_nms` | 0.6 | Exponent of `diounms` only (section 3.8) |
+| `jitter` | 0.2 | Data loader: crop jitter. Not in the layer |
+| `random` | 0 | Trainer: multi-scale resizing of the network. Not in the layer |
+| `resize` | 1.0 | Data loader. Not in the layer |
+
+The six cfgs set `num` (6 or 9), `jitter` (0.3 or 0.1), `random`, `truth_thresh=1`, and `resize=1.5` in some v4 and v7 heads; none sets `max`, `label_smooth_eps`, `focal_loss` or `counters_per_class`.
+
+## 18. Edge cases
+
+Truths, in the loader (`src/data.c`, `fill_truth_detection`, line 371):
+
+- The image's boxes are shuffled, then cut to `max`. With more truths than `max`, a random subset survives.
+- Dropped silently or with a message: class id at or above `classes`; width below `1 / net_w` or height below `1 / net_h`, which covers zero and negative sizes; `x <= 0`, `x > 1`, `y <= 0`, `y > 1`.
+- Width or height above 1 is clipped to 1 and kept.
+- A negative class id is not tested here.
+
+Truths, in the layer (`src/yolo_layer.c`, `process_batch`):
+
+- The list ends at the first row with `x` equal to 0.
+- A row with a class id below 0 or at or above `classes` is skipped.
+- A row outside [0, 1] or with negative size prints a warning and is still used.
+- The cell is `(int)(x * w)`, `(int)(y * h)`, not clamped. `x = 1` passes the loader and gives column `w`, one past the row: the write lands in column 0 of the next row, or past the buffer in the last row. An implementation should clamp or reject; Darknet does neither.
+
+Grid and stride. The layer stores no stride. It knows its grid from the extents of its input and the network size from `[net]`; the decode divides by the grid, the anchors by the network size. A stride is only ever the quotient of the two.
+
+Suppression exponent. `beta_nms` is any float; nothing validates it. It is used as the exponent of `d / c`, which lies in [0, 1].
+
+Weights header. Nothing validates `major`, `minor` or `revision`. A negative `major` or `minor` makes `major * 10 + minor >= 2` false, so `seen` is read as 32 bits, and the transposed-matrix test (above 1000) is false.
+
+cfg text (`src/option_list.c`, `read_option` 57, `option_find` 96, `option_unused` 84; `src/parser.c`, `read_cfg` 1800, lines 1358, 1546, 1651):
+
+- A line is skipped when, after all white space is removed, it is empty or starts with `#` or `;`.
+- There is no comment syntax after a value. The value is everything after the first `=`. A trailing `#text` survives into it: a number still parses, because number parsing stops at the first character that is not part of a number, and the `mask` and `anchors` lists stop counting at `#`; a string value such as an activation name does not match and breaks.
+- A line whose only `=` is its last character is reported as unparsable and skipped. A line with no `=` is stored as a key without a value.
+- A repeated key in one section: the first occurrence wins; the later one is reported as unused.
+- An unknown key: reported on standard error as an unused field after parsing; parsing continues.
+- An unknown section: a message is printed and an empty layer takes its index; parsing continues. The section name must match exactly, so trailing text after `]` makes it unknown.
+- The first section must be `[net]` or `[network]`, or Darknet stops. A key before any section is not guarded.
+
+## 19. The anchor command
+
+`detector calc_anchors <data> -num_of_clusters K -width W -height H` (`src/detector.c`, `calc_anchors`, line 1440; `src/matrix.c`, `do_kmeans` 301, `dist` 283, `random_centers` 260, `kmeans_maximization` 223). `K` defaults to 5; `W` and `H` are required.
+
+What it does:
+
+- Reads the label file of every image in the `train` list of the data file and collects each box as `(w * W, h * H)`: label sizes are fractions, scaled by the given network size as a plain stretch. Positions, images and classes play no part in the clustering.
+- Runs k-means on those pairs. Distance between two sizes is `1 - IoU` of the two boxes sharing a corner. Start: `K` distinct boxes drawn at random from the data, with the random generator seeded from the clock, so two runs differ. The banner says k-means++, but the centres are a plain random draw. Update: each centre becomes the arithmetic mean of its members' widths and heights; a centre that ends up at zero keeps its old value. It stops when no assignment changes, or after 1000 rounds.
+- Sorts the centres by area, ascending.
+- Prints the mean best IoU of the boxes against the final centres as a percentage, the number of rounds, and the per-class box counts; writes `anchors.txt` (rounded to whole pixels when `W > 32`, four decimals otherwise) and `counters_per_class.txt`.
+- A label outside (0, 1] is reported and still used.
+
+What it does not do: it does not write the cfg, choose `num`, split anchors over heads, write `mask`, look at the strides or grids, weigh boxes by anything, deduplicate, repeat the run to keep the best, or evaluate the anchors against the assignment rule of section 4. Ordering by area is the only step toward head assignment; the cfg author does the rest by hand. Anything in SushiAI beyond clustering by `1 - IoU` and sorting by area is its own.
+
+## 20. `mish` against the formula
+
+One `yolov4` layer, the smallest `mish` convolution: layer 87, `[512, 19, 19]`, 739 328 bytes per file. Darknet keeps the pre-activation input of a `mish` or `swish` convolution, so the patch writes both (`DARKNET_DUMP_ACTIVATION_LAYER=87`), into `out/yolov4/`:
+
+| Name | Shape | Bytes | SHA-256 |
+| --- | --- | --- | --- |
+| `layer_087_activation_input` | `[512, 19, 19]` | 739328 | `68b72b478c6233c5ce4abbc537f55fa1514d790ceaca89c8d00ef2456557e68f` |
+| `layer_087_activation_output` | `[512, 19, 19]` | 739328 | `1f045b8e5d84a9550536c3aa6ae362367ae4dc61dd14667a3bc842071ab2a0e1` |
+
+Inputs range from -9.797682 to 5.3294296; outputs from -0.30884358 to 5.3291817, mean -0.153938522. Over the 184 832 values:
+
+- Against the formula of section 3.5 in double precision: largest absolute difference 1.03e-6. Against `x * tanh(log1p(exp(x)))` in double: the same 1.03e-6.
+- Against the same formula evaluated in `float32`: 83.7 % of the values are bit-equal, largest difference 1.2e-6.
+- The largest relative difference is 5e-4, at strongly negative inputs where the output is near zero. Darknet computes the hyperbolic tangent as `2 / (1 + exp(-2 s)) - 1`, which cancels in `float32` when `s` is small. Compare with an absolute tolerance of a few 1e-6, not a relative one.
+
+The other files of `out/yolov4/` were re-hashed after this run and are unchanged, except `run_log.txt`, which holds a timing.
+
+## 21. Training steps for the other four models
+
+Same procedure, recipe and file set as section 13, batch 2, `subdivisions` 1, no update. All four ran: `yolov3` in 10 s, `yolov4-tiny` in 2 s, `yolov4` in 20 s, `yolov7` in 12 s, on a machine with 15 GB of memory. `layer_000_output` was left out for `yolov4` and `yolov7` (94 MB and 105 MB) to stay inside the size budget; every other file of the set is there. The batch for 608 and 640 comes from the section 13 recipe at that size and is kept as `input` in each directory.
+
+Derived cfgs (first `batch=` line set to 2, `subdivisions` to 1, nothing else):
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `yolov3_batch_2.cfg` | 8 342 | `99b172e546651e2137dc22a80eab89280b4a62e64758f8eddc21bf5f3106a372` |
+| `yolov4-tiny_batch_2.cfg` | 3 230 | `3beb41eccf737f3077cdca013939f4a485ab127917b0b5fc46d0e4c282f843ce` |
+| `yolov4_batch_2.cfg` | 12 230 | `55e80e4e2a92902cb0cd5adbc1b3916b0a614f1b0761f4acf2c910d608d0d7eb` |
+| `yolov7_batch_2.cfg` | 10 766 | `fc53c40b49e462dacf97997452e08fb2f66995126459d42d24b10a8eb0e94682` |
+
+Checks (`check_train_step.py`), largest deviation:
+
+| Model | Rolling mean, variance | Head weight updates vs `sum(d * input)` | Head bias updates | Network cost vs mean of layer costs |
+| --- | --- | --- | --- | --- |
+| `yolov3` | 3.6e-8, 1.2e-8 | 5.8e-7, 9.1e-7, 1.0e-6 | 1.3e-7, 1.7e-7, 2.9e-7 | 4.55193281 / 4.55193305 |
+| `yolov4-tiny` | 4.8e-8, 2.5e-8 | 6.8e-7, 1.3e-6 | 1.7e-7, 1.4e-7 | 7.96330929 / 7.96330905 |
+| `yolov4` | 7.2e-8, 2.0e-7 | 3.2e-7, 1.3e-6, 9.0e-7 | 1.6e-7, 3.4e-7, 2.3e-7 | 12.1158934 / 12.1158938 |
+| `yolov7` (logistic slope applied) | 1.2e-8, 1.8e-9 | 1.1e-6, 1.0e-6, 2.9e-7 | 3.1e-7, 3.2e-7, 1.1e-7 | 11.8744097 / 11.8744094 |
+
+`layer_000_bias_updates` is exactly zero in all four, as in section 13.
+
+A quirk of this build. `yolov4_train_step/layer_139_yolo` holds 49 NaN among 2 945 760 values. Every one is a class entry whose input is below -88.7 (inputs from -121.09 to -89.21); the most negative input that still gives a number is -88.70. That is where `exp(-x)` overflows `float32`, and under `/fp:fast` the logistic then yields NaN where the mathematical value is 0. Darknet leaves the class delta at 0 for a NaN result, so `layer_139_yolo_delta` has no NaN and equals what a correct logistic would give there. No other dumped file contains a NaN (all were scanned). A parity test on that one file must treat NaN as 0.
+
+### yolov3_train_step (81 702 212 bytes of `.bin`; learning_rate 0.001, momentum 0.9, decay 0.0005)
+
+| Name | Shape | Bytes | min | max | mean | SHA-256 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `batch_mean` | `[1, 32]` | 128 | -0.825920343 | 0.575327396 | -0.094553517 | `a4d65e6c12cb2b08b64365797c1055eeaf8990a5d92a5d53ee257a89da8b5954` |
+| `batch_variance` | `[1, 32]` | 128 | 0.0205821786 | 0.882144868 | 0.27155171 | `437c5479f2ab593080f1e00d62fe9731548c0ec1800832310fe1070b5dd5b66c` |
+| `input` | `[2, 3, 416, 416]` | 4153344 | 0 | 1 | 0.500035784 | `7b7563a106509747180c421f8fd1be6cec581bcf8aaeed22274976adbb383036` |
+| `layer_000_bias_updates` | `[1, 32]` | 128 | 0 | 0 | 0 | `38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca` |
+| `layer_000_output` | `[2, 32, 416, 416]` | 44302336 | -1.33403933 | 10.6902962 | 0.759437917 | `712ad3a9749bc2e880147941232d0f7cf7f6a99160f493c892cbdbb200ddf416` |
+| `layer_000_scale_updates` | `[1, 32]` | 128 | -4.33340983e-06 | 2.60572597e-06 | -2.76385137e-07 | `fee1ac16e6cae90f93b020bcda6f8f54a945396a1dded7840621558e461a06a2` |
+| `layer_000_weight_updates` | `[32, 3, 3, 3]` | 3456 | -6.66875894e-06 | 6.96195548e-06 | -3.10366914e-08 | `f4fe1a7d423340369f0189b3280b4ff4168591b2b64f09ab2040edb023b763c9` |
+| `layer_080_output` | `[2, 1024, 13, 13]` | 1384448 | -1.21769607 | 11.5567951 | 0.423962955 | `9a3b0adaf24678007f90c898f2997c653460c10ac977591d0ead0ab666f77b2b` |
+| `layer_081_bias_updates` | `[1, 255]` | 1020 | -1.23069179 | 1.79814315 | 0.0089695411 | `74dc01abc6a48336b779b83e49a7895cf3773728fa443b80646d0623542733eb` |
+| `layer_081_weight_updates` | `[255, 1024, 1, 1]` | 1044480 | -2.92711735 | 4.41978788 | 0.00263034801 | `eb0d03213d3329696b28e494fd2cf25c0f5453021a84c858dea544400e1a394b` |
+| `layer_081_yolo_input` | `[2, 255, 13, 13]` | 344760 | -60.6563034 | 4.06008816 | -7.16453498 | `62576753a959cae110e036b162057b16ff11898022163de046cd5a920b3a9abe` |
+| `layer_082_yolo` | `[2, 255, 13, 13]` | 344760 | -1.28249705 | 1.43396962 | 0.0214046511 | `c3eee521ac303d81b3e2b896ad7c60afa345555e3fa31303e1dbf37defa262f9` |
+| `layer_082_yolo_cost` | `[1, 1]` | 4 | 10.6514587 | | | `2b01c16546a06d217979c55248d12cadb4570c4d4c69bbb5af7ab1727330cf32` |
+| `layer_082_yolo_delta` | `[2, 255, 13, 13]` | 344760 | -0.524310946 | 0.999990642 | 2.65371053e-05 | `6032254c1f546c2489cd01192a8b7090705f9bf58f22e3e4458251b436e0c159` |
+| `layer_092_output` | `[2, 512, 26, 26]` | 2768896 | -1.6850332 | 20.6851559 | 0.506221189 | `e47ccfd35640e6eb3cb75563401b5946ffe20f2dad3fc45dc6edf5adce45d199` |
+| `layer_093_bias_updates` | `[1, 255]` | 1020 | -0.358004987 | 0.997660339 | 0.00260661082 | `811ceb26d34d425774e4312dc2454bf0baeb032b7ca7e8d2227f89655f458d2f` |
+| `layer_093_weight_updates` | `[255, 512, 1, 1]` | 522240 | -0.953438044 | 2.07162499 | 0.00126099336 | `311cd195c184a59ded2be50ec2a4506e134e75fc5b7f4cd303241df8a9e35027` |
+| `layer_093_yolo_input` | `[2, 255, 26, 26]` | 1379040 | -68.8421326 | 10.6541281 | -6.8030996 | `c64eb4cb4e3861fb8e6e298117856d9e280897857a036dcb3004f9740eda2fba` |
+| `layer_094_yolo` | `[2, 255, 26, 26]` | 1379040 | -1.84795308 | 1.85544276 | 0.0220679497 | `69fa6b9b7f0bfa25d00ba6aaab3796c3aae17d9c710201bc4f8cbc932a4cd4c5` |
+| `layer_094_yolo_cost` | `[1, 1]` | 4 | 2.9240768 | | | `575178c5d682fbe207bbf86419920c21d3fc768f3df6e96193cc796d3f31a41b` |
+| `layer_094_yolo_delta` | `[2, 255, 26, 26]` | 1379040 | -0.358004987 | 0.999998927 | 1.92796712e-06 | `dcc1e99d0045e85f61e3c987a97bd62d0303ca52fa4d8d310c80305ca6479b04` |
+| `layer_104_output` | `[2, 256, 52, 52]` | 5537792 | -2.48770523 | 30.036272 | 0.61528292 | `664b373da6e20f7e995a1706cf7268cbde7f000847b305e9ccac0bede74851e5` |
+| `layer_105_bias_updates` | `[1, 255]` | 1020 | -0.90175271 | 0 | -0.0056862408 | `1ad70351cf02881e80e291eb2cdc8db4f50af457405c62309a8bf5d05c8c5504` |
+| `layer_105_weight_updates` | `[255, 256, 1, 1]` | 261120 | -3.14908028 | 0.266939789 | -0.00204633404 | `7ef0961d644dc5dfe73678e1afe91b20f98429b72fe7548a2e707ab5b09ce7bb` |
+| `layer_105_yolo_input` | `[2, 255, 52, 52]` | 5516160 | -86.8985443 | 29.3514042 | -7.40007407 | `9a76e8e95456d92d904705dc9aaa4a41bb96405f5ebf61ce84b41461f46aa39c` |
+| `layer_106_yolo` | `[2, 255, 52, 52]` | 5516160 | -4.65608454 | 4.26966524 | 0.0181380606 | `03881996c7126e77f7c4186fca961a6d01671d22fb4444aeeec7cfe3189fd720` |
+| `layer_106_yolo_cost` | `[1, 1]` | 4 | 0.0802636072 | | | `4d874cc66c8c96361821f2317a91633543cd387caf9754aab9cb45e4cda7f32a` |
+| `layer_106_yolo_delta` | `[2, 255, 52, 52]` | 5516160 | -0.241720378 | 0 | -1.05145007e-06 | `9b51457d60215935099c247e4b07219262501753835987bba2de4c4b551689cf` |
+| `network_cost` | `[1, 1]` | 4 | 4.55193281 | | | `05735461aea2f80076c77ab6d3c0f77075507d6435b66af21cd9c653046b2087` |
+| `rolling_mean_after` | `[1, 32]` | 128 | -0.791963875 | 0.552391827 | -0.0881575195 | `837e825f27a3c9653d18cdb5dc2dc2b77df71546230da8c7955ba7e30cc66c41` |
+| `rolling_mean_before` | `[1, 32]` | 128 | -0.788190961 | 0.551960528 | -0.0874468533 | `77460ac899c69c76ffaba433c8ac2555290265765576f1d470f9093fc9689d91` |
+| `rolling_variance_after` | `[1, 32]` | 128 | 0.0205737483 | 0.292335719 | 0.103262428 | `27e17a334e3bd98833ed282b538d6a7cc4495459f07f2d0770081b7802bddbbf` |
+| `rolling_variance_before` | `[1, 32]` | 128 | 0.00214239652 | 0.292869359 | 0.0845636203 | `5d765f03cc6dbbff63ed8b471780fbebda53f952a762945d454c962b809ef2da` |
+
+The first convolution's updates are of order 1e-6 here, against 0.1 to 10 in the other models. I did not look for the reason; the cfg has no `stopbackward`.
+
+```
+v3 (mse loss, Normalizer: (iou: 0.75, obj: 1.00, cls: 1.00) Region 82 Avg (IOU: 0.632826), count: 4, class_loss = 4.285794, iou_loss = 1.039935, total_loss = 5.325729
+v3 (mse loss, Normalizer: (iou: 0.75, obj: 1.00, cls: 1.00) Region 94 Avg (IOU: 0.549921), count: 1, class_loss = 1.123072, iou_loss = 0.338967, total_loss = 1.462038
+v3 (mse loss, Normalizer: (iou: 0.75, obj: 1.00, cls: 1.00) Region 106 Avg (IOU: 0.000000), count: 1, class_loss = 0.040132, iou_loss = 0.000000, total_loss = 0.040132
+```
+
+### yolov4_tiny_train_step (23 267 012 bytes of `.bin`; learning_rate 0.00261, momentum 0.9, decay 0.0005)
+
+| Name | Shape | Bytes | min | max | mean | SHA-256 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `batch_mean` | `[1, 32]` | 128 | -0.92403686 | 1.12113893 | -0.0895710696 | `e5c78739ad1765399e079d8f7eb1a2ddccef66bd96a38cacab5082f41bf39ca8` |
+| `batch_variance` | `[1, 32]` | 128 | 0.00754783768 | 0.970219851 | 0.329844763 | `957d3a5e36eee3308d32787b334bd4f3eeeb732d062519ff425faaae9bb39d70` |
+| `input` | `[2, 3, 416, 416]` | 4153344 | 0 | 1 | 0.500035784 | `7b7563a106509747180c421f8fd1be6cec581bcf8aaeed22274976adbb383036` |
+| `layer_000_bias_updates` | `[1, 32]` | 128 | 0 | 0 | 0 | `38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca` |
+| `layer_000_output` | `[2, 32, 208, 208]` | 11075584 | -2.19677925 | 16.7529621 | 0.672322045 | `7244d5b65d91ab0a5fcc52150e0580142e13fb99ced9603c1572c71973b400ad` |
+| `layer_000_scale_updates` | `[1, 32]` | 128 | -3.0261364 | 2.32638693 | 0.0926359822 | `767dcac751396bbda9d44f8342d89ca7d954d36db17bb6a27c9a037f07bd6272` |
+| `layer_000_weight_updates` | `[32, 3, 3, 3]` | 3456 | -13.2529964 | 15.9260521 | 0.075996557 | `be5b2fd272ff6eccb58634b2ff37c5afd3b588ad4462e1c90d9b1a279cf4fda7` |
+| `layer_028_output` | `[2, 512, 13, 13]` | 692224 | -1.14610803 | 9.66847229 | 0.403434556 | `bd8e0da6e61b9383d28a10d210de3ce5a952ca1fc2459d882fb667b2ac854596` |
+| `layer_029_bias_updates` | `[1, 255]` | 1020 | -0.735277057 | 0.9851138 | 0.0104990257 | `cea2668635958a85ef4fa038e5e9524afbd36c1f947ca467d4e1220e48b027a8` |
+| `layer_029_weight_updates` | `[255, 512, 1, 1]` | 522240 | -4.73640823 | 5.94756222 | 0.00386814919 | `edb5c2d9b8f546b34985fd019fdbbd983332094f87513649c858605553b2a45c` |
+| `layer_029_yolo_input` | `[2, 255, 13, 13]` | 344760 | -38.4170837 | 4.11102676 | -6.48877487 | `e56533eeedcf5df1b02b754d4d73fdad6529130c3f08662df9678a56393a90a3` |
+| `layer_030_yolo` | `[2, 255, 13, 13]` | 344760 | -1.56632376 | 1.20744073 | 0.0206213466 | `113fefc0e0e01bd7d5e618f334635dd85be739d8cff047da2fd54b62b8fa2afd` |
+| `layer_030_yolo_cost` | `[1, 1]` | 4 | 9.44664097 | | | `cabab3f345b99b53f2977573cf2f1d077c59c65fc0248153240ec7044463b9ab` |
+| `layer_030_yolo_delta` | `[2, 255, 13, 13]` | 344760 | -0.824786961 | 0.999999583 | 3.10622026e-05 | `825fb2900ba688d97baee66c3b90e8c99fb3bbe88170e52dc57c888f24f3601a` |
+| `layer_035_output` | `[2, 256, 26, 26]` | 1384448 | -0.869753301 | 10.4237146 | 0.488171287 | `2fc0bc2a40c6d6310e17e6d50de956cb8c576c00401c6c683cf69653869c7304` |
+| `layer_036_bias_updates` | `[1, 255]` | 1020 | -1.22999346 | 1.16564274 | 0.00597841695 | `e84d3e947ccf7198042e337fb77d0b54bac51b758f49eecd0c30f736d62ccf43` |
+| `layer_036_weight_updates` | `[255, 256, 1, 1]` | 261120 | -5.89411306 | 5.00641727 | 0.00422349784 | `3e2c0127aa22b4269081469377d3420a47f8849640ea17f58749b89ac5a81d74` |
+| `layer_036_yolo_input` | `[2, 255, 26, 26]` | 1379040 | -38.2666321 | 5.63766003 | -6.70029549 | `428818124ce7281fe7a494885473840a30782abc5ca041d5b3d32ecbd493e5e5` |
+| `layer_037_yolo` | `[2, 255, 26, 26]` | 1379040 | -1.47480309 | 1.49849796 | 0.0223370562 | `50c61d0dc8a1e04c9a708b3245a76912a3bc21f8037bb1892aebff9749d9875e` |
+| `layer_037_yolo_cost` | `[1, 1]` | 4 | 6.47997713 | | | `764549a1814bed224d8add48ab3f38f0e161b250cf8f8a8e22cf665032f093cc` |
+| `layer_037_yolo_delta` | `[2, 255, 26, 26]` | 1379040 | -1.22999346 | 1 | 4.42190583e-06 | `ae6f1b0a5a3bba25b53c91bd80d59871929fc717b485691dad8692d755424770` |
+| `network_cost` | `[1, 1]` | 4 | 7.96330929 | | | `4b80051352f4b21bf38e34c103510e6656e68fffeb9d1f036613e4d0b61a9bd9` |
+| `rolling_mean_after` | `[1, 32]` | 128 | -0.780066788 | 1.06339359 | -0.0981364004 | `7aee95368276df6da09ae4f1be20357aec5b5936b7a30a4568964d6403fe4cf4` |
+| `rolling_mean_before` | `[1, 32]` | 128 | -0.764070094 | 1.05697739 | -0.0990881119 | `308ea913bd4902b9d77ab0c9a01082f4a10f4fa1a176b81d1c9f0c0245bc93e5` |
+| `rolling_variance_after` | `[1, 32]` | 128 | 0.0430846848 | 0.431661993 | 0.16171436 | `734ba2d679b57b265bf77ab7612666c68fc2bc081a7c71d07afaeaf156a4980e` |
+| `rolling_variance_before` | `[1, 32]` | 128 | 0.00913077779 | 0.395603091 | 0.143033209 | `5d7e529adf9d12f73c1021412fd603285b0d6b63ef5c389236b5aec1baa2d662` |
+
+```
+v3 (iou loss, Normalizer: (iou: 0.07, obj: 1.00, cls: 1.00) Region 30 Avg (IOU: 0.514073), count: 4, class_loss = 4.706313, iou_loss = 0.327233, total_loss = 5.033546
+v3 (iou loss, Normalizer: (iou: 0.07, obj: 1.00, cls: 1.00) Region 37 Avg (IOU: 0.674733), count: 3, class_loss = 3.228604, iou_loss = 1.346554, total_loss = 4.575159
+```
+
+### yolov4_train_step (77 804 356 bytes of `.bin`; learning_rate 0.0013, momentum 0.949, decay 0.0005; no `layer_000_output`)
+
+| Name | Shape | Bytes | min | max | mean | SHA-256 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `batch_mean` | `[1, 32]` | 128 | -1.808599 | 1.92694926 | -0.000444416197 | `4e6ffe46f7fcd5c5cd94065968bbd0c2c9d09754deaaffd0b510eef7532d50a5` |
+| `batch_variance` | `[1, 32]` | 128 | 0.00145650236 | 6.3291769 | 1.67370414 | `d1766ab881a4e37832a3c30b4a04df66cc772cb6f0533ea7f14a8782921605ac` |
+| `input` | `[2, 3, 608, 608]` | 8871936 | 0 | 1 | 0.499941621 | `f83b41004e60d3d1f160b979d121cddb58350237b71de46b4a5559ce2244464b` |
+| `layer_000_bias_updates` | `[1, 32]` | 128 | 0 | 0 | 0 | `38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca` |
+| `layer_000_scale_updates` | `[1, 32]` | 128 | -0.0865207985 | 0.0495658368 | 2.03963809e-05 | `47f065a06f8cdc8281b119d359dded9e19e8e0b66c7dc132f3d49cead23a9520` |
+| `layer_000_weight_updates` | `[32, 3, 3, 3]` | 3456 | -0.179587483 | 0.0914738029 | -0.000155693846 | `6a29b2d2f61f5e297ecab91a1c8a8cef12baadfde7130472f690a561be6309f5` |
+| `layer_137_output` | `[2, 256, 76, 76]` | 11829248 | -12.6184406 | 44.5065689 | 0.26587585 | `7ed022dc8301f9c3cfdbfff7c330a53f6f14a24fad7ed5c03f64dd8e24a1ff08` |
+| `layer_138_bias_updates` | `[1, 255]` | 1020 | -4.01882076 | 0 | -0.0316438422 | `f383f4b6f02f618d36bd2595a740923115b231f161be0d048f780826d1dca7e1` |
+| `layer_138_weight_updates` | `[255, 256, 1, 1]` | 261120 | -3.7060585 | 0.666231275 | -0.00311850076 | `fa4a95214fe46c7c8f14bdd4058dbb2b64bd66ef146191b11bb9989e5b50f7bd` |
+| `layer_138_yolo_input` | `[2, 255, 76, 76]` | 11783040 | -121.091614 | 10.796751 | -7.09564231 | `a5c167d37e8cc224eb3f987ef4a8c211798d2d0bdd31800043707f2e64b2a002` |
+| `layer_139_yolo` (49 NaN) | `[2, 255, 76, 76]` | 11783040 | | | | `d214db0f17eccca881d4c9446eb3fdbdb5910d004746f504e6aa4f9f07516772` |
+| `layer_139_yolo_cost` | `[1, 1]` | 4 | 0.395545483 | | | `7eac0de8cfb6e0a97efa9fa3ec264b5197dce820de8b6577f67dd6080eccb50c` |
+| `layer_139_yolo_delta` | `[2, 255, 76, 76]` | 11783040 | -0.326673448 | 0 | -2.73925235e-06 | `7e2b9bdffc91b437614c1fe1491bcff596b7ad3bf5139a5e7bd762cd212f0173` |
+| `layer_148_output` | `[2, 512, 38, 38]` | 5914624 | -5.40936852 | 33.3811646 | 0.197715624 | `e827a77ce5e76338889efa13c17bd8cce8c2117b5bf8d766c2eefbb00786668a` |
+| `layer_149_bias_updates` | `[1, 255]` | 1020 | -2.68337297 | 1.3329972 | -4.09236988e-05 | `2a28f1e7b4b28428b4691e4d06b7554e6d76789edad71317045753c58b025a64` |
+| `layer_149_weight_updates` | `[255, 512, 1, 1]` | 522240 | -2.13048792 | 2.98437357 | 0.00440575801 | `a9b4c0e6fced933c35ea228d44e6591503d7a32539ab8041bfd3a3288228cdae` |
+| `layer_149_yolo_input` | `[2, 255, 38, 38]` | 2945760 | -74.2264786 | 10.438118 | -7.63408398 | `f2247ca136aeaed4319cc6aa8f1905984de0d6b1d3aa42d7e22b0a6bab5529b4` |
+| `layer_150_yolo` | `[2, 255, 38, 38]` | 2945760 | -4.7988677 | 2.41801715 | 0.0254339359 | `b17b81cc4be73f5663de9fedbf3f56401c7930517f9697f50b7ea37c83b733cd` |
+| `layer_150_yolo_cost` | `[1, 1]` | 4 | 15.0076895 | | | `6ec71451ab4bdff204333e1a2abb738b3bee254d33fdb24bd0e7909cdabcd349` |
+| `layer_150_yolo_delta` | `[2, 255, 38, 38]` | 2945760 | -0.774721026 | 0.999998093 | -1.41707085e-08 | `0997ac4f77d368e242de5db5633fed82940c6b79076ce5be4d7fc2ba9688322b` |
+| `layer_159_output` | `[2, 1024, 19, 19]` | 2957312 | -3.40499473 | 28.9078064 | 0.183057072 | `a5a3b4e2eb04eb4930a93d8ba126b7597d3f6c572cb63539b7c19e65171334e6` |
+| `layer_160_bias_updates` | `[1, 255]` | 1020 | -0.975110292 | 1.8579402 | 0.0126094966 | `09bd3de18d990f4fb617e336b3ed0b7bb00199a2fc397382578c3ac97767c22c` |
+| `layer_160_weight_updates` | `[255, 1024, 1, 1]` | 1044480 | -2.81816149 | 4.37316942 | 0.00384405929 | `4c6dcc012d5c1cf4376d12196ae025b7f9109feae00a66bc9abc0566f2bcf0a0` |
+| `layer_160_yolo_input` | `[2, 255, 19, 19]` | 736440 | -48.4606743 | 14.6299171 | -7.45708193 | `1c5d49fa66e002fbad237c4996be1f9071bf457b0178a01a32708adbf05eb60f` |
+| `layer_161_yolo` | `[2, 255, 19, 19]` | 736440 | -3.02021289 | 2.1755774 | 0.0152260745 | `8f86322453d323fecf21f8a009f870f8562c14da965829ff6a989855bf2414b0` |
+| `layer_161_yolo_cost` | `[1, 1]` | 4 | 20.9444466 | | | `48c087dc17645da84878491bd16834b727522e05b3267b6d5e2b3aee1912ccf6` |
+| `layer_161_yolo_delta` | `[2, 255, 19, 19]` | 736440 | -0.953395545 | 0.999998391 | 1.74646746e-05 | `035e04e710f1ffb36ad2e512456fd9b629ac5b4ccad5934faad6bbc2bd03704d` |
+| `network_cost` | `[1, 1]` | 4 | 12.1158934 | | | `e6dfa773c11480ce7563875f8565d7596e5bd40e17fee241ed329fc65ada9e23` |
+| `rolling_mean_after` | `[1, 32]` | 128 | -1.47389162 | 1.82498217 | 0.00482733879 | `020d657e5444dcf790c058ba6756d5e727821a31725443238e880187cd7198fb` |
+| `rolling_mean_before` | `[1, 32]` | 128 | -1.43670189 | 1.81365252 | 0.00541309621 | `f3000c373df69cf00e2306e54490d808b8ce2bcc8e996547a5fd1790a8627602` |
+| `rolling_variance_after` | `[1, 32]` | 128 | 0.00300991512 | 2.34199667 | 0.749540856 | `ad8406790398fb59cfca7d2eef1820783cf72dbd5528e4d35f21c67197bd74c2` |
+| `rolling_variance_before` | `[1, 32]` | 128 | 0.00318251667 | 2.09600306 | 0.646856052 | `095e765b38c7bfad6e09075b8eb8aa9baacac853aa382913db8401b18890441e` |
+
+```
+v3 (iou loss, Normalizer: (iou: 0.07, obj: 1.00, cls: 1.00) Region 139 Avg (IOU: 0.000000), count: 1, class_loss = 0.197773, iou_loss = 0.000000, total_loss = 0.197773
+v3 (iou loss, Normalizer: (iou: 0.07, obj: 1.00, cls: 1.00) Region 150 Avg (IOU: 0.453356), count: 6, class_loss = 7.484712, iou_loss = 1.896934, total_loss = 9.381646
+v3 (iou loss, Normalizer: (iou: 0.07, obj: 1.00, cls: 1.00) Region 161 Avg (IOU: 0.395026), count: 9, class_loss = 10.451049, iou_loss = 0.389297, total_loss = 10.840345
+```
+
+### yolov7_train_step (86 011 516 bytes of `.bin`; learning_rate 0.00261, momentum 0.9, decay 0.0005; no `layer_000_output`)
+
+| Name | Shape | Bytes | min | max | mean | SHA-256 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `batch_mean` | `[1, 32]` | 128 | -0.219165415 | 0.270234704 | -0.0133869264 | `79746e4e6e6a8f4bc6166b2e6c7726a10557bd31f14f299b4e900b37dd9b89fc` |
+| `batch_variance` | `[1, 32]` | 128 | 0.00175370963 | 0.126476899 | 0.0432153958 | `45038f07005c5d6a88ce11c575e74aa28cd193167b626b083f2cb2c609e8b6b1` |
+| `input` | `[2, 3, 640, 640]` | 9830400 | 0 | 1 | 0.499923213 | `462eb4f97a655fd0c5c7d888eab55dbed0d45bf208ff969984fdedc0cf74a14a` |
+| `layer_000_bias_updates` | `[1, 32]` | 128 | 0 | 0 | 0 | `38723a2e5e8a17aa7950dc008209944e898f69a7bd10a23c839d341e935fd5ca` |
+| `layer_000_scale_updates` | `[1, 32]` | 128 | -0.00830242131 | 0.0085215196 | 0.000503225431 | `bde2cb76cca8191cbeddc20ce9d13cbcc4fda6ebed8ef6908a1fe56efd321a7f` |
+| `layer_000_weight_updates` | `[32, 3, 3, 3]` | 3456 | -0.120069996 | 0.100294963 | 0.00117627134 | `bb59c2accf96f965c6d67b25b3ff2c2a0b8ef485320d1ba061e6a73e899740d9` |
+| `layer_132_output` | `[2, 256, 80, 80]` | 13107200 | -0.278464556 | 21.2574291 | 0.656168833 | `67ed11c48c133fe89974e6a3591b22943568ca425c25428a8657595ea407a185` |
+| `layer_133_bias_updates` | `[1, 255]` | 1020 | -0.793023884 | 0 | -0.00706977634 | `8da5139834a24df616c7ad02f6dc4c8cf079b03a9b397255a417d0c2888bfba2` |
+| `layer_133_weight_updates` | `[255, 256, 1, 1]` | 261120 | -4.16600466 | 0.154136285 | -0.00616115814 | `68d4c24b7918da3b6e4f08274dfb44ddcbd680442d75e61f156a4ae2f138aeaa` |
+| `layer_133_yolo_input` | `[2, 255, 80, 80]` | 13056000 | 9.67126544e-19 | 0.998885095 | 0.0319109824 | `319fe4ea88c48dd2813f94671b6bb213ff926b63663005c9685868eac98ef4b5` |
+| `layer_134_yolo` | `[2, 255, 80, 80]` | 13056000 | -0.387484789 | 1.40034163 | 0.0319472654 | `527962db514242df8926c6db5d1d3149fdd7b2afd57db2e9fed87fbfd6969510` |
+| `layer_134_yolo_cost` | `[1, 1]` | 4 | 2.03216767 | | | `100ce9c93b49ef35e8ca70c49fb630ec4f5524f085d20c22cee234db107f6f7b` |
+| `layer_134_yolo_delta` | `[2, 255, 80, 80]` | 13056000 | -0.252521008 | 0 | -1.07865802e-05 | `0399448980c8fafa31b604b3a6fb77d0ba437c89a0f70bfc94b3a79b6f2a4c1d` |
+| `layer_136_output` | `[2, 512, 40, 40]` | 6553600 | -0.278464556 | 16.2083778 | 0.437475369 | `23e1b8e5c94df8f033e46870ee31721a9ca9601050c3f91b5daa04cc2dc26390` |
+| `layer_137_bias_updates` | `[1, 255]` | 1020 | -2.67797613 | 0.119615234 | -0.0273514561 | `dfe5b19ffcf7bc10618fb6c6068c1409705fd07d07006a70ddc83d93e852374a` |
+| `layer_137_weight_updates` | `[255, 512, 1, 1]` | 522240 | -7.27674866 | 0.735461652 | -0.0137457679 | `c52878363daee91e596efcea1e815c3bcb71dbc8f76c7d84bc2747cf5d13ce65` |
+| `layer_137_yolo_input` | `[2, 255, 40, 40]` | 3264000 | 5.22590807e-24 | 0.999866486 | 0.0314928842 | `93c2555c4e18f05020e8949c667db9f16842e173d86380e88bc224c29456d95f` |
+| `layer_138_yolo` | `[2, 255, 40, 40]` | 3264000 | -0.422270596 | 1.40814781 | 0.03143261 | `936e7148ac26b0064145b64642edcb77b8b742b6bf0d573735625deb54a489f5` |
+| `layer_138_yolo_cost` | `[1, 1]` | 4 | 17.5290718 | | | `7d9d9ca6cee1469e611ab4d4e9222aa111a33221dfc57ac6f77e785de8075ad5` |
+| `layer_138_yolo_delta` | `[2, 255, 40, 40]` | 3264000 | -0.802548051 | 0.999624848 | -5.79927902e-05 | `49bf725af07a7fb4f9b43a2eff5a80e19f332cc7a3157719f72b890bf82c7047` |
+| `layer_140_output` | `[2, 1024, 20, 20]` | 3276800 | -0.278464556 | 16.7893257 | 0.269453315 | `d4ccfed4279b34b27403408cb7cf7133a343c59bfd5bd683e723997cdb6a23e9` |
+| `layer_141_bias_updates` | `[1, 255]` | 1020 | -0.956705928 | 0.0626785532 | -0.0101967976 | `6675d46c9a36889574b8aca3bb7b5c374117ab30f41cd22d6c69379a1288f70a` |
+| `layer_141_weight_updates` | `[255, 1024, 1, 1]` | 1044480 | -3.25752163 | 0.622430086 | -0.00213415826 | `fa01ae3eff70c362c67e484074e01262f230f40f6160cb8509f41c0c3172bc51` |
+| `layer_141_yolo_input` | `[2, 255, 20, 20]` | 816000 | 6.82800077e-15 | 0.999947906 | 0.0296005533 | `f01dc6e465500f50a797721c5a49b51205c32f46799db725f19ebca253502933` |
+| `layer_142_yolo` | `[2, 255, 20, 20]` | 816000 | -0.432404965 | 1.43087089 | 0.0294549541 | `06c8b386292d366c35b64a49f978dc52f68e067ee9d9e3dec922d1dcbec84796` |
+| `layer_142_yolo_cost` | `[1, 1]` | 4 | 16.0619888 | | | `b137ed965c2ed6e72fe9e5bcb978f59ed92508507cb39b8df4f4864fa573683f` |
+| `layer_142_yolo_delta` | `[2, 255, 20, 20]` | 816000 | -0.867874563 | 0.99972862 | -5.36265388e-05 | `6a2db8d229064382ff4848f3a4e902b6192b474ad86112c028831052ad929186` |
+| `network_cost` | `[1, 1]` | 4 | 11.8744097 | | | `66aa041febc8f64f84b62df1da1f942a475ab34e3f0bef9f69cdf3e829d08f95` |
+| `rolling_mean_after` | `[1, 32]` | 128 | -0.20297122 | 0.249826193 | -0.0134676555 | `91d283ffc2427d03da97e60a81c142fa35ebceea9bb7553f6ac057b74d77ee54` |
+| `rolling_mean_before` | `[1, 32]` | 128 | -0.201171875 | 0.247558594 | -0.0134766251 | `23999a9800916726bf2b825d32db546fd98b054148e12a1f0c61ea37ab69ddd2` |
+| `rolling_variance_after` | `[1, 32]` | 128 | 0.0029469938 | 0.0351911858 | 0.0114601919 | `f5203a1c612063214f4f3bb8b2c8ab1cd76b692e945845dd4e4d2af2a0a35c71` |
+| `rolling_variance_before` | `[1, 32]` | 128 | 0.000277042389 | 0.0290985107 | 0.00793183595 | `cffdcb342e9fa5e428758d31dd613a27b41f62f994923e7b5db0ec2bd6c211f2` |
+
+```
+v3 (iou loss, Normalizer: (iou: 0.05, obj: 1.00, cls: 0.50) Region 134 Avg (IOU: 0.000000), count: 1, class_loss = 1.016084, iou_loss = 0.000000, total_loss = 1.016084
+v3 (iou loss, Normalizer: (iou: 0.05, obj: 1.00, cls: 0.50) Region 138 Avg (IOU: 0.350895), count: 6, class_loss = 8.748308, iou_loss = 0.456499, total_loss = 9.204807
+v3 (iou loss, Normalizer: (iou: 0.05, obj: 1.00, cls: 0.50) Region 142 Avg (IOU: 0.297029), count: 9, class_loss = 8.013420, iou_loss = 0.120522, total_loss = 8.133943
+```
+
+`truth` in all four directories is the 120-byte file of section 13 (`89cec5c9fccba5b3f630907f27ee13e58a6fe59decb892aa2a42d739df21f994`).
+
+## 22. Every head
+
+Built from the cfgs with the defaults of section 17 (`_darknet/heads_table.py`). The loss settings of every row were compared with the values Darknet parsed, which the dumps hold in `layer_<k>_yolo_delta.json`; all agree. Stride is network width over grid width. `truth_thresh` is 1 and `iou_thresh_kind` is `iou` everywhere.
+
+| Model | Layer | Grid h, w | Stride | mask | Anchors (px) | new_coords | scale_x_y | iou_loss | iou_thresh | ignore_thresh | nms_kind | beta_nms | max_delta | objectness_smooth | iou / obj / cls normalizer |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `yolov3-tiny` | 16 | 13, 13 | 32 | 3,4,5 | 81x82, 135x169, 344x319 | 0 | 1 | mse | 1 | 0.7 | default | 0.6 | unset | 0 | 0.75 / 1 / 1 |
+| `yolov3-tiny` | 23 | 26, 26 | 16 | 0,1,2 | 10x14, 23x27, 37x58 | 0 | 1 | mse | 1 | 0.7 | default | 0.6 | unset | 0 | 0.75 / 1 / 1 |
+| `yolov3` | 82 | 13, 13 | 32 | 6,7,8 | 116x90, 156x198, 373x326 | 0 | 1 | mse | 1 | 0.7 | default | 0.6 | unset | 0 | 0.75 / 1 / 1 |
+| `yolov3` | 94 | 26, 26 | 16 | 3,4,5 | 30x61, 62x45, 59x119 | 0 | 1 | mse | 1 | 0.7 | default | 0.6 | unset | 0 | 0.75 / 1 / 1 |
+| `yolov3` | 106 | 52, 52 | 8 | 0,1,2 | 10x13, 16x30, 33x23 | 0 | 1 | mse | 1 | 0.7 | default | 0.6 | unset | 0 | 0.75 / 1 / 1 |
+| `yolov4-tiny` | 30 | 13, 13 | 32 | 3,4,5 | 81x82, 135x169, 344x319 | 0 | 1.05 | ciou | 1 | 0.7 | greedynms | 0.6 | unset | 0 | 0.07 / 1 / 1 |
+| `yolov4-tiny` | 37 | 26, 26 | 16 | 1,2,3 | 23x27, 37x58, 81x82 | 0 | 1.05 | ciou | 1 | 0.7 | greedynms | 0.6 | unset | 0 | 0.07 / 1 / 1 |
+| `yolov4` | 139 | 76, 76 | 8 | 0,1,2 | 12x16, 19x36, 40x28 | 0 | 1.2 | ciou | 0.213 | 0.7 | greedynms | 0.6 | 5 | 0 | 0.07 / 1 / 1 |
+| `yolov4` | 150 | 38, 38 | 16 | 3,4,5 | 36x75, 76x55, 72x146 | 0 | 1.1 | ciou | 0.213 | 0.7 | greedynms | 0.6 | 5 | 0 | 0.07 / 1 / 1 |
+| `yolov4` | 161 | 19, 19 | 32 | 6,7,8 | 142x110, 192x243, 459x401 | 0 | 1.05 | ciou | 0.213 | 0.7 | greedynms | 0.6 | 5 | 0 | 0.07 / 1 / 1 |
+| `yolov7-tiny` | 90 | 52, 52 | 8 | 0,1,2 | 10x13, 16x30, 33x23 | 1 | 2 | ciou | 0.2 | 0.7 | diounms | 0.6 | 2 | 1 | 0.05 / 1 / 0.5 |
+| `yolov7-tiny` | 94 | 26, 26 | 16 | 3,4,5 | 30x61, 62x45, 59x119 | 1 | 2 | ciou | 0.2 | 0.7 | diounms | 0.6 | 2 | 1 | 0.05 / 1 / 0.5 |
+| `yolov7-tiny` | 98 | 13, 13 | 32 | 6,7,8 | 116x90, 156x198, 373x326 | 1 | 2 | ciou | 0.2 | 0.7 | diounms | 0.6 | 2 | 1 | 0.05 / 1 / 0.5 |
+| `yolov7` | 134 | 80, 80 | 8 | 0,1,2 | 12x16, 19x36, 40x28 | 1 | 2 | ciou | 0.2 | 0.7 | diounms | 0.6 | 2 | 1 | 0.05 / 1 / 0.5 |
+| `yolov7` | 138 | 40, 40 | 16 | 3,4,5 | 36x75, 76x55, 72x146 | 1 | 2 | ciou | 0.2 | 0.7 | diounms | 0.6 | 2 | 1 | 0.05 / 1 / 0.5 |
+| `yolov7` | 142 | 20, 20 | 32 | 6,7,8 | 142x110, 192x243, 459x401 | 1 | 2 | ciou | 0.2 | 0.7 | diounms | 0.6 | 2 | 1 | 0.05 / 1 / 0.5 |
+
+Three things the table shows that are easy to miss: the head order is coarse-to-fine in the v3 and v4-tiny cfgs and fine-to-coarse in `yolov4` and both v7; `yolov4-tiny` layer 37 has `mask = 1,2,3`, so anchor 3 belongs to both heads and anchor 0 to none; `yolov4` uses a different `scale_x_y` per head.
+
+## 23. Corrections to sections 4 and 11
+
+- Section 11 said `max_delta` is unset in the v4 cfgs. It is unset in `yolov4-tiny` and 5 in `yolov4`. The delta of 1.92664182 at `yolov4` layer 150 is inside that bound.
+- Sections 4 and 11 named 0.213 as the `iou_thresh` "in v4". That holds for `yolov4` only; `yolov4-tiny` has the default 1, so it assigns no extra anchors and skips step 3. Its second head still shows two assignments in section 14 because of the shared anchor above.
+- The `truth_thresh` statement of section 4 now covers all six cfgs: it is 1 in every head.
+
+## 24. Files and sizes after the third pass
+
+- New directories: `yolov3_train_step`, `yolov4_tiny_train_step`, `yolov4_train_step`, `yolov7_train_step`. New files in `yolov4`: the two of section 20.
+- `out/SHA256SUMS.txt` now lists 994 files.
+- `_darknet/out` is 569 MB; `_darknet` is 591 MB (`src` 17 MB, `build` 5.5 MB), inside the 600 MB budget with 9 MB to spare. Another pass needs `out` moved first.
+- The patch is 377 diff lines (334 added), SHA-256 `5e721e000eb370bf146840b39671ee19e964744169753545009fda44a2cdeba8`. New switches: `DARKNET_DUMP_ACTIVATION_LAYER=<k>` and `DARKNET_TRAIN_STEP_NO_FIRST_OUTPUT`. With them unset the earlier files are written unchanged: the 728 files of the second pass were re-checked after a rerun of `yolov4`, and only its `run_log.txt` (a timing) differed.
