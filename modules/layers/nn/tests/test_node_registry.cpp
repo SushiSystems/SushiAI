@@ -81,6 +81,7 @@ namespace
     const std::vector<MinimalCase> K_MINIMAL_CASES = {
         {"batchnorm2d", "{}", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"concat", "{}", {Shape{4, 4, 2}, Shape{4, 4, 3}}, Shape{4, 4, 5}},
+        {"add", "{}", {Shape{4, 4, 3}, Shape{4, 4, 3}}, Shape{4, 4, 3}},
     };
 
     /** @brief Describes one layer row's minimal object and the shape it reads. */
@@ -107,6 +108,8 @@ namespace
         {"flatten", "{}", Shape{8, 8, 2}},
         {"upsample", "{}", Shape{8, 8, 2}},
         {"silu", "{}", Shape{8, 8, 2}},
+        {"mish", "{}", Shape{8, 8, 2}},
+        {"slice_channels", R"({"offset": 0, "count": 1})", Shape{8, 8, 2}},
     };
 
     /** @brief Holds a model whose row 2 joins the model input with the row above it. */
@@ -190,15 +193,15 @@ namespace
 
 } // namespace
 
-/** @brief Tests that register_layers adds the 14 layer types, then batchnorm2d and concat. */
-TEST(Unit_NodeRegistry, RegisterLayersAddsFourteenLayersAndTwoNodes)
+/** @brief Tests that register_layers adds the 16 layer types, then batchnorm2d, concat and add. */
+TEST(Unit_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
 {
     const std::vector<std::string_view> expected_layers = {
         "linear",    "gelu",     "relu",      "tanh",      "sigmoid", "leaky_relu",
         "unflatten", "conv2d",   "maxpool2d", "avgpool2d", "global_avgpool",
-        "flatten",   "upsample", "silu",
+        "flatten",   "upsample", "silu",      "mish",      "slice_channels",
     };
-    const std::vector<std::string_view> expected_nodes = {"batchnorm2d", "concat"};
+    const std::vector<std::string_view> expected_nodes = {"batchnorm2d", "concat", "add"};
 
     NN::NodeRegistry registry;
     SA_EXPECT_OK(NN::register_layers(registry));
@@ -375,6 +378,82 @@ TEST(Unit_NodeRegistry, ALayerFactorysRefusalComesBackAsAStatus)
     SA_EXPECT_FAILURE(NN::make_node(registry, "linear", span_of(image),
                                     attributes_from(R"({"units": 3})"), "layer 4 'linear'"),
                       StatusCode::InvalidDescription, "layer 4 'linear'", "[8, 8, 2]", "'flatten'");
+}
+
+/** @brief Tests that the maxpool2d row reads trailing_padding as an integer or as [h, w]. */
+TEST(Unit_NodeRegistry, AMaxPoolRowReadsItsTrailingPadding)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> image = {Shape{13, 13, 2}};
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> both,
+        NN::make_node(registry, "maxpool2d", span_of(image),
+                      attributes_from(R"({"kernel": 2, "stride": 1, "trailing_padding": 1})"),
+                      "layer 0 'maxpool2d'"));
+    EXPECT_EQ(both->ports()[0].shape, (Shape{13, 13, 2}));
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> pair,
+        NN::make_node(registry, "maxpool2d", span_of(image),
+                      attributes_from(R"({"kernel": 2, "stride": 1, "trailing_padding": [1, 0]})"),
+                      "layer 0 'maxpool2d'"));
+    EXPECT_EQ(pair->ports()[0].shape, (Shape{13, 12, 2}));
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> absent,
+        NN::make_node(registry, "maxpool2d", span_of(image),
+                      attributes_from(R"({"kernel": 2, "stride": 1})"), "layer 0 'maxpool2d'"));
+    EXPECT_EQ(absent->ports()[0].shape, (Shape{12, 12, 2}));
+}
+
+/** @brief Tests that the avgpool2d row refuses trailing_padding as a key it does not know. */
+TEST(Unit_NodeRegistry, AnAvgPoolRowRefusesTrailingPadding)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> image = {Shape{13, 13, 2}};
+
+    SA_EXPECT_FAILURE(NN::make_node(registry, "avgpool2d", span_of(image),
+                                    attributes_from(R"({"kernel": 2, "trailing_padding": 1})"),
+                                    "layer 0 'avgpool2d'"),
+                      StatusCode::InvalidDescription, "layer 0 'avgpool2d'", "'trailing_padding'");
+}
+
+/** @brief Tests that the maxpool2d row refuses a negative trailing_padding and names it. */
+TEST(Unit_NodeRegistry, AMaxPoolRowRefusesANegativeTrailingPadding)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> image = {Shape{13, 13, 2}};
+
+    SA_EXPECT_FAILURE(NN::make_node(registry, "maxpool2d", span_of(image),
+                                    attributes_from(R"({"kernel": 2, "trailing_padding": -1})"),
+                                    "layer 0 'maxpool2d'"),
+                      StatusCode::InvalidDescription, "layer 0 'maxpool2d'",
+                      "non-negative trailing padding", "-1,-1");
+}
+
+/** @brief Tests that the slice_channels row keeps the channels its offset and count name. */
+TEST(Unit_NodeRegistry, ASliceChannelsRowReadsItsOffsetAndCount)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
+    const std::vector<Shape> image = {Shape{4, 4, 64}};
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> upper_half,
+                            NN::make_node(registry, "slice_channels", span_of(image),
+                                          attributes_from(R"({"offset": 32, "count": 32})"),
+                                          "layer 0 'slice_channels'"));
+    EXPECT_EQ(upper_half->ports()[0].shape, (Shape{4, 4, 32}));
+
+    SA_EXPECT_FAILURE(NN::make_node(registry, "slice_channels", span_of(image),
+                                    attributes_from(R"({"offset": 48, "count": 32})"),
+                                    "layer 0 'slice_channels'"),
+                      StatusCode::InvalidDescription, "layer 0 'slice_channels'", "offset=48",
+                      "count=32");
+
+    SA_EXPECT_FAILURE(NN::make_node(registry, "slice_channels", span_of(image),
+                                    attributes_from(R"({"offset": 32})"),
+                                    "layer 0 'slice_channels'"),
+                      StatusCode::InvalidDescription, "layer 0 'slice_channels'", "count");
 }
 
 /** @brief Tests that an unknown type fails naming the row, the type and every row's type. */

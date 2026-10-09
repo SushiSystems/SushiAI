@@ -117,6 +117,8 @@ namespace
         {"flatten", "{}", Shape{8, 8, 2}, Shape{128}},
         {"upsample", "{}", Shape{8, 8, 2}, Shape{16, 16, 2}},
         {"silu", "{}", Shape{8, 8, 2}, Shape{8, 8, 2}},
+        {"mish", "{}", Shape{8, 8, 2}, Shape{8, 8, 2}},
+        {"slice_channels", R"({"offset": 0, "count": 1})", Shape{8, 8, 2}, Shape{8, 8, 1}},
     };
 
     /** @brief Builds the layer @p type names from @p attributes, as "layer 0 '<type>'". */
@@ -229,13 +231,14 @@ TEST(Unit_LayerRegistry, EveryRowHasAMinimalCase)
         EXPECT_EQ(K_MINIMAL_CASES[i].type, layers[i].type);
 }
 
-/** @brief Tests that the registry spells its fourteen type strings as model files do, in order. */
+/** @brief Tests that the registry spells its sixteen type strings as model files do, in order. */
 TEST(Unit_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
 {
     const std::vector<std::string_view> expected = {
         "linear",     "gelu",      "relu",   "tanh",      "sigmoid",
         "leaky_relu", "unflatten", "conv2d", "maxpool2d", "avgpool2d",
-        "global_avgpool", "flatten", "upsample", "silu",
+        "global_avgpool", "flatten", "upsample", "silu", "mish",
+        "slice_channels",
     };
 
     const NN::NodeRegistry registry = make_layer_registry();

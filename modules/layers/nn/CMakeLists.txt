@@ -8,8 +8,10 @@
 
 sushiai_add_module(NAME nn TIER layers
     SOURCES
+        source/add.cpp
         source/avg_pool2d.cpp
         source/batch_norm2d.cpp
+        source/channel_slice.cpp
         source/concat.cpp
         source/conv2d.cpp
         source/depthwise_conv2d.cpp
@@ -23,6 +25,7 @@ sushiai_add_module(NAME nn TIER layers
         source/layers.cpp
         source/leaky_relu.cpp
         source/max_pool2d.cpp
+        source/mish.cpp
         source/model_graph.cpp
         source/model_outputs.cpp
         source/model_state.cpp
@@ -34,9 +37,11 @@ sushiai_add_module(NAME nn TIER layers
         source/upsample2d.cpp
     PUBLIC_DEPENDS core graph config
     TESTS
+        tests/test_add.cpp
         tests/test_avg_pool2d.cpp
         tests/test_batch_norm2d.cpp
         tests/test_buffer.cpp
+        tests/test_channel_slice.cpp
         tests/test_concat.cpp
         tests/test_config.cpp
         tests/test_depthwise_conv2d.cpp
@@ -46,6 +51,7 @@ sushiai_add_module(NAME nn TIER layers
         tests/test_layer_stack.cpp
         tests/test_leaky_relu.cpp
         tests/test_max_pool2d.cpp
+        tests/test_mish.cpp
         tests/test_model_graph.cpp
         tests/test_model_outputs.cpp
         tests/test_module.cpp

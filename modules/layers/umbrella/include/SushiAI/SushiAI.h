@@ -150,3 +150,7 @@
 #include <SushiAI/train/training_step.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
+
+#include <SushiAI/nn/add.hpp>
+#include <SushiAI/nn/channel_slice.hpp>
+#include <SushiAI/nn/mish.hpp>

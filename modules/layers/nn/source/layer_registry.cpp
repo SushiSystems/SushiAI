@@ -36,8 +36,10 @@
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/nn/add.hpp>
 #include <SushiAI/nn/avg_pool2d.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
+#include <SushiAI/nn/channel_slice.hpp>
 #include <SushiAI/nn/concat.hpp>
 #include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/flatten.hpp>
@@ -45,6 +47,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/leaky_relu.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
+#include <SushiAI/nn/mish.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
@@ -69,11 +72,18 @@ namespace SushiAI
             constexpr std::string_view K_CONV2D_KEYS[] = {
                 "filters", "kernel", "stride", "padding", "dilation", "use_bias"};
 
-            /** @brief Lists every key a "maxpool2d" or an "avgpool2d" layer accepts. */
-            constexpr std::string_view K_POOL_KEYS[] = {"kernel", "stride", "padding"};
+            /** @brief Lists every key an "avgpool2d" layer accepts. */
+            constexpr std::string_view K_AVGPOOL2D_KEYS[] = {"kernel", "stride", "padding"};
+
+            /** @brief Lists every key a "maxpool2d" layer accepts, trailing padding included. */
+            constexpr std::string_view K_MAXPOOL2D_KEYS[] = {"kernel", "stride", "padding",
+                                                             "trailing_padding"};
 
             /** @brief Lists every key an "upsample" layer accepts. */
             constexpr std::string_view K_UPSAMPLE_KEYS[] = {"scale"};
+
+            /** @brief Lists every key a "slice_channels" layer accepts. */
+            constexpr std::string_view K_SLICE_CHANNELS_KEYS[] = {"offset", "count"};
 
             /** @brief Holds one setting of a 2-D window along its two axes. */
             struct AxisPair
@@ -237,21 +247,16 @@ namespace SushiAI
                 return adapt(L{}, input, context);
             }
 
-            /** @brief Builds a pooling layer of type @p Pool from the keys both pools share. */
-            template<typename Pool>
-            std::unique_ptr<Layer> make_pool(const Shape& input,
-                                              const Config::Value& attributes,
-                                              std::string_view context)
+            /** @brief Reads the window of a pooling row: its kernel, stride and padding. */
+            Graph::ConvGeometry read_pool_geometry(const Config::Value& attributes,
+                                                   std::string_view context)
             {
-                attributes.reject_unknown_keys(context, as_span(K_POOL_KEYS));
-
                 const AxisPair kernel = read_axis_pair(attributes, "kernel", context);
                 const AxisPair stride = read_axis_pair_or(attributes, "stride", context, kernel);
                 const AxisPair padding =
                     read_axis_pair_or(attributes, "padding", context, AxisPair{0, 0});
 
-                return adapt(Pool{make_geometry(kernel, stride, padding, AxisPair{1, 1})},
-                             input, context);
+                return make_geometry(kernel, stride, padding, AxisPair{1, 1});
             }
 
             /** @brief Reports whether row @p index reads port 0 of the row before it only. */
@@ -292,6 +297,27 @@ namespace SushiAI
                 }
 
                 return listed;
+            }
+
+            /** @brief Builds a Mish, which takes no key. */
+            std::unique_ptr<Layer> make_mish(const Shape& input, const Config::Value& attributes,
+                                             std::string_view context)
+            {
+                return make_keyless<Mish>(input, attributes, context);
+            }
+
+            /** @brief Builds a ChannelSlice from "offset" and "count", both required. */
+            std::unique_ptr<Layer> make_slice_channels(const Shape& input,
+                                                       const Config::Value& attributes,
+                                                       std::string_view context)
+            {
+                attributes.reject_unknown_keys(context, as_span(K_SLICE_CHANNELS_KEYS));
+
+                ChannelSlice layer{};
+                layer.offset = read_int(attributes, "offset", context);
+                layer.count = read_int(attributes, "count", context);
+
+                return adapt(layer, input, context);
             }
         }
 
@@ -402,14 +428,24 @@ namespace SushiAI
                                                const Config::Value& attributes,
                                                std::string_view context)
         {
-            return make_pool<MaxPool2d>(input, attributes, context);
+            attributes.reject_unknown_keys(context, as_span(K_MAXPOOL2D_KEYS));
+
+            MaxPool2d layer{read_pool_geometry(attributes, context)};
+            const AxisPair trailing =
+                read_axis_pair_or(attributes, "trailing_padding", context, AxisPair{0, 0});
+            layer.trailing_pad_h = trailing.h;
+            layer.trailing_pad_w = trailing.w;
+
+            return adapt(std::move(layer), input, context);
         }
 
         std::unique_ptr<Layer> make_avgpool2d(const Shape& input,
                                                const Config::Value& attributes,
                                                std::string_view context)
         {
-            return make_pool<AvgPool2d>(input, attributes, context);
+            attributes.reject_unknown_keys(context, as_span(K_AVGPOOL2D_KEYS));
+
+            return adapt(AvgPool2d{read_pool_geometry(attributes, context)}, input, context);
         }
 
         std::unique_ptr<Layer> make_global_avgpool(const Shape& input,
@@ -461,8 +497,11 @@ namespace SushiAI
             SA_TRY(registry.add(LayerEntry{"flatten", &make_flatten}));
             SA_TRY(registry.add(LayerEntry{"upsample", &make_upsample}));
             SA_TRY(registry.add(LayerEntry{"silu", &make_silu}));
+            SA_TRY(registry.add(LayerEntry{"mish", &make_mish}));
+            SA_TRY(registry.add(LayerEntry{"slice_channels", &make_slice_channels}));
             SA_TRY(registry.add(NodeEntry{"batchnorm2d", &make_batch_norm2d_node}));
             SA_TRY(registry.add(NodeEntry{"concat", &make_concat_node}));
+            SA_TRY(registry.add(NodeEntry{"add", &make_add_node}));
 
             return Status();
         }
