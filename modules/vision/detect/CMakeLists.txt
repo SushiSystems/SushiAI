@@ -8,19 +8,19 @@
 
 sushiai_add_module(NAME detect TIER vision
     SOURCES
-        source/anchor_leaves.cpp
-        source/anchors.cpp
-        source/assigner.cpp
-        source/assigner_config.cpp
+        source/free/anchor_leaves.cpp
+        source/free/anchors.cpp
+        source/free/assigner.cpp
+        source/free/assigner_config.cpp
         source/average_precision.cpp
-        source/box_coding.cpp
+        source/free/box_coding.cpp
         source/box_format.cpp
         source/detections_nms.cpp
         source/detections_topk.cpp
         source/ground_truth.cpp
         source/iou.cpp
-        source/level_rows.cpp
-        source/target_leaves.cpp
+        source/free/level_rows.cpp
+        source/free/target_leaves.cpp
         source/top_k.cpp
     PRIVATE_DEPENDS core
     EXTERNAL_PUBLIC SushiRuntime::SushiRuntime

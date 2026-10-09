@@ -31,17 +31,17 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/vision/detect/anchors.hpp>
-#include <SushiAI/vision/detect/box_coding.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
+#include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
-#include <SushiAI/vision/detect/level_rows.hpp>
+#include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <common/reference_fixture.hpp>
 #include <common/test_throws.hpp>
 
 namespace
 {
-    using SushiAI::Vision::Detect::FeatureLevel;
+    using SushiAI::Vision::Detect::Free::FeatureLevel;
     using SushiAI::Test::near_reference;
     using SushiAI::Test::ReferenceFile;
     using SushiAI::Test::ReferenceTensor;
@@ -78,7 +78,7 @@ namespace
         ReferenceGrid grid;
         grid.points.resize(K_REFERENCE_ANCHORS * 2);
         grid.strides.resize(K_REFERENCE_ANCHORS);
-        SushiAI::Vision::Detect::make_anchors(K_REFERENCE_LEVELS, grid.points, grid.strides);
+        SushiAI::Vision::Detect::Free::make_anchors(K_REFERENCE_LEVELS, grid.points, grid.strides);
         return grid;
     }
 
@@ -100,7 +100,8 @@ namespace
                 return raw.reason;
 
             const std::int64_t cells = level.height * level.width;
-            SushiAI::Vision::Detect::join_level(raw.floats(), {1, 8400, 4, offset, cells}, joined);
+            SushiAI::Vision::Detect::Free::join_level(raw.floats(), {1, 8400, 4, offset, cells},
+                                                      joined);
             offset += cells;
         }
         return {};
@@ -113,7 +114,7 @@ TEST(Unit_DetectBoxes, DecodesDistancesToCorners)
     const std::vector<float> points{1.5f, 2.5f};
     const std::vector<float> distances{0.5f, 1.0f, 1.5f, 2.0f};
     std::vector<float> boxes(4);
-    SushiAI::Vision::Detect::decode_xyxy(distances, points, boxes);
+    SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes);
 
     const std::vector<float> expected{1.5f - 0.5f, 2.5f - 1.0f, 1.5f + 1.5f, 2.5f + 2.0f};
     EXPECT_TRUE(near_reference(boxes, expected, K_EXACT));
@@ -125,7 +126,7 @@ TEST(Unit_DetectBoxes, DecodesDistancesToCentreAndSize)
     const std::vector<float> points{1.5f, 2.5f};
     const std::vector<float> distances{0.5f, 1.0f, 1.5f, 2.0f};
     std::vector<float> boxes(4);
-    SushiAI::Vision::Detect::decode_xywh(distances, points, boxes);
+    SushiAI::Vision::Detect::Free::decode_xywh(distances, points, boxes);
 
     const std::vector<float> expected{(1.0f + 3.0f) / 2.0f, (1.5f + 4.5f) / 2.0f, 3.0f - 1.0f,
                                       4.5f - 1.5f};
@@ -139,7 +140,7 @@ TEST(Unit_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
     const std::vector<float> distances{0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f,
                                        0.0f, 0.0f, 2.0f, 2.0f, 0.5f, 0.5f, 1.5f, 1.5f};
     std::vector<float> boxes(16);
-    SushiAI::Vision::Detect::decode_xyxy(distances, points, boxes);
+    SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes);
 
     const std::vector<float> expected{0.0f, 0.0f, 1.0f, 1.0f, 0.5f, 0.5f, 2.5f, 0.5f,
                                       0.5f, 0.5f, 2.5f, 2.5f, 1.0f, 0.0f, 3.0f, 2.0f};
@@ -154,8 +155,8 @@ TEST(Unit_DetectBoxes, EncodeInvertsDecode)
                                        0.5f,  3.0f, 1.5f,  1.5f, 0.0f, 4.0f};
     std::vector<float> boxes(12);
     std::vector<float> recovered(12);
-    SushiAI::Vision::Detect::decode_xyxy(distances, points, boxes);
-    SushiAI::Vision::Detect::encode_distances(points, boxes, recovered);
+    SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes);
+    SushiAI::Vision::Detect::Free::encode_distances(points, boxes, recovered);
 
     EXPECT_TRUE(near_reference(recovered, distances, K_EXACT));
 }
@@ -166,7 +167,7 @@ TEST(Unit_DetectBoxes, ScalesEachBoxByItsAnchorStride)
     const std::vector<float> boxes{1.0f, 2.0f, 3.0f, 4.0f, 1.0f, 2.0f, 3.0f, 4.0f};
     const std::vector<float> strides{8.0f, 16.0f};
     std::vector<float> scaled(8);
-    SushiAI::Vision::Detect::scale_boxes(boxes, strides, scaled);
+    SushiAI::Vision::Detect::Free::scale_boxes(boxes, strides, scaled);
 
     const std::vector<float> expected{8.0f, 16.0f, 24.0f, 32.0f, 16.0f, 32.0f, 48.0f, 64.0f};
     EXPECT_TRUE(near_reference(scaled, expected, K_EXACT));
@@ -193,8 +194,8 @@ TEST(Unit_DetectBoxes, RejectsRowsThatDoNotCoverTheAnchors)
     const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f};
     const std::vector<float> distances(12, 1.0f);
     std::vector<float> boxes(12);
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::decode_xyxy(distances, points, boxes), "2 anchors",
-                    "12");
+    SA_EXPECT_ERROR(SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes),
+                    "2 anchors", "12");
 }
 
 /** @brief Tests that decoding the reference's raw one-to-many boxes gives its xywh decode. */
@@ -208,8 +209,8 @@ TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToManyDecode)
 
     const ReferenceGrid grid = make_reference_grid();
     std::vector<float> boxes(raw.size());
-    SushiAI::Vision::Detect::decode_xywh(raw, grid.points, boxes);
-    SushiAI::Vision::Detect::scale_boxes(boxes, grid.strides, boxes);
+    SushiAI::Vision::Detect::Free::decode_xywh(raw, grid.points, boxes);
+    SushiAI::Vision::Detect::Free::scale_boxes(boxes, grid.strides, boxes);
 
     EXPECT_TRUE(near_reference(boxes, reference.floats(), K_DECODE_TOLERANCE));
 }
@@ -225,8 +226,8 @@ TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
 
     const ReferenceGrid grid = make_reference_grid();
     std::vector<float> boxes(raw.size());
-    SushiAI::Vision::Detect::decode_xyxy(raw, grid.points, boxes);
-    SushiAI::Vision::Detect::scale_boxes(boxes, grid.strides, boxes);
+    SushiAI::Vision::Detect::Free::decode_xyxy(raw, grid.points, boxes);
+    SushiAI::Vision::Detect::Free::scale_boxes(boxes, grid.strides, boxes);
 
     EXPECT_TRUE(near_reference(boxes, reference.floats(), K_DECODE_TOLERANCE));
 }
@@ -242,8 +243,8 @@ TEST(Unit_DetectBoxes, EncodeInvertsTheDecodeOfTheReferenceBoxes)
     const ReferenceGrid grid = make_reference_grid();
     std::vector<float> boxes(raw.size());
     std::vector<float> recovered(raw.size());
-    SushiAI::Vision::Detect::decode_xyxy(raw, grid.points, boxes);
-    SushiAI::Vision::Detect::encode_distances(grid.points, boxes, recovered);
+    SushiAI::Vision::Detect::Free::decode_xyxy(raw, grid.points, boxes);
+    SushiAI::Vision::Detect::Free::encode_distances(grid.points, boxes, recovered);
 
     EXPECT_TRUE(near_reference(recovered, raw, K_ROUND_TRIP_TOLERANCE));
 }

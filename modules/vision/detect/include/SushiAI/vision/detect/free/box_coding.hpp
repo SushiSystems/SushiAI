@@ -32,7 +32,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /**
          * @brief Decodes `[B, A, 4]` distances about `[A, 2]` anchor points into x1 y1 x2 y2.
@@ -70,5 +70,5 @@ namespace SushiAI
                          SushiRuntime::span<const float> strides,
                          SushiRuntime::span<float> scaled);
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

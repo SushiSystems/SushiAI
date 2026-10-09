@@ -33,7 +33,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /**
          * @brief Holds the targets of every anchor of a batch, at full shape.
@@ -52,5 +52,5 @@ namespace SushiAI
             std::vector<std::int64_t> target_indices;  /**< `[B, A]` row of the assigned box. */
         };
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

@@ -26,13 +26,13 @@
  * @see modules/vision/detect/README.md
  */
 
-#include <SushiAI/vision/detect/assigner_config.hpp>
+#include <SushiAI/vision/detect/free/assigner_config.hpp>
 
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         namespace
         {
@@ -90,5 +90,5 @@ namespace SushiAI
             return make_branch_config(K_ONE_TO_ONE_TOPK, K_ONE_TO_ONE_TOPK2, num_classes, strides);
         }
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

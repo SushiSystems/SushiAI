@@ -33,11 +33,11 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/vision/detect/assignment.hpp>
+#include <SushiAI/vision/detect/free/assignment.hpp>
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /** @brief Holds the box an unassigned row carries: x1 y1 x2 y2 in grid units. */
         inline constexpr std::array<float, 4> K_SAFE_BOX = {0.0f, 0.0f, 1.0f, 1.0f};
@@ -93,5 +93,5 @@ namespace SushiAI
                                  const TargetLeafInputs& inputs,
                                  TargetLeaves& leaves);
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

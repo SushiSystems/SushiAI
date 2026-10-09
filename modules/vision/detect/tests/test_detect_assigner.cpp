@@ -31,24 +31,24 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/vision/detect/anchors.hpp>
-#include <SushiAI/vision/detect/assigner.hpp>
-#include <SushiAI/vision/detect/assigner_config.hpp>
-#include <SushiAI/vision/detect/assignment.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
+#include <SushiAI/vision/detect/free/assigner.hpp>
+#include <SushiAI/vision/detect/free/assigner_config.hpp>
+#include <SushiAI/vision/detect/free/assignment.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
-#include <SushiAI/vision/detect/target_leaves.hpp>
+#include <SushiAI/vision/detect/free/target_leaves.hpp>
 #include <common/reference_fixture.hpp>
 #include <common/test_throws.hpp>
 
 namespace
 {
-    using SushiAI::Vision::Detect::AssignerConfig;
-    using SushiAI::Vision::Detect::AssignerInputs;
-    using SushiAI::Vision::Detect::Assignment;
-    using SushiAI::Vision::Detect::FeatureLevel;
+    using SushiAI::Vision::Detect::Free::AssignerConfig;
+    using SushiAI::Vision::Detect::Free::AssignerInputs;
+    using SushiAI::Vision::Detect::Free::Assignment;
+    using SushiAI::Vision::Detect::Free::FeatureLevel;
     using SushiAI::Vision::Detect::GroundTruthBatch;
-    using SushiAI::Vision::Detect::TargetLeaves;
-    using SushiAI::Vision::Detect::TaskAlignedAssigner;
+    using SushiAI::Vision::Detect::Free::TargetLeaves;
+    using SushiAI::Vision::Detect::Free::TaskAlignedAssigner;
     using SushiAI::Test::equal_reference;
     using SushiAI::Test::near_reference;
 
@@ -297,7 +297,7 @@ namespace
         const std::vector<float> point_values = points.floats();
         AssignerInputs inputs;
         inputs.batch = 1;
-        inputs.anchors = SushiAI::Vision::Detect::count_anchors(K_REFERENCE_LEVELS);
+        inputs.anchors = SushiAI::Vision::Detect::Free::count_anchors(K_REFERENCE_LEVELS);
         inputs.max_boxes = truth.max_boxes;
         inputs.scores = score_values;
         inputs.boxes = box_values;
@@ -337,7 +337,8 @@ namespace
 TEST(Unit_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
-    const AssignerConfig config = SushiAI::Vision::Detect::one_to_many_assigner_config(80, strides);
+    const AssignerConfig config =
+        SushiAI::Vision::Detect::Free::one_to_many_assigner_config(80, strides);
 
     // The values are "assigner.one2many" of loss.sacp in tests/fixtures/yolo26/MANIFEST.json.
     EXPECT_EQ(config.topk, 10);
@@ -353,7 +354,8 @@ TEST(Unit_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
 TEST(Unit_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
-    const AssignerConfig config = SushiAI::Vision::Detect::one_to_one_assigner_config(80, strides);
+    const AssignerConfig config =
+        SushiAI::Vision::Detect::Free::one_to_one_assigner_config(80, strides);
 
     // The values are "assigner.one2one" of loss.sacp in tests/fixtures/yolo26/MANIFEST.json.
     EXPECT_EQ(config.topk, 7);
@@ -369,11 +371,14 @@ TEST(Unit_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
     const std::vector<float> two{4.0f, 12.0f};
     const std::vector<float> one{4.0f};
     const std::vector<float> none;
-    EXPECT_NEAR(SushiAI::Vision::Detect::one_to_many_assigner_config(3, two).stride_val, 12.0f,
+    EXPECT_NEAR(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, two).stride_val,
+                12.0f,
                 K_EXACT);
-    EXPECT_NEAR(SushiAI::Vision::Detect::one_to_many_assigner_config(3, one).stride_val, 4.0f,
+    EXPECT_NEAR(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, one).stride_val,
+                4.0f,
                 K_EXACT);
-    EXPECT_NEAR(SushiAI::Vision::Detect::one_to_many_assigner_config(3, none).stride_val, 16.0f,
+    EXPECT_NEAR(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, none).stride_val,
+                16.0f,
                 K_EXACT);
 }
 
@@ -418,7 +423,8 @@ TEST(Unit_DetectAssigner, TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta)
     scene.scores[5 * K_CLASSES + 1] = 0.25f;
     scene.scores[10 * K_CLASSES + 1] = 0.81f;
 
-    AssignerConfig one = SushiAI::Vision::Detect::one_to_many_assigner_config(K_CLASSES, strides);
+    AssignerConfig one =
+        SushiAI::Vision::Detect::Free::one_to_many_assigner_config(K_CLASSES, strides);
     one.topk = 1;
     one.topk2 = 1;
     AssignerConfig two = one;
@@ -799,9 +805,9 @@ TEST(Unit_DetectTargetLeaves, BuildsTheLossLeavesOfAnAssignment)
     const std::vector<FeatureLevel> levels{{4, 4, K_GRID_STRIDE}};
     std::vector<float> points(K_GRID_ANCHORS * 2);
     std::vector<float> strides(K_GRID_ANCHORS);
-    SushiAI::Vision::Detect::make_anchors(levels, points, strides);
+    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::build_target_leaves(
+    SushiAI::Vision::Detect::Free::build_target_leaves(
         assignment, {points, strides, 32.0f, 64.0f}, leaves);
 
     // The three weights are 1, 2/3 and 1/3, so their sum is 2 and anchor 5 holds half of it.
@@ -832,12 +838,12 @@ TEST(Unit_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
     const std::vector<FeatureLevel> levels{{2, 2, 8.0f}, {1, 1, 16.0f}};
     std::vector<float> points(10);
     std::vector<float> strides(5);
-    SushiAI::Vision::Detect::make_anchors(levels, points, strides);
+    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
     Assignment assignment = make_idle_assignment(2, 5);
     set_foreground(assignment, 1, {2.0f, 0.0f, 18.0f, 20.0f}, {0.5f, 0.0f});
     set_foreground(assignment, 9, {0.0f, 4.0f, 16.0f, 12.0f}, {0.25f, 0.75f});
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::build_target_leaves(
+    SushiAI::Vision::Detect::Free::build_target_leaves(
         assignment, {points, strides, 32.0f, 64.0f}, leaves);
 
     // The weights are 0.5 and 1, so their sum is 1.5 and the rows hold 1/3 and 2/3 of it.
@@ -883,9 +889,9 @@ TEST(Unit_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
     const std::vector<FeatureLevel> levels{{4, 4, K_GRID_STRIDE}};
     std::vector<float> points(K_GRID_ANCHORS * 2);
     std::vector<float> strides(K_GRID_ANCHORS);
-    SushiAI::Vision::Detect::make_anchors(levels, points, strides);
+    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::build_target_leaves(
+    SushiAI::Vision::Detect::Free::build_target_leaves(
         assignment, {points, strides, 32.0f, 32.0f}, leaves);
 
     const std::vector<float> safe{0.0f, 0.0f, 1.0f, 1.0f};
@@ -917,9 +923,9 @@ TEST(Unit_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
     const std::vector<FeatureLevel> levels{{4, 4, K_GRID_STRIDE}};
     std::vector<float> points(K_GRID_ANCHORS * 2);
     std::vector<float> strides(K_GRID_ANCHORS);
-    SushiAI::Vision::Detect::make_anchors(levels, points, strides);
+    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::build_target_leaves(
+    SushiAI::Vision::Detect::Free::build_target_leaves(
         assignment, {points, strides, 32.0f, 32.0f}, leaves);
 
     EXPECT_NEAR(leaves.target_scores_sum[0], 1.0f, K_EXACT);
@@ -960,7 +966,7 @@ TEST(Unit_DetectAssigner, ReproducesTheReferenceOneToManyAssignment)
 
     // 31 is "foreground_anchor_count.one2many" of loss.sacp in MANIFEST.json; 4 of them hold box 3.
     expect_reference_assignment(
-        "one2many", SushiAI::Vision::Detect::one_to_many_assigner_config(80, strides), 31, 4);
+        "one2many", SushiAI::Vision::Detect::Free::one_to_many_assigner_config(80, strides), 31, 4);
 }
 
 /** @brief Tests that the one-to-one assigner reproduces the reference's assignment outputs. */
@@ -970,5 +976,5 @@ TEST(Unit_DetectAssigner, ReproducesTheReferenceOneToOneAssignment)
 
     // 4 is "foreground_anchor_count.one2one" of loss.sacp in MANIFEST.json; 1 of them holds box 3.
     expect_reference_assignment(
-        "one2one", SushiAI::Vision::Detect::one_to_one_assigner_config(80, strides), 4, 1);
+        "one2one", SushiAI::Vision::Detect::Free::one_to_one_assigner_config(80, strides), 4, 1);
 }

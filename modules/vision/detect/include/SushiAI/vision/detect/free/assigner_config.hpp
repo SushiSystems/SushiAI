@@ -34,7 +34,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         /**
          * @brief Holds the settings of one task-aligned assigner.
@@ -67,5 +67,5 @@ namespace SushiAI
         [[nodiscard]] AssignerConfig one_to_one_assigner_config(
             std::int64_t num_classes, SushiRuntime::span<const float> strides);
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

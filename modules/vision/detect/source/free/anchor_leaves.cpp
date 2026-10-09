@@ -26,7 +26,7 @@
  * @see modules/vision/detect/README.md
  */
 
-#include <SushiAI/vision/detect/anchor_leaves.hpp>
+#include <SushiAI/vision/detect/free/anchor_leaves.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -36,7 +36,7 @@
 
 namespace SushiAI
 {
-    namespace Vision::Detect
+    namespace Vision::Detect::Free
     {
         namespace
         {
@@ -74,5 +74,5 @@ namespace SushiAI
             repeat_first_image(leaves.strides, anchors * K_BOX_VALUES);
         }
 
-    } // namespace Vision::Detect
+    } // namespace Vision::Detect::Free
 } // namespace SushiAI

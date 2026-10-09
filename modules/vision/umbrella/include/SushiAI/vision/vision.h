@@ -49,22 +49,22 @@
 #include <SushiAI/vision/imaging/rectangle.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
 
-#include <SushiAI/vision/detect/anchor_leaves.hpp>
-#include <SushiAI/vision/detect/anchors.hpp>
-#include <SushiAI/vision/detect/assigner.hpp>
-#include <SushiAI/vision/detect/assigner_config.hpp>
-#include <SushiAI/vision/detect/assignment.hpp>
+#include <SushiAI/vision/detect/free/anchor_leaves.hpp>
+#include <SushiAI/vision/detect/free/anchors.hpp>
+#include <SushiAI/vision/detect/free/assigner.hpp>
+#include <SushiAI/vision/detect/free/assigner_config.hpp>
+#include <SushiAI/vision/detect/free/assignment.hpp>
 #include <SushiAI/vision/detect/average_precision.hpp>
-#include <SushiAI/vision/detect/box_coding.hpp>
+#include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
 #include <SushiAI/vision/detect/detections_topk.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
-#include <SushiAI/vision/detect/level_rows.hpp>
+#include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
-#include <SushiAI/vision/detect/target_leaves.hpp>
+#include <SushiAI/vision/detect/free/target_leaves.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 #include <SushiAI/vision/blocks/attention.hpp>

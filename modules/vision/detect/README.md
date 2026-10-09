@@ -1,5 +1,11 @@
 # detect
 
+The module has three parts: the root, which holds what both detection families share, in namespace
+`SushiAI::Vision::Detect`; `free/`, which holds the anchor-free path of YOLO26, in
+`SushiAI::Vision::Detect::Free`; and `anchor/`, which will hold anchor-box detection and is not
+written yet. Headings below name each header with its folder, so `free/` headers carry the prefix
+and root headers keep their bare names.
+
 The parts of a detector's training and inference that run on the host over plain arrays: anchor
 grids, box coding, IoU, label assignment, the leaves a masked loss reads, both postprocess paths
 and the validation metric. Every unit is a function or a small class over `SushiRuntime::span`,
@@ -18,25 +24,25 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 
 | Header | Holds |
 | --- | --- |
-| `anchors.hpp` | `FeatureLevel`, `K_POINT_VALUES`, `count_anchors`, `make_anchors`, `scale_points` |
-| `level_rows.hpp` | `LevelPlacement`, `join_level`, `split_level` |
-| `anchor_leaves.hpp` | `AnchorLeaves`, `build_anchor_leaves` |
+| `free/anchors.hpp` | `FeatureLevel`, `K_POINT_VALUES`, `count_anchors`, `make_anchors`, `scale_points` |
+| `free/level_rows.hpp` | `LevelPlacement`, `join_level`, `split_level` |
+| `free/anchor_leaves.hpp` | `AnchorLeaves`, `build_anchor_leaves` |
 | `box_format.hpp` | `xyxy_to_xywh`, `xywh_to_xyxy` |
-| `box_coding.hpp` | `decode_xyxy`, `decode_xywh`, `encode_distances`, `scale_boxes` |
+| `free/box_coding.hpp` | `decode_xyxy`, `decode_xywh`, `encode_distances`, `scale_boxes` |
 | `iou.hpp` | `intersection_over_union`, `complete_iou`, the elementwise forms, `pairwise_iou` |
 | `top_k.hpp` | `select_top_k` |
 | `ground_truth.hpp` | `GroundTruthRows`, `GroundTruthBatch`, `pad_ground_truth` |
-| `assigner_config.hpp` | `AssignerConfig` and the two branch presets |
-| `assignment.hpp` | `Assignment` |
-| `assigner.hpp` | `AssignerInputs`, `TaskAlignedAssigner` |
-| `target_leaves.hpp` | `TargetLeafInputs`, `TargetLeaves`, `build_target_leaves`, `K_SAFE_BOX` |
+| `free/assigner_config.hpp` | `AssignerConfig` and the two branch presets |
+| `free/assignment.hpp` | `Assignment` |
+| `free/assigner.hpp` | `AssignerInputs`, `TaskAlignedAssigner` |
+| `free/target_leaves.hpp` | `TargetLeafInputs`, `TargetLeaves`, `build_target_leaves`, `K_SAFE_BOX` |
 | `detection_row.hpp` | The six columns of a detection, `K_MAX_DETECTIONS`, `K_VALIDATION_CONFIDENCE` |
 | `prediction_shape.hpp` | `PredictionShape` |
 | `detections_topk.hpp` | `count_top_detections`, `select_top_detections`, `keep_confident_detections` |
 | `detections_nms.hpp` | `LabelMode`, `ClassMode`, `NmsConfig`, `suppress_overlaps`, `select_nms_detections` |
 | `average_precision.hpp` | `K_IOU_THRESHOLDS`, `ClassMetrics`, `MetricsSummary`, `match_detections`, `integrate_precision`, `AveragePrecision` |
 
-## anchors.hpp
+## free/anchors.hpp
 
 ### count_anchors
 
@@ -67,7 +73,7 @@ the constant `K_GRID_CELL_OFFSET` and not a parameter. Strides are written as `[
 The assigner takes anchor points in pixels: `anchor_points * stride_tensor`
 (`U/utils/loss.py:442`).
 
-## level_rows.hpp
+## free/level_rows.hpp
 
 ### join_level, split_level
 
@@ -77,7 +83,7 @@ place in `[B, A, C]` for the assigner and the postprocess; `split_level` copies 
 assigner output back out as one level's leaf. Both are plain copies and do not reorder inside a
 level.
 
-## anchor_leaves.hpp
+## free/anchor_leaves.hpp
 
 ### build_anchor_leaves
 
@@ -111,7 +117,7 @@ U/utils/ops.py:282  y[..., :2] = xy - wh  # top left xy
 U/utils/ops.py:283  y[..., 2:] = xy + wh  # bottom right xy
 ```
 
-## box_coding.hpp
+## free/box_coding.hpp
 
 ### decode_xyxy, decode_xywh
 
@@ -246,7 +252,7 @@ image's first index, which assumes rows grouped by image; this port counts per i
 the same slots for grouped rows and stays defined for ungrouped ones. Labels are `int64` here and
 float in the reference.
 
-## assigner_config.hpp
+## free/assigner_config.hpp
 
 ### AssignerConfig
 
@@ -267,7 +273,7 @@ U/utils/loss.py:1328  self.one2one = loss_fn(model, tal_topk=7, tal_topk2=1)
 
 `MANIFEST.json` records the same values as read back from the reference's assigner objects.
 
-## assignment.hpp
+## free/assignment.hpp
 
 ### Assignment
 
@@ -276,7 +282,7 @@ loss can feed them as leaves. `target_boxes` are in pixels. A row off the foregr
 and the label of ground-truth row 0 of its image and index 0, as in the reference
 (`U/utils/tal.py:297-300`, `381`).
 
-## assigner.hpp
+## free/assigner.hpp
 
 ### AssignerInputs
 
@@ -365,7 +371,7 @@ U/utils/tal.py:176  target_scores = target_scores * norm_align_metric
 arrays are members and are reused. The complete IoU runs only on candidates. Each valid box costs
 one `O(A log topk)` selection.
 
-## target_leaves.hpp
+## free/target_leaves.hpp
 
 ### build_target_leaves
 
