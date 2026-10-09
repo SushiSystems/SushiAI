@@ -1,6 +1,6 @@
 # Domain modules
 
-**Status:** Open — phase 0 of 4; the owner ruled the shape on 2026-10-09, nothing is moved yet
+**Status:** Open — phase 1 of 4; the plan is `docs/agent/2026_10_09_DOMAIN_MODULES/PLAN.md`
 
 How SushiAI keeps what belongs to one field of use (vision today; language, physics and
 reinforcement learning later) apart from the library every field shares, so that a field can be
@@ -16,6 +16,10 @@ Each was made by the owner on 2026-10-09.
 | Layers | `Conv2d`, `BatchNorm2d`, pooling and the other layers stay in `nn`. A layer is not a field of use |
 | Build | A domain is its own library target. A consumer that does not use it does not compile it |
 | Durability | The split is chosen so that it is not split again when the next domain arrives |
+| Tier of `train` and `io` | Tier 2, beside `nn`: both include it in 14 files, for `ModelState`, `ModelOutputs` and `Trace` |
+| `NodeRegistry` | One registry with two `add` overloads, `find_node` and `find_layer` |
+| Vision switched off | The applications link a registration file with or without vision; the examples are built only with it |
+| Layering checker | Rewritten in this repository's copy; moving it to SushiSkills is a backlog line |
 
 ## Tiers
 
@@ -24,8 +28,8 @@ domains.
 
 | Tier | Modules | Knows |
 | --- | --- | --- |
-| 1. Core | `core`, `graph`, `autograd`, `optim`, `train`, `io`, `config`, `eager` | No layer type, no domain |
-| 2. Layers | `nn` | Tier 1. Layer types, `ModelGraph`, the registries' types. No domain |
+| 1. Core | `core`, `graph`, `autograd`, `optim`, `config`, `data`, `eager` | No layer type, no domain |
+| 2. Layers | `nn`, `train`, `io` | Tier 1. Layer types, `ModelGraph`, `ModelState`, the steps and the checkpoints over them, the registries' types. No domain |
 | 3. Domains | `vision`, later `language`, `physics`, `reinforcement` | Tiers 1 and 2. No other domain |
 | 4. Programs | `apps`, `examples` | Whatever they link |
 
@@ -57,8 +61,8 @@ Today `nn/node_registry.hpp` and `nn/layer_registry.hpp` hold `constexpr` tables
 type, the YOLO blocks among them, and `data/dataset.hpp` holds one that names MNIST. A tier that
 names what a higher tier owns cannot be built without it, so the tables are inverted.
 
-- A registry is a value: `NN::NodeRegistry` and `Data::DatasetRegistry`, each with `add(row)` and
-  `find(name)`. `build_model` and the dataset factory take the registry as a parameter.
+- A registry is a value: `NN::NodeRegistry`, with `add`, `find_node` and `find_layer`, and
+  `Data::DatasetRegistry`, with `add` and `find`. `build_model` and the dataset factory take the registry as a parameter.
 - Each module states its own rows. `NN::register_layers(registry)` adds the layer types;
   `Vision::register_nodes(registry)` adds the blocks; `Vision::register_datasets(registry)` adds
   MNIST.

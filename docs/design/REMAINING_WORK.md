@@ -112,8 +112,8 @@ the `detect` module and the `imaging` module.
 
 ## Domain modules
 
-The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md). Nothing is
-moved yet. It runs after the model graph's engine units and before the rest of YOLO26, so that
+The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md). The plan,
+twenty tasks in five waves, is `docs/agent/2026_10_09_DOMAIN_MODULES/PLAN.md`. It runs after the model graph's engine units and before the rest of YOLO26, so that
 new vision code is written into `vision/`.
 
 - **Phase 1: registries become values.** `NodeRegistry` and `DatasetRegistry` replace the
@@ -121,6 +121,8 @@ new vision code is written into `vision/`.
 - **Phase 2: vision moves.** `detect`, `imaging`, the YOLO blocks and MNIST go under `vision/`.
 - **Phase 3: the second target.** `sushiai_vision` with its umbrella header and test binary.
 - **Phase 4: the layering check.** `check_layering.py` declares the tiers.
+- **Move the rewritten layering checker to SushiSkills.** Phase 4 rewrites this repository's
+  copy, whose discovery assumed a `modules/` layout; the shared copy still has it.
 
 ## Darknet-era YOLO
 
