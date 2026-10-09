@@ -34,94 +34,52 @@ cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
+# The tests of a module sit in its own tests/ folder and reach this binary
+# through sushiai_add_module(); the files listed here cross module boundaries.
+get_property(SUSHIAI_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai)
+
 add_executable(sushiai_tests
     common/test_main.cpp
+    ${SUSHIAI_MODULE_TESTS}
 
-    functional/unit/test_version.cpp
-    functional/unit/test_shape.cpp
-    functional/unit/test_status.cpp
-    functional/unit/test_result.cpp
-    functional/unit/test_traced.cpp
-    functional/unit/test_ops.cpp
-    functional/unit/test_ir.cpp
-    functional/unit/test_layout.cpp
-    functional/unit/test_memory_plan.cpp
-    functional/unit/test_precision.cpp
-    functional/unit/test_fusion.cpp
-    functional/unit/test_module.cpp
-    functional/unit/test_backward.cpp
-    functional/unit/test_rule_table.cpp
-    functional/unit/test_gradcheck.cpp
-    functional/unit/test_diagnostics.cpp
-    functional/unit/test_loss_scaling.cpp
-    functional/unit/test_checkpoint_format.cpp
-    functional/unit/test_layer_stack.cpp
-    functional/unit/test_config.cpp
-    functional/unit/test_objective.cpp
-    functional/unit/test_steps.cpp
-    functional/unit/test_spatial_shapes.cpp
-    functional/unit/test_rematerialise.cpp
-    functional/unit/test_provenance.cpp
-    functional/unit/test_scope_trace.cpp
-    functional/unit/test_scope_partitioner.cpp
-    functional/unit/test_region_signature.cpp
-    functional/unit/test_unflatten.cpp
-    functional/unit/test_conv2d.cpp
-    functional/unit/test_max_pool2d.cpp
-    functional/unit/test_avg_pool2d.cpp
-    functional/unit/test_global_avg_pool.cpp
-    functional/unit/test_flatten.cpp
-    functional/unit/test_leaky_relu.cpp
-    functional/unit/test_upsample2d.cpp
-    functional/unit/test_layer_registry.cpp
-    functional/unit/test_elementwise_ops.cpp
-    functional/unit/test_loss_roots.cpp
-    functional/unit/test_batch_norm2d.cpp
-    functional/unit/test_buffer.cpp
-    functional/unit/test_concat.cpp
-    functional/unit/test_identity.cpp
-    functional/unit/test_model_graph.cpp
-    functional/unit/test_model_outputs.cpp
-    functional/unit/test_module_list.cpp
-    functional/unit/test_node.cpp
-    functional/unit/test_node_registry.cpp
-    functional/unit/test_dataset_registry.cpp
-    functional/unit/test_silu.cpp
-    functional/unit/test_step_recorder.cpp
-    functional/unit/test_seam.cpp
-    functional/unit/test_lowering_table.cpp
-    functional/unit/test_trace.cpp
-    functional/unit/test_throwing_bridge.cpp
-
-    functional/integration/test_engine_smoke.cpp
-    functional/integration/test_arena.cpp
-    functional/integration/test_forward.cpp
-    functional/integration/test_lowered_operations.cpp
-    functional/integration/test_autograd_numeric.cpp
-    functional/integration/test_training.cpp
-    functional/integration/test_model_state.cpp
-    functional/integration/test_init_state.cpp
-    functional/integration/test_import_weights.cpp
-    functional/integration/test_state_checkpoint.cpp
-    functional/integration/test_buffer_update_recorder.cpp
-    functional/integration/test_evaluation_step.cpp
-    functional/integration/test_mixed_precision.cpp
-    functional/integration/test_resilience.cpp
-    functional/integration/test_registries.cpp
-    functional/integration/test_checkpoint.cpp
-    functional/integration/test_rematerialise.cpp
-
-    functional/regression/test_argmax_lifetime.cpp
-    functional/regression/test_compile_once.cpp
-    functional/regression/test_determinism.cpp
-    functional/regression/test_fused_optimizer.cpp
-    functional/regression/test_fusion_numerics.cpp
-    functional/regression/test_learning_curve.cpp
-    functional/regression/test_log_softmax_stability.cpp
-    functional/regression/test_loss_scaling.cpp
-    functional/regression/test_mixed_precision.cpp
-    functional/regression/test_static_memory.cpp
+    unit/test_backward.cpp
+    unit/test_conv2d.cpp
+    unit/test_diagnostics.cpp
+    unit/test_layer_registry.cpp
+    unit/test_loss_roots.cpp
+    unit/test_loss_scaling.cpp
+    unit/test_seam.cpp
+    integration/test_arena.cpp
+    integration/test_autograd_numeric.cpp
+    integration/test_buffer_update_recorder.cpp
+    integration/test_checkpoint.cpp
+    integration/test_engine_smoke.cpp
+    integration/test_evaluation_step.cpp
+    integration/test_forward.cpp
+    integration/test_import_weights.cpp
+    integration/test_init_state.cpp
+    integration/test_lowered_operations.cpp
+    integration/test_mixed_precision.cpp
+    integration/test_model_state.cpp
+    integration/test_registries.cpp
+    integration/test_rematerialise.cpp
+    integration/test_resilience.cpp
+    integration/test_state_checkpoint.cpp
+    integration/test_training.cpp
+    regression/test_argmax_lifetime.cpp
+    regression/test_compile_once.cpp
+    regression/test_determinism.cpp
+    regression/test_fused_optimizer.cpp
+    regression/test_fusion_numerics.cpp
+    regression/test_learning_curve.cpp
+    regression/test_log_softmax_stability.cpp
+    regression/test_loss_scaling.cpp
+    regression/test_mixed_precision.cpp
+    regression/test_static_memory.cpp
 )
+
+# Test support is included as <common/name.hpp> from every test folder.
+target_include_directories(sushiai_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # GTest::gtest_main is deliberately absent: common/test_main.cpp supplies main()
 # so the RuntimeContext is built once per binary rather than once per test.
@@ -243,6 +201,46 @@ if(WIN32)
 endif()
 
 # --- The vision domain's suite ---
+# Its cases keep the Unit_, Integration_ and Regression_ prefixes, so the
+# labels above select them too.
 if(SA_BUILD_VISION)
-    add_subdirectory(vision)
+    get_property(SUSHIAI_VISION_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai_vision)
+
+    add_executable(sushiai_vision_tests
+        common/test_main.cpp
+        ${SUSHIAI_VISION_MODULE_TESTS}
+    )
+
+    target_include_directories(sushiai_vision_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+    target_link_libraries(sushiai_vision_tests PRIVATE
+        sushiai_vision
+        GTest::gtest
+    )
+
+    target_compile_definitions(sushiai_vision_tests PRIVATE
+        SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+    )
+
+    sushiai_apply_build_policy(sushiai_vision_tests)
+
+    foreach(prefix_label IN ITEMS "Unit:unit" "Integration:integration" "Regression:regression")
+        string(REPLACE ":" ";" prefix_and_label "${prefix_label}")
+        list(GET prefix_and_label 0 prefix)
+        list(GET prefix_and_label 1 label)
+        gtest_discover_tests(sushiai_vision_tests
+            DISCOVERY_MODE PRE_TEST
+            TEST_FILTER "${prefix}_*"
+            PROPERTIES LABELS "${label}"
+        )
+    endforeach()
+
+    if(WIN32)
+        add_custom_command(TARGET sushiai_vision_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+                $<TARGET_FILE_DIR:sushiai_vision_tests>
+            COMMENT "Copying runtime DLL to the vision test directory..."
+        )
+    endif()
 endif()

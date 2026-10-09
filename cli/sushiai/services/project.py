@@ -561,4 +561,4 @@ def doxygen() -> int:
     build_dir = _build_dir(root)
     env = load_build_env(cfg, build_dir)
     (build_dir / "docs").mkdir(parents=True, exist_ok=True)
-    return _DRIVER.doxygen(cfg, root / "Doxyfile", root, env)
+    return _DRIVER.doxygen(cfg, root / ".config" / "doxygen" / "Doxyfile", root, env)

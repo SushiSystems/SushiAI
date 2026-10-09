@@ -80,30 +80,26 @@ include(GNUInstallDirs)
 set(SA_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/SushiAI"
     CACHE STRING "Where the SushiAI CMake package files are installed")
 
-# The version literals in include/SushiAI/version.hpp are hand-written, so
+# The version literals in modules/core/version/include/SushiAI/version.hpp are hand-written, so
 # they are greppable and need no generated header on the include path. That
 # trade is only safe if they cannot silently disagree with the version the
 # build and the package advertise — so the disagreement is a configure-time
 # error, here, rather than a consumer discovering it later. Mirrors
 # sushiblas's own version-drift check exactly.
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/include/SushiAI/version.hpp"
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/modules/core/version/include/SushiAI/version.hpp"
      SA_VERSION_STRING_LINE
      REGEX "^#define SUSHIAI_VERSION_STRING ")
 string(REGEX MATCH "\"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _sa_unused "${SA_VERSION_STRING_LINE}")
 if(NOT CMAKE_MATCH_1 STREQUAL PROJECT_VERSION)
     message(FATAL_ERROR
         "Version mismatch: project() says ${PROJECT_VERSION}, "
-        "include/SushiAI/version.hpp says ${CMAKE_MATCH_1}. "
+        "modules/core/version/include/SushiAI/version.hpp says ${CMAKE_MATCH_1}. "
         "Update both — they are the same fact stated twice.")
 endif()
 
 # --- Subdirectories ---
-add_subdirectory(src)
-# Both examples read MNIST, which the vision domain owns.
-if(SA_BUILD_VISION)
-    add_subdirectory(examples)
-endif()
-add_subdirectory(apps)
+add_subdirectory(modules)
+add_subdirectory(applications)
 
 # --- Package files (SB-6 packaging shape, from day one) ---
 include(CMakePackageConfigHelpers)
