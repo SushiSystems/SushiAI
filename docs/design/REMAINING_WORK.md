@@ -83,14 +83,17 @@ The requirements map is `docs/agent/2026_10_07_YOLO26/SPEC.md`, with the owner's
 section 8 and the staged plan in section 7; what has been written is in `PLAN.md` beside it. The
 reference exporter is `tools/reference/export_yolo26_reference.py`.
 
-Built and run: the blocks `conv`, `c3k2` and `sppf`, the model graph and `build_model` over
-`applications/examples/yolo26/model.json`, the model state, the evaluation step, the weight
-import, the `detect` and `imaging` modules. Twenty-two of the model file's 24 rows build.
+The forward pass is built and equals the reference. On 2026-10-09 the 24 rows of
+`applications/examples/yolo26/model.json` built, the weights of `tests/fixtures/yolo26/` loaded
+through `import_weights`, and `Integration_Yolo26Forward` matched the Ultralytics reference: the
+feature maps of rows 16, 19 and 22 and the twelve raw head outputs within 1e-4, the decoded
+boxes within 1.3e-4, the scores within 1e-6.
 
-- **The `c2psa` block** (row 10) and **the `detect` head** (row 23), the two row types no
-  registered module has.
-- **Forward parity**: load `tests/fixtures/yolo26/weights.sacp` through `import_weights` with
-  the rename rules of the Ultralytics names, feed `input.sacp`, compare with `forward.sacp`.
+- **Compare rows 9, 10 and 21 too.** The reference holds them since `b05ad10`; the parity test
+  does not publish those rows yet, so nothing isolates `C2PSA`.
+- **A detection report in `sushiai inference`**, which refuses a model with several outputs.
+- **One home for the default head count and the two-channel bound** of the attention, written
+  in `attention.cpp`, `c2psa.cpp` and `c3k2.cpp`.
 - **The detection objective.** No code builds the loss graph of SPEC section 4 from the
   operations; `PLAN.md` walks each term on paper.
 - **Two-pass label assignment in the training loop**: a forward-only replay, the host assigner,

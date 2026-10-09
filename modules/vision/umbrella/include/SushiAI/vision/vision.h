@@ -67,10 +67,14 @@
 #include <SushiAI/vision/detect/target_leaves.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
+#include <SushiAI/vision/blocks/attention.hpp>
 #include <SushiAI/vision/blocks/bottleneck.hpp>
+#include <SushiAI/vision/blocks/c2psa.hpp>
 #include <SushiAI/vision/blocks/c3k.hpp>
 #include <SushiAI/vision/blocks/c3k2.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
+#include <SushiAI/vision/blocks/detect_head.hpp>
+#include <SushiAI/vision/blocks/psa_block.hpp>
 #include <SushiAI/vision/blocks/sppf.hpp>
 
 #include <SushiAI/vision/datasets/mnist.hpp>

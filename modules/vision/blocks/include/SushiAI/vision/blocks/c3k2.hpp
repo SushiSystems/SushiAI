@@ -40,6 +40,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
+#include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/module_list.hpp>
 #include <SushiAI/nn/node.hpp>
@@ -47,6 +48,7 @@
 #include <SushiAI/vision/blocks/bottleneck.hpp>
 #include <SushiAI/vision/blocks/c3k.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
+#include <SushiAI/vision/blocks/psa_block.hpp>
 
 namespace SushiAI
 {
@@ -136,6 +138,8 @@ namespace SushiAI
                       "C3k2 over Bottleneck must satisfy the TraceModule contract");
         static_assert(NN::TraceModule<C3k2<C3k>>,
                       "C3k2 over C3k must satisfy the TraceModule contract");
+        static_assert(NN::TraceModule<C3k2<NN::Sequential<Bottleneck, PSABlock>>>,
+                      "C3k2 over Bottleneck and PSABlock must satisfy the TraceModule contract");
 
         /** @brief Holds one row of K_C3K2_INNER. */
         struct C3k2InnerEntry
@@ -167,10 +171,22 @@ namespace SushiAI
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k2_of_c3k(
             NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
 
+        /**
+         * @brief Builds a C3k2 node whose inner blocks are Bottleneck(hidden, hidden, hidden / 2)
+         *        and PSABlock(hidden, max(hidden / 64, 1)).
+         * @param inputs One per-sample [H, W, C] shape; C becomes the input width.
+         * @param attributes The keys make_c3k2_node() documents.
+         * @return The node, or InvalidDescription when @p inputs or a key does not fit, when the
+         *         head count does not split "hidden", or when "inner" is not "bottleneck_psa".
+         */
+        [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k2_of_bottleneck_psa(
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+
         /** @brief Lists every inner block a c3k2 row may name. */
-        inline constexpr std::array<C3k2InnerEntry, 2> K_C3K2_INNER = {
+        inline constexpr std::array<C3k2InnerEntry, 3> K_C3K2_INNER = {
             C3k2InnerEntry{"bottleneck", &make_c3k2_of_bottleneck},
             C3k2InnerEntry{"c3k", &make_c3k2_of_c3k},
+            C3k2InnerEntry{"bottleneck_psa", &make_c3k2_of_bottleneck_psa},
         };
 
         /**

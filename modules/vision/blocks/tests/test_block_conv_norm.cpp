@@ -21,7 +21,7 @@
 
 /**
  * @file test_block_conv_norm.cpp
- * @brief Tests ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node.
+ * @brief Tests ConvNorm's trace, its state names against YOLO26n, and make_conv_node.
  * @author Mustafa Garip
  */
 
@@ -45,11 +45,14 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <common/test_status.hpp>
+#include <common/test_throws.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
 using Vision::Blocks::Conv;
 using Vision::Blocks::ConvLinear;
+using Vision::Blocks::DWConv;
+using Vision::Blocks::DWConvLinear;
 using NN::NormOptions;
 using NN::Trace;
 
@@ -253,6 +256,95 @@ TEST(Unit_BlockConvNorm, StateMatchesManifestRow0)
     };
 
     EXPECT_EQ(walk(block, "model.0"), expected);
+}
+
+/**
+ * @brief Tests that a DWConv traces one DEPTHWISE_CONV2D, one BATCHNORM2D and one SILU, in that
+ *        order, with no MATMUL, and keeps the shape at stride 1.
+ */
+TEST(Unit_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSilu)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 16}, "x");
+    DWConv block(16, 16, 3, 1, K_YOLO_NORM);
+    BufferUpdateList list;
+
+    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+
+    ASSERT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_SILU.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 0u);
+    EXPECT_LT(first_node(graph, Ops::K_DEPTHWISE_CONV2D.id),
+              first_node(graph, Ops::K_BATCHNORM2D.id));
+    EXPECT_LT(first_node(graph, Ops::K_BATCHNORM2D.id), first_node(graph, Ops::K_SILU.id));
+
+    const Graph::Node& convolution =
+        graph.nodes()[first_node(graph, Ops::K_DEPTHWISE_CONV2D.id)];
+    EXPECT_EQ(convolution.inputs[0], x);
+    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_SILU.id)].outputs[0], y);
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 16}));
+}
+
+/** @brief Tests that DWConvLinear ends at the normalisation and emits no SILU. */
+TEST(Unit_BlockConvNorm, DWConvLinearEmitsNoActivation)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 16}, "x");
+    DWConvLinear block(16, 16, 3, 1, K_YOLO_NORM);
+    BufferUpdateList list;
+
+    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+
+    ASSERT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
+    ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
+    EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 0u);
+    EXPECT_EQ(graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].outputs[0], y);
+}
+
+/** @brief Tests that a 3x3 DWConv keeps the width, and H and W at stride 1, halved at 2. */
+TEST(Unit_BlockConvNorm, ADepthwiseOutputShapeKeepsTheWidth)
+{
+    const DWConv keeping(64, 64, 3, 1, K_YOLO_NORM);
+    const DWConv halving(64, 64, 3, 2, K_YOLO_NORM);
+
+    EXPECT_EQ(keeping.output_shape(Shape{80, 80, 64}), (Shape{80, 80, 64}));
+    EXPECT_EQ(halving.output_shape(Shape{80, 80, 64}), (Shape{40, 40, 64}));
+}
+
+/**
+ * @brief Tests that a traced DWConvLinear(128, 128, 3, 1) yields the five records
+ *        MANIFEST.json lists under model.10.m.0.attn.pe, names, shapes and order.
+ */
+TEST(Unit_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 128}, "x");
+    DWConvLinear block(128, 128, 3, 1, K_YOLO_NORM);
+    BufferUpdateList list;
+    static_cast<void>(block.forward(Trace::training(builder, list), x));
+
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 3166.
+    const std::string prefix = "model.10.m.0.attn.pe";
+    const std::vector<std::string> expected = {
+        record(prefix + ".conv.weight", Shape{3, 3, 128}, StateKind::Parameter),
+        record(prefix + ".bn.weight", Shape{128}, StateKind::Parameter),
+        record(prefix + ".bn.bias", Shape{128}, StateKind::Parameter),
+        record(prefix + ".bn.running_mean", Shape{128}, StateKind::Buffer),
+        record(prefix + ".bn.running_var", Shape{128}, StateKind::Buffer),
+    };
+
+    EXPECT_EQ(walk(block, prefix), expected);
+}
+
+/** @brief Tests that a DWConv over unequal widths is refused, naming both widths. */
+TEST(Unit_BlockConvNorm, ADepthwiseBlockRefusesUnequalWidths)
+{
+    SA_EXPECT_ERROR(static_cast<void>(DWConv(16, 32, 3, 1, K_YOLO_NORM)),
+                    "keeps its channel count", "in=16", "out=32");
 }
 
 /** @brief Tests that an untraced block yields no state, since nothing is declared yet. */

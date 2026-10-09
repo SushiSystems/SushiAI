@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-09 — vision: Added the Attention, PSABlock, C2PSA and DetectHead blocks and the bottleneck_psa row of c3k2; every row of the YOLO26 model file builds (`attention.hpp`, `c2psa.hpp`, `detect_head.hpp`, `registration.cpp`).
+- 2026-10-09 — tests: Added the YOLO26 forward parity against the Ultralytics reference: feature maps, twelve raw outputs, decodes and top scores (`tests/integration/test_yolo26_forward.cpp`).
 - 2026-10-09 — tools: Added the outputs of model rows 9, 10 and 21 to the YOLO26 reference, from one constant of captured rows (`export_yolo26_reference.py`, `K_FEATURE_ROWS`, `tests/fixtures/yolo26/MANIFEST.json`).
 - 2026-10-09 — graph: Added the depthwise convolution with its two gradient operations, their lowerings and its gradient rule (`ops.hpp`, `builder.hpp`, `lowering/spatial.hpp`, `rules/spatial.hpp`).
 - 2026-10-09 — graph: Widened matmul to two rank-3 batches and added a softmax emitter over the last axis (`builder.hpp`, `GraphBuilder::matmul`, `GraphBuilder::softmax`).

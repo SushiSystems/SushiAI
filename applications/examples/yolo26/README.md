@@ -5,25 +5,24 @@ Ultralytics `yolo26.yaml` at scale `n`, read by `NN::build_model`
 (`modules/layers/nn/include/SushiAI/nn/node_registry.hpp`). There is no C++ and no training configuration in
 this directory.
 
-The file does not build yet. Rows 10, 22 and 23 name blocks this build does not have, and
-`build_model` stops at the first of them with a status that names the row. No command trains
-or evaluates this model today, and no run has been made with it.
+`build_model` builds the whole file over the registry that `NN::register_layers` and
+`Vision::register_nodes` fill. `TheYolo26FileBuildsWhole` in
+`modules/vision/registration/tests/test_registration.cpp` pins that build: the 594 state records
+of `weights.sacp` and the twelve ports the last row publishes. No command trains or evaluates this
+model, and no run has been made with it.
 
-## What builds
+## Row types
 
-| Rows | Type | State |
+| Rows | Type | Builds from |
 | --- | --- | --- |
-| 0 to 9 | `conv`, `c3k2`, `sppf` | Build |
-| 10 | `c2psa` | Fails: `layer 10 'c2psa'` has a type this build does not have |
-| 11 to 21 | `upsample`, `concat`, `c3k2`, `conv` | Build once row 10 exists |
-| 22 | `c3k2` with `"inner": "bottleneck_psa"` | Fails: `'bottleneck_psa'` names no inner block |
-| 23 | `detect` | Fails: `layer 23 'detect'` has a type this build does not have |
+| 0 to 9 | `conv`, `c3k2`, `sppf` | `register_nodes` |
+| 10 | `c2psa` | `register_nodes` |
+| 11 to 21 | `upsample`, `concat`, `c3k2`, `conv` | `register_layers`, `register_nodes` |
+| 22 | `c3k2` with `"inner": "bottleneck_psa"` | `register_nodes` |
+| 23 | `detect`, 80 classes, over rows 16, 19 and 22 | `register_nodes` |
 
-The three rows wait for three emitters the graph builder lacks: a depthwise convolution, a
-rank-3 matrix product and a differentiable softmax.
-`modules/layers/nn/tests/test_node_registry.cpp` pins the three messages. It also pins the
-shapes below by building the file with row 10 replaced by a `silu` row, which keeps the shape
-`c2psa` keeps.
+`TheYolo26FileHoldsItsTwentyFourRows` pins the types. The shape tests replace row 10 with a
+`silu` row, which keeps the shape `c2psa` keeps, so they run without the attention block.
 
 ## The rows
 
@@ -72,7 +71,7 @@ them here.
 third is the expansion `e`. `shortcut` is the last parameter of `C3k2.__init__` and defaults to
 `True`, and no row of `yolo26.yaml` states it, so the one `Bottleneck(16, 16)` of row 2 and the one
 `Bottleneck(32, 32)` of row 4 add their input.
-`Unit_NodeRegistry.Yolo26RowsTwoAndFourAddTheirBottlenecksInput` pins the two additions.
+`Unit_VisionRegistration.Yolo26RowsTwoAndFourAddTheirBottlenecksInput` pins the two additions.
 
 `defaults` gives every block the batch-normalisation constants Ultralytics sets, epsilon 0.001
 and momentum 0.03. A row that states either key keeps its own value.

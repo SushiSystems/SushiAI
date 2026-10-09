@@ -47,9 +47,9 @@ namespace SushiAI
 namespace SushiAI::Vision
 {
     /**
-     * @brief Adds the five block node types to @p registry, in the order conv, bottleneck,
-     *        c3k, c3k2 and sppf.
-     * @param registry The registry that receives the five rows.
+     * @brief Adds the block node types to @p registry, in the order conv, bottleneck, c3k,
+     *        c3k2, sppf, c2psa and detect.
+     * @param registry The registry that receives the seven rows.
      * @return Success, or the first failure of NodeRegistry::add().
      */
     [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry);

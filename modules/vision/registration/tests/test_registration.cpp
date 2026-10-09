@@ -86,14 +86,41 @@ namespace
     /** @brief Holds the absolute bound on a real compared here; each is exact in the file. */
     constexpr double K_TOLERANCE = 1e-12;
 
-    /** @brief Lists a minimal object for every row of register_nodes, in the rows' order. */
+    /**
+     * @brief Lists a minimal object for every single-port row of register_nodes, in the rows'
+     *        order; detect, the one row with several ports, has K_DETECT_CASE.
+     */
     const std::vector<MinimalCase> K_MINIMAL_CASES = {
         {"conv", R"({"filters": 5})", {Shape{8, 8, 2}}, Shape{8, 8, 5}},
         {"bottleneck", R"({"filters": 4, "hidden": 2})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"c3k", R"({"filters": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"c3k2", R"({"filters": 8, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 8}},
         {"sppf", R"({"filters": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
+        {"c2psa", R"({"filters": 4, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
     };
+
+    /**
+     * @brief Holds the minimal object of detect, which reads three levels and has no single
+     *        output shape; its output is unused, and its ports are counted by a test.
+     */
+    const MinimalCase K_DETECT_CASE = {
+        "detect",
+        R"({"classes": 3})",
+        {Shape{8, 8, 4}, Shape{4, 4, 4}, Shape{2, 2, 4}},
+        Shape{},
+    };
+
+    /** @brief Holds the number of class logits of the YOLO26n detect row. */
+    constexpr std::int64_t K_YOLO_CLASSES = 80;
+
+    /** @brief Holds the number of box coordinates per position of the detect row. */
+    constexpr std::int64_t K_BOX_COORDINATES = 4;
+
+    /** @brief Holds the feature side, in positions, of each level of the detect row. */
+    const std::vector<std::int64_t> K_DETECT_SIDES = {80, 40, 20};
+
+    /** @brief Holds the state name prefix every manifest record carries and ModelState drops. */
+    constexpr std::string_view K_MODEL_PREFIX = "model.";
 
     /** @brief Holds a model whose row 0 is a conv block. */
     constexpr std::string_view K_CONV_MODEL = R"({
@@ -225,6 +252,54 @@ namespace
         return output;
     }
 
+    /**
+     * @brief Removes the "model." prefix from each manifest record, as ModelState names lack it.
+     * @param records Records as state_record() writes them, each starting with its name.
+     * @return The same records with the prefix removed where a record carries it.
+     */
+    std::vector<std::string> without_model_prefix(std::vector<std::string> records)
+    {
+        for (std::string& record : records)
+        {
+            if (record.rfind(K_MODEL_PREFIX, 0) == 0)
+                record.erase(0, K_MODEL_PREFIX.size());
+        }
+
+        return records;
+    }
+
+    /**
+     * @brief Lists the twelve ports of the detect row over a [2, 640, 640, 3] input, in port
+     *        order, as trace_summary() writes them: "<copy>.level<l>.<kind> [extents]".
+     */
+    std::vector<std::string> detect_outputs()
+    {
+        const std::vector<std::pair<std::string_view, std::int64_t>> kinds = {
+            {"boxes", K_BOX_COORDINATES},
+            {"scores", K_YOLO_CLASSES},
+        };
+
+        // A copy publishes the boxes of every level, then the scores of every level.
+        std::vector<std::string> outputs;
+        for (const std::string_view copy : {std::string_view("one2many"),
+                                            std::string_view("one2one")})
+        {
+            for (const std::pair<std::string_view, std::int64_t>& kind : kinds)
+            {
+                for (std::size_t level = 0; level < K_DETECT_SIDES.size(); ++level)
+                {
+                    const std::int64_t side = K_DETECT_SIDES[level];
+                    const Shape shape{K_TRACE_BATCH, side, side, kind.second};
+
+                    outputs.push_back(std::string(copy) + ".level" + std::to_string(level) +
+                                      "." + std::string(kind.first) + " " + shape.to_string());
+                }
+            }
+        }
+
+        return outputs;
+    }
+
     /** @brief Lists the per-sample shape of rows 0 to 21 of YOLO26n over a [640, 640, 3] input. */
     const std::vector<Shape> K_YOLO_ROW_SHAPES = {
         Shape{320, 320, 16}, Shape{160, 160, 32}, Shape{160, 160, 64}, Shape{80, 80, 64},
@@ -247,11 +322,14 @@ namespace
         GTEST_SKIP() << "SA_TEST_FIXTURE_DIR is not defined for this binary, so the "  \
                         "repository's files cannot be located"
 
-/** @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2 and sppf, in order. */
-TEST(Unit_VisionRegistration, RegisterNodesAddsTheFiveBlocks)
+/**
+ * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, sppf, c2psa and detect, in
+ *        that order.
+ */
+TEST(Unit_VisionRegistration, RegisterNodesAddsTheSevenBlocks)
 {
     const std::vector<std::string_view> expected = {
-        "conv", "bottleneck", "c3k", "c3k2", "sppf",
+        "conv", "bottleneck", "c3k", "c3k2", "sppf", "c2psa", "detect",
     };
 
     NN::NodeRegistry registry;
@@ -286,15 +364,33 @@ TEST(Unit_VisionRegistration, ARegistryWithoutTheBlocksRefusesConv)
                       "does not have");
 }
 
-/** @brief Tests that every row of register_nodes has a minimal case here, in row order. */
+/**
+ * @brief Tests that every row of register_nodes has a minimal case here, in row order, with
+ *        detect last.
+ */
 TEST(Unit_VisionRegistration, EveryRowHasAMinimalCase)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
     const SushiRuntime::span<const NN::NodeEntry> nodes = registry.nodes();
-    ASSERT_EQ(K_MINIMAL_CASES.size(), nodes.size());
+    ASSERT_EQ(K_MINIMAL_CASES.size() + 1, nodes.size());
 
-    for (std::size_t index = 0; index < nodes.size(); ++index)
+    for (std::size_t index = 0; index < K_MINIMAL_CASES.size(); ++index)
         EXPECT_EQ(K_MINIMAL_CASES[index].type, nodes[index].type);
+    EXPECT_EQ(K_DETECT_CASE.type, nodes[K_MINIMAL_CASES.size()].type);
+}
+
+/**
+ * @brief Tests that detect over three levels builds four ports per level: the boxes and the
+ *        scores of each of the two copies.
+ */
+TEST(Unit_VisionRegistration, DetectBuildsFourPortsPerLevel)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            make_minimal(registry, K_DETECT_CASE, K_DETECT_CASE.attributes));
+
+    ASSERT_NE(node, nullptr);
+    EXPECT_EQ(node->ports().size(), 4u * K_DETECT_CASE.inputs.size());
 }
 
 /** @brief Tests that each row builds a one-port node of the expected shape from its case. */
@@ -326,6 +422,9 @@ TEST(Unit_VisionRegistration, EachRowRejectsAnUnknownKey)
         SA_EXPECT_FAILURE(make_minimal(registry, minimal, R"({"no_such_key": 1})"),
                           StatusCode::InvalidDescription, context, "'no_such_key'");
     }
+
+    SA_EXPECT_FAILURE(make_minimal(registry, K_DETECT_CASE, R"({"no_such_key": 1})"),
+                      StatusCode::InvalidDescription, "layer 0 'detect'", "'no_such_key'");
 }
 
 /**
@@ -376,28 +475,27 @@ TEST(Unit_VisionRegistration, TheYolo26FileHoldsItsTwentyFourRows)
 }
 
 /**
- * @brief Tests that the YOLO26n file fails to build at row 10, then row 22, then row 23, each
- *        with a status that names the row and the missing type or inner block.
+ * @brief Tests that the YOLO26n file builds whole over the composed registry, with the state
+ *        of MANIFEST.json's 594 records and the twelve ports of the detect row published in
+ *        port order.
  */
-TEST(Unit_VisionRegistration, TheYolo26FileNamesEachMissingBlock)
+TEST(Unit_VisionRegistration, TheYolo26FileBuildsWhole)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
     Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
+    const Config::Value manifest = Config::parse_json_file(manifest_path(root));
 
-    SA_EXPECT_FAILURE(NN::build_model(registry, spec), StatusCode::InvalidDescription,
-                      "layer 10 'c2psa'", "the type 'c2psa'", "does not have", "'c3k2'",
-                      "'upsample'");
+    SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
+    SA_ASSERT_OK_AND_ASSIGN(const TraceSummary trace,
+                            trace_summary(model, spec.input_shape, ""));
 
-    // A silu row keeps [20, 20, 256], which is what C2PSA(256, 256) keeps.
-    stand_in(spec, K_ATTENTION_ROW, "silu", "{}");
-    SA_EXPECT_FAILURE(NN::build_model(registry, spec), StatusCode::InvalidDescription,
-                      "layer 22 'c3k2'", "'inner'", "'bottleneck_psa'", "bottleneck, c3k");
+    EXPECT_EQ(trace.outputs, detect_outputs());
 
-    stand_in(spec, K_ATTENTION_INNER_ROW, "conv",
-             R"({"filters": 256, "bn_epsilon": 0.001, "bn_momentum": 0.03})");
-    SA_EXPECT_FAILURE(NN::build_model(registry, spec), StatusCode::InvalidDescription,
-                      "layer 23 'detect'", "the type 'detect'", "does not have");
+    const std::vector<std::string> expected =
+        without_model_prefix(manifest_records(manifest, 0, K_YOLO_ROWS - 1));
+    ASSERT_EQ(expected.size(), 594u);
+    EXPECT_EQ(trace.state, expected);
 }
 
 /**
