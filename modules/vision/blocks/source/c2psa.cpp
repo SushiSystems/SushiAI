@@ -27,7 +27,6 @@
 
 #include <SushiAI/vision/blocks/c2psa.hpp>
 
-#include <algorithm>
 #include <cstddef>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
@@ -46,18 +45,6 @@ namespace SushiAI
             constexpr std::string_view K_C2PSA_KEYS[] = {
                 "filters", "hidden", "repeats", "heads", Detail::K_NORM_EPSILON_KEY,
                 Detail::K_NORM_MOMENTUM_KEY};
-
-            /** @brief Holds the channels per head that give a row which states no head count. */
-            constexpr int64_t K_CHANNELS_PER_DEFAULT_HEAD = 64;
-
-            /** @brief Holds the smallest channel count of a head, the bound Attention enforces. */
-            constexpr int64_t K_SMALLEST_HEAD_WIDTH = 2;
-
-            /** @brief Returns max(hidden / K_CHANNELS_PER_DEFAULT_HEAD, 1). */
-            [[nodiscard]] constexpr int64_t default_head_count(int64_t hidden) noexcept
-            {
-                return std::max<int64_t>(hidden / K_CHANNELS_PER_DEFAULT_HEAD, 1);
-            }
 
         } // namespace
 
@@ -112,7 +99,7 @@ namespace SushiAI
                                                        Detail::K_DEFAULT_REPEATS));
             SA_TRY_ASSIGN(const int64_t heads,
                           Detail::read_positive_int_or(attributes, "heads", context,
-                                                       default_head_count(hidden)));
+                                                       Detail::default_head_count(hidden)));
             SA_TRY_ASSIGN(const NN::NormOptions norm,
                           Detail::read_norm_options(attributes, context));
 
@@ -120,10 +107,10 @@ namespace SushiAI
                        "{} 'filters' must equal the input width, because C2PSA keeps it; it is {}, "
                        "and the input has {} channels",
                        context, filters, input[2]);
-            SA_FAIL_IF(hidden % heads != 0 || hidden / heads < K_SMALLEST_HEAD_WIDTH,
+            SA_FAIL_IF(hidden % heads != 0 || hidden / heads < Detail::K_SMALLEST_HEAD_WIDTH,
                        StatusCode::InvalidDescription,
                        "{} 'hidden' must split into {} parts of at least {} channels; it is {}",
-                       context, heads, K_SMALLEST_HEAD_WIDTH, hidden);
+                       context, heads, Detail::K_SMALLEST_HEAD_WIDTH, hidden);
 
             return Detail::wrap_block(C2PSA(input[2], filters, hidden, repeats, heads, norm),
                                       input);

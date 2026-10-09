@@ -30,9 +30,12 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <functional>
+#include <ios>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -47,7 +50,9 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
+#include <SushiAI/core/tensor_shape.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
@@ -90,6 +95,24 @@ namespace
     using BoxDecode = void (*)(SushiRuntime::span<const float>, SushiRuntime::span<const float>,
                                SushiRuntime::span<float>);
 
+    /** @brief Names a load of weights.sacp into the state of one model. */
+    using WeightLoad = Status (*)(NN::ModelState&);
+
+    /** @brief Names what an observed row of the model file is to the model. */
+    enum class RowUse : std::uint8_t
+    {
+        HeadLevel, /**< The row is one of the three feature maps the head reads. */
+        Inner,     /**< The row is read by other rows only. */
+    };
+
+    /** @brief Pairs a row of the model file with the record of forward.sacp of its output. */
+    struct ObservedRow
+    {
+        std::int64_t row;        /**< The index of the row in the model file. */
+        std::string_view record; /**< The record name, which is also the published name. */
+        RowUse use;              /**< What the row is to the model. */
+    };
+
     /** @brief Holds the absolute bound on a feature map and on a raw head output. */
     constexpr float K_ACTIVATION_TOLERANCE = 1e-4f;
 
@@ -117,8 +140,18 @@ namespace
     /** @brief Holds the extents of "image" in input.sacp, batch first. */
     const Shape K_INPUT_SHAPE{1, 640, 640, 3};
 
-    /** @brief Holds the rows whose outputs the head reads, in level order. */
-    const std::vector<std::int64_t> K_FEATURE_ROWS{16, 19, 22};
+    /** @brief Holds the rule that turns a record name of weights.sacp into a state name. */
+    constexpr IO::RenameRule K_WEIGHT_RULES[] = {{K_MODEL_PREFIX, std::string_view()}};
+
+    /** @brief Lists the rows the forward pass publishes beside the head, as MANIFEST.json has. */
+    constexpr ObservedRow K_OBSERVED_ROWS[] = {
+        {9, "features.row9", RowUse::Inner},        {10, "features.row10", RowUse::Inner},
+        {16, "features.level0", RowUse::HeadLevel}, {19, "features.level1", RowUse::HeadLevel},
+        {21, "features.row21", RowUse::Inner},      {22, "features.level2", RowUse::HeadLevel},
+    };
+
+    /** @brief Holds the row of the model file that is the c2psa block. */
+    constexpr std::int64_t K_C2PSA_ROW = 10;
 
     /** @brief Holds the levels MANIFEST.json records under "levels" for a 640 px input. */
     const std::vector<FeatureLevel> K_LEVELS{{80, 80, 8.0f}, {40, 40, 16.0f}, {20, 20, 32.0f}};
@@ -130,10 +163,16 @@ namespace
         std::vector<float> scores; /**< `[1, A, C]` after the sigmoid. */
     };
 
-    /** @brief Returns the published name of the feature map of @p level. */
-    std::string feature_name(std::size_t level)
+    /** @brief Returns the record K_OBSERVED_ROWS pairs with @p row, or an empty name. */
+    constexpr std::string_view record_of(std::int64_t row) noexcept
     {
-        return "features.level" + std::to_string(level);
+        for (const ObservedRow& observed : K_OBSERVED_ROWS)
+        {
+            if (observed.row == row)
+                return observed.record;
+        }
+
+        return std::string_view();
     }
 
     /** @brief Returns the published name of @p kind of @p branch at @p level. */
@@ -167,17 +206,30 @@ namespace
         return Result<NN::NodeRegistry>(std::move(registry));
     }
 
-    /** @brief Loads the YOLO26n model file and publishes K_FEATURE_ROWS beside the head. */
+    /** @brief Returns the path of weights.sacp in the fixture directory. */
+    std::filesystem::path weights_path()
+    {
+        return std::filesystem::path(SaTest::fixture_directory()) /
+               SaTest::K_YOLO26_FIXTURE_FOLDER / "weights.sacp";
+    }
+
+    /** @brief Loads the YOLO26n model file as it is written. */
+    Config::ModelSpec load_spec()
+    {
+        return Config::load_model(repository_root() / "applications" / "examples" / "yolo26" /
+                                  "model.json");
+    }
+
+    /** @brief Loads the YOLO26n model file and publishes K_OBSERVED_ROWS beside the head. */
     Config::ModelSpec load_spec_with_features()
     {
-        Config::ModelSpec spec = Config::load_model(repository_root() / "applications" /
-                                                    "examples" / "yolo26" / "model.json");
-        for (std::size_t level = 0; level < K_FEATURE_ROWS.size(); ++level)
+        Config::ModelSpec spec = load_spec();
+        for (const ObservedRow& observed : K_OBSERVED_ROWS)
         {
             Config::OutputSpec output;
-            output.node = K_FEATURE_ROWS[level];
+            output.node = observed.row;
             output.port = std::string(NN::K_SINGLE_PORT_NAME);
-            output.name = feature_name(level);
+            output.name = std::string(observed.record);
             spec.outputs.push_back(std::move(output));
         }
 
@@ -185,34 +237,107 @@ namespace
     }
 
     /**
-     * @brief Runs one evaluation step of the model over @p image with the reference weights.
-     * @param image The float32 elements of a K_INPUT_SHAPE tensor.
-     * @return Every published tensor by name, or the first failure of the build or the run.
+     * @brief Builds a graph that holds row @p row of the model file alone, named by its index.
+     * @param sample The per-sample shape the row reads.
+     * @param published The name the row's single port is published under.
+     * @return The graph, or the failure of the registry, of the row's factory or of the graph.
      */
-    Result<ForwardOutputs> run_forward(SushiBLAS::Engine& engine, const std::vector<float>& image)
+    Result<NN::ModelGraph> build_row_alone(std::int64_t row, const Shape& sample,
+                                           const std::string& published)
     {
         SA_TRY_ASSIGN(const NN::NodeRegistry registry, compose_registry());
-        const Config::ModelSpec spec = load_spec_with_features();
+        const Config::ModelSpec spec = load_spec();
+        const Config::LayerSpec& layer = spec.layers.at(static_cast<std::size_t>(row));
+        const std::string name = std::to_string(row);
 
-        SA_TRY_ASSIGN(NN::ModelGraph model, NN::build_model(registry, spec));
+        NN::ModelGraph model(sample);
+        SA_TRY_ASSIGN(std::unique_ptr<NN::Node> node,
+                      NN::make_node(registry, layer.type, NN::ShapeSpan(&sample, 1),
+                                    layer.attributes, name));
+        const NN::NodeRef input = model.input();
+        SA_TRY_ASSIGN(const NN::NodeRef made,
+                      model.add(name, std::move(node),
+                                SushiRuntime::span<const NN::NodeRef>(&input, 1)));
+        SA_TRY(model.output(published, made));
+
+        return Result<NN::ModelGraph>(std::move(model));
+    }
+
+    /** @brief Loads weights.sacp into @p state, which every record must match exactly once. */
+    Status import_every_weight(NN::ModelState& state)
+    {
+        return IO::import_weights(weights_path(), state, K_WEIGHT_RULES);
+    }
+
+    /**
+     * @brief Loads the records of weights.sacp that rename to an entry of @p state and skips
+     *        the others.
+     * @return FileNotFound for an unreadable file; Incompatible for a record that repeats or
+     *         differs from its entry in dtype or shape, and for an entry left unsupplied.
+     */
+    Status import_matching_weights(NN::ModelState& state)
+    {
+        const std::filesystem::path path = weights_path();
+        std::ifstream in(path, std::ios::binary);
+        SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
+                   path.string());
+        SA_TRY_ASSIGN(IO::CheckpointReader reader, IO::CheckpointReader::open(in));
+
+        std::set<std::string> supplied;
+        while (reader.read_count() < reader.count())
+        {
+            SA_TRY_ASSIGN(const IO::TensorRecord record, reader.next());
+            const std::string target = IO::renamed(record.name, K_WEIGHT_RULES);
+            const Result<SushiBLAS::Tensor*> found = state.tensor(target);
+            if (!found.has_value())
+            {
+                in.seekg(static_cast<std::streamoff>(record.payload_bytes()), std::ios::cur);
+                continue;
+            }
+
+            SushiBLAS::Tensor* const tensor = found.value();
+            SA_FAIL_IF(record.dtype != tensor->dtype || record.shape != shape_of(*tensor),
+                       StatusCode::Incompatible, "'{}' holds {} {}, but the entry '{}' is {} {}",
+                       record.name, dtype_name(record.dtype), record.shape.to_string(), target,
+                       dtype_name(tensor->dtype), shape_of(*tensor).to_string());
+            SA_FAIL_IF(!supplied.insert(target).second, StatusCode::Incompatible,
+                       "'{}' supplies '{}' twice", path.string(), target);
+            SA_TRY(reader.read_payload(record, tensor->data()));
+        }
+
+        for (const NN::StateEntry& entry : state.entries())
+        {
+            SA_FAIL_IF(supplied.count(entry.name) == 0, StatusCode::Incompatible,
+                       "'{}' does not supply '{}'", path.string(), entry.name);
+        }
+
+        return Status();
+    }
+
+    /**
+     * @brief Runs one evaluation step of @p model over @p values with the weights @p load reads.
+     * @param batch_shape The extents of the input, batch first.
+     * @param values The float32 elements of a @p batch_shape tensor.
+     * @return Every published tensor by name, or the first failure of the trace or the run.
+     */
+    Result<ForwardOutputs> run_model(SushiBLAS::Engine& engine, NN::ModelGraph& model,
+                                     const Shape& batch_shape, const std::vector<float>& values,
+                                     WeightLoad load)
+    {
         SA_TRY_ASSIGN(const Train::TracedStep traced,
-                      Train::build_evaluation_graph(model, K_INPUT_SHAPE));
+                      Train::build_evaluation_graph(model, batch_shape));
         SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-
-        const IO::RenameRule rules[] = {{K_MODEL_PREFIX, ""}};
-        const std::filesystem::path weights = std::filesystem::path(SaTest::fixture_directory()) /
-                                              SaTest::K_YOLO26_FIXTURE_FOLDER / "weights.sacp";
-        SA_TRY(IO::import_weights(weights, state, rules));
+        SA_TRY(load(state));
 
         Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
                       Train::EvaluationStep::make(engine, traced, state, pool));
 
-        SA_TRY_ASSIGN(SushiBLAS::Tensor input, allocate_tensor(engine, K_INPUT_SHAPE));
-        SA_FAIL_IF(static_cast<std::size_t>(input.num_elements) != image.size(),
-                   StatusCode::Incompatible, "the image holds {} values, but {} needs {}",
-                   image.size(), K_INPUT_SHAPE.to_string(), input.num_elements);
-        std::memcpy(input.data_as<float>(), image.data(), image.size() * sizeof(float));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor input, allocate_tensor(engine, batch_shape));
+        SA_FAIL_IF(static_cast<std::size_t>(input.num_elements) != values.size(),
+                   StatusCode::Incompatible, "the input holds {} values, but {} needs {}",
+                   values.size(), batch_shape.to_string(), input.num_elements);
+        std::memcpy(input.data_as<float>(), values.data(), values.size() * sizeof(float));
         SA_TRY(step->run(input));
 
         ForwardOutputs outputs;
@@ -225,6 +350,20 @@ namespace
         }
 
         return Result<ForwardOutputs>(std::move(outputs));
+    }
+
+    /**
+     * @brief Runs one evaluation step of the whole model over @p image with every weight.
+     * @param image The float32 elements of a K_INPUT_SHAPE tensor.
+     * @return Every published tensor by name, or the first failure of the build or the run.
+     */
+    Result<ForwardOutputs> run_forward(SushiBLAS::Engine& engine, const std::vector<float>& image)
+    {
+        SA_TRY_ASSIGN(const NN::NodeRegistry registry, compose_registry());
+        SA_TRY_ASSIGN(NN::ModelGraph model,
+                      NN::build_model(registry, load_spec_with_features()));
+
+        return run_model(engine, model, K_INPUT_SHAPE, image, &import_every_weight);
     }
 
     /**
@@ -259,6 +398,20 @@ namespace
             return ::testing::AssertionFailure() << reference.reason;
 
         return near_reference(found->second, reference.floats(), tolerance);
+    }
+
+    /** @brief Expects every row of K_OBSERVED_ROWS that is a @p use to match its record. */
+    void expect_rows_match(const ForwardOutputs& ours, ReferenceFile& file, RowUse use)
+    {
+        for (const ObservedRow& observed : K_OBSERVED_ROWS)
+        {
+            if (observed.use != use)
+                continue;
+
+            const std::string name(observed.record);
+            SCOPED_TRACE(name);
+            EXPECT_TRUE(matches_reference(ours, file, name, K_ACTIVATION_TOLERANCE));
+        }
     }
 
     /**
@@ -360,12 +513,39 @@ TEST_F(Integration_Yolo26Forward, TheFeatureRowsMatchTheReferenceLevels)
 {
     SA_RUN_FORWARD_OR_SKIP(ours, forward);
 
-    for (std::size_t level = 0; level < K_FEATURE_ROWS.size(); ++level)
-    {
-        const std::string name = feature_name(level);
-        SCOPED_TRACE(name);
-        EXPECT_TRUE(matches_reference(*ours, forward, name, K_ACTIVATION_TOLERANCE));
-    }
+    expect_rows_match(*ours, forward, RowUse::HeadLevel);
+}
+
+/**
+ * @brief Tests that rows 9, 10 and 21 of the whole-model pass compute the reference's records
+ *        of them, which pins the input and the output of c2psa and the concat row 22 reads.
+ */
+TEST_F(Integration_Yolo26Forward, TheInnerRowsMatchTheReferenceRows)
+{
+    SA_RUN_FORWARD_OR_SKIP(ours, forward);
+
+    expect_rows_match(*ours, forward, RowUse::Inner);
+}
+
+/**
+ * @brief Tests that row 10 built alone, with its own weights and the reference's row 9 as its
+ *        input, computes the reference's row 10, which pins c2psa apart from the rows above it.
+ */
+TEST_F(Integration_Yolo26Forward, C2psaAloneMapsTheReferenceRow9ToRow10)
+{
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(weights, "weights.sacp");
+    SA_READ_REFERENCE_OR_FAIL(input, forward, record_of(K_C2PSA_ROW - 1));
+    ASSERT_EQ(input.shape.rank(), 4);
+
+    const std::string produced(record_of(K_C2PSA_ROW));
+    const Shape sample{input.shape[1], input.shape[2], input.shape[3]};
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph block, build_row_alone(K_C2PSA_ROW, sample, produced));
+    SA_ASSERT_OK_AND_ASSIGN(const ForwardOutputs ours,
+                            run_model(*engine, block, input.shape, input.floats(),
+                                      &import_matching_weights));
+
+    EXPECT_TRUE(matches_reference(ours, forward, produced, K_ACTIVATION_TOLERANCE));
 }
 
 /** @brief Tests that the twelve ports of the head compute the reference's raw outputs. */

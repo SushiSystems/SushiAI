@@ -19,6 +19,8 @@ Settled on 2026-10-09, by the owner or by the engineer he delegated them to:
 
 Open. The plan is written under each recommendation; a different answer changes the units in the last column.
 
+**Ruled by the owner on 2026-10-09:** SushiAI takes no excerpt from AlexeyAB's Darknet and develops its own implementation. Q2's recommendation is therefore refused in part: the dump patch is extended for training while the build exists, and neither the patch nor any text derived from Darknet's source enters this repository. The reference tensors, the recipe of their input, their SHA-256 and the Darknet commit are what is kept; `REPORT.md` states Darknet's behaviour in its own words.
+
 | # | Question | Recommendation | Alternative | Changes |
 | --- | --- | --- | --- | --- |
 | Q1 | The outside files are an exception to rule 4 of the `testing` skill. Is it granted? | Yes, for the parity tests of this work and of YOLO26 only, each skipped by name when a file is missing | Commit the reference tensors: 14 MB for `yolov7` alone | D15 to D20, T10 to T15 |

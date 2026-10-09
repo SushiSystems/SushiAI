@@ -89,11 +89,7 @@ through `import_weights`, and `Integration_Yolo26Forward` matched the Ultralytic
 feature maps of rows 16, 19 and 22 and the twelve raw head outputs within 1e-4, the decoded
 boxes within 1.3e-4, the scores within 1e-6.
 
-- **Compare rows 9, 10 and 21 too.** The reference holds them since `b05ad10`; the parity test
-  does not publish those rows yet, so nothing isolates `C2PSA`.
 - **A detection report in `sushiai inference`**, which refuses a model with several outputs.
-- **One home for the default head count and the two-channel bound** of the attention, written
-  in `attention.cpp`, `c2psa.cpp` and `c3k2.cpp`.
 - **The detection objective.** No code builds the loss graph of SPEC section 4 from the
   operations; `PLAN.md` walks each term on paper.
 - **Two-pass label assignment in the training loop**: a forward-only replay, the host assigner,

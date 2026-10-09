@@ -41,16 +41,13 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds the smallest head width, which leaves a key width of one. */
-            constexpr int64_t K_SMALLEST_HEAD_DIM = 2;
-
             /** @brief Holds the side of the positional convolution's window. */
             constexpr int64_t K_POSITION_KERNEL = 3;
 
             /**
              * @brief Returns channels / head_count, the value width of one head.
              * @param channels Must be positive, a multiple of @p head_count, and hold
-             *                 K_SMALLEST_HEAD_DIM channels per head; other widths throw.
+             *                 Detail::K_SMALLEST_HEAD_WIDTH channels per head; others throw.
              */
             [[nodiscard]] int64_t divide_into_heads(int64_t channels, int64_t head_count)
             {
@@ -58,10 +55,10 @@ namespace SushiAI
                             "Attention needs a positive width that its head count divides; got "
                             "{} channels and {} heads",
                             channels, head_count);
-                SA_THROW_IF(channels / head_count < K_SMALLEST_HEAD_DIM,
+                SA_THROW_IF(channels / head_count < Detail::K_SMALLEST_HEAD_WIDTH,
                             "Attention needs at least {} channels per head, because the key "
                             "width is half of them; got {} channels and {} heads",
-                            K_SMALLEST_HEAD_DIM, channels, head_count);
+                            Detail::K_SMALLEST_HEAD_WIDTH, channels, head_count);
 
                 return channels / head_count;
             }
