@@ -31,7 +31,7 @@
 #include <memory>
 #include <string_view>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/optim/adamw.hpp>

@@ -28,7 +28,7 @@
 #pragma once
 
 #include <cstdint>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/nn/model_state.hpp>

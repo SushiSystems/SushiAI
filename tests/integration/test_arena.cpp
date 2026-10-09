@@ -29,7 +29,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/blas/blas.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 

@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/seam.hpp>

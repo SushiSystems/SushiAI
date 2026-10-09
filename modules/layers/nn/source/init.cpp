@@ -29,7 +29,7 @@
 
 #include <cmath>
 #include <cstddef>
-#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/nn/model_state.hpp>

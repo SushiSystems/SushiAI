@@ -33,8 +33,8 @@
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/core/format.hpp>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>

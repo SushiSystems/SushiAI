@@ -31,8 +31,8 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/common.hpp>

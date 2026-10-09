@@ -1,6 +1,6 @@
 # Domain modules
 
-**Status:** Open — phase 4 of 4, built and passing; the package suite waits on SushiBLAS's install. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
+**Status:** Shipped — built and passing on 2026-10-09, the package suite included. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
 
 How SushiAI keeps what belongs to one field of use (vision today; language, physics and
 reinforcement learning later) apart from the library every field shares, so that a field can be

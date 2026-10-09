@@ -29,12 +29,12 @@
 
 #include <cstdint>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/math/elementwise.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
-#include <SushiBLAS/engine/math/reductions.hpp>
-#include <SushiBLAS/engine/spatial.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/elementwise/elementwise.hpp>
+#include <SushiBLAS/random/random.hpp>
+#include <SushiBLAS/reductions/reductions.hpp>
+#include <SushiBLAS/spatial/spatial.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>

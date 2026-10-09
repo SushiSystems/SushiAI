@@ -29,8 +29,8 @@
 
 #include <memory>
 #include <string_view>
-#include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/compiled_step.hpp>

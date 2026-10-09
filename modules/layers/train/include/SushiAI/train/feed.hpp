@@ -28,7 +28,7 @@
 #pragma once
 
 #include <string_view>
-#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/core/status.hpp>
 
 namespace SushiAI

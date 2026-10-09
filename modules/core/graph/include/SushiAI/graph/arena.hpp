@@ -29,7 +29,7 @@
 
 #include <cstddef>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>

@@ -35,7 +35,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/data/dataset.hpp>

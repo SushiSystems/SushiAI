@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-09 — build: Followed SushiBLAS's module include paths in 57 files; needs the SushiBLAS tree that splits its library into modules (`<SushiBLAS/engine/engine.hpp>`, `<SushiBLAS/tensor/tensor.hpp>`).
 - 2026-10-09 — build: Moved the tree to modules/<tier>/<module>/ with include, source and tests per module; breaks every path under include/, src/, apps/ and examples/ (`modules/`, `applications/`, `.config/doxygen/`).
 - 2026-10-09 — build: Added sushiai_add_module and the tier table; a dependency up the tiers or between domains stops the configure (`cmake/SushiAIModule.cmake`, `cmake/SushiAILayers.cmake`).
 - 2026-10-09 — vision: Added the sushiai_vision library, its umbrella header, its test binary and SA_BUILD_VISION (`SushiAI::vision`, `vision/vision.h`, `sushiai_vision_tests`).

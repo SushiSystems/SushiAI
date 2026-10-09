@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.h>
 #include "model_text.hpp"
