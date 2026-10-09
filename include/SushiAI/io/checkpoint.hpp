@@ -42,6 +42,8 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
+#include <SushiAI/io/import_weights.hpp>
+#include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 
 namespace SushiAI
@@ -102,6 +104,25 @@ namespace SushiAI
                 return record;
             }
         }
+
+        /**
+         * @brief Writes every entry of a model state to disk, parameters and buffers alike.
+         * @param path Target filesystem path for the checkpoint.
+         * @param state The tensors to write, in the order the state lists them.
+         * @param engine Engine whose recorded tasks run before the tensor memory is read.
+         * @return Success, or InvalidFile when the file cannot be written.
+         */
+        [[nodiscard]] Status save_checkpoint(const std::filesystem::path& path,
+                                             NN::ModelState& state, SushiBLAS::Engine& engine);
+
+        /**
+         * @brief Loads a checkpoint into a model state, strictly in both directions.
+         * @param path Checkpoint path to read from disk.
+         * @param state The state every entry of which the file must supply exactly once.
+         * @return Success, or the failure of import_weights() with no rename rule.
+         */
+        [[nodiscard]] Status load_checkpoint(const std::filesystem::path& path,
+                                             NN::ModelState& state);
 
         /**
          * @brief Writes every declared parameter of the module to disk.
