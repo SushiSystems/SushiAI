@@ -1,0 +1,56 @@
+# Doxygen configuration for the SushiAI public API reference.
+#
+# Scope is the whole of include/SushiAI. Unlike SushiRuntime - which curates a
+# fluent `api/` subtree and documents the layers beneath it in prose only -
+# SushiAI has no such split: every installed header is public surface a consumer
+# writes against, and hiding half of it would leave the reference describing a
+# library nobody uses. What is kept out is named under EXCLUDE_* below.
+#
+# Build it with `sa doxygen` (never `doxygen Doxyfile` by hand - see
+# CLAUDE.md); output lands in build/docs/api-site/html and is gitignored.
+
+PROJECT_NAME           = "SushiAI"
+PROJECT_BRIEF          = "Graph-native deep learning — C++ API reference"
+PROJECT_NUMBER         = "v1 (unreleased)"
+
+OUTPUT_DIRECTORY       = build/docs/api-site
+HTML_OUTPUT            = html
+GENERATE_HTML          = YES
+GENERATE_XML           = YES
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+
+# The public headers plus the hand-written reference landing page.
+INPUT                  = docs/reference/API_REFERENCE.md \
+                         modules
+FILE_PATTERNS          = *.hpp *.h *.md
+RECURSIVE              = YES
+USE_MDFILE_AS_MAINPAGE = docs/reference/API_REFERENCE.md
+
+# Keep internal plumbing out of the reference. `Detail` is this library's
+# spelling of the same idea SushiRuntime spells `detail`; both are listed so a
+# header that borrows the other convention does not silently leak.
+EXCLUDE_PATTERNS       = */detail/* */Detail/* */source/* */tests/*
+EXCLUDE_SYMBOLS        = *::Detail *::Detail::* *::detail *::detail::*
+
+# Document what is written; do not invent docs for undocumented symbols, and
+# report anything public that lacks one so the site stays honest about its own
+# coverage.
+EXTRACT_ALL            = NO
+EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = NO
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+WARN_IF_UNDOCUMENTED   = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = NO
+WARN_LOGFILE           = build/docs/api-site/doxygen-warnings.log
+
+JAVADOC_AUTOBRIEF      = YES
+MARKDOWN_SUPPORT       = YES
+SORT_MEMBER_DOCS       = YES
+ALPHABETICAL_INDEX     = YES
+SOURCE_BROWSER         = NO
+QUIET                  = YES
