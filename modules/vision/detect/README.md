@@ -2,9 +2,9 @@
 
 The module has three parts: the root, which holds what both detection families share, in namespace
 `SushiAI::Vision::Detect`; `free/`, which holds the anchor-free path of YOLO26, in
-`SushiAI::Vision::Detect::Free`; and `anchor/`, which will hold anchor-box detection and is not
-written yet. Headings below name each header with its folder, so `free/` headers carry the prefix
-and root headers keep their bare names.
+`SushiAI::Vision::Detect::Free`; and `anchor/`, which holds anchor-box detection, in
+`SushiAI::Vision::Detect::Anchor`. Headings below name each header with its folder, so `free/` and
+`anchor/` headers carry the prefix and root headers keep their bare names.
 
 The parts of a detector's training and inference that run on the host over plain arrays: anchor
 grids, box coding, IoU, label assignment, the leaves a masked loss reads, both postprocess paths
@@ -12,8 +12,8 @@ and the validation metric. Every unit is a function or a small class over `Sushi
 with the shape written in its comment. Nothing here reaches an engine, SYCL or `graph/lowering`,
 so every unit is tested without a device.
 
-The module depends on `core` (`SA_THROW_IF`, `Error`). Nothing depends on it yet. It adds no IR
-operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of
+The module depends on `core` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`). Nothing depends on
+it yet. It adds no IR operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of
 `docs/agent/2026_10_07_YOLO26/SPEC.md`; the rulings that put label assignment on the host and ask
 for both validation heads are in `docs/design/PROGRAMME.md`.
 
@@ -39,8 +39,13 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `detection_row.hpp` | The six columns of a detection, `K_MAX_DETECTIONS`, `K_VALIDATION_CONFIDENCE` |
 | `prediction_shape.hpp` | `PredictionShape` |
 | `detections_topk.hpp` | `count_top_detections`, `select_top_detections`, `keep_confident_detections` |
+| `suppression_criterion.hpp` | `K_DEFAULT_DISTANCE_EXPONENT`, `SuppressionCriterion`, `measure_suppression` |
 | `detections_nms.hpp` | `LabelMode`, `ClassMode`, `NmsConfig`, `suppress_overlaps`, `select_nms_detections` |
 | `average_precision.hpp` | `K_IOU_THRESHOLDS`, `ClassMetrics`, `MetricsSummary`, `match_detections`, `integrate_precision`, `AveragePrecision` |
+| `anchor/anchor_size.hpp` | `AnchorSize`, `shape_iou` |
+| `anchor/anchor_layout.hpp` | `AnchorLayout`, `validate_anchor_layout` |
+| `anchor/head_options.hpp` | `HeadCoding`, `HeadOptions`, `HeadShape`, `NetworkSize`, the entry constants, `validate_head`, `count_head_channels`, `count_head_rows` |
+| `anchor/head_decode.hpp` | `decode_head` |
 
 ## free/anchors.hpp
 
@@ -495,6 +500,26 @@ A validation consumer of the one-to-one head has to call this filter. Without it
 computed over rows the reference drops: in the fixture no score reaches 0.001, so the reference
 validator keeps none of the 300 rows (`validation.row_count` in `MANIFEST.json`).
 
+## suppression_criterion.hpp
+
+### SuppressionCriterion, measure_suppression
+
+`measure_suppression(box1, box2, criterion, distance_exponent)` is the number a suppression
+compares with its threshold, for two x1 y1 x2 y2 boxes:
+
+```
+IoU         = intersection / union, and 0 when the intersection or the union is 0
+Iou:          IoU
+DistanceIou:  IoU - (d / c)^distance_exponent, and IoU when c is 0
+```
+
+`d` is the squared distance of the two centres and `c` the squared diagonal of the smallest box
+that encloses both. The IoU carries no eps, unlike `intersection_over_union` of `iou.hpp`, so
+this file computes its own. `DistanceIou` of two boxes that do not overlap is negative, so it
+never exceeds a threshold of 0 or more. `K_DEFAULT_DISTANCE_EXPONENT` is 0.6.
+`distance_exponent` is not checked; with an exponent of 0 the term is 1 for every pair. The
+behaviour is section 4.5 of `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`.
+
 ## detections_nms.hpp
 
 ### LabelMode, ClassMode
@@ -517,6 +542,8 @@ The defaults are what the validator passes, not the defaults of `non_max_suppres
 | `max_detections` | 300 | `U/cfg/default.yaml:57` |
 | `max_candidates` | 30000 | `U/utils/nms.py:23` |
 | `class_offset` | 7680 | `U/utils/nms.py:24` |
+| `criterion` | `Iou` | the reference has one criterion |
+| `distance_exponent` | 0.6 | read by `DistanceIou` only |
 
 The function's own defaults are 0.25, 0.45 and best class only (`U/utils/nms.py:15-19`).
 
@@ -559,9 +586,18 @@ U/utils/nms.py:299  order = rest[iou <= iou_threshold]
 ```
 
 The IoU has no eps. A box survives when its IoU with the kept box is at most the threshold, so an
-IoU equal to the threshold survives. When the kept box overlaps at least one remaining box, a
-pair whose IoU is not a number is dropped, as in the reference. Equal scores are visited by
-ascending index; the reference's `argsort` leaves that order unspecified.
+IoU equal to the threshold survives. A pair whose IoU is not a number is dropped, as in the
+reference. Equal scores are visited by ascending index; the reference's `argsort` leaves that
+order unspecified.
+
+The four-argument form is the six-argument form under `SuppressionCriterion::Iou`. The
+six-argument form takes the criterion and its exponent and walks the same order: a kept box
+removes every later box whose `measure_suppression` against it exceeds the threshold. A row whose
+score is 0 is never kept and removes nothing; the reference keeps such a row.
+`select_nms_detections` passes only scores above a threshold of at least 0, so no zero score
+reaches the suppression from it. The four-argument form throws on boxes that are not `[N, 4]`
+for `[N]` scores; the six-argument form stops the process on those and on a criterion outside
+the enumeration.
 
 `non_max_suppression` calls `torchvision.ops.nms` in place of `TorchNMS.nms` when torchvision is
 already imported (`U/utils/nms.py:154-159`). The exporter's run reached `TorchNMS.nms`
@@ -719,6 +755,112 @@ rows and the taps of the box filter are summed left to right.
 per box and one `int64` per distinct class of each image. `summarize` sorts the detections once,
 and for each class with detections it runs ten passes over that class's detections and fills two
 curves of 1000 points.
+
+## The anchor part
+
+`anchor/` holds detection with anchor boxes, the family of YOLOv3, v4 and v7. It is written from
+the behaviour `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` states in formulas (sections 4.4 and
+5.5) and ports no code. A content failure comes back as a `Status` of `core`; a call that breaks
+a stated precondition stops the process through `SA_FATAL_IF`. Nothing in this part throws.
+
+An anchor is stored as a fraction of the network input, so one layout serves every input size
+and every grid. Pixels do not appear in this part.
+
+## anchor/anchor_size.hpp
+
+### AnchorSize, shape_iou
+
+`AnchorSize` is a width and a height as fractions of the network input. A label box takes the
+same form. `shape_iou(a, b)` is the IoU of two sizes laid on one centre:
+
+```
+intersection = min(a.width, b.width) * min(a.height, b.height)
+union        = a.width * a.height + b.width * b.height - intersection
+shape_iou    = intersection / union, and 0 when union is not above 0
+```
+
+It is float32 and carries no eps. Two sizes without area give 0, where the quotient would be 0/0.
+
+## anchor/anchor_layout.hpp
+
+### AnchorLayout
+
+`anchors` lists every anchor of the model. `head_anchors[k]` lists the anchors head `k` uses, as
+indices into `anchors`; entry `a` of that list is the head's anchor slot `a`, which fixes the
+order of its channels and of its decoded rows.
+
+### validate_anchor_layout
+
+Returns `InvalidDescription` for a layout without anchors or without heads, an anchor whose side
+is not finite and above zero, a head without anchors, and an index below 0 or past the anchors.
+The message names the anchor, head and slot. Two heads may share an anchor, and an anchor may
+belong to no head: a layout read from a file can have both, and `validate_anchor_layout` accepts
+it. A head that lists one anchor twice is not refused.
+
+## anchor/head_options.hpp
+
+### HeadCoding, HeadOptions
+
+`HeadCoding` names how the published values of a head encode a box. Under `Logit` the offsets,
+the objectness and the classes are logits and the sizes are exponents. Under `Activated` the
+layer before the head already applied a logistic, every entry arrives in (0, 1), and the decode
+applies none. `HeadOptions` adds the class count and `scale_xy`, the stretch of an offset about
+the cell centre.
+
+### HeadShape, NetworkSize
+
+`HeadShape` is the batch, the grid rows and the grid columns of a head's
+`[B, H, W, A * (5 + C)]` output. `NetworkSize` is the input in pixels; the decode does not read
+it, and a caller that needs pixel boxes multiplies by it.
+
+### The entries of a slot
+
+A head has `A` anchor slots per cell and each slot has `5 + C` entries. `K_X_ENTRY`,
+`K_Y_ENTRY`, `K_WIDTH_ENTRY`, `K_HEIGHT_ENTRY` and `K_OBJECTNESS_ENTRY` are 0 to 4;
+`K_FIRST_CLASS_ENTRY` is 5, and class `c` is entry `5 + c`. Entry `e` of slot `a` is channel
+`a * (5 + C) + e`.
+
+### validate_head, count_head_channels, count_head_rows
+
+`validate_head` returns the failure of `validate_anchor_layout`, or `InvalidDescription` for a
+head index outside the layout, a class count below 1, or a `scale_xy` that is not finite and
+above zero. `count_head_channels` is `A * (5 + C)`, the channel count the convolution before the
+head must produce. `count_head_rows` is `H * W * A`, the rows one image decodes to; it does not
+multiply by the batch. Both counts are `noexcept` and stop the process on a head index outside
+the layout.
+
+## anchor/head_decode.hpp
+
+### decode_head
+
+Reads a head's `[B, H, W, A * (5 + C)]` output and writes `[B, H * W * A, 4]` boxes and
+`[B, H * W * A, C]` scores. With `t` the entries of one slot in cell `(row, col)`, `(pw, ph)` the
+slot's anchor, `s = scale_xy` and `act` the logistic under `Logit` and the identity under
+`Activated`:
+
+```
+X  = act(t[x]) * s - (s - 1) / 2        Y  = act(t[y]) * s - (s - 1) / 2
+bx = (col + X) / W                      by = (row + Y) / H
+Logit:      bw = exp(t[w]) * pw         bh = exp(t[h]) * ph
+Activated:  bw = t[w]^2 * 4 * pw        bh = t[h]^2 * 4 * ph
+score_c = act(t[objectness]) * act(t[class_c])
+```
+
+A box is centre x, centre y, width and height as fractions of the network input. Row
+`(row * W + col) * A + a` of an image holds slot `a` of cell `(row, col)`. The decode applies no
+threshold and clamps nothing: with `scale_xy` above 1 a centre can leave its cell by
+`(s - 1) / 2` of a cell, and a row whose objectness is near 0 is still written.
+
+The arithmetic is float32 in the order written above. The two codings are two rule types with
+the same pair of static functions, and the cell loop is a template over the rule, so the coding
+is chosen once per call and not per entry. The call allocates nothing.
+
+`decode_head` stops the process when `validate_head` fails on its arguments, when an extent of
+the shape is below 1, and when a span does not hold exactly the values its shape gives.
+
+`test_detect_anchor_decode.cpp` pins each formula with inputs at zero or at saturation, to 1e-6
+absolute. A logit of 100 is the saturated input: its float32 logistic is exactly 1, and that of
+-100 exactly 0. No test compares with a reference tensor.
 
 ## Reference tensors the assigner tests read
 
