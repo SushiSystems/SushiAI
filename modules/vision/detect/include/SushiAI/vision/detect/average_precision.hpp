@@ -23,7 +23,7 @@
  * @file average_precision.hpp
  * @brief Declares the detection metric: precision, recall and average precision per class.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once

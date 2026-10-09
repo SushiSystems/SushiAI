@@ -23,7 +23,7 @@
  * @file train.cpp
  * @brief Runs `sushiai train`: trains the model a JSON configuration describes, by registry lookup.
  * @author Mustafa Garip
- * @see apps/README.md, "train.cpp".
+ * @see applications/programs/README.md, "train.cpp".
  */
 
 #include <cstddef>
@@ -78,7 +78,7 @@ namespace
         sr::Execution::RuntimeContext context;
         sb::Engine engine(context);
 
-        // Everything below is selected by a string, not named by a type; see apps/README.md.
+        // Everything below is picked by string, not by type; see applications/programs/README.md.
 
         SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
 
@@ -119,7 +119,7 @@ namespace
 
         sa::Train::TrainerOptions options;
         options.epochs = 1;
-        // The objective owns the metric, so the trainer's accuracy path is off; see apps/README.md.
+        // Objective owns the metric; trainer accuracy is off; see applications/programs/README.md.
         options.track_accuracy = false;
 
         SA_TRY_ASSIGN(std::vector<sa::Train::BufferUpdateSlot> updates,
@@ -146,7 +146,7 @@ namespace
                                              built.graph.node_count(), built.graph.value_count())
                   << SushiBLAS::Core::format("Schedule   : {} epochs\n\n", spec.epochs);
 
-        // The loop calls run_step so the metric printed is the objective's own; see apps/README.md.
+        // Loop calls run_step; the metric is the objective's; see applications/programs/README.md.
         for (int64_t epoch = 1; epoch <= spec.epochs; ++epoch)
         {
             double last_loss = 0.0;
@@ -176,7 +176,7 @@ namespace
             }
         }
 
-        // A CTest case pins this line, in the shape `sa demo mlp` prints it; see apps/README.md.
+        // CTest pins this line's shape, as in `sa demo mlp`; see applications/programs/README.md.
         std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", trainer->compile_count());
         if (trainer->compile_count() != 1)
             std::cerr << "The step must be compiled exactly once.\n";

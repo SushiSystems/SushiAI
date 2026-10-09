@@ -86,17 +86,16 @@ defaults to off when SushiBLAS is added as a subdirectory, as this tree does.
 Expectations for a mergeable change:
 
 1. **The full test suite passes** (`sa test --suite all`).
-2. **A new symbol ships with a test.** Fast, deterministic tests go in
-   `tests/functional/unit/`; anything exercising the real Engine/sibling
-   chain goes in `tests/functional/integration/` (see
-   `test_engine_smoke.cpp` for the shape); a guarantee whose failure would be
-   *silent* — the loop still converges, the run still reports success — goes
-   in `tests/functional/regression/` (see `test_compile_once.cpp`).
-   **The GTest suite-name prefix is the only thing that assigns a CTest
-   label**, so a suite named without `Unit_`/`Integration_`/`Regression_` is
-   invisible rather than failing. A new test file is also listed in the
-   `add_executable` list of `tests/CMakeLists.txt`; a file that is not listed is
-   not compiled.
+2. **A new symbol ships with a test.** A test of one module goes in that module's `tests/`
+   folder and is listed in the `TESTS` argument of its `CMakeLists.txt`. A test that runs
+   several modules together goes in `tests/unit/` for fast, deterministic cases, in
+   `tests/integration/` for anything exercising the real Engine and sibling chain (see
+   `test_engine_smoke.cpp` for the shape), or in `tests/regression/` for a guarantee whose
+   failure would be *silent* — the loop still converges, the run still reports success (see
+   `test_compile_once.cpp`). **The GTest suite-name prefix is the only thing that assigns a CTest
+   label**, so a suite named without `Unit_`/`Integration_`/`Regression_` is invisible rather than
+   failing. A file of the root `tests/` is also listed in the `add_executable` list of
+   `tests/CMakeLists.txt`; a file that is not listed is not compiled.
 3. **A CMake or CLI change is verified end to end** — configure, build,
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
@@ -249,24 +248,25 @@ An operation is one identity and one row in each table that owns a piece of it. 
 headers named below carry `static_assert`s that fail the build when a row is missing or
 doubled, so the compiler lists what is left.
 
-1. **Identity.** Declare it in `include/SushiAI/core/ops.hpp` and add it to `K_ALL`. Use
+1. **Identity.** Declare it in `modules/core/core/include/SushiAI/core/ops.hpp` and add it to `K_ALL`. Use
    `differentiable_op` when a backward rule must exist, `gradient_barrier_op` when its
    result lets no gradient reach its operands, and `op` otherwise. The name is dotted and
    starts with `sushiai.`.
 
    ```cpp
-   // include/SushiAI/core/ops.hpp, inside namespace Ops
+   // modules/core/core/include/SushiAI/core/ops.hpp, inside namespace Ops
    inline constexpr OpName K_SOFTSIGN = differentiable_op("sushiai.softsign");
    ```
 
 2. **Builder call and shape rule.** Declare the emitter in
-   `include/SushiAI/graph/builder.hpp` and define it in `src/graph/builder.cpp`. The body
+   `modules/core/graph/include/SushiAI/graph/builder.hpp` and define it in
+   `modules/core/graph/source/builder.cpp`. The body
    is the shape rule: it sets the result's `Shape` and element type from its operands and
    refuses an operand it cannot use. `unary` and `elementwise` do this for the common
    cases.
 
    ```cpp
-   // src/graph/builder.cpp
+   // modules/core/graph/source/builder.cpp
    ValueId GraphBuilder::softsign(ValueId x) const
    {
        return unary(Ops::K_SOFTSIGN.id, x);
@@ -274,11 +274,12 @@ doubled, so the compiler lists what is left.
    ```
 
 3. **Gradient rule row.** Declare the rule in the header of its domain under
-   `include/SushiAI/autograd/rules/`, define it in `src/autograd/rules/`, and add one row
+   `modules/core/autograd/include/SushiAI/autograd/rules/`, define it in
+   `modules/core/autograd/source/rules/`, and add one row
    to the domain table, raising that table's `std::array` size by one.
 
    ```cpp
-   // include/SushiAI/autograd/rules/elementwise.hpp
+   // modules/core/autograd/include/SushiAI/autograd/rules/elementwise.hpp
    void softsign_backward(const GradientTape& tape);
 
    inline constexpr std::array<RuleEntry, 13> K_ELEMENTWISE_RULES = {{
@@ -291,12 +292,13 @@ doubled, so the compiler lists what is left.
    `K_ACTIVATION_RULES`, and its gradient is a plain `op` identity with its own lowering row.
 
 4. **Lowering row.** Declare `[[nodiscard]] Status lower_softsign(const LoweringContext& context);`
-   in the domain header under `include/SushiAI/graph/lowering/`, define it in
-   `src/graph/lowering/`, and add one row to the domain table, raising its `std::array` size.
+   in the domain header under `modules/core/graph/include/SushiAI/graph/lowering/`, define it in
+   `modules/core/graph/source/lowering/`, and add one row to the domain table, raising its
+   `std::array` size.
    The row records its SushiBLAS work on `context.recorder()` and returns a `Status`.
 
    ```cpp
-   // src/graph/lowering/elementwise.cpp
+   // modules/core/graph/source/lowering/elementwise.cpp
    Status lower_div(const LoweringContext& context)
    {
        return record_binary(context, &SushiBLAS::ElementwiseOps::div);
@@ -308,12 +310,13 @@ doubled, so the compiler lists what is left.
    the graph (the two optimizer updates and the batch-statistics update), so a graph
    operation takes a row there, never a place.
 
-5. **Test.** Add a unit test under `tests/functional/unit/` for the shape rule, and one case
-   per row under `tests/functional/integration/` that runs the operation through a compiled
-   step. `test_lowered_operations.cpp` shows the shape: twelve forward cases in FLOAT32 and,
-   for two gradient rows, a FLOAT64 case against the closed form. List a new test file in the
-   `add_executable` list of `tests/CMakeLists.txt`. Build and run the change as §3 says, and add the CHANGELOG line
-   as §5 says.
+5. **Test.** Add a unit test in the `tests/` folder of the module the rule lives in, for the
+   shape rule, and one case per row under `tests/integration/` that runs the operation through a
+   compiled step. `tests/integration/test_lowered_operations.cpp` shows the shape: twelve forward
+   cases in FLOAT32 and, for two gradient rows, a FLOAT64 case against the closed form. List a new
+   file of the root `tests/` in the `add_executable` list of `tests/CMakeLists.txt`, or a new file
+   of a module's `tests/` in that module's `TESTS` list. Build and run the change as §3 says, and
+   add the CHANGELOG line as §5 says.
 
 ---
 

@@ -23,7 +23,7 @@
  * @file region_signature.hpp
  * @brief Declares RegionSignature, the structure of one region as a comparable value.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #pragma once
@@ -43,7 +43,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds what two steps must agree on for a region to be reused.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         struct RegionSignature
         {
@@ -68,7 +68,7 @@ namespace SushiAI
          * @param region A key listed in @p partition.
          * @param external_identity One stable identity per value id; read for every value the
          *        region reads and does not produce.
-         * @see include/SushiAI/eager/README.md
+         * @see modules/core/eager/README.md
          */
         [[nodiscard]] RegionSignature signature_of(
             const Graph::Graph& graph,

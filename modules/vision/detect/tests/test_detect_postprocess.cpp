@@ -221,7 +221,7 @@ TEST(Unit_DetectPostprocess, ReproducesTheReferenceDetections)
     EXPECT_TRUE(near_reference(score_column, reference_scores, K_EXACT));
     EXPECT_TRUE(equal_reference(class_column, reference_classes));
 
-    // Rows sharing the last score are interchangeable; see include/SushiAI/vision/detect/README.md.
+    // Rows sharing the last score are interchangeable; see modules/vision/detect/README.md.
     const float last_score = reference_scores.back();
     EXPECT_TRUE(near_reference(sorted_rows_above(detections, last_score),
                                sorted_rows_above(reference, last_score), K_EXACT));
@@ -326,7 +326,7 @@ TEST(Unit_DetectPostprocess, SuppressionReproducesTheReferenceRows)
     }
     EXPECT_TRUE(near_reference(score_column, reference_scores, K_EXACT));
 
-    // Rows sharing the last score are interchangeable; see include/SushiAI/vision/detect/README.md.
+    // Rows sharing the last score are interchangeable; see modules/vision/detect/README.md.
     const float last_score = reference_scores.back();
     EXPECT_TRUE(near_reference(sorted_rows_above(detections[0], last_score),
                                sorted_rows_above(reference, last_score), K_EXACT));

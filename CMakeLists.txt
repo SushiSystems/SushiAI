@@ -69,7 +69,7 @@ option(SA_BUILD_VISION "Build the vision domain, SushiAI::vision" ${SA_IS_TOP_LE
 # one standard because `SushiRuntime::span` selects between std::span and
 # SushiRuntime's own shim on __cplusplus, and that choice reaches the compiled
 # ABI: SushiAI at C++20 over siblings at C++17 put the two halves of one build
-# on opposite sides of that branch. See docs/ARCHITECTURE.md §1.
+# on opposite sides of that branch. See docs/architecture/ARCHITECTURE.md §1.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

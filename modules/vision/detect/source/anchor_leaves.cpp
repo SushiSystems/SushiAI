@@ -23,7 +23,7 @@
  * @file anchor_leaves.cpp
  * @brief Implements the anchor points and strides a detection graph reads as leaves.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/anchor_leaves.hpp>

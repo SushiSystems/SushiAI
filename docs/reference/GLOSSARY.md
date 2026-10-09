@@ -1,7 +1,8 @@
 # Glossary
 
 The words this repository's documents use, each with the header or file that defines it. Header
-paths are relative to `include/SushiAI/`.
+paths are relative to `include/SushiAI/` of the module that owns them, `modules/<tier>/<module>/`;
+`graph/ir.hpp`, for example, is `modules/core/graph/include/SushiAI/graph/ir.hpp`.
 
 ## The graph
 
@@ -13,7 +14,7 @@ paths are relative to `include/SushiAI/`.
 | Op identity | The name an operation carries, such as `sushiai.log_softmax`; all of them are declared in `core/ops.hpp` |
 | Lifetime | The class a value belongs to: `Parameter`, `Gradient`, `OptimizerState`, `Input`, `Buffer`, `Activation` or `Scratch` (`Graph::Lifetime`, `graph/ir.hpp`). Only values of one class share an arena |
 | Layout | Where the channel axis sits. `Nhwc` is the native layout; `Nchw` appears at a boundary only (`Graph::TensorLayout`) |
-| Backward rule | A function that writes the IR for one operation's gradient. Autograd is an IR-to-IR transform (`autograd/backward.hpp`, `src/autograd/rules/`) |
+| Backward rule | A function that writes the IR for one operation's gradient. Autograd is an IR-to-IR transform (`autograd/backward.hpp`, `modules/core/autograd/source/rules/`) |
 | Gradient barrier | An operation declared with `gradient_barrier_op`: its result lets no gradient reach its operands, so it has no backward rule (`core/ops.hpp`) |
 | gradcheck | The finite-difference check of a backward rule, run in FLOAT64 (`autograd/gradcheck.hpp`) |
 
@@ -75,6 +76,8 @@ paths are relative to `include/SushiAI/`.
 | Sibling | A checkout that sits beside this one, such as `../sushiruntime` or `../sushiblas` |
 | D3 | The order a dependency is resolved in: an in-tree CMake target, then an installed package through `find_package`, then a sibling checkout |
 | `sa` | This repository's CLI, also installed as `sushiai` (`cli/`) |
+| Tier | A rank in the module tree: `core`, `layers` or `vision`, lowest first. A module may depend on modules of its own tier or a lower one (`cmake/SushiAILayers.cmake`) |
+| Domain | A tier that is a field of use built on the layers. `vision` is the only one, and no domain may depend on another (`docs/design/DOMAIN_MODULES.md`) |
 | `hub` | The SushiStack workspace CLI, which installs module CLIs and provisions several checkouts |
 | ST, SB, AI | The three tracks of the 2026-08 roadmap, now superseded by `PROGRAMME.md`: stack and CLI wiring, SushiBLAS repair, SushiAI construction. `AI-0` to `AI-7` are the steps of the third (`ROADMAP.md`) |
 | Stage | A numbered step of `PROGRAMME.md`, 0 to 6. Stage 1 is the SushiBLAS v0.1.0 migration; stage 2 is the error contract and naming |

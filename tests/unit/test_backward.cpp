@@ -158,21 +158,21 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_SILU_BACKWARD.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_SOFTPLUS_BACKWARD.id));
 
-    // Running statistics are a buffer, not a gradient path; see tests/functional/unit/README.md.
+    // Running statistics are a buffer, not a gradient path; see tests/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_UPDATE_STATS.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_FOLD.id));
 
-    // LEAF and ZERO have no operand to hand a gradient to; see tests/functional/unit/README.md.
+    // LEAF and ZERO have no operand to hand a gradient to; see tests/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_LEAF.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_ZERO.id));
 
-    // Casts are inserted after differentiation; see tests/functional/unit/README.md.
+    // Casts are inserted after differentiation; see tests/unit/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CAST.id));
 }
 
 TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
 {
-    // Every rule names the numeric test that proves it; see tests/functional/unit/README.md.
+    // Every rule names the numeric test that proves it; see tests/unit/README.md.
     struct Proven
     {
         OpID op;
@@ -202,7 +202,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::K_ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
         {Ops::K_NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
 
-        // LOG_SOFTMAX's rule only raises its diagnostic; see tests/functional/unit/README.md.
+        // LOG_SOFTMAX's rule only raises its diagnostic; see tests/unit/README.md.
         {Ops::K_LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
 
         {Ops::K_RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
@@ -293,7 +293,7 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     const std::vector<ValueId> grads =
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    // Cross-entropy differentiates as one fused rule; see tests/functional/unit/README.md.
+    // Cross-entropy differentiates as one fused rule; see tests/unit/README.md.
     EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
         "sushiai.exp",
         "sushiai.sub",
@@ -309,7 +309,7 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     // No LOG_SOFTMAX gradient: the fused rule absorbed that node.
     EXPECT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX.id), 1u);
 
-    // One contributor per value emits no ACCUMULATE; see tests/functional/unit/README.md.
+    // One contributor per value emits no ACCUMULATE; see tests/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 0u);
 
     ASSERT_EQ(grads.size(), 4u);
@@ -336,7 +336,7 @@ TEST(Unit_Backward, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     const std::vector<ValueId> wrt = {layer.weight.id_in(graph)};
     (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
-    // The input gradient's MATMUL is skipped; see tests/functional/unit/README.md.
+    // The input gradient's MATMUL is skipped; see tests/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 2u);
 }
 
@@ -348,7 +348,7 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    // x has two contributors, so ACCUMULATE is emitted; see tests/functional/unit/README.md.
+    // x has two contributors, so ACCUMULATE is emitted; see tests/unit/README.md.
     const ValueId left = builder.relu(x);
     const ValueId right = builder.tanh(x);
     const ValueId sum = builder.add(left, right);
@@ -403,14 +403,14 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
     EXPECT_EQ(grads[0], K_NO_VALUE) << "a disconnected parameter has no gradient value at all";
     EXPECT_NE(grads[1], K_NO_VALUE);
 
-    // A zero gradient emits no ZERO node; see tests/functional/unit/README.md.
+    // A zero gradient emits no ZERO node; see tests/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
     EXPECT_EQ(graph.node_count(), before + 2);
 }
 
 TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
 {
-    // A graph with no gradient request emits no node; see tests/functional/unit/README.md.
+    // A graph with no gradient request emits no node; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -437,7 +437,7 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    // An identity that no rule covers stands in for a new op; see tests/functional/unit/README.md.
+    // An identity that no rule covers stands in for a new op; see tests/unit/README.md.
     const ValueId mystery = graph.add_value(Shape{4, 3}, DType::Float32,
                                             Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
@@ -472,7 +472,7 @@ TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairSaysSoClearly)
     const ValueId x = builder.parameter(Shape{4, 3}, "x");
     const ValueId targets = builder.input(Shape{4, 3}, "targets");
 
-    // A RELU consumer keeps the cross-entropy fusion away; see tests/functional/unit/README.md.
+    // A RELU consumer keeps the cross-entropy fusion away; see tests/unit/README.md.
     const ValueId detoured = builder.relu(builder.log_softmax(x));
     const ValueId loss = builder.nll_loss(detoured, targets);
 

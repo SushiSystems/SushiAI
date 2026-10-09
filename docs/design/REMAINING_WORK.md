@@ -83,19 +83,19 @@ The requirements map is `docs/agent/2026_10_07_YOLO26/SPEC.md`, with the owner's
 section 8 and the staged plan in section 7; what has been written is in `PLAN.md` beside it. The
 reference exporter is `tools/reference/export_yolo26_reference.py`.
 
-Written and never run: the loss operations and their rules, any scalar loss root, stop-gradient,
-the `detect` module and the `imaging` module.
+Built and run: the blocks `conv`, `c3k2` and `sppf`, the model graph and `build_model` over
+`applications/examples/yolo26/model.json`, the model state, the evaluation step, the weight
+import, the `detect` and `imaging` modules. Twenty-two of the model file's 24 rows build.
 
+- **The `c2psa` block** (row 10) and **the `detect` head** (row 23), the two row types no
+  registered module has.
+- **Forward parity**: load `tests/fixtures/yolo26/weights.sacp` through `import_weights` with
+  the rename rules of the Ultralytics names, feed `input.sacp`, compare with `forward.sacp`.
 - **The detection objective.** No code builds the loss graph of SPEC section 4 from the
   operations; `PLAN.md` walks each term on paper.
 - **Two-pass label assignment in the training loop**: a forward-only replay, the host assigner,
   then the full step, and what `CompiledStep` and `Trainer` need for it.
-- **The rest of the model graph.** Units U1 to U12 of `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`
-  are written and never built; `PLAN.md` there lists what waits: the engine-side units U13 to U17
-  (the lowering of the fourth `K_BATCHNORM2D` output and of `K_BATCHNORM_FOLD`, an `initialize` that
-  fills a scale with one and fills buffers, checkpoints with buffers, the weight importer), the
-  attention and head blocks behind rows 10, 22 and 23 of `examples/yolo26/model.json`, and how
-  `BatchNorm2d` and a nested `ModelGraph` refuse a misfit when added (owner's ruling).
+- **How `BatchNorm2d` and a nested `ModelGraph` refuse a misfit when added** (owner's ruling).
 - **A detection dataset and a threaded loader** over the imaging pipelines: a directory-backed
   sample source, the build pass that parses and rejects labels once, one pipeline per thread.
 - **The image decode tool** that writes the raw cache, with libjpeg-turbo through vcpkg.
@@ -112,17 +112,20 @@ the `detect` module and the `imaging` module.
 
 ## Domain modules
 
-The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md). The plan,
-twenty tasks in five waves, is `docs/agent/2026_10_09_DOMAIN_MODULES/PLAN.md`. It runs after the model graph's engine units and before the rest of YOLO26, so that
-new vision code is written into `vision/`.
+The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md); the tree is
+`modules/<tier>/<module>/` and was built on 2026-10-09. New vision code is written into
+`modules/vision/`.
 
-- **Phase 1: registries become values.** `NodeRegistry` and `DatasetRegistry` replace the
-  `constexpr` tables; each module registers its own rows; a program composes them.
-- **Phase 2: vision moves.** `detect`, `imaging`, the YOLO blocks and MNIST go under `vision/`.
-- **Phase 3: the second target.** `sushiai_vision` with its umbrella header and test binary.
-- **Phase 4: the layering check.** `check_layering.py` declares the tiers.
-- **Move the rewritten layering checker to SushiSkills.** Phase 4 rewrites this repository's
-  copy, whose discovery assumed a `modules/` layout; the shared copy still has it.
+- **The package suite.** `sa test --suite package` fails on SushiBLAS's install, which does not
+  ship the headers of its moved modules; SushiAI's side installed and exported correctly.
+- **Carry the domain-tier key of the layering checker to SushiSkills.** The shared copy reads
+  `<SushiAI/vision/detect/x.hpp>` as a module named `vision`.
+- **Split `sushiai_add_module`** into one function per concern (key, target, dependencies,
+  tests, install).
+- **One home for the join that lists type names**, in `node_registry.cpp`,
+  `layer_registry.cpp` and `dataset_registry.cpp`.
+- **Give each module's tests their own README**, and take their sections out of
+  `tests/unit/README.md`.
 
 ## Darknet-era YOLO
 

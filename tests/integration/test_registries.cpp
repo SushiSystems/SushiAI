@@ -72,7 +72,7 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
     EXPECT_EQ(dataset->num_classes(), 4);
     EXPECT_EQ(dataset->batch_count(), 4u);
 
-    // Round-robin labels balance every batch; see tests/functional/integration/README.md.
+    // Round-robin labels balance every batch; see tests/integration/README.md.
     std::vector<int> counts(4, 0);
     for (int32_t label : dataset->batch(0).labels) ++counts[static_cast<std::size_t>(label)];
     EXPECT_EQ(counts, (std::vector<int>{8, 8, 8, 8}));
@@ -99,7 +99,7 @@ TEST_F(Integration_Registries, RingsReportItsSampleShape)
 
 TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
 {
-    // The class is a function of x^2 + y^2; see tests/functional/integration/README.md.
+    // The class is a function of x^2 + y^2; see tests/integration/README.md.
     Data::RingsOptions options;
     options.batch_size = 64;
     options.batches = 1;
@@ -140,7 +140,7 @@ TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 
 TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
 {
-    // Data comes from a host RNG, not Philox; see tests/functional/integration/README.md.
+    // Data comes from a host RNG, not Philox; see tests/integration/README.md.
     const auto build = [this]
     {
         return Data::make_dataset(datasets, *engine, "rings",
@@ -182,7 +182,7 @@ TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
 
 TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
 {
-    // One real slot backs the optimizer state; see tests/functional/integration/README.md.
+    // One real slot backs the optimizer state; see tests/integration/README.md.
     const int64_t dims[1] = {4};
     const SushiRuntime::span<const int64_t> shape(dims, 1);
     Optim::ParameterSlot slot;
@@ -216,7 +216,7 @@ TEST_F(Integration_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 
 TEST_F(Integration_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 {
-    // "momentum" is SGD's key, not AdamW's; see tests/functional/integration/README.md.
+    // "momentum" is SGD's key, not AdamW's; see tests/integration/README.md.
     SA_EXPECT_ERROR(
         (void)Optim::make_optimizer(*engine, "adamw", {},
                                     attributes_from(R"({"momentum": 0.9})"), "optimizer"),
@@ -225,7 +225,7 @@ TEST_F(Integration_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 
 TEST_F(Integration_Registries, AConfigurationCannotReachTheReferenceUpdateKernel)
 {
-    // "kernel" is not an accepted config key; see tests/functional/integration/README.md.
+    // "kernel" is not an accepted config key; see tests/integration/README.md.
     SA_EXPECT_ERROR(
         (void)Optim::make_optimizer(*engine, "adamw", {},
                                     attributes_from(R"({"kernel": "separate"})"), "optimizer"),

@@ -569,7 +569,7 @@ The validation metric: detections are matched to ground truth at ten IoU thresho
 of every image are accumulated, and one table comes out with precision, recall, AP50 and AP50-95
 per class and their means. The reference computes this part in numpy float64, so the unit works
 in `double`; only the IoU and the thresholds are float32. `Unit_AveragePrecision` in
-`tests/vision/test_detect_average_precision.cpp` holds its tests. No fixture carries a
+`modules/vision/detect/tests/test_detect_average_precision.cpp` holds its tests. No fixture carries a
 reference metric table, so those tests compare with values derived by hand.
 
 ### K_IOU_THRESHOLDS

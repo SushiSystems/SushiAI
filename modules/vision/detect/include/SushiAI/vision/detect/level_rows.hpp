@@ -23,7 +23,7 @@
  * @file level_rows.hpp
  * @brief Declares the copies between one level's rows and the anchor axis that joins the levels.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -50,7 +50,7 @@ namespace SushiAI
          * @brief Copies one level's `[B, n, C]` rows into their place in a `[B, A, C]` array.
          * @param level `[B, H, W, C]` read as `[B, n, C]`.
          * @param joined `[B, A, C]`; only the level's rows are written.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void join_level(SushiRuntime::span<const float> level,
                         const LevelPlacement& placement,
@@ -60,7 +60,7 @@ namespace SushiAI
          * @brief Copies one level's rows out of a `[B, A, C]` array into `[B, n, C]`.
          * @param joined `[B, A, C]`.
          * @param level Receives `[B, n, C]`, which is `[B, H, W, C]` in row-major order.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void split_level(SushiRuntime::span<const float> joined,
                          const LevelPlacement& placement,

@@ -23,7 +23,7 @@
  * @file test_mixed_precision.cpp
  * @brief Tests that mixed precision keeps master weights in float32 and adds only conversions.
  * @author Mustafa Garip
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 
 #include <cmath>
@@ -57,7 +57,7 @@ namespace
 
     /**
      * @brief Returns AdamW options at the rate `sa demo mlp` uses, 3e-3.
-     * @see tests/functional/regression/README.md
+     * @see tests/regression/README.md
      */
     Optim::AdamWOptions optimizer_options()
     {
@@ -82,7 +82,7 @@ namespace
 
     /**
      * @brief Trains the same model, data and seed under @p precision.
-     * @see tests/functional/regression/README.md
+     * @see tests/regression/README.md
      */
     [[nodiscard]] Result<TrainingRun> train(SushiBLAS::Engine& engine,
                                             const Graph::PrecisionPolicy* precision)
@@ -129,7 +129,7 @@ namespace
                 result.accuracy = metrics.accuracy;
             }
 
-        // Dtypes are read after the run, not before; see tests/functional/regression/README.md.
+        // Dtypes are read after the run, not before; see tests/regression/README.md.
         for (const Optim::ParameterSlot& slot : slots)
         {
             result.master_dtypes.push_back(slot.parameter.dtype);
@@ -142,7 +142,7 @@ namespace
 
 /**
  * @brief Tests that every master weight and gradient is float32 after a mixed-precision run.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
 {
@@ -164,7 +164,7 @@ TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
 
 /**
  * @brief Tests that the fp32 policy adds no cast and matches no policy bit for bit.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_MixedPrecision, TheFp32PolicyIsIndistinguishableFromNoPolicyAtAll)
 {
@@ -184,7 +184,7 @@ TEST_F(Regression_MixedPrecision, TheFp32PolicyIsIndistinguishableFromNoPolicyAt
 
 /**
  * @brief Tests that mixed precision adds exactly as many operations as casts.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructural)
 {
@@ -199,7 +199,7 @@ TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructu
 
 /**
  * @brief Tests that mixed and single precision losses stay within 2e-2 relative at every step.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
 {
@@ -211,7 +211,7 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
     ASSERT_EQ(fp32.losses.size(), mixed.losses.size());
     ASSERT_GT(mixed.casts, 0u);
 
-    // Both runs learned before they are compared; see tests/functional/regression/README.md.
+    // Both runs learned before they are compared; see tests/regression/README.md.
     EXPECT_LT(fp32.losses.back(), 0.5 * fp32.losses.front());
     EXPECT_LT(mixed.losses.back(), 0.5 * mixed.losses.front());
     EXPECT_GT(mixed.accuracy, 0.75);
@@ -229,7 +229,7 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
 
 /**
  * @brief Tests that a narrowing policy leaves GELU unfolded and in float32.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
 {
@@ -260,12 +260,12 @@ TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
            "approximation's x*x*x into fp16 - see graph/precision.hpp rule 5\n"
         << narrow.fusion.to_string();
 
-    // The bias still folds on both layers; see tests/functional/regression/README.md.
+    // The bias still folds on both layers; see tests/regression/README.md.
     EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GemmBias), 2u)
         << narrow.fusion.to_string();
     EXPECT_GT(narrow.casts.count(), 0u) << "this arm narrowed nothing, so it proves nothing";
 
-    // The GELU stays in the graph, in the master type; see tests/functional/regression/README.md.
+    // The GELU stays in the graph, in the master type; see tests/regression/README.md.
     for (const Graph::Node& node : narrow.graph.nodes())
         if (node.op == Ops::K_GELU.id)
             EXPECT_EQ(narrow.graph.value(node.outputs[0]).dtype, DType::Float32);

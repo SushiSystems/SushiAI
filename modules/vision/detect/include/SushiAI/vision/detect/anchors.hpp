@@ -23,7 +23,7 @@
  * @file anchors.hpp
  * @brief Declares the anchor points and per-anchor strides of a detector's feature levels.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -53,7 +53,7 @@ namespace SushiAI
 
         /**
          * @brief Returns the number of anchors over @p levels, one per cell.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         [[nodiscard]] std::int64_t count_anchors(SushiRuntime::span<const FeatureLevel> levels);
 
@@ -61,7 +61,7 @@ namespace SushiAI
          * @brief Writes each anchor's cell centre in grid units and its stride.
          * @param points Receives `[A, 2]` as x then y, levels in order, row-major in a level.
          * @param strides Receives `[A]`.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void make_anchors(SushiRuntime::span<const FeatureLevel> levels,
                           SushiRuntime::span<float> points,

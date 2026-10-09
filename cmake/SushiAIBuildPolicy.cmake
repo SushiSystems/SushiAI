@@ -25,7 +25,7 @@
 # sushiai_sanitizers) are PRIVATE, in-tree-only policy. SushiAI does not own a
 # floating-point contract to export either: it receives SushiRuntime's
 # `sushiruntime_deterministic_fp` transitively (PUBLIC link on
-# SushiRuntime::SushiRuntime, see src/CMakeLists.txt).
+# SushiRuntime::SushiRuntime, see cmake/SushiAIModule.cmake).
 include(SushiAICompilerWarnings)  # -> sushiai_warnings
 include(SushiAIOptimization)      # -> sushiai_perf
 include(SushiAISanitizers)        # -> sushiai_sanitizers

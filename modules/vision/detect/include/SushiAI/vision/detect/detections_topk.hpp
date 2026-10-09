@@ -23,7 +23,7 @@
  * @file detections_topk.hpp
  * @brief Declares the top-k postprocess of the one-to-one head.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -53,7 +53,7 @@ namespace SushiAI
          * @param scores `[B, A, C]` class probabilities; no NaN.
          * @param max_detections Limit on rows per image; K_MAX_DETECTIONS in the reference.
          * @param detections Receives `[B, k, 6]`, highest score first, k from count_top_detections.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void select_top_detections(SushiRuntime::span<const float> boxes,
                                    SushiRuntime::span<const float> scores,
@@ -67,7 +67,7 @@ namespace SushiAI
          * @pre k is at most the validator's row limit, K_MAX_DETECTIONS in the reference.
          * @param batch Images, B; must be positive and divide the rows of @p detections.
          * @param kept Receives one `[n, 6]` array per image, rows in their order in @p detections.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void keep_confident_detections(SushiRuntime::span<const float> detections,
                                        std::int64_t batch,

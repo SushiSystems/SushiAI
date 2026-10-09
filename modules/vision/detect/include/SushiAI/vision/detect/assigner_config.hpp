@@ -23,7 +23,7 @@
  * @file assigner_config.hpp
  * @brief Declares the settings of the task-aligned label assigner and the two branch presets.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -38,7 +38,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds the settings of one task-aligned assigner.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct AssignerConfig
         {
@@ -54,7 +54,7 @@ namespace SushiAI
         /**
          * @brief Returns the settings of the one-to-many branch.
          * @param strides Strides of the model's levels; empty means 8, 16 and 32.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         [[nodiscard]] AssignerConfig one_to_many_assigner_config(
             std::int64_t num_classes, SushiRuntime::span<const float> strides);
@@ -62,7 +62,7 @@ namespace SushiAI
         /**
          * @brief Returns the settings of the one-to-one branch.
          * @param strides Strides of the model's levels; empty means 8, 16 and 32.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         [[nodiscard]] AssignerConfig one_to_one_assigner_config(
             std::int64_t num_classes, SushiRuntime::span<const float> strides);

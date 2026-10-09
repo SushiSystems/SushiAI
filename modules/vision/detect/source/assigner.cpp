@@ -23,7 +23,7 @@
  * @file assigner.cpp
  * @brief Implements TaskAlignedAssigner, the host label assignment of a detector.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/assigner.hpp>

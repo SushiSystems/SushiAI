@@ -41,7 +41,7 @@
 
 using namespace SushiAI;
 
-// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 using Graph::ValueId;
@@ -140,7 +140,7 @@ namespace
 
 TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
 {
-    // Zero logits make the first loss exactly ln(C); see tests/functional/integration/README.md.
+    // Zero logits make the first loss exactly ln(C); see tests/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 6;
     const int64_t classes = 5;
@@ -178,7 +178,7 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
 
 TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
 {
-    // The step must compile once over many steps; see tests/functional/integration/README.md.
+    // The step must compile once over many steps; see tests/integration/README.md.
     const int64_t batch = 16;
     const int64_t features = 8;
     const int64_t classes = 4;
@@ -224,7 +224,7 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
 
 TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
 {
-    // Replays must reuse the same buffers; see tests/functional/integration/README.md.
+    // Replays must reuse the same buffers; see tests/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 6;
     const int64_t classes = 3;
@@ -352,7 +352,7 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
 
 TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate)
 {
-    // Step one moves each coordinate by about lr; see tests/functional/integration/README.md.
+    // Step one moves each coordinate by about lr; see tests/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 4;
     const int64_t classes = 3;
@@ -401,7 +401,7 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
     std::size_t checked = 0;
     for (std::size_t i = 0; i < before.size(); ++i)
     {
-        // Coordinates where eps matters are skipped; see tests/functional/integration/README.md.
+        // Coordinates where eps matters are skipped; see tests/integration/README.md.
         if (std::abs(gradient[i]) < 1e-4) continue;
 
         const double moved = (after[i] - before[i]) / -adam.learning_rate;
@@ -462,7 +462,7 @@ TEST_F(Integration_Training, SgdWithoutMomentumIsExactlyMinusLearningRateTimesTh
 
 TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherThanZeroes)
 {
-    // The shared context records no timing; see tests/functional/integration/README.md.
+    // The shared context records no timing; see tests/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 4;
     const int64_t classes = 3;
@@ -512,7 +512,7 @@ TEST_F(Integration_Training, ADisconnectedParameterIsRejectedRatherThanSilentlyS
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(layer, batch, features, classes));
 
-    // "ghost" is a parameter no gradient reaches; see tests/functional/integration/README.md.
+    // "ghost" is a parameter no gradient reaches; see tests/integration/README.md.
     built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id_in(built.graph),
                                                        Graph::K_NO_VALUE});
 
@@ -531,7 +531,7 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
     options.classes = 4;
     options.seed = 4242;
 
-    // Each dataset gets a fresh Engine; see tests/functional/integration/README.md.
+    // Each dataset gets a fresh Engine; see tests/integration/README.md.
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::context());
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::context());
 
@@ -552,7 +552,7 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
         for (std::size_t i = 0; i < a.size(); ++i)
             EXPECT_DOUBLE_EQ(a[i], c[i]) << "batch " << b << " element " << i;
 
-        // Round-robin labels balance every batch; see tests/functional/integration/README.md.
+        // Round-robin labels balance every batch; see tests/integration/README.md.
         std::vector<int> histogram(4, 0);
         for (int32_t label : first->batch(b).labels) ++histogram[static_cast<std::size_t>(label)];
         for (int count : histogram) EXPECT_EQ(count, 2);

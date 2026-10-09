@@ -33,7 +33,7 @@
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;
 
-// SushiAI links and runs one SushiBLAS op end to end; see tests/functional/integration/README.md.
+// SushiAI links and runs one SushiBLAS op end to end; see tests/integration/README.md.
 TEST(Integration_EngineSmoke, AxpyThroughSushiBLAS)
 {
     sr::Execution::RuntimeContext ctx;

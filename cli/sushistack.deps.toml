@@ -31,7 +31,7 @@
 depends_on = ["sushiruntime", "sushiblas"]
 
 [nlohmann-json]
-description   = "Header-only JSON parser. Read by src/config/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."
+description   = "Header-only JSON parser. Read by modules/core/config/source/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."
 required      = true
 linux_apt     = ["nlohmann-json3-dev"]
 windows_vcpkg = ["nlohmann-json"]

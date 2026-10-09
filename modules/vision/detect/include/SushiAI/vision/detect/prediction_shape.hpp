@@ -23,7 +23,7 @@
  * @file prediction_shape.hpp
  * @brief Declares the extents of a head's boxes and scores over all anchors.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -36,7 +36,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds the extents of `[B, A, 4]` boxes and the `[B, A, C]` scores beside them.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct PredictionShape
         {

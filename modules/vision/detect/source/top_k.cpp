@@ -23,7 +23,7 @@
  * @file top_k.cpp
  * @brief Implements the selection of the k largest values of an array.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/top_k.hpp>

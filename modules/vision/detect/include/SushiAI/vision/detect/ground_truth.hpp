@@ -23,7 +23,7 @@
  * @file ground_truth.hpp
  * @brief Declares the padded per-image ground truth a label assigner reads.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -39,7 +39,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds a batch's ground truth with every image padded to the same box count.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct GroundTruthBatch
         {
@@ -63,7 +63,7 @@ namespace SushiAI
          * @param batch Images in the batch; every image index must be below it.
          * @param image_width Input width in pixels; scales x and width.
          * @param image_height Input height in pixels; scales y and height.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void pad_ground_truth(const GroundTruthRows& rows,
                               std::int64_t batch,

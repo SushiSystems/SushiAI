@@ -23,7 +23,7 @@
  * @file anchor_leaves.hpp
  * @brief Declares the anchor points and strides a detection graph reads as leaves.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -41,7 +41,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds the anchor points and strides of every image of a batch, as FLOAT32 leaves.
-         * @see include/SushiAI/vision/detect/target_leaves.hpp
+         * @see modules/vision/detect/include/SushiAI/vision/detect/target_leaves.hpp
          */
         struct AnchorLeaves
         {
@@ -52,7 +52,7 @@ namespace SushiAI
         /**
          * @brief Writes the points and the strides of @p levels once for each image.
          * @param batch Images, B; must be positive.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
                                  std::int64_t batch,

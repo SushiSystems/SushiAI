@@ -23,7 +23,7 @@
  * @file detections_nms.hpp
  * @brief Declares the non-maximum-suppression postprocess of the one-to-many head.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -42,7 +42,7 @@ namespace SushiAI
     {
         /**
          * @brief Selects how many classes one anchor may contribute.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         enum class LabelMode : std::uint8_t
         {
@@ -52,7 +52,7 @@ namespace SushiAI
 
         /**
          * @brief Selects whether boxes of different classes suppress each other.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         enum class ClassMode : std::uint8_t
         {
@@ -62,7 +62,7 @@ namespace SushiAI
 
         /**
          * @brief Holds the settings of the suppression, at the values the validator passes.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct NmsConfig
         {
@@ -79,7 +79,7 @@ namespace SushiAI
          * @brief Writes the indices of the boxes that survive suppression, highest score first.
          * @param boxes `[N, 4]` x1 y1 x2 y2.
          * @param scores `[N]`; equal scores are visited by ascending index.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void suppress_overlaps(SushiRuntime::span<const float> boxes,
                                SushiRuntime::span<const float> scores,
@@ -91,7 +91,7 @@ namespace SushiAI
          * @param boxes `[B, A, 4]` centre x, centre y, width, height.
          * @param scores `[B, A, C]` class probabilities.
          * @param detections Receives one `[n, 6]` array per image, highest score first.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         void select_nms_detections(SushiRuntime::span<const float> boxes,
                                    SushiRuntime::span<const float> scores,

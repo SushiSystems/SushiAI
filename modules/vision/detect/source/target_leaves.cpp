@@ -23,7 +23,7 @@
  * @file target_leaves.cpp
  * @brief Implements the full-shape arrays a masked detection loss reads from an assignment.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/target_leaves.hpp>

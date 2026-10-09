@@ -113,7 +113,7 @@ feature that plan hasn't reached.
 ```
 
 - **`sa demo mlp`** — a real, flag-driven training program
-  (`examples/demo_mlp.cpp`), not a wrapper around the example. See
+  (`applications/examples/source/demo_mlp.cpp`), not a wrapper around the example. See
   [the demo section](#the-demo-sa-demo-mlp) for its output.
 - `SushiAI::sushiai` — a `STATIC` library linking `SushiRuntime::SushiRuntime`
   and `SushiBLAS::sushiblas` `PUBLIC`.
@@ -476,7 +476,7 @@ case. SushiBLAS builds its own suite only when it is the top-level project
 The `regression` tier pins guarantees whose failure is silent — today
 `compile_count() == 1` across repeated `fit()` calls, and the fact that every
 replay actually dispatches instead of reporting complete over an unarmed plan
-(see `tests/functional/regression/test_compile_once.cpp`).
+(see `tests/regression/test_compile_once.cpp`).
 
 ## How it works (today)
 
@@ -530,12 +530,13 @@ sa::Status train()
 
 Every step that allocates, compiles or runs returns a `Result` or a `Status`;
 `SA_TRY` and `SA_TRY_ASSIGN` return the failure to the caller.
-`examples/example.cpp` is this program with the dataset chosen at run time: MNIST when its
+`applications/examples/source/example.cpp` is this program with the dataset chosen at run time:
+MNIST when its
 files are present, synthetic data otherwise.
 
 SushiAI writes no SYCL: no file here names a `sycl::` type or submits to a
 queue, and every compute call goes through `SushiBLAS::sushiblas` (linked
-`PUBLIC`). The rows under `src/graph/lowering/` turn IR into those calls. The
+`PUBLIC`). The rows under `modules/core/graph/source/lowering/` turn IR into those calls. The
 optimizers do hand SushiBLAS a device functor for their fused
 update — plain arithmetic that SushiBLAS's own elementwise seam inlines into
 its own kernel. See
@@ -545,49 +546,48 @@ its own kernel. See
 ## Project layout
 
 ```
-CMakeLists.txt          Mirrors SushiBLAS's root CMakeLists.txt shape
+CMakeLists.txt          Project, options and add_subdirectory; no logic
 cmake/
   Vcpkg.cmake            (Windows) locate vcpkg + set the toolchain file
   Toolchain.cmake        pick the default SYCL compiler before project()'s probe
   Runtime.cmake          D3 resolution -> SushiRuntime::SushiRuntime
   BLAS.cmake             D3 resolution -> SushiBLAS::sushiblas
+  SushiAIModule.cmake    sushiai_add_module(), sushiai_add_library()
+  SushiAILayers.cmake    the tier table: each module's tier and library
   SushiAISyclTarget.cmake        sushiai_apply_sycl() helper
   SushiAIBuildPolicy.cmake       composes warnings/perf/sanitizers
   SushiAICompilerWarnings.cmake
   SushiAIOptimization.cmake
   SushiAISanitizers.cmake
   SushiAIConfig.cmake.in         find_package(SushiAI) package config
-include/SushiAI/
-  SushiAI.h              Master header — includes every public header
-  version.hpp            SUSHIAI_VERSION_* macros
-  core/                  Vocabulary: common, ops, shape, allocation; the failure
-                         contract: check, status, result, seam
-  graph/                 The IR, its builder, the passes (planner, precision,
-                         casts, fusion), TensorPool, the lowering and its
-                         per-domain tables under lowering/, CompiledStep
-  autograd/              Differentiation and gradient checking
-  config/                Config::Value, the registry lookup, the three schemas
-  nn/                    Parameters, the Module contract, layers, losses, init,
-                         and the runtime path: Layer, LayerStack, the registries
-  optim/                 SGD and AdamW, and the registry that selects them
-  data/                  The Dataset seam, synthetic data, rings, MNIST
-  io/                    The SACP checkpoint: the byte format, and the binding
-  train/                 The training loop, its run report, and IObjective
-src/                     One .cpp per header that needs one, same tree shape
-apps/
-  train.cpp              `sushiai train` — no layer, loss, dataset or
-                         optimizer type name appears in it
-  inference.cpp          `sushiai inference` — forward pass only, no objective
-examples/
-  example.cpp            A whole training run, end to end — a teaching file
-  demo_mlp.cpp           The program behind `sa demo mlp` — a product surface
-  heavy_mlp/             Three JSON files: the same model as configuration
-tests/
-  common/                     Process-global RuntimeContext + per-test Engine
-  functional/unit/            Device-free: shapes, IR, autograd, the walk
-  functional/integration/     Real Engine: forward values, gradcheck, training
-  functional/regression/      Guarantees whose failure is silent
-  package/                    Out-of-tree find_package(SushiAI) consumer
+modules/                 One folder per module, grouped by tier
+  core/                  The tier that knows no layer type and no domain
+    core/                Vocabulary (common, ops, shape, allocation) and the failure contract
+    version/             The SUSHIAI_VERSION_* macros
+    graph/               The IR, its builder, the passes, TensorPool, the lowering to SushiBLAS
+    autograd/            Differentiation and gradient checking
+    config/              Config::Value, the registry lookup, the model and training schemas
+    optim/               SGD and AdamW, their registry and the loss scaler
+    data/                The Dataset seam, its registry and the materialised dataset
+    eager/               The host side of the eager front end: scope tracing and partitioning
+  layers/                The layers, and what trains, saves and loads a model of them
+    nn/                  Parameters, the Module contract, layers, losses, init, the runtime path
+    io/                  The SACP checkpoint: the byte format and the binding
+    train/               The training loop, its run report and the objective
+    umbrella/            SushiAI.h, the master header of the sushiai library
+  vision/                The vision domain, library sushiai_vision; it reads core and layers only
+    imaging/  detect/  blocks/  datasets/  registration/  umbrella/
+  <tier>/<module>/       Each module has CMakeLists.txt, include/, source/ and tests/, and a
+                         README.md where one is written
+applications/
+  programs/source/       train.cpp (sushiai train), inference.cpp (sushiai inference), registries
+  examples/source/       example.cpp, a teaching file; demo_mlp.cpp, the program behind sa demo mlp
+  examples/heavy_mlp/  mnist_cnn/  yolo26/    One folder per example: its README and its JSON
+tests/                   Tests that cross module boundaries
+  common/                Process-global RuntimeContext and per-test Engine support
+  unit/  integration/  regression/    The three suite tiers
+  package/               Out-of-tree find_package(SushiAI) consumer
+  fixtures/              Model, evaluation and training fixtures; the YOLO26 reference tensors
 cli/                     Python `sa` / `sushiai` CLI package (Typer + rich)
 docs/
   README.md                  Documentation manual index

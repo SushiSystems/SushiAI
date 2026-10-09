@@ -23,7 +23,7 @@
  * @file detection_row.hpp
  * @brief Declares the columns of a detection row and the reference's limits on an image's rows.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once

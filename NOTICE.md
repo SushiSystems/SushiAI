@@ -14,7 +14,7 @@ installed in the SushiStack workspace on 2026-10-05 where the licence was read f
 
 | Component | Where | Source | Version | Licence |
 | --- | --- | --- | --- | --- |
-| nlohmann/json | Found by `src/CMakeLists.txt`; included by `src/config/value.cpp` alone and compiled into the `sushiai` library | https://github.com/nlohmann/json | no pin; 3.12.0 installed (vcpkg `nlohmann-json`) | MIT, Copyright (c) 2013-2025 Niels Lohmann; read from the vcpkg `copyright` file |
+| nlohmann/json | Found by `modules/core/config/CMakeLists.txt`; included by `modules/core/config/source/value.cpp` alone and compiled into the `sushiai` library | https://github.com/nlohmann/json | no pin; 3.12.0 installed (vcpkg `nlohmann-json`) | MIT, Copyright (c) 2013-2025 Niels Lohmann; read from the vcpkg `copyright` file |
 | GoogleTest | Found by `tests/CMakeLists.txt`; linked by the test binaries only | https://github.com/google/googletest | no pin; 1.17.0 installed (vcpkg `gtest`) | BSD-3-Clause, Copyright 2008 Google Inc.; read from the vcpkg `copyright` file |
 | hwloc | Not used directly; arrives through SushiRuntime (`cmake/Vcpkg.cmake`) | https://github.com/open-mpi/hwloc | no pin; 2.11.2 installed (vcpkg `hwloc`) | BSD-3-Clause; read from the vcpkg `copyright` file |
 | typer | `cli/pyproject.toml`, runtime dependency of the `sa` CLI | https://github.com/fastapi/typer | `>=0.12`; 0.20.0 installed | MIT; read from the installed package metadata |

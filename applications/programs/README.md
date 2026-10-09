@@ -1,9 +1,11 @@
-# apps
+# programs
 
 The two drivers behind `sushiai train` and `sushiai inference`. Both read JSON configuration
-and name no layer type and no dataset type. [`examples/heavy_mlp/`](../examples/heavy_mlp/README.md)
-and [`examples/mnist_cnn/`](../examples/mnist_cnn/README.md) each hold a configuration to run
-them with, and [`docs/guides/CLI_GUIDE.md`](../docs/guides/CLI_GUIDE.md) documents the schema.
+and name no layer type and no dataset type.
+[`applications/examples/heavy_mlp/`](../examples/heavy_mlp/README.md)
+and [`applications/examples/mnist_cnn/`](../examples/mnist_cnn/README.md) each hold a
+configuration to run
+them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) documents the schema.
 
 | File | Command |
 | --- | --- |
@@ -29,7 +31,7 @@ adds one, the driver has stopped being what the config-driven design set out to 
 
 ### Why it takes no flags
 
-`examples/demo_mlp.cpp` is the flag-driven program, and its flags are a contract the test
+`applications/examples/source/demo_mlp.cpp` is the flag-driven program, and its flags are a contract the test
 suite pins. In `train.cpp` every knob lives in the configuration file, because a knob that
 exists in two places drifts.
 

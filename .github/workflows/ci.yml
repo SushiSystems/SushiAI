@@ -176,7 +176,7 @@ jobs:
 # * ThreadSanitizer job. sushiruntime's TSan lane targets a specific, named
 #   body of concurrency it owns — EBR fences, per-worker polling, epoch
 #   nesting. SushiAI owns none: there is not a single std::thread, std::mutex,
-#   std::atomic or condition_variable under src/ or include/ in this repo.
+#   or condition_variable under modules/ in this repo.
 #   Every thread its graphs execute on belongs to SushiRuntime, whose own CI
 #   already instruments them. There is also no gate to turn TSan on with —
 #   cmake/SushiAISanitizers.cmake is an empty INTERFACE target, unlike
@@ -188,10 +188,10 @@ jobs:
 #   success over an empty suite. There is nothing to schedule, so this workflow
 #   has no `schedule:` trigger either.
 #
-# * Doxygen job. `sa doxygen` exists and reads a repo-root `Doxyfile`, but this
-#   repo has none — and `Doxyfile` is listed in .gitignore, so one cannot be
-#   committed without changing that first. Adding the job before the Doxyfile
-#   exists would produce a lane that always fails.
+# * Doxygen job. `sa doxygen` reads `.config/doxygen/Doxyfile`, which is committed. This
+#   workflow does not run it, and adding the job is a separate decision.
+#   No generated API site is built or published by this workflow.
+#   Run `sa doxygen` locally to build the site under `build/docs/api-site/`.
 #
 # * tests/package/ job. That directory is an out-of-tree consumer of an
 #   *installed* SushiAI, built by hand against an install prefix (see its

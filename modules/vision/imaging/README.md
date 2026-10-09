@@ -7,10 +7,10 @@ memory. Nothing here reaches an engine, SYCL or a third-party library, so every 
 without a device. The module depends on `core` for `Error` and `SA_THROW_IF` and on the C++
 standard library.
 
-Each header has one source under `src/vision/imaging/` and one test file under
-`tests/vision/`, named `test_imaging_<header>.cpp`. Three files break that pairing:
+Each header has one source under `modules/vision/imaging/source/` and one test file under
+`modules/vision/imaging/tests/`, named `test_imaging_<header>.cpp`. Three files break that pairing:
 `partner_source.hpp` is an interface with no source; `test_imaging_partners.cpp` tests both of
-its implementations; `src/vision/imaging/bilinear.hpp` and `bilinear.cpp` are private and hold the
+its implementations; `modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
 fixed-point arithmetic the resize, the letterbox and the warp share. The unit files are compiled
 into `sushiai_tests`, which passed all 1803 cases in the run of 2026-10-09
 (`docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`).
@@ -298,7 +298,7 @@ out = (wy0 * (wx0 * p[y0][x0] + wx1 * p[y0][x1])
 
 in unsigned 32-bit arithmetic; the largest sum is 2048 * 2048 * 255 + 2^21, below 2^32. The
 weight rounding and the blend are `Detail::to_weight`, `Detail::blend_pair` and
-`Detail::blend_rows` in `src/vision/imaging/bilinear.hpp`; the warp uses the same three.
+`Detail::blend_rows` in `modules/vision/imaging/source/bilinear.hpp`; the warp uses the same three.
 
 ### resize_long_side
 

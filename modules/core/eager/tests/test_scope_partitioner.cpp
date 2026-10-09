@@ -23,7 +23,7 @@
  * @file test_scope_partitioner.cpp
  * @brief Tests the region keys ScopePartitioner gives the nodes of a differentiated graph.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <algorithm>

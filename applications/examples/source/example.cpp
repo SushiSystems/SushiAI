@@ -23,7 +23,7 @@
  * @file example.cpp
  * @brief Runs one training run end to end: trace, differentiate, compile once, replay per batch.
  * @author Mustafa Garip
- * @see examples/README.md, "example.cpp".
+ * @see applications/examples/README.md, "example.cpp".
  */
 
 #include <cstdlib>

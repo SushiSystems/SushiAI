@@ -23,7 +23,7 @@
  * @file inference.cpp
  * @brief Runs `sushiai inference`: evaluates a checkpoint over a dataset, forward pass only.
  * @author Mustafa Garip
- * @see apps/README.md, "inference.cpp".
+ * @see applications/programs/README.md, "inference.cpp".
  */
 
 #include <algorithm>
@@ -101,7 +101,7 @@ namespace
                    model_path.string(), model_spec.input_shape.to_string(),
                    dataset->name(), sample_shape.to_string());
 
-        // Only the forward pass is traced: no loss, no backward, no optimizer; see apps/README.md.
+        // Forward pass only: no loss, backward or optimizer; see applications/programs/README.md.
         SA_TRY_ASSIGN(sa::NN::ModelGraph model, sa::NN::build_model(registries.nodes, model_spec));
         const int64_t rows = dataset->batch_size();
 
@@ -138,7 +138,7 @@ namespace
                   << SushiBLAS::Core::format("Data       : {} ({} x {})\n\n",
                                              dataset->name(), dataset->batch_count(), rows);
 
-        // Top-1 agreement needs an output width equal to the class count; see apps/README.md.
+        // Top-1 agreement needs one output per class; see applications/programs/README.md.
         const bool labelled = outputs == dataset->num_classes();
 
         std::vector<std::size_t> predicted_counts(static_cast<std::size_t>(outputs), 0);

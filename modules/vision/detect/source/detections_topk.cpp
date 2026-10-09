@@ -23,7 +23,7 @@
  * @file detections_topk.cpp
  * @brief Implements the top-k postprocess of the one-to-one head.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/detections_topk.hpp>

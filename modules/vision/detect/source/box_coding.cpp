@@ -23,7 +23,7 @@
  * @file box_coding.cpp
  * @brief Implements the coding of boxes as distances about anchor points.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/box_coding.hpp>

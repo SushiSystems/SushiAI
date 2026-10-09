@@ -23,7 +23,7 @@
  * @file test_static_memory.cpp
  * @brief Tests that the memory planner packs buffers without allocating or changing a number.
  * @author Mustafa Garip
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 
 #include <cstddef>
@@ -92,7 +92,7 @@ namespace
     /**
      * @brief Trains the same MLP, with the planner on or off.
      * @return The trained model and its memory figures, or the first failure of a library call.
-     * @see tests/functional/regression/README.md
+     * @see tests/regression/README.md
      */
     [[nodiscard]] Result<Outcome> train(SushiBLAS::Engine& engine, bool packed,
                                         Graph::FusionOptions fusion = {})
@@ -149,7 +149,7 @@ namespace
 
 /**
  * @brief Tests that twelve steps after the first leave the live allocation count unchanged.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
@@ -204,7 +204,7 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 
 /**
  * @brief Tests that packing allocates fewer bytes than no plan on the unfused graph.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 {
@@ -229,7 +229,7 @@ TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 
 /**
  * @brief Tests that fusion removes intermediates and never allocates more than packing alone.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
 {
@@ -250,7 +250,7 @@ TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
         << "fused " << fused.allocated_bytes << " against an unplanned, unfused "
         << loose.allocated_bytes;
 
-    // Never worse than packed-but-unfused, hence <=; see tests/functional/regression/README.md.
+    // Never worse than packed-but-unfused, hence <=; see tests/regression/README.md.
     EXPECT_LE(fused.allocated_bytes, planned.allocated_bytes)
         << "fused " << fused.allocated_bytes << " against an unfused-but-packed "
         << planned.allocated_bytes;
@@ -258,7 +258,7 @@ TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
 
 /**
  * @brief Tests that packed and unpacked training agree byte for byte.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
 {
@@ -286,7 +286,7 @@ TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
 
 /**
  * @brief Tests that a packed ZERO buffer corrupted between replays is refilled.
- * @see tests/functional/regression/README.md
+ * @see tests/regression/README.md
  */
 TEST_F(Regression_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
 {

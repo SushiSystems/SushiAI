@@ -25,8 +25,8 @@ the manual.
 | [Documentation style guide](DOCUMENTATION_STYLE_GUIDE.md) | Where a document goes and how it is written |
 
 READMEs beside the code: [`tools/README.md`](../tools/README.md) for the checkers, and
-[`examples/heavy_mlp/README.md`](../examples/heavy_mlp/README.md) and
-[`examples/mnist_cnn/README.md`](../examples/mnist_cnn/README.md) for the two JSON-configured
-examples.
+[`applications/examples/heavy_mlp/README.md`](../applications/examples/heavy_mlp/README.md) and
+[`applications/examples/mnist_cnn/README.md`](../applications/examples/mnist_cnn/README.md) for the
+two JSON-configured examples.
 
 Agent work folders are under `agent/`. Finished material is under `archive/` and is not edited.

@@ -23,7 +23,7 @@
  * @file level_rows.cpp
  * @brief Implements the copies between one level's rows and the joined anchor axis.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #include <SushiAI/vision/detect/level_rows.hpp>

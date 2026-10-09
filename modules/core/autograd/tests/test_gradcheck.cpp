@@ -81,7 +81,7 @@ TEST(Unit_GradCheck, AcceptsAnExactGradient)
 
 TEST(Unit_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
 {
-    // A 1e-3 relative error is above the FLOAT64 noise floor; see tests/functional/unit/README.md.
+    // A 1e-3 relative error is above the FLOAT64 noise floor; see tests/unit/README.md.
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6};
     const GradCheckResult result = check_full_jacobian(cubic, slightly_wrong_gradient, x);
 
@@ -154,13 +154,13 @@ TEST(Unit_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
 
 TEST(Unit_GradCheck, AReluFamilyFunctionNeedsToBeSampledOffTheKink)
 {
-    // The step keeps the pushed coordinates at 1e-3; see tests/functional/unit/README.md.
+    // The step keeps the pushed coordinates at 1e-3; see tests/unit/README.md.
     GradCheckOptions options;
     options.min_step = 1e-4;
 
     const std::vector<double> at_the_kink = {0.0, 1e-14, -1e-14, 0.8, -1.4, 2.2};
 
-    // A quotient across the kink averages both derivatives; see tests/functional/unit/README.md.
+    // A quotient across the kink averages both derivatives; see tests/unit/README.md.
     std::vector<double> unshifted = at_the_kink;
     const GradCheckResult straddling =
         check_full_jacobian(rectified, rectified_gradient, unshifted, options);

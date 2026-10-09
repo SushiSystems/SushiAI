@@ -23,7 +23,7 @@
  * @file assignment.hpp
  * @brief Declares Assignment, the per-anchor targets a label assigner produces.
  * @author Mustafa Garip
- * @see include/SushiAI/vision/detect/README.md
+ * @see modules/vision/detect/README.md
  */
 
 #pragma once
@@ -37,7 +37,7 @@ namespace SushiAI
     {
         /**
          * @brief Holds the targets of every anchor of a batch, at full shape.
-         * @see include/SushiAI/vision/detect/README.md
+         * @see modules/vision/detect/README.md
          */
         struct Assignment
         {

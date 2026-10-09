@@ -47,7 +47,7 @@ is the price of keeping those two lifecycles apart.
 ### Data source
 
 The demo trains on MNIST when the training split's IDX files are present, and on the seeded
-synthetic problem otherwise. Both paths come from `include/SushiAI/data/dataset.hpp`, where
+synthetic problem otherwise. Both paths come from `modules/core/data/include/SushiAI/data/dataset.hpp`, where
 the absence of the IDX files is not an error. The demo only chooses between the two and
 records which one it got.
 
@@ -94,13 +94,13 @@ mixed precision must not move them. It is a flag for the same reason `--fusion` 
 question is what the difference is on one machine, one dataset and one seed, and only two
 runs of the same binary answer it. The development machine has no low-precision matrix unit,
 so the difference worth measuring there is the loss curve and never the wall clock. See
-ground truth #23 in [`docs/design/ROADMAP.md`](../docs/design/ROADMAP.md).
+ground truth #23 in [`docs/design/ROADMAP.md`](../../docs/design/ROADMAP.md).
 
 `loss_scale` is off by default. With it off no node is emitted, so the graph, the operation
 count and every number the demo prints are what they were before loss scaling existed. On
 this workload fp16 without loss scaling neither stalls nor diverges, and both arms converge
 to the same loss. The flag exists to make the machinery runnable and inspectable; the demo
-does not need it. See `include/SushiAI/optim/loss_scaler.hpp`.
+does not need it. See `modules/core/optim/include/SushiAI/optim/loss_scaler.hpp`.
 
 ### Command line parsing
 
@@ -116,7 +116,7 @@ the flag the user typed and not an internal extent.
 with one message. The distinction means nothing to whoever typed the value.
 
 `--loss-scale` is checked only for positivity in the demo. That the value is a power of two
-is `LossScaleState`'s rule, stated in `include/SushiAI/optim/loss_scaler.hpp`, and a
+is `LossScaleState`'s rule, stated in `modules/core/optim/include/SushiAI/optim/loss_scaler.hpp`, and a
 duplicate check in the demo would say it less well.
 
 ### Learning-rate defaults

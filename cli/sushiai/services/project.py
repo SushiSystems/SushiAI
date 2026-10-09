@@ -299,7 +299,7 @@ def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> 
     """Put the shared libraries the consumer needs beside its executable.
 
     In-tree targets get these from a POST_BUILD copy (see tests/CMakeLists.txt
-    and examples/CMakeLists.txt); a real out-of-tree consumer would deploy them
+    and applications/examples/CMakeLists.txt); a real out-of-tree consumer would deploy them
     itself, and this function is this CLI standing in for that consumer.
     Without them the binary exits with 0xC0000135 before reaching main, which
     looks like a package failure and is not one.
@@ -449,8 +449,8 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         console.error(
             "The consumer failed to compile against the installed headers.\n"
             "  - a missing header means it is either not covered by "
-            "install(DIRECTORY) in src/CMakeLists.txt, or not reachable from "
-            "the include/SushiAI/SushiAI.h umbrella.")
+            "install(DIRECTORY) in cmake/SushiAIModule.cmake, or not reachable from "
+            "the modules/layers/umbrella/include/SushiAI/SushiAI.h umbrella.")
         return rc
 
     exe = discovery.match_by_name(consumer, "sushiai_package_consumer")
@@ -554,7 +554,7 @@ def clean() -> int:
 
 
 def doxygen() -> int:
-    """Builds the API reference from the root Doxyfile into build/docs/api-site."""
+    """Builds the API reference from .config/doxygen/Doxyfile into build/docs/api-site."""
     console.header("Doxygen Generation")
     root = find_project_root()
     cfg = load_config()

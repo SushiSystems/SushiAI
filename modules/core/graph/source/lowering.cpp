@@ -50,7 +50,7 @@ namespace SushiAI
                 const LoweringRule rule = find_lowering(node.op);
                 SA_FATAL_IF(rule == nullptr,
                             "No lowering for operation {} (node {}). Add a row to its domain's "
-                            "table under include/SushiAI/graph/lowering/, or list it in "
+                            "table under SushiAI/graph/lowering/, or list it in "
                             "unlowered.hpp.",
                             Ops::name_of(node.op), id);
 

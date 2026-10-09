@@ -39,7 +39,7 @@
 
 using namespace SushiAI;
 
-// SaTest stays reachable inside a TEST_F body; see tests/functional/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
@@ -173,7 +173,7 @@ TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    // For each c, the two W positions in order; see tests/functional/integration/README.md.
+    // For each c, the two W positions in order; see tests/integration/README.md.
     const std::vector<double> expected = {0, 3, 1, 4, 2, 5};
     const std::vector<double> result = read_tensor(run.pool.tensor(y));
     ASSERT_EQ(result.size(), expected.size());
@@ -250,10 +250,10 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     const std::vector<double> hyperbolic = read_tensor(run.pool.tensor(t));
     const std::vector<double> leaky = read_tensor(run.pool.tensor(lr));
 
-    // relu and gelu backward read the forward input; see tests/functional/integration/README.md.
+    // relu and gelu backward read the forward input; see tests/integration/README.md.
     const std::vector<double> unchanged = read_tensor(run.pool.tensor(x));
 
-    // Slope 0.1, inputs on both sides of zero; see tests/functional/integration/README.md.
+    // Slope 0.1, inputs on both sides of zero; see tests/integration/README.md.
     const std::vector<double> expected_leaky = {-0.2, -0.05, 0.5, 2.0};
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -275,7 +275,7 @@ TEST_F(Integration_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     const ValueId l = builder.log_softmax(x);
 
     OneShot run(*engine, graph);
-    // Row two is row one shifted by a constant; see tests/functional/integration/README.md.
+    // Row two is row one shifted by a constant; see tests/integration/README.md.
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 51, 52, 53});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -384,7 +384,7 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
     SA_EXPECT_OK(run.step->run());
     SA_EXPECT_OK(run.step->run());
 
-    // A replay must not accumulate into the result; see tests/functional/integration/README.md.
+    // A replay must not accumulate into the result; see tests/integration/README.md.
     const std::vector<double> result = read_tensor(run.pool.tensor(broadcast));
     const std::vector<double> expected = {1.0, -2.0, 3.0, 1.0, -2.0, 3.0};
 
@@ -394,7 +394,7 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
 
 TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 {
-    // One 2x2 window covers the whole image; see tests/functional/integration/README.md.
+    // One 2x2 window covers the whole image; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -419,7 +419,7 @@ TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 
 TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 {
-    // A pixel receives the sum of its windows; see tests/functional/integration/README.md.
+    // A pixel receives the sum of its windows; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -444,7 +444,7 @@ TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 
 TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
 {
-    // out_h is 5 and out_w is 4, not the transpose; see tests/functional/integration/README.md.
+    // out_h is 5 and out_w is 4, not the transpose; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -494,7 +494,7 @@ TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGiven
 
 TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
 {
-    // One 2x2 window over 0..3 has maximum 3; see tests/functional/integration/README.md.
+    // One 2x2 window over 0..3 has maximum 3; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -517,11 +517,11 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
 
 TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 {
-    // The permuted intermediate is the real test; see tests/functional/integration/README.md.
+    // The permuted intermediate is the real test; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // Values 1..8 are distinct, in NHWC order; see tests/functional/integration/README.md.
+    // Values 1..8 are distinct, in NHWC order; see tests/integration/README.md.
     const ValueId x = builder.input(Shape{1, 2, 2, 2}, "x");
     const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
     const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::Nhwc);
@@ -530,7 +530,7 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
     ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
 
-    // Extents match only because H, W and C are 2; see tests/functional/integration/README.md.
+    // Extents match only because H, W and C are 2; see tests/integration/README.md.
     EXPECT_EQ(graph.value(nchw).shape, (Shape{1, 2, 2, 2}));
 
     OneShot run(*engine, graph);
@@ -539,7 +539,7 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    // NCHW index is ((c*2)+h)*2+w; see tests/functional/integration/README.md.
+    // NCHW index is ((c*2)+h)*2+w; see tests/integration/README.md.
     const std::vector<double> permuted = {1, 3, 5, 7, 2, 4, 6, 8};
     const std::vector<double> middle = read_tensor(run.pool.tensor(nchw));
     ASSERT_EQ(middle.size(), permuted.size());
@@ -558,11 +558,11 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 
 TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
 {
-    // Passes run in Trainer::build order; see tests/functional/integration/README.md.
+    // Passes run in Trainer::build order; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // Only taps 6 and 7 receive a gradient; see tests/functional/integration/README.md.
+    // Only taps 6 and 7 receive a gradient; see tests/integration/README.md.
     const ValueId x = builder.parameter(Shape{1, 2, 2, 2}, "x");
     const ValueId target = builder.input(Shape{1, 2}, "target");
 
@@ -726,7 +726,7 @@ TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
 
 TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 {
-    // Two pixels share one pair of parameters; see tests/functional/integration/README.md.
+    // Two pixels share one pair of parameters; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -753,7 +753,7 @@ TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 
 TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
 {
-    // Variance is biased, divided by N*H*W; see tests/functional/integration/README.md.
+    // Variance is biased, divided by N*H*W; see tests/integration/README.md.
     constexpr double K_EPSILON = 1e-5;
 
     Graph::Graph graph;

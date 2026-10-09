@@ -2,7 +2,7 @@
 
 The layer library. A layer here describes a computation by tracing itself into a
 `Graph::Graph` through a `Graph::GraphBuilder`; it runs nothing. The module holds the layer
-types, the YOLO26 blocks built from them, the two state types `Parameter` and `Buffer`, the
+types, the two state types `Parameter` and `Buffer`, the
 `Trace` a layer is traced under, the `Node` seam, the `ModelGraph` container and the two
 registries a model file selects through.
 
@@ -21,8 +21,8 @@ or `Result<T>` for a failure a description can cause, and stop the process for a
 layer types, `LayerStack`, the layer factories and `build_layer_stack` throw `Error`.
 `ModuleNode` calls its layer through `Detail::bridge_throwing` in `throwing_bridge.hpp`, which
 turns the `Error` into a `Status`. Five sources catch an `Error` from a shape or window check they
-call and throw it again with the layer's name: `conv2d.cpp`, `max_pool2d.cpp`, `avg_pool2d.cpp`,
-`upsample2d.cpp` and the adapter in `layer_registry.cpp`.
+call and throw it again with the layer's name: `source/conv2d.cpp`, `source/max_pool2d.cpp`,
+`source/avg_pool2d.cpp`, `source/upsample2d.cpp` and the adapter in `source/layer_registry.cpp`.
 
 Every layer type and block has the same members: its fields, a static `fields()`, one of the
 three trace forms, `Shape output_shape(const Shape&) const`, and one `static_assert` on
@@ -49,11 +49,6 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `global_avg_pool.hpp` | `GlobalAvgPool` |
 | `upsample2d.hpp` | `Upsample2d` |
 | `batch_norm2d.hpp` | `NormOptions`, `BatchNorm2d`, `make_batch_norm2d_node`, `updated_statistic` |
-| `blocks/conv_norm.hpp` | `ConvNorm<Convolution, Activation>`, `Conv`, `ConvLinear`, `make_conv_node` |
-| `blocks/bottleneck.hpp` | `Bottleneck`, `make_bottleneck_node` |
-| `blocks/c3k.hpp` | `C3k`, `make_c3k_node` |
-| `blocks/c3k2.hpp` | `C3k2<Inner>`, `C3k2InnerEntry`, `K_C3K2_INNER`, `make_c3k2_node`, `make_c3k2_of_bottleneck`, `make_c3k2_of_c3k` |
-| `blocks/sppf.hpp` | `SPPF`, `make_sppf_node` |
 | `loss.hpp` | `CrossEntropyLoss` |
 | `init.hpp` | `Nonlinearity`, `calculate_gain`, `InitFamily`, `InitPolicy`, `constant`, `kaiming_normal`, `kaiming_uniform`, `xavier_normal`, `xavier_uniform`, `zeros`, `initialize` |
 | `layer.hpp` | `Layer`, `LayerAdapter<L>` |
@@ -244,49 +239,6 @@ the host. `make_batch_norm2d_node` builds the node of a `batchnorm2d` row with t
 keys `bn_epsilon` and `bn_momentum`.
 
 Source: MG 2.7. PLAN unit U7.
-
-## Blocks
-
-The five headers under `blocks/` are the composite blocks of YOLO26. Each block is a
-`TraceModule`, and each has a factory with the `NodeFactory` signature. Source for all five:
-MG 2.10, with the state names of MG 2.11. PLAN unit U11.
-
-### blocks/conv_norm.hpp
-
-`ConvNorm<Convolution, Activation>` applies a bias-free convolution, a batch normalisation and
-an activation, and lists its state under "conv" and "bn". `Conv` is `ConvNorm<Conv2d, SiLU>`
-and `ConvLinear` is `ConvNorm<Conv2d, Identity>`. `make_conv_node` reads `filters`, the
-optional `kernel` and `stride`, which are 1 when absent, and the two norm keys.
-
-### blocks/bottleneck.hpp
-
-`Bottleneck` traces `cv1`, then `cv2`, then an add of its input. The add is made only when a
-shortcut is asked for and the input width equals the output width; `adds_input` tells which.
-Both windows are 3 wide unless the caller states them. `make_bottleneck_node` reads `filters`
-and `hidden`, and the optional `shortcut`, which is true when absent.
-
-### blocks/c3k.hpp
-
-`C3k` traces `cv1` and a chain of bottlenecks, then `cv2` on a second branch, then `cv3` over
-the two results joined. The hidden width is half the output width, rounded down. The chain is
-the `ModuleList<Bottleneck>` named `m`. `make_c3k_node` reads `filters` and the optional
-`repeats`, 1 when absent, and `shortcut`, true when absent.
-
-### blocks/c3k2.hpp
-
-`C3k2<Inner>` traces `cv1`, cuts its result into two halves of `hidden` channels, chains the
-inner blocks of `m` off the second half, and traces `cv2` over both halves and every inner
-result. `K_C3K2_INNER` lists the inner blocks a `c3k2` row may name: "bottleneck" and "c3k".
-`make_c3k2_node` reads `filters` and `hidden`, and the optional `inner`, "bottleneck" when
-absent, `repeats`, 1 when absent, and `shortcut`, true when absent.
-
-### blocks/sppf.hpp
-
-`SPPF` traces `cv1`, a `ConvLinear` to half the input width, then a stride-1 max pool applied
-`pools` times in a chain, then `cv2` over `cv1`'s result and every pooled value joined, then
-an add of its input when `adds_input` holds. `make_sppf_node` reads `filters` and the optional
-`kernel`, 5 when absent, `pools`, 3 when absent, and `shortcut`, false when absent. The kernel
-must be odd.
 
 ## Loss and initialisation
 

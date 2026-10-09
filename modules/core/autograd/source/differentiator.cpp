@@ -23,7 +23,7 @@
  * @file differentiator.cpp
  * @brief Implements reverse-mode automatic differentiation over computational graphs.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <SushiAI/autograd/backward.hpp>

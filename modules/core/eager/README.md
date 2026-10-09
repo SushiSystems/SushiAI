@@ -1,18 +1,41 @@
 # eager
 
-The host-lane half of the eager front end: tracing scopes, cutting a differentiated graph into
-regions, and comparing a region with the one a previous step produced. Nothing here reaches an
-engine or SYCL, so every unit is tested without a device.
+## Owns
 
-The module depends on `graph`, `autograd` and `core`. Nothing depends on it yet. The design is
-`docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md`; the units that execute a partition are not built.
+The host side of the eager front end. `ScopeTrace` splits a trace into `Segment`s as scopes open
+and close. `Scope` opens and closes one scope, so that an early return or an exception cannot
+leave it open. `ScopePartitioner` turns the segments and the `Autograd::Provenance` of a
+differentiated graph into a `Partition`, which assigns each node a region key, or `K_NO_REGION`
+for a leaf. `RegionSignature` and `signature_of` describe the structure of a region as a
+comparable value. `RegionPartitioner` is the interface that a partitioning policy implements.
+
+## Depends on
+
+The module declares `core`, `graph` and `autograd` as public dependencies. It declares no
+private dependency.
+
+## Public entry points
+
+Each header is named by its include path under `include/`.
+
+| Header | Declares |
+| --- | --- |
+| `SushiAI/eager/partition.hpp` | `RegionKey`, `K_NO_REGION`, `Direction`, `RegionInfo`, `Partition`, with its `optimizer_key` |
+| `SushiAI/eager/region_partitioner.hpp` | `RegionPartitioner`, with its `assign` |
+| `SushiAI/eager/region_signature.hpp` | `RegionSignature`, `signature_of` |
+| `SushiAI/eager/scope.hpp` | `Scope` |
+| `SushiAI/eager/scope_partitioner.hpp` | `ScopePartitioner`, with its `assign` |
+| `SushiAI/eager/scope_trace.hpp` | `ScopeTrace`, with its `open`, `close`, `seal`, `depth`, `end_segment` and `current_path` |
+| `SushiAI/eager/segment.hpp` | `Segment` |
+
+## Notes on the units
 
 The sections below record why the code is the way it is. Each is named after a header and the
 symbol it explains.
 
-## segment.hpp
+### segment.hpp
 
-### Segment
+#### Segment
 
 A segment is a maximal run of consecutively traced nodes that share one innermost open scope.
 Opening or closing a scope ends the running segment, and a run with no node is dropped. Segments
@@ -24,9 +47,9 @@ The name is the path of open scopes joined by `/`, and it is empty outside any s
 counts earlier segments of the same name in the same trace, so a scope opened in a loop, or an
 outer scope that resumes after an inner one closes, yields distinct segments with one name.
 
-## scope_trace.hpp
+### scope_trace.hpp
 
-### ScopeTrace
+#### ScopeTrace
 
 `ScopeTrace` does not observe node emission. It reads the graph's node count when a scope opens,
 when one closes and at `seal()`, and that is enough to place every boundary. The builder and the
@@ -35,16 +58,16 @@ layers therefore need no change to be traced under scopes.
 A scope name may not be empty and may not contain `/` or `#`, because the first joins a path and
 the second separates a name from its occurrence in a region name.
 
-## scope.hpp
+### scope.hpp
 
-### Scope
+#### Scope
 
 `Scope` exists so that a scope cannot be left open by an early return or an exception between
 `open()` and `close()`.
 
-## autograd/provenance.hpp
+### autograd/provenance.hpp
 
-### Provenance
+#### Provenance
 
 The partitioner must put a backward node in the backward region of the segment whose forward node
 it differentiates. Operands do not say which that is. The weight gradient of a linear layer reads
@@ -58,21 +81,21 @@ emits, and the `K_ACCUMULATE` nodes emitted when the gradients of `f`'s outputs 
 `K_ACCUMULATE` emitted by the closing read of a requested gradient has the producer of that value as
 its origin, which for a parameter is its `K_LEAF` node.
 
-## partition.hpp
+### partition.hpp
 
-### RegionKey
+#### RegionKey
 
 SushiRuntime orders two regions that share bytes by ascending key: the lower key is the producer.
 A partition is valid when no node reads a value that a higher key produces.
 
-### Partition::optimizer_key
+#### Partition::optimizer_key
 
 The parameter update reads every gradient and writes every parameter, so it needs a key above
 every region. The partition reserves one and records nothing under it.
 
-## scope_partitioner.hpp
+### scope_partitioner.hpp
 
-### ScopePartitioner
+#### ScopePartitioner
 
 With `m` segments in trace order, a forward node of segment `k` (counted from 1) gets key `k`, and
 a backward node whose origin lies in segment `k` gets key `2m - k`. Later segments get lower
@@ -89,16 +112,16 @@ highest key among the regions of its operands' producers, so it runs after all o
 
 The optimizer key is `2m`.
 
-## region_signature.hpp
+### region_signature.hpp
 
-### RegionSignature
+#### RegionSignature
 
 Two steps produce the same region when their signatures compare equal. A match is trusted, and a
 recorded kernel is replayed without being looked at again, so a false match would run the wrong
 kernels with no error. The signature therefore carries the operation list beside the hash, and
 equality compares both.
 
-### signature_of
+#### signature_of
 
 The hash covers, for the region's nodes in order: the operation, the attributes, and for each
 result its shape, element type and layout; then each operand's position.

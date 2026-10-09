@@ -2,16 +2,16 @@
 
 Three JSON files and no C++ at all. This directory used to hold a pair of
 programs; it holds configuration now, and the two drivers that read it —
-`apps/train.cpp` and `apps/inference.cpp` — name no layer type, no loss, no
+`applications/programs/source/train.cpp` and `applications/programs/source/inference.cpp` — name no layer type, no loss, no
 dataset and no optimizer. That is the point: they were written once and do not
 change as the library grows.
 
 ```bash
 sa build
-sushiai train      examples/heavy_mlp/train.json
-sushiai inference  examples/heavy_mlp/model.json \
-                   examples/heavy_mlp/heavy_mlp.ckpt \
-                   examples/heavy_mlp/eval.json
+sushiai train      applications/examples/heavy_mlp/train.json
+sushiai inference  applications/examples/heavy_mlp/model.json \
+                   applications/examples/heavy_mlp/heavy_mlp.ckpt \
+                   applications/examples/heavy_mlp/eval.json
 ```
 
 The checkpoint lands **beside `train.json`**, not in your working directory:
@@ -30,7 +30,7 @@ Training takes about 30 seconds on a CPU/OpenCL box (AMD Ryzen 5 7600X,
   epoch  50/50  loss 0.012367   accuracy 100.00%
 
 compiles: 1
-wrote examples/heavy_mlp/heavy_mlp.ckpt (108996 scalars)
+wrote applications/examples/heavy_mlp/heavy_mlp.ckpt (108996 scalars)
 ```
 
 Inference over the 512 held-out points then reports **86.33% top-1
@@ -98,4 +98,4 @@ Two rules are worth knowing, because each closes a way of being quietly wrong:
   against a default.
 
 `sushiai train --help` and `sushiai inference --help` print their usage;
-[`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) documents the schema in full.
+[`docs/guides/CLI_GUIDE.md`](../../../docs/guides/CLI_GUIDE.md) documents the schema in full.

@@ -23,7 +23,7 @@
  * @file test_region_signature.cpp
  * @brief Tests the signature that signature_of computes for one region of a partition.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <cstddef>

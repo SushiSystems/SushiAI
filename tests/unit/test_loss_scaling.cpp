@@ -90,7 +90,7 @@ TEST_F(Unit_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
     EXPECT_FALSE(state.last_step_skipped());
 }
 
-// Controls the case above with one clean step fewer; see tests/functional/unit/README.md.
+// Controls the case above with one clean step fewer; see tests/unit/README.md.
 TEST_F(Unit_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
@@ -110,7 +110,7 @@ TEST_F(Unit_LossScaling, AnOverflowRestartsTheRunOfCleanSteps)
     state.observe(true);   // 1024 -> 512, and the three clean steps are spent
     run_clean(state, 3);
 
-    // Three clean steps are one short of the interval; see tests/functional/unit/README.md.
+    // Three clean steps are one short of the interval; see tests/unit/README.md.
     EXPECT_EQ(state.scale(), 512.0);
     EXPECT_EQ(state.growths(), 0u);
 
@@ -142,7 +142,7 @@ TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
     state.observe(true);
     EXPECT_EQ(state.scale(), 1.0);
 
-    // At the floor the step is still skipped; see tests/functional/unit/README.md.
+    // At the floor the step is still skipped; see tests/unit/README.md.
     state.observe(true);
     EXPECT_EQ(state.scale(), 1.0);
     EXPECT_TRUE(state.last_step_skipped());
@@ -150,7 +150,7 @@ TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
     EXPECT_EQ(state.backoffs(), 1u);
 }
 
-// A constant that is not a power of two is refused; see tests/functional/unit/README.md.
+// A constant that is not a power of two is refused; see tests/unit/README.md.
 TEST_F(Unit_LossScaling, ANonDyadicConstantIsRefusedByName)
 {
     LossScaleOptions options;
@@ -183,7 +183,7 @@ TEST_F(Unit_LossScaling, IncoherentBoundsAreRefused)
                       "growth interval must be positive");
 }
 
-// Every reachable scale is a power of two; see tests/functional/unit/README.md.
+// Every reachable scale is a power of two; see tests/unit/README.md.
 TEST_F(Unit_LossScaling, EveryReachableScaleHasAnExactReciprocal)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(2, 1024.0)));

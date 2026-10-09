@@ -72,7 +72,7 @@ TEST(Unit_Ir, AddNodeClaimsItsOutputs)
 
 TEST(Unit_Ir, ASecondProducerForOneValueThrows)
 {
-    // A value has exactly one producer; see tests/functional/unit/README.md.
+    // A value has exactly one producer; see tests/unit/README.md.
     Graph::Graph graph;
     const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
     const ValueId b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
@@ -190,7 +190,7 @@ TEST(Unit_Ir, BuilderRejectsMixedElementTypes)
 
 TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
 {
-    // Insertion order is a topological order; see tests/functional/unit/README.md.
+    // Insertion order is a topological order; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -209,7 +209,7 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
 
 TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
 {
-    // insert_node refuses a producer placed after its reader; see tests/functional/unit/README.md.
+    // insert_node refuses a producer placed after its reader; see tests/unit/README.md.
     Graph::Graph graph;
     const ValueId x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
     const ValueId orphan = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "orphan");
@@ -221,11 +221,11 @@ TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
     SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}),
                     "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
 
-    // A rejected insert leaves the graph unchanged; see tests/functional/unit/README.md.
+    // A rejected insert leaves the graph unchanged; see tests/unit/README.md.
     EXPECT_EQ(graph.node_count(), 1u);
     EXPECT_EQ(graph.value(orphan).producer, K_NO_NODE);
 
-    // The same node ahead of the reader is accepted; see tests/functional/unit/README.md.
+    // The same node ahead of the reader is accepted; see tests/unit/README.md.
     EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}));
     EXPECT_EQ(graph.node_count(), 2u);
     EXPECT_EQ(graph.value(orphan).producer, Graph::NodeId{0});
@@ -251,7 +251,7 @@ TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
 
 TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 {
-    // Slots 8 and 9 carry the output extents out_h and out_w; see tests/functional/unit/README.md.
+    // Slots 8 and 9 carry the output extents out_h and out_w; see tests/unit/README.md.
     EXPECT_EQ(Graph::Attributes::K_CAPACITY, std::size_t{10});
 
     Graph::Attributes a;

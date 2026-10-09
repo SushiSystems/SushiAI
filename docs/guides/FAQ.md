@@ -22,7 +22,7 @@ empty checkout to a trained model.
 
 SushiAI is built on SushiBLAS's tensor and BLAS layer, and SushiBLAS runs on SushiRuntime's task
 graph. SushiAI writes no SYCL: no file names a `sycl::` type or submits to a queue, every
-compute call goes through SushiBLAS, and the eight per-domain tables under `src/graph/lowering/`
+compute call goes through SushiBLAS, and the eight per-domain tables under `modules/core/graph/source/lowering/`
 turn IR into those calls, each through a view built from the step's `SushiBLAS::TaskRecorder`.
 The library target `SushiAI::sushiai` links `SushiRuntime::SushiRuntime` and
 `SushiBLAS::sushiblas` `PUBLIC`.
@@ -126,10 +126,10 @@ C++17 target, and states that this is a workaround and not a supported configura
 Yes. `sushiai train` and `sushiai inference` read JSON:
 
 ```bash
-sushiai train      examples/heavy_mlp/train.json
-sushiai inference  examples/heavy_mlp/model.json \
-                   examples/heavy_mlp/heavy_mlp.ckpt \
-                   examples/heavy_mlp/eval.json
+sushiai train      applications/examples/heavy_mlp/train.json
+sushiai inference  applications/examples/heavy_mlp/model.json \
+                   applications/examples/heavy_mlp/heavy_mlp.ckpt \
+                   applications/examples/heavy_mlp/eval.json
 ```
 
 `model.json` describes the architecture, `train.json` the objective, data, optimizer, epochs and

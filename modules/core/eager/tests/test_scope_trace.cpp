@@ -23,7 +23,7 @@
  * @file test_scope_trace.cpp
  * @brief Tests how ScopeTrace cuts a trace into segments and which calls it rejects.
  * @author Mustafa Garip
- * @see include/SushiAI/eager/README.md
+ * @see modules/core/eager/README.md
  */
 
 #include <cstddef>

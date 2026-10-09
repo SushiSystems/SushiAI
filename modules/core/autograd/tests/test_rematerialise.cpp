@@ -102,7 +102,7 @@ namespace
 
 TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 {
-    // The column buffer's lifetime drops to SCRATCH; see tests/functional/unit/README.md.
+    // The column buffer's lifetime drops to SCRATCH; see tests/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{2, 5, 5, 3}, Shape{27, 8});
 
@@ -121,7 +121,7 @@ TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 
 TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 {
-    // The clone reads the same operands and attributes; see tests/functional/unit/README.md.
+    // The clone reads the same operands and attributes; see tests/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
 
@@ -147,7 +147,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
             EXPECT_EQ(n.attributes.get(slot), original.attributes.get(slot))
                 << "the clone lost attribute slot " << slot;
 
-        // The clone keeps the description and the layout; see tests/functional/unit/README.md.
+        // The clone keeps the description and the layout; see tests/unit/README.md.
         const Graph::Value& copy = c.graph.value(n.outputs.front());
         const Graph::Value& stored = c.graph.value(c.cols);
         EXPECT_EQ(copy.shape, stored.shape);
@@ -160,7 +160,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 
 TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 {
-    // A clone precedes every consumer it serves; see tests/functional/unit/README.md.
+    // A clone precedes every consumer it serves; see tests/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
     Graph::rematerialise_im2col(c.graph);
@@ -183,7 +183,7 @@ TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 
 TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 {
-    // An inference graph has no second consumer; see tests/functional/unit/README.md.
+    // An inference graph has no second consumer; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
@@ -203,7 +203,7 @@ TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 
 TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 {
-    // A column matrix with one reader is not cloned; see tests/functional/unit/README.md.
+    // A column matrix with one reader is not cloned; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
@@ -226,7 +226,7 @@ TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 
 TEST(Unit_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
 {
-    // The clone has one consumer, so a second run adds none; see tests/functional/unit/README.md.
+    // The clone has one consumer, so a second run adds none; see tests/unit/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
 

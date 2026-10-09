@@ -107,7 +107,7 @@ Drop MNIST's IDX files into `data/mnist/` and the same command trains on
 
 ## 4. Your first program
 
-The smallest complete training program. This is `examples/example.cpp`
+The smallest complete training program. This is `applications/examples/source/example.cpp`
 condensed; that file compiles and runs, so start by reading it.
 
 ```cpp
@@ -155,7 +155,7 @@ std::cout << report.to_string();
 ```
 
 The statements sit in a function that returns `sa::Status`, as `run()` does in
-`examples/example.cpp`. From step 3 on, every call allocates, compiles or runs,
+`applications/examples/source/example.cpp`. From step 3 on, every call allocates, compiles or runs,
 so it returns a `Status` or a `Result<T>` (`core/status.hpp`,
 `core/result.hpp`). `SA_TRY` returns a failed status to the caller, and
 `SA_TRY_ASSIGN` does the same or binds the value. `AdamW`, `SGD`, `Trainer` and
@@ -198,8 +198,8 @@ The pipeline, in order. Each stage is a separate header you can read on its own:
 **How a node becomes SushiBLAS calls.** `Lowering::record` walks the nodes in
 order and looks each operation up in `K_LOWERINGS` (`graph/lowering/all.hpp`),
 the concatenation of eight tables: elementwise, linalg, activation, loss,
-shape, spatial, norm and fused, each in its own header under `graph/lowering/`
-and its own file under `src/graph/lowering/`. The row receives a
+shape, spatial, norm and fused, each in its own header under `modules/core/graph/include/SushiAI/graph/lowering/`
+and its own file under `modules/core/graph/source/lowering/`. The row receives a
 `LoweringContext` for that one node, which holds the step's
 `SushiBLAS::TaskRecorder` and the `TensorPool` (`graph/tensor_pool.hpp`); every
 SushiBLAS call a row makes goes through a view built from that recorder. A
@@ -268,7 +268,7 @@ modes, and they are not symmetric:
 - **Listed but not wired into `forward()`** — caught, by name.
   `bind_parameters` returns `InvalidDescription`: `Parameter 'x' receives no
   gradient. It is not on any path from the loss, so no optimizer could ever
-  move it` (`src/train/trainer.cpp:101`).
+  move it` (`modules/layers/train/source/trainer.cpp:101`).
 - **Wired into `forward()` but missing from `fields()`** — **not** caught. It is
   declared in the graph, gets no gradient, gets no optimizer slot, and silently
   never trains. No call reports it.
@@ -333,7 +333,7 @@ entry that folds an input-gradient activation without a spill — or that spills
 the wrong step of the chain — fails the build:
 
 ```
-src/graph/fusion.cpp:211:27: error: static assertion failed ...
+modules/core/graph/source/fusion.cpp:211:27: error: static assertion failed ...
 A catalog entry folds an activation whose gradient differentiates at its input,
 without spilling that tensor to an auxiliary output - or it spills the wrong
 step of the chain. ...
