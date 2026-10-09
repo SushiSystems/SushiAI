@@ -844,7 +844,7 @@ container walk over children that are all `Layer&` would find no parameters
 
 The arm is strictly additive — `layers.hpp` asserts that neither `Linear` nor
 `Sequential` takes it — and everything downstream is a template over that one
-walk, so `NN::initialize`, `Train::build_graph`, `NN::parameter_elements` and
+walk, so `NN::ModelState::create`, `Train::build_training_graph`, `NN::parameter_elements` and
 the checkpoint I/O all consume a `LayerStack` without knowing a second kind of
 model exists. A virtual cannot be a template, so the visitor is type-erased
 through `NN::ParameterVisitor`, which *refers* to its callable rather than
@@ -885,11 +885,9 @@ reshape of the rank-4 weight, K_IM2COL, K_MATMUL, an optional K_BIAS_ADD and a r
 back to NHWC, and `NN::Conv2d` in `include/SushiAI/nn/conv2d.hpp` calls it and
 does not restate it.
 
-`Train::Objective` is the seam that breaks the classifier lock-in:
-`build_classifier` hardcoded `NN::CrossEntropyLoss`, and it is now a wrapper
-over `build_graph(module, objective, ...)`. `CrossEntropyObjective` emits the
-same operations in the same order as the code it replaced, which is why the
-whole existing suite is the regression test for that change.
+`Train::Objective` is the seam that keeps the classifier from being fixed:
+`build_training_graph(module, objective, ...)` takes any `Objective`, and
+`build_classifier` is a wrapper that passes it a `CrossEntropyObjective`.
 
 ### Checkpoints, split along the host/device lane
 
@@ -899,10 +897,12 @@ encoded a byte at a time so the little-endian order is stated rather than
 inherited. No tensors, no engine, so its whole malformed-file surface is a
 device-free unit test. `CheckpointWriter::create` and `CheckpointReader::open`
 return a `Result`, and a malformed record is a status. `io/checkpoint.hpp` is
-the device half: `save_checkpoint` and `load_checkpoint`, templates over the
-module that walk `for_each_parameter`, bind records to `TensorPool` tensors and
-return a `Status`. A parameter the file does not supply, one the model does not
-have, a shape mismatch and a duplicated name are each refused by name.
+the device half: `save_checkpoint` writes every entry of a `NN::ModelState`,
+parameters and buffers alike, after the engine has run its recorded tasks, and
+`load_checkpoint` fills a state from a file. `io/import_weights.hpp` holds
+`import_weights`, which applies `RenameRule`s to record names before the lookup.
+Each returns a `Status`. A parameter the file does not supply, one the model does
+not have, a shape mismatch and a duplicated name are each refused by name.
 
 Three properties are structural rather than checked beside the code:
 

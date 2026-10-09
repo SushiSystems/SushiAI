@@ -10,7 +10,7 @@ test or helper its paragraphs belong to.
 ### The SaTest alias
 
 Inside a TEST_F body the fixture's base class injects the name `Test`, so `Test` alone resolves to
-`::testing::Test`. Each file therefore declares `namespace SaTest = SushiAI::Test`, which keeps the
+`::testing::Test`. Each file that uses `TEST_F` therefore declares `namespace SaTest = SushiAI::Test`, which keeps the
 helpers in `SushiAI::Test` reachable from a test body.
 
 ## test_argmax_lifetime.cpp
@@ -83,8 +83,8 @@ sushiblas cannot see a training step at all. So both claims are pinned here, in 
 trainer and `sa demo mlp` use.
 
 Each test in this file spells out its own setup and shares none of it through a fixture struct.
-Trainer holds raw pointers into the pool and the optimizer, so the construction order (bind, then
-initialise, then optimizer, then trainer) is part of the contract, and a test that spells the order
+Trainer holds raw pointers into the pool and the optimizer, so the construction order (create the
+state, bind, then initialise, then optimizer, then trainer) is part of the contract, and a test that spells the order
 out fails loudly if that order ever stops working. The setup matches
 functional/integration/test_training.cpp line for line for the same reason.
 
