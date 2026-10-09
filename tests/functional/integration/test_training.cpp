@@ -671,17 +671,23 @@ TEST_F(Integration_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchN
     EXPECT_FALSE(trainer->optimizer_is_in_plan());
     EXPECT_EQ(trainer->step_count(), 1u);
 
+    // The classifier starts at zero, so the first step's gradient reaches its weight alone.
+    bool found = false;
     for (std::size_t index = 0; index < slots.size(); ++index)
     {
+        if (slots[index].name != "3.weight")
+            continue;
+
+        found = true;
         const std::vector<double> after = SaTest::read_tensor(slots[index].parameter);
         double largest = 0.0;
 
         for (std::size_t element = 0; element < after.size(); ++element)
             largest = std::max(largest, std::abs(after[element] - before[index][element]));
 
-        EXPECT_GT(largest, K_MOVED)
-            << "'" << slots[index].name << "' did not move under the per-step optimizer";
+        EXPECT_GT(largest, K_MOVED) << "'3.weight' did not move under the per-step optimizer";
     }
+    EXPECT_TRUE(found) << "the model has no parameter named '3.weight'";
 }
 
 TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-09 — train: Fixed the planner packing the logits a step's host code reads: a step pins its loss, outputs and update sources (`steps.cpp`, `trainer.cpp`, `evaluation_step.cpp`).
 - 2026-10-09 — train: Added three step builders, TrainingStep, EvaluationStep, check_feed and buffer updates recorded into the step (`steps.hpp`, `training_step.hpp`, `evaluation_step.hpp`, `feed.hpp`, `buffer_update_recorder.hpp`).
 - 2026-10-09 — train: Moved build_classifier and the graph builders out of trainer.hpp and changed them to return a Result; Trainer::make takes buffer update slots (`steps.hpp`, `trainer.hpp`, `training_graph.hpp`).
 - 2026-10-09 — io: Added import_weights with rename rules and the checkpoint forms that save and load a ModelState (`import_weights.hpp`, `checkpoint.hpp`, `checkpoint.cpp`).

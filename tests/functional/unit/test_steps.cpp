@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -299,7 +300,27 @@ TEST(Unit_Steps, ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources)
     ASSERT_EQ(built.updates.updates().size(), 2u);
 
     const SushiRuntime::span<const Graph::ValueId> sources = built.updates.sources();
-    EXPECT_EQ(built.pinned, std::vector<Graph::ValueId>(sources.begin(), sources.end()));
+    for (const Graph::ValueId source : sources)
+        EXPECT_NE(std::find(built.pinned.begin(), built.pinned.end(), source),
+                  built.pinned.end()) << "source " << source;
+}
+
+/** @brief Tests that the loss and every output are pinned, since the host reads them. */
+TEST(Unit_Steps, ATrainingGraphPinsTheLossAndTheOutputs)
+{
+    NormClassifier model = make_norm_classifier();
+    const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
+                            Train::build_training_graph(model, objective, image_batch()));
+
+    const auto is_pinned = [&built](Graph::ValueId id)
+    {
+        return std::find(built.pinned.begin(), built.pinned.end(), id) != built.pinned.end();
+    };
+
+    EXPECT_TRUE(is_pinned(built.spec.loss));
+    for (const NN::ModelOutputs::Entry& entry : built.outputs.all())
+        EXPECT_TRUE(is_pinned(entry.second)) << entry.first;
 }
 
 /** @brief Tests that a probe graph normalises with batch statistics and reads no buffer. */

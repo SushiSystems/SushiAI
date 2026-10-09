@@ -64,6 +64,20 @@ namespace SushiAI
                 return pool.adopt(std::move(plan));
             }
 
+            /** @brief Returns the caller's pins of @p options followed by @p pinned. */
+            [[nodiscard]] Result<std::vector<Graph::ValueId>> merged_pins(
+                const Graph::PlanOptions& options, const std::vector<Graph::ValueId>& pinned)
+            {
+                return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    std::vector<Graph::ValueId> merged;
+                    merged.reserve(options.pinned.size() + pinned.size());
+                    merged.insert(merged.end(), options.pinned.begin(), options.pinned.end());
+                    merged.insert(merged.end(), pinned.begin(), pinned.end());
+                    return merged;
+                });
+            }
+
             /** @brief Returns Incompatible when the plan of @p pool packs a value of @p pinned. */
             [[nodiscard]] Status require_unpacked(const Graph::TensorPool& pool,
                                                   const std::vector<Graph::ValueId>& pinned)
@@ -133,6 +147,11 @@ namespace SushiAI
                                                                   Graph::TensorPool& pool,
                                                                   Graph::PlanOptions options)
         {
+            SA_TRY_ASSIGN(const std::vector<Graph::ValueId> pinned,
+                          merged_pins(options, built.pinned));
+            options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
+                                                                      pinned.size());
+
             // Memory planning must precede leaf and tensor materialisation.
             SA_TRY(ensure_plan(built.graph, pool, options));
             SA_TRY(pool.materialise_leaves(built.graph));
@@ -145,14 +164,8 @@ namespace SushiAI
                                                                   Graph::TensorPool& pool,
                                                                   Graph::PlanOptions options)
         {
-            std::vector<Graph::ValueId> pinned;
-            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
-            {
-                pinned.reserve(options.pinned.size() + built.pinned.size());
-                pinned.insert(pinned.end(), options.pinned.begin(), options.pinned.end());
-                pinned.insert(pinned.end(), built.pinned.begin(), built.pinned.end());
-                return Status();
-            }));
+            SA_TRY_ASSIGN(const std::vector<Graph::ValueId> pinned,
+                          merged_pins(options, built.pinned));
             options.pinned = SushiRuntime::span<const Graph::ValueId>(pinned.data(),
                                                                       pinned.size());
 
@@ -162,6 +175,10 @@ namespace SushiAI
             // The state binds its leaves first, so materialise_leaves() allocates the rest.
             SA_TRY(state.attach(built.graph, pool));
             SA_TRY(pool.materialise_leaves(built.graph));
+
+            // bind_buffer_updates() reads each source's tensor before the step is compiled.
+            for (const Graph::ValueId source : built.updates.sources())
+                SA_TRY(pool.materialise(source, built.graph.value(source)));
 
             return pair_with_gradients(built, pool);
         }
