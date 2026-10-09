@@ -85,9 +85,11 @@ namespace
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
-        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots, Train::bind_parameters(built, pool));
-        SA_TRY(NN::initialize(engine, model, pool));
+        SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                      Train::bind_parameters(built, state, pool));
+        SA_TRY(NN::initialize(engine, state));
 
         Optim::SGDOptions sgd;
         sgd.learning_rate = K_LEARNING_RATE;

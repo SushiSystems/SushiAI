@@ -105,10 +105,11 @@ namespace
                                               Graph::FusionOptions{}, precision,
                                               /*loss_scaling=*/true));
 
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, pool));
-        SA_TRY(NN::initialize(engine, model, pool));
+                      Train::bind_parameters(built, state, pool));
+        SA_TRY(NN::initialize(engine, state));
 
         Optim::AdamWOptions adamw;
         adamw.learning_rate = 3e-3;

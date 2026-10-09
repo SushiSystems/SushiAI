@@ -95,10 +95,11 @@ namespace
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, pool));
-        SA_TRY(NN::initialize(engine, model, pool));
+                      Train::bind_parameters(built, state, pool));
+        SA_TRY(NN::initialize(engine, state));
 
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                       Data::SyntheticClassification::make(engine, data_options()));
@@ -210,10 +211,11 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, pool));
-        SA_TRY(NN::initialize(engine, model, pool));
+                      Train::bind_parameters(built, state, pool));
+        SA_TRY(NN::initialize(engine, state));
 
         Weights weights;
         for (const Optim::ParameterSlot& slot : slots)
@@ -273,10 +275,11 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(engine, data_options()));

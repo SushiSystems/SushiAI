@@ -284,9 +284,9 @@ TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
     const std::size_t forward_nodes = graph.node_count();
 
     std::vector<ValueId> wrt;
-    NN::for_each_parameter(model, [&wrt](const std::string&, NN::Parameter& parameter)
+    NN::for_each_parameter(model, [&wrt, &graph](const std::string&, NN::Parameter& parameter)
     {
-        wrt.push_back(parameter.id());
+        wrt.push_back(parameter.id_in(graph));
     });
     ASSERT_EQ(wrt.size(), 4u);
 
@@ -333,7 +333,7 @@ TEST(Unit_Backward, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     const ValueId logits = layer.forward(builder, x);
     const ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
-    const std::vector<ValueId> wrt = {layer.weight.id()};
+    const std::vector<ValueId> wrt = {layer.weight.id_in(graph)};
     (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
 
     // The input gradient's MATMUL is skipped; see tests/functional/unit/README.md.

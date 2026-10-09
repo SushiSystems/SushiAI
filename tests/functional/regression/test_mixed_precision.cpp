@@ -93,10 +93,11 @@ namespace
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
                                               Graph::FusionOptions{}, precision));
 
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, pool));
-        SA_TRY(NN::initialize(engine, model, pool));
+                      Train::bind_parameters(built, state, pool));
+        SA_TRY(NN::initialize(engine, state));
 
         SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                       Optim::AdamW::make(engine, slots, optimizer_options()));

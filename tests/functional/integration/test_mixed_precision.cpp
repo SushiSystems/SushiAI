@@ -94,10 +94,11 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
 
     ASSERT_GT(built.casts.count(), 0u) << "the mixed policy inserted nothing";
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, optimizer_options()));
@@ -134,10 +135,11 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
                                                     DType::Float32, Graph::FusionOptions{},
                                                     &precision));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, optimizer_options()));
@@ -183,10 +185,11 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, optimizer_options()));
@@ -222,10 +225,11 @@ TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 
     ASSERT_EQ(built.graph.value(built.spec.logits).dtype, DType::Half);
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, optimizer_options()));

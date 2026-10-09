@@ -157,11 +157,12 @@ namespace
         return ::testing::AssertionSuccess();
     }
 
-    /** @brief A ready-to-train MLP with its pool, optimizer and trainer. */
+    /** @brief A ready-to-train MLP with its state, its pool and its parameter slots. */
     struct Fixture
     {
         Mlp model;
         Train::TrainingGraph built;
+        std::unique_ptr<NN::ModelState> state;
         std::unique_ptr<TensorPool> pool;
         std::vector<Optim::ParameterSlot> slots;
     };
@@ -171,13 +172,16 @@ namespace
                                                int64_t features, int64_t hidden, int64_t classes)
     {
         Fixture fixture{Mlp(NN::Linear{features, hidden}, NN::ReLU{},
-                            NN::Linear{hidden, classes}), {}, nullptr, {}};
+                            NN::Linear{hidden, classes}), {}, nullptr, nullptr, {}};
 
         SA_TRY_ASSIGN(fixture.built,
                       Train::build_classifier(fixture.model, batch, features, classes));
+        SA_TRY_ASSIGN(NN::ModelState created, NN::ModelState::create(engine, fixture.model));
+        fixture.state = std::make_unique<NN::ModelState>(std::move(created));
         fixture.pool = std::make_unique<TensorPool>(engine);
-        SA_TRY_ASSIGN(fixture.slots, Train::bind_parameters(fixture.built, *fixture.pool));
-        SA_TRY(NN::initialize(engine, fixture.model, *fixture.pool));
+        SA_TRY_ASSIGN(fixture.slots,
+                      Train::bind_parameters(fixture.built, *fixture.state, *fixture.pool));
+        SA_TRY(NN::initialize(engine, *fixture.state));
         return fixture;
     }
 
@@ -277,11 +281,12 @@ TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
 {
     NN::Linear layer{4, 3};
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built, Train::build_classifier(layer, 4, 4, 3));
-    built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id(),
+    built.parameters.push_back(Train::ParameterBinding{"ghost", layer.weight.id_in(built.graph),
                                                        Graph::K_NO_VALUE});
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
-    SA_EXPECT_FAILURE(Train::bind_parameters(built, pool), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(Train::bind_parameters(built, state, pool), StatusCode::InvalidDescription,
                       "'ghost'", "receives no gradient", "no optimizer could ever move it");
 }
 
@@ -410,10 +415,11 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(layer, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, layer, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.5;
@@ -456,13 +462,14 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(layer, batch, features, classes));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
+                            Train::bind_parameters(built, state, pool));
 
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, layer, pool, policy));
+    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));

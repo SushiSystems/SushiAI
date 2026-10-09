@@ -353,9 +353,9 @@ TEST(Unit_LossRoots, AFusedCrossEntropyRootEmitsNoSeedNode)
     const std::size_t forward_nodes = graph.node_count();
 
     std::vector<ValueId> wrt;
-    NN::for_each_parameter(model, [&wrt](const std::string&, NN::Parameter& parameter)
+    NN::for_each_parameter(model, [&wrt, &graph](const std::string&, NN::Parameter& parameter)
     {
-        wrt.push_back(parameter.id());
+        wrt.push_back(parameter.id_in(graph));
     });
 
     (void)differentiate(graph, loss, wrt);

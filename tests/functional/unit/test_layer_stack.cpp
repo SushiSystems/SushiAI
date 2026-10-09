@@ -96,7 +96,6 @@ namespace
     {
         Config::ModelSpec model;
         model.input_shape = Shape{6};
-        model.input_features = 6;
         model.layers.push_back(chain_row("linear", R"({"units": 8})", Config::K_MODEL_INPUT));
         model.layers.push_back(chain_row("gelu", "{}", 0));
         model.layers.push_back(chain_row("linear", R"({"units": 4})", 1));
@@ -249,12 +248,11 @@ TEST(Unit_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
     EXPECT_EQ(last.layer().in_features, 8);
 }
 
-/** @brief Tests that a hand-built spec seeds the chain from input_shape, not input_features. */
+/** @brief Tests that a hand-built spec seeds the chain from its input shape. */
 TEST(Unit_LayerStack, BuildLayerStackSeedsTheChainFromTheInputShape)
 {
     Config::ModelSpec model = hand_built_chain();
     model.input_shape = Shape{5};
-    model.input_features = 6;
 
     const LayerStack stack = NN::build_layer_stack(model);
 

@@ -77,10 +77,11 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
@@ -121,10 +122,11 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
@@ -234,10 +236,11 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, model, pool));
+                            Train::bind_parameters(built, state, pool));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.02;

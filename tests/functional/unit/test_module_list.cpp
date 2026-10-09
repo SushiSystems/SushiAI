@@ -238,6 +238,7 @@ TEST(Unit_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
 
     const Graph::StateId weight_state = list[0].weight.state();
     const Graph::ValueId weight_leaf = list[0].weight.id_in(graph);
+    const Graph::ValueId bias_leaf = list[0].bias.id_in(graph);
     ASSERT_NE(weight_state, Graph::K_NO_STATE);
 
     // 64 appends to a one-element vector move its storage at least once.
@@ -246,7 +247,7 @@ TEST(Unit_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
 
     EXPECT_EQ(list[0].weight.state(), weight_state);
     EXPECT_EQ(list[0].weight.id_in(graph), weight_leaf);
-    EXPECT_EQ(list[0].bias.id_in(graph), list[0].bias.id());
+    EXPECT_EQ(list[0].bias.id_in(graph), bias_leaf);
 }
 
 /** @brief Tests that an index past the end stops the process and names the index and the size. */

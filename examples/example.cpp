@@ -94,10 +94,11 @@ namespace
         SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
                       sa::Train::build_classifier(model, batch, features, classes));
 
+        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                      sa::Train::bind_parameters(built, pool));
-        SA_TRY(sa::NN::initialize(engine, model, pool));
+                      sa::Train::bind_parameters(built, state, pool));
+        SA_TRY(sa::NN::initialize(engine, state));
 
         sa::Optim::AdamWOptions adam;
         adam.learning_rate = 3e-3;

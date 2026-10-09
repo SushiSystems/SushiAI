@@ -103,10 +103,11 @@ namespace
                                 Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES,
                                                         DType::Float32, fusion));
 
+        SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                                Train::bind_parameters(built, pool));
-        ASSERT_TRUE(SaTest::status_is_ok(NN::initialize(engine, model, pool)));
+                                Train::bind_parameters(built, state, pool));
+        ASSERT_TRUE(SaTest::status_is_ok(NN::initialize(engine, state)));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;

@@ -633,7 +633,7 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
     {
         names.push_back(name);
         shapes.push_back(parameter.shape());
-        wrt.push_back(parameter.id());
+        wrt.push_back(parameter.id_in(graph));
     });
     ASSERT_EQ(wrt.size(), 6u);
 

@@ -239,13 +239,13 @@ TEST(Unit_Conv2d, TracingTwiceDoesNotDuplicateParameters)
     const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
 
     (void)layer.forward(builder, x);
-    const Graph::ValueId first_weight = layer.weight.id();
-    const Graph::ValueId first_bias = layer.bias.id();
+    const Graph::ValueId first_weight = layer.weight.id_in(graph);
+    const Graph::ValueId first_bias = layer.bias.id_in(graph);
 
     (void)layer.forward(builder, x);
 
-    EXPECT_EQ(layer.weight.id(), first_weight);
-    EXPECT_EQ(layer.bias.id(), first_bias);
+    EXPECT_EQ(layer.weight.id_in(graph), first_weight);
+    EXPECT_EQ(layer.bias.id_in(graph), first_bias);
     EXPECT_EQ(NN::parameter_count(layer), 2u);
 }
 
@@ -550,7 +550,7 @@ TEST(Unit_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
     const Graph::ValueId logits = builder.spatial_mean(layer.forward(builder, x));
     const Graph::ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
-    const std::vector<Graph::ValueId> wrt = {layer.weight.id(), layer.bias.id()};
+    const std::vector<Graph::ValueId> wrt = {layer.weight.id_in(graph), layer.bias.id_in(graph)};
     const std::vector<Graph::ValueId> grads = Autograd::differentiate(
         graph, loss, SushiRuntime::span<const Graph::ValueId>(wrt.data(), wrt.size()));
 
