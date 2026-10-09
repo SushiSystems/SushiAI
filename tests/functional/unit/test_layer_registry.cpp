@@ -35,7 +35,6 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/config/registry.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
@@ -53,9 +52,11 @@
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
+#include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
 
 using namespace SushiAI;
@@ -119,14 +120,27 @@ namespace
         return Config::parse_json(text, "<test>");
     }
 
+    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
+    NN::NodeRegistry make_layer_registry()
+    {
+        NN::NodeRegistry registry;
+        SA_EXPECT_OK(NN::register_layers(registry));
+        return registry;
+    }
+
     /** @brief Builds the layer @p type names from @p attributes, as "layer 0 '<type>'". */
     std::unique_ptr<NN::Layer> make_layer(std::string_view type, std::string_view attributes,
                                            const Shape& input)
     {
-        const NN::LayerEntry& entry =
-            Config::find_entry(NN::K_LAYER_REGISTRY, type, "layer type");
+        const NN::NodeRegistry registry = make_layer_registry();
+        const NN::LayerEntry* entry = registry.find_layer(type);
+        if (entry == nullptr)
+        {
+            ADD_FAILURE() << "no layer row holds '" << type << "'";
+            return nullptr;
+        }
         const std::string context = "layer 0 '" + std::string(type) + "'";
-        return entry.make(input, attributes_from(attributes), context);
+        return entry->make(input, attributes_from(attributes), context);
     }
 
     /** @brief Returns the layer of type @p L that @p layer wraps, or null when it wraps another. */
@@ -190,6 +204,7 @@ namespace
     NN::LayerStack make_conv_stack()
     {
         return NN::build_layer_stack(
+            make_layer_registry(),
             Config::parse_model(Config::parse_json(K_CONV_MODEL, "<test>"), "<test>"));
     }
 
@@ -214,10 +229,13 @@ namespace
 /** @brief Tests that every registry row has a minimal case here, so no factory goes unbuilt. */
 TEST(Unit_LayerRegistry, EveryRowHasAMinimalCase)
 {
-    ASSERT_EQ(K_MINIMAL_CASES.size(), NN::K_LAYER_REGISTRY.size());
+    const NN::NodeRegistry registry = make_layer_registry();
+    const SushiRuntime::span<const NN::LayerEntry> layers = registry.layers();
 
-    for (std::size_t i = 0; i < NN::K_LAYER_REGISTRY.size(); ++i)
-        EXPECT_EQ(K_MINIMAL_CASES[i].type, NN::K_LAYER_REGISTRY[i].type);
+    ASSERT_EQ(K_MINIMAL_CASES.size(), layers.size());
+
+    for (std::size_t i = 0; i < layers.size(); ++i)
+        EXPECT_EQ(K_MINIMAL_CASES[i].type, layers[i].type);
 }
 
 /** @brief Tests that the registry spells its fourteen type strings as model files do, in order. */
@@ -229,8 +247,9 @@ TEST(Unit_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
         "global_avgpool", "flatten", "upsample", "silu",
     };
 
+    const NN::NodeRegistry registry = make_layer_registry();
     std::vector<std::string_view> spelled;
-    for (const NN::LayerEntry& entry : NN::K_LAYER_REGISTRY)
+    for (const NN::LayerEntry& entry : registry.layers())
         spelled.push_back(entry.type);
 
     EXPECT_EQ(spelled, expected);
@@ -679,6 +698,7 @@ TEST(Unit_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
     })";
 
     const NN::LayerStack stack = NN::build_layer_stack(
+        make_layer_registry(),
         Config::parse_model(Config::parse_json(K_IMAGE_CHAIN, "<test>"), "<test>"));
 
     ASSERT_EQ(stack.size(), 3u);
@@ -701,8 +721,8 @@ TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
     const Config::ModelSpec model =
         Config::parse_model(Config::parse_json(K_MERGING_MODEL, "<test>"), "<test>");
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 2 'relu'", "the row before it",
-                    "build_model");
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
+                    "layer 2 'relu'", "the row before it", "build_model");
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads one row other than the last. */
@@ -720,7 +740,8 @@ TEST(Unit_LayerRegistry, AChainRefusesARowThatSkipsBack)
     const Config::ModelSpec model =
         Config::parse_model(Config::parse_json(K_SKIPPING_MODEL, "<test>"), "<test>");
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 2 'relu'", "the row before it");
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
+                    "layer 2 'relu'", "the row before it");
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads the model input below row 0. */
@@ -737,7 +758,8 @@ TEST(Unit_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
     const Config::ModelSpec model =
         Config::parse_model(Config::parse_json(K_RESTARTING_MODEL, "<test>"), "<test>");
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 1 'tanh'", "the row before it");
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
+                    "layer 1 'tanh'", "the row before it");
 }
 
 /** @brief Tests that build_layer_stack refuses a file whose outputs publish an earlier row. */
@@ -755,7 +777,8 @@ TEST(Unit_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
     const Config::ModelSpec model =
         Config::parse_model(Config::parse_json(K_EARLY_OUTPUT_MODEL, "<test>"), "<test>");
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "'outputs'", "last row", "build_model");
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
+                    "'outputs'", "last row", "build_model");
 }
 
 /** @brief Tests that build_layer_stack builds a file whose outputs name the last row whole. */
@@ -772,6 +795,7 @@ TEST(Unit_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
     })";
 
     const NN::LayerStack stack = NN::build_layer_stack(
+        make_layer_registry(),
         Config::parse_model(Config::parse_json(K_LAST_OUTPUT_MODEL, "<test>"), "<test>"));
 
     EXPECT_EQ(stack.size(), 2u);
@@ -791,5 +815,6 @@ TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsANamedPort)
     const Config::ModelSpec model =
         Config::parse_model(Config::parse_json(K_PORT_MODEL, "<test>"), "<test>");
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(model), "layer 1 'tanh'", "the row before it");
+    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
+                    "layer 1 'tanh'", "the row before it");
 }

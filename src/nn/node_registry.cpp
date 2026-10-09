@@ -21,7 +21,7 @@
 
 /**
  * @file node_registry.cpp
- * @brief Implements make_node over both registries and build_model over a parsed model.
+ * @brief Implements NodeRegistry, make_node over its rows and build_model over a parsed model.
  * @author Mustafa Garip
  */
 
@@ -34,6 +34,8 @@
 #include <vector>
 #include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/core/check.hpp>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/nn/layer.hpp>
@@ -47,12 +49,12 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Returns the row of @p table whose type is @p type, or null when none is. */
-            template<typename Entry, std::size_t N>
-            [[nodiscard]] const Entry* find_type(const std::array<Entry, N>& table,
+            /** @brief Returns the row of @p rows whose type is @p type, or null when none is. */
+            template<typename Entry>
+            [[nodiscard]] const Entry* find_type(const std::vector<Entry>& rows,
                                                  std::string_view type) noexcept
             {
-                for (const Entry& entry : table)
+                for (const Entry& entry : rows)
                 {
                     if (entry.type == type)
                         return &entry;
@@ -61,12 +63,12 @@ namespace SushiAI
                 return nullptr;
             }
 
-            /** @brief Joins the types of @p table into "'a', 'b'" for a diagnostic. */
-            template<typename Entry, std::size_t N>
-            [[nodiscard]] std::string list_types(const std::array<Entry, N>& table)
+            /** @brief Joins the types of @p rows into "'a', 'b'" for a diagnostic. */
+            template<typename Entry>
+            [[nodiscard]] std::string list_types(SushiRuntime::span<const Entry> rows)
             {
                 std::string listed;
-                for (const Entry& entry : table)
+                for (const Entry& entry : rows)
                 {
                     if (!listed.empty())
                         listed.append(", ");
@@ -75,6 +77,37 @@ namespace SushiAI
                 }
 
                 return listed;
+            }
+
+            /**
+             * @brief Checks that @p row may join @p registry.
+             * @param row An empty type or a null factory is fatal.
+             * @return InvalidDescription when @p registry holds the type of @p row.
+             */
+            template<typename Entry>
+            [[nodiscard]] Status require_new_type(const NodeRegistry& registry, const Entry& row)
+            {
+                SA_FATAL_IF(row.type.empty(), "a registry row has an empty type");
+                SA_FATAL_IF(row.make == nullptr, "the registry row '{}' has no factory",
+                            row.type);
+                SA_FAIL_IF(registry.find_node(row.type) != nullptr ||
+                               registry.find_layer(row.type) != nullptr,
+                           StatusCode::InvalidDescription,
+                           "the type '{}' is already in the registry; a type has one row",
+                           row.type);
+
+                return Status();
+            }
+
+            /** @brief Appends @p row to @p rows, or returns the failure of the allocation. */
+            template<typename Entry>
+            [[nodiscard]] Status append_row(std::vector<Entry>& rows, const Entry& row) noexcept
+            {
+                return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    rows.push_back(row);
+                    return Status();
+                });
             }
 
             /** @brief Returns the text that names row @p index of type @p type in a diagnostic. */
@@ -140,7 +173,8 @@ namespace SushiAI
              * @param rows Port 0 of every row above @p index, by row index.
              * @return Port 0 of the new node, or the failure of a source, the factory or add().
              */
-            [[nodiscard]] Result<NodeRef> add_row(ModelGraph& graph,
+            [[nodiscard]] Result<NodeRef> add_row(const NodeRegistry& registry,
+                                                  ModelGraph& graph,
                                                   const std::vector<NodeRef>& rows,
                                                   const Config::LayerSpec& spec,
                                                   std::size_t index)
@@ -162,7 +196,8 @@ namespace SushiAI
                 }
 
                 SA_TRY_ASSIGN(std::unique_ptr<Node> node,
-                              make_node(spec.type, ShapeSpan(shapes.data(), shapes.size()),
+                              make_node(registry, spec.type,
+                                        ShapeSpan(shapes.data(), shapes.size()),
                                         spec.attributes, context));
 
                 return graph.add(std::to_string(index), std::move(node),
@@ -206,15 +241,50 @@ namespace SushiAI
 
         } // namespace
 
-        Result<std::unique_ptr<Node>> make_node(std::string_view type, ShapeSpan inputs,
+        Status NodeRegistry::add(const NodeEntry& row)
+        {
+            SA_TRY(require_new_type(*this, row));
+
+            return append_row(nodes_, row);
+        }
+
+        Status NodeRegistry::add(const LayerEntry& row)
+        {
+            SA_TRY(require_new_type(*this, row));
+
+            return append_row(layers_, row);
+        }
+
+        const NodeEntry* NodeRegistry::find_node(std::string_view type) const noexcept
+        {
+            return find_type(nodes_, type);
+        }
+
+        const LayerEntry* NodeRegistry::find_layer(std::string_view type) const noexcept
+        {
+            return find_type(layers_, type);
+        }
+
+        SushiRuntime::span<const NodeEntry> NodeRegistry::nodes() const noexcept
+        {
+            return SushiRuntime::span<const NodeEntry>(nodes_.data(), nodes_.size());
+        }
+
+        SushiRuntime::span<const LayerEntry> NodeRegistry::layers() const noexcept
+        {
+            return SushiRuntime::span<const LayerEntry>(layers_.data(), layers_.size());
+        }
+
+        Result<std::unique_ptr<Node>> make_node(const NodeRegistry& registry,
+                                                std::string_view type, ShapeSpan inputs,
                                                 const Config::Value& attributes,
                                                 std::string_view context)
         {
-            const NodeEntry* const node = find_type(K_NODE_REGISTRY, type);
+            const NodeEntry* const node = registry.find_node(type);
             if (node != nullptr)
                 return node->make(inputs, attributes, context);
 
-            const LayerEntry* const layer = find_type(K_LAYER_REGISTRY, type);
+            const LayerEntry* const layer = registry.find_layer(type);
             if (layer != nullptr)
                 return make_layer_node(*layer, inputs, attributes, context);
 
@@ -223,11 +293,13 @@ namespace SushiAI
                 return SushiBLAS::Core::format(
                     "{} has the type '{}', which this build does not have; the node types "
                     "are: {}; the layer types are: {}",
-                    context, type, list_types(K_NODE_REGISTRY), list_types(K_LAYER_REGISTRY));
+                    context, type, list_types(registry.nodes()),
+                    list_types(registry.layers()));
             });
         }
 
-        Result<ModelGraph> build_model(const Config::ModelSpec& model)
+        Result<ModelGraph> build_model(const NodeRegistry& registry,
+                                       const Config::ModelSpec& model)
         {
             SA_FAIL_IF(model.layers.empty(), StatusCode::InvalidDescription,
                        "the model declares no layers, so it describes no model");
@@ -239,7 +311,7 @@ namespace SushiAI
             for (std::size_t index = 0; index < model.layers.size(); ++index)
             {
                 SA_TRY_ASSIGN(const NodeRef row,
-                              add_row(graph, rows, model.layers[index], index));
+                              add_row(registry, graph, rows, model.layers[index], index));
                 rows.push_back(row);
             }
 

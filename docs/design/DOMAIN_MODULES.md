@@ -1,6 +1,6 @@
 # Domain modules
 
-**Status:** Open — phase 1 of 4; the plan is `docs/agent/2026_10_09_DOMAIN_MODULES/PLAN.md`
+**Status:** Open — phase 2 of 4, phase 1 built and passing; the plan is `docs/agent/2026_10_09_DOMAIN_MODULES/PLAN.md`
 
 How SushiAI keeps what belongs to one field of use (vision today; language, physics and
 reinforcement learning later) apart from the library every field shares, so that a field can be

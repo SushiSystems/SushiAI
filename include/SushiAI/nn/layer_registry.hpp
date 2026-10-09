@@ -27,13 +27,13 @@
 
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <memory>
 #include <string_view>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 
@@ -41,6 +41,9 @@ namespace SushiAI
 {
     namespace NN
     {
+        /** @brief The registry of node and layer rows; declared in node_registry.hpp. */
+        class NodeRegistry;
+
         /**
          * @brief Builds one layer from its spec.
          * @param input The per-sample shape entering it, batch axis excluded.
@@ -54,7 +57,7 @@ namespace SushiAI
 
         /**
          * @struct LayerEntry
-         * @brief One row of @ref K_LAYER_REGISTRY.
+         * @brief Holds one layer row of a NodeRegistry.
          */
         struct LayerEntry
         {
@@ -177,37 +180,21 @@ namespace SushiAI
                                           std::string_view context);
 
         /**
-         * @brief Every layer type a model.json may name.
-         *
-         * A file-scope constant table, in the shape of @c Ops::K_ALL and the
-         * fusion @c K_CATALOG.
+         * @brief Adds the fourteen layer types, then the node types batchnorm2d and concat.
+         * @return InvalidDescription when @p registry already holds one of the sixteen types.
          */
-        inline constexpr std::array<LayerEntry, 14> K_LAYER_REGISTRY = {
-            LayerEntry{"linear",         &make_linear},
-            LayerEntry{"gelu",           &make_gelu},
-            LayerEntry{"relu",           &make_relu},
-            LayerEntry{"tanh",           &make_tanh},
-            LayerEntry{"sigmoid",        &make_sigmoid},
-            LayerEntry{"leaky_relu",     &make_leaky_relu},
-            LayerEntry{"unflatten",      &make_unflatten},
-            LayerEntry{"conv2d",         &make_conv2d},
-            LayerEntry{"maxpool2d",      &make_maxpool2d},
-            LayerEntry{"avgpool2d",      &make_avgpool2d},
-            LayerEntry{"global_avgpool", &make_global_avgpool},
-            LayerEntry{"flatten",        &make_flatten},
-            LayerEntry{"upsample",       &make_upsample},
-            LayerEntry{"silu",           &make_silu},
-        };
+        [[nodiscard]] Status register_layers(NodeRegistry& registry);
 
         /**
          * @brief Builds the whole layer stack, chaining each layer's per-sample shape.
+         * @param registry Its layer rows are the types a row of @p model may name.
          * @param model Parsed model architecture specification; every row must read the row
          *        before it, row 0 the model input, and "outputs" must be empty or publish
          *        the last row whole.
-         * @return Constructed layer stack ready for tracing.
          * @throws Error If a layer type is unknown or attributes are invalid.
          */
-        LayerStack build_layer_stack(const Config::ModelSpec& model);
+        LayerStack build_layer_stack(const NodeRegistry& registry,
+                                     const Config::ModelSpec& model);
 
     } // namespace NN
 } // namespace SushiAI

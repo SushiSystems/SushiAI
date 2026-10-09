@@ -83,6 +83,7 @@ set(SUSHIAI_SOURCES
     nn/blocks/c3k2.cpp
     nn/blocks/conv_norm.cpp
     nn/blocks/sppf.cpp
+    nn/blocks/registration.cpp
 
     optim/optimizer.cpp
     optim/step_scalars.cpp
@@ -92,6 +93,7 @@ set(SUSHIAI_SOURCES
     optim/optimizer_registry.cpp
 
     data/dataset.cpp
+    data/dataset_registry.cpp
 
     detect/anchors.cpp
     detect/assigner.cpp

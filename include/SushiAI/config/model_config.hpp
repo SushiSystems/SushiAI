@@ -75,7 +75,7 @@ namespace SushiAI
          */
         struct LayerSpec
         {
-            /** @brief The @c NN::K_LAYER_REGISTRY key, e.g. "linear". */
+            /** @brief The type a registered layer or node answers to, e.g. "linear". */
             std::string type;
 
             /** @brief Holds the row's keys without "type" and "from", defaults merged in. */

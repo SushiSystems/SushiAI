@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-09 — nn: Replaced the node and layer tables with NodeRegistry, a value build_model, make_node and build_layer_stack take; breaks their callers (`node_registry.hpp`, `layer_registry.hpp`, `blocks/registration.hpp`).
+- 2026-10-09 — data: Replaced the dataset table with DatasetRegistry, a value make_dataset takes; breaks its callers (`dataset_registry.hpp`, `dataset.hpp`).
+- 2026-10-09 — apps: Composed the registries of train and inference in one function (`apps/registries.hpp`, `apps/registries.cpp`, `compose_registries`).
 - 2026-10-09 — core: Added shape_of for a SushiBLAS tensor and gave the plan adoption of the steps one function (`tensor_shape.hpp`, `steps.hpp`, `Detail::adopt_plan`).
 - 2026-10-09 — apps: Moved sushiai train and inference onto build_model, a ModelState and the shape-checked steps; inference runs an EvaluationStep (`apps/train.cpp`, `apps/inference.cpp`).
 - 2026-10-09 — examples: Moved the MNIST example to a version 2 model file with an input shape and the image layout; breaks its version 1 files (`examples/mnist_cnn/model.json`, `train.json`, `eval.json`).

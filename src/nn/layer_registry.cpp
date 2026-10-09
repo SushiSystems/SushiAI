@@ -21,7 +21,7 @@
 
 /**
  * @file layer_registry.cpp
- * @brief Implements layer registry factories and layer stack builder.
+ * @brief Implements the layer factories, register_layers and the layer stack builder.
  * @author Mustafa Garip
  */
 
@@ -33,16 +33,19 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/config/registry.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/avg_pool2d.hpp>
+#include <SushiAI/nn/batch_norm2d.hpp>
+#include <SushiAI/nn/concat.hpp>
 #include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/flatten.hpp>
 #include <SushiAI/nn/global_avg_pool.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/leaky_relu.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
+#include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
@@ -275,6 +278,21 @@ namespace SushiAI
                 return model.outputs[0].node ==
                        static_cast<std::int64_t>(model.layers.size()) - 1;
             }
+
+            /** @brief Joins the layer types of @p registry into "'a', 'b'" for a diagnostic. */
+            std::string list_layer_types(const NodeRegistry& registry)
+            {
+                std::string listed;
+                for (const LayerEntry& entry : registry.layers())
+                {
+                    if (!listed.empty())
+                        listed.append(", ");
+
+                    listed.append("'").append(entry.type).append("'");
+                }
+
+                return listed;
+            }
         }
 
         std::unique_ptr<Layer> make_linear(const Shape& input,
@@ -427,7 +445,30 @@ namespace SushiAI
             return make_keyless<SiLU>(input, attributes, context);
         }
 
-        LayerStack build_layer_stack(const Config::ModelSpec& model)
+        Status register_layers(NodeRegistry& registry)
+        {
+            SA_TRY(registry.add(LayerEntry{"linear", &make_linear}));
+            SA_TRY(registry.add(LayerEntry{"gelu", &make_gelu}));
+            SA_TRY(registry.add(LayerEntry{"relu", &make_relu}));
+            SA_TRY(registry.add(LayerEntry{"tanh", &make_tanh}));
+            SA_TRY(registry.add(LayerEntry{"sigmoid", &make_sigmoid}));
+            SA_TRY(registry.add(LayerEntry{"leaky_relu", &make_leaky_relu}));
+            SA_TRY(registry.add(LayerEntry{"unflatten", &make_unflatten}));
+            SA_TRY(registry.add(LayerEntry{"conv2d", &make_conv2d}));
+            SA_TRY(registry.add(LayerEntry{"maxpool2d", &make_maxpool2d}));
+            SA_TRY(registry.add(LayerEntry{"avgpool2d", &make_avgpool2d}));
+            SA_TRY(registry.add(LayerEntry{"global_avgpool", &make_global_avgpool}));
+            SA_TRY(registry.add(LayerEntry{"flatten", &make_flatten}));
+            SA_TRY(registry.add(LayerEntry{"upsample", &make_upsample}));
+            SA_TRY(registry.add(LayerEntry{"silu", &make_silu}));
+            SA_TRY(registry.add(NodeEntry{"batchnorm2d", &make_batch_norm2d_node}));
+            SA_TRY(registry.add(NodeEntry{"concat", &make_concat_node}));
+
+            return Status();
+        }
+
+        LayerStack build_layer_stack(const NodeRegistry& registry,
+                                     const Config::ModelSpec& model)
         {
             SA_THROW_IF(!publishes_last_row_only(model),
                         "the model's 'outputs' publishes something other than the whole of its "
@@ -448,10 +489,11 @@ namespace SushiAI
                             "a chain. Build this file with build_model.",
                             context);
 
-                const LayerEntry& entry =
-                    Config::find_entry(K_LAYER_REGISTRY, spec.type, "layer type");
+                const LayerEntry* const entry = registry.find_layer(spec.type);
+                SA_THROW_IF(entry == nullptr, "unknown layer type '{}'; this build has: {}",
+                            spec.type, list_layer_types(registry));
 
-                std::unique_ptr<Layer> layer = entry.make(shape, spec.attributes, context);
+                std::unique_ptr<Layer> layer = entry->make(shape, spec.attributes, context);
 
                 // Invariant: the next factory receives this layer's per-sample output shape.
                 shape = layer->output_shape();

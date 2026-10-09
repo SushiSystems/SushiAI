@@ -38,9 +38,9 @@
 #include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/engine/blas.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
-#include <SushiAI/config/registry.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/seam.hpp>
+#include <SushiAI/data/dataset_registry.hpp>
 
 namespace SushiAI
 {
@@ -638,13 +638,9 @@ namespace SushiAI
             return loaded;
         }
 
-        Result<std::unique_ptr<Dataset>> make_dataset(SushiBLAS::Engine& engine,
-                                                      std::string_view type,
-                                                      const Config::Value& attributes,
-                                                      std::string_view context)
+        Status register_mnist(DatasetRegistry& registry)
         {
-            return Config::find_entry(K_DATASET_REGISTRY, type, "dataset type")
-                       .make(engine, attributes, context);
+            return registry.add(DatasetEntry{"mnist", &make_mnist});
         }
 
     } // namespace Data

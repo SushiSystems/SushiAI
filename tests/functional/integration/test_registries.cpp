@@ -25,12 +25,12 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/data/dataset_registry.hpp>
 #include "../../common/test_utils.hpp"
 #include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
@@ -41,7 +41,20 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_Registries : public SaTest::EngineTest {};
+    class Integration_Registries : public SaTest::EngineTest
+    {
+        protected:
+            /** @brief Adds the rows the dataset tests name: "rings" and "mnist". */
+            void SetUp() override
+            {
+                SaTest::EngineTest::SetUp();
+                SA_EXPECT_OK(Data::register_datasets(datasets));
+                SA_EXPECT_OK(Data::register_mnist(datasets));
+            }
+
+            /** @brief Holds the dataset rows the tests build from. */
+            Data::DatasetRegistry datasets;
+    };
 
     /** @brief Parses @p text as a bare attribute object. */
     Config::Value attributes_from(std::string_view text)
@@ -118,7 +131,7 @@ TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
-        Data::make_dataset(*engine, "rings",
+        Data::make_dataset(datasets, *engine, "rings",
                            attributes_from(R"({"batch_size": 16, "batches": 2, "classes": 3,
                             "distractors": 1, "seed": 7})"),
                            "data"));
@@ -134,7 +147,7 @@ TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
     // Data comes from a host RNG, not Philox; see tests/functional/integration/README.md.
     const auto build = [this]
     {
-        return Data::make_dataset(*engine, "rings",
+        return Data::make_dataset(datasets, *engine, "rings",
                                   attributes_from(R"({"batch_size": 8, "batches": 1, "seed": 42})"),
                                   "data");
     };
@@ -150,15 +163,15 @@ TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
 
 TEST_F(Integration_Registries, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(*engine, "coco", attributes_from("{}"), "data"),
-        "coco", "dataset type", "'rings'");
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(datasets, *engine, "coco", attributes_from("{}"), "data"),
+        StatusCode::InvalidDescription, "coco", "dataset type", "'rings'");
 }
 
 TEST_F(Integration_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
 {
     SA_EXPECT_ERROR(
-        (void)Data::make_dataset(*engine, "rings",
+        (void)Data::make_dataset(datasets, *engine, "rings",
                                  attributes_from(R"({"batch_sizes": 16})"), "data"),
         "data", "'batch_sizes'", "'batch_size'");
 }
@@ -166,28 +179,26 @@ TEST_F(Integration_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
 TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
 {
     SA_EXPECT_FAILURE(
-        Data::make_dataset(*engine, "rings", attributes_from(R"({"batch_size": 0})"), "data"),
+        Data::make_dataset(datasets, *engine, "rings",
+                           attributes_from(R"({"batch_size": 0})"), "data"),
         StatusCode::InvalidDescription, "positive");
 }
 
 /** @brief Tests that the dataset registry carries a row named "mnist". */
 TEST_F(Integration_Registries, TheDatasetRegistryListsMnist)
 {
-    const bool listed = std::any_of(
-        Data::K_DATASET_REGISTRY.begin(), Data::K_DATASET_REGISTRY.end(),
-        [](const Data::DatasetEntry& entry) { return entry.type == "mnist"; });
-    EXPECT_TRUE(listed);
+    EXPECT_NE(datasets.find("mnist"), nullptr);
 
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(*engine, "coco", attributes_from("{}"), "data"),
-        "'mnist'");
+    SA_EXPECT_FAILURE(
+        Data::make_dataset(datasets, *engine, "coco", attributes_from("{}"), "data"),
+        StatusCode::InvalidDescription, "'mnist'");
 }
 
 /** @brief Tests that "mnist" fails, naming the directory and its files, when they are absent. */
 TEST_F(Integration_Registries, MnistRefusesADirectoryWithoutTheFiles)
 {
     SA_EXPECT_FAILURE(
-        Data::make_dataset(*engine, "mnist",
+        Data::make_dataset(datasets, *engine, "mnist",
                            attributes_from(R"({"directory": "sushiai_absent_mnist"})"),
                            "data"),
         StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST train split",
@@ -200,7 +211,7 @@ TEST_F(Integration_Registries, MnistTestSplitLooksForTheT10kFiles)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(
-            *engine, "mnist",
+            datasets, *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "test"})"),
             "data"),
         StatusCode::FileNotFound, "data", "sushiai_absent_mnist", "MNIST test split",
@@ -211,8 +222,8 @@ TEST_F(Integration_Registries, MnistTestSplitLooksForTheT10kFiles)
 TEST_F(Integration_Registries, MnistRequiresADirectory)
 {
     SA_EXPECT_ERROR(
-        (void)Data::make_dataset(*engine, "mnist", attributes_from(R"({"split": "test"})"),
-                                 "data"),
+        (void)Data::make_dataset(datasets, *engine, "mnist",
+                                 attributes_from(R"({"split": "test"})"), "data"),
         "data", "has no", "'directory'");
 }
 
@@ -221,7 +232,7 @@ TEST_F(Integration_Registries, AnUnknownMnistKeyIsRejectedByItsOwnFactory)
 {
     SA_EXPECT_ERROR(
         (void)Data::make_dataset(
-            *engine, "mnist",
+            datasets, *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "batch_sizes": 16})"),
             "data"),
         "data", "'batch_sizes'", "'batch_size'");
@@ -232,7 +243,7 @@ TEST_F(Integration_Registries, MnistRefusesASplitItDoesNotKnow)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(
-            *engine, "mnist",
+            datasets, *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "split": "validation"})"),
             "data"),
         StatusCode::InvalidDescription, "data", "'split'", "'validation'", "'train'", "'test'");
@@ -243,7 +254,7 @@ TEST_F(Integration_Registries, AnMnistLayoutOtherThanFlatOrImageIsRefused)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(
-            *engine, "mnist",
+            datasets, *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "layout": "tiled"})"),
             "data"),
         StatusCode::InvalidDescription, "data", "'layout'", "'tiled'", "'flat'", "'image'");
