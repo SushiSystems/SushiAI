@@ -35,6 +35,7 @@
 
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
+#include <SushiAI/vision/detect/suppression_criterion.hpp>
 
 namespace SushiAI
 {
@@ -67,23 +68,40 @@ namespace SushiAI
         struct NmsConfig
         {
             float confidence_threshold = K_VALIDATION_CONFIDENCE; /**< A score must exceed it. */
-            float iou_threshold = 0.7f;                           /**< A larger IoU suppresses. */
+            float iou_threshold = 0.7f;                           /**< Larger measures suppress. */
             LabelMode label_mode = LabelMode::MultiLabel;         /**< Classes per anchor. */
             ClassMode class_mode = ClassMode::ClassAware;         /**< Whether classes interact. */
             std::int64_t max_detections = K_MAX_DETECTIONS;       /**< Limit on rows per image. */
             std::int64_t max_candidates = 30000;                  /**< Limit on boxes in NMS. */
             float class_offset = 7680.0f;                         /**< Shift between classes. */
+            SuppressionCriterion criterion = SuppressionCriterion::Iou; /**< The measure. */
+            float distance_exponent = K_DEFAULT_DISTANCE_EXPONENT;      /**< DistanceIou only. */
         };
 
         /**
          * @brief Writes the indices of the boxes that survive suppression, highest score first.
          * @param boxes `[N, 4]` x1 y1 x2 y2.
-         * @param scores `[N]`; equal scores are visited by ascending index.
+         * @param scores `[N]`; equal scores are visited by ascending index, and a score of 0
+         *        is never kept.
          * @see modules/vision/detect/README.md
          */
         void suppress_overlaps(SushiRuntime::span<const float> boxes,
                                SushiRuntime::span<const float> scores,
                                float iou_threshold,
+                               std::vector<std::int64_t>& kept);
+
+        /**
+         * @brief Writes the indices of the boxes that survive suppression under @p criterion.
+         * @param boxes `[N, 4]` x1 y1 x2 y2.
+         * @param scores `[N]`; a score of 0 is never kept and suppresses nothing.
+         * @param threshold A measure above it suppresses the lower-scoring box.
+         * @param kept Receives the survivors, highest score first; equal scores by index.
+         */
+        void suppress_overlaps(SushiRuntime::span<const float> boxes,
+                               SushiRuntime::span<const float> scores,
+                               float threshold,
+                               SuppressionCriterion criterion,
+                               float distance_exponent,
                                std::vector<std::int64_t>& kept);
 
         /**

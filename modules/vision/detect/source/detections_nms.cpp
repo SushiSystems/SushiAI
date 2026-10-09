@@ -31,9 +31,11 @@
 #include <algorithm>
 #include <cstddef>
 
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
+#include <SushiAI/vision/detect/suppression_criterion.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 namespace SushiAI
@@ -145,7 +147,8 @@ namespace SushiAI
                 const float offset =
                     config.class_mode == ClassMode::ClassAgnostic ? 0.0f : config.class_offset;
                 suppress_overlaps(shift_by_class(candidates, offset), candidates.scores,
-                                  config.iou_threshold, order);
+                                  config.iou_threshold, config.criterion,
+                                  config.distance_exponent, order);
                 if (order.size() > static_cast<std::size_t>(config.max_detections))
                     order.resize(static_cast<std::size_t>(config.max_detections));
 
@@ -170,56 +173,58 @@ namespace SushiAI
             SA_THROW_IF(boxes.size() != count * K_BOX_VALUES,
                         "a suppression needs [N, 4] boxes and [N] scores; got {} and {} values",
                         boxes.size(), count);
+            suppress_overlaps(boxes, scores, iou_threshold, SuppressionCriterion::Iou,
+                              K_DEFAULT_DISTANCE_EXPONENT, kept);
+        }
+
+        void suppress_overlaps(SushiRuntime::span<const float> boxes,
+                               SushiRuntime::span<const float> scores,
+                               float threshold,
+                               SuppressionCriterion criterion,
+                               float distance_exponent,
+                               std::vector<std::int64_t>& kept)
+        {
+            const std::size_t count = scores.size();
+            SA_FATAL_IF(boxes.size() != count * K_BOX_VALUES,
+                        "a suppression needs [N, 4] boxes and [N] scores; got {} and {} values",
+                        boxes.size(), count);
+            SA_FATAL_IF(criterion != SuppressionCriterion::Iou &&
+                            criterion != SuppressionCriterion::DistanceIou,
+                        "a suppression criterion must be Iou or DistanceIou; got {}",
+                        static_cast<unsigned>(criterion));
 
             std::vector<std::int64_t> order;
             select_top_k(scores, static_cast<std::int64_t>(count), order);
 
-            std::vector<float> areas(count);
-            for (std::size_t row = 0; row < count; ++row)
+            // Rows are flagged by their rank in `order`; a zero score is skipped, never kept.
+            std::vector<std::uint8_t> removed(count, 0);
+            for (std::size_t rank = 0; rank < count; ++rank)
             {
-                const float* box = boxes.data() + row * K_BOX_VALUES;
-                areas[row] = (box[2] - box[0]) * (box[3] - box[1]);
+                if (scores[static_cast<std::size_t>(order[rank])] == 0.0f)
+                    removed[rank] = 1;
             }
 
-            std::vector<std::uint8_t> removed(count, 0);
-            std::vector<float> intersections(count, 0.0f);
             kept.clear();
             for (std::size_t rank = 0; rank < count; ++rank)
             {
                 if (removed[rank] != 0)
                     continue;
 
-                const std::size_t current = static_cast<std::size_t>(order[rank]);
-                const float* a = boxes.data() + current * K_BOX_VALUES;
-                kept.push_back(order[rank]);
-
-                bool overlaps_any = false;
+                const std::int64_t current = order[rank];
+                kept.push_back(current);
+                const SushiRuntime::span<const float> current_box =
+                    boxes.subspan(static_cast<std::size_t>(current) * K_BOX_VALUES, K_BOX_VALUES);
                 for (std::size_t later = rank + 1; later < count; ++later)
                 {
                     if (removed[later] != 0)
                         continue;
 
-                    const float* b =
-                        boxes.data() + static_cast<std::size_t>(order[later]) * K_BOX_VALUES;
-                    const float across = std::min(a[2], b[2]) - std::max(a[0], b[0]);
-                    const float down = std::min(a[3], b[3]) - std::max(a[1], b[1]);
-                    intersections[later] =
-                        (across < 0.0f ? 0.0f : across) * (down < 0.0f ? 0.0f : down);
-                    if (intersections[later] != 0.0f)
-                        overlaps_any = true;
-                }
-                if (!overlaps_any)
-                    continue;
-
-                for (std::size_t later = rank + 1; later < count; ++later)
-                {
-                    if (removed[later] != 0)
-                        continue;
-
-                    const float other = areas[static_cast<std::size_t>(order[later])];
-                    const float iou =
-                        intersections[later] / (areas[current] + other - intersections[later]);
-                    if (!(iou <= iou_threshold))
+                    const SushiRuntime::span<const float> later_box = boxes.subspan(
+                        static_cast<std::size_t>(order[later]) * K_BOX_VALUES, K_BOX_VALUES);
+                    const float measure =
+                        measure_suppression(current_box, later_box, criterion, distance_exponent);
+                    // A NaN measure fails <= and so suppresses.
+                    if (!(measure <= threshold))
                         removed[later] = 1;
                 }
             }
