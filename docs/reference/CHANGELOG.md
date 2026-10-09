@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-09 — train: Added three step builders, TrainingStep, EvaluationStep, check_feed and buffer updates recorded into the step (`steps.hpp`, `training_step.hpp`, `evaluation_step.hpp`, `feed.hpp`, `buffer_update_recorder.hpp`).
+- 2026-10-09 — train: Moved build_classifier and the graph builders out of trainer.hpp and changed them to return a Result; Trainer::make takes buffer update slots (`steps.hpp`, `trainer.hpp`, `training_graph.hpp`).
+- 2026-10-09 — io: Added import_weights with rename rules and the checkpoint forms that save and load a ModelState (`import_weights.hpp`, `checkpoint.hpp`, `checkpoint.cpp`).
+- 2026-10-09 — nn: Added ModelState, which owns one tensor per parameter and buffer of a model, and an initialize over it (`model_state.hpp`, `init.hpp`).
+- 2026-10-09 — data: Added Dataset::sample_shape and the MNIST layout key, flat by default and image for rank-four batches (`dataset.hpp`, `dataset.cpp`).
 - 2026-10-09 — core: Added record_and_run, which discards what a failed recording left on the engine through SushiBLAS's Engine::discard_recorded (`seam.hpp`, `seam.cpp`, `test_seam.cpp`).
 - 2026-10-09 — graph: Changed TensorPool::bind, alias and request_constant and StepRecorderList::add to return a status, and removed Lowering::values_needing_own_allocation (`tensor_pool.hpp`, `step_recorder.hpp`, `lowering.hpp`).
 - 2026-10-09 — tests: Added device cases for fourteen lowerings and a relative tolerance on the tail of the learning curve (`test_lowered_operations.cpp`, `test_learning_curve.cpp`).
