@@ -8,7 +8,7 @@ registries a model file selects through.
 
 The module depends on `core` (`Shape`, `Status`, `Result`, `Error`), on `graph` (the IR, the
 builder and `Graph::StateId`) and on `config` (`Config::Value`, `Config::ModelSpec`). `init.hpp`
-also takes a `SushiBLAS::Engine`; it is the one header here that does.
+and `model_state.hpp` also take a `SushiBLAS::Engine`; they are the only headers here that do.
 
 Two designs are the source of most headers. `MG` below is
 `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md` and `CV` is
@@ -32,9 +32,10 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 
 | Header | Holds |
 | --- | --- |
-| `module.hpp` | `Parameter`, `ParameterRole`, `ParameterInit`, `field`, `buffer`, `child`, `StateVisitor`, `walk_state`, `for_each_parameter`, `for_each_buffer`, `Module`, `ModuleContainer` |
+| `module.hpp` | `Parameter`, `ParameterRole`, `ParameterInit`, `field`, `buffer`, `child`, `StateVisitor`, `ParameterVisitor`, `walk_state`, `for_each_parameter`, `for_each_buffer`, `parameter_count`, `buffer_count`, `parameter_elements`, `Module`, `ModuleContainer` |
 | `buffer.hpp` | `Buffer` |
 | `module_list.hpp` | `ModuleList<T>` |
+| `model_state.hpp` | `StateKind`, `StateEntry`, `ModelState` |
 | `trace.hpp` | `TraceMode`, `BufferUpdate`, `BufferUpdateSink`, `BufferUpdateList`, `discard_updates`, `Trace`, `TraceModule`, `ModalModule`, `Traceable`, `trace_layer` |
 | `layers.hpp` | `Linear`, `ReLU`, `GELU`, `Tanh`, `Sigmoid`, `Sequential` |
 | `leaky_relu.hpp` | `LeakyReLU` |
@@ -54,7 +55,7 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `blocks/c3k2.hpp` | `C3k2<Inner>`, `C3k2InnerEntry`, `K_C3K2_INNER`, `make_c3k2_node`, `make_c3k2_of_bottleneck`, `make_c3k2_of_c3k` |
 | `blocks/sppf.hpp` | `SPPF`, `make_sppf_node` |
 | `loss.hpp` | `CrossEntropyLoss` |
-| `init.hpp` | `Nonlinearity`, `InitFamily`, `InitPolicy`, the five fills, `initialize` |
+| `init.hpp` | `Nonlinearity`, `calculate_gain`, `InitFamily`, `InitPolicy`, `constant`, `kaiming_normal`, `kaiming_uniform`, `xavier_normal`, `xavier_uniform`, `zeros`, `initialize` |
 | `layer.hpp` | `Layer`, `LayerAdapter<L>` |
 | `layer_stack.hpp` | `LayerStack` |
 | `layer_registry.hpp` | `LayerFactory`, `LayerEntry`, the fourteen `make_*` factories, `K_LAYER_REGISTRY`, `build_layer_stack` |
@@ -75,15 +76,19 @@ A `Parameter` holds a learnable tensor's description and a `Graph::StateId`, and
 `declare()` adds a leaf to the graph of the builder it is given unless that graph already
 holds this parameter, so one parameter has one leaf in every graph it is traced into. A copy
 is new state and draws its own identity. A move carries the identity away. `ParameterRole`
-selects the fill: fan-scaled for `WEIGHT`, zero for `BIAS`, one for `SCALE`. A second
-`declare()` form takes a `ParameterInit` as well.
+selects the fill: fan-scaled for `Weight`, zero for `Bias`, one for `Scale`. A second
+`declare()` form takes a `ParameterInit` as well. `state()` returns the identity, or
+`K_NO_STATE` when none was drawn. `id_in(graph)` returns the parameter's leaf in `graph`, or
+`Graph::K_NO_VALUE` when that graph holds none.
 
 A layer lists its state in a static `fields()`: `field` for a `Parameter`, `buffer` for a
 `Buffer`, `child` for a member that is walked in turn. `walk_state` visits every declared
 parameter and defined buffer in one order. It tries, in this order, the type's own
 `walk_state(prefix, visitor)`, then `walk_parameters(prefix, visitor)`, then `visit_children`
 named by index, then `fields()` entry by entry. `for_each_parameter` and `for_each_buffer` each
-yield one kind.
+yield one kind. `parameter_count`, `buffer_count` and `parameter_elements` count what those
+walks yield; the last sums the element count of every parameter's shape. `ParameterVisitor`
+refers to its callable and owns none; `walk_parameters` takes one.
 
 Source: MG 2.2, with the identity from MG 2.1. PLAN unit U2.
 
@@ -103,6 +108,20 @@ index. `T` must be nothrow move constructible, so that growing the list keeps ea
 state identity.
 
 Source: MG 2.2, and its use in MG 2.10. PLAN unit U2.
+
+### model_state.hpp
+
+`ModelState` owns one tensor per entry of a model, allocated once on a `SushiBLAS::Engine`.
+An entry is each declared parameter and each defined buffer. `ModelState::create` walks a traced
+model and describes every entry as a `StateEntry`: its dotted name, its `StateKind`, its
+identity, shape, dtype, `ParameterInit` and fans. The walk skips what no trace declared, so a
+model no trace has reached gives an empty state. `from_entries` allocates the tensors of a list
+of entries, in order, and refuses a repeated name or identity with `InvalidDescription`.
+`tensor()` returns an entry's tensor by name or by identity. `attach` binds the storage of every
+state leaf of a graph to a `TensorPool`, so the pool and the state read the same numbers; a leaf
+with no entry, or one whose shape or dtype differs, gives `Incompatible`. The state is move-only.
+
+Source: PLAN unit U14, task T14.1.
 
 ## Tracing
 
@@ -280,11 +299,14 @@ Source: neither spec. The header predates both.
 
 ### init.hpp
 
-`initialize` fills every parameter of a module on a `SushiBLAS::Engine` according to an
-`InitPolicy`. The header also declares `calculate_gain` and the fills `kaiming_normal`,
-`kaiming_uniform`, `xavier_normal`, `xavier_uniform` and `zeros`.
+`initialize` records the initial fill of every entry of a `ModelState` on a `SushiBLAS::Engine`,
+buffers included, and then runs the recording. An entry whose `ParameterInit` is a constant takes
+`constant`. The last fan-scaled entry is zeroed with `zeros` when `zero_final_layer` holds. Every
+other fan-scaled entry takes `kaiming_normal`, `kaiming_uniform`, `xavier_normal` or
+`xavier_uniform`, as `family` and `uniform` select, with the gain `calculate_gain` gives for
+`nonlinearity`. The random stream is seeded with `seed`, so one seed gives one set of values.
 
-Source: neither spec. The header predates both.
+Source: PLAN unit U14, task T14.2.
 
 ## The run-time layer seam
 

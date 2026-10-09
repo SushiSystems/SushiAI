@@ -95,6 +95,7 @@ tests.
 | [`test_spatial_shapes.cpp`](test_spatial_shapes.cpp) | The shapes the builder infers for spatial operations and the layouts it refuses. |
 | [`test_status.cpp`](test_status.cpp) | Status, its macros, the fatal family and the assertions of test_status.hpp. |
 | [`test_step_recorder.cpp`](test_step_recorder.cpp) | That StepRecorderList drives its members as one recorder, in the order added. |
+| [`test_steps.cpp`](test_steps.cpp) | The training, probe and evaluation graph builders, and the batch shape function. |
 | [`test_throwing_bridge.cpp`](test_throwing_bridge.cpp) | bridge_throwing: a value passes through and a thrown Error becomes a Status. |
 | [`test_trace.cpp`](test_trace.cpp) | Trace, the buffer-update sinks, the three layer forms and trace_layer. |
 | [`test_traced.cpp`](test_traced.cpp) | Traced and the refusal it carries through a chain of emitters. |
@@ -1726,12 +1727,12 @@ the one output is row 4 with no port and no name.
 
 ### AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount
 
-`K_GOOD_MODEL`, a version 1 document of 6 features, parses to `input_shape` [6] and
-`input_features` 6. The case also asserts that `Config::K_MODEL_VERSION` is 2.
+`K_GOOD_MODEL`, a version 1 document of 6 features, parses to `input_shape` [6],
+whose `num_elements()` is 6. The case also asserts that `Config::K_MODEL_VERSION` is 2.
 
 ### AVersionTwoInputShapeKeepsItsRankAndCountsItsElements
 
-The input shape [28, 28, 1] is kept at rank 3 and `input_features` is 784.
+The input shape [28, 28, 1] is kept at rank 3 and its `num_elements()` is 784.
 
 ### AnEmptyOrNonPositiveInputShapeIsAnError
 
@@ -6449,7 +6450,7 @@ source row.
 ### hand_built_chain
 
 `hand_built_chain` fills a `Config::ModelSpec` field by field, with no parser involved: the
-input shape [6], 6 input features, and the rows `linear` 8, `gelu` and `linear` 4. Row 0 reads
+input shape [6] and the rows `linear` 8, `gelu` and `linear` 4. Row 0 reads
 `Config::K_MODEL_INPUT` and each later row reads the row above it.
 
 ### NamesItsParametersExactlyAsSequentialDoes
@@ -6505,8 +6506,8 @@ before it reported. The spec never states that number, so it can only come from 
 
 ### BuildLayerStackSeedsTheChainFromTheInputShape
 
-The spec of `hand_built_chain` is given `input_shape` [5] and `input_features` 6, two fields
-that disagree. The first layer's `in_features` is 5, so `build_layer_stack` reads the shape.
+The spec of `hand_built_chain` has its `input_shape` replaced by [5]. The first layer's
+`in_features` is 5, so `build_layer_stack` seeds the chain from the shape.
 
 ### BuildLayerStackRefusesAHandBuiltRowWithoutASource
 
@@ -7662,7 +7663,7 @@ The cases from AParameterTracedIntoTwoGraphsHasALeafInEach to ARoleDeclareFillsB
 `NN::Parameter` in `include/SushiAI/nn/module.hpp`. A parameter holds a `Graph::StateId` and
 no graph. `declare()` adds a leaf to the graph of the builder it is given and binds the leaf to
 the state there, so one parameter has one leaf in each graph it was traced into. `id_in(graph)`
-returns that graph's leaf, and `id()` returns the leaf of the most recent `declare()`.
+returns that graph's leaf.
 
 The file-local `K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is
 stored and read back unchanged.
@@ -7711,26 +7712,15 @@ are still the first ones, and it has a leaf in the second graph.
 ### ACopiedLayerHasANewStateId
 
 A copy of a traced `Linear` has a weight whose state is `K_NO_STATE` and whose `id_in(graph)`
-is `K_NO_VALUE`. `declared()` is true and `id()` is the original's leaf, because both are copied
-with the description. Once the copy is traced, its `id()` equals its own `id_in(graph)`, its
-state differs from the original's, and its weight and bias leaves differ from the original's.
+is `K_NO_VALUE`, and `declared()` is true. Once the copy is traced, its weight has a leaf in the
+graph and a state that differs from the original's, and its weight and bias leaves differ from
+the original's.
 
 ### AMovedLayerKeepsItsStateId
 
 A `Linear` move-constructed from a traced one has the same weight state and the same weight
 leaf in the graph. Tracing it again adds two values, the two activations, and no parameter
 leaf.
-
-### IdReturnsTheLeafOfTheMostRecentDeclare
-
-`id()` is `K_NO_VALUE` before any `declare()`, the first graph's leaf after the first, and the
-second graph's leaf after the second. The second graph holds a padding input, so the two leaves
-have different ids.
-
-### IdFollowsADeclareBackIntoAnEarlierGraph
-
-After declarations into a first and a second graph, `id()` is the second leaf. A `declare()`
-through the first builder again returns the first leaf, and `id()` is then the first leaf.
 
 ### ARoleDeclareRecordsTheFillOfItsRole
 
@@ -7923,8 +7913,8 @@ is 0.
 ### GrowingTheListKeepsATracedChildsStateIdentity
 
 The first child is traced, then 64 more layers are appended, which moves a one-element
-vector's storage at least once. The first child's weight has the same state and the same leaf
-in the graph afterwards, and its bias's `id_in(graph)` equals its `id()`.
+vector's storage at least once. The first child's weight keeps its state and its leaf in the
+graph, and its bias keeps its leaf in the graph.
 
 ### AnIndexPastTheEndIsFatal
 
@@ -8434,6 +8424,20 @@ appearing to compare one.
 
 What shape an output must be is the objective's question, since a detector's is not a
 classifier's. The message therefore comes from the objective and not from the graph builder.
+
+### CrossEntropyReadsTheOnlyOutput
+
+The model of `Mlp` with 6, 8 and 3 units publishes one output, under the name
+`NN::K_SINGLE_PORT_NAME`, which is "output". The case asserts that the outputs hold that one
+entry, that the loss node is an `NLL_LOSS` reading a `LOG_SOFTMAX`, and that the `LOG_SOFTMAX`
+reads the value published under that name.
+
+### CrossEntropyRefusesTwoOutputs
+
+The model of `Test::build_two_output_model`, from `tests/common/test_utils.hpp`, publishes
+"features" and "logits". The case asserts that
+`build_training_graph` returns `StatusCode::InvalidDescription` and that the message names both
+outputs.
 
 ### CrossEntropyTakesNoKeysAtAll
 
@@ -10320,6 +10324,94 @@ member once: 2 tasks and one journal entry.
 
 `list.add(list)` stops the process with a report containing "StepRecorderList::add" and "itself".
 It is a death test in `Unit_StepRecorderDeathTest`, and the list stays empty.
+
+## test_steps.cpp
+
+Suites: `Unit_Steps`.
+
+Tests the builders that trace a model into a training, probe or evaluation graph, and the batch
+shape function.
+
+This file needs no device. `build_training_graph`, `build_probe_graph`, `build_evaluation_graph`
+and `batch_shape` are declared in `include/SushiAI/train/steps.hpp`, and `Train::TrainingGraph`
+is declared in `include/SushiAI/train/training_graph.hpp`. The constants `K_BATCH` (4),
+`K_FEATURES` (6), `K_HIDDEN` (8), `K_CLASSES` (3), `K_CHANNELS` (3) and `K_SIDE` (2) set every
+shape in the file. Each case reads the graph a builder returns, through its nodes, its leaves,
+its pinned values, its buffer updates or its status.
+
+### K_MLP_TRAINING_OPS
+
+`K_MLP_TRAINING_OPS` lists the operation of each of the 17 nodes of the MLP's training graph
+under `CrossEntropyObjective`, in node order.
+
+### parameter_states
+
+`parameter_states` returns the `state()` of every parameter of a model, in the order of
+`NN::for_each_parameter`.
+
+### build_two_output_model
+
+`build_two_output_model` is `Test::build_two_output_model` from `tests/common/test_utils.hpp`,
+which this file brings in with a using-declaration. It builds a Linear named "body", a GELU named
+"activation" and a Linear named "head" over [6], and publishes "features" on the GELU and
+"logits" on the head.
+
+### NamedOutputObjective
+
+`NamedOutputObjective` is a `Train::Objective` that declares one leaf, "targets", of
+[batch, classes]. Its `loss()` is the cross-entropy of the output it was given by name against
+that leaf. `score()` returns no metric, and `name()` returns "named_output".
+
+### ATrainingGraphOfAnMlpHasTheNodesBuildGraphGave
+
+The training graph of the MLP under cross-entropy has 17 nodes. Their operations, in node order,
+equal `K_MLP_TRAINING_OPS`.
+
+### ATrainingGraphListsEveryParameterWithItsLeafInThatGraph
+
+The training graph lists four parameters, in the order of the parameter walk, and each entry
+carries the walk's name. Each entry's value is the parameter's `id_in` in the built graph, and
+neither its value nor its gradient is `K_NO_VALUE`.
+
+### ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources
+
+A `BatchNorm2d`, `Flatten` and `Linear` model over [4, 2, 2, 3] yields two buffer updates, and
+the source of each update is pinned.
+
+### ATrainingGraphPinsTheLossAndTheOutputs
+
+For the same model, the loss and every value in `outputs` are pinned.
+
+### AProbeGraphHasBatchStatisticsAndNoUpdate
+
+The probe graph of a `BatchNorm2d` over [4, 2, 2, 3] has one `BATCHNORM2D` node, no
+`BATCHNORM_FOLD` node and no buffer leaf, and it publishes one output.
+
+### AnEvaluationGraphFoldsTheStoredStatistics
+
+The evaluation graph of the same layer has one `BATCHNORM_FOLD` node, two buffer leaves and no
+`BATCHNORM2D` node.
+
+### OneModelTracedThreeTimesKeepsOneStateIdPerParameter
+
+After the training graph, the probe graph and the evaluation graph are built from one
+batch-norm classifier, its four parameters have the same state identities as after the training
+graph alone, in walk order. Each state has a leaf in all three graphs.
+
+### AModelGraphWithTwoOutputsLeavesLogitsUnset
+
+`NamedOutputObjective("logits")` reads the model of `build_two_output_model`. The training graph
+has `spec.logits` set to `K_NO_VALUE`, two entries in `outputs` and a set `spec.loss`.
+
+### ARefusingLayerFailsTheBuilderWithItsStatus
+
+`build_probe_graph` of a `BatchNorm2d(3)` over [1, 1, 1, 3] returns `StatusCode::InvalidDescription`,
+with a message containing "BatchNorm2d(3)" and "more than one value per channel".
+
+### BatchShapePrependsTheBatch
+
+`batch_shape(16, [28, 28, 1])` is [16, 28, 28, 1]. A batch of 0 returns
+`StatusCode::InvalidDescription`, with a message containing "batch" and "positive".
 
 ## test_throwing_bridge.cpp
 

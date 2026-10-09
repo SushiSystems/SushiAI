@@ -8,8 +8,8 @@ out by hand. The source keeps one line per case and cites this file.
 
 ## The SaTest alias
 
-`test_autograd_numeric.cpp`, `test_forward.cpp`, `test_resilience.cpp` and `test_training.cpp`
-declare `namespace SaTest = SushiAI::Test`. Inside a `TEST_F` body the fixture's base class
+`test_autograd_numeric.cpp`, `test_forward.cpp`, `test_resilience.cpp` and `test_training.cpp`,
+among others, declare `namespace SaTest = SushiAI::Test`. Inside a `TEST_F` body the fixture's base class
 injects the name `Test`, so `Test` alone resolves to `::testing::Test`. The alias keeps the
 helpers in `SushiAI::Test` reachable from a test body.
 
@@ -297,12 +297,45 @@ dgamma is a sum over three axes at once. A sum over the wrong ones, per sample w
 be per channel, is still a [C]-shaped value when N equals C. That is why the case is checked
 numerically and not by shape.
 
+## test_buffer_update_recorder.cpp
+
+Suites: `Integration_BufferUpdateRecorder`.
+
+The recorder blends each buffer's batch statistic into its running buffer, once per replay. The
+cases check how many tasks it records, the value one replay leaves behind, the empty recorder,
+and the two refusals that binding makes.
+
+### RecordsTwoTasksPerSlot
+
+Two slots record four tasks in all, two for each slot. The test asserts that `slot_count()` is 2
+and that `record_into_step` returns 4.
+
+### OneReplayBlendsTheSourceIntoTheTarget
+
+One slot over four float64 elements. After one replay each element equals the
+`NN::updated_statistic` of its running value and its batch value, with momentum 0.1 and a source
+scale of 2, within 1e-9.
+
+### NoSlotRecordsNothing
+
+A recorder built with no slots records zero tasks, reports zero slots and runs without error.
+
+### BindRefusesATargetTheStateLacks
+
+The state holds one entry, `bn.running_mean`, under identity 1. The update targets identity 7.
+Binding is refused as `Incompatible`, and the message contains "no entry".
+
+### BindRefusesADtypeMismatch
+
+The target entry is float32 and the source tensor is float64. Binding is refused as
+`Incompatible`, and the message names both dtypes by their `dtype_name`.
+
 ## test_checkpoint.cpp
 
 Suites: `Integration_Checkpoint`.
 
-The file covers the device half of checkpointing: binding records to the pool's tensors. The
-byte format's malformed-file surface needs no device and lives in
+The file covers the device half of checkpointing: saving and loading records against the tensors
+of a `NN::ModelState`. The byte format's malformed-file surface needs no device and lives in
 `tests/functional/unit/test_checkpoint_format.cpp`.
 
 The last equivalence test is the point of the file. A `Sequential` and a `LayerStack` built
@@ -312,9 +345,10 @@ leave its own correctness as the open question.
 
 ### Materialised
 
-Parameters are leaves, so one `materialise_leaves` call allocates every one of them. It also
-allocates the input leaf, which costs a [4, 6] buffer and spares the fixture from knowing
-which leaves are which.
+`traced_state` traces the model over a [4, 6] input and creates its `NN::ModelState` from the
+traced graph. `NN::initialize` then fills that state with a policy that leaves the final layer
+random, so every parameter carries real numbers and not the zeros of the default policy. The
+class owns the state, because every tensor a test reads has to outlive the comparison.
 
 ### ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack
 
@@ -339,7 +373,7 @@ deeper model is refused with a message that names `2.weight`, and the load repor
 
 The direction is reversed: the file is saved from the deeper model and loaded into the shallower
 one, so the file holds `2.weight`, which the model does not have. The load is refused with a
-message that names `2.weight` and says that this model does not have it.
+message that names `2.weight` and says that this model has no such entry.
 
 ### AShapeMismatchIsRefusedWithBothShapes
 
@@ -361,6 +395,40 @@ Suites: `Integration_EngineSmoke`.
 This is the P6 "consumer-shaped example" for AI-0. It proves that the two-sibling D3 dependency
 chain, SushiRuntime and SushiBLAS both linked through SushiAI, compiles, links and runs a real
 operation end to end. It does not stand in for the autograd operation coverage of AI-1.
+
+## test_evaluation_step.cpp
+
+Suites: `Integration_EvaluationStep`.
+
+The evaluation step replays a forward-only graph over a `NN::ModelState`. The cases check that it
+compiles once, that it reads the weights a training step wrote, that a probe run leaves the
+batch norm buffers alone, and the two refusals it makes.
+
+### TheStepCompilesOnce
+
+The step is made from an MLP's evaluation graph. `compile_count()` is 1 after `make()` and still
+1 after three runs.
+
+### AnEvaluationStepSeesAWeightTheTrainingStepJustMoved
+
+A training pool and an evaluation pool attach to one state. The evaluation output for fixed
+inputs is read before and after one training step on the synthetic dataset. The two byte
+sequences differ. The test notes that the default policy starts the classifier at zero.
+
+### AProbeRunLeavesBothRunningVectorsUnchanged
+
+The evaluation graph of a batch norm gives its buffers their leaves, and its probe graph is run
+once. The bytes of the running mean and the running variance are the same before and after.
+
+### AnInputOfAnotherShapeIsRefusedWithBothShapes
+
+A step compiled for a [4, 6] input refuses a [2, 6] input. The refusal is `Incompatible`, and its
+message names "inputs", "[2, 6]" and "[4, 6]".
+
+### AnUnknownOutputNameListsTheNames
+
+`output("boxes")` is refused as `InvalidDescription`. The message names "boxes" and the single
+port name, `NN::K_SINGLE_PORT_NAME`.
 
 ## test_forward.cpp
 
@@ -504,6 +572,88 @@ The variance is biased, dividing by N*H*W and not by N*H*W - 1. The forward norm
 value and the backward reads the saved statistics, so an unbiased divisor in the test would be
 a different function.
 
+## test_import_weights.cpp
+
+Suites: `Unit_RenameRule`, `Integration_ImportWeights`.
+
+The four `Unit_RenameRule` cases run the prefix rule with no device. They share this file with the
+integration cases, which load a checkpoint written under foreign names into a `NN::ModelState`.
+
+### RewritesAMatchingPrefix
+
+The rule `model.` with the empty prefix turns `model.0.weight` into `0.weight`.
+
+### LeavesANameNoRuleMatches
+
+A name that no rule's prefix starts is returned unchanged.
+
+### TheFirstMatchingRuleWins
+
+With `model.` to `first.` listed before `model.0` to `second`, `model.0.weight` becomes
+`first.0.weight`. The order decides, and the longer prefix does not win.
+
+### AnEmptyToPrefixStripsThePrefix
+
+`model.1.bias` becomes `1.bias`.
+
+### ARuleStripsAForeignPrefixAndEveryRecordLands
+
+A checkpoint holds `model.0.weight` and `model.0.bias`, written from a source state. A target state
+holds other values. Loading with the rule `model.` to the empty prefix leaves both target tensors
+with the bytes of the source.
+
+### WithoutTheRuleTheFirstRecordIsRefused
+
+The same file, loaded with no rules, is refused as `Incompatible`. The message contains
+`'model.0.weight'`.
+
+### ARecordTheStateLacksIsRefusedUnderBothNames
+
+A record named `model.9.weight` has no entry once renamed. The refusal is `Incompatible`, and its
+message contains "holds 'model.9.weight'" and "renames to '9.weight'".
+
+### AnEntryTheFileLacksIsRefusedAndNamed
+
+The file holds only `model.0.weight`. The refusal is `Incompatible`, and its message contains
+"does not supply" and "'0.bias'".
+
+### AShapeMismatchIsRefusedWithBothShapes
+
+A record shaped [3, 2] carries the six elements of a [2, 3] entry. The refusal is `Incompatible`,
+and its message names both shapes. The shapes are compared, not the element counts.
+
+### AMissingFileIsFileNotFound
+
+A path that was never written is refused as `FileNotFound`, and the message contains
+"could not open".
+
+## test_init_state.cpp
+
+Suites: `Integration_InitState`.
+
+The cases check the fill that `NN::initialize()` writes over a `NN::ModelState`: the constants of a
+batch norm, the zeroed final layer, and the determinism of the default seed.
+
+### AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialValue
+
+A training trace of a batch norm named `bn` is initialised. Afterwards `bn.weight` holds only ones,
+`bn.bias` and `bn.running_mean` hold only zeros, and `bn.running_var` holds only ones.
+
+### ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry
+
+A convolution named `conv`, followed by a batch norm named `bn`, is initialised with the default
+policy. Every element of `conv.weight` is zero, and `bn.weight` is still one.
+
+### WithoutZeroFinalLayerTheLastWeightIsNotZero
+
+An MLP initialised with `zero_final_layer` set to false has at least one nonzero element in
+`2.weight`.
+
+### TheSameSeedGivesTheSameBits
+
+Two MLPs of the same architecture are each created as a state and initialised with the default
+policy. Every entry has the same bytes in both states.
+
 ## test_lowered_operations.cpp
 
 Suites: `Integration_LoweredOperations`.
@@ -623,8 +773,9 @@ that learned something and did not merely run.
 ### TheMastersAreFourByteBuffersAndTheCopiesAreTwo
 
 The IR says FLOAT32 and HALF, and the test checks that the tensors underneath say the same.
-The two could disagree. The pool materialises from the value's description, and a planner that
-sized a slot from the wrong one would hand out a view that overruns its neighbour.
+The two could disagree. The test reads each parameter and gradient slot and requires FLOAT32, and
+it reads each cast destination the pool holds and requires HALF. A planner that sized a slot from
+the wrong dtype would hand out a view that overruns its neighbour.
 
 That the step ran at all is the loud half of the check. SushiBLAS refuses a mixed-dtype gemm
 by name, so a graph with a missing conversion could not get this far.
@@ -645,6 +796,67 @@ fiction. Nothing throws, nothing is NaN, and the run says 100%.
 `build_classifier` lists the logits as observed, so the shipped path cannot reach this. A
 caller running the pass themselves can, and gets an error.
 
+## test_model_state.cpp
+
+Suites: `Integration_ModelState`, `Integration_ModelStateDeathTest`.
+
+`NN::ModelState` lists a model's parameters and buffers in walk order, finds them by name or by
+identity, refuses two entries with one name, stops on an entry with no identity, and attaches its
+storage to a graph and a pool. The cases pin each of those.
+
+### CreateListsParametersInWalkOrder
+
+A traced `Sequential` of Linear, GELU and Linear lists four parameters in order: `0.weight` [8, 6],
+`0.bias` [8], `2.weight` [4, 8] and `2.bias` [4].
+
+### CreateListsBuffersAfterATrainingTrace
+
+A `ModelGraph` holding a batch norm named `bn`, traced in training mode, lists `bn.weight` and
+`bn.bias` as parameters. It then lists `bn.running_mean`, with constant initial value 0, and
+`bn.running_var`, with constant initial value 1, as buffers.
+
+### AnUntracedModelGivesAnEmptyState
+
+A model that was never traced gives a valid state with no entries.
+
+### APrefixIsJoinedToEveryName
+
+A prefix of "model" passed to `create()` makes the first entry `model.0.weight`.
+
+### TwoEntriesWithOneNameAreRefused
+
+`from_entries` with two entries named "shared" is refused as `InvalidDescription`, and the message
+names "shared".
+
+### AnEntryWithNoIdentityIsFatal
+
+`from_entries` with an entry whose identity is 0 stops the process, as the death test expects. The
+message contains "'orphan'", the entry's name, and "no identity".
+
+### TensorByNameAndByStateAreTheSameStorage
+
+`tensor()` called with the name and with the identity of one entry returns the same tensor object.
+
+### AnUnknownNameIsRefusedAndNamed
+
+`tensor("missing.weight")` is refused as `InvalidDescription`. The message contains the name and
+"4 entries".
+
+### AttachBindsEveryStateLeafToTheStatesStorage
+
+`attach()` records four state leaves on the graph. For each leaf, the pool tensor's data pointer is
+the same as the state tensor's.
+
+### AttachRefusesAGraphOfAnotherModel
+
+A graph traced from a second instance of the same architecture is refused by `attach()` as
+`Incompatible`.
+
+### TwoPoolsAttachedToOneStateShareStorage
+
+Two pools attached to one state read the same numbers. A value written through a leaf of the first
+pool is read back through the second.
+
 ## test_registries.cpp
 
 Suites: `Integration_Registries`.
@@ -662,6 +874,11 @@ fail if it ever becomes solvable.
 Labels are assigned round-robin, so every batch is exactly balanced and accuracy needs no
 class weighting to read correctly.
 
+### RingsReportItsSampleShape
+
+The default options add four distractors, so a sample has shape [6] and its element count equals
+`input_dim()`. A batch of eight samples is rank 2 with shape [8, 6].
+
 ### RingsPlacesEachClassInItsOwnRadiusBand
 
 The whole problem rests on this property. The class is a function of x^2 + y^2, which is
@@ -677,11 +894,12 @@ is why `dataset.hpp` warns about `set_seed`.
 
 ### The mnist cases
 
-The six cases below cover the "mnist" row of `Data::K_DATASET_REGISTRY` and its factory,
-`Data::make_mnist` in `src/data/dataset.cpp`. None of them needs the IDX files. Each asks for
-the directory `sushiai_absent_mnist`, which does not exist, or omits the directory, so every
-call ends in an error and the case asserts what the message contains. Loading the files is
-not covered here.
+The eight cases below cover the "mnist" row of `Data::K_DATASET_REGISTRY` and its factory,
+`Data::make_mnist` in `src/data/dataset.cpp`. Six of them ask for the directory
+`sushiai_absent_mnist`, which does not exist, or omit the directory, so each call ends in an error
+and the case asserts what the message contains. `TheDatasetRegistryListsMnist` reads the registry
+and asks for the unknown type `coco`. `AnImageLayoutYieldsRankFourBatches` is the only case that
+loads the IDX files, and it skips when they are absent.
 
 ### TheDatasetRegistryListsMnist
 
@@ -720,6 +938,19 @@ the key, so the factory checks its keys before it looks for a file.
 
 `"split": "validation"` returns a failure with a message containing "data", "'split'",
 "'validation'", "'train'" and "'test'".
+
+### AnMnistLayoutOtherThanFlatOrImageIsRefused
+
+`"layout": "tiled"` with the absent directory returns a failure whose message contains "data",
+"'layout'", "'tiled'", "'flat'" and "'image'". The message is the one about the layout, so the
+layout is checked before the files are looked for.
+
+### AnImageLayoutYieldsRankFourBatches
+
+The "image" layout is read with batches of 16 and at most 32 samples, from the default directory
+of `Data::MnistOptions`. The case skips, with a message that names the directory, when the IDX
+files are absent. When they are present, the sample shape is [28, 28, 1], `input_dim()` is 784,
+and batch 0 is rank 4 with shape [16, 28, 28, 1].
 
 ### TheOptimizerRegistryBuildsBothRulesFromAConfigValue
 
@@ -812,7 +1043,7 @@ downstream catches it. The parameters become garbage or NaN, and the loss never 
 ### TheTrainerNamesTheBatchThatDoesNotFitTheCompiledStep
 
 A step's buffers are addresses baked into a compiled plan. A batch of the wrong size cannot be
-accommodated, only reported.
+accommodated, only reported. The refusal names both shapes, [4, 6] and [8, 6].
 
 ### AllocationRefusesAnEmptyOrUnrepresentableTensor
 
@@ -913,6 +1144,35 @@ From the outside a deliberate gap and an omission look the same, which is why th
 Pinning the fatal stop records the decision. If somebody later adds a lowering, the test fails and
 asks them to say why.
 
+## test_state_checkpoint.cpp
+
+Suites: `Integration_StateCheckpoint`.
+
+The cases save and load checkpoints over a `NN::ModelState`. The model is a batch norm named `bn`,
+so the state holds two parameters and two buffers. The cases pin the round trip, the order of the
+records in the file, the refusal of a file without buffers, and the refusal of an unwritable path.
+
+### SavesAndLoadsParametersAndBuffersBitForBit
+
+A state whose every entry is filled, buffers included, is saved. A second state of the same model,
+filled with other values, differs before the load. After the load, the bit patterns of every entry
+equal the saved ones.
+
+### TheFileListsEveryEntryInWalkOrder
+
+The file holds one record for each state entry, and the record names come in the state's entry
+order. The test reads each record and its payload back, and each payload is read at the length its
+header declares.
+
+### ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean
+
+A file that holds only the parameters is refused by `load_checkpoint` as `Incompatible`, and the
+message contains "running_mean".
+
+### AnUnwritablePathIsInvalidFile
+
+`save_checkpoint` to a path inside a directory that does not exist is refused as `InvalidFile`.
+
 ## test_training.cpp
 
 Suites: `Integration_Training`.
@@ -966,3 +1226,23 @@ property of a fresh engine, which is how the trainer uses it.
 
 Round-robin labels make every batch exactly balanced, so accuracy reads correctly without
 class weighting.
+
+### RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays
+
+The model is Unflatten, a batch norm over three channels of a 2 by 2 grid, Flatten and a Linear
+layer. It is trained for two steps on two synthetic batches. After each step, the running mean of
+every channel equals the `NN::updated_statistic` of that step's channel mean, with the default
+momentum and a source scale of 1, within 1e-5. After the second step, every channel's running mean
+differs from its value after the first step by more than 1e-7.
+
+### APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm
+
+The same model is trained with the per-step optimizer placement. After one step, the optimizer is
+not in the plan, the step count is 1, and at least one element of `3.weight` has changed by more
+than 1e-7. The test notes that the classifier starts at zero, so the first gradient reaches its
+weight alone.
+
+### ABatchOfAnotherShapeIsRefusedWithBothShapes
+
+A trainer compiled for a batch of 8 samples with 6 features refuses a batch of 4 samples. The
+refusal is `Incompatible`, and its message contains "[4, 6]" and "[8, 6]".

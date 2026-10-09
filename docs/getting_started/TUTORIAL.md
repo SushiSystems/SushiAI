@@ -126,14 +126,16 @@ sa::NN::Sequential model{
 
 // 2. Trace forward, add cross-entropy, differentiate, insert casts, fuse.
 //    All IR-to-IR. No device work has happened yet.
-sa::Train::TrainingGraph built =
-    sa::Train::build_classifier(model, batch, features, classes);
+SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
+              sa::Train::build_classifier(model, batch, features, classes));
 
-// 3. Memory. bind_parameters plans every offset and allocates the leaves.
+// 3. Memory. The state owns the tensors; bind_parameters plans every offset and
+//    binds the state's storage into the pool.
+SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
 sa::Graph::TensorPool pool(engine);
 SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-              sa::Train::bind_parameters(built, pool));
-SA_TRY(sa::NN::initialize(engine, model, pool));
+              sa::Train::bind_parameters(built, state, pool));
+SA_TRY(sa::NN::initialize(engine, state));
 
 // 4. An optimizer over those exact parameters.
 sa::Optim::AdamWOptions adam;
@@ -158,22 +160,23 @@ so it returns a `Status` or a `Result<T>` (`core/status.hpp`,
 `core/result.hpp`). `SA_TRY` returns a failed status to the caller, and
 `SA_TRY_ASSIGN` does the same or binds the value. `AdamW`, `SGD`, `Trainer` and
 the datasets are built by a static `make`, and `CompiledStep` by
-`CompiledStep::compile`; each returns a `Result`. Steps 1 and 2 touch no device
-and report a bad model by throwing `sa::Error`.
+`CompiledStep::compile`; each returns a `Result`. Steps 1 and 2 touch no device.
 
 Three things worth pausing on:
 
-**Step 2 does no device work.** `build_classifier` returns a `TrainingGraph`
-holding IR, a `StepSpec` naming the four values the loop cares about, the
-parameter bindings, and reports from the cast and fusion passes. You can inspect
+**Step 2 does no device work.** `build_classifier` returns a `TrainingGraph` in
+a `Result`. It holds IR, a `StepSpec` naming the four values the loop cares
+about, the parameter bindings, and reports from the cast and fusion passes. You can inspect
 and assert on all of it before a single kernel exists.
 
 **`Trainer::make` is where compilation happens**, not `fit()`. A graph that
 cannot be lowered therefore fails there, with a status that names the
 operation, and not three steps into training.
 
-**`bind_parameters` comes before `initialize`.** The parameter tensors have to
-exist before random values can be written into them.
+**`ModelState::create` comes after the trace.** The walk yields only the
+parameters a trace declared, so a model no trace has reached gives an empty
+state. `bind_parameters` takes that state, so the pool's leaves and `initialize`
+share one set of tensors.
 
 ---
 
@@ -259,13 +262,13 @@ model twice does not accumulate duplicates.
 
 `fields()` is what makes a parameter discoverable — the generic walk
 `for_each_parameter` is the same one `build_classifier` uses to decide what to
-differentiate with respect to, and the same one `initialize` uses. Two failure
+differentiate with respect to, and the walk `ModelState::create` runs. Two failure
 modes, and they are not symmetric:
 
 - **Listed but not wired into `forward()`** — caught, by name.
   `bind_parameters` returns `InvalidDescription`: `Parameter 'x' receives no
   gradient. It is not on any path from the loss, so no optimizer could ever
-  move it` (`src/train/trainer.cpp:65`).
+  move it` (`src/train/trainer.cpp:101`).
 - **Wired into `forward()` but missing from `fields()`** — **not** caught. It is
   declared in the graph, gets no gradient, gets no optimizer slot, and silently
   never trains. No call reports it.

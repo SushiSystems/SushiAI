@@ -5,23 +5,22 @@ a defect that exists today is in [`KNOWN_ISSUES.md`](../reference/KNOWN_ISSUES.m
 behind the library items is in [`ROADMAP.md`](ROADMAP.md) and
 [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md).
 
-## What the owner's build must confirm
+## What a build has confirmed
 
-Builds and test runs have been off since 2026-10-07, so everything written since then was checked
-by reading and by single-file syntax checks only. The first build has to settle:
+Builds and test runs happen when the owner allows one. The last, on 2026-10-09 against SushiBLAS
+`494ff8e` on an RTX 3080 Ti: the tree built with no error, `sushiai_tests` ran 1875 tests (1874
+passed, 1 skipped for the absent MNIST files), and `sushiai_train`, `sushiai_inference` and
+`sushiai_demo_mlp` each reported one compile on the test fixtures. The runs are in
+`docs/agent/2026_10_07_MODEL_GRAPH/REPORT.md`.
 
-- **The suites pass.** Done on 2026-10-09: the tree built with no error and all 1803 tests
-  passed on an RTX 3080 Ti; `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md` has the runs.
-- **The `No kernel named` failure.** The test logs of 2026-09-16 and later show nearly every test
-  failing with a SYCL "No kernel named" error; no document names the cause (stale binary, device
-  selection or kernel bundle).
-- **The new unit suites**: the eager units, provenance, the eight layers, the layer registry and
-  the changed layer stack, module, config and spatial shape cases.
-- **The pinned references.** SushiBLAS reseeds by rewinding its counter and draws four values per
-  Philox block, so `test_learning_curve.cpp`, `test_determinism.cpp` and the demo transcript may
-  have moved.
-- **A convolution step on a device**, and the first `sa train examples/mnist_cnn/train.json`. The
-  list is in `docs/agent/2026_10_07_CV_CLOSE/SPEC.md` section 4.
+Not yet run:
+
+- **`sa train examples/mnist_cnn/train.json`**, the version 2 model file and the `image` layout
+  read from the IDX files. The list is in `docs/agent/2026_10_07_CV_CLOSE/SPEC.md` section 4.
+- **The demo transcript** against its recorded text, and a HALF comparison under
+  `ForceReference`.
+- **`sa test`**, which runs the CTest cases around the three programs; the programs were run by
+  hand instead.
 
 ## SushiBLAS v0.1.0 migration
 
@@ -29,25 +28,14 @@ SushiBLAS removes the engine facades, makes every operation take a `TaskRecorder
 `Engine::get_graph()`. Its design is in the sushiblas repository under
 `docs/agent/2026_10_07_V010/`.
 
-The library, the applications, the examples and the tests were moved on 2026-10-08, unbuilt. The
-design is `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/SPEC.md`; section 7 of it lists the sixteen
-things the first build has to confirm, and `REPORT.md` beside it holds each wave's review.
+The library, the applications, the examples and the tests were moved on 2026-10-08 and built on
+2026-10-09. The design is `docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/SPEC.md`, and `REPORT.md`
+beside it holds each wave's review and the runs.
 
-- **Run what the suite does not reach.** On 2026-10-09 all 1803 tests passed against SushiBLAS
-  `7f04834`. The demo transcript, `sa train` on MNIST and a HALF comparison under
-  `ForceReference` have not run.
-- **The model graph's engine units**: `ModelState`, `initialize` over it, buffers in the
-  checkpoint, the step builders over `ModelOutputs`, and both applications on `build_model`.
-  The plan, fifteen tasks in seven waves with fourteen open questions, is
-  `docs/agent/2026_10_07_MODEL_GRAPH/PLAN.md`.
 - **Finish the status contract.** 398 `SA_THROW_IF` sites in 66 files still throw
   `SushiAI::Error` (the builder, the differentiator, `Config`, `build_layer_stack`,
   `train/objective.cpp`), `nn/throwing_bridge.hpp` bridges eleven of them, and `Scope`'s
   destructor can throw through `ScopeTrace::close()`. `docs/reference/KNOWN_ISSUES.md` lists them.
-- **Run on the device what was written on 2026-10-09 and not built**: the fourteen cases of
-  `test_lowered_operations.cpp`, the tail tolerance of the learning curve, the status-returning
-  `TensorPool::alias` and `request_constant`, the memory plan without
-  `values_needing_own_allocation` (its byte counts move), and the engine discard in the seam.
 - **Observe that a discarded recording releases storage and scratch.** SushiBLAS `494ff8e` adds
   `Engine::discard_recorded()`; no test on either side watches the release.
 

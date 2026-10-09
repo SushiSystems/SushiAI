@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-09 — core: Added shape_of for a SushiBLAS tensor and gave the plan adoption of the steps one function (`tensor_shape.hpp`, `steps.hpp`, `Detail::adopt_plan`).
+- 2026-10-09 — apps: Moved sushiai train and inference onto build_model, a ModelState and the shape-checked steps; inference runs an EvaluationStep (`apps/train.cpp`, `apps/inference.cpp`).
+- 2026-10-09 — examples: Moved the MNIST example to a version 2 model file with an input shape and the image layout; breaks its version 1 files (`examples/mnist_cnn/model.json`, `train.json`, `eval.json`).
+- 2026-10-09 — nn: Removed Parameter::id, ModelSpec::input_features and the module forms of initialize, save_checkpoint and load_checkpoint; breaks their callers (`module.hpp`, `init.hpp`, `checkpoint.hpp`, `model_config.hpp`).
+- 2026-10-09 — train: Removed the pool form of bind_parameters; breaks callers that own parameters in the pool (`trainer.hpp`, `trainer.cpp`).
 - 2026-10-09 — train: Fixed the planner packing the logits a step's host code reads: a step pins its loss, outputs and update sources (`steps.cpp`, `trainer.cpp`, `evaluation_step.cpp`).
 - 2026-10-09 — train: Added three step builders, TrainingStep, EvaluationStep, check_feed and buffer updates recorded into the step (`steps.hpp`, `training_step.hpp`, `evaluation_step.hpp`, `feed.hpp`, `buffer_update_recorder.hpp`).
 - 2026-10-09 — train: Moved build_classifier and the graph builders out of trainer.hpp and changed them to return a Result; Trainer::make takes buffer update slots (`steps.hpp`, `trainer.hpp`, `training_graph.hpp`).

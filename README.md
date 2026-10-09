@@ -500,12 +500,14 @@ sa::Status train()
     // no device work yet. The trailing arguments default to float32, every
     // fusion and one element type everywhere; pass a pointer to a
     // sa::Graph::MixedPrecisionPolicy as `precision` for fp16 products.
-    sa::Train::TrainingGraph built = sa::Train::build_classifier(model, 32, 32, 6);
+    SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
+                  sa::Train::build_classifier(model, 32, 32, 6));
 
+    SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
     sa::Graph::TensorPool pool(engine);
     SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                  sa::Train::bind_parameters(built, pool));
-    SA_TRY(sa::NN::initialize(engine, model, pool));
+                  sa::Train::bind_parameters(built, state, pool));
+    SA_TRY(sa::NN::initialize(engine, state));
 
     SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
                   sa::Optim::AdamW::make(engine, std::move(parameters)));
@@ -528,7 +530,8 @@ sa::Status train()
 
 Every step that allocates, compiles or runs returns a `Result` or a `Status`;
 `SA_TRY` and `SA_TRY_ASSIGN` return the failure to the caller.
-`examples/example.cpp` is this program in full.
+`examples/example.cpp` is this program with the dataset chosen at run time: MNIST when its
+files are present, synthetic data otherwise.
 
 SushiAI writes no SYCL: no file here names a `sycl::` type or submits to a
 queue, and every compute call goes through `SushiBLAS::sushiblas` (linked

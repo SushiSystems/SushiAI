@@ -49,8 +49,8 @@ by that layer's factory.
 
 The shape of one sample, without the batch axis: a list of one or more positive whole numbers.
 `[784]` is a flat vector of 784 features and `[28, 28, 1]` is a 28 by 28 image with one channel.
-`ModelSpec::input_shape` holds it, and `ModelSpec::input_features` holds its element count. The
-list holds at most 6 extents, and their product must fit a signed 64-bit integer.
+`ModelSpec::input_shape` holds it. The list holds at most 6 extents, and their product must fit
+a signed 64-bit integer.
 
 ### `layers`
 
