@@ -401,6 +401,8 @@ the exit condition of phase 3 and a second configure, so it cannot join B3.
 Each is a boundary, an interface or an ownership the design leaves open. The plan is written
 under the recommendation.
 
+**Decided by the owner on 2026-10-09:** every question takes its recommendation.
+
 1. **The shape of `NN::NodeRegistry`.** The design gives it `add(row)` and `find(name)`; there
    are two row types whose factories differ in signature and in error contract. (a) One
    registry, two `add` overloads, `find_node` and `find_layer`. (b) Two registries, both passed
