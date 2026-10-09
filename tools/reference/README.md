@@ -32,10 +32,10 @@ Ultralytics to find the strides (`ultralytics/nn/tasks.py:517`).
 
 The exporter refuses to put more than 64 MiB (67108864 bytes) into `OUTPUT_DIR` and asks for
 `--external-weights`. Git ignores `tests/fixtures/yolo26/*.sacp` and tracks only `MANIFEST.json`,
-so the ceiling bounds the working tree and not the repository. A seed 0 run writes 41918762
+so the ceiling bounds the working tree and not the repository. A seed 0 run writes 43354309
 bytes. The exporter exits 1 with one line on stderr on any failure, 0 otherwise.
 
-The torch-free parts (the SACP encoder, the layout rule, the manifest, the writer and the
+The torch-free parts (the SACP encoder, the layout rule, the feature map names, the manifest, the writer and the
 arithmetic of the running-variance candidates) are tested by
 `tools/tests/test_export_yolo26_reference.py`.
 
@@ -45,7 +45,7 @@ arithmetic of the running-variance candidates) are tested by
 | --- | --- |
 | `weights.sacp` | Every floating state-dict entry under its Ultralytics name, as the model stood before either pass |
 | `input.sacp` | `image`, `[1, 640, 640, 3]` NHWC, uniform draws in [0, 1); torch receives `image.permute(0, 3, 1, 2)` |
-| `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sacp`: three feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
+| `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sacp`: six feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
 | `loss.sacp` | Train mode, BatchNorm on batch statistics: ground truth, loss items per branch, the inputs and the outputs of label assignment per branch, total loss, three gradients, one BatchNorm's running statistics after the pass |
 | `batchnorm.sacp` | Train mode: two BatchNorm passes, each with its input, parameters, running statistics before and after, output, and two candidate values of the updated running variance |
 | `MANIFEST.json` | Versions, seed, per file SHA-256 and size, per tensor name, dtype, shape, source and min, max, mean |
@@ -57,7 +57,7 @@ arithmetic of the running-variance candidates) are tested by
 | Convolution weight, groups 1 | `[C_out, C_in, kh, kw]` | `[C_out, kh, kw, C_in]` | `permute(0, 2, 3, 1)` |
 | Depthwise weight, groups = channels | `[C, 1, kh, kw]` | `[kh, kw, C]` | `squeeze(1).permute(1, 2, 0)` |
 | Convolution bias, BatchNorm weight, bias, running mean, running variance | `[C]` | `[C]` | Unchanged |
-| Feature map, raw head output per level | `[B, C, H, W]` | `[B, H, W, C]` | `permute(0, 2, 3, 1)` |
+| Feature map of a model row, raw head output per level | `[B, C, H, W]` | `[B, H, W, C]` | `permute(0, 2, 3, 1)` |
 | Decoded boxes and scores | `[B, 4 + nc, A]` | `[B, A, 4]` and `[B, A, nc]` | `permute(0, 2, 1)`, then split |
 | Assignment inputs and outputs | `[B, A]`, `[B, A, 4]`, `[B, A, nc]` | Same | Unchanged |
 
@@ -73,6 +73,23 @@ levels in order, offsets 0, 6400 and 8000 at 640 px, recorded under `levels` in 
 
 A foreground mask is boolean in torch and SACP has no boolean dtype, so it is written as
 `int32` zeros and ones. A gradient takes the layout of the parameter it belongs to.
+
+### Feature maps
+
+`K_FEATURE_ROWS` lists the rows of `ultralytics/cfg/models/26/yolo26.yaml` whose eval-mode output
+`forward.sacp` holds. A forward hook on each row copies what the row returned. A row the detect
+head reads is named `features.level<n>` after its place among the head's inputs, and the exporter
+fails unless it equals what the head received. Any other row is named `features.row<index>`.
+`context.feature_rows` of `forward.sacp` maps each name to its row.
+
+| Name | Row | Module | Written shape |
+| --- | --- | --- | --- |
+| `features.row9` | 9 | `SPPF`, the input of row 10 | `[1, 20, 20, 256]` |
+| `features.row10` | 10 | `C2PSA` | `[1, 20, 20, 256]` |
+| `features.level0` | 16 | `C3k2` | `[1, 80, 80, 64]` |
+| `features.level1` | 19 | `C3k2` | `[1, 40, 40, 128]` |
+| `features.row21` | 21 | `Concat` of rows 20 and 10, the input of row 22 | `[1, 20, 20, 384]` |
+| `features.level2` | 22 | `C3k2` | `[1, 20, 20, 256]` |
 
 ### Assigner inputs
 
