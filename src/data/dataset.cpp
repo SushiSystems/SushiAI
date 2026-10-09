@@ -28,6 +28,7 @@
 #include <SushiAI/data/dataset.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <random>
@@ -55,7 +56,7 @@ namespace SushiAI
 
             /** @brief Lists every key a "mnist" dataset accepts. */
             constexpr std::string_view K_MNIST_KEYS[] = {
-                "directory", "split", "batch_size", "max_samples",
+                "directory", "split", "layout", "batch_size", "max_samples",
             };
 
             /** @brief Names the "split" value that selects the training files. */
@@ -63,6 +64,12 @@ namespace SushiAI
 
             /** @brief Names the "split" value that selects the test files. */
             constexpr std::string_view K_MNIST_SPLIT_TEST = "test";
+
+            /** @brief Names the "layout" value that yields one row of pixels per sample. */
+            constexpr std::string_view K_MNIST_LAYOUT_FLAT = "flat";
+
+            /** @brief Names the "layout" value that yields one image per sample. */
+            constexpr std::string_view K_MNIST_LAYOUT_IMAGE = "image";
 
             /** @brief Names the IDX image file of the training split. */
             constexpr std::string_view K_MNIST_TRAIN_IMAGES = "train-images-idx3-ubyte";
@@ -118,20 +125,30 @@ namespace SushiAI
             /**
              * @brief Allocates the tensors of one batch and sizes its label list.
              * @param rows Samples in the batch.
-             * @param features Width of the input matrix.
+             * @param sample The shape of one sample; the input tensor is [rows, sample...].
              * @param classes Width of the target matrix.
              * @return The batch, its contents unset, or the failure of an allocation.
              */
             [[nodiscard]] Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
-                                                       int64_t features, int64_t classes)
+                                                       const Shape& sample, int64_t classes)
             {
-                const int64_t sample_dims[2] = {rows, features};
+                SA_FAIL_IF(sample.rank() + 1 > K_MAX_RANK, StatusCode::InvalidDescription,
+                           "A batch of samples shaped {} has rank {}, above the maximum of {}",
+                           sample.to_string(), sample.rank() + 1, K_MAX_RANK);
+
+                std::array<int64_t, static_cast<std::size_t>(K_MAX_RANK)> input_dims{};
+                input_dims[0] = rows;
+                for (int32_t d = 0; d < sample.rank(); ++d)
+                    input_dims[static_cast<std::size_t>(d) + 1] = sample[d];
+
                 const int64_t target_dims[2] = {rows, classes};
 
                 Batch batch;
                 SA_TRY_ASSIGN(batch.inputs,
                               allocate_tensor(engine,
-                                              SushiRuntime::span<const int64_t>(sample_dims, 2)));
+                                              SushiRuntime::span<const int64_t>(
+                                                  input_dims.data(),
+                                                  static_cast<std::size_t>(sample.rank()) + 1)));
                 SA_TRY_ASSIGN(batch.targets,
                               allocate_tensor(engine,
                                               SushiRuntime::span<const int64_t>(target_dims, 2)));
@@ -205,6 +222,28 @@ namespace SushiAI
             }
 
             /**
+             * @brief Reads the optional "layout" key of a "mnist" dataset.
+             * @return Flat or Image, the MnistOptions default for an absent key; or
+             *         InvalidDescription for a value that names neither layout.
+             */
+            [[nodiscard]] Result<MnistLayout> read_layout(const Config::Value& attributes,
+                                                          const std::string& prefix)
+            {
+                const bool image_default = MnistOptions().layout == MnistLayout::Image;
+                const Config::Value spelled = Config::Value::string(std::string(
+                    image_default ? K_MNIST_LAYOUT_IMAGE : K_MNIST_LAYOUT_FLAT));
+                const std::string layout =
+                    attributes.at_or("layout", spelled).as_string(prefix + " 'layout'");
+
+                SA_FAIL_IF(layout != K_MNIST_LAYOUT_FLAT && layout != K_MNIST_LAYOUT_IMAGE,
+                           StatusCode::InvalidDescription,
+                           "{} 'layout' is '{}'; it must be '{}' or '{}'",
+                           prefix, layout, K_MNIST_LAYOUT_FLAT, K_MNIST_LAYOUT_IMAGE);
+
+                return layout == K_MNIST_LAYOUT_IMAGE ? MnistLayout::Image : MnistLayout::Flat;
+            }
+
+            /**
              * @class MaterialisedDataset
              * @brief A dataset whose batches are already on the device.
              */
@@ -212,12 +251,16 @@ namespace SushiAI
             {
                 public:
                     MaterialisedDataset(std::vector<Batch> batches, int64_t batch_size,
-                                        int64_t features, int64_t classes, std::string name)
+                                        const Shape& sample, int64_t classes, std::string name)
                         : batches_(std::move(batches)), batch_size_(batch_size),
-                          features_(features), classes_(classes), name_(std::move(name)) {}
+                          sample_shape_(sample), classes_(classes), name_(std::move(name)) {}
 
                     int64_t batch_size() const noexcept override { return batch_size_; }
-                    int64_t input_dim() const noexcept override { return features_; }
+                    int64_t input_dim() const noexcept override
+                    {
+                        return sample_shape_.num_elements();
+                    }
+                    Shape sample_shape() const override { return sample_shape_; }
                     int64_t num_classes() const noexcept override { return classes_; }
                     std::size_t batch_count() const noexcept override { return batches_.size(); }
                     std::string_view name() const noexcept override { return name_; }
@@ -233,7 +276,7 @@ namespace SushiAI
                 private:
                     std::vector<Batch> batches_;
                     int64_t batch_size_;
-                    int64_t features_;
+                    Shape sample_shape_;
                     int64_t classes_;
                     std::string name_;
             };
@@ -263,6 +306,7 @@ namespace SushiAI
             const int64_t rows = options.batch_size;
             const int64_t features = options.features;
             const int64_t classes = options.classes;
+            const Shape sample{features};
 
             // Class means are shared across all batches to form a consistent task.
             const int64_t mean_dims[2] = {classes, features};
@@ -289,7 +333,7 @@ namespace SushiAI
                 int64_t running = 0;
                 for (int64_t b = 0; b < options.batches; ++b)
                 {
-                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, features, classes));
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, sample, classes));
 
                     for (int64_t r = 0; r < rows; ++r)
                         batch.labels[static_cast<std::size_t>(r)] =
@@ -381,8 +425,14 @@ namespace SushiAI
                            label_path(options).string(), label_magic);
                 SA_FAIL_IF(image_count != label_count, StatusCode::InvalidFile,
                            "MNIST holds {} images but {} labels", image_count, label_count);
+                SA_FAIL_IF(image_rows == 0 || image_cols == 0, StatusCode::InvalidFile,
+                           "MNIST images are {}x{}; both extents must be positive",
+                           image_rows, image_cols);
 
                 const int64_t pixels = static_cast<int64_t>(image_rows) * image_cols;
+                const Shape sample = options.layout == MnistLayout::Image
+                    ? Shape{static_cast<int64_t>(image_rows), static_cast<int64_t>(image_cols), 1}
+                    : Shape{pixels};
                 const int64_t available = static_cast<int64_t>(image_count);
                 const int64_t wanted = options.max_samples > 0
                                      ? std::min(available, options.max_samples)
@@ -412,7 +462,7 @@ namespace SushiAI
                                "MNIST file ended after {} of {} batches; the download is truncated",
                                b, batch_total);
 
-                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, pixels, classes));
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, sample, classes));
 
                     float* pixel_data = batch.inputs.data_as<float>();
                     for (std::size_t i = 0; i < raw.size(); ++i)
@@ -431,7 +481,7 @@ namespace SushiAI
                     batches.push_back(std::move(batch));
                 }
 
-                dataset = std::make_unique<MaterialisedDataset>(std::move(batches), rows, pixels,
+                dataset = std::make_unique<MaterialisedDataset>(std::move(batches), rows, sample,
                                                                 classes, "mnist");
                 return Status();
             }
@@ -473,6 +523,7 @@ namespace SushiAI
             const int64_t features = 2 + options.distractor_features;
             const int64_t classes = options.classes;
             const int64_t rows = options.batch_size;
+            const Shape sample{features};
 
             constexpr double K_TWO_PI = 6.283185307179586476925286766559;
 
@@ -491,7 +542,7 @@ namespace SushiAI
                 int64_t running = 0;
                 for (int64_t b = 0; b < options.batches; ++b)
                 {
-                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, features, classes));
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, sample, classes));
 
                     float* x = batch.inputs.data_as<float>();
 
@@ -568,6 +619,7 @@ namespace SushiAI
             options.directory = attributes.at("directory", context)
                                           .as_string(prefix + " 'directory'");
             SA_TRY_ASSIGN(options.test_split, is_test_split(attributes, prefix));
+            SA_TRY_ASSIGN(options.layout, read_layout(attributes, prefix));
             options.batch_size = read_int(attributes, "batch_size", prefix, options.batch_size);
             options.max_samples = read_int(attributes, "max_samples", prefix, options.max_samples);
 
