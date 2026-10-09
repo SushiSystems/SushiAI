@@ -47,6 +47,8 @@ K_ASSIGNER_INPUTS = ("scores", "boxes")
 K_VALIDATION_CONFIDENCE = 0.001
 K_SUPPRESSION_CONFIDENCE = 1.8e-4
 K_SUPPRESSION_TENSOR = "one2many.suppressed.detections"
+K_FEATURE_ROWS = (9, 10, 16, 19, 21, 22)
+K_FEATURE_PREFIX = "features"
 
 K_SACP_MAGIC = 0x50434153
 K_SACP_VERSION = 1
@@ -250,6 +252,18 @@ def classify_layout(module_kind: str, leaf: str, groups: int, shape: tuple[int, 
     if len(shape) == 1 and (module_kind, leaf) in K_VECTOR_KINDS:
         return K_LAYOUT_VECTOR
     return K_LAYOUT_UNSPECIFIED
+
+
+def name_feature_map(row: int, head_rows: Sequence[int]) -> str:
+    """Returns the tensor name of one model row's output.
+
+    Args:
+        row: Index of the row in the model yaml.
+        head_rows: Rows the detect head reads, in level order.
+    """
+    if row in head_rows:
+        return f"{K_FEATURE_PREFIX}.level{list(head_rows).index(row)}"
+    return f"{K_FEATURE_PREFIX}.row{row}"
 
 
 def encode_files(files: Sequence[ReferenceFile]) -> dict[str, bytes]:
@@ -549,6 +563,7 @@ def export_forward(model: torch.nn.Module, image_nchw: torch.Tensor) -> Referenc
     head = model.model[-1]
     model.eval()
     with torch.no_grad():
+        outputs = watch_rows(model, K_FEATURE_ROWS)
         returned, predictions = model(image_nchw)
         default_end2end = bool(head.end2end)
         decoded = {}
@@ -564,10 +579,7 @@ def export_forward(model: torch.nn.Module, image_nchw: torch.Tensor) -> Referenc
     features = predictions["one2many"]["feats"]
     head_source = describe_source(Detect.forward_head)
     decode_source = describe_source(Detect._inference)
-    tensors = [
-        export_tensor(f"features.level{index}", feature, head_source, K_LAYOUT_NHWC)
-        for index, feature in enumerate(features)
-    ]
+    tensors = export_feature_maps(model, outputs, features, head_source)
     for branch in K_BRANCHES:
         for kind in ("boxes", "scores"):
             for index, level in enumerate(split_levels(predictions[branch][kind], features)):
@@ -587,6 +599,7 @@ def export_forward(model: torch.nn.Module, image_nchw: torch.Tensor) -> Referenc
         "mode": "eval",
         "batch_norm_statistics": f"running_mean and running_var as written in {K_WEIGHTS_FILE}",
         "levels": describe_levels(features, model.stride),
+        "feature_rows": {name_feature_map(row, head.f): row for row in K_FEATURE_ROWS},
         "anchor_order": "levels in order; inside a level, anchor h * width + w",
         "decoded_box_format": {"one2many": "xywh, pixels", "one2one": "xyxy, pixels"},
         "detection_columns": ["x1", "y1", "x2", "y2", "score", "class_index"],
@@ -598,6 +611,53 @@ def export_forward(model: torch.nn.Module, image_nchw: torch.Tensor) -> Referenc
         "suppression": suppression,
     }
     return ReferenceFile("forward.sacp", tuple(tensors), context)
+
+
+def watch_rows(model: torch.nn.Module, rows: Sequence[int]) -> dict[int, torch.Tensor]:
+    """Returns a store the model's next forward pass fills with each listed row's output."""
+    store: dict[int, torch.Tensor] = {}
+    handles: dict[int, Any] = {}
+
+    def record(row: int, _owner: Any, _inputs: Any, output: torch.Tensor) -> None:
+        store[row] = output.detach().clone()
+        handles.pop(row).remove()
+
+    for row in rows:
+        handles[row] = model.model[row].register_forward_hook(functools.partial(record, row))
+    return store
+
+
+def export_feature_maps(
+    model: torch.nn.Module,
+    outputs: dict[int, torch.Tensor],
+    features: Sequence[torch.Tensor],
+    head_source: str,
+) -> list[ExportedTensor]:
+    """Returns the output of each K_FEATURE_ROWS row in NHWC, in the order of that constant.
+
+    Args:
+        outputs: Store of watch_rows, filled by the eval-mode pass.
+        features: What the detect head received, in level order.
+        head_source: Source recorded for a row the detect head reads.
+
+    Raises:
+        ReferenceMismatchError: A row the head reads differs from what the head received.
+    """
+    import torch
+
+    head_rows = list(model.model[-1].f)
+    tensors = []
+    for row in K_FEATURE_ROWS:
+        output = outputs[row]
+        source = head_source
+        if row in head_rows:
+            if not torch.equal(output, features[head_rows.index(row)]):
+                raise ReferenceMismatchError(f"row {row} differs from the head's input")
+        else:
+            source = describe_source(type(model.model[row]).forward)
+        name = name_feature_map(row, head_rows)
+        tensors.append(export_tensor(name, output, source, K_LAYOUT_NHWC))
+    return tensors
 
 
 def read_validator_arguments(confidence: float) -> dict[str, Any]:

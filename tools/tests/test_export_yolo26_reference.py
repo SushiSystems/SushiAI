@@ -5,7 +5,8 @@
 # Commercial use requires a licence from Sushi Systems.
 """Tests the torch-free parts of the YOLO26 reference exporter.
 
-Covers the SACP encoder, the layout rule, the manifest and the running-variance candidates.
+Covers the SACP encoder, the layout rule, the feature map names, the manifest and the
+running-variance candidates.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from reference.export_yolo26_reference import (  # noqa: E402
+    K_FEATURE_ROWS,
     K_FIXTURE_CEILING_BYTES,
     K_LAYOUT_CONV,
     K_LAYOUT_DEPTHWISE,
@@ -40,6 +42,7 @@ from reference.export_yolo26_reference import (  # noqa: E402
     count_per_channel,
     encode_files,
     encode_sacp,
+    name_feature_map,
     scale_batch_variance,
     select_matching_candidate,
     write_reference_files,
@@ -135,6 +138,35 @@ class ClassifyLayoutTest(unittest.TestCase):
         self.assertEqual(classify_layout("Conv2d", "weight", 2, (8, 4, 3, 3)), K_LAYOUT_UNSPECIFIED)
         self.assertEqual(classify_layout("Linear", "weight", 1, (10, 4)), K_LAYOUT_UNSPECIFIED)
         self.assertEqual(classify_layout("DFL", "weight", 1, (1, 16, 1, 1)), K_LAYOUT_UNSPECIFIED)
+
+
+class FeatureMapNameTest(unittest.TestCase):
+    """Checks the names of the captured row outputs."""
+
+    def test_name_numbers_a_head_row_by_its_level(self) -> None:
+        """Checks that a row the head reads is named after its position among the head's rows."""
+        self.assertEqual(name_feature_map(16, (16, 19, 22)), "features.level0")
+        self.assertEqual(name_feature_map(22, (16, 19, 22)), "features.level2")
+
+    def test_name_numbers_another_row_by_its_index(self) -> None:
+        """Checks that a row the head does not read carries its own index."""
+        self.assertEqual(name_feature_map(9, (16, 19, 22)), "features.row9")
+
+    def test_captured_rows_ascend_and_name_six_maps(self) -> None:
+        """Checks the captured rows of YOLO26, whose head reads rows 16, 19 and 22."""
+        names = [name_feature_map(row, (16, 19, 22)) for row in K_FEATURE_ROWS]
+        self.assertEqual(list(K_FEATURE_ROWS), sorted(set(K_FEATURE_ROWS)))
+        self.assertEqual(
+            names,
+            [
+                "features.row9",
+                "features.row10",
+                "features.level0",
+                "features.level1",
+                "features.row21",
+                "features.level2",
+            ],
+        )
 
 
 class ManifestTest(unittest.TestCase):

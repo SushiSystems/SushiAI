@@ -9855,8 +9855,8 @@
     {
       "name": "forward.sacp",
       "location": "output_directory",
-      "sha256": "376a59b03ec456290da5512096372253718d5cd05295b894aa14d401b3554f49",
-      "size_bytes": 14172513,
+      "sha256": "48ff3b128bfea5a83fb659a06e0d9f82d97da4ccda6c804a27aba5ae0bd66ba7",
+      "size_bytes": 15606286,
       "context": {
         "mode": "eval",
         "batch_norm_statistics": "running_mean and running_var as written in weights.sacp",
@@ -9883,6 +9883,14 @@
             "anchor_offset": 8000
           }
         ],
+        "feature_rows": {
+          "features.row9": 9,
+          "features.row10": 10,
+          "features.level0": 16,
+          "features.level1": 19,
+          "features.row21": 21,
+          "features.level2": 22
+        },
         "anchor_order": "levels in order; inside a level, anchor h * width + w",
         "decoded_box_format": {
           "one2many": "xywh, pixels",
@@ -9941,6 +9949,48 @@
       },
       "tensors": [
         {
+          "name": "features.row9",
+          "dtype": "float32",
+          "shape": [
+            1,
+            20,
+            20,
+            256
+          ],
+          "original_shape": [
+            1,
+            256,
+            20,
+            20
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "ultralytics/nn/modules/block.py:235 (SPPF.forward)",
+          "min": -0.31218430399894714,
+          "max": 1.0368244647979736,
+          "mean": 0.026079685804779727
+        },
+        {
+          "name": "features.row10",
+          "dtype": "float32",
+          "shape": [
+            1,
+            20,
+            20,
+            256
+          ],
+          "original_shape": [
+            1,
+            256,
+            20,
+            20
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "ultralytics/nn/modules/block.py:1483 (C2PSA.forward)",
+          "min": -0.26270872354507446,
+          "max": 0.6941845417022705,
+          "mean": 0.026154084835433265
+        },
+        {
           "name": "features.level0",
           "dtype": "float32",
           "shape": [
@@ -9981,6 +10031,27 @@
           "min": -0.22993727028369904,
           "max": 0.29467228055000305,
           "mean": 0.001175456403763926
+        },
+        {
+          "name": "features.row21",
+          "dtype": "float32",
+          "shape": [
+            1,
+            20,
+            20,
+            384
+          ],
+          "original_shape": [
+            1,
+            384,
+            20,
+            20
+          ],
+          "layout": "nchw_to_nhwc",
+          "source": "ultralytics/nn/modules/conv.py:641 (Concat.forward)",
+          "min": -0.26270872354507446,
+          "max": 0.6941845417022705,
+          "mean": 0.0193865886885177
         },
         {
           "name": "features.level2",
