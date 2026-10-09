@@ -53,6 +53,17 @@ endif()
 # build then has nothing for ctest to run); ON is the honest default here.
 option(SA_BUILD_TESTS "Build the SushiAI test suite" ON)
 
+# A domain is built when SushiAI is the top-level project and left out when a
+# consumer pulls the tree in with add_subdirectory, as SushiBLAS does for its
+# tests; a consumer that wants the domain sets the option.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(SA_IS_TOP_LEVEL ON)
+else()
+    set(SA_IS_TOP_LEVEL OFF)
+endif()
+
+option(SA_BUILD_VISION "Build the vision domain, SushiAI::vision" ${SA_IS_TOP_LEVEL})
+
 # --- Configuration ---
 # C++17, matching SushiBLAS and SushiRuntime. The whole stack has to agree on
 # one standard because `SushiRuntime::span` selects between std::span and
@@ -88,7 +99,10 @@ endif()
 
 # --- Subdirectories ---
 add_subdirectory(src)
-add_subdirectory(examples)
+# Both examples read MNIST, which the vision domain owns.
+if(SA_BUILD_VISION)
+    add_subdirectory(examples)
+endif()
 add_subdirectory(apps)
 
 # --- Package files (SB-6 packaging shape, from day one) ---

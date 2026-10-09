@@ -31,6 +31,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/data/dataset_registry.hpp>
+#include "../../common/model_text.hpp"
 #include "../../common/test_utils.hpp"
 #include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
@@ -55,11 +56,7 @@ namespace
             Data::DatasetRegistry datasets;
     };
 
-    /** @brief Parses @p text as a bare attribute object. */
-    Config::Value attributes_from(std::string_view text)
-    {
-        return Config::parse_json(text, "<test>");
-    }
+    using Test::attributes_from;
 }
 
 TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)

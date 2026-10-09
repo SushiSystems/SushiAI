@@ -56,6 +56,8 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
 #include "../../common/test_status.hpp"
+#include "../../common/model_text.hpp"
+#include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
 using NN::ModelGraph;
@@ -63,23 +65,17 @@ using NN::NodeRef;
 
 namespace
 {
-    /** @brief Lists the operation of every node of a graph, in order. */
-    using OpList = std::vector<decltype(Graph::Node::op)>;
+    using Test::MinimalCase;
+    using Test::TraceSummary;
+    using Test::attributes_from;
+    using Test::make_minimal;
+    using Test::model_from;
+    using Test::span_of;
+    using Test::trace_summary;
+    using Test::types_of;
 
     /** @brief Holds the epsilon and the momentum K_BRANCHING_MODEL's defaults state. */
     constexpr NN::NormOptions K_NORM{1e-3, 0.03};
-
-    /** @brief Holds the batch size every trace here uses. */
-    constexpr int64_t K_BATCH = 2;
-
-    /** @brief Describes one node registry row's minimal object and the shapes around it. */
-    struct MinimalCase
-    {
-        std::string_view type;       /**< The registry key. */
-        std::string_view attributes; /**< The row without its "type" and "from". */
-        std::vector<Shape> inputs;   /**< The per-sample shapes the row reads. */
-        Shape output;                /**< The per-sample shape of the node's one port. */
-    };
 
     /** @brief Lists a minimal object for every node row of registered(), in row order. */
     const std::vector<MinimalCase> K_MINIMAL_CASES = {
@@ -145,32 +141,6 @@ namespace
         ]
     })";
 
-    /** @brief Holds what one training trace of a model graph left behind. */
-    struct TraceSummary
-    {
-        OpList ops;                       /**< The operation of every traced node. */
-        std::vector<std::string> outputs; /**< Each published output as "name [extents]". */
-        std::vector<std::string> state;   /**< Each piece of state, as record() writes it. */
-    };
-
-    /** @brief Parses @p text as the attributes of one row. */
-    Config::Value attributes_of(std::string_view text)
-    {
-        return Config::parse_json(text, "<test>");
-    }
-
-    /** @brief Parses @p text as a model file. */
-    Config::ModelSpec model_of(std::string_view text)
-    {
-        return Config::parse_model(Config::parse_json(text, "<test>"), "<test>");
-    }
-
-    /** @brief Views @p shapes as the inputs of one row. */
-    NN::ShapeSpan span_of(const std::vector<Shape>& shapes)
-    {
-        return NN::ShapeSpan(shapes.data(), shapes.size());
-    }
-
     /** @brief Builds a registry from register_layers. */
     Result<NN::NodeRegistry> registered()
     {
@@ -178,83 +148,6 @@ namespace
         SA_TRY(NN::register_layers(registry));
 
         return Result<NN::NodeRegistry>(std::move(registry));
-    }
-
-    /** @brief Lists the type of every row of @p rows, in order. */
-    template<typename Entry>
-    std::vector<std::string_view> types_of(SushiRuntime::span<const Entry> rows)
-    {
-        std::vector<std::string_view> types;
-        for (const Entry& entry : rows)
-            types.push_back(entry.type);
-
-        return types;
-    }
-
-    /** @brief Builds the node @p minimal describes from @p registry, as "layer 0 '<type>'". */
-    Result<std::unique_ptr<NN::Node>> make_minimal(const NN::NodeRegistry& registry,
-                                                   const MinimalCase& minimal,
-                                                   std::string_view attributes)
-    {
-        const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
-        return NN::make_node(registry, minimal.type, span_of(minimal.inputs),
-                             attributes_of(attributes), context);
-    }
-
-    /** @brief Writes one piece of state as "name [extents] kind", for a readable mismatch. */
-    std::string record(const std::string& name, const Shape& shape, bool is_buffer)
-    {
-        return name + " " + shape.to_string() + (is_buffer ? " buffer" : " parameter");
-    }
-
-    /** @brief Lists every piece of state of @p model under @p prefix, in walk order. */
-    std::vector<std::string> state_records(ModelGraph& model, std::string_view prefix)
-    {
-        std::vector<std::string> records;
-        const auto on_parameter = [&records](const std::string& name, NN::Parameter& state)
-        {
-            records.push_back(record(name, state.shape(), false));
-        };
-        const auto on_buffer = [&records](const std::string& name, NN::Buffer& state)
-        {
-            records.push_back(record(name, state.shape(), true));
-        };
-        const NN::StateVisitor visitor(on_parameter, on_buffer);
-        model.walk_state(prefix, visitor);
-
-        return records;
-    }
-
-    /**
-     * @brief Traces @p model in Training mode over K_BATCH samples and summarises the result.
-     * @param prefix The prefix the state names are listed under.
-     */
-    Result<TraceSummary> trace_summary(ModelGraph& model, const Shape& sample,
-                                       std::string_view prefix)
-    {
-        std::vector<int64_t> extents{K_BATCH};
-        for (int32_t axis = 0; axis < sample.rank(); ++axis)
-            extents.push_back(sample[axis]);
-
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(
-            Shape(SushiRuntime::span<const int64_t>(extents.data(), extents.size())), "x");
-        NN::BufferUpdateList updates;
-
-        SA_TRY_ASSIGN(const NN::ModelOutputs outputs,
-                      model.trace(NN::Trace::training(builder, updates), x));
-
-        TraceSummary summary;
-        for (const Graph::Node& node : graph.nodes())
-            summary.ops.push_back(node.op);
-
-        for (const NN::ModelOutputs::Entry& output : outputs.all())
-            summary.outputs.push_back(output.first + " " +
-                                      graph.value(output.second).shape.to_string());
-
-        summary.state = state_records(model, prefix);
-        return summary;
     }
 
     /** @brief Builds by hand the graph K_BRANCHING_MODEL describes, rows named by index. */
@@ -342,7 +235,7 @@ TEST(Unit_NodeRegistry, AnEmptyRegistryKnowsNoType)
     const std::string_view no_types = "the node types are: ; the layer types are: ";
 
     const Result<std::unique_ptr<NN::Node>> made = NN::make_node(
-        registry, "silu", span_of(inputs), attributes_of("{}"), "layer 0");
+        registry, "silu", span_of(inputs), attributes_from("{}"), "layer 0");
 
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "layer 0", "the type 'silu'",
                       "does not have", no_types);
@@ -401,7 +294,7 @@ TEST(Unit_NodeRegistry, AConcatRowNamesItselfWhenItsInputsDisagree)
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{4, 4, 2}, Shape{8, 4, 2}};
 
-    SA_EXPECT_FAILURE(NN::make_node(registry, "concat", span_of(inputs), attributes_of("{}"),
+    SA_EXPECT_FAILURE(NN::make_node(registry, "concat", span_of(inputs), attributes_from("{}"),
                                     "layer 7 'concat'"),
                       StatusCode::InvalidDescription, "layer 7 'concat'", "[8, 4, 2]", "H and W");
 }
@@ -414,7 +307,7 @@ TEST(Unit_NodeRegistry, ANodeTypeBuildsItsOwnNode)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
                             NN::make_node(registry, "concat", span_of(inputs),
-                                          attributes_of("{}"), "layer 0 'concat'"));
+                                          attributes_from("{}"), "layer 0 'concat'"));
 
     EXPECT_NE(dynamic_cast<NN::Concat*>(node.get()), nullptr);
     EXPECT_EQ(dynamic_cast<NN::LayerNode*>(node.get()), nullptr);
@@ -428,7 +321,7 @@ TEST(Unit_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
                             NN::make_node(registry, "upsample", span_of(inputs),
-                                          attributes_of(R"({"scale": 2})"),
+                                          attributes_from(R"({"scale": 2})"),
                                           "layer 0 'upsample'"));
 
     ASSERT_NE(dynamic_cast<NN::LayerNode*>(node.get()), nullptr);
@@ -447,12 +340,12 @@ TEST(Unit_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
         const std::vector<Shape> read = {minimal.input};
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> built,
                                 NN::make_node(registry, minimal.type, span_of(read),
-                                              attributes_of(minimal.attributes), "layer 0"));
+                                              attributes_from(minimal.attributes), "layer 0"));
         EXPECT_NE(dynamic_cast<NN::LayerNode*>(built.get()), nullptr);
 
         // An unknown key is refused by the layer's own factory, so the type was found.
         SA_EXPECT_FAILURE(NN::make_node(registry, minimal.type, span_of(read),
-                                        attributes_of(R"({"no_such_key": 1})"), "layer 0"),
+                                        attributes_from(R"({"no_such_key": 1})"), "layer 0"),
                           StatusCode::InvalidDescription, "'no_such_key'");
     }
 }
@@ -463,7 +356,7 @@ TEST(Unit_NodeRegistry, ALayerTypeRefusesTwoInputs)
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{6}, Shape{6}};
 
-    SA_EXPECT_FAILURE(NN::make_node(registry, "relu", span_of(inputs), attributes_of("{}"),
+    SA_EXPECT_FAILURE(NN::make_node(registry, "relu", span_of(inputs), attributes_from("{}"),
                                     "layer 3 'relu'"),
                       StatusCode::InvalidDescription, "layer 3 'relu'", "reads 2 values",
                       "reads one");
@@ -476,11 +369,11 @@ TEST(Unit_NodeRegistry, ALayerFactorysRefusalComesBackAsAStatus)
     const std::vector<Shape> vector = {Shape{6}};
     const std::vector<Shape> image = {Shape{8, 8, 2}};
 
-    SA_EXPECT_FAILURE(NN::make_node(registry, "linear", span_of(vector), attributes_of("{}"),
+    SA_EXPECT_FAILURE(NN::make_node(registry, "linear", span_of(vector), attributes_from("{}"),
                                     "layer 4 'linear'"),
                       StatusCode::InvalidDescription, "layer 4 'linear'", "'units'");
     SA_EXPECT_FAILURE(NN::make_node(registry, "linear", span_of(image),
-                                    attributes_of(R"({"units": 3})"), "layer 4 'linear'"),
+                                    attributes_from(R"({"units": 3})"), "layer 4 'linear'"),
                       StatusCode::InvalidDescription, "layer 4 'linear'", "[8, 8, 2]", "'flatten'");
 }
 
@@ -490,7 +383,7 @@ TEST(Unit_NodeRegistry, AnUnknownTypeListsBothTables)
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{8, 8, 2}};
     const Result<std::unique_ptr<NN::Node>> made = NN::make_node(
-        registry, "conv3d", span_of(inputs), attributes_of("{}"), "layer 5 'conv3d'");
+        registry, "conv3d", span_of(inputs), attributes_from("{}"), "layer 5 'conv3d'");
 
     SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "layer 5 'conv3d'",
                       "the type 'conv3d'", "does not have", "node types", "layer types");
@@ -511,7 +404,7 @@ TEST(Unit_NodeRegistry, AnUnknownTypeListsBothTables)
 TEST(Unit_NodeRegistry, AFileAndAHandBuiltGraphAgree)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    const Config::ModelSpec spec = model_of(K_BRANCHING_MODEL);
+    const Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph from_file, NN::build_model(registry, spec));
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph by_hand, build_branching_model_by_hand());
 
@@ -539,7 +432,7 @@ TEST(Unit_NodeRegistry, ARowReadsItsSourcesInFileOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     SA_ASSERT_OK_AND_ASSIGN(const ModelGraph model,
-                            NN::build_model(registry, model_of(K_BRANCHING_MODEL)));
+                            NN::build_model(registry, model_from(K_BRANCHING_MODEL)));
 
     // Row 3 joins row 2's 16 channels, then row 0's 8, at row 0's 8 x 8 extent.
     EXPECT_EQ(model.node(3).ports()[0].shape, (Shape{8, 8, 24}));
@@ -551,7 +444,7 @@ TEST(Unit_NodeRegistry, ARowReadsItsSourcesInFileOrder)
 TEST(Unit_NodeRegistry, OutputsArePublishedUnderTheirStatedNames)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec spec = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
     spec.outputs = {named_output(4, "mixed"), named_output(0, "stem")};
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
@@ -566,7 +459,7 @@ TEST(Unit_NodeRegistry, OutputsArePublishedUnderTheirStatedNames)
 TEST(Unit_NodeRegistry, AnOutputWithoutANameKeepsThePortsName)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec spec = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
     spec.outputs = {named_output(1, "")};
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
@@ -580,7 +473,7 @@ TEST(Unit_NodeRegistry, AnOutputWithoutANameKeepsThePortsName)
 TEST(Unit_NodeRegistry, ASourceMayNameAPort)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec spec = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
     spec.layers[1].from[0].port = std::string(NN::K_SINGLE_PORT_NAME);
     SA_EXPECT_OK(NN::build_model(registry, spec));
 
@@ -593,7 +486,7 @@ TEST(Unit_NodeRegistry, ASourceMayNameAPort)
 TEST(Unit_NodeRegistry, ALaterRowMayReadTheModelInput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    const Config::ModelSpec spec = model_of(K_INPUT_JOINING_MODEL);
+    const Config::ModelSpec spec = model_from(K_INPUT_JOINING_MODEL);
     ASSERT_EQ(spec.layers[2].from.size(), 2u);
     ASSERT_EQ(spec.layers[2].from[0].node, Config::K_MODEL_INPUT);
 
@@ -607,7 +500,7 @@ TEST(Unit_NodeRegistry, ALaterRowMayReadTheModelInput)
 TEST(Unit_NodeRegistry, ASourceCannotNameAPortOfTheModelInput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec spec = model_of(K_INPUT_JOINING_MODEL);
+    Config::ModelSpec spec = model_from(K_INPUT_JOINING_MODEL);
     spec.layers[2].from[0].port = std::string(NN::K_SINGLE_PORT_NAME);
 
     SA_EXPECT_FAILURE(NN::build_model(registry, spec), StatusCode::InvalidDescription,
@@ -618,8 +511,8 @@ TEST(Unit_NodeRegistry, ASourceCannotNameAPortOfTheModelInput)
 TEST(Unit_NodeRegistry, ARefusedRowNamesItsIndexAndType)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec spec = model_of(K_BRANCHING_MODEL);
-    spec.layers[4].attributes = attributes_of(R"({"filters": 0, "kernel": 1})");
+    Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
+    spec.layers[4].attributes = attributes_from(R"({"filters": 0, "kernel": 1})");
 
     SA_EXPECT_FAILURE(NN::build_model(registry, spec), StatusCode::InvalidDescription,
                       "layer 4 'conv2d'", "positive channel counts", "out=0");
@@ -629,17 +522,17 @@ TEST(Unit_NodeRegistry, ARefusedRowNamesItsIndexAndType)
 TEST(Unit_NodeRegistry, ARowThatReadsARowNotAboveItIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec forward = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec forward = model_from(K_BRANCHING_MODEL);
     forward.layers[1].from[0].node = 3;
     SA_EXPECT_FAILURE(NN::build_model(registry, forward), StatusCode::InvalidDescription,
                       "layer 1 'conv2d'", "row 3", "not above");
 
-    Config::ModelSpec negative = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec negative = model_from(K_BRANCHING_MODEL);
     negative.layers[2].from[0].node = -2;
     SA_EXPECT_FAILURE(NN::build_model(registry, negative), StatusCode::InvalidDescription,
                       "layer 2 'upsample'", "row -2");
 
-    Config::ModelSpec sourceless = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec sourceless = model_from(K_BRANCHING_MODEL);
     sourceless.layers[2].from.clear();
     SA_EXPECT_FAILURE(NN::build_model(registry, sourceless), StatusCode::InvalidDescription,
                       "layer 2 'upsample'", "no source");
@@ -649,7 +542,7 @@ TEST(Unit_NodeRegistry, ARowThatReadsARowNotAboveItIsRefused)
 TEST(Unit_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    const Config::ModelSpec parsed = model_of(K_BRANCHING_MODEL);
+    const Config::ModelSpec parsed = model_from(K_BRANCHING_MODEL);
     Config::ModelSpec silent = parsed;
     silent.outputs.clear();
 
@@ -665,29 +558,29 @@ TEST(Unit_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
 TEST(Unit_NodeRegistry, AWrongOutputListIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
-    Config::ModelSpec empty = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec empty = model_from(K_BRANCHING_MODEL);
     empty.layers.clear();
     SA_EXPECT_FAILURE(NN::build_model(registry, empty), StatusCode::InvalidDescription,
                       "no layers");
 
-    Config::ModelSpec beyond = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec beyond = model_from(K_BRANCHING_MODEL);
     beyond.outputs = {named_output(7, "late")};
     SA_EXPECT_FAILURE(NN::build_model(registry, beyond), StatusCode::InvalidDescription, "output 0",
                       "row 7", "rows 0 to 6");
 
-    Config::ModelSpec portless = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec portless = model_from(K_BRANCHING_MODEL);
     portless.outputs = {named_output(4, "mixed")};
     portless.outputs[0].port.clear();
     SA_EXPECT_FAILURE(NN::build_model(registry, portless), StatusCode::InvalidDescription,
                       "output 0", "'mixed'", "without a port");
 
-    Config::ModelSpec unknown = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec unknown = model_from(K_BRANCHING_MODEL);
     unknown.outputs = {named_output(4, "mixed")};
     unknown.outputs[0].port = "no_such_port";
     SA_EXPECT_FAILURE(NN::build_model(registry, unknown), StatusCode::InvalidDescription,
                       "output 0", "'no_such_port'");
 
-    Config::ModelSpec twice = model_of(K_BRANCHING_MODEL);
+    Config::ModelSpec twice = model_from(K_BRANCHING_MODEL);
     twice.outputs = {named_output(4, "mixed"), named_output(0, "mixed")};
     SA_EXPECT_FAILURE(NN::build_model(registry, twice), StatusCode::InvalidDescription, "output 1",
                       "'mixed'");

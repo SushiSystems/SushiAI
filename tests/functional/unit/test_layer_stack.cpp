@@ -45,6 +45,7 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
+#include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
 using NN::GELU;
@@ -55,13 +56,7 @@ using NN::Sequential;
 
 namespace
 {
-    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
-    NN::NodeRegistry make_layer_registry()
-    {
-        NN::NodeRegistry registry;
-        SA_EXPECT_OK(NN::register_layers(registry));
-        return registry;
-    }
+    using Test::make_layer_registry;
 
     /** @brief Traces @p model and returns its parameters as "name:extents". */
     template<typename M>

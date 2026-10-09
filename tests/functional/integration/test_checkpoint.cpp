@@ -43,6 +43,8 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    using Test::make_layer_registry;
+
     class Integration_Checkpoint : public SaTest::EngineTest {};
 
     constexpr std::string_view K_MODEL_JSON = R"({
@@ -59,14 +61,6 @@ namespace
     Mlp make_sequential()
     {
         return Mlp(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
-    }
-
-    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
-    NN::NodeRegistry make_layer_registry()
-    {
-        NN::NodeRegistry registry;
-        SA_EXPECT_OK(NN::register_layers(registry));
-        return registry;
     }
 
     NN::LayerStack make_stack()

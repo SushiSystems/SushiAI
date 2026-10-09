@@ -21,7 +21,7 @@
 
 /**
  * @file test_utils.hpp
- * @brief Declares the Engine fixture, the tensor helpers and the builders that tests share.
+ * @brief Declares the Engine fixture, the tensor helpers, the builders and the trace summary.
  * @author Mustafa Garip
  * @see tests/common/README.md, "test_utils.hpp".
  */
@@ -33,13 +33,18 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.h>
+#include "model_text.hpp"
 #include "test_environment.hpp"
+#include "test_status.hpp"
 
 namespace SushiAI
 {
@@ -211,6 +216,123 @@ namespace SushiAI
             SA_TRY(model.output("logits", logits));
 
             return model;
+        }
+
+        /** @brief Builds a fresh registry that holds the rows register_layers adds. */
+        [[nodiscard]] inline NN::NodeRegistry make_layer_registry()
+        {
+            NN::NodeRegistry registry;
+            SA_EXPECT_OK(NN::register_layers(registry));
+            return registry;
+        }
+
+        /** @brief Describes one node registry row's minimal object and the shapes around it. */
+        struct MinimalCase
+        {
+            std::string_view type;       /**< The registry key. */
+            std::string_view attributes; /**< The row without its "type" and "from". */
+            std::vector<Shape> inputs;   /**< The per-sample shapes the row reads. */
+            Shape output;                /**< The per-sample shape of the node's one port. */
+        };
+
+        /** @brief Views @p shapes as the inputs of one row. */
+        [[nodiscard]] inline NN::ShapeSpan span_of(const std::vector<Shape>& shapes)
+        {
+            return NN::ShapeSpan(shapes.data(), shapes.size());
+        }
+
+        /** @brief Lists the type of every row of @p rows, in order. */
+        template<typename Entry>
+        [[nodiscard]] std::vector<std::string_view> types_of(SushiRuntime::span<const Entry> rows)
+        {
+            std::vector<std::string_view> types;
+            for (const Entry& entry : rows)
+                types.push_back(entry.type);
+
+            return types;
+        }
+
+        /** @brief Builds the node @p minimal describes from @p registry, as "layer 0 '<type>'". */
+        [[nodiscard]] inline Result<std::unique_ptr<NN::Node>> make_minimal(
+            const NN::NodeRegistry& registry, const MinimalCase& minimal,
+            std::string_view attributes)
+        {
+            const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
+            return NN::make_node(registry, minimal.type, span_of(minimal.inputs),
+                                 attributes_from(attributes), context);
+        }
+
+        /** @brief Lists the operation of every node of a graph, in order. */
+        using OpList = std::vector<decltype(Graph::Node::op)>;
+
+        /** @brief Holds the batch size trace_summary traces over. */
+        inline constexpr int64_t K_TRACE_BATCH = 2;
+
+        /** @brief Holds what one training trace of a model graph left behind. */
+        struct TraceSummary
+        {
+            OpList ops;                       /**< The operation of every traced node. */
+            std::vector<std::string> outputs; /**< Each published output as "name [extents]". */
+            std::vector<std::string> state;   /**< Each piece of state, as state_record() wrote it. */
+        };
+
+        /** @brief Writes one piece of state as "name [extents] kind", for a readable mismatch. */
+        [[nodiscard]] inline std::string state_record(const std::string& name, const Shape& shape,
+                                                      bool is_buffer)
+        {
+            return name + " " + shape.to_string() + (is_buffer ? " buffer" : " parameter");
+        }
+
+        /** @brief Lists every piece of state of @p model under @p prefix, in walk order. */
+        [[nodiscard]] inline std::vector<std::string> state_records(NN::ModelGraph& model,
+                                                                    std::string_view prefix)
+        {
+            std::vector<std::string> records;
+            const auto on_parameter = [&records](const std::string& name, NN::Parameter& state)
+            {
+                records.push_back(state_record(name, state.shape(), false));
+            };
+            const auto on_buffer = [&records](const std::string& name, NN::Buffer& state)
+            {
+                records.push_back(state_record(name, state.shape(), true));
+            };
+            const NN::StateVisitor visitor(on_parameter, on_buffer);
+            model.walk_state(prefix, visitor);
+
+            return records;
+        }
+
+        /**
+         * @brief Traces @p model in Training mode over K_TRACE_BATCH samples and summarises it.
+         * @param prefix The prefix the state names are listed under.
+         */
+        [[nodiscard]] inline Result<TraceSummary> trace_summary(NN::ModelGraph& model,
+                                                                const Shape& sample,
+                                                                std::string_view prefix)
+        {
+            std::vector<int64_t> extents{K_TRACE_BATCH};
+            for (int32_t axis = 0; axis < sample.rank(); ++axis)
+                extents.push_back(sample[axis]);
+
+            Graph::Graph graph;
+            const Graph::GraphBuilder builder(graph);
+            const Graph::ValueId x = builder.input(
+                Shape(SushiRuntime::span<const int64_t>(extents.data(), extents.size())), "x");
+            NN::BufferUpdateList updates;
+
+            SA_TRY_ASSIGN(const NN::ModelOutputs outputs,
+                          model.trace(NN::Trace::training(builder, updates), x));
+
+            TraceSummary summary;
+            for (const Graph::Node& node : graph.nodes())
+                summary.ops.push_back(node.op);
+
+            for (const NN::ModelOutputs::Entry& output : outputs.all())
+                summary.outputs.push_back(output.first + " " +
+                                          graph.value(output.second).shape.to_string());
+
+            summary.state = state_records(model, prefix);
+            return summary;
         }
 
     } // namespace Test

@@ -45,6 +45,7 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
+#include "../../common/test_utils.hpp"
 
 using SushiAI::Config::Kind;
 using SushiAI::Config::Value;
@@ -59,13 +60,7 @@ namespace
         return SushiRuntime::span<const std::string_view>(keys, N);
     }
 
-    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
-    SushiAI::NN::NodeRegistry make_layer_registry()
-    {
-        SushiAI::NN::NodeRegistry registry;
-        SA_EXPECT_OK(SushiAI::NN::register_layers(registry));
-        return registry;
-    }
+    using SushiAI::Test::make_layer_registry;
 }
 
 TEST(Unit_Config, ParsesEveryScalarKind)

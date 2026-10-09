@@ -56,17 +56,23 @@
 #include <SushiAI/vision/registration.hpp>
 #include "../common/reference_fixture.hpp"
 #include "../common/test_status.hpp"
+#include "../common/model_text.hpp"
+#include "../common/test_utils.hpp"
 
 using namespace SushiAI;
 using NN::ModelGraph;
 
 namespace
 {
-    /** @brief Lists the operation of every node of a graph, in order. */
-    using OpList = std::vector<decltype(Graph::Node::op)>;
-
-    /** @brief Holds the batch size every trace here uses. */
-    constexpr int64_t K_BATCH = 2;
+    using Test::K_TRACE_BATCH;
+    using Test::MinimalCase;
+    using Test::TraceSummary;
+    using Test::attributes_from;
+    using Test::make_minimal;
+    using Test::model_from;
+    using Test::state_record;
+    using Test::trace_summary;
+    using Test::types_of;
 
     /** @brief Holds the row count of the YOLO26n model file. */
     constexpr std::size_t K_YOLO_ROWS = 24;
@@ -79,15 +85,6 @@ namespace
 
     /** @brief Holds the absolute bound on a real compared here; each is exact in the file. */
     constexpr double K_TOLERANCE = 1e-12;
-
-    /** @brief Describes one node registry row's minimal object and the shapes around it. */
-    struct MinimalCase
-    {
-        std::string_view type;       /**< The registry key. */
-        std::string_view attributes; /**< The row without its "type" and "from". */
-        std::vector<Shape> inputs;   /**< The per-sample shapes the row reads. */
-        Shape output;                /**< The per-sample shape of the node's one port. */
-    };
 
     /** @brief Lists a minimal object for every row of register_nodes, in the rows' order. */
     const std::vector<MinimalCase> K_MINIMAL_CASES = {
@@ -107,32 +104,6 @@ namespace
         ]
     })";
 
-    /** @brief Holds what one training trace of a model graph left behind. */
-    struct TraceSummary
-    {
-        OpList ops;                       /**< The operation of every traced node. */
-        std::vector<std::string> outputs; /**< Each published output as "name [extents]". */
-        std::vector<std::string> state;   /**< Each piece of state, as record() writes it. */
-    };
-
-    /** @brief Parses @p text as the attributes of one row. */
-    Config::Value attributes_of(std::string_view text)
-    {
-        return Config::parse_json(text, "<test>");
-    }
-
-    /** @brief Parses @p text as a model file. */
-    Config::ModelSpec model_of(std::string_view text)
-    {
-        return Config::parse_model(Config::parse_json(text, "<test>"), "<test>");
-    }
-
-    /** @brief Views @p shapes as the inputs of one row. */
-    NN::ShapeSpan span_of(const std::vector<Shape>& shapes)
-    {
-        return NN::ShapeSpan(shapes.data(), shapes.size());
-    }
-
     /** @brief Builds a registry from Vision::register_nodes alone. */
     Result<NN::NodeRegistry> blocks_alone()
     {
@@ -150,83 +121,6 @@ namespace
         SA_TRY(Vision::register_nodes(registry));
 
         return Result<NN::NodeRegistry>(std::move(registry));
-    }
-
-    /** @brief Lists the type of every row of @p rows, in order. */
-    template<typename Entry>
-    std::vector<std::string_view> types_of(SushiRuntime::span<const Entry> rows)
-    {
-        std::vector<std::string_view> types;
-        for (const Entry& entry : rows)
-            types.push_back(entry.type);
-
-        return types;
-    }
-
-    /** @brief Builds the node @p minimal describes from @p registry, as "layer 0 '<type>'". */
-    Result<std::unique_ptr<NN::Node>> make_minimal(const NN::NodeRegistry& registry,
-                                                   const MinimalCase& minimal,
-                                                   std::string_view attributes)
-    {
-        const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
-        return NN::make_node(registry, minimal.type, span_of(minimal.inputs),
-                             attributes_of(attributes), context);
-    }
-
-    /** @brief Writes one piece of state as "name [extents] kind", for a readable mismatch. */
-    std::string record(const std::string& name, const Shape& shape, bool is_buffer)
-    {
-        return name + " " + shape.to_string() + (is_buffer ? " buffer" : " parameter");
-    }
-
-    /** @brief Lists every piece of state of @p model under @p prefix, in walk order. */
-    std::vector<std::string> state_records(ModelGraph& model, std::string_view prefix)
-    {
-        std::vector<std::string> records;
-        const auto on_parameter = [&records](const std::string& name, NN::Parameter& state)
-        {
-            records.push_back(record(name, state.shape(), false));
-        };
-        const auto on_buffer = [&records](const std::string& name, NN::Buffer& state)
-        {
-            records.push_back(record(name, state.shape(), true));
-        };
-        const NN::StateVisitor visitor(on_parameter, on_buffer);
-        model.walk_state(prefix, visitor);
-
-        return records;
-    }
-
-    /**
-     * @brief Traces @p model in Training mode over K_BATCH samples and summarises the result.
-     * @param prefix The prefix the state names are listed under.
-     */
-    Result<TraceSummary> trace_summary(ModelGraph& model, const Shape& sample,
-                                       std::string_view prefix)
-    {
-        std::vector<int64_t> extents{K_BATCH};
-        for (int32_t axis = 0; axis < sample.rank(); ++axis)
-            extents.push_back(sample[axis]);
-
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(
-            Shape(SushiRuntime::span<const int64_t>(extents.data(), extents.size())), "x");
-        NN::BufferUpdateList updates;
-
-        SA_TRY_ASSIGN(const NN::ModelOutputs outputs,
-                      model.trace(NN::Trace::training(builder, updates), x));
-
-        TraceSummary summary;
-        for (const Graph::Node& node : graph.nodes())
-            summary.ops.push_back(node.op);
-
-        for (const NN::ModelOutputs::Entry& output : outputs.all())
-            summary.outputs.push_back(output.first + " " +
-                                      graph.value(output.second).shape.to_string());
-
-        summary.state = state_records(model, prefix);
-        return summary;
     }
 
     /** @brief Returns the repository root, or an empty path when the fixture folder is unknown. */
@@ -275,7 +169,7 @@ namespace
 
     /**
      * @brief Lists the weights.sacp records of rows @p first to @p last, in manifest order.
-     * @return Each record as record() writes it; a name ending in a running statistic is a
+     * @return Each record as state_record() writes it; a name ending in a running statistic is a
      *         buffer.
      */
     std::vector<std::string> manifest_records(const Config::Value& manifest, std::size_t first,
@@ -295,7 +189,7 @@ namespace
                 extents.push_back(extent.as_int("extent"));
 
             const bool is_buffer = name.find(".running_") != std::string::npos;
-            records.push_back(record(
+            records.push_back(state_record(
                 name, Shape(SushiRuntime::span<const int64_t>(extents.data(), extents.size())),
                 is_buffer));
         }
@@ -308,7 +202,7 @@ namespace
                   std::string_view attributes)
     {
         model.layers[row].type = std::string(type);
-        model.layers[row].attributes = attributes_of(attributes);
+        model.layers[row].attributes = attributes_from(attributes);
     }
 
     /** @brief Keeps the first @p count rows of @p model and publishes the last of them whole. */
@@ -387,7 +281,7 @@ TEST(Unit_VisionRegistration, ARegistryWithoutTheBlocksRefusesConv)
     NN::NodeRegistry registry;
     ASSERT_TRUE(SushiAI::Test::status_is_ok(NN::register_layers(registry)));
 
-    SA_EXPECT_FAILURE(NN::build_model(registry, model_of(K_CONV_MODEL)),
+    SA_EXPECT_FAILURE(NN::build_model(registry, model_from(K_CONV_MODEL)),
                       StatusCode::InvalidDescription, "layer 0 'conv'", "the type 'conv'",
                       "does not have");
 }
@@ -605,7 +499,7 @@ TEST(Unit_VisionRegistration, Yolo26NeckTracesToTheReferenceLevels)
         const std::int64_t height = levels[level].at("height", "level").as_int("height");
         const std::int64_t width = levels[level].at("width", "level").as_int("width");
         const std::int64_t channels = levels[level].at("channels", "level").as_int("channels");
-        const Shape expected{K_BATCH, height, width, channels};
+        const Shape expected{K_TRACE_BATCH, height, width, channels};
 
         EXPECT_EQ(trace.outputs[level],
                   "level" + std::to_string(level) + " " + expected.to_string());

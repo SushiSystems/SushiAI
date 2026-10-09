@@ -1,452 +1,437 @@
 # Domain modules: implementation plan
 
-**Status:** Planned. No task is written. Section 6 holds eight questions the owner has not ruled.
+**Status:** Planned. Phases 1 and 2 are built; the move to the `repository-layout` tree is not started. Section 8 holds seven questions.
 
-The design is `docs/design/DOMAIN_MODULES.md`. This plan covers its four phases and was measured
-on 2026-10-09 against HEAD `7ab5c9e`, which builds and passes 1874 tests. Nothing here was built
-or run; section 7 lists what was not read. Line numbers are of the working tree.
+The owner ruled on 2026-10-09 that the whole repository follows the `repository-layout` skill.
+This plan replaces the four-phase plan: it takes the tree from HEAD `bb86983` plus the
+uncommitted phase 3 and 4 work to `modules/<tier>/<module>/`, and finishes the second target and
+the layering check in that layout. `docs/design/DOMAIN_MODULES.md` still holds the tiers and the
+rulings; its paths are superseded. Nothing here was built or run. Counts were measured on the
+working tree with two scratch scripts that are deleted.
 
-## 1. What exists (measured)
+## 1. Done
 
-### 1.1 The three tables and who reads them
+- Phase 1, commit `cf9fe05`: `NN::NodeRegistry` and `Data::DatasetRegistry` are values a caller
+  builds and passes; the static tables are gone. Build B1 passed 1881 tests.
+- Phase 2, commit `bb86983`: `detect`, `imaging`, `blocks` and `datasets` sit under
+  `include/SushiAI/vision/` and `src/vision/` in `SushiAI::Vision::*`; their 29 tests sit under
+  `tests/vision/`.
+- Uncommitted and unbuilt (19 modified files, 10 untracked paths): target `sushiai_vision` in
+  `src/vision/CMakeLists.txt`, `include/SushiAI/vision/vision.h`, `SA_BUILD_VISION`,
+  `tests/vision/CMakeLists.txt`, `apps/domains*.cpp`, `tests/package/vision_main.cpp`,
+  `tests/common/model_text.hpp`, a rewritten `tools/layering/check_layering.py` with
+  `tools/tests/test_check_layering.py`. The C++ of this work survives the move; its three CMake
+  files and the checker are rewritten by this plan.
 
-| Table | Where | Rows |
-| --- | --- | --- |
-| `K_NODE_REGISTRY` | `include/SushiAI/nn/node_registry.hpp:51-59` | `batchnorm2d`, `concat` (owned by `nn`); `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf` (the blocks) |
-| `K_LAYER_REGISTRY` | `include/SushiAI/nn/layer_registry.hpp:185-200` | 14 layer types, all owned by `nn` |
-| `K_DATASET_REGISTRY` | `include/SushiAI/data/dataset.hpp:363-366` | `rings`, `mnist` |
+## 2. Measured
 
-`node_registry.hpp:37-41` includes the five block headers, so every includer of the registry
-compiles the blocks. `NodeEntry` is in `nn/node.hpp:114-126`, `LayerEntry` in
-`nn/layer_registry.hpp:51-66`, `DatasetEntry` in `data/dataset.hpp:318-333`. A layer factory
-throws; a node factory returns a `Result`. Readers, by search of `*.hpp`, `*.cpp` and `*.h`:
+### 2.1 Module include graph
 
-| Symbol | Library | Callers that need a registry parameter |
-| --- | --- | --- |
-| `build_model` | `src/nn/node_registry.cpp:230` | `apps/train.cpp:93`, `apps/inference.cpp:102`, 26 calls in `tests/functional/unit/test_node_registry.cpp` (`:573` to `:891`) |
-| `make_node` | `node_registry.cpp:209`, called at `:165` | 10 calls in `test_node_registry.cpp` (`:193` to `:551`) |
-| `build_layer_stack` | `src/nn/layer_registry.cpp:430` | `test_checkpoint.cpp:65`; 8 in `test_config.cpp:210-277`; 8 in `test_layer_registry.cpp:192-794`; 4 in `test_layer_stack.cpp:240-275` |
-| `make_dataset` | `src/data/dataset.cpp:641` | `apps/train.cpp:83`, `apps/inference.cpp:91`, 12 calls in `tests/functional/integration/test_registries.cpp:121-245` |
-| `K_NODE_REGISTRY` | `node_registry.cpp:213`, `:226` | `test_node_registry.cpp:410`, `:419`, `:429-432`, `:557` |
-| `K_LAYER_REGISTRY` | `node_registry.cpp:217`, `:226`; `layer_registry.cpp:452` | `test_layer_registry.cpp:127`, `:217-220`, `:233`; `test_node_registry.cpp:421`, `:503-508`, `:561` |
-| `K_DATASET_REGISTRY` | `dataset.cpp:646` | `test_registries.cpp:177` |
+Counted: `#include <SushiAI/<module>/...>` in `include/SushiAI` and `src`, by module pair, as
+header includes / source includes. Quoted includes cross a module in the two umbrellas only.
 
-`Config` reads no table: it mentions them in two comments, `config/model_config.hpp:78` and
-`config/train_config.hpp:53`. Neither example calls any of the four functions.
-`Config::find_entry` (`config/registry.hpp:48-66`) throws; it serves layers
-(`layer_registry.cpp:452`), datasets (`dataset.cpp:646`), optimizers
-(`src/optim/optimizer_registry.cpp:153`) and objectives (`src/train/objective.cpp:148`); see
-question 5 for the last two. `K_C3K2_INNER` (`nn/blocks/c3k2.hpp:171`) moves with the blocks.
-
-### 1.2 What moves to `vision/`
-
-| From | Files | Namespace today |
-| --- | --- | --- |
-| `include/SushiAI/detect/`, `src/detect/` | 17 headers, `README.md`; 14 sources | `namespace SushiAI { namespace Detect` |
-| `include/SushiAI/imaging/`, `src/imaging/` | 19 headers, `README.md`; 19 sources and the private `bilinear.hpp` | `namespace SushiAI::Imaging` |
-| `include/SushiAI/nn/blocks/`, `src/nn/blocks/` | 5 headers; 5 sources and the private `block_attributes.hpp`, `.cpp` | `namespace SushiAI { namespace NN` |
-| `data/dataset.hpp:253-309`, `:345-355`; `src/data/dataset.cpp:57-84`, `:176-244`, `:372-499`, `:610-639` | MNIST | `SushiAI::Data` |
-| `tests/functional/unit/` | `test_detect_*.cpp` (5), `test_imaging_*.cpp` (17), `test_block_*.cpp` (5) | |
-
-Includes of the three folders from outside them: 61 lines in 29 code files, which are
-`nn/node_registry.hpp` (5), the 27 tests (55) and `test_node_registry.cpp:48` (1).
-`SushiAI.h:119-123` and `:134-170` add 41 quoted lines, and `tests/functional/unit/README.md`
-holds 38 such paths. No file of `detect` or `imaging` includes `nn`, `graph`, `data`, `train`,
-`config`, `optim`, `io`, `autograd`, `eager` or the other of the two. The blocks include `core`,
-`graph` and `nn` (`nn/blocks/c3k2.hpp:38-49`). `Detect::` and `Imaging::` occur 318 times in 14
-files; 13 imaging tests hold `using namespace SushiAI::Imaging`.
-
-MNIST shares three file-local helpers with the other datasets: `allocate_batch`
-(`dataset.cpp:132-162`), `write_one_hot` (`:165-174`) and `MaterialisedDataset` (`:250-282`).
-Outside `data` it is used by `examples/example.cpp:51-66`, `examples/demo_mlp.cpp:446-481`,
-`test_training.cpp:562-570` and eight cases of `test_registries.cpp:174-275`.
-`tools/contract/site_classes.tsv` names a moved file in 131 of its 400 rows.
-
-### 1.3 Build, tests and the CLI
-
-- `src/CMakeLists.txt:14-146` is one source list for one static target, `sushiai` (`:148`);
-  lines `80-85` and `96-129` are the vision sources. `install(DIRECTORY)` ships every header
-  (`:232-234`), and the completeness check fails on one `SushiAI.h` does not quote (`:261-286`).
-- `tests/CMakeLists.txt:37-150` is one binary, `sushiai_tests`. The suite prefix alone assigns
-  the CTest label (`:168-182`). Three more tests run the demo and the two apps (`:199-256`).
-- The root file's one option, `SA_BUILD_TESTS`, is `ON` with no top-level test
-  (`CMakeLists.txt:54`). SushiBLAS compares `CMAKE_SOURCE_DIR` with `CMAKE_CURRENT_SOURCE_DIR`
-  and makes the result the option's default (`sushiblas/CMakeLists.txt:94-98`, `:137`).
-- Both apps, both examples, `tests/common/test_utils.hpp:41` and `tests/package/main.cpp:30`
-  include `SushiAI/SushiAI.h`; the four programs link `sushiai` (`apps/CMakeLists.txt:18`,
-  `examples/CMakeLists.txt:18`). `cmake/SushiAIConfig.cmake.in:32` loads one targets file.
-- `sa run <name>` finds an executable by name in `build/` through `sushicore`
-  (`cli/sushiai/services/discovery.py:20-24`, `project.py:490`). The CLI names four targets,
-  none a test binary (`cli/sushiai/cli.py:36-37`, `project.py:58-60`, `cli/config.toml:19`), so
-  `sa run sushiai_vision_tests` needs no CLI change as far as this repository shows. `sa test`
-  selects by label (`project.py:292-295`); `sa build -D` reaches configure (`:153-164`).
-
-### 1.4 The layering checker
-
-`tools/layering/check_layering.py` finds modules under `<root>/modules/<tier>/<module>/`
-(`:52-59`) and returns no subject for a repository without that folder (`:62-67`). SushiAI has
-none, so the three rules run over nothing and CI passes (`.github/workflows/ci.yml:220-221`).
-`K_TIER_ORDER` is empty (`:23`). `tools/tests/` holds six test files, none for this checker.
-Against the design's tier table, `train` and `io` include `nn` today: 24 includes in 14 files,
-`train/steps.hpp` and `io/checkpoint.hpp` among them. No file of `nn` includes either.
-
-## 2. The contract every task follows
-
-1. New code reports a content failure as a `Status` or a `Result<T>` and a misuse with
-   `SA_FATAL_IF`, holds no `try`, `catch` or `throw`, and propagates with the `SA_TRY` family.
-   A host allocation that can fail runs inside `Detail::guard` (`dataset.cpp:155-159`).
-2. Code that throws today and is only moved keeps throwing: the layer factories,
-   `build_layer_stack`, `Config::Value`'s readers. A status function reaches a layer factory
-   through `NN::Detail::bridge_throwing`, as `node_registry.cpp:100-103` does.
-3. A registry is a value passed by reference. No task adds a global registry, a function-local
-   static registry, or an object whose constructor registers a row.
-4. Names follow `cpp-code-style`: `K_UPPER_SNAKE` constants, `[[nodiscard]]` on every status,
-   one primary type per header. Comments follow `source-comments`: the licence box and the
-   `@file` block of `nn/node_registry.hpp:1-26` on every new file, a `@brief` on every symbol.
-5. A subagent never builds. It checks each source it wrote with `clang -fsyntax-only` through
-   `compile_commands.json` and pastes the command and the output. A moved file has no entry
-   there until the owner's next configure; the task uses the flags of its old path and says so.
-6. No task edits a `CMakeLists.txt`, either umbrella header, a file under `cmake/`,
-   `docs/design/`, the manual or the changelog; section 5 lists what the orchestrator adds.
-   Nobody edits `docs/guides/CLI_GUIDE.md`; what this work makes false on its 12 matching lines
-   is reported to the owner.
-7. The orchestrator moves files with `git mv` before a wave starts. A task edits a moved file in
-   place and creates no copy of it.
-
-## 3. Phases
-
-### Phase 1: registries become values
-
-```cpp
-namespace SushiAI::NN                                  // nn/node_registry.hpp
-{
-    class NodeRegistry final
-    {
-        public:
-            [[nodiscard]] Status add(const NodeEntry& row);    // InvalidDescription on a held type
-            [[nodiscard]] Status add(const LayerEntry& row);
-            [[nodiscard]] const NodeEntry* find_node(std::string_view type) const noexcept;
-            [[nodiscard]] const LayerEntry* find_layer(std::string_view type) const noexcept;
-            [[nodiscard]] SushiRuntime::span<const NodeEntry> nodes() const noexcept;
-            [[nodiscard]] SushiRuntime::span<const LayerEntry> layers() const noexcept;
-    };
-    [[nodiscard]] Result<std::unique_ptr<Node>> make_node(
-        const NodeRegistry& registry, std::string_view type, ShapeSpan inputs,
-        const Config::Value& attributes, std::string_view context);
-    [[nodiscard]] Result<ModelGraph> build_model(const NodeRegistry& registry,
-                                                 const Config::ModelSpec& model);
-    // nn/layer_registry.hpp, which forward-declares NodeRegistry: 14 layers, batchnorm2d, concat
-    [[nodiscard]] Status register_layers(NodeRegistry& registry);
-    LayerStack build_layer_stack(const NodeRegistry& registry, const Config::ModelSpec& model);
-    // nn/blocks/registration.hpp until phase 2: conv, bottleneck, c3k, c3k2, sppf
-    [[nodiscard]] Status register_blocks(NodeRegistry& registry);
-}
-namespace SushiAI::Data                                // data/dataset_registry.hpp
-{
-    class DatasetRegistry final
-    {
-        public:
-            [[nodiscard]] Status add(const DatasetEntry& row);
-            [[nodiscard]] const DatasetEntry* find(std::string_view type) const noexcept;
-            [[nodiscard]] SushiRuntime::span<const DatasetEntry> rows() const noexcept;
-    };
-    [[nodiscard]] Status register_datasets(DatasetRegistry& registry);    // rings
-    [[nodiscard]] Result<std::unique_ptr<Dataset>> make_dataset(
-        const DatasetRegistry& registry, SushiBLAS::Engine& engine, std::string_view type,
-        const Config::Value& attributes, std::string_view context);
-    [[nodiscard]] Status register_mnist(DatasetRegistry& registry);       // in dataset.hpp
-}
-```
-
-Both registries store rows in a `std::vector`, keep insertion order and follow the rule of zero.
-A row with an empty type or a null factory is fatal. A row's `type` is a `std::string_view`, so
-its text must outlive the registry, as a literal does.
-
-**T1.1 `NodeRegistry` and the three builders.** Files: `include/SushiAI/nn/node_registry.hpp`,
-`src/nn/node_registry.cpp`, `include/SushiAI/nn/layer_registry.hpp`, `src/nn/layer_registry.cpp`.
-Deletes both tables. `node_registry.hpp` drops its includes of `batch_norm2d.hpp`, `concat.hpp`
-and the five block headers and includes `layer_registry.hpp` for `LayerEntry`. `make_node` asks
-`find_node`, then `find_layer`, and keeps today's unknown-type text (`node_registry.cpp:224-226`)
-over `nodes()` and `layers()`. `add_row` (`:143`) and `build_model` pass the registry down.
-`build_layer_stack` calls `find_layer` and throws the text of `config/registry.hpp:64` for an
-absent type. `register_layers` is defined in `layer_registry.cpp`. Tests: T1.4, T1.5.
-Acceptance: both sources pass the syntax check, and `K_NODE_REGISTRY` and `K_LAYER_REGISTRY` are
-gone from `include/` and `src/`. Dispatch: `opus low`.
-
-**T1.2 `register_blocks`.** Files: `include/SushiAI/nn/blocks/registration.hpp`,
-`src/nn/blocks/registration.cpp` (new). Five `SA_TRY(registry.add(NodeEntry{...}))` lines in the
-order of `node_registry.hpp:54-58`. Tests: T1.4. Acceptance: syntax check once T1.1 is on disk.
-Dispatch: `haiku medium`.
-
-**T1.3 `DatasetRegistry`.** Files: `include/SushiAI/data/dataset_registry.hpp`,
-`src/data/dataset_registry.cpp` (new), `include/SushiAI/data/dataset.hpp`,
-`src/data/dataset.cpp`, and the two comments at `config/model_config.hpp:78` and
-`config/train_config.hpp:53`. `DatasetFactory`, `DatasetEntry` and `make_dataset` leave
-`dataset.hpp:311-333`, `:357-378`. `make_dataset` returns `InvalidDescription` with
-`unknown dataset type '{}'; this build has: {}` when `find` returns null. Tests: T1.6.
-Acceptance: both sources pass the syntax check; `K_DATASET_REGISTRY` is gone from the tree.
-Dispatch: `haiku high`.
-
-**T1.4 The node registry's tests.** Files: `tests/functional/unit/test_node_registry.cpp`. A
-file-local `composed()` builds a registry from `register_layers` and `register_blocks`, and the
-36 calls take it first. Cases that read a table read `nodes()` and `layers()`.
-
-| Case | Pins |
+| Module | Includes |
 | --- | --- |
-| `RegisterLayersAddsFourteenLayersAndTwoNodes` (was `TheTypeStringsAreTheOnesModelFilesSpell`) | The 14 layer types in order, then `batchnorm2d`, `concat` |
-| `RegisterBlocksAddsTheFiveBlocks` | `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf`, in order |
-| `ATypeAddedTwiceIsRefused` (was `NoTypeIsInBothTables`) | `InvalidDescription` naming the type, node over node and node over layer |
-| `AnEmptyRegistryKnowsNoType` | `make_node` over an empty registry fails and lists no type |
-| `ARegistryWithoutTheBlocksRefusesConv` | `build_model` of `K_BRANCHING_MODEL` over `register_layers` alone fails at `layer 0 'conv'` |
-| Acceptance | The file passes the syntax check and the five cases exist. Dispatch: `opus low` |
+| `core` | none |
+| `graph` | core 40/30 |
+| `config` | core 5/0 |
+| `autograd` | core 8/0, graph 5/0 |
+| `optim` | core 10/21, graph 1/0, config 1/1 |
+| `data` | core 8/8, config 1/0 |
+| `eager` | core 1/5, graph 4/0, autograd 1/0 |
+| `nn` | core 61/26, graph 47/4, config 5/2 |
+| `io` | core 9/9, nn 2/2 |
+| `train` | core 15/23, graph 27/15, nn 8/12, config 1/1, data 2/0, optim 2/0, autograd 0/1 |
+| `vision/imaging` | core 0/16 |
+| `vision/detect` | core 0/14 |
+| `vision/blocks` | core 10/5, graph 6/3, nn 26/1, config 0/5 |
+| `vision/datasets` | core 2/2, data 1/1, config 1/0 |
 
-**T1.5 The callers of `build_layer_stack`.** Files: `test_layer_registry.cpp`,
-`test_layer_stack.cpp`, `test_config.cpp` (unit), `test_checkpoint.cpp` (integration). The 21
-calls take a registry built by `register_layers`; `test_layer_registry.cpp:127` calls
-`find_layer`, and `:217-233` read `layers()`. No case is added or removed. Acceptance: the four
-files pass the syntax check. Dispatch: `haiku high`.
+Cycles between modules: none (Tarjan over the 14 nodes finds no component larger than one).
+Edges up the tier order: none. No vision module includes another vision module.
 
-**T1.6 The dataset registry's tests.** Files: `tests/functional/integration/test_registries.cpp`,
-`tests/functional/unit/test_dataset_registry.cpp` (new). The 12 calls take a registry holding
-`rings` and `mnist`. `AnUnknownDatasetTypeListsEveryTypeThisBuildHas` and the second half of
-`TheDatasetRegistryListsMnist` become `SA_EXPECT_FAILURE(..., InvalidDescription, ...)` over the
-same texts. New suite `Unit_DatasetRegistry`: `AddKeepsInsertionOrder`,
-`FindReturnsNullForAnUnknownType`, `ATypeAddedTwiceIsRefused`, `RegisterDatasetsAddsRingsOnly`.
-Acceptance: both files pass the syntax check. Dispatch: `haiku medium`.
+What this forces: nothing. Static libraries per module would link, and no boundary has to move.
+The choice between STATIC and OBJECT is made on the export set, question Q1. The graph is an
+include graph; a symbol used through a hand-written `extern` would not show, and build B1 is
+what confirms the link edges.
 
-**T1.7 The apps compose their registries.** Files: `apps/registries.hpp`, `apps/registries.cpp`
-(new), `apps/train.cpp`, `apps/inference.cpp`. The header declares, in `SushiAI::Apps`, the
-struct `Registries` with the members `NN::NodeRegistry nodes` and `Data::DatasetRegistry
-datasets`, and `[[nodiscard]] Result<Registries> compose_registries()`, which calls the four
-`register_*` functions above. Each app calls it once before `make_dataset` (`train.cpp:83`,
-`inference.cpp:91`) and passes `registries.datasets` and `registries.nodes`. The printed lines
-keep their text. Tests: the two CTest cases at `tests/CMakeLists.txt:235-256`. Acceptance: the
-three sources pass the syntax check. Dispatch: `opus low`.
+Third parties: `nlohmann` is included by `src/config/value.cpp` alone. No file includes SYCL
+directly. `SushiBLAS` headers are included by 10 modules, `SushiRuntime` by 13 (not `imaging`);
+14 `detect` headers include `SushiRuntime`.
 
-### Phase 2: vision moves
+### 2.2 Files that belong to no module
 
-After the move a module is `include/SushiAI/vision/<module>/` and `src/vision/<module>/`, for
-`detect`, `imaging`, `blocks` and `datasets` (`mnist.hpp`, `mnist.cpp`), in the namespaces
-`SushiAI::Vision::Detect`, `Imaging`, `Blocks` and `Datasets`. `vision/registration.hpp` and
-`src/vision/registration.cpp` are in `SushiAI::Vision`. The tests are in `tests/vision/`.
-```cpp
-namespace SushiAI::Vision                              // vision/registration.hpp
-{
-    [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry);          // the five blocks
-    [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry);  // mnist
-}
-namespace SushiAI::Data                                // data/materialised_dataset.hpp, question 3
-{
-    class MaterialisedDataset final : public Dataset;  // as dataset.cpp:250-282
-    [[nodiscard]] Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
-                                               const Shape& sample, int64_t classes);
-    void write_one_hot(SushiBLAS::Tensor& targets, const std::vector<int32_t>& labels,
-                       int64_t classes);
-}
-```
+| File | Today | Includes |
+| --- | --- | --- |
+| `include/SushiAI/SushiAI.h` | umbrella, 112 quoted includes | every core and layers header |
+| `include/SushiAI/version.hpp`, `src/version.cpp` | read by the root `CMakeLists.txt` version check | nothing |
+| `include/SushiAI/vision/vision.h` | umbrella, 43 quoted includes | every vision header |
+| `include/SushiAI/vision/registration.hpp`, `src/vision/registration.cpp` | `register_nodes`, `register_datasets` | core, data, nn, blocks, datasets |
 
-The six MNIST names of `dataset.hpp:257-355` keep their signatures in `Vision::Datasets`, and
-`K_C3K2_INNER` stays a `constexpr` table. Detection and the blocks keep their two-level form,
-written `namespace SushiAI { namespace Vision::Detect {`, so no body line is indented again;
-imaging keeps its one-line form. Making the forms one is a formatting commit outside this plan.
+Private headers: `src/autograd/differentiator.hpp`, `src/vision/blocks/block_attributes.hpp`,
+`src/vision/imaging/bilinear.hpp`; each is included only by sources of its own folder. READMEs
+exist for 4 of 14 modules, under `include/SushiAI/{eager,nn,vision/detect,vision/imaging}/`.
+`tests/common` holds 7 files: `test_utils.hpp` includes the umbrella, `reference_fixture.hpp`
+includes `io`, `model_text.hpp` includes `config`, `test_status.hpp` and `test_throws.hpp`
+include `core`. `tests/fixtures` holds 3 files and `yolo26/` (6 files).
 
-**T2.1 Detection.** Files: the 17 headers and `README.md` of `include/SushiAI/vision/detect/`,
-the 14 sources of `src/vision/detect/`. `<SushiAI/detect/` becomes `<SushiAI/vision/detect/`, and
-`namespace Detect` becomes `namespace Vision::Detect` with its closing comment. Acceptance: the
-14 sources pass the syntax check. Dispatch: `haiku high`.
+### 2.3 Tests
 
-**T2.2 Imaging.** Files: the 19 headers and `README.md` of `include/SushiAI/vision/imaging/`,
-the 20 files of `src/vision/imaging/`. The same two edits with `SushiAI::Vision::Imaging`.
-Acceptance: the 19 sources pass the syntax check. Dispatch: `haiku high`.
+111 test files: 55 in `tests/functional/unit`, 17 in `integration`, 10 in `regression`, 29 in
+`tests/vision`. The rule: a test moves into module M when it is a unit or `tests/vision` file,
+its direct `<SushiAI/...>` includes have exactly one maximal module M under the dependencies of
+2.1, and no helper it includes reaches above M's tier.
 
-**T2.3 Blocks.** Files: the 5 headers of `include/SushiAI/vision/blocks/`, the 7 files of
-`src/vision/blocks/`. `namespace NN` becomes `namespace Vision::Blocks`, and every name of `nn`
-the files use gains `NN::` (`Conv2d`, `BatchNorm2d`, `SiLU`, `Identity`, `MaxPool2d`, `Node`,
-`ShapeSpan`, `Trace`, `TraceModule`, `ModuleList`, `NormOptions`, `Detail::`). No header holds a
-`using` directive, and no diagnostic text changes. Acceptance: the 6 sources pass the syntax
-check. Dispatch: `opus low`.
-
-**T2.4 MNIST leaves `data`.** Files: `include/SushiAI/vision/datasets/mnist.hpp`,
-`src/vision/datasets/mnist.cpp`, `include/SushiAI/data/materialised_dataset.hpp`,
-`src/data/materialised_dataset.cpp` (all new), `include/SushiAI/data/dataset.hpp`,
-`src/data/dataset.cpp`. The MNIST ranges of section 1.2 and `register_mnist` leave `data`;
-`mnist.cpp` reads its two integers with `attributes.at_or`, as `dataset.cpp:101-107` does. The
-three shared helpers move to the new `data` pair unchanged, and `SyntheticClassification` and
-`Rings` call them there. Acceptance: the three sources pass the syntax check, and a search for
-`mnist` in any case under `include/SushiAI/data/` and `src/data/` finds nothing. Dispatch:
-`opus low`.
-
-**T2.5 Registration.** Files: `include/SushiAI/vision/registration.hpp`,
-`src/vision/registration.cpp`, moved from `nn/blocks/registration.*`. `register_nodes` is the
-body of `register_blocks` over the `Blocks::` factories; `register_datasets` adds `mnist` with
-`Datasets::make_mnist`. Acceptance: syntax check once T2.3 and T2.4 are on disk. Dispatch:
-`haiku medium`.
-
-**T2.6 Detection and imaging tests.** Files: `tests/vision/test_detect_*.cpp` (5) and
-`tests/vision/test_imaging_*.cpp` (17), two dispatches. Include paths gain `vision/`,
-`"../../common/` becomes `"../common/`, `using namespace SushiAI::Imaging` becomes
-`SushiAI::Vision::Imaging`, and `Detect::` and `Imaging::` after `using namespace SushiAI` gain
-`Vision::`. Suite and case names do not change. Acceptance: the 22 files pass the syntax check.
-Dispatch: `haiku high`, twice.
-
-**T2.7 Block tests.** Files: `tests/vision/test_block_*.cpp` (5). The path edits of T2.6, and
-`NN::` becomes `Vision::Blocks::` on the names the five block headers declare, among them
-`K_C3K2_INNER` and its two factories (`test_block_c3k2.cpp:410-414`). Acceptance: the five files
-pass the syntax check. Dispatch: `haiku high`.
-
-**T2.8 The registry tests split.** Files: `tests/functional/unit/test_node_registry.cpp`,
-`tests/vision/test_registration.cpp` (new). The core file keeps what `nn` alone can show and
-names no vision type: its two model texts (`:138-160`) use `conv2d`, `batchnorm2d` and `silu` in
-place of `conv`, `ANodeTypeBuildsItsOwnNode` (`:475-486`) uses `concat`, and `K_MINIMAL_CASES`
-keeps two rows. The new file, suite `Unit_VisionRegistration`, takes the five block rows of
-`K_MINIMAL_CASES`, `RegisterNodesAddsTheFiveBlocks`, `ARegistryWithoutTheBlocksRefusesConv`,
-every case that loads `examples/yolo26/model.json` (`:746` to the end of the file), and a new
-`RegisterDatasetsAddsMnist`. Acceptance: both files pass the syntax check; the core file
-includes no vision header; the report lists every case renamed. Dispatch: `opus low`.
-
-**T2.9 MNIST tests.** Files: `tests/vision/test_datasets_mnist.cpp` (new), and
-`test_registries.cpp` and `test_training.cpp` under `tests/functional/integration/`. The eight
-cases of `test_registries.cpp:174-275` and the case at `test_training.cpp:562-571` move to the
-suite `Integration_VisionMnist`, over a registry built by `Vision::register_datasets`.
-`test_registries.cpp` keeps a registry of `register_datasets` alone. Acceptance: the three files
-pass the syntax check and the two core files name no `Mnist`. Dispatch: `haiku high`.
-
-**T2.10 The programs.** Files: `apps/registries.cpp`, `examples/example.cpp`,
-`examples/demo_mlp.cpp`. `compose_registries` calls `Vision::register_nodes` and
-`Vision::register_datasets`. The examples include `<SushiAI/vision/datasets/mnist.hpp>` and
-spell `sa::Vision::Datasets::` at `example.cpp:51-66` and `demo_mlp.cpp:446-481`. Acceptance:
-the three files pass the syntax check. Dispatch: `haiku medium`.
-
-### Phase 3: the second target
-
-The orchestrator writes the build files (section 5). Two tasks remain, around one signature in
-`apps/domains.hpp`: `[[nodiscard]] Status SushiAI::Apps::register_domains(NN::NodeRegistry&
-nodes, Data::DatasetRegistry& datasets);`.
-
-**T3.1 The apps choose their domains at link time.** Files: `apps/domains.hpp`,
-`apps/domains_vision.cpp`, `apps/domains_none.cpp` (new), `apps/registries.cpp`.
-`domains_vision.cpp` calls the two `Vision::register_*` functions; `domains_none.cpp` returns
-success. `registries.cpp` calls `register_layers`, `register_datasets` and `register_domains`
-and includes no vision header. CMake compiles one of the two sources, so no file holds an `#if`.
-Acceptance: the three sources pass the syntax check. Dispatch: `haiku high`.
-
-**T3.2 The package consumer of vision.** Files: `tests/package/vision_main.cpp` (new). It
-includes `<SushiAI/vision/vision.h>`, calls `register_layers`, `Vision::register_nodes` and
-`Vision::register_datasets`, and returns 1 unless `find_node("c3k2")` and `find("mnist")` are
-both non-null. Acceptance: syntax check once `vision.h` is on disk. Dispatch: `haiku medium`.
-
-### Phase 4: the layering check
-
-```python
-K_TIER_ORDER: tuple[str, ...] = ("core", "layers", "domains", "programs")
-K_MODULE_TIERS: dict[str, str] = {
-    "core": "core", "graph": "core", "autograd": "core", "optim": "core", "config": "core",
-    "eager": "core", "data": "core", "vision": "domains",
-    "nn": "layers", "train": "layers", "io": "layers",      # question 2
-}
-K_LIBRARY_ROOTS = ("include/SushiAI", "src")     # a module is <root>/<module>/
-K_SCOPED_ROOTS = {"tests/functional": "layers", "tests/vision": "domains",
-                  "apps": "programs", "examples": "programs"}
-```
-
-**T4.1 The checker for this tree.** Files: `tools/layering/check_layering.py`,
-`tools/tests/test_check_layering.py` (new). `_discover` reads the two library roots in place of
-`modules/`; a file directly under a root (`SushiAI.h`, `version.cpp`) belongs to no module. A
-subject's tier comes from `K_MODULE_TIERS` or `K_SCOPED_ROOTS`. Four rules in `K_CHECKER.rules`:
-
-| Rule | Fails on |
+| Destination | Count |
 | --- | --- |
-| `rule_declared_tiers` | A module folder the table lacks, a table entry with no folder, a tier outside `K_TIER_ORDER` |
-| `rule_upward_includes` | `#include <SushiAI/<module>/...>` whose module ranks above the includer's tier |
-| `rule_cross_domain_includes` | A file of one domain that includes another domain |
-| `rule_private_reach` | A quoted include that leaves its module's folder under a library root |
+| core 4, graph 7, autograd 7, eager 3, data 1, io 1, nn 22, train 2, version 1 | 48 |
+| vision: imaging 17, detect 5, blocks 5, registration 2 | 29 |
+| root `tests/unit` | 7 |
+| root `tests/integration` 17, `tests/regression` 10 | 27 |
 
-Tests, `unittest` over temporary trees as `tools/tests/test_check_contract.py:59-70` builds
-them, each named for what it pins: `test_a_downward_include_is_clean`,
-`test_an_upward_include_is_reported` (one issue, with file and line),
-`test_a_domain_including_another_domain_is_reported`,
-`test_a_core_test_including_a_domain_is_reported`, `test_an_undeclared_module_folder_is_reported`,
-`test_a_root_header_belongs_to_no_module`, `test_this_repository_is_clean` (exit code 0).
-Acceptance: `python -m unittest tools/tests/test_check_layering.py` passes and
-`python tools/layering/check_layering.py .` prints nothing; the report pastes both outputs.
-Dispatch: `opus low`.
+The 7 that stay in `tests/unit`: `test_backward`, `test_conv2d`, `test_diagnostics`,
+`test_layer_registry`, `test_loss_roots` (maxima `autograd` and `nn`), `test_loss_scaling` (no
+direct module include), `test_seam` (a `core` test that includes `test_utils.hpp`, which
+includes the layers umbrella). 26 of the 27 integration and regression files reach the umbrella
+directly or through `test_utils.hpp`, so their includes do not bound what they exercise and all
+27 stay. `optim`, `config` and `vision/datasets` own no test file; `test_config.cpp` builds
+layer stacks and lands in `nn`, `test_datasets_mnist.cpp` calls `register_datasets` and lands in
+`registration`.
 
-## 4. Waves
+Test binaries, three shapes:
 
-| Wave | Tasks | Tree parses after it | Owner's build |
-| --- | --- | --- | --- |
-| 1 | T1.1, T1.2, T1.3 | Library yes; the callers of section 1.1 no | |
-| 2 | T1.4, T1.5, T1.6, T1.7 | Yes | B1: `sa build`, `sa test` |
-| 3, step a | `git mv` by the orchestrator; T2.1, T2.2, T2.3, T2.4; then T2.5 | Library yes; tests and programs no | |
-| 3, step b | T2.6, T2.7, T2.8, T2.9, T2.10 | Yes | B2: `sa build`, `sa test` |
-| 4 | T3.1, T3.2, the orchestrator's build files | Yes | B3: `sa build`, `sa test`, `sa test --suite package`, `sa run sushiai_vision_tests`. B4: `sa build --clean -D SA_BUILD_VISION=OFF`, `sa test` |
-| 5 | T4.1 | Yes | None; the task runs Python only |
+| Shape | Cost |
+| --- | --- |
+| Two binaries as today, sources collected from the module `tests/` folders | No change to `sa run sushiai_tests`, the CLI, CI or the 35 s run; 2 links. A module's tests cannot be built alone |
+| One binary per tier plus root | 4 or more links, 4 DLL copies, 4 discoveries; `sa run` names change; `test_main.cpp` compiled 4 times |
+| One binary per module | 14 or more links and discoveries; each needs the objects of its dependency closure, which the two-archive shape of Q1 does not hand out |
 
-File sets within a wave are disjoint, and a wave starts when the one before it is on disk. Phase
-2 is one wave closed by one build. In B2 the vision sources and tests are still in `sushiai` and
-`sushiai_tests` under their new paths, so B2 separates a wrong move from a wrong target. B4 is
-the exit condition of phase 3 and a second configure, so it cannot join B3.
+Recommended: the first. A module lists its test files in its own `CMakeLists.txt`; the function
+appends them to the binary of its library.
 
-## 5. What the orchestrator adds
+### 2.4 What names a path
 
-| Wave | Build lists | Umbrella | Other |
-| --- | --- | --- | --- |
-| 2 | `src/CMakeLists.txt`: `nn/blocks/registration.cpp`, `data/dataset_registry.cpp`. `tests/CMakeLists.txt`: `functional/unit/test_dataset_registry.cpp`. `apps/CMakeLists.txt`: `registries.cpp` in both targets | `SushiAI.h`: `nn/blocks/registration.hpp`, `data/dataset_registry.hpp` | Changelog; the READMEs of `nn` and `apps` |
-| 3 | `src/CMakeLists.txt`: lines `80-85` and `96-129` under `vision/`, plus `vision/registration.cpp`, `vision/datasets/mnist.cpp`, `data/materialised_dataset.cpp`. `tests/CMakeLists.txt`: 27 paths under `vision/`, plus `vision/test_registration.cpp`, `vision/test_datasets_mnist.cpp` | `SushiAI.h`: the 41 lines of `:119-123`, `:134-170` under `vision/`, plus `data/materialised_dataset.hpp`, `vision/datasets/mnist.hpp`, `vision/registration.hpp` | The `file` column of 131 rows of `site_classes.tsv`; `tests/vision/README.md` from the 38 paths of `tests/functional/unit/README.md`; `include/SushiAI/nn/README.md`; `docs/architecture/ARCHITECTURE.md`, `docs/guides/MODEL_FILE.md`; changelog; the design's status line |
-| 4 | Root: `SA_IS_TOP_LEVEL` as `sushiblas/CMakeLists.txt:94-98`, then `option(SA_BUILD_VISION ... ${SA_IS_TOP_LEVEL})`. `src/vision/CMakeLists.txt`: `sushiai_vision`, alias `SushiAI::vision`, `EXPORT_NAME vision`, `PUBLIC SushiAI::sushiai`, `sushiai_apply_build_policy`, `sushiai_apply_sycl`, C++17, in the `SushiAITargets` export set, its own completeness check. `src/CMakeLists.txt`: the vision sources leave, the glob at `:261-264` excludes `vision/`, `install(DIRECTORY)` excludes `vision` when the option is off. `tests/vision/CMakeLists.txt`: `sushiai_vision_tests` with `../common/test_main.cpp`, the three discovery blocks, the fixture definition, the DLL copy. `apps/CMakeLists.txt`: `domains_vision.cpp` and `SushiAI::vision`, or `domains_none.cpp`. `examples/CMakeLists.txt` and the demo test at `tests/CMakeLists.txt:199-207`: behind the option. `tests/package/CMakeLists.txt`: a second consumer when `SushiAI::vision` is a target | New `vision/vision.h`, which quotes `../SushiAI.h` and every header under `vision/`; `SushiAI.h` loses its `vision/` lines | Changelog; the design's status line |
-| 5 | None | None | `tools/README.md:12`, `:35`; `docs/design/REMAINING_WORK.md:123`, `:235`; changelog; the design's status line to `Shipped` |
+| Place | What it names |
+| --- | --- |
+| `CMakeLists.txt` | `add_subdirectory(src, examples, apps, tests)`, the version check on `include/SushiAI/version.hpp` |
+| `src/CMakeLists.txt` (277 lines) | 83 sources, `${PROJECT_SOURCE_DIR}/include`, `install(DIRECTORY include/)`, the umbrella check as `"<header>"` strings |
+| `src/vision/CMakeLists.txt` | 40 sources, the vision umbrella check |
+| `tests/CMakeLists.txt`, `tests/vision/CMakeLists.txt` | 82 and 29 file paths, `fixtures`, `../common/test_main.cpp` |
+| `tests/package/CMakeLists.txt` | messages naming `src/config/` and `src/CMakeLists.txt` |
+| `cli/sushiai/services/project.py` | `root / "tests" / "package"` (:427), `root / "Doxyfile"` (:564), two messages naming `src/CMakeLists.txt` and `include/SushiAI/SushiAI.h` (:452) |
+| `cli/sushiai/cli.py` | three epilogs with `examples/heavy_mlp/...`; targets are found by name in the build tree, not by path |
+| `cli/sushistack.deps.toml` | a description naming `src/config/*.cpp` |
+| `Doxyfile` | `INPUT = docs/reference/API_REFERENCE.md include/SushiAI`, patterns `*.hpp *.h *.md` |
+| `.github/workflows/ci.yml` | 5 comment lines; the checker commands take `.` and stay valid |
+| `tools/contract/check_contract.py` | `K_SOURCE_ROOTS = ("include", "src", "apps", "examples")`, `K_LIBRARY_ROOTS = ("include", "src")` |
+| `tools/contract/site_classes.tsv` | 401 rows whose first column is a path under `include/` or `src/` |
+| `tools/layering/check_layering.py` | `K_LIBRARY_ROOTS`, `K_SCOPED_ROOTS`, one module per folder under `include/SushiAI` |
+| `tools/documentation/check_docs_layout.py` | `rule_module_readmes` wakes when `modules/` exists and asks a `README.md` of every `modules/<tier>/<module>/` |
+| `check_source_comments.py`, `check_changelog.py`, `write_license_block.py` | no source path; nothing to change |
+| `tools/naming/rename_map.tsv` | 323 old paths; the record of a finished rename, left as it is |
 
-## 6. Questions for the owner
+Path mentions in prose, lines per file: `ARCHITECTURE.md` 28, `REMAINING_WORK.md` 18,
+`CONTRIBUTING.md` 16, `CLI_GUIDE.md` 16, `CHANGELOG.md` 15, `KNOWN_ISSUES.md` 10, `ROADMAP.md` 9,
+`FAQ.md` 5, `TUTORIAL.md` 5, `SECURITY.md` 4, `MODEL_FILE.md` 4, `GLOSSARY.md` 2,
+`docs/README.md` 2, `INTEGRATION.md` 1, `DOMAIN_MODULES.md` 1; root `README.md` 8, `NOTICE.md` 2;
+`tests/functional/unit/README.md` 108, the other test, app and example READMEs 38 together.
+`docs/agent` and `docs/archive` hold 1397 and are records; no task edits them. Changelog
+entries are records too. Source comments: 70 lines in 26 headers, 34 in 22 sources, 411 in 47
+files under `tests`, 25 in 5 files under `apps` and `examples`.
 
-Each is a boundary, an interface or an ownership the design leaves open. The plan is written
-under the recommendation.
+`docs/guides/CLI_GUIDE.md` belongs to another session and no task edits it. What becomes false
+in it: line 162 (`src/CMakeLists.txt`, `include/SushiAI/**/*.hpp`), 305 and 317
+(`examples/demo_mlp.cpp`), 328 to 331, 338 and 397 (`examples/heavy_mlp`, `examples/mnist_cnn`),
+345 (`apps/train.cpp`), 405 and 433 (`include/SushiAI/nn/layer_registry.hpp`,
+`include/SushiAI/data/dataset.hpp`), 483 to 485 (root `Doxyfile`, if Q5 moves it), 494 (scope
+`include/SushiAI`). Line 224, `sa run sushiai_tests`, stays true under 2.3.
 
-**Decided by the owner on 2026-10-09:** every question takes its recommendation.
+Root against the skill's list: `Doxyfile` is forbidden there; `.gitattributes` is missing;
+`sushi-module.toml` is not on the list and both siblings carry it, so it stays.
 
-1. **The shape of `NN::NodeRegistry`.** The design gives it `add(row)` and `find(name)`; there
-   are two row types whose factories differ in signature and in error contract. (a) One
-   registry, two `add` overloads, `find_node` and `find_layer`. (b) Two registries, both passed
-   to `build_model`. (c) One row type: each layer gets a node factory and `LayerEntry` goes.
-   Recommendation: a. `build_layer_stack` needs layers, and c rewrites 14 factories.
-2. **The tier of `train` and `io`.** The design puts both in tier 1, below `nn`; both include
-   `nn` today, in 14 files. (a) Declare them in tier 2 with `nn`. (b) Keep the table and remove
-   the 24 includes, which moves `ModelState`, `ModelOutputs` and `Trace` below `nn`.
-   Recommendation: a. No tier below a domain names it either way.
-3. **The helpers MNIST shares with `data`.** (a) `allocate_batch`, `write_one_hot` and
-   `MaterialisedDataset` become public in `data/materialised_dataset.hpp`. (b) Vision gets its
-   own copy. Recommendation: a; the next domain's dataset needs the same three.
-4. **Programs when `SA_BUILD_VISION` is off.** The apps name no type; both examples call
-   `try_load_mnist`. (a) The apps link `domains_vision.cpp` or `domains_none.cpp`; the examples
-   and `sa demo mlp` are built only with vision. (b) Apps and examples all require vision.
-   (c) One `#if` in the apps. Recommendation: a.
-5. **The optimizer and objective tables** (`optim/optimizer_registry.hpp:101`,
-   `train/objective.hpp:240`) stay `constexpr` behind `Config::find_entry`, or become values
-   now. Recommendation: leave them until the design's first open item settles the objective.
-6. **Where the layering checker changes.** Its discovery assumes a `modules/` layout this
-   repository lacks, and the file reads as shared with other repositories. (a) Rewrite it in
-   this repository's copy. (b) Change it in SushiSkills first and take the new copy.
-   Recommendation: a now, b as a backlog line, so phase 4 waits on no other repository.
-7. **How the package exports vision.** (a) `SushiAI::vision` in the one `SushiAITargets` export
-   set, present when built. (b) A `vision` component. (c) A second package. Recommendation: a.
-8. **`sa test` and the vision suite.** (a) No CLI change: the existing suites run the vision
-   cases by their prefixes, and `sa run sushiai_vision_tests` runs them alone. (b) A `vision`
-   entry in `Suite`. Recommendation: a; b edits the CLI and its guide, which another session holds.
+### 2.5 SushiEngine's `Module.cmake`
 
-## 7. Not verified
+`sushiengine_add_module(NAME LAYER TYPE SOURCES PUBLIC_DEPENDS PRIVATE_DEPENDS EXTERNAL_PUBLIC
+EXTERNAL_PRIVATE CONFIGURED_HEADERS)` checks the module against the table in
+`EngineLayers.cmake`, refuses an upward edge unless a dated exception lists it, creates
+`sushiengine_<name>` as STATIC (INTERFACE without sources), adds `include/` PUBLIC and `source/`
+PRIVATE, and links the dependencies. It installs and exports nothing: SushiEngine ships
+applications, not a package. Its tests all sit in root `tests/`, and its umbrella sits in
+`engine/include/`, a folder the `modules/` checkers would read as a tier.
 
-- **`sushicore`** is outside this repository and was not read. That `sa run
-  sushiai_vision_tests` works unchanged rests on `sa run sushiai_tests` going through the same
-  call. B3 settles it.
-- **The second target's build.** `cmake/SushiAISyclTarget.cmake:30-43` was read; the toolchain
-  function it calls was not. `tests/package/CMakeLists.txt:28-81` checks the interface of
-  `SushiAI::sushiai` only; what `SushiAI::vision` exports was not worked out. B3 settles both.
-- **Not read:** `src/config/model_config.cpp`, `src/nn/layer_stack.cpp`, the bodies of the block
-  sources, `apps/README.md`, both examples beyond the search results, `tests/package/main.cpp`,
-  the READMEs under `detect/` and `imaging/`, `tools/naming/rename_map.tsv` (18 matching lines),
-  `Doxyfile` and `docs/guides/CLI_GUIDE.md`.
-- **The list of `nn` names in T2.3** comes from the block headers' includes and from search
-  results. The syntax check of the six sources finds a missed one.
-- **Whether a test outside the 27 reaches a vision type through `SushiAI.h`.** The block names
-  were found in the five block tests and `test_node_registry.cpp` only; `Detect::` and
-  `Imaging::` were searched in qualified form only. B4 finds a missed one. Every count here is
-  a text search of the working tree.
+SushiAI takes the argument checks, the table lookup, the edge check and the include roots. It
+adds what a package needs:
+
+- `sushiai_apply_sycl(<target> SOURCES ...)` and `sushiai_apply_build_policy` on every module
+  that compiles, and the SYCL link options on the two libraries.
+- `BUILD_INTERFACE` on every module include root, one `install(DIRECTORY include/)` per module,
+  skipped for a tier whose library is not built.
+- The two libraries in export set `SushiAITargets` under the names they have today.
+- The umbrella check per library: every header under the include roots of its modules appears
+  in the umbrella as `<SushiAI/...>`.
+- `nlohmann_json` on `config` only, as include directories and definitions taken as values, so
+  the name stays out of the exported link interface as `tests/package` asserts.
+
+## 3. The contract every task follows
+
+- No include path, namespace, public symbol or target name a consumer sees changes.
+- The orchestrator does every `git mv` and writes every CMake file. A task edits inside files.
+- A task writes only its listed files and returns its report as its reply.
+- Nobody but the owner builds. A task proves its edit with the check its row names.
+- No task edits `docs/guides/CLI_GUIDE.md`, `docs/agent/**` or `docs/archive/**`.
+- A file is staged by path. `CLI_GUIDE.md` is never staged.
+
+## 4. Target tree
+
+```
+README.md LICENSE NOTICE.md COMMERCIAL.md CMakeLists.txt AGENTS.md CLAUDE.md sushi-module.toml
+.clang-format .editorconfig .gitignore .gitattributes
+cmake/  cli/  tools/  modules/  tests/  applications/  docs/
+modules/CMakeLists.txt                  the two libraries, the tier folders
+modules/<tier>/CMakeLists.txt           one add_subdirectory line per module
+modules/<tier>/<module>/{README.md, CMakeLists.txt, include/SushiAI/..., source/, tests/}
+tests/{CMakeLists.txt, common/, fixtures/, package/, unit/, integration/, regression/}
+applications/{CMakeLists.txt, programs/, examples/}          (Q4)
+```
+
+Files per module: public headers / sources / private headers / tests. Four modules are new and
+hold the files of 2.2 (Q2).
+
+| Module | Files | Public include root holds |
+| --- | --- | --- |
+| `core/core` | 9 / 4 / 0 / 4 | `SushiAI/core/` |
+| `core/version` (new) | 1 / 1 / 0 / 1 | `SushiAI/version.hpp` |
+| `core/graph` | 27 / 20 / 0 / 7 | `SushiAI/graph/` with `lowering/` |
+| `core/config` | 4 / 3 / 0 / 0 | `SushiAI/config/` |
+| `core/autograd` | 13 / 10 / 1 / 7 | `SushiAI/autograd/` with `rules/` |
+| `core/optim` | 6 / 6 / 0 / 0 | `SushiAI/optim/` |
+| `core/data` | 3 / 3 / 0 / 1 | `SushiAI/data/` |
+| `core/eager` | 7 / 3 / 0 / 3 | `SushiAI/eager/` |
+| `layers/nn` | 31 / 23 / 0 / 22 | `SushiAI/nn/` |
+| `layers/io` | 3 / 3 / 0 / 1 | `SushiAI/io/` |
+| `layers/train` | 8 / 7 / 0 / 2 | `SushiAI/train/` |
+| `layers/umbrella` (new) | 1 / 0 / 0 / 0 | `SushiAI/SushiAI.h` |
+| `vision/imaging` | 19 / 19 / 1 / 17 | `SushiAI/vision/imaging/` |
+| `vision/detect` | 17 / 14 / 0 / 5 | `SushiAI/vision/detect/` |
+| `vision/blocks` | 5 / 5 / 1 / 5 | `SushiAI/vision/blocks/` |
+| `vision/datasets` | 1 / 1 / 0 / 0 | `SushiAI/vision/datasets/` |
+| `vision/registration` (new) | 1 / 1 / 0 / 2 | `SushiAI/vision/registration.hpp` |
+| `vision/umbrella` (new) | 1 / 0 / 0 / 0 | `SushiAI/vision/vision.h` |
+
+## 5. CMake interface
+
+`cmake/SushiAILayers.cmake`, the tier table. A module of a domain tier is keyed
+`<tier>/<module>`, so the next domain may have its own `blocks`.
+
+```cmake
+set(SUSHIAI_TIER_ORDER    core layers vision)
+set(SUSHIAI_DOMAIN_TIERS  vision)
+set(SUSHIAI_TIER_LIBRARY  core sushiai  layers sushiai  vision sushiai_vision)
+set(SUSHIAI_MODULE_TIERS
+    core core  version core  graph core  config core  autograd core  optim core  data core
+    eager core  nn layers  io layers  train layers  umbrella layers
+    vision/imaging vision  vision/detect vision  vision/blocks vision  vision/datasets vision
+    vision/registration vision  vision/umbrella vision)
+set(SUSHIAI_TIER_EXCEPTIONS "")   # consumer dependency date reason
+```
+
+Every domain tier ranks one above `layers`; an edge between two different domain tiers is
+refused whatever the order says. A new domain is one word in the first three lists and its
+module rows.
+
+`cmake/SushiAIModule.cmake`:
+
+```cmake
+sushiai_add_module(
+    NAME <module>  TIER <tier>
+    [TYPE OBJECT|INTERFACE]            # OBJECT when SOURCES are given, else INTERFACE
+    [SOURCES source/<file>.cpp ...]
+    [PUBLIC_DEPENDS <key> ...]  [PRIVATE_DEPENDS <key> ...]     # keys of SUSHIAI_MODULE_TIERS
+    [EXTERNAL_PUBLIC <target> ...]
+    [EXTERNAL_PRIVATE_INCLUDES <target> ...]   # include directories and definitions as values
+    [TESTS tests/<file>.cpp ...])
+
+sushiai_add_library(
+    NAME <target>  EXPORT_NAME <name>  TIERS <tier> ...
+    UMBRELLA <module key> <header below its include root>
+    [DEPENDS <library target> ...])
+```
+
+`sushiai_add_module` makes target `sushiai_<key with _ for />`, checks NAME and TIER against
+the table and each dependency edge against the order, sets the include roots, applies the build
+policy and SYCL, installs the headers, and appends the objects, the include root and the test
+files to global properties of the tier's library. `sushiai_add_library` makes the STATIC archive
+from those objects, links `SushiRuntime::SushiRuntime` and `SushiBLAS::sushiblas` PUBLIC, runs
+the umbrella check, and installs into `SushiAITargets`. `modules/CMakeLists.txt` calls it twice:
+`sushiai` (EXPORT_NAME `sushiai`, tiers `core layers`) and, under `SA_BUILD_VISION`,
+`sushiai_vision` (EXPORT_NAME `vision`, tier `vision`, DEPENDS `sushiai`).
+
+Declared dependencies, from 2.1 (header include: PUBLIC; source only: PRIVATE):
+
+| Module | PUBLIC | PRIVATE or external |
+| --- | --- | --- |
+| `core` | | EXTERNAL_PUBLIC SushiRuntime, SushiBLAS |
+| `version` | | |
+| `graph`, `config` | core | `config`: EXTERNAL_PRIVATE_INCLUDES `nlohmann_json::nlohmann_json` |
+| `autograd` | core graph | |
+| `optim` | core graph config | |
+| `data` | core config | |
+| `eager` | core graph autograd | |
+| `nn` | core graph config | |
+| `io` | core nn | |
+| `train` | core graph config data optim nn | PRIVATE autograd |
+| `umbrella` | every core and layers module | INTERFACE |
+| `vision/imaging` | | PRIVATE core |
+| `vision/detect` | | PRIVATE core; EXTERNAL_PUBLIC SushiRuntime |
+| `vision/blocks` | core graph nn | PRIVATE config |
+| `vision/datasets` | core config data | |
+| `vision/registration` | core | PRIVATE data nn vision/blocks vision/datasets |
+| `vision/umbrella` | the five other vision modules | INTERFACE |
+
+A module can include only what it declares, because each module has its own include root. The
+test binaries link the libraries and see every root; the layering checker covers them.
+
+## 6. Waves
+
+Dispatch rows: `haiku medium` for a spec-complete edit of one or two files, `haiku high` for a
+spec-complete edit of many files, `opus low` for integration or judgment. Every dispatch opens
+with the seven lines of the owner's "Delegation" section and sets model and effort.
+
+### Wave 0: the starting point (orchestrator)
+
+- O0.1 Create branch `refactor/repository-layout` from `main`.
+- O0.2 Stage by path and commit the phase 3 and 4 work as it stands, marked unbuilt in the
+  message (Q6). `docs/guides/CLI_GUIDE.md` and `docs/agent/2026_10_05_ESTATE_AUDIT/` stay out.
+
+### Wave 1: the tree and the build files (orchestrator)
+
+O1.1 Write `cmake/SushiAILayers.cmake` and `cmake/SushiAIModule.cmake` as in section 5.
+
+O1.2 Move with `git mv`, one script in the scratchpad, rules applied in this order. `<t>` is the
+tier of module `<m>` in section 4.
+
+| # | From | To |
+| --- | --- | --- |
+| 1 | `include/SushiAI/vision/<m>/README.md` | `modules/vision/<m>/README.md` |
+| 2 | `include/SushiAI/vision/<m>/**` | `modules/vision/<m>/include/SushiAI/vision/<m>/**` |
+| 3 | `src/vision/<m>/**` | `modules/vision/<m>/source/**` |
+| 4 | `include/SushiAI/vision/registration.hpp`, `src/vision/registration.cpp` | `modules/vision/registration/include/SushiAI/vision/registration.hpp`, `.../source/registration.cpp` |
+| 5 | `include/SushiAI/vision/vision.h` | `modules/vision/umbrella/include/SushiAI/vision/vision.h` |
+| 6 | `include/SushiAI/<m>/README.md` | `modules/<t>/<m>/README.md` |
+| 7 | `include/SushiAI/<m>/**` | `modules/<t>/<m>/include/SushiAI/<m>/**` |
+| 8 | `src/<m>/**` | `modules/<t>/<m>/source/**` |
+| 9 | `include/SushiAI/version.hpp`, `src/version.cpp` | `modules/core/version/include/SushiAI/version.hpp`, `.../source/version.cpp` |
+| 10 | `include/SushiAI/SushiAI.h` | `modules/layers/umbrella/include/SushiAI/SushiAI.h` |
+| 11 | `tests/vision/test_imaging_*`, `test_detect_*`, `test_block_*` | `modules/vision/{imaging,detect,blocks}/tests/` |
+| 12 | `tests/vision/test_registration.cpp`, `test_datasets_mnist.cpp` | `modules/vision/registration/tests/` |
+| 13 | each of the 48 unit files of 2.3 | `modules/<t>/<m>/tests/` |
+| 14 | `tests/functional/{unit,integration,regression}/**` that remain | `tests/{unit,integration,regression}/**` |
+| 15 | `apps/**` | `applications/programs/**`, sources under `source/` |
+| 16 | `examples/**` | `applications/examples/**`, the two `.cpp` under `source/` |
+| 17 | `Doxyfile` | `.config/doxygen/Doxyfile` (Q5) |
+
+File names do not change. Rule 13 takes its list from the rule of 2.3, printed by the script
+and pasted into the report. After the moves `include/`, `src/`, `apps/`, `examples/`,
+`tests/functional/` and `tests/vision/` do not exist.
+
+O1.3 Write the build files: root `CMakeLists.txt` (subdirectories `modules`, `applications`,
+`tests`; version check path), `modules/CMakeLists.txt`, three tier lists, 18 module files,
+`applications/CMakeLists.txt` with `programs/` and `examples/`, `tests/CMakeLists.txt` (two
+binaries from the properties of section 5 plus the 34 root files, include root `tests/`,
+`SA_TEST_FIXTURE_DIR`), the messages of `tests/package/CMakeLists.txt`. Delete
+`src/CMakeLists.txt`, `src/vision/CMakeLists.txt`, `tests/vision/CMakeLists.txt`,
+`apps/CMakeLists.txt`, `examples/CMakeLists.txt`. Each comment of the old files that states a
+reason moves to the function or file that now does the thing.
+
+O1.4 Run the move script over column 1 of `tools/contract/site_classes.tsv` (401 rows). Set
+`INPUT` in the Doxyfile to `modules` with `EXCLUDE_PATTERNS` `*/source/* */tests/*`. Add
+`.gitattributes` after SushiBLAS's.
+
+### Wave 2: the includes that the move breaks (3 tasks, parallel, after wave 1)
+
+| Id | Files | Does | Acceptance | Dispatch |
+| --- | --- | --- | --- | --- |
+| T2.1 | the two umbrella headers | Rewrites each `#include "<path>"` as `#include <SushiAI/<path>>` (`<SushiAI/vision/<path>>` in `vision.h`) | 112 and 43 angle includes, 0 quoted; a pasted loop shows each resolves under one `modules/*/*/include` | haiku medium |
+| T2.2 | every `.cpp` and `.hpp` under `tests/` and `modules/*/*/tests/` that includes `"../common/` or `"../../common/` | Rewrites those includes as `<common/<name>.hpp>`; includes between files of `tests/common` stay | `grep -rn '"\.\./' tests modules` prints nothing; the count of rewritten lines is pasted | haiku high |
+| T2.3 | `cli/sushiai/cli.py`, `cli/sushiai/services/project.py`, `cli/sushistack.deps.toml`, `cli/README.md`, the `cli/tests` files that assert those strings | Doxyfile path, the epilogs, the two messages, per the move table (Q7) | `python -m pytest cli/tests -q` pasted, with any test that starts a build named and skipped | haiku high |
+
+Rule 6 of the dispatch block cannot run here: `compile_commands.json` names the old paths until
+the owner configures. The greps above stand in, and build B1 is the compile.
+
+**Build B1 (owner).** `sa build`, `sa run sushiai_tests`, `sa run sushiai_vision_tests`,
+`sa test`, `sa test --suite package`, then one configure with `SA_BUILD_VISION=OFF`. It
+confirms: OBJECT modules take `add_sycl_to_target` and `-fsycl`; every declared dependency of
+section 5 is enough to compile its module; the test counts match the last run (1881 and the
+vision count); the export set names `SushiAI::sushiai` and `SushiAI::vision` and neither
+`nlohmann_json` nor a `sushiai_<module>` target; an install holds no `source/` or `tests/` file.
+
+### Wave 3: checkers, READMEs, comments (9 tasks, after B1 passes)
+
+| Id | Files | Does | Acceptance | Dispatch |
+| --- | --- | --- | --- | --- |
+| T3.1 | `tools/layering/check_layering.py`, `tools/tests/test_check_layering.py` | Discovers `modules/<tier>/<module>/` as the shared checker does; resolves `<SushiAI/<m>/..>`, `<SushiAI/<domain>/<m>/..>` and the four root headers to modules; rules `declared_tiers`, `upward_includes`, `cross_domain_includes`, `private_reach`; root `tests/` and `applications/` as scopes above every tier | unittest output pasted; the checker on `.` reports 0 findings or each finding is listed | opus low |
+| T3.2 | `tools/contract/check_contract.py`, `tools/tests/test_check_contract.py`, `tools/contract/README.md` | Roots become `modules` and `applications`; a module's `tests/` is not a library site | unittest output pasted; the checker on `.` matches all 401 rows | opus low |
+| T3.3 | `README.md` of the 8 core-tier modules | Writes 7, updates `eager`: owns, depends on (from its `CMakeLists.txt`), public entry points | `check_docs_layout.py --rule module_readmes` pasted | haiku high |
+| T3.4 | `README.md` of the 4 layers-tier modules | Writes 3, updates `nn` | as T3.3 | haiku high |
+| T3.5 | `README.md` of the 6 vision modules | Writes 4, updates `imaging` and `detect` | as T3.3 | haiku high |
+| T3.6 | comments in `modules/core/**` and `modules/layers/**` | Applies the move table to every path a comment names; a comment about a deleted CMake file names its successor from the list in the dispatch | grep for the old roots prints nothing; `check_source_comments.py` pasted | haiku high |
+| T3.7 | comments in `modules/vision/**`, `applications/**` and their READMEs | as T3.6 | as T3.6 | haiku high |
+| T3.8 | comments in `tests/**`, `tests/*/README.md`, comments of `tests/CMakeLists.txt` excluded | as T3.6; `tests/unit/README.md` loses the rows of the 48 moved files | as T3.6 | haiku high |
+| T3.9 | reads everything waves 1 to 3 wrote | Reviews SOLID shape (one function per concern in `SushiAIModule.cmake`, sibling module files shaped the same) and humanizer register of the READMEs, as named items; runs the four checkers and the tool unittests | findings listed with file and line; outputs pasted | opus low |
+
+T3.1 to T3.8 hold disjoint files and run together; T3.9 runs after them.
+
+Orchestrator after the tasks: O3.1 the manual and design (`ARCHITECTURE.md`, `CONTRIBUTING.md`,
+`KNOWN_ISSUES.md`, `ROADMAP.md`, `FAQ.md`, `TUTORIAL.md`, `SECURITY.md`, `MODEL_FILE.md`,
+`GLOSSARY.md`, `INTEGRATION.md`, `docs/README.md`, root `README.md`, `NOTICE.md`), the status
+and paths of `DOMAIN_MODULES.md`, `REMAINING_WORK.md`; O3.2 the comments of `ci.yml` and
+`.gitignore`; O3.3 changelog lines, one per scope; O3.4 `REPORT.md`; O3.5 a note to the session
+that owns `CLI_GUIDE.md` with the lines of 2.4.
+
+**Build B2 (owner).** `sa build`, `sa test`, `sa test --suite package`, `sa doxygen`. It closes
+the work. Two builds in all.
+
+## 7. Commits
+
+One commit per step that builds on its own: the wave 0 commit; wave 1 and wave 2 together after
+B1 (the renames with the build files and the include edits, since no part compiles alone);
+wave 3 with the documents after B2.
+
+## 8. Questions for the owner
+
+| # | Question | Recommendation |
+| --- | --- | --- |
+| Q1 | Module target type. STATIC per module exports 16 archives and makes `SushiAI::sushiai` an INTERFACE over them. OBJECT per module keeps two archives and the export set as it is | OBJECT, aggregated by `sushiai_add_library`. If B1 shows `add_sycl_to_target` refuses an OBJECT library, fall back to STATIC and ask again |
+| Q2 | Home of the six files of 2.2. An umbrella cannot live in a module it includes above, and `modules/include/` would be read as a tier by two checkers | Four small modules: `core/version`, `layers/umbrella`, `vision/registration`, `vision/umbrella`; 18 modules in all, include paths unchanged |
+| Q3 | Shared test support. A quoted `"../../common/x.hpp"` from a module's `tests/` leaves the module, which the shared `private_reach` rule refuses | Keep `tests/common/`, put `tests/` on the include path of both binaries, include as `<common/x.hpp>` |
+| Q4 | Shape inside `applications/` | `applications/programs/` (train, inference, the registration files) and `applications/examples/` (the two examples and the three configuration folders), as SushiBLAS has `applications/examples/` |
+| Q5 | Home of `Doxyfile`. The skill forbids the root; both siblings keep `.config/doxygen/Doxyfile`; `.gitignore` here says `docs/Doxyfile`; `.config/` is not on the skill's root list | `.config/doxygen/Doxyfile`, with the CLI path changed in T2.3 |
+| Q6 | Commit the unbuilt phase 3 and 4 work before the move | Yes, as its own commit on the branch, so the move commit is renames and `git log --follow` holds |
+| Q7 | May T2.3 edit `cli/sushiai/*.py`, given another session holds `CLI_GUIDE.md` | Yes, for the Doxyfile path, three epilogs and two messages only |
+
+**Decided on 2026-10-09** by the engineer the owner delegated these to, after his ruling that
+the whole repository follows the skill: every question takes its recommendation, except that
+the work stays on `main` (another session shares the working tree), so O0.1 is dropped.
+
+Already ruled and not asked: the local `check_layering.py` diverges from the shared copy, whose
+include pattern reads `<SushiAI/vision/detect/x.hpp>` as module `vision` and whose module map is
+keyed by bare folder name; carrying the change to SushiSkills stays a backlog line.
+
+## 9. Not verified
+
+- Nothing was configured, built or run. The dependency table of section 5 comes from includes.
+- Whether `add_sycl_to_target` and `-fsycl` work on OBJECT libraries with either SYCL toolchain.
+- Whether an OBJECT module with `$<BUILD_INTERFACE:...>` include roots and PUBLIC links to other
+  OBJECT modules leaves the export set clean; B1's package suite decides.
+- The `SushiRuntime` DLL copy, `gtest_discover_tests` and the three `add_test` application
+  cases were read, not rerun against the new paths.
+- `cli/tests` were listed, not read; which of them assert the strings T2.3 changes is unknown.
+- The uncommitted phase 3 and 4 C++ was not read line by line; `git diff --stat` and the CMake
+  files were.
+- Configuration files under `examples/` were not opened for paths that leave their folder.
+- `tools/tests/test_check_contract.py` (65 path lines) and `test_naming.py` (36) were counted,
+  not read.
+- SushiBLAS's `.gitattributes` exists; its content was not read. SushiEngine has none.
+- Whether `check_docs_layout.py` accepts links from the manual into `modules/`.
+- Test counts per module follow the include rule of 2.3; no test body was read to confirm what
+  it exercises, apart from `test_datasets_mnist.cpp`.
