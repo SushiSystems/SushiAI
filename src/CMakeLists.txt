@@ -78,12 +78,6 @@ set(SUSHIAI_SOURCES
     nn/node_attributes.cpp
     nn/silu.cpp
     nn/trace.cpp
-    vision/blocks/bottleneck.cpp
-    vision/blocks/c3k.cpp
-    vision/blocks/c3k2.cpp
-    vision/blocks/conv_norm.cpp
-    vision/blocks/sppf.cpp
-    vision/registration.cpp
 
     optim/optimizer.cpp
     optim/step_scalars.cpp
@@ -95,42 +89,6 @@ set(SUSHIAI_SOURCES
     data/dataset.cpp
     data/dataset_registry.cpp
     data/materialised_dataset.cpp
-    vision/datasets/mnist.cpp
-
-    vision/detect/anchors.cpp
-    vision/detect/assigner.cpp
-    vision/detect/assigner_config.cpp
-    vision/detect/box_coding.cpp
-    vision/detect/box_format.cpp
-    vision/detect/detections_nms.cpp
-    vision/detect/detections_topk.cpp
-    vision/detect/ground_truth.cpp
-    vision/detect/iou.cpp
-    vision/detect/level_rows.cpp
-    vision/detect/target_leaves.cpp
-    vision/detect/top_k.cpp
-    vision/detect/anchor_leaves.cpp
-    vision/detect/average_precision.cpp
-
-    vision/imaging/affine.cpp
-    vision/imaging/boxes.cpp
-    vision/imaging/flip.cpp
-    vision/imaging/hsv.cpp
-    vision/imaging/image.cpp
-    vision/imaging/labels.cpp
-    vision/imaging/letterbox.cpp
-    vision/imaging/mosaic.cpp
-    vision/imaging/pipeline.cpp
-    vision/imaging/random.cpp
-    vision/imaging/raw_cache.cpp
-    vision/imaging/resize.cpp
-    vision/imaging/bilinear.cpp
-    vision/imaging/dataset_partners.cpp
-    vision/imaging/gray.cpp
-    vision/imaging/label_set.cpp
-    vision/imaging/polygon.cpp
-    vision/imaging/recent_partners.cpp
-    vision/imaging/rectangle.cpp
 
     eager/scope_trace.cpp
     eager/scope_partitioner.cpp
@@ -233,9 +191,17 @@ install(TARGETS sushiai
     INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
+# A build without the vision domain installs none of its headers.
+if(SA_BUILD_VISION)
+    install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+    )
+else()
+    install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+        PATTERN "vision" EXCLUDE
+    )
+endif()
 
 # --- The umbrella must name every installed header --------------------------
 #
@@ -267,6 +233,9 @@ file(GLOB_RECURSE SUSHIAI_PUBLIC_HEADERS CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/include/SushiAI/*.hpp"
 )
 
+# The headers of a domain are named by the domain's own umbrella; see src/vision/.
+list(FILTER SUSHIAI_PUBLIC_HEADERS EXCLUDE REGEX "^vision/")
+
 file(READ "${PROJECT_SOURCE_DIR}/include/SushiAI/SushiAI.h" SUSHIAI_UMBRELLA_TEXT)
 
 set(SUSHIAI_UNREFERENCED_HEADERS "")
@@ -287,6 +256,12 @@ if(SUSHIAI_UNREFERENCED_HEADERS)
         "would never compile them, and nothing else in this repo would notice. "
         "Add each to the umbrella, or move it out of the installed include "
         "tree if it is not public.")
+endif()
+
+# --- Domains ---
+# A domain is its own target in the same export set; see docs/design/DOMAIN_MODULES.md.
+if(SA_BUILD_VISION)
+    add_subdirectory(vision)
 endif()
 
 install(EXPORT SushiAITargets

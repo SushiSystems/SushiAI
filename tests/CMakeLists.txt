@@ -74,36 +74,9 @@ add_executable(sushiai_tests
     functional/unit/test_leaky_relu.cpp
     functional/unit/test_upsample2d.cpp
     functional/unit/test_layer_registry.cpp
-    vision/test_detect_anchors.cpp
-    vision/test_detect_assigner.cpp
-    vision/test_detect_boxes.cpp
-    vision/test_detect_postprocess.cpp
     functional/unit/test_elementwise_ops.cpp
-    vision/test_imaging_affine.cpp
-    vision/test_imaging_boxes.cpp
-    vision/test_imaging_flip.cpp
-    vision/test_imaging_hsv.cpp
-    vision/test_imaging_image.cpp
-    vision/test_imaging_labels.cpp
-    vision/test_imaging_letterbox.cpp
-    vision/test_imaging_mosaic.cpp
-    vision/test_imaging_pipeline.cpp
-    vision/test_imaging_random.cpp
-    vision/test_imaging_raw_cache.cpp
-    vision/test_imaging_resize.cpp
     functional/unit/test_loss_roots.cpp
-    vision/test_detect_average_precision.cpp
-    vision/test_imaging_gray.cpp
-    vision/test_imaging_label_set.cpp
-    vision/test_imaging_partners.cpp
-    vision/test_imaging_polygon.cpp
-    vision/test_imaging_rectangle.cpp
     functional/unit/test_batch_norm2d.cpp
-    vision/test_block_bottleneck.cpp
-    vision/test_block_c3k.cpp
-    vision/test_block_c3k2.cpp
-    vision/test_block_conv_norm.cpp
-    vision/test_block_sppf.cpp
     functional/unit/test_buffer.cpp
     functional/unit/test_concat.cpp
     functional/unit/test_identity.cpp
@@ -113,8 +86,6 @@ add_executable(sushiai_tests
     functional/unit/test_node.cpp
     functional/unit/test_node_registry.cpp
     functional/unit/test_dataset_registry.cpp
-    vision/test_registration.cpp
-    vision/test_datasets_mnist.cpp
     functional/unit/test_silu.cpp
     functional/unit/test_step_recorder.cpp
     functional/unit/test_seam.cpp
@@ -199,15 +170,18 @@ gtest_discover_tests(sushiai_tests
 # The regex's trailing [^0-9] is load-bearing: CMake's regex has no multiline
 # mode, so `$` would anchor to the end of the whole output rather than the end
 # of the line, and without it "compiles : 12" would satisfy a bare "...: 1".
-add_test(NAME Integration_Demo.MlpRunsAndReportsOneCompile
-    COMMAND sushiai_demo_mlp
-        --epochs 1 --batches 2 --batch-size 8 --hidden 16
-        --features 6 --classes 4 --mnist-dir does-not-exist
-)
-set_tests_properties(Integration_Demo.MlpRunsAndReportsOneCompile PROPERTIES
-    LABELS "integration"
-    PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
-)
+# The demo reads MNIST, so it exists only in a build with the vision domain.
+if(TARGET sushiai_demo_mlp)
+    add_test(NAME Integration_Demo.MlpRunsAndReportsOneCompile
+        COMMAND sushiai_demo_mlp
+            --epochs 1 --batches 2 --batch-size 8 --hidden 16
+            --features 6 --classes 4 --mnist-dir does-not-exist
+    )
+    set_tests_properties(Integration_Demo.MlpRunsAndReportsOneCompile PROPERTIES
+        LABELS "integration"
+        PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
+    )
+endif()
 
 # --- The `sushiai train` / `sushiai inference` smoke tests ---
 # Two separate tests, not one chained round trip: a single test that trained
@@ -266,4 +240,9 @@ if(WIN32)
             $<TARGET_FILE_DIR:sushiai_tests>
         COMMENT "Copying runtime DLL to test directory..."
     )
+endif()
+
+# --- The vision domain's suite ---
+if(SA_BUILD_VISION)
+    add_subdirectory(vision)
 endif()

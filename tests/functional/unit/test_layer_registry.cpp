@@ -56,13 +56,18 @@
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
+#include "../../common/model_text.hpp"
 #include "../../common/test_status.hpp"
 #include "../../common/test_throws.hpp"
+#include "../../common/test_utils.hpp"
 
 using namespace SushiAI;
 
 namespace
 {
+    using Test::attributes_from;
+    using Test::make_layer_registry;
+
     /** @brief Holds the unflatten, conv, pool, conv, pool, linear classifier as a model file. */
     constexpr std::string_view K_CONV_MODEL = R"({
         "sushiai_model": 1,
@@ -113,20 +118,6 @@ namespace
         {"upsample", "{}", Shape{8, 8, 2}, Shape{16, 16, 2}},
         {"silu", "{}", Shape{8, 8, 2}, Shape{8, 8, 2}},
     };
-
-    /** @brief Parses @p text as the attributes of one layer. */
-    Config::Value attributes_from(std::string_view text)
-    {
-        return Config::parse_json(text, "<test>");
-    }
-
-    /** @brief Builds a registry holding the rows register_layers adds, one fresh copy per call. */
-    NN::NodeRegistry make_layer_registry()
-    {
-        NN::NodeRegistry registry;
-        SA_EXPECT_OK(NN::register_layers(registry));
-        return registry;
-    }
 
     /** @brief Builds the layer @p type names from @p attributes, as "layer 0 '<type>'". */
     std::unique_ptr<NN::Layer> make_layer(std::string_view type, std::string_view attributes,

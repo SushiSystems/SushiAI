@@ -124,3 +124,17 @@ set_target_properties(sushiai_package_consumer PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
+
+# --- The vision domain, when the installed package carries it ---
+if(TARGET SushiAI::vision)
+    add_executable(sushiai_package_vision_consumer vision_main.cpp)
+
+    target_link_libraries(sushiai_package_vision_consumer PRIVATE
+        SushiAI::vision
+    )
+
+    set_target_properties(sushiai_package_vision_consumer PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+endif()

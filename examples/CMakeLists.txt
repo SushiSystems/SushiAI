@@ -15,7 +15,7 @@ add_executable(sushiai_example example.cpp)
 add_executable(sushiai_demo_mlp demo_mlp.cpp)
 
 foreach(target IN LISTS SUSHIAI_EXAMPLE_TARGETS)
-    target_link_libraries(${target} PRIVATE sushiai)
+    target_link_libraries(${target} PRIVATE sushiai sushiai_vision)
     sushiai_apply_build_policy(${target})
 
     # --- Post-Build: Copy the runtime DLL to the output directory ---

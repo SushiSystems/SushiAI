@@ -35,6 +35,7 @@
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiAI/vision/registration.hpp>
+#include "../common/model_text.hpp"
 #include "../common/test_status.hpp"
 #include "../common/test_throws.hpp"
 #include "../common/test_utils.hpp"
@@ -61,11 +62,7 @@ namespace
             Data::DatasetRegistry datasets;
     };
 
-    /** @brief Parses @p text as a bare attribute object. */
-    Config::Value attributes_from(std::string_view text)
-    {
-        return Config::parse_json(text, "<test>");
-    }
+    using Test::attributes_from;
 } // namespace
 
 /** @brief Tests that the dataset registry carries a row named "mnist". */

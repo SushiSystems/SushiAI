@@ -11,11 +11,21 @@
 # directory where it can be checked in one place.
 set(SUSHIAI_APP_TARGETS sushiai_train sushiai_inference)
 
-add_executable(sushiai_train train.cpp registries.cpp)
-add_executable(sushiai_inference inference.cpp registries.cpp)
+# The domains a program registers are chosen here, at link time; no source holds an #if.
+if(SA_BUILD_VISION)
+    set(SUSHIAI_APP_DOMAINS domains_vision.cpp)
+else()
+    set(SUSHIAI_APP_DOMAINS domains_none.cpp)
+endif()
+
+add_executable(sushiai_train train.cpp registries.cpp ${SUSHIAI_APP_DOMAINS})
+add_executable(sushiai_inference inference.cpp registries.cpp ${SUSHIAI_APP_DOMAINS})
 
 foreach(target IN LISTS SUSHIAI_APP_TARGETS)
     target_link_libraries(${target} PRIVATE sushiai)
+    if(SA_BUILD_VISION)
+        target_link_libraries(${target} PRIVATE sushiai_vision)
+    endif()
     sushiai_apply_build_policy(${target})
 
     # --- Post-Build: Copy the runtime DLL to the output directory ---
