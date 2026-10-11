@@ -31,6 +31,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/data/dataset_registry.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 #include <common/model_text.hpp>
 #include <common/test_utils.hpp>
 #include <common/test_status.hpp>
@@ -57,6 +59,25 @@ namespace
     };
 
     using Test::attributes_from;
+
+    /** @brief Returns the class count the labels role of @p dataset states, or -1. */
+    int64_t class_count(const Data::Dataset& dataset)
+    {
+        const Data::TargetDescription* labels =
+            Data::find_target(dataset.targets(), Data::K_ROLE_LABELS);
+        return labels != nullptr ? labels->classes : -1;
+    }
+
+    /** @brief Returns the class index of every sample of @p batch, or nothing. */
+    std::vector<int32_t> labels_of(const Data::Batch& batch)
+    {
+        const Data::BatchTarget* labels = Data::find_target(batch.targets, Data::K_ROLE_LABELS);
+        if (labels == nullptr || labels->values.dtype != DType::Int32)
+            return {};
+
+        const int32_t* values = labels->values.data_as<int32_t>();
+        return std::vector<int32_t>(values, values + labels->values.num_elements);
+    }
 }
 
 TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
@@ -68,14 +89,45 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
                             Data::Rings::make(*engine, options));
 
     EXPECT_EQ(dataset->name(), "rings");
-    EXPECT_EQ(dataset->input_dim(), 6);         // x, y and four distractors
-    EXPECT_EQ(dataset->num_classes(), 4);
+    EXPECT_EQ(dataset->sample_shape(), Shape{6});   // x, y and four distractors
+    EXPECT_EQ(class_count(*dataset), 4);
     EXPECT_EQ(dataset->batch_count(), 4u);
 
     // Round-robin labels balance every batch; see tests/integration/README.md.
     std::vector<int> counts(4, 0);
-    for (int32_t label : dataset->batch(0).labels) ++counts[static_cast<std::size_t>(label)];
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    const std::vector<int32_t> labels = labels_of(dataset_batch);
+    ASSERT_EQ(labels.size(), 32u);
+    for (int32_t label : labels) ++counts[static_cast<std::size_t>(label)];
     EXPECT_EQ(counts, (std::vector<int>{8, 8, 8, 8}));
+}
+
+/** @brief Tests that Rings publishes one role: labels, one int32 per sample over its classes. */
+TEST_F(Integration_Registries, RingsPublishesItsLabelsAsOneIndexPerSample)
+{
+    Data::RingsOptions options;
+    options.batch_size = 8;
+    options.batches = 1;
+    options.classes = 3;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
+                            Data::Rings::make(*engine, options));
+
+    ASSERT_EQ(dataset->targets().size(), 1u);
+    const Data::TargetDescription& described = dataset->targets().front();
+    EXPECT_EQ(described.role, Data::K_ROLE_LABELS);
+    EXPECT_EQ(described.sample_shape, Shape{});
+    EXPECT_EQ(described.dtype, DType::Int32);
+    EXPECT_EQ(described.classes, 3);
+
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
+    ASSERT_EQ(batch.targets.size(), 1u);
+    EXPECT_EQ(batch.targets.front().role, Data::K_ROLE_LABELS);
+    EXPECT_EQ(batch.targets.front().values.dtype, DType::Int32);
+    ASSERT_EQ(batch.targets.front().values.rank, 1);
+    EXPECT_EQ(batch.targets.front().values.shape[0], 8);
+    EXPECT_EQ(labels_of(batch), (std::vector<int32_t>{0, 1, 2, 0, 1, 2, 0, 1}));
 }
 
 TEST_F(Integration_Registries, RingsReportItsSampleShape)
@@ -88,10 +140,11 @@ TEST_F(Integration_Registries, RingsReportItsSampleShape)
 
     // The default options add four distractors to the two ring coordinates.
     EXPECT_EQ(dataset->sample_shape(), Shape{6});
-    EXPECT_EQ(dataset->sample_shape().num_elements(), dataset->input_dim());
 
     // The batch axis is prepended: [rows, sample...], here [8, 6].
-    const SushiBLAS::Tensor& inputs = dataset->batch(0).inputs;
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    const SushiBLAS::Tensor& inputs = dataset_batch.inputs;
     EXPECT_EQ(inputs.rank, 2);
     EXPECT_EQ(inputs.shape[0], 8);
     EXPECT_EQ(inputs.shape[1], 6);
@@ -107,16 +160,19 @@ TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
                             Data::Rings::make(*engine, options));
 
-    const Data::Batch& batch = dataset->batch(0);
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
     const float* x = batch.inputs.data_as<float>();
-    const int64_t features = dataset->input_dim();
+    const int64_t features = dataset->sample_shape().num_elements();
+    const std::vector<int32_t> labels = labels_of(batch);
+    ASSERT_EQ(labels.size(), 64u);
 
-    for (std::size_t r = 0; r < batch.labels.size(); ++r)
+    for (std::size_t r = 0; r < labels.size(); ++r)
     {
         const double px = x[static_cast<int64_t>(r) * features];
         const double py = x[static_cast<int64_t>(r) * features + 1];
         const double radius = std::sqrt(px * px + py * py);
-        const double band = static_cast<double>(batch.labels[r]);
+        const double band = static_cast<double>(labels[r]);
 
         EXPECT_GE(radius, band - 1e-4) << "row " << r;
         EXPECT_LT(radius, band + options.ring_width + 1e-4) << "row " << r;
@@ -134,8 +190,8 @@ TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 
     EXPECT_EQ(dataset->batch_size(), 16);
     EXPECT_EQ(dataset->batch_count(), 2u);
-    EXPECT_EQ(dataset->num_classes(), 3);
-    EXPECT_EQ(dataset->input_dim(), 3);         // x, y and one distractor
+    EXPECT_EQ(class_count(*dataset), 3);
+    EXPECT_EQ(dataset->sample_shape(), Shape{3});   // x, y and one distractor
 }
 
 TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
@@ -151,9 +207,13 @@ TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> first, build());
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> second, build());
 
-    const float* a = first->batch(0).inputs.data_as<float>();
-    const float* b = second->batch(0).inputs.data_as<float>();
-    for (int64_t i = 0; i < first->batch(0).inputs.num_elements; ++i)
+    Data::Batch first_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(first->read(0, first_batch)));
+    const float* a = first_batch.inputs.data_as<float>();
+    Data::Batch second_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(second->read(0, second_batch)));
+    const float* b = second_batch.inputs.data_as<float>();
+    for (int64_t i = 0; i < first_batch.inputs.num_elements; ++i)
         EXPECT_EQ(a[i], b[i]) << "element " << i;
 }
 

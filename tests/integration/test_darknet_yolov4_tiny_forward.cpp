@@ -52,7 +52,7 @@ namespace
         parity.slots = 3;
         parity.suppression = 0.45f;
         parity.coding = SushiAI::Vision::Detect::Anchor::HeadCoding::Logit;
-        parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::DistanceIou;
+        parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::DistanceIoU;
         parity.distance_exponent = 0.6f;
         parity.bounds.head_absolute = 1e-3;
         parity.bounds.head_relative = 1e-4;
@@ -89,7 +89,7 @@ TEST_F(Integration_DarknetYolov4TinyForward, TheFoldedHeadsMatchTheDumpedHeads)
  *
  * The stretched logistic has a slope of at most 1.05 / 4, so the bound of the head holds after it.
  */
-TEST_F(Integration_DarknetYolov4TinyForward, TheHostYoloOutputsMatchTheDumpedLayers)
+TEST_F(Integration_DarknetYolov4TinyForward, TheHostYOLOOutputsMatchTheDumpedLayers)
 {
     SaTest::check_yolo_outputs(*engine, parity);
 }

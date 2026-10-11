@@ -52,7 +52,7 @@ namespace
         parity.slots = 3;
         parity.suppression = 0.45f;
         parity.coding = SushiAI::Vision::Detect::Anchor::HeadCoding::Logit;
-        parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::Iou;
+        parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::IoU;
         parity.bounds.head_absolute = 1e-3;
         parity.bounds.head_relative = 1e-4;
         parity.bounds.row_absolute = 1e-4;
@@ -87,7 +87,7 @@ TEST_F(Integration_DarknetYolov3TinyForward, TheFoldedHeadsMatchTheDumpedHeads)
  *
  * The logistic has a slope of at most a quarter, so the bound of the head holds after it.
  */
-TEST_F(Integration_DarknetYolov3TinyForward, TheHostYoloOutputsMatchTheDumpedLayers)
+TEST_F(Integration_DarknetYolov3TinyForward, TheHostYOLOOutputsMatchTheDumpedLayers)
 {
     SaTest::check_yolo_outputs(*engine, parity);
 }

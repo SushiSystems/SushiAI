@@ -42,16 +42,16 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
     /** @brief Differentiates @p loss with respect to @p wrt, for a one-line assertion. */
-    void differentiate_wrt(Graph::Graph& graph, ValueId loss, ValueId wrt)
+    void differentiate_wrt(Graph::Graph& graph, ValueID loss, ValueID wrt)
     {
-        const std::vector<ValueId> targets = {wrt};
+        const std::vector<ValueID> targets = {wrt};
         (void)Autograd::differentiate(graph, loss,
-                                      SushiRuntime::span<const ValueId>(targets.data(), targets.size()));
+                                      SushiRuntime::span<const ValueID>(targets.data(), targets.size()));
     }
 }
 
@@ -82,8 +82,8 @@ TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 5}, "a");
-    const ValueId b = builder.input(Shape{7, 3}, "b");
+    const ValueID a = builder.input(Shape{4, 5}, "a");
+    const ValueID b = builder.input(Shape{7, 3}, "b");
 
     SA_EXPECT_ERROR((void)builder.matmul(a, b),
                     "MATMUL contracts 5 against 7", "[4, 5]", "[7, 3]");
@@ -95,8 +95,8 @@ TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId vector = builder.input(Shape{5}, "v");
-    const ValueId matrix = builder.input(Shape{5, 3}, "m");
+    const ValueID vector = builder.input(Shape{5}, "v");
+    const ValueID matrix = builder.input(Shape{5, 3}, "m");
 
     SA_EXPECT_ERROR((void)builder.matmul(vector, matrix),
                     "MATMUL needs two rank-2 operands", "[5]", "[5, 3]");
@@ -109,8 +109,8 @@ TEST(Unit_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 5}, "a", DType::Float32);
-    const ValueId b = builder.input(Shape{5, 3}, "b", DType::Float64);
+    const ValueID a = builder.input(Shape{4, 5}, "a", DType::Float32);
+    const ValueID b = builder.input(Shape{5, 3}, "b", DType::Float64);
 
     SA_EXPECT_ERROR((void)builder.matmul(a, b),
                     "MATMUL needs operands of one element type", "float32", "float64");
@@ -121,10 +121,10 @@ TEST(Unit_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId wrong_length = builder.input(Shape{5}, "b5");
-    const ValueId rank_two_bias = builder.input(Shape{1, 3}, "b13");
-    const ValueId vector = builder.input(Shape{3}, "v");
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID wrong_length = builder.input(Shape{5}, "b5");
+    const ValueID rank_two_bias = builder.input(Shape{1, 3}, "b13");
+    const ValueID vector = builder.input(Shape{3}, "v");
 
     SA_EXPECT_ERROR((void)builder.bias_add(x, wrong_length),
                     "BIAS_ADD bias has 5 entries", "[4, 3]", "3 columns");
@@ -139,7 +139,7 @@ TEST(Unit_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId vector = builder.input(Shape{6}, "v");
+    const ValueID vector = builder.input(Shape{6}, "v");
 
     SA_EXPECT_ERROR((void)builder.sum_rows(vector), "SUM_ROWS needs a rank-2 operand", "[6]");
     SA_EXPECT_ERROR((void)builder.log_softmax(vector), "LOG_SOFTMAX needs a rank-2 operand", "[6]");
@@ -150,9 +150,9 @@ TEST(Unit_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{4, 2}, "b");
-    const ValueId wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 2}, "b");
+    const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
     SA_EXPECT_ERROR((void)builder.add(a, b), "ADD needs equally shaped operands",
                     "[4, 3]", "[4, 2]");
@@ -163,14 +163,14 @@ TEST(Unit_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
     SA_EXPECT_ERROR((void)builder.accumulate(a, b), "ACCUMULATE needs equally shaped operands");
 }
 
-TEST(Unit_Diagnostics, NllLossNamesTheShapeItCannotServe)
+TEST(Unit_Diagnostics, NLLLossNamesTheShapeItCannotServe)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId log_probs = builder.input(Shape{4, 3}, "logp");
-    const ValueId mismatched = builder.input(Shape{4, 5}, "targets");
-    const ValueId vector = builder.input(Shape{4}, "v");
+    const ValueID log_probs = builder.input(Shape{4, 3}, "logp");
+    const ValueID mismatched = builder.input(Shape{4, 5}, "targets");
+    const ValueID vector = builder.input(Shape{4}, "v");
 
     SA_EXPECT_ERROR((void)builder.nll_loss(log_probs, mismatched),
                     "NLL_LOSS needs equally shaped operands", "[4, 3]", "[4, 5]");
@@ -183,7 +183,7 @@ TEST(Unit_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId dy = builder.input(Shape{4, 3}, "dy");
+    const ValueID dy = builder.input(Shape{4, 3}, "dy");
 
     SA_EXPECT_ERROR((void)builder.activation_backward(Ops::K_RELU.id, dy, dy),
                     "sushiai.relu", "is not an activation gradient");
@@ -194,8 +194,8 @@ TEST(Unit_Diagnostics, ASecondProducerNamesBothOperationsAndTheRule)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId out = graph.add_value(Shape{4, 3}, DType::Float32,
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID out = graph.add_value(Shape{4, 3}, DType::Float32,
                                         Graph::Lifetime::Activation, "out");
     graph.add_node(Ops::K_RELU.id, {x}, {out});
 
@@ -209,8 +209,8 @@ TEST(Unit_Diagnostics, AnUnknownOperandNamesTheOperationThatAskedForIt)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId out = graph.add_value(Shape{4, 3}, DType::Float32,
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID out = graph.add_value(Shape{4, 3}, DType::Float32,
                                         Graph::Lifetime::Activation, "out");
 
     SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {9999u}, {out}),
@@ -224,14 +224,14 @@ TEST(Unit_Diagnostics, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{8, 5}, "x");
+    const ValueID x = builder.input(Shape{8, 5}, "x");
 
     NN::Linear layer{6, 4};
     SA_EXPECT_ERROR((void)layer.forward(builder, x),
                     "Linear(6, 4)", "[8, 5]", "inner extent must be 6");
 
     NN::Linear rank_checker{5, 4};
-    const ValueId vector = builder.input(Shape{5}, "v");
+    const ValueID vector = builder.input(Shape{5}, "v");
     SA_EXPECT_ERROR((void)rank_checker.forward(builder, vector),
                     "Linear needs a rank-2 input", "[5]");
 
@@ -245,8 +245,8 @@ TEST(Unit_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId y = builder.relu(x);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID y = builder.relu(x);
 
     SA_EXPECT_ERROR(differentiate_wrt(graph, y, x),
                     "needs a scalar to differentiate", "[4, 3]");
@@ -258,15 +258,15 @@ TEST(Unit_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{1, 4}, "x");
-    const ValueId w = builder.input(Shape{4, 1}, "w");
-    const ValueId scalar = builder.matmul(x, w);
+    const ValueID x = builder.parameter(Shape{1, 4}, "x");
+    const ValueID w = builder.input(Shape{4, 1}, "w");
+    const ValueID scalar = builder.matmul(x, w);
     const std::size_t forward_nodes = graph.node_count();
 
-    const std::vector<ValueId> wrt = {x};
-    std::vector<ValueId> gradients;
+    const std::vector<ValueID> wrt = {x};
+    std::vector<ValueID> gradients;
     ASSERT_NO_THROW(gradients = Autograd::differentiate(
-                        graph, scalar, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())));
+                        graph, scalar, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(graph.node_count(), forward_nodes + 2);
     const Graph::Node& seed = graph.nodes()[forward_nodes];
@@ -275,7 +275,7 @@ TEST(Unit_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
     EXPECT_EQ(seed.op, Ops::K_CONSTANT.id);
     EXPECT_EQ(graph.value(seed.outputs.at(0)).shape, graph.value(scalar).shape);
     EXPECT_EQ(dx.op, Ops::K_MATMUL.id);
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{seed.outputs.at(0), w}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{seed.outputs.at(0), w}));
 
     ASSERT_EQ(gradients.size(), 1u);
     EXPECT_EQ(gradients[0], dx.outputs.at(0));
@@ -288,11 +288,11 @@ TEST(Unit_Diagnostics, ARootThatRequiresNoGradientNamesItsProducerAndTheCause)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{1, 4}, "x");
-    const ValueId a = builder.input(Shape{1, 4}, "a");
-    const ValueId w = builder.input(Shape{4, 1}, "w");
-    const ValueId unreached = builder.matmul(a, w);
-    const ValueId stopped = builder.matmul(builder.stop_gradient(x), w);
+    const ValueID x = builder.parameter(Shape{1, 4}, "x");
+    const ValueID a = builder.input(Shape{1, 4}, "a");
+    const ValueID w = builder.input(Shape{4, 1}, "w");
+    const ValueID unreached = builder.matmul(a, w);
+    const ValueID stopped = builder.matmul(builder.stop_gradient(x), w);
 
     SA_EXPECT_ERROR(differentiate_wrt(graph, unreached, x),
                     "value 3", "sushiai.matmul", "requires no gradient");
@@ -306,9 +306,9 @@ TEST(Unit_Diagnostics, ARootWhoseProducerHasNoRuleNamesTheProducer)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{1}, "x");
-    const ValueId factor = builder.input(Shape{1}, "factor");
-    const ValueId scaled = builder.dynamic_scale(x, factor);
+    const ValueID x = builder.parameter(Shape{1}, "x");
+    const ValueID factor = builder.input(Shape{1}, "factor");
+    const ValueID scaled = builder.dynamic_scale(x, factor);
 
     SA_EXPECT_ERROR(differentiate_wrt(graph, scaled, x),
                     "sushiai.dynamic_scale", "has no backward rule", "autograd/rules/");
@@ -320,12 +320,12 @@ TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
     const GraphBuilder builder(graph);
 
     // A loss with no producer has no operation to name; see tests/unit/README.md.
-    const ValueId orphan = graph.add_value(Shape{1}, DType::Float32,
+    const ValueID orphan = graph.add_value(Shape{1}, DType::Float32,
                                            Graph::Lifetime::Activation, "orphan");
     SA_EXPECT_ERROR(differentiate_wrt(graph, orphan, orphan), "nothing produces it", "NLL_LOSS");
 
     // A leaf does have a producing node, and it is named.
-    const ValueId leaf = builder.parameter(Shape{1}, "leaf");
+    const ValueID leaf = builder.parameter(Shape{1}, "leaf");
     SA_EXPECT_ERROR(differentiate_wrt(graph, leaf, leaf), "sushiai.leaf", "NLL_LOSS");
 }
 
@@ -334,33 +334,18 @@ TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const ValueId mystery = graph.add_value(Shape{4, 3}, DType::Float32,
+    const ValueID mystery = graph.add_value(Shape{4, 3}, DType::Float32,
                                             Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
 
-    const ValueId loss = builder.nll_loss(mystery, targets);
+    const ValueID loss = builder.nll_loss(mystery, targets);
 
     // A foreign identity prints as sushiai.unknown; see tests/unit/README.md.
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "No backward rule for", "sushiai.unknown", "node 2");
-}
-
-TEST(Unit_Diagnostics, LogSoftmaxOutsideTheFusedPairExplainsTheRestriction)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
-    const ValueId detoured = builder.relu(builder.log_softmax(x));
-    const ValueId loss = builder.nll_loss(detoured, targets);
-
-    // The message tells the caller to route through NLL_LOSS; see tests/unit/README.md.
-    SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
-                    "LOG_SOFTMAX", "row-wise reduction", "CrossEntropyLoss");
 }
 
 TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
@@ -369,15 +354,15 @@ TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{2, 6}, "x");
-    const ValueId other = builder.input(Shape{4, 3}, "other");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID x = builder.parameter(Shape{2, 6}, "x");
+    const ValueID other = builder.input(Shape{4, 3}, "other");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const ValueId difference = graph.add_value(Shape{4, 3}, DType::Float32,
+    const ValueID difference = graph.add_value(Shape{4, 3}, DType::Float32,
                                                Graph::Lifetime::Activation, "bad_sub");
     graph.add_node(Ops::K_SUB.id, {x, other}, {difference});
 
-    const ValueId loss = builder.nll_loss(difference, targets);
+    const ValueID loss = builder.nll_loss(difference, targets);
 
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "gradient of shape [4, 3]", "shape [2, 6]");

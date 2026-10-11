@@ -31,7 +31,7 @@
 #include <memory>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/execution/runtime_context.hpp>
 
 namespace SushiAI
 {

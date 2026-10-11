@@ -369,7 +369,7 @@ namespace SushiAI
                 for (std::size_t at = 0; at < pixels.size(); ++at)
                     pixels[at] *= at % 2 == 0 ? width : height;
 
-                Vision::Detect::NmsConfig config;
+                Vision::Detect::NMSConfig config;
                 config.confidence_threshold = thresh;
                 config.iou_threshold = suppression;
                 config.max_detections = decoded.rows * decoded.classes;
@@ -822,7 +822,7 @@ namespace SushiAI
             ASSERT_EQ(run.model.network.height, model.side);
             ASSERT_EQ(run.model.network.width, model.side);
             ASSERT_EQ(run.model.criterion, parity.criterion);
-            if (parity.criterion == SuppressionCriterion::DistanceIou)
+            if (parity.criterion == SuppressionCriterion::DistanceIoU)
                 ASSERT_EQ(run.model.distance_exponent, parity.distance_exponent);
 
             DecodedHeads decoded;

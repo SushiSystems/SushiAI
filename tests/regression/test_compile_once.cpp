@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -44,16 +45,16 @@ namespace
 {
     class Regression_CompileOnce : public SaTest::EngineTest {};
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
     constexpr int64_t K_CLASSES = 4;
     constexpr int64_t K_BATCHES = 4;
 
-    Mlp make_model()
+    MLP make_model()
     {
-        return Mlp(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, K_CLASSES});
+        return MLP(NN::Linear{K_FEATURES, 12}, NN::ReLU{}, NN::Linear{12, K_CLASSES});
     }
 
     Data::SyntheticOptions make_data_options()
@@ -73,7 +74,7 @@ namespace
  */
 TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 {
-    Mlp model = make_model();
+    MLP model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -89,8 +90,9 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 
     Train::TrainerOptions options;
     options.epochs = 1;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(auto trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(auto dataset,
@@ -118,7 +120,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
  */
 TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmediately)
 {
-    Mlp model = make_model();
+    MLP model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -132,8 +134,9 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
     sgd.learning_rate = 0.1;
     SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(*engine, slots, sgd));
 
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(auto trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer));
     SA_ASSERT_OK_AND_ASSIGN(auto dataset,
                             Data::SyntheticClassification::make(*engine, make_data_options()));
@@ -143,9 +146,12 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
     double previous_loss = 0.0;
     for (std::size_t step = 0; step < 5; ++step)
     {
+        Data::Batch dataset_batch;
+        ASSERT_TRUE(SaTest::status_is_ok(
+            dataset->read(step % static_cast<std::size_t>(K_BATCHES), dataset_batch)));
         SA_ASSERT_OK_AND_ASSIGN(
             const Train::StepMetrics metrics,
-            trainer->run_step(dataset->batch(step % static_cast<std::size_t>(K_BATCHES))));
+            trainer->run_step(dataset_batch));
 
         ASSERT_TRUE(std::isfinite(metrics.loss)) << "at step " << step;
         EXPECT_GT(metrics.loss, 0.0) << "at step " << step;
@@ -176,8 +182,8 @@ TEST_F(Regression_CompileOnce,
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
-    const Graph::ValueId y = builder.scale(x, 2.0);
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID y = builder.scale(x, 2.0);
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -232,7 +238,7 @@ TEST_F(Regression_CompileOnce,
  */
 TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps)
 {
-    Mlp model = make_model();
+    MLP model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -247,9 +253,10 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
     SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::AdamW::make(*engine, slots, adam));
 
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(auto trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     // The plan reads its inputs by address; see tests/regression/README.md.
@@ -275,8 +282,12 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
         // Individual steps between fits, mixing the two datasets.
         for (std::size_t batch = 0; batch < 2; ++batch)
         {
-            SA_EXPECT_OK(trainer->run_step(second->batch(batch)));
-            SA_EXPECT_OK(trainer->run_step(first->batch(batch)));
+            Data::Batch second_batch;
+            ASSERT_TRUE(SaTest::status_is_ok(second->read(batch, second_batch)));
+            SA_EXPECT_OK(trainer->run_step(second_batch));
+            Data::Batch first_batch;
+            ASSERT_TRUE(SaTest::status_is_ok(first->read(batch, first_batch)));
+            SA_EXPECT_OK(trainer->run_step(first_batch));
         }
 
         EXPECT_EQ(trainer->compile_count(), 1u) << "recompiled after round " << round;

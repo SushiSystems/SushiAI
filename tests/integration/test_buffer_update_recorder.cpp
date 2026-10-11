@@ -73,7 +73,7 @@ namespace
     constexpr std::uint64_t K_TARGET_STATE = 7;
 
     /** @brief The value identity the bind cases bind their update sources under. */
-    constexpr Graph::ValueId K_SOURCE_VALUE = 0;
+    constexpr Graph::ValueID K_SOURCE_VALUE = 0;
 
     /** @brief Allocates a vector of @p values with dtype @p dtype and fills it with them. */
     Result<SushiBLAS::Tensor> vector_of(SushiBLAS::Engine& engine,
@@ -93,7 +93,7 @@ namespace
         NN::StateEntry entry;
         entry.name = std::move(name);
         entry.kind = NN::StateKind::Buffer;
-        entry.state = Graph::StateId{state};
+        entry.state = Graph::StateID{state};
         entry.shape = Shape{2};
         entry.dtype = dtype;
         return entry;
@@ -195,7 +195,7 @@ TEST_F(Integration_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
     SA_EXPECT_OK(pool.bind(K_SOURCE_VALUE, std::move(source)));
 
     NN::BufferUpdateList updates;
-    updates.add(NN::BufferUpdate{Graph::StateId{K_TARGET_STATE}, K_SOURCE_VALUE, K_MOMENTUM,
+    updates.add(NN::BufferUpdate{Graph::StateID{K_TARGET_STATE}, K_SOURCE_VALUE, K_MOMENTUM,
                                  K_SOURCE_SCALE});
 
     SA_EXPECT_FAILURE(Train::bind_buffer_updates(updates, state, pool),
@@ -203,7 +203,7 @@ TEST_F(Integration_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
 }
 
 /** @brief Tests that binding refuses an update whose target and source differ in dtype. */
-TEST_F(Integration_BufferUpdateRecorder, BindRefusesADtypeMismatch)
+TEST_F(Integration_BufferUpdateRecorder, BindRefusesADTypeMismatch)
 {
     std::vector<NN::StateEntry> entries;
     entries.push_back(make_entry("bn.running_mean", K_TARGET_STATE, DType::Float32));
@@ -216,7 +216,7 @@ TEST_F(Integration_BufferUpdateRecorder, BindRefusesADtypeMismatch)
     SA_EXPECT_OK(pool.bind(K_SOURCE_VALUE, std::move(source)));
 
     NN::BufferUpdateList updates;
-    updates.add(NN::BufferUpdate{Graph::StateId{K_TARGET_STATE}, K_SOURCE_VALUE, K_MOMENTUM,
+    updates.add(NN::BufferUpdate{Graph::StateID{K_TARGET_STATE}, K_SOURCE_VALUE, K_MOMENTUM,
                                  K_SOURCE_SCALE});
 
     SA_EXPECT_FAILURE(Train::bind_buffer_updates(updates, state, pool),

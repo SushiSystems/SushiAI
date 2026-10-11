@@ -48,7 +48,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
 
@@ -128,9 +128,9 @@ TEST_F(Integration_AttentionOperations, BatchedProductWithTransposedRightOperand
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{2, 3, 4}, "a");
-    const ValueId b = builder.input(Shape{2, 5, 4}, "b");
-    const ValueId y = builder.matmul(a, b, false, true);
+    const ValueID a = builder.input(Shape{2, 3, 4}, "a");
+    const ValueID b = builder.input(Shape{2, 5, 4}, "b");
+    const ValueID y = builder.matmul(a, b, false, true);
 
     const std::vector<double> left = patterned(2 * 3 * 4, 7, 0.1);
     const std::vector<double> right = patterned(2 * 5 * 4, 5, 0.05);
@@ -166,8 +166,8 @@ TEST_F(Integration_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 3, 3}, "x");
-    const ValueId y = builder.softmax(x);
+    const ValueID x = builder.input(Shape{2, 3, 3}, "x");
+    const ValueID y = builder.softmax(x);
 
     const std::vector<double> logits = patterned(2 * 3 * 3, 3, 0.4);
     const std::vector<double> expected = host_softmax_rows(logits, 3);
@@ -192,14 +192,14 @@ TEST_F(Integration_AttentionOperations, BatchedProductGradientEmitsRankThreeProd
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.parameter(Shape{2, 3, 4}, "a");
-    const ValueId b = builder.parameter(Shape{2, 5, 4}, "b");
-    const ValueId product = builder.matmul(a, b, false, true);
-    const ValueId loss = builder.sum_rows(builder.reshape(product, Shape{30, 1}));
+    const ValueID a = builder.parameter(Shape{2, 3, 4}, "a");
+    const ValueID b = builder.parameter(Shape{2, 5, 4}, "b");
+    const ValueID product = builder.matmul(a, b, false, true);
+    const ValueID loss = builder.sum_rows(builder.reshape(product, Shape{30, 1}));
 
-    const std::array<ValueId, 2> wrt = {a, b};
-    const std::vector<ValueId> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::array<ValueID, 2> wrt = {a, b};
+    const std::vector<ValueID> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(gradients.size(), 2u);
     ASSERT_NE(gradients[0], Graph::K_NO_VALUE);

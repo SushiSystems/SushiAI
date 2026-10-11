@@ -44,7 +44,7 @@
 using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::K_NO_VALUE;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -75,15 +75,15 @@ namespace
     struct ForwardCase
     {
         std::string_view name;                                        /**< @brief Failure label. */
-        ValueId (*emit)(const GraphBuilder&, ValueId a, ValueId b);   /**< @brief The emitter. */
+        ValueID (*emit)(const GraphBuilder&, ValueID a, ValueID b);   /**< @brief The emitter. */
     };
 
     /** @brief Holds what differentiating one operation under an NLL_LOSS root appended. */
     struct Appended
     {
         std::size_t first = 0;            /**< @brief Index of the first appended node. */
-        ValueId seed = K_NO_VALUE;          /**< @brief Gradient the tested operation receives. */
-        std::vector<ValueId> gradients;   /**< @brief One entry per requested value. */
+        ValueID seed = K_NO_VALUE;          /**< @brief Gradient the tested operation receives. */
+        std::vector<ValueID> gradients;   /**< @brief One entry per requested value. */
     };
 
     /**
@@ -91,17 +91,17 @@ namespace
      * @param result A rank-2 FLOAT32 value; its producer is the operation under test.
      * @return The appended range; its first node is the SCALE that NLL_LOSS's rule emits.
      */
-    Appended differentiate_through(Graph::Graph& graph, ValueId result,
-                                   const std::vector<ValueId>& wrt)
+    Appended differentiate_through(Graph::Graph& graph, ValueID result,
+                                   const std::vector<ValueID>& wrt)
     {
         const GraphBuilder builder(graph);
-        const ValueId targets = builder.input(graph.value(result).shape, "targets");
-        const ValueId loss = builder.nll_loss(result, targets);
+        const ValueID targets = builder.input(graph.value(result).shape, "targets");
+        const ValueID loss = builder.nll_loss(result, targets);
 
         Appended appended;
         appended.first = graph.node_count();
         appended.gradients = Autograd::differentiate(
-            graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
         if (graph.node_count() > appended.first)
             appended.seed = graph.nodes()[appended.first].outputs.at(0);
@@ -185,6 +185,24 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithATransposedLeftOperand"},
         {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithBothOperandsTransposed"},
         {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulGradientOfTheRightOperand"},
+        {Ops::K_GATHER_ROWS.id,
+         "Integration_Autograd.GatherRowsScatterAddsARepeatedIndexIntoItsTable"},
+        {Ops::K_GATHER_ROWS.id,
+         "Integration_Autograd.GatherRowsOverARankTwoIndexDifferentiatesThroughItsReshape"},
+        {Ops::K_SCATTER_ADD_ROWS.id,
+         "Integration_Autograd.ScatterAddRowsGathersARepeatedIndexBackOntoItsRows"},
+        {Ops::K_SCATTER_ADD_ROWS.id,
+         "Integration_Autograd.ScatterAddRowsOverARankTwoIndexGathersInTheRowsOwnShape"},
+        {Ops::K_LAYER_NORM.id,
+         "Integration_LayerNorm.TheInputGradientMatchesCentralDifferences"},
+        {Ops::K_LAYER_NORM.id,
+         "Integration_LayerNorm.TheGainGradientMatchesCentralDifferences"},
+        {Ops::K_LAYER_NORM.id,
+         "Integration_LayerNorm.TheBiasGradientMatchesCentralDifferences"},
+        {Ops::K_CAUSAL_MASK.id,
+         "Integration_CausalAttention.TheMaskPassesItsGradientThroughTheKeptEntriesAlone"},
+        {Ops::K_DROPOUT.id,
+         "Integration_Dropout.TheGradientAtTheInputIsTheMaskOfThatStep"},
         {Ops::K_BIAS_ADD.id,   "Integration_Autograd.BiasAddPassesTheMatrixGradientThrough"},
         {Ops::K_BIAS_ADD.id,   "Integration_Autograd.BiasAddSumsOverTheBroadcastAxis"},
         {Ops::K_ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
@@ -193,17 +211,25 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::K_MUL.id,        "Integration_Autograd.ElementwiseMultiplyFromTheRight"},
         {Ops::K_SCALE.id,      "Integration_Autograd.Scale"},
         {Ops::K_EXP.id,        "Integration_Autograd.Exp"},
-        {Ops::K_RELU.id,       "Integration_Autograd.ReluAwayFromItsKink"},
-        {Ops::K_GELU.id,       "Integration_Autograd.Gelu"},
+        {Ops::K_RELU.id,       "Integration_Autograd.ReLUAwayFromItsKink"},
+        {Ops::K_GELU.id,       "Integration_Autograd.GELU"},
         {Ops::K_SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
         {Ops::K_TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
-        {Ops::K_LEAKY_RELU.id, "Integration_Autograd.LeakyReluHasBothOfItsSlopes"},
+        {Ops::K_LEAKY_RELU.id, "Integration_Autograd.LeakyReLUHasBothOfItsSlopes"},
         {Ops::K_SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
         {Ops::K_ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
         {Ops::K_NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
 
-        // LOG_SOFTMAX's rule only raises its diagnostic; see tests/unit/README.md.
-        {Ops::K_LOG_SOFTMAX.id, "Unit_Diagnostics.LogSoftmaxOutsideTheFusedPairExplainsTheRestriction"},
+        {Ops::K_LOG_SOFTMAX.id,
+         "Integration_AttentionGradient.AnUnfusedLogSoftmaxMatchesItsClosedForm"},
+        {Ops::K_LOG_SOFTMAX.id,
+         "Integration_AttentionGradient.ASoftmaxGradientMatchesCentralDifferences"},
+        {Ops::K_LOG_SOFTMAX.id,
+         "Integration_AttentionGradient.ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes"},
+        {Ops::K_LOG_SOFTMAX.id,
+         "Integration_AttentionGradient.ACausalAttentionDifferentiatesAtItsInput"},
+        {Ops::K_LOG_SOFTMAX.id,
+         "Integration_AttentionGradient.ACausalAttentionDifferentiatesAtItsProjectionWeight"},
 
         {Ops::K_RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
         {Ops::K_LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
@@ -271,29 +297,29 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     }
 }
 
-TEST(Unit_Backward, TwoLayerMlpProducesTheExpectedBackwardTopology)
+TEST(Unit_Backward, TwoLayerMLPProducesTheExpectedBackwardTopology)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{8, 6}, "x");
-    const ValueId targets = builder.input(Shape{8, 3}, "targets");
+    const ValueID x = builder.input(Shape{8, 6}, "x");
+    const ValueID targets = builder.input(Shape{8, 3}, "targets");
 
     NN::Sequential model{NN::Linear{6, 4}, NN::ReLU{}, NN::Linear{4, 3}};
-    const ValueId logits = model.forward(builder, x);
-    const ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    const ValueID logits = model.forward(builder, x);
+    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
     const std::size_t forward_nodes = graph.node_count();
 
-    std::vector<ValueId> wrt;
+    std::vector<ValueID> wrt;
     NN::for_each_parameter(model, [&wrt, &graph](const std::string&, NN::Parameter& parameter)
     {
         wrt.push_back(parameter.id_in(graph));
     });
     ASSERT_EQ(wrt.size(), 4u);
 
-    const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::vector<ValueID> grads =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     // Cross-entropy differentiates as one fused rule; see tests/unit/README.md.
     EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
@@ -328,15 +354,15 @@ TEST(Unit_Backward, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{8, 6}, "x");
-    const ValueId targets = builder.input(Shape{8, 3}, "targets");
+    const ValueID x = builder.input(Shape{8, 6}, "x");
+    const ValueID targets = builder.input(Shape{8, 3}, "targets");
 
     NN::Linear layer{6, 3};
-    const ValueId logits = layer.forward(builder, x);
-    const ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    const ValueID logits = layer.forward(builder, x);
+    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
-    const std::vector<ValueId> wrt = {layer.weight.id_in(graph)};
-    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::vector<ValueID> wrt = {layer.weight.id_in(graph)};
+    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     // The input gradient's MATMUL is skipped; see tests/unit/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 2u);
@@ -347,18 +373,18 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
     // x has two contributors, so ACCUMULATE is emitted; see tests/unit/README.md.
-    const ValueId left = builder.relu(x);
-    const ValueId right = builder.tanh(x);
-    const ValueId sum = builder.add(left, right);
-    const ValueId loss = builder.nll_loss(sum, targets);
+    const ValueID left = builder.relu(x);
+    const ValueID right = builder.tanh(x);
+    const ValueID sum = builder.add(left, right);
+    const ValueID loss = builder.nll_loss(sum, targets);
 
-    const std::vector<ValueId> wrt = {x};
-    const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::vector<ValueID> wrt = {x};
+    const std::vector<ValueID> grads =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 1u);
     ASSERT_NE(grads[0], K_NO_VALUE);
@@ -371,16 +397,16 @@ TEST(Unit_Backward, ThreeContributorsChainTwoAccumulates)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const ValueId a = builder.relu(x);
-    const ValueId b = builder.tanh(x);
-    const ValueId c = builder.sigmoid(x);
-    const ValueId loss = builder.nll_loss(builder.add(builder.add(a, b), c), targets);
+    const ValueID a = builder.relu(x);
+    const ValueID b = builder.tanh(x);
+    const ValueID c = builder.sigmoid(x);
+    const ValueID loss = builder.nll_loss(builder.add(builder.add(a, b), c), targets);
 
-    const std::vector<ValueId> wrt = {x};
-    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::vector<ValueID> wrt = {x};
+    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 2u);
 }
@@ -390,16 +416,16 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
-    const ValueId orphan = builder.parameter(Shape{9, 9}, "orphan");
-    const ValueId loss = builder.nll_loss(builder.relu(x), targets);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID orphan = builder.parameter(Shape{9, 9}, "orphan");
+    const ValueID loss = builder.nll_loss(builder.relu(x), targets);
 
-    const std::vector<ValueId> wrt = {orphan, x};
+    const std::vector<ValueID> wrt = {orphan, x};
     const std::size_t before = graph.node_count();
 
-    const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::vector<ValueID> grads =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 2u);
     EXPECT_EQ(grads[0], K_NO_VALUE) << "a disconnected parameter has no gradient value at all";
@@ -416,16 +442,16 @@ TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
-    const ValueId orphan = builder.parameter(Shape{9, 9}, "orphan");
-    const ValueId loss = builder.nll_loss(builder.relu(x), targets);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID orphan = builder.parameter(Shape{9, 9}, "orphan");
+    const ValueID loss = builder.nll_loss(builder.relu(x), targets);
 
-    const std::vector<ValueId> wrt = {orphan};
+    const std::vector<ValueID> wrt = {orphan};
     const std::size_t before = graph.node_count();
 
-    const std::vector<ValueId> grads =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::vector<ValueID> grads =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     EXPECT_EQ(grads.at(0), K_NO_VALUE);
     EXPECT_EQ(graph.node_count(), before);
@@ -436,19 +462,19 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
     // An identity that no rule covers stands in for a new op; see tests/unit/README.md.
-    const ValueId mystery = graph.add_value(Shape{4, 3}, DType::Float32,
+    const ValueID mystery = graph.add_value(Shape{4, 3}, DType::Float32,
                                             Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
 
-    const ValueId loss = builder.nll_loss(mystery, targets);
-    const std::vector<ValueId> wrt = {x};
+    const ValueID loss = builder.nll_loss(mystery, targets);
+    const std::vector<ValueID> wrt = {x};
 
     EXPECT_THROW((void)Autograd::differentiate(
-                     graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
+                     graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())),
                  Error);
 }
 
@@ -457,31 +483,108 @@ TEST(Unit_Backward, ANonScalarRootIsRejected)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId y = builder.relu(x);
-    const std::vector<ValueId> wrt = {x};
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID y = builder.relu(x);
+    const std::vector<ValueID> wrt = {x};
 
     EXPECT_THROW((void)Autograd::differentiate(
-                     graph, y, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
+                     graph, y, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())),
                  Error);
 }
 
-TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairSaysSoClearly)
+/** @brief Tests that a log-softmax a RELU reads gets one gradient node over [dy, its result]. */
+TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID log_probs = builder.log_softmax(x);
 
     // A RELU consumer keeps the cross-entropy fusion away; see tests/unit/README.md.
-    const ValueId detoured = builder.relu(builder.log_softmax(x));
-    const ValueId loss = builder.nll_loss(detoured, targets);
+    const Appended appended = differentiate_through(graph, builder.relu(log_probs), {x});
 
-    const std::vector<ValueId> wrt = {x};
-    EXPECT_THROW((void)Autograd::differentiate(
-                     graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())),
-                 Error);
+    EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.scale",
+        "sushiai.relu_backward",
+        "sushiai.log_softmax_backward",
+    }));
+
+    const Graph::Node& through_relu = appended_node(graph, appended, 1);
+    const Graph::Node& gradient = appended_node(graph, appended, 2);
+    EXPECT_EQ(gradient.inputs, (std::vector<ValueID>{through_relu.outputs.at(0), log_probs}));
+    ASSERT_EQ(appended.gradients.size(), 1u);
+    EXPECT_EQ(gradient.outputs, (std::vector<ValueID>{appended.gradients[0]}));
+    EXPECT_EQ(graph.value(appended.gradients[0]).shape, (Shape{4, 3}));
+    EXPECT_EQ(graph.value(appended.gradients[0]).dtype, graph.value(x).dtype);
+}
+
+/** @brief Tests that the fused cross-entropy still absorbs its log-softmax. */
+TEST(Unit_Backward, TheFusedPairAppendsNoLogSoftmaxGradient)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const Appended appended = differentiate_through(graph, builder.log_softmax(x), {x});
+
+    EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
+        "sushiai.exp",
+        "sushiai.sub",
+        "sushiai.scale",
+    }));
+    EXPECT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 0u);
+}
+
+/** @brief Tests that a log-softmax over an input adds no gradient node. */
+TEST(Unit_Backward, ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID weight = builder.parameter(Shape{4, 3}, "weight");
+    const ValueID product = builder.mul(builder.log_softmax(x), weight);
+    const Appended appended = differentiate_through(graph, product, {weight});
+
+    ASSERT_EQ(appended.gradients.size(), 1u);
+    EXPECT_NE(appended.gradients[0], K_NO_VALUE);
+    EXPECT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 0u);
+}
+
+/** @brief Tests that a softmax hands its log-softmax the gradient its exponential produced. */
+TEST(Unit_Backward, ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.parameter(Shape{2, 3, 4}, "x");
+    const ValueID rows = builder.reshape(builder.softmax(x), Shape{6, 4});
+    const std::size_t forward_nodes = graph.node_count();
+    const Appended appended = differentiate_through(graph, rows, {x});
+
+    ASSERT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX.id), 1u);
+    ASSERT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
+
+    ValueID log_probs = K_NO_VALUE;
+    ValueID through_exp = K_NO_VALUE;
+    const Graph::Node* gradient = nullptr;
+    for (std::size_t i = 0; i < graph.node_count(); ++i)
+    {
+        const Graph::Node& node = graph.nodes()[i];
+        if (node.op == Ops::K_LOG_SOFTMAX.id)
+            log_probs = node.outputs.at(0);
+        if (node.op == Ops::K_MUL.id && i >= forward_nodes)
+            through_exp = node.outputs.at(0);
+        if (node.op == Ops::K_LOG_SOFTMAX_BACKWARD.id)
+            gradient = &node;
+    }
+
+    ASSERT_NE(gradient, nullptr);
+    ASSERT_NE(through_exp, K_NO_VALUE);
+    EXPECT_EQ(gradient->inputs, (std::vector<ValueID>{through_exp, log_probs}));
+    ASSERT_EQ(appended.gradients.size(), 1u);
+    EXPECT_EQ(graph.value(appended.gradients[0]).shape, (Shape{2, 3, 4}));
 }
 
 /** @brief Tests that DIV's rule divides dy by the divisor and reuses the forward quotient. */
@@ -490,9 +593,9 @@ TEST(Unit_Backward, DivReadsItsDivisorAndItsOwnQuotient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId c = builder.div(a, b);
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID c = builder.div(a, b);
 
     const Appended appended = differentiate_through(graph, c, {a, b});
 
@@ -507,9 +610,9 @@ TEST(Unit_Backward, DivReadsItsDivisorAndItsOwnQuotient)
     const Graph::Node& product = appended_node(graph, appended, 2);
     const Graph::Node& negated = appended_node(graph, appended, 3);
 
-    EXPECT_EQ(quotient.inputs, (std::vector<ValueId>{appended.seed, b}));
-    EXPECT_EQ(product.inputs, (std::vector<ValueId>{quotient.outputs.at(0), c}));
-    EXPECT_EQ(negated.inputs, (std::vector<ValueId>{product.outputs.at(0)}));
+    EXPECT_EQ(quotient.inputs, (std::vector<ValueID>{appended.seed, b}));
+    EXPECT_EQ(product.inputs, (std::vector<ValueID>{quotient.outputs.at(0), c}));
+    EXPECT_EQ(negated.inputs, (std::vector<ValueID>{product.outputs.at(0)}));
     EXPECT_NEAR(negated.attributes.get(0), -1.0, K_ATTRIBUTE_TOLERANCE);
 
     EXPECT_EQ(appended.gradients.at(0), quotient.outputs.at(0));
@@ -522,9 +625,9 @@ TEST(Unit_Backward, DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{4, 3}, "b");
-    const ValueId c = builder.div(a, b);
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 3}, "b");
+    const ValueID c = builder.div(a, b);
 
     const Appended appended = differentiate_through(graph, c, {a});
 
@@ -540,9 +643,9 @@ TEST(Unit_Backward, DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId c = builder.div(a, b);
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID c = builder.div(a, b);
 
     const Appended appended = differentiate_through(graph, c, {b});
 
@@ -557,8 +660,8 @@ TEST(Unit_Backward, DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone)
     const Graph::Node& product = appended_node(graph, appended, 2);
     const Graph::Node& negated = appended_node(graph, appended, 3);
 
-    EXPECT_EQ(quotient.inputs, (std::vector<ValueId>{appended.seed, b}));
-    EXPECT_EQ(product.inputs, (std::vector<ValueId>{quotient.outputs.at(0), c}));
+    EXPECT_EQ(quotient.inputs, (std::vector<ValueID>{appended.seed, b}));
+    EXPECT_EQ(product.inputs, (std::vector<ValueID>{quotient.outputs.at(0), c}));
     EXPECT_EQ(appended.gradients.at(0), negated.outputs.at(0));
 }
 
@@ -568,9 +671,9 @@ TEST(Unit_Backward, MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId c = builder.minimum(a, b);
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID c = builder.minimum(a, b);
 
     const Appended appended = differentiate_through(graph, c, {a, b});
 
@@ -583,13 +686,13 @@ TEST(Unit_Backward, MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand)
     }));
 
     const Graph::Node& mask = appended_node(graph, appended, 1);
-    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 2).outputs.at(0);
     const Graph::Node& to_first = appended_node(graph, appended, 3);
     const Graph::Node& to_second = appended_node(graph, appended, 4);
 
-    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{a, b}));
-    EXPECT_EQ(to_first.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
-    EXPECT_EQ(to_second.inputs, (std::vector<ValueId>{mask.outputs.at(0), zero, appended.seed}));
+    EXPECT_EQ(mask.inputs, (std::vector<ValueID>{a, b}));
+    EXPECT_EQ(to_first.inputs, (std::vector<ValueID>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(to_second.inputs, (std::vector<ValueID>{mask.outputs.at(0), zero, appended.seed}));
 
     EXPECT_EQ(appended.gradients.at(0), to_first.outputs.at(0));
     EXPECT_EQ(appended.gradients.at(1), to_second.outputs.at(0));
@@ -601,9 +704,9 @@ TEST(Unit_Backward, MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId c = builder.maximum(a, b);
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID c = builder.maximum(a, b);
 
     const Appended appended = differentiate_through(graph, c, {a, b});
 
@@ -616,13 +719,13 @@ TEST(Unit_Backward, MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand)
     }));
 
     const Graph::Node& mask = appended_node(graph, appended, 1);
-    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 2).outputs.at(0);
     const Graph::Node& to_first = appended_node(graph, appended, 3);
     const Graph::Node& to_second = appended_node(graph, appended, 4);
 
-    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{b, a}));
-    EXPECT_EQ(to_first.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
-    EXPECT_EQ(to_second.inputs, (std::vector<ValueId>{mask.outputs.at(0), zero, appended.seed}));
+    EXPECT_EQ(mask.inputs, (std::vector<ValueID>{b, a}));
+    EXPECT_EQ(to_first.inputs, (std::vector<ValueID>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(to_second.inputs, (std::vector<ValueID>{mask.outputs.at(0), zero, appended.seed}));
 
     EXPECT_EQ(appended.gradients.at(0), to_first.outputs.at(0));
     EXPECT_EQ(appended.gradients.at(1), to_second.outputs.at(0));
@@ -634,9 +737,9 @@ TEST(Unit_Backward, MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId c = builder.minimum(a, b);
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID c = builder.minimum(a, b);
 
     const Appended appended = differentiate_through(graph, c, {b});
 
@@ -647,10 +750,10 @@ TEST(Unit_Backward, MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient)
         "sushiai.select",
     }));
 
-    const ValueId mask = appended_node(graph, appended, 1).outputs.at(0);
-    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const ValueID mask = appended_node(graph, appended, 1).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 2).outputs.at(0);
     EXPECT_EQ(appended_node(graph, appended, 3).inputs,
-              (std::vector<ValueId>{mask, zero, appended.seed}));
+              (std::vector<ValueID>{mask, zero, appended.seed}));
 }
 
 /** @brief Tests that MAXIMUM's rule emits one SELECT when only the first operand needs one. */
@@ -659,9 +762,9 @@ TEST(Unit_Backward, MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{4, 3}, "b");
-    const ValueId c = builder.maximum(a, b);
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 3}, "b");
+    const ValueID c = builder.maximum(a, b);
 
     const Appended appended = differentiate_through(graph, c, {a});
 
@@ -673,11 +776,11 @@ TEST(Unit_Backward, MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient)
     }));
 
     const Graph::Node& mask = appended_node(graph, appended, 1);
-    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 2).outputs.at(0);
     const Graph::Node& to_first = appended_node(graph, appended, 3);
 
-    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{b, a}));
-    EXPECT_EQ(to_first.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(mask.inputs, (std::vector<ValueID>{b, a}));
+    EXPECT_EQ(to_first.inputs, (std::vector<ValueID>{mask.outputs.at(0), appended.seed, zero}));
     EXPECT_EQ(appended.gradients.at(0), to_first.outputs.at(0));
 }
 
@@ -687,8 +790,8 @@ TEST(Unit_Backward, AbsMultipliesByASignThatIsZeroAtZero)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId y = builder.abs(x);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID y = builder.abs(x);
 
     const Appended appended = differentiate_through(graph, y, {x});
 
@@ -701,18 +804,18 @@ TEST(Unit_Backward, AbsMultipliesByASignThatIsZeroAtZero)
         "sushiai.mul",
     }));
 
-    const ValueId zero = appended_node(graph, appended, 1).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 1).outputs.at(0);
     const Graph::Node& not_negative = appended_node(graph, appended, 2);
     const Graph::Node& not_positive = appended_node(graph, appended, 3);
     const Graph::Node& sign = appended_node(graph, appended, 4);
     const Graph::Node& dx = appended_node(graph, appended, 5);
 
     EXPECT_EQ(graph.value(zero).shape, graph.value(x).shape);
-    EXPECT_EQ(not_negative.inputs, (std::vector<ValueId>{zero, x}));
-    EXPECT_EQ(not_positive.inputs, (std::vector<ValueId>{x, zero}));
+    EXPECT_EQ(not_negative.inputs, (std::vector<ValueID>{zero, x}));
+    EXPECT_EQ(not_positive.inputs, (std::vector<ValueID>{x, zero}));
     EXPECT_EQ(sign.inputs,
-              (std::vector<ValueId>{not_negative.outputs.at(0), not_positive.outputs.at(0)}));
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, sign.outputs.at(0)}));
+              (std::vector<ValueID>{not_negative.outputs.at(0), not_positive.outputs.at(0)}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{appended.seed, sign.outputs.at(0)}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 }
 
@@ -722,8 +825,8 @@ TEST(Unit_Backward, AtanDividesByOnePlusTheSquaredInput)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId y = builder.atan(x);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID y = builder.atan(x);
 
     const Appended appended = differentiate_through(graph, y, {x});
 
@@ -740,14 +843,14 @@ TEST(Unit_Backward, AtanDividesByOnePlusTheSquaredInput)
     const Graph::Node& denominator = appended_node(graph, appended, 3);
     const Graph::Node& dx = appended_node(graph, appended, 4);
 
-    EXPECT_EQ(squared.inputs, (std::vector<ValueId>{x, x}));
+    EXPECT_EQ(squared.inputs, (std::vector<ValueID>{x, x}));
     EXPECT_TRUE(one.inputs.empty());
     EXPECT_NEAR(one.attributes.get(0), 1.0, K_ATTRIBUTE_TOLERANCE);
     EXPECT_EQ(graph.value(one.outputs.at(0)).shape, graph.value(x).shape);
     EXPECT_EQ(graph.value(one.outputs.at(0)).dtype, graph.value(x).dtype);
     EXPECT_EQ(denominator.inputs,
-              (std::vector<ValueId>{squared.outputs.at(0), one.outputs.at(0)}));
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, denominator.outputs.at(0)}));
+              (std::vector<ValueID>{squared.outputs.at(0), one.outputs.at(0)}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{appended.seed, denominator.outputs.at(0)}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 }
 
@@ -757,8 +860,8 @@ TEST(Unit_Backward, SoftplusBackwardReadsTheForwardInputNotTheOutput)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId y = builder.softplus(x);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID y = builder.softplus(x);
 
     const Appended appended = differentiate_through(graph, y, {x});
 
@@ -769,18 +872,18 @@ TEST(Unit_Backward, SoftplusBackwardReadsTheForwardInputNotTheOutput)
 
     const Graph::Node& dx = appended_node(graph, appended, 1);
     EXPECT_NE(x, y);
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, x}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{appended.seed, x}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 }
 
 /** @brief Tests that SILU's rule emits one SILU_BACKWARD over dy and the forward input. */
-TEST(Unit_Backward, SiluBackwardReadsTheForwardInputNotTheOutput)
+TEST(Unit_Backward, SiLUBackwardReadsTheForwardInputNotTheOutput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId y = builder.silu(x);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID y = builder.silu(x);
 
     const Appended appended = differentiate_through(graph, y, {x});
 
@@ -791,7 +894,7 @@ TEST(Unit_Backward, SiluBackwardReadsTheForwardInputNotTheOutput)
 
     const Graph::Node& dx = appended_node(graph, appended, 1);
     EXPECT_NE(x, y);
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, x}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{appended.seed, x}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 }
 
@@ -801,10 +904,10 @@ TEST(Unit_Backward, SelectRoutesItsGradientByItsOwnCondition)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId condition = builder.input(Shape{4, 3}, "condition");
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId y = builder.select(condition, a, b);
+    const ValueID condition = builder.input(Shape{4, 3}, "condition");
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID y = builder.select(condition, a, b);
 
     const Appended appended = differentiate_through(graph, y, {a, b});
 
@@ -815,12 +918,12 @@ TEST(Unit_Backward, SelectRoutesItsGradientByItsOwnCondition)
         "sushiai.select",
     }));
 
-    const ValueId zero = appended_node(graph, appended, 1).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 1).outputs.at(0);
     const Graph::Node& to_a = appended_node(graph, appended, 2);
     const Graph::Node& to_b = appended_node(graph, appended, 3);
 
-    EXPECT_EQ(to_a.inputs, (std::vector<ValueId>{condition, appended.seed, zero}));
-    EXPECT_EQ(to_b.inputs, (std::vector<ValueId>{condition, zero, appended.seed}));
+    EXPECT_EQ(to_a.inputs, (std::vector<ValueID>{condition, appended.seed, zero}));
+    EXPECT_EQ(to_b.inputs, (std::vector<ValueID>{condition, zero, appended.seed}));
     EXPECT_EQ(appended.gradients.at(0), to_a.outputs.at(0));
     EXPECT_EQ(appended.gradients.at(1), to_b.outputs.at(0));
 }
@@ -831,10 +934,10 @@ TEST(Unit_Backward, SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId condition = builder.input(Shape{4, 3}, "condition");
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.parameter(Shape{4, 3}, "b");
-    const ValueId y = builder.select(condition, a, b);
+    const ValueID condition = builder.input(Shape{4, 3}, "condition");
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+    const ValueID y = builder.select(condition, a, b);
 
     const Appended appended = differentiate_through(graph, y, {b});
 
@@ -844,10 +947,10 @@ TEST(Unit_Backward, SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient)
         "sushiai.select",
     }));
 
-    const ValueId zero = appended_node(graph, appended, 1).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 1).outputs.at(0);
     const Graph::Node& to_b = appended_node(graph, appended, 2);
 
-    EXPECT_EQ(to_b.inputs, (std::vector<ValueId>{condition, zero, appended.seed}));
+    EXPECT_EQ(to_b.inputs, (std::vector<ValueID>{condition, zero, appended.seed}));
     EXPECT_EQ(appended.gradients.at(0), to_b.outputs.at(0));
 }
 
@@ -857,10 +960,10 @@ TEST(Unit_Backward, SelectGivesItsConditionNoGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId condition = builder.parameter(Shape{4, 3}, "condition");
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{4, 3}, "b");
-    const ValueId y = builder.select(condition, a, b);
+    const ValueID condition = builder.parameter(Shape{4, 3}, "condition");
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 3}, "b");
+    const ValueID y = builder.select(condition, a, b);
 
     const Appended appended = differentiate_through(graph, y, {condition});
 
@@ -874,10 +977,10 @@ TEST(Unit_Backward, AComparisonUnderASelectLeavesItsOperandsWithoutAGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId p = builder.parameter(Shape{4, 3}, "p");
-    const ValueId q = builder.input(Shape{4, 3}, "q");
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId y = builder.select(builder.less_equal(p, q), a, q);
+    const ValueID p = builder.parameter(Shape{4, 3}, "p");
+    const ValueID q = builder.input(Shape{4, 3}, "q");
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID y = builder.select(builder.less_equal(p, q), a, q);
 
     const Appended appended = differentiate_through(graph, y, {p, a});
 
@@ -896,11 +999,11 @@ TEST(Unit_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId p = builder.parameter(Shape{4, 3}, "p");
-    const ValueId q = builder.input(Shape{4, 3}, "q");
-    const ValueId a = builder.parameter(Shape{4, 3}, "a");
-    const ValueId mask = builder.less_equal(p, q);
-    const ValueId y = builder.mul(mask, a);
+    const ValueID p = builder.parameter(Shape{4, 3}, "p");
+    const ValueID q = builder.input(Shape{4, 3}, "q");
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID mask = builder.less_equal(p, q);
+    const ValueID y = builder.mul(mask, a);
 
     Appended appended;
     ASSERT_NO_THROW(appended = differentiate_through(graph, y, {p, a}));
@@ -916,7 +1019,7 @@ TEST(Unit_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
 
     const Graph::Node& da = appended_node(graph, appended, 1);
 
-    EXPECT_EQ(da.inputs, (std::vector<ValueId>{appended.seed, mask}));
+    EXPECT_EQ(da.inputs, (std::vector<ValueID>{appended.seed, mask}));
     EXPECT_EQ(appended.gradients.at(1), da.outputs.at(0));
 }
 
@@ -926,9 +1029,9 @@ TEST(Unit_Backward, AConstantAddedToAParameterPathEmitsNothingForTheConstant)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId epsilon = builder.constant_like(x, 1e-7);
-    const ValueId y = builder.mul(builder.add(x, epsilon), epsilon);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID epsilon = builder.constant_like(x, 1e-7);
+    const ValueID y = builder.mul(builder.add(x, epsilon), epsilon);
 
     Appended appended;
     ASSERT_NO_THROW(appended = differentiate_through(graph, y, {x}));
@@ -940,7 +1043,7 @@ TEST(Unit_Backward, AConstantAddedToAParameterPathEmitsNothingForTheConstant)
     }));
 
     const Graph::Node& dx = appended_node(graph, appended, 1);
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{appended.seed, epsilon}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{appended.seed, epsilon}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 }
 
@@ -950,9 +1053,9 @@ TEST(Unit_Backward, MaximumOfXAndAZeroConstantRoutesATieToX)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId floor = builder.constant_like(x, 0.0);
-    const ValueId y = builder.maximum(x, floor);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID floor = builder.constant_like(x, 0.0);
+    const ValueID y = builder.maximum(x, floor);
 
     const Appended appended = differentiate_through(graph, y, {x});
 
@@ -964,12 +1067,12 @@ TEST(Unit_Backward, MaximumOfXAndAZeroConstantRoutesATieToX)
     }));
 
     const Graph::Node& mask = appended_node(graph, appended, 1);
-    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 2).outputs.at(0);
     const Graph::Node& dx = appended_node(graph, appended, 3);
 
     // The mask is [floor <= x], which holds at x = 0, so x takes dy there.
-    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{floor, x}));
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{mask.outputs.at(0), appended.seed, zero}));
+    EXPECT_EQ(mask.inputs, (std::vector<ValueID>{floor, x}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{mask.outputs.at(0), appended.seed, zero}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 }
 
@@ -979,9 +1082,9 @@ TEST(Unit_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATi
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.parameter(Shape{4, 3}, "x");
-    const ValueId floor = builder.constant_like(x, 0.0);
-    const ValueId y = builder.maximum(floor, x);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x");
+    const ValueID floor = builder.constant_like(x, 0.0);
+    const ValueID y = builder.maximum(floor, x);
 
     const Appended appended = differentiate_through(graph, y, {x});
 
@@ -993,12 +1096,12 @@ TEST(Unit_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATi
     }));
 
     const Graph::Node& mask = appended_node(graph, appended, 1);
-    const ValueId zero = appended_node(graph, appended, 2).outputs.at(0);
+    const ValueID zero = appended_node(graph, appended, 2).outputs.at(0);
     const Graph::Node& dx = appended_node(graph, appended, 3);
 
     // The mask is [x <= floor], which holds at x = 0, so x takes the zero branch there.
-    EXPECT_EQ(mask.inputs, (std::vector<ValueId>{x, floor}));
-    EXPECT_EQ(dx.inputs, (std::vector<ValueId>{mask.outputs.at(0), zero, appended.seed}));
+    EXPECT_EQ(mask.inputs, (std::vector<ValueID>{x, floor}));
+    EXPECT_EQ(dx.inputs, (std::vector<ValueID>{mask.outputs.at(0), zero, appended.seed}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
 
     for (std::size_t i = 0; i < graph.node_count(); ++i)
@@ -1013,14 +1116,14 @@ TEST(Unit_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATi
 TEST(Unit_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
 {
     const std::vector<ForwardCase> cases = {
-        {"div", [](const GraphBuilder& g, ValueId a, ValueId b) { return g.div(a, b); }},
-        {"minimum", [](const GraphBuilder& g, ValueId a, ValueId b) { return g.minimum(a, b); }},
-        {"maximum", [](const GraphBuilder& g, ValueId a, ValueId b) { return g.maximum(a, b); }},
-        {"abs", [](const GraphBuilder& g, ValueId a, ValueId) { return g.abs(a); }},
-        {"atan", [](const GraphBuilder& g, ValueId a, ValueId) { return g.atan(a); }},
-        {"softplus", [](const GraphBuilder& g, ValueId a, ValueId) { return g.softplus(a); }},
-        {"silu", [](const GraphBuilder& g, ValueId a, ValueId) { return g.silu(a); }},
-        {"select", [](const GraphBuilder& g, ValueId a, ValueId b)
+        {"div", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.div(a, b); }},
+        {"minimum", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.minimum(a, b); }},
+        {"maximum", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.maximum(a, b); }},
+        {"abs", [](const GraphBuilder& g, ValueID a, ValueID) { return g.abs(a); }},
+        {"atan", [](const GraphBuilder& g, ValueID a, ValueID) { return g.atan(a); }},
+        {"softplus", [](const GraphBuilder& g, ValueID a, ValueID) { return g.softplus(a); }},
+        {"silu", [](const GraphBuilder& g, ValueID a, ValueID) { return g.silu(a); }},
+        {"select", [](const GraphBuilder& g, ValueID a, ValueID b)
                    {
                        return g.select(g.less_equal(a, b), a, b);
                    }},
@@ -1032,8 +1135,8 @@ TEST(Unit_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId a = builder.parameter(Shape{4, 3}, "a");
-        const ValueId b = builder.parameter(Shape{4, 3}, "b");
+        const ValueID a = builder.parameter(Shape{4, 3}, "a");
+        const ValueID b = builder.parameter(Shape{4, 3}, "b");
 
         const Appended appended = differentiate_through(graph, forward.emit(builder, a, b), {a, b});
 
@@ -1053,15 +1156,15 @@ TEST(Unit_Backward, AGradientOnTheBatchVarianceOfBatchNormThrows)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2, 2, 1}, "x");
-    const ValueId gamma = builder.parameter(Shape{1}, "gamma");
-    const ValueId beta = builder.parameter(Shape{1}, "beta");
+    const ValueID x = builder.input(Shape{2, 2, 2, 1}, "x");
+    const ValueID gamma = builder.parameter(Shape{1}, "gamma");
+    const ValueID beta = builder.parameter(Shape{1}, "beta");
     const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
-    const ValueId loss = builder.scale(bn.batch_variance, 2.0);
+    const ValueID loss = builder.scale(bn.batch_variance, 2.0);
 
-    const ValueId wrt[] = {gamma};
+    const ValueID wrt[] = {gamma};
     SA_EXPECT_ERROR((void)Autograd::differentiate(graph, loss,
-                                                  SushiRuntime::span<const ValueId>(wrt, 1)),
+                                                  SushiRuntime::span<const ValueID>(wrt, 1)),
                     "BATCHNORM2D", "saved statistics received a gradient");
 }
 
@@ -1071,15 +1174,15 @@ TEST(Unit_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2, 2, 1}, "x");
-    const ValueId gamma = builder.parameter(Shape{1}, "gamma");
-    const ValueId beta = builder.parameter(Shape{1}, "beta");
+    const ValueID x = builder.input(Shape{2, 2, 2, 1}, "x");
+    const ValueID gamma = builder.parameter(Shape{1}, "gamma");
+    const ValueID beta = builder.parameter(Shape{1}, "beta");
     const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
-    const ValueId loss = builder.sum_channels(bn.output);
+    const ValueID loss = builder.sum_channels(bn.output);
 
-    const ValueId wrt[] = {gamma, beta};
-    const std::vector<ValueId> gradients =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt, 2));
+    const ValueID wrt[] = {gamma, beta};
+    const std::vector<ValueID> gradients =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt, 2));
 
     ASSERT_EQ(gradients.size(), 2u);
     EXPECT_NE(gradients[0], K_NO_VALUE);
@@ -1103,17 +1206,17 @@ TEST(Unit_Backward, DifferentiatingThroughBatchNormFoldFails)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
-    const ValueId gamma = builder.parameter(Shape{1}, "gamma");
-    const ValueId beta = builder.parameter(Shape{1}, "beta");
-    const ValueId mean = builder.buffer(Shape{1}, "running_mean");
-    const ValueId variance = builder.buffer(Shape{1}, "running_var");
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueID gamma = builder.parameter(Shape{1}, "gamma");
+    const ValueID beta = builder.parameter(Shape{1}, "beta");
+    const ValueID mean = builder.buffer(Shape{1}, "running_mean");
+    const ValueID variance = builder.buffer(Shape{1}, "running_var");
     const Graph::BatchNormFold fold = builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
-    const ValueId loss = builder.spatial_mean(builder.channel_affine(x, fold.scale, fold.shift));
+    const ValueID loss = builder.spatial_mean(builder.channel_affine(x, fold.scale, fold.shift));
 
-    const ValueId wrt[] = {gamma};
+    const ValueID wrt[] = {gamma};
     SA_EXPECT_ERROR((void)Autograd::differentiate(graph, loss,
-                                                  SushiRuntime::span<const ValueId>(wrt, 1)),
+                                                  SushiRuntime::span<const ValueID>(wrt, 1)),
                     "No backward rule", "sushiai.batchnorm_fold");
 }
 
@@ -1123,24 +1226,24 @@ TEST(Unit_Backward, ABufferInWrtIsRefusedAndAppendsNoNode)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId targets = builder.input(Shape{4, 5}, "targets");
-    const ValueId weight = builder.parameter(Shape{5, 3}, "weight");
-    const ValueId shift = builder.buffer(Shape{5}, "running_shift");
-    const ValueId logits = builder.bias_add(builder.matmul(x, weight, false, true), shift);
-    const ValueId loss = builder.nll_loss(builder.log_softmax(logits), targets);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID targets = builder.input(Shape{4, 5}, "targets");
+    const ValueID weight = builder.parameter(Shape{5, 3}, "weight");
+    const ValueID shift = builder.buffer(Shape{5}, "running_shift");
+    const ValueID logits = builder.bias_add(builder.matmul(x, weight, false, true), shift);
+    const ValueID loss = builder.nll_loss(builder.log_softmax(logits), targets);
     const std::size_t nodes_before = graph.node_count();
 
-    const ValueId with_buffer[] = {weight, shift};
+    const ValueID with_buffer[] = {weight, shift};
     SA_EXPECT_ERROR((void)Autograd::differentiate(
-                        graph, loss, SushiRuntime::span<const ValueId>(with_buffer, 2)),
+                        graph, loss, SushiRuntime::span<const ValueID>(with_buffer, 2)),
                     "differentiate()", "running_shift", "buffer");
     EXPECT_EQ(graph.node_count(), nodes_before);
 
     // The same graph differentiates once the buffer is left out of the request.
-    const ValueId parameters_only[] = {weight};
-    const std::vector<ValueId> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueId>(parameters_only, 1));
+    const ValueID parameters_only[] = {weight};
+    const std::vector<ValueID> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(parameters_only, 1));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_NE(gradients[0], K_NO_VALUE);

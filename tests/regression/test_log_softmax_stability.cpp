@@ -45,7 +45,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
 
@@ -114,8 +114,8 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{2, K_CLASSES}, "x");
-        const ValueId l = builder.log_softmax(x);
+        const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
+        const ValueID l = builder.log_softmax(x);
 
         TensorPool pool(*engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -156,9 +156,9 @@ TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrec
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{2, K_CLASSES}, "x");
-        const ValueId targets = builder.input(Shape{2, K_CLASSES}, "targets");
-        const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
+        const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
+        const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
+        const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
 
         TensorPool pool(*engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -193,13 +193,13 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.parameter(Shape{2, K_CLASSES}, "x");
-        const ValueId targets = builder.input(Shape{2, K_CLASSES}, "targets");
-        const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
+        const ValueID x = builder.parameter(Shape{2, K_CLASSES}, "x");
+        const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
+        const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
 
-        const std::vector<ValueId> wrt = {x};
-        const std::vector<ValueId> grads = Autograd::differentiate(
-            graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+        const std::vector<ValueID> wrt = {x};
+        const std::vector<ValueID> grads = Autograd::differentiate(
+            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
         ASSERT_NE(grads.at(0), Graph::K_NO_VALUE);
 
         TensorPool pool(*engine);
@@ -244,8 +244,8 @@ TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{2, K_CLASSES}, "x");
-        const ValueId l = builder.log_softmax(x);
+        const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
+        const ValueID l = builder.log_softmax(x);
 
         TensorPool pool(*engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));

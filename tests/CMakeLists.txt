@@ -59,6 +59,12 @@ add_executable(sushiai_tests
     integration/test_engine_smoke.cpp
     integration/test_evaluation_step.cpp
     integration/test_forward.cpp
+    integration/test_gather_rows.cpp
+    integration/test_dropout.cpp
+    integration/test_layer_norm.cpp
+    integration/test_run_checkpoint.cpp
+    integration/test_token_feed.cpp
+    integration/test_dense_objectives.cpp
     integration/test_import_weights.cpp
     integration/test_init_state.cpp
     integration/test_lowered_operations.cpp
@@ -133,12 +139,12 @@ gtest_discover_tests(sushiai_tests
 # of the line, and without it "compiles : 12" would satisfy a bare "...: 1".
 # The demo reads MNIST, so it exists only in a build with the vision domain.
 if(TARGET sushiai_demo_mlp)
-    add_test(NAME Integration_Demo.MlpRunsAndReportsOneCompile
+    add_test(NAME Integration_Demo.MLPRunsAndReportsOneCompile
         COMMAND sushiai_demo_mlp
             --epochs 1 --batches 2 --batch-size 8 --hidden 16
             --features 6 --classes 4 --mnist-dir does-not-exist
     )
-    set_tests_properties(Integration_Demo.MlpRunsAndReportsOneCompile PROPERTIES
+    set_tests_properties(Integration_Demo.MLPRunsAndReportsOneCompile PROPERTIES
         LABELS "integration"
         PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
     )
@@ -155,7 +161,7 @@ endif()
 # into the binary tree instead. tiny_model.json and tiny_eval.json name no
 # paths at all and are committed as they are.
 set(SUSHIAI_TEST_MODEL_JSON "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_model.json")
-set(SUSHIAI_TEST_CHECKPOINT "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny.ckpt")
+set(SUSHIAI_TEST_CHECKPOINT "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny.sushi")
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_train.json.in"
     "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny_train.json"
@@ -214,9 +220,12 @@ if(SA_BUILD_VISION)
         ${SUSHIAI_VISION_MODULE_TESTS}
 
         vision_support/darknet_forward.cpp
+        vision_support/darknet_import.cpp
         vision_support/darknet_reference.cpp
+        vision_support/darknet_training.cpp
         integration/test_anchor_training_step.cpp
         integration/test_darknet_decode.cpp
+        integration/test_darknet_import.cpp
         integration/test_darknet_store.cpp
         integration/test_darknet_yolov3_forward.cpp
         integration/test_darknet_yolov3_tiny_forward.cpp
@@ -225,15 +234,28 @@ if(SA_BUILD_VISION)
         integration/test_darknet_yolov4_tiny_forward.cpp
         integration/test_darknet_yolov7_forward.cpp
         integration/test_darknet_yolov7_tiny_forward.cpp
+        integration/test_darknet_yolov3_tiny_training.cpp
+        integration/test_darknet_yolov3_training.cpp
+        integration/test_darknet_yolov4_tiny_training.cpp
+        integration/test_darknet_yolov4_training.cpp
+        integration/test_darknet_yolov7_tiny_training.cpp
+        integration/test_darknet_yolov7_training.cpp
         integration/test_head_delta_loss.cpp
+        integration/test_pixel_objectives.cpp
+        integration/test_segment_overfit.cpp
         integration/test_yolo26_forward.cpp
     )
 
     target_include_directories(sushiai_vision_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
+    find_package(JPEG REQUIRED)
+    find_package(PNG REQUIRED)
+
     target_link_libraries(sushiai_vision_tests PRIVATE
         sushiai_vision
         GTest::gtest
+        JPEG::JPEG
+        PNG::PNG
     )
 
     target_compile_definitions(sushiai_vision_tests PRIVATE
@@ -261,4 +283,101 @@ if(SA_BUILD_VISION)
             COMMENT "Copying runtime DLL to the vision test directory..."
         )
     endif()
+endif()
+
+# --- The language domain's suite ---
+# Its cases keep the Unit_, Integration_ and Regression_ prefixes, as the vision suite's do.
+if(SA_BUILD_LANGUAGE)
+    get_property(SUSHIAI_LANGUAGE_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai_language)
+
+    add_executable(sushiai_language_tests
+        common/test_main.cpp
+        ${SUSHIAI_LANGUAGE_MODULE_TESTS}
+
+        integration/test_attention_gradient.cpp
+        integration/test_causal_attention.cpp
+        integration/test_decoder_from_files.cpp
+        integration/test_decoder_overfit.cpp
+        integration/test_cached_generation.cpp
+        integration/test_rotary_decoder_overfit.cpp
+        integration/test_rotary_embedding.cpp
+        integration/test_rotary_generation.cpp
+        integration/test_generation.cpp
+        integration/test_moe.cpp
+        integration/test_next_token_objective.cpp
+        integration/test_next_token_trainer.cpp
+    )
+
+    target_include_directories(sushiai_language_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+
+    target_link_libraries(sushiai_language_tests PRIVATE
+        sushiai_language
+        GTest::gtest
+    )
+
+    sushiai_apply_build_policy(sushiai_language_tests)
+
+    foreach(prefix_label IN ITEMS "Unit:unit" "Integration:integration" "Regression:regression")
+        string(REPLACE ":" ";" prefix_and_label "${prefix_label}")
+        list(GET prefix_and_label 0 prefix)
+        list(GET prefix_and_label 1 label)
+        gtest_discover_tests(sushiai_language_tests
+            DISCOVERY_MODE PRE_TEST
+            TEST_FILTER "${prefix}_*"
+            PROPERTIES LABELS "${label}"
+        )
+    endforeach()
+
+    if(WIN32)
+        add_custom_command(TARGET sushiai_language_tests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+                $<TARGET_FILE_DIR:sushiai_language_tests>
+            COMMENT "Copying runtime DLL to the language test directory..."
+        )
+    endif()
+endif()
+
+# --- The programs' suite ---
+# The programs are executables with no library, so the units a test can reach without a
+# process are compiled here beside the test.
+set(SUSHIAI_PROGRAM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../applications/programs/source")
+
+add_executable(sushiai_program_tests
+    common/test_main.cpp
+    integration/test_program_runs.cpp
+    "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
+    "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
+    "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
+    "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
+)
+
+target_include_directories(sushiai_program_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${SUSHIAI_PROGRAM_SOURCE_DIR}")
+
+target_link_libraries(sushiai_program_tests PRIVATE
+    sushiai
+    GTest::gtest
+)
+
+target_compile_definitions(sushiai_program_tests PRIVATE
+    SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+)
+
+sushiai_apply_build_policy(sushiai_program_tests)
+
+gtest_discover_tests(sushiai_program_tests
+    DISCOVERY_MODE PRE_TEST
+    TEST_FILTER "Integration_*"
+    PROPERTIES LABELS "integration"
+)
+
+if(WIN32)
+    add_custom_command(TARGET sushiai_program_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            $<TARGET_FILE_DIR:sushiai_program_tests>
+        COMMENT "Copying runtime DLL to the program test directory..."
+    )
 endif()

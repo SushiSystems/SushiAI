@@ -207,7 +207,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{4, 784}, "inputs");
+        const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
         model.forward(builder, x);
 
         std::vector<std::string> names;
@@ -525,7 +525,7 @@ TEST(Unit_LayerRegistry, AFactoryRejectsAMissingRequiredKey)
 }
 
 /** @brief Tests that leaky_relu refuses a slope outside (0, 1) when the layer is built. */
-TEST(Unit_LayerRegistry, LeakyReluRejectsASlopeOutsideItsRange)
+TEST(Unit_LayerRegistry, LeakyReLURejectsASlopeOutsideItsRange)
 {
     for (std::string_view attributes : {R"({"slope": 0})", R"({"slope": 1})",
                                         R"({"slope": -0.1})"})
@@ -544,7 +544,7 @@ TEST(Unit_LayerRegistry, UpsampleRejectsAScaleBelowOne)
 }
 
 /** @brief Tests that leaky_relu and upsample use 0.01 and 2 until the model file sets a value. */
-TEST(Unit_LayerRegistry, LeakyReluAndUpsampleReadTheirOptionalKey)
+TEST(Unit_LayerRegistry, LeakyReLUAndUpsampleReadTheirOptionalKey)
 {
     const std::unique_ptr<NN::Layer> default_leaky = make_layer("leaky_relu", "{}", Shape{6});
     const std::unique_ptr<NN::Layer> steep_leaky =
@@ -593,7 +593,7 @@ TEST(Unit_LayerRegistry, TheConvModelTracesToTheShapeItReports)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 784}, "inputs");
+    const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
 
     EXPECT_EQ(graph.value(stack.forward(builder, x)).shape, (Shape{4, 10}));
 }
@@ -634,14 +634,14 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 784}, "inputs");
-    const Graph::ValueId targets = builder.input(Shape{4, 10}, "targets");
-    const Graph::ValueId logits = stack.forward(builder, x);
-    const Graph::ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
+    const Graph::ValueID targets = builder.input(Shape{4, 10}, "targets");
+    const Graph::ValueID logits = stack.forward(builder, x);
+    const Graph::ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
     std::vector<std::string> names;
     std::vector<Shape> shapes;
-    std::vector<Graph::ValueId> wrt;
+    std::vector<Graph::ValueID> wrt;
     NN::for_each_parameter(stack, [&](const std::string& name, NN::Parameter& parameter)
     {
         names.push_back(name);
@@ -650,8 +650,8 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
     });
     ASSERT_EQ(wrt.size(), 6u);
 
-    const std::vector<Graph::ValueId> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const Graph::ValueId>(wrt.data(), wrt.size()));
+    const std::vector<Graph::ValueID> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(gradients.size(), wrt.size());
     for (std::size_t i = 0; i < gradients.size(); ++i)
@@ -663,15 +663,15 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
 }
 
 /** @brief Tests that a silu row traces one SILU node that keeps the input's shape. */
-TEST(Unit_LayerRegistry, ASiluRowTracesOneSiluNode)
+TEST(Unit_LayerRegistry, ASiLURowTracesOneSiLUNode)
 {
     const std::unique_ptr<NN::Layer> layer = make_layer("silu", "{}", Shape{8, 8, 2});
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 8, 8, 2}, "inputs");
+    const Graph::ValueID x = builder.input(Shape{4, 8, 8, 2}, "inputs");
     const std::size_t leaves = graph.node_count();
-    const Graph::ValueId y = layer->forward(builder, x);
+    const Graph::ValueID y = layer->forward(builder, x);
 
     ASSERT_EQ(graph.node_count(), leaves + 1u);
     EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_SILU.id);

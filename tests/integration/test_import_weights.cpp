@@ -81,7 +81,7 @@ namespace
     {
         NN::StateEntry entry;
         entry.name = std::move(name);
-        entry.state = Graph::StateId{state};
+        entry.state = Graph::StateID{state};
         entry.shape = shape;
         return entry;
     }
@@ -155,7 +155,7 @@ TEST(Unit_RenameRule, AnEmptyToPrefixStripsThePrefix)
  */
 TEST_F(Integration_ImportWeights, ARuleStripsAForeignPrefixAndEveryRecordLands)
 {
-    const ScratchFile file("sushiai_import_rule.ckpt");
+    const ScratchFile file("sushiai_import_rule.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState source,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -184,7 +184,7 @@ TEST_F(Integration_ImportWeights, ARuleStripsAForeignPrefixAndEveryRecordLands)
 /** @brief Tests that without a rule the first foreign record is refused, and named. */
 TEST_F(Integration_ImportWeights, WithoutTheRuleTheFirstRecordIsRefused)
 {
-    const ScratchFile file("sushiai_import_no_rule.ckpt");
+    const ScratchFile file("sushiai_import_no_rule.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState source,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -205,7 +205,7 @@ TEST_F(Integration_ImportWeights, WithoutTheRuleTheFirstRecordIsRefused)
  */
 TEST_F(Integration_ImportWeights, ARecordTheStateLacksIsRefusedUnderBothNames)
 {
-    const ScratchFile file("sushiai_import_unknown.ckpt");
+    const ScratchFile file("sushiai_import_unknown.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState source,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -224,7 +224,7 @@ TEST_F(Integration_ImportWeights, ARecordTheStateLacksIsRefusedUnderBothNames)
 /** @brief Tests that an entry no record supplies is refused, and the refusal names it. */
 TEST_F(Integration_ImportWeights, AnEntryTheFileLacksIsRefusedAndNamed)
 {
-    const ScratchFile file("sushiai_import_missing.ckpt");
+    const ScratchFile file("sushiai_import_missing.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState source,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -242,7 +242,7 @@ TEST_F(Integration_ImportWeights, AnEntryTheFileLacksIsRefusedAndNamed)
 /** @brief Tests that a record whose shape differs from its entry is refused with both shapes. */
 TEST_F(Integration_ImportWeights, AShapeMismatchIsRefusedWithBothShapes)
 {
-    const ScratchFile file("sushiai_import_shape.ckpt");
+    const ScratchFile file("sushiai_import_shape.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState source,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -263,7 +263,7 @@ TEST_F(Integration_ImportWeights, AShapeMismatchIsRefusedWithBothShapes)
 /** @brief Tests that a path that cannot be opened is refused as FileNotFound. */
 TEST_F(Integration_ImportWeights, AMissingFileIsFileNotFound)
 {
-    const ScratchFile file("sushiai_import_absent.ckpt");
+    const ScratchFile file("sushiai_import_absent.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState target,
                             NN::ModelState::from_entries(*engine, two_entries()));

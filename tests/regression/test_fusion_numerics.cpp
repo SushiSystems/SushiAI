@@ -36,6 +36,7 @@
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -117,9 +118,10 @@ namespace
         Train::TrainerOptions options;
         options.epochs = K_EPOCHS;
         options.fusion_selector = selector;
+        const auto objective = SaTest::classifier_objective(built);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Train::Trainer> trainer,
-            Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer, options));
+            Train::Trainer::make(engine, built, pool, objective, *optimizer, options));
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                                 Data::SyntheticClassification::make(engine, data_options()));
@@ -136,10 +138,12 @@ namespace
         for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
             for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
+                Data::Batch dataset_batch;
+                ASSERT_TRUE(SaTest::status_is_ok(dataset->read(batch, dataset_batch)));
                 SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                                        trainer->run_step(dataset->batch(batch)));
+                                        trainer->run_step(dataset_batch));
                 run.losses.push_back(metrics.loss);
-                run.accuracies.push_back(metrics.accuracy);
+                run.accuracies.push_back(metrics.metrics.value_or("accuracy", 0.0));
             }
 
         for (const Optim::ParameterSlot& slot : slots)
@@ -204,12 +208,12 @@ namespace
  * @brief Tests that a ReLU MLP trains to identical bytes with fusion on and off.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_Fusion, AReluMlpTrainsIdenticallyFusedAndUnfused)
+TEST_F(Regression_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     TrainedRun fused;
     ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
@@ -226,12 +230,12 @@ TEST_F(Regression_Fusion, AReluMlpTrainsIdenticallyFusedAndUnfused)
  * @brief Tests that a tanh MLP trains to identical bytes with fusion on and off.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_Fusion, ATanhMlpTrainsIdenticallyFusedAndUnfused)
+TEST_F(Regression_Fusion, ATanhMLPTrainsIdenticallyFusedAndUnfused)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::Tanh, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::Tanh, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Tanh{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     TrainedRun fused;
     ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
@@ -242,12 +246,12 @@ TEST_F(Regression_Fusion, ATanhMlpTrainsIdenticallyFusedAndUnfused)
     expect_runs_agree(fused, plain, "a fused tanh epilogue");
 }
 
-TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
+TEST_F(Regression_Fusion, ASigmoidMLPTrainsIdenticallyFusedAndUnfused)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::Sigmoid, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::Sigmoid, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::Sigmoid{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     TrainedRun fused;
     ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
@@ -262,12 +266,12 @@ TEST_F(Regression_Fusion, ASigmoidMlpTrainsIdenticallyFusedAndUnfused)
  * @brief Tests that a GELU MLP trains to identical bytes with fusion on and off.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
+TEST_F(Regression_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     TrainedRun fused;
     ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
@@ -287,15 +291,15 @@ TEST_F(Regression_Fusion, AGeluMlpTrainsIdenticallyFusedAndUnfused)
         << "the GELU model did not train at all, so agreeing with the control proves nothing";
 }
 
-TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
+TEST_F(Regression_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
-    ASSERT_EQ(built.fusion.count(FusedForm::GemmBiasGelu), 1u) << built.fusion.to_string();
+    ASSERT_EQ(built.fusion.count(FusedForm::GEMMBiasGELU), 1u) << built.fusion.to_string();
 
     for (const Graph::DeclinedFusion& decline : built.fusion.declined())
         EXPECT_NE(decline.reason, Graph::FusionDecline::GradientNeedsPreActivation)
@@ -304,12 +308,12 @@ TEST_F(Regression_Fusion, TheGeluFoldIsReportedAsAFoldAndNotAsARefusal)
     // gelu_backward must read the spilled value; see tests/regression/README.md.
     const Graph::FusedSubtree* gelu = nullptr;
     for (const Graph::FusedSubtree& subtree : built.fusion.fused())
-        if (subtree.form == FusedForm::GemmBiasGelu) gelu = &subtree;
+        if (subtree.form == FusedForm::GEMMBiasGELU) gelu = &subtree;
 
     ASSERT_NE(gelu, nullptr);
     ASSERT_NE(gelu->spilled, Graph::K_NO_VALUE);
 
-    const Graph::NodeId producer = built.graph.value(gelu->spilled).producer;
+    const Graph::NodeID producer = built.graph.value(gelu->spilled).producer;
     ASSERT_NE(producer, Graph::K_NO_NODE) << "nothing writes the spill";
     EXPECT_EQ(built.graph.node(producer).op, Ops::K_GEMM_BIAS_GELU.id);
 
@@ -338,19 +342,19 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{K_ROWS, K_IN_DIM}, "x");
-    const Graph::ValueId w = builder.parameter(Shape{K_OUT_DIM, K_IN_DIM}, "w");
-    const Graph::ValueId b = builder.parameter(Shape{K_OUT_DIM}, "b");
-    const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
-    const Graph::ValueId out = builder.gelu(pre);
+    const Graph::ValueID x = builder.input(Shape{K_ROWS, K_IN_DIM}, "x");
+    const Graph::ValueID w = builder.parameter(Shape{K_OUT_DIM, K_IN_DIM}, "w");
+    const Graph::ValueID b = builder.parameter(Shape{K_OUT_DIM}, "b");
+    const Graph::ValueID pre = builder.bias_add(builder.matmul(x, w, false, true), b);
+    const Graph::ValueID out = builder.gelu(pre);
 
     // `pre` is unobserved; the fold rests on the spill; see tests/regression/README.md.
-    const std::vector<Graph::ValueId> observed{out};
+    const std::vector<Graph::ValueID> observed{out};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const Graph::ValueID>(observed.data(), observed.size());
 
     const Graph::FusionReport report = Graph::fuse(graph, options);
-    ASSERT_EQ(report.count(FusedForm::GemmBiasGelu), 1u) << report.to_string();
+    ASSERT_EQ(report.count(FusedForm::GEMMBiasGELU), 1u) << report.to_string();
 
     TensorPool pool(engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
@@ -378,7 +382,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
            "this test is not exercising what it claims to";
 
     engine.execute();
-    SaTest::TestEnvironment::context().wait_all();
+    SaTest::TestEnvironment::context().devices().wait_all();
 
     const std::vector<double> spilled = SaTest::read_tensor(pool.tensor(pre));
     const std::vector<double> activated = SaTest::read_tensor(pool.tensor(out));
@@ -430,10 +434,10 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
             }
     };
 
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const RefuseEverything refuse;
     TrainedRun taken;
@@ -452,14 +456,14 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
  * @brief Tests that disabling the GELU form trains to the same bytes as folding it.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
+TEST_F(Regression_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP folded_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP separate_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const std::vector<FusedForm> without{FusedForm::GemmBiasGelu};
+    const std::vector<FusedForm> without{FusedForm::GEMMBiasGELU};
     FusionOptions narrowed;
     narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
 
@@ -483,10 +487,10 @@ TEST_F(Regression_Fusion, DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt)
  */
 TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP fused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP plain_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     TrainedRun fused;
     ASSERT_NO_FATAL_FAILURE(train(fused_model, FusionOptions{}, fused));
@@ -504,15 +508,15 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
  * @brief Tests that a fused GEMM depends on the task that writes the bias its epilogue reads.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
+TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
-    const Graph::ValueId w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
-    const Graph::ValueId b = builder.parameter(Shape{K_HIDDEN}, "b");
+    const Graph::ValueID x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
+    const Graph::ValueID w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
+    const Graph::ValueID b = builder.parameter(Shape{K_HIDDEN}, "b");
     builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b));
 
     const Graph::FusionReport fusion = Graph::fuse(graph, FusionOptions{});
@@ -521,7 +525,7 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
     TensorPool pool(engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
 
-    SushiRuntime::Graph::TaskGraph tasks(SaTest::TestEnvironment::context());
+    SushiRuntime::Graph::TaskGraph tasks;
     SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::context());
     SushiBLAS::TaskRecorder recorder(tasks, scratch, engine.get_mode());
 
@@ -549,33 +553,33 @@ TEST_F(Regression_Fusion, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias)
  * @brief Tests that the reader of the spill depends on the fused GEMM that fills it.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt)
+TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
-    const Graph::ValueId w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
-    const Graph::ValueId b = builder.parameter(Shape{K_HIDDEN}, "b");
-    const Graph::ValueId pre = builder.bias_add(builder.matmul(x, w, false, true), b);
-    const Graph::ValueId out = builder.gelu(pre);
+    const Graph::ValueID x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
+    const Graph::ValueID w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
+    const Graph::ValueID b = builder.parameter(Shape{K_HIDDEN}, "b");
+    const Graph::ValueID pre = builder.bias_add(builder.matmul(x, w, false, true), b);
+    const Graph::ValueID out = builder.gelu(pre);
 
     // Emitted after the GELU, as gelu_backward is; see tests/regression/README.md.
-    const Graph::ValueId dy = builder.input(Shape{K_BATCH, K_HIDDEN}, "dy");
+    const Graph::ValueID dy = builder.input(Shape{K_BATCH, K_HIDDEN}, "dy");
     (void)builder.activation_backward(Ops::K_GELU_BACKWARD.id, dy, pre);
 
-    const std::vector<Graph::ValueId> observed{out};
+    const std::vector<Graph::ValueID> observed{out};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const Graph::ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const Graph::ValueID>(observed.data(), observed.size());
 
     const Graph::FusionReport fusion = Graph::fuse(graph, options);
-    ASSERT_EQ(1u, fusion.count(FusedForm::GemmBiasGelu)) << fusion.to_string();
+    ASSERT_EQ(1u, fusion.count(FusedForm::GEMMBiasGELU)) << fusion.to_string();
 
     TensorPool pool(engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
 
-    SushiRuntime::Graph::TaskGraph tasks(SaTest::TestEnvironment::context());
+    SushiRuntime::Graph::TaskGraph tasks;
     SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::context());
     SushiBLAS::TaskRecorder recorder(tasks, scratch, engine.get_mode());
 
@@ -602,12 +606,12 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt
  */
 TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
 {
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp whole_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp narrowed_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP whole_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP narrowed_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
-    const std::vector<FusedForm> without{FusedForm::GemmBiasRelu};
+    const std::vector<FusedForm> without{FusedForm::GEMMBiasReLU};
     FusionOptions narrowed;
     narrowed.disabled = SushiRuntime::span<const FusedForm>(without.data(), without.size());
 
@@ -636,10 +640,10 @@ TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
             }
     };
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
-    Mlp refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP taken_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP refused_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
     const RefuseEverything refuse;
     TrainedRun taken;
@@ -666,17 +670,17 @@ TEST_F(Regression_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKe
                                            SushiBLAS::ExecutionMode::Auto);
 
     Graph::FusionQuery query;
-    query.matched = FusedForm::GemmBiasRelu;
+    query.matched = FusedForm::GEMMBiasReLU;
     query.dtype = DType::Float64;
     query.rows = 32;
     query.columns = 128;
 
     EXPECT_EQ(without.choose(query).form, FusedForm::None);
-    EXPECT_EQ(with.choose(query).form, FusedForm::GemmBiasRelu);
+    EXPECT_EQ(with.choose(query).form, FusedForm::GEMMBiasReLU);
 
     // A float graph is fine on either.
     query.dtype = DType::Float32;
-    EXPECT_EQ(without.choose(query).form, FusedForm::GemmBiasRelu);
+    EXPECT_EQ(without.choose(query).form, FusedForm::GEMMBiasReLU);
 }
 
 /**
@@ -686,7 +690,7 @@ TEST_F(Regression_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKe
 TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
 {
     Graph::FusionQuery gemm;
-    gemm.matched = FusedForm::GemmBias;
+    gemm.matched = FusedForm::GEMMBias;
     gemm.rows = 32;
     gemm.columns = 128;
 
@@ -711,7 +715,7 @@ TEST_F(Regression_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirect
                                                SushiBLAS::ExecutionMode::Auto);
 
     Graph::FusionQuery query;
-    query.matched = FusedForm::GemmBias;
+    query.matched = FusedForm::GEMMBias;
     query.rows = 32;
     query.columns = 128;
     query.operand_is_contiguous = false;
@@ -729,7 +733,7 @@ TEST_F(Regression_Fusion, EveryChoiceCarriesAReasonSomebodyCanRead)
                                                SushiBLAS::ExecutionMode::Auto);
 
     Graph::FusionQuery query;
-    query.matched = FusedForm::GemmBiasRelu;
+    query.matched = FusedForm::GEMMBiasReLU;
     query.rows = 32;
     query.columns = 128;
 

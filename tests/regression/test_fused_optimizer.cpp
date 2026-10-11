@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -162,7 +163,7 @@ namespace
             << ". Find the expression that moved; do not widen this comparison.";
     }
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
@@ -205,7 +206,7 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                                 Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -222,11 +223,12 @@ namespace
                                 Optim::AdamW::make(engine, slots, adam));
 
         Train::TrainerOptions options;
-        options.track_accuracy = false;
+        options.track_metrics = false;
         options.optimizer_placement = placement;
+        const auto objective = SaTest::classifier_objective(built);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Train::Trainer> trainer,
-            Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer, options));
+            Train::Trainer::make(engine, built, pool, objective, *optimizer, options));
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                                 Data::SyntheticClassification::make(engine, data_options()));
@@ -239,8 +241,10 @@ namespace
         {
             for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
+                Data::Batch dataset_batch;
+                ASSERT_TRUE(SaTest::status_is_ok(dataset->read(batch, dataset_batch)));
                 SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                                        trainer->run_step(dataset->batch(batch)));
+                                        trainer->run_step(dataset_batch));
                 run.losses.push_back(metrics.loss);
             }
         }
@@ -426,7 +430,7 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
         SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded,
                                 optimizer->record_into_step(engine.get_recorder()));
         engine.execute();
-        engine.get_context().wait_all();
+        engine.get_context().devices().wait_all();
 
         tasks = recorded;
     };
@@ -460,7 +464,7 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -480,7 +484,8 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
     Train::TrainerOptions options;
     options.optimizer_placement = Train::OptimizerPlacement::InPlan;
 
-    SA_EXPECT_FAILURE(Train::Trainer::make(engine, built.graph, pool, built.spec,
+    const auto objective = SaTest::classifier_objective(built);
+    SA_EXPECT_FAILURE(Train::Trainer::make(engine, built, pool, objective,
                                            *optimizer, options),
                       StatusCode::InvalidDescription,
                       "cannot be compiled into the step", "PerStep");
@@ -494,7 +499,7 @@ TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThe
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -508,14 +513,17 @@ TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThe
                             Optim::AdamW::make(engine, slots, Optim::AdamWOptions{}));
     EXPECT_FALSE(optimizer->is_in_compiled_step());
 
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Trainer> trainer,
-        Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer));
+        Train::Trainer::make(engine, built, pool, objective, *optimizer));
     EXPECT_TRUE(optimizer->is_in_compiled_step());
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(engine, data_options()));
-    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_OK(trainer->run_step(dataset_batch));
 
     SA_EXPECT_FATAL((void)optimizer->step(), "already recorded into a compiled step",
                     "twice per batch");

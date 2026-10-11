@@ -45,7 +45,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
 
@@ -77,8 +77,8 @@ namespace
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{1, 3, 3, 1}, "x");
-        const ValueId y = trailing_window().forward(builder, x);
+        const ValueID x = builder.input(Shape{1, 3, 3, 1}, "x");
+        const ValueID y = trailing_window().forward(builder, x);
 
         TensorPool pool(engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));

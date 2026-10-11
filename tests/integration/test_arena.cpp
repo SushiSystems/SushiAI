@@ -41,7 +41,7 @@ using Graph::GraphBuilder;
 using Graph::Lifetime;
 using Graph::MemoryPlan;
 using Graph::PlanOptions;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -54,9 +54,9 @@ namespace
     struct Chain
     {
         Graph::Graph graph;
-        ValueId x = Graph::K_NO_VALUE;
-        ValueId a = Graph::K_NO_VALUE;
-        ValueId b = Graph::K_NO_VALUE;
+        ValueID x = Graph::K_NO_VALUE;
+        ValueID a = Graph::K_NO_VALUE;
+        ValueID b = Graph::K_NO_VALUE;
 
         Chain()
         {
@@ -83,8 +83,8 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
     const SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
     const SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
 
-    const SushiRuntime::Core::ResourceRegion left = first.region();
-    const SushiRuntime::Core::ResourceRegion right = second.region();
+    const SushiRuntime::Memory::ResourceRegion left = first.region();
+    const SushiRuntime::Memory::ResourceRegion right = second.region();
 
     // One allocation - if these differed the test would be proving nothing.
     EXPECT_EQ(left.base, right.base);
@@ -164,19 +164,19 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     // Alignment 1 leaves only the element-width floor; see tests/integration/README.md.
     Graph::Graph graph;
 
-    const ValueId narrow_leaf =
+    const ValueID narrow_leaf =
         graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
     graph.add_node(Ops::K_LEAF.id, {}, {narrow_leaf});
 
-    const ValueId wide_leaf =
+    const ValueID wide_leaf =
         graph.add_value(Shape{3}, DType::Float64, Lifetime::Input, "y");
     graph.add_node(Ops::K_LEAF.id, {}, {wide_leaf});
 
-    const ValueId narrow =
+    const ValueID narrow =
         graph.add_value(Shape{5}, DType::Float32, Lifetime::Activation, "a");
     graph.add_node(Ops::K_RELU.id, {narrow_leaf}, {narrow});
 
-    const ValueId wide =
+    const ValueID wide =
         graph.add_value(Shape{3}, DType::Float64, Lifetime::Activation, "b");
     graph.add_node(Ops::K_RELU.id, {wide_leaf}, {wide});
 

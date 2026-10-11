@@ -26,10 +26,12 @@
  */
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/allocation.hpp>
@@ -41,6 +43,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/conv2d.hpp>
+#include <SushiAI/nn/embedding.hpp>
 #include <SushiAI/nn/init.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/model_graph.hpp>
@@ -62,18 +65,18 @@ namespace
     constexpr double K_STORED_TOLERANCE = 0.0;
 
     /** @brief The architecture every case that needs a parameter model traces. */
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp make_mlp()
+    MLP make_mlp()
     {
-        return Mlp(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
+        return MLP(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
     }
 
     /** @brief Traces @p model into @p graph from a [4, 6] input. */
-    void trace_mlp(Mlp& model, Graph::Graph& graph)
+    void trace_mlp(MLP& model, Graph::Graph& graph)
     {
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
+        const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
         static_cast<void>(model.forward(builder, x));
     }
 
@@ -102,7 +105,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(input_shape, "x");
+        const Graph::ValueID x = builder.input(input_shape, "x");
         NN::BufferUpdateList list;
         SA_EXPECT_OK(model.trace(NN::Trace::training(builder, list), x));
     }
@@ -155,7 +158,7 @@ TEST_F(Integration_InitState, ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry)
  */
 TEST_F(Integration_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
@@ -176,12 +179,12 @@ TEST_F(Integration_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
  */
 TEST_F(Integration_InitState, TheSameSeedGivesTheSameBits)
 {
-    Mlp first_model = make_mlp();
+    MLP first_model = make_mlp();
     Graph::Graph first_graph;
     trace_mlp(first_model, first_graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState first, NN::ModelState::create(*engine, first_model));
 
-    Mlp second_model = make_mlp();
+    MLP second_model = make_mlp();
     Graph::Graph second_graph;
     trace_mlp(second_model, second_graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState second,
@@ -196,4 +199,63 @@ TEST_F(Integration_InitState, TheSameSeedGivesTheSameBits)
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* b, second.tensor(entry.name));
         EXPECT_EQ(SaTest::read_tensor_bytes(*a), SaTest::read_tensor_bytes(*b));
     }
+}
+
+/**
+ * @brief Tests that a normal fill of deviation 0.02 gives a table of that spread, zeroing or not.
+ */
+TEST_F(Integration_InitState, ANormalFillHasTheDeviationItStates)
+{
+    // 64 * 32 draws: the sample deviation of 2048 normals is within 1.6 % at one sigma.
+    constexpr int64_t K_ROWS = 64;
+    constexpr int64_t K_WIDTH = 32;
+    constexpr double K_DEVIATION_TOLERANCE = 0.002;
+    constexpr double K_MEAN_TOLERANCE = 0.0025;
+
+    NN::Embedding model{};
+    model.num_embeddings = K_ROWS;
+    model.embedding_dim = K_WIDTH;
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID ids = builder.input(Shape{2, 4}, "ids", DType::Int32);
+    static_cast<void>(model.forward(NN::Trace::evaluation(builder), ids));
+
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_EXPECT_OK(NN::initialize(*engine, state));
+
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* table, state.tensor("weight"));
+    const std::vector<double> values = SaTest::read_tensor(*table);
+    ASSERT_EQ(values.size(), static_cast<std::size_t>(K_ROWS * K_WIDTH));
+
+    double sum = 0.0;
+    for (const double value : values)
+        sum += value;
+    const double mean = sum / static_cast<double>(values.size());
+
+    double squares = 0.0;
+    for (const double value : values)
+        squares += (value - mean) * (value - mean);
+    const double deviation = std::sqrt(squares / static_cast<double>(values.size()));
+
+    EXPECT_NEAR(mean, 0.0, K_MEAN_TOLERANCE);
+    EXPECT_NEAR(deviation, NN::K_EMBEDDING_DEVIATION, K_DEVIATION_TOLERANCE);
+}
+
+/** @brief Tests that a normal fill of a deviation that is not positive is refused. */
+TEST_F(Integration_InitState, ANormalFillOfNoDeviationIsRefused)
+{
+    NN::Embedding model{};
+    model.num_embeddings = 4;
+    model.embedding_dim = 2;
+    model.weight_init = NN::ParameterInit::normal(0.0);
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID ids = builder.input(Shape{2}, "ids", DType::Int32);
+    static_cast<void>(model.forward(NN::Trace::evaluation(builder), ids));
+
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    SA_EXPECT_FAILURE(NN::initialize(*engine, state), StatusCode::InvalidDescription,
+                      "positive, finite deviation");
 }

@@ -328,10 +328,10 @@ TEST_F(Integration_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheForwardOnlyH
         const std::vector<float> forward = model.forward_output(described.output);
 
         HeadDelta expected;
-        Vision::Detect::Anchor::compute_head_delta(
+        SA_EXPECT_OK(Vision::Detect::Anchor::compute_head_delta(
             SushiRuntime::span<const float>(forward.data(), forward.size()), described.shape,
             described.options, model.objective->layout(), static_cast<std::int64_t>(head),
-            described.training, truth, model.objective->network(), expected);
+            described.training, truth, model.objective->network(), expected));
 
         const std::vector<double> fed = SaTest::read_tensor(model.training_pool->tensor(
             model.built.leaves.at(model.objective->leaf_role(head))));
@@ -458,6 +458,25 @@ TEST_F(Integration_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
 
     SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::InvalidDescription,
                       "row 2", "label 2", "head.0");
+}
+
+/** @brief Tests that a valid row whose centre lies right of the input is refused by its row. */
+TEST_F(Integration_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
+{
+    TwoHeadCase model;
+    model.prepare(*engine, two_heads("head.0", "head.1"));
+    ASSERT_TRUE(model.ready);
+    model.make_step(*engine);
+    ASSERT_NE(model.step, nullptr);
+
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
+    GroundTruthBatch truth = make_truth();
+    // Row 0 of image 1 moves to corners 7 and 9 along the columns: a centre of exactly 1.
+    truth.boxes[8] = 7.0f;
+    truth.boxes[10] = 9.0f;
+
+    SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::InvalidDescription,
+                      "truth row 0 of image 1", "centre");
 }
 
 /** @brief Tests that an objective naming a head the model lacks is refused by that name. */

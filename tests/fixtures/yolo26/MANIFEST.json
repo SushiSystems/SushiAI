@@ -13,7 +13,7 @@
   "class_count": 80,
   "files": [
     {
-      "name": "weights.sacp",
+      "name": "weights.sushi",
       "location": "output_directory",
       "sha256": "2402570a086a9df1d25a547a8353db385f47ac642d68a4af9ce3a8a7ab972e50",
       "size_bytes": 10399669,
@@ -9859,7 +9859,7 @@
       "size_bytes": 15606286,
       "context": {
         "mode": "eval",
-        "batch_norm_statistics": "running_mean and running_var as written in weights.sacp",
+        "batch_norm_statistics": "running_mean and running_var as written in weights.sushi",
         "levels": [
           {
             "stride": 8.0,
@@ -10964,7 +10964,7 @@
         "candidate_rule": "before.running_var * (1 - momentum) + biased batch variance * momentum * batch_variance_scale, in float64, then float32",
         "max_abs_difference": "largest |candidate - after.running_var| over the channels, both read as float32",
         "match_tolerance": "4 * float32 epsilon * max |after.running_var|",
-        "unit_case_state": "weight, bias and running statistics drawn as batch_norm_perturbation of weights.sacp; input drawn standard normal",
+        "unit_case_state": "weight, bias and running statistics drawn as batch_norm_perturbation of weights.sushi; input drawn standard normal",
         "model_case_pass": "the train-mode pass of loss.sacp",
         "cases": {
           "unit": {

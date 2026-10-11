@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -40,13 +41,13 @@ namespace SaTest = SushiAI::Test;
 using Graph::MixedPrecisionPolicy;
 using Graph::TensorPool;
 using Graph::UniformPrecisionPolicy;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
     class Regression_MixedPrecision : public SaTest::EngineTest {};
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 16;
     constexpr int64_t K_FEATURES = 8;
@@ -87,7 +88,7 @@ namespace
     [[nodiscard]] Result<TrainingRun> train(SushiBLAS::Engine& engine,
                                             const Graph::PrecisionPolicy* precision)
     {
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
 
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
@@ -104,8 +105,9 @@ namespace
 
         Train::TrainerOptions options;
         options.precision = precision;
+        const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
                                            options));
 
         Data::SyntheticOptions data;
@@ -123,10 +125,12 @@ namespace
         for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
             for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
+                Data::Batch dataset_batch;
+                SA_TRY(dataset->read(batch, dataset_batch));
                 SA_TRY_ASSIGN(const Train::StepMetrics metrics,
-                              trainer->run_step(dataset->batch(batch)));
+                              trainer->run_step(dataset_batch));
                 result.losses.push_back(metrics.loss);
-                result.accuracy = metrics.accuracy;
+                result.accuracy = metrics.metrics.value_or("accuracy", 0.0);
             }
 
         // Dtypes are read after the run, not before; see tests/regression/README.md.
@@ -166,7 +170,7 @@ TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
  * @brief Tests that the fp32 policy adds no cast and matches no policy bit for bit.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_MixedPrecision, TheFp32PolicyIsIndistinguishableFromNoPolicyAtAll)
+TEST_F(Regression_MixedPrecision, TheFP32PolicyIsIndistinguishableFromNoPolicyAtAll)
 {
     const UniformPrecisionPolicy single;
 
@@ -231,13 +235,13 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
  * @brief Tests that a narrowing policy leaves GELU unfolded and in float32.
  * @see tests/regression/README.md
  */
-TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
+TEST_F(Regression_MixedPrecision, AGELULayerIsNotFoldedUnderANarrowingPolicy)
 {
-    using GeluMlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using GELUMLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    GeluMlp wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{},
+    GELUMLP wide_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{},
                        NN::Linear{K_HIDDEN, K_CLASSES});
-    GeluMlp narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{},
+    GELUMLP narrow_model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{},
                          NN::Linear{K_HIDDEN, K_CLASSES});
 
     const MixedPrecisionPolicy precision;
@@ -252,16 +256,16 @@ TEST_F(Regression_MixedPrecision, AGeluLayerIsNotFoldedUnderANarrowingPolicy)
                                                     &precision));
 
     // The control: with nothing narrowing, the entry is reachable and taken.
-    EXPECT_EQ(wide.fusion.count(Graph::FusedForm::GemmBiasGelu), 1u)
+    EXPECT_EQ(wide.fusion.count(Graph::FusedForm::GEMMBiasGELU), 1u)
         << wide.fusion.to_string();
 
-    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GemmBiasGelu), 0u)
+    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMMBiasGELU), 0u)
         << "a narrowing policy folded GELU into the GEMM, which puts the tanh "
            "approximation's x*x*x into fp16 - see graph/precision.hpp rule 5\n"
         << narrow.fusion.to_string();
 
     // The bias still folds on both layers; see tests/regression/README.md.
-    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GemmBias), 2u)
+    EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMMBias), 2u)
         << narrow.fusion.to_string();
     EXPECT_GT(narrow.casts.count(), 0u) << "this arm narrowed nothing, so it proves nothing";
 

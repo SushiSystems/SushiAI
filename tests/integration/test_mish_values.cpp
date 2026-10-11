@@ -126,9 +126,9 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const std::int64_t columns = static_cast<std::int64_t>(input.size());
-        const Graph::ValueId x = builder.input(Shape{1, columns}, "x");
+        const Graph::ValueID x = builder.input(Shape{1, columns}, "x");
         const NN::Mish layer{};
-        const Graph::ValueId y = layer.forward(builder, x);
+        const Graph::ValueID y = layer.forward(builder, x);
 
         Graph::TensorPool pool(engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));
