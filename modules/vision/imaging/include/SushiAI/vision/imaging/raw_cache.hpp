@@ -54,8 +54,8 @@ namespace SushiAI::Vision::Imaging
     enum class ChannelOrder : std::uint8_t
     {
         Gray = 0, /**< One channel of luminance; expand_gray makes it RGB for detection. */
-        Rgb = 1,  /**< Three channels, red first; the order of the module. */
-        Bgr = 2,  /**< Three channels, blue first. */
+        RGB = 1,  /**< Three channels, red first; the order of the module. */
+        BGR = 2,  /**< Three channels, blue first. */
     };
 
     /** @brief Holds the validated fields of a raw image header. */
@@ -64,11 +64,11 @@ namespace SushiAI::Vision::Imaging
         /** @brief Holds the height and width, each in [1, K_MAX_IMAGE_SIDE]. */
         ImageSize size{};
 
-        /** @brief Counts the channels: 1 for Gray, 3 for Rgb and Bgr. */
+        /** @brief Counts the channels: 1 for Gray, 3 for RGB and BGR. */
         std::int32_t channels = 0;
 
         /** @brief Names the order of the stored channels. */
-        ChannelOrder order = ChannelOrder::Rgb;
+        ChannelOrder order = ChannelOrder::RGB;
 
         /** @brief Returns the byte count of the pixels that follow the header. */
         [[nodiscard]] constexpr std::size_t pixel_bytes() const noexcept
@@ -99,7 +99,7 @@ namespace SushiAI::Vision::Imaging
     /**
      * @brief Reads the pixels that follow a header into an RGB or single-channel image.
      *
-     * A Bgr file has channels 0 and 2 swapped as it is read. Throws Error when the stream
+     * A BGR file has channels 0 and 2 swapped as it is read. Throws Error when the stream
      * ends before header.pixel_bytes() bytes.
      * @param header The value read_raw_image_header returned for this stream.
      * @param destination Reset to the header's size and channels.

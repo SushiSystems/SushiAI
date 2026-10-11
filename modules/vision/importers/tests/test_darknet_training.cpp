@@ -38,6 +38,7 @@
 
 using namespace SushiAI;
 using Vision::Detect::Anchor::BoxLoss;
+using Vision::Detect::BoxGradient;
 using Vision::Detect::Anchor::HeadTrainingOptions;
 using Vision::Detect::Anchor::ObjectnessTarget;
 using Vision::Importers::DarknetConfig;
@@ -68,9 +69,6 @@ namespace
         /** @brief Holds the expected objectness weight. */
         float object_weight;
 
-        /** @brief Holds the expected class weight. */
-        float class_weight;
-
         /** @brief Holds the expected bound of a box delta; 0 sets none. */
         float max_delta;
 
@@ -92,7 +90,6 @@ namespace
         EXPECT_EQ(head.objectness_target, expected.objectness);
         EXPECT_NEAR(head.box_weight, expected.box_weight, K_FLOAT_TOLERANCE);
         EXPECT_NEAR(head.object_weight, expected.object_weight, K_FLOAT_TOLERANCE);
-        EXPECT_NEAR(head.class_weight, expected.class_weight, K_FLOAT_TOLERANCE);
         EXPECT_NEAR(head.max_delta, expected.max_delta, K_FLOAT_TOLERANCE);
         EXPECT_NEAR(head.thresholds.match_threshold, expected.match_threshold, K_FLOAT_TOLERANCE);
         EXPECT_NEAR(head.thresholds.ignore_threshold, expected.ignore_threshold,
@@ -118,8 +115,8 @@ namespace
  * @brief Tests the v3-tiny and v3 key set: every training key absent but ignore_thresh and
  *        truth_thresh.
  *
- * The expected values are the SPEC 3 table column: iou_normalizer 0.75, cls_normalizer 1 and
- * obj_normalizer 1 when absent, iou_thresh 1 when absent, ignore_thresh 0.7, mse.
+ * The expected values are the SPEC 3 table column: iou_normalizer 0.75 and obj_normalizer 1
+ * when absent, iou_thresh 1 when absent, ignore_thresh 0.7, mse.
  */
 TEST(Unit_DarknetTraining, ReadsTheV3HeadSettingsWhenTheTrainingKeysAreAbsent)
 {
@@ -138,11 +135,11 @@ TEST(Unit_DarknetTraining, ReadsTheV3HeadSettingsWhenTheTrainingKeysAreAbsent)
 
     ASSERT_EQ(training.heads.size(), 1u);
     expect_head(training.heads[0], ExpectedHead{BoxLoss::SquaredError, ObjectnessTarget::One,
-                                                0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 0.7f});
+                                                0.75f, 1.0f, 0.0f, 1.0f, 0.7f});
 }
 
 /**
- * @brief Tests the v4-tiny key set: CIoU boxes, iou_normalizer 0.07, cls_normalizer 1.0.
+ * @brief Tests the v4-tiny key set: CIoU boxes and iou_normalizer 0.07.
  *
  * The objectness and iou_thresh keys are absent, so obj_normalizer is 1 and iou_thresh is 1.
  */
@@ -163,8 +160,8 @@ TEST(Unit_DarknetTraining, ReadsTheV4TinyHeadSettings)
     SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
 
     ASSERT_EQ(training.heads.size(), 1u);
-    expect_head(training.heads[0], ExpectedHead{BoxLoss::CompleteIou, ObjectnessTarget::One,
-                                                0.07f, 1.0f, 1.0f, 0.0f, 1.0f, 0.7f});
+    expect_head(training.heads[0], ExpectedHead{BoxLoss::CompleteIoU, ObjectnessTarget::One,
+                                                0.07f, 1.0f, 0.0f, 1.0f, 0.7f});
 }
 
 /**
@@ -191,12 +188,14 @@ TEST(Unit_DarknetTraining, ReadsTheV4HeadSettings)
     SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
 
     ASSERT_EQ(training.heads.size(), 1u);
-    expect_head(training.heads[0], ExpectedHead{BoxLoss::CompleteIou, ObjectnessTarget::One,
-                                                0.07f, 1.0f, 1.0f, 5.0f, 0.213f, 0.7f});
+    expect_head(training.heads[0], ExpectedHead{BoxLoss::CompleteIoU, ObjectnessTarget::One,
+                                                0.07f, 1.0f, 5.0f, 0.213f, 0.7f});
 }
 
 /**
- * @brief Tests the v7-tiny and v7 key set: objectness_smooth 1, max_delta 2, cls_normalizer 0.5.
+ * @brief Tests the v7-tiny and v7 key set: objectness_smooth 1 and max_delta 2.
+ *
+ * cls_normalizer 0.5 is read and reaches no option, as REPORT section 17 states.
  */
 TEST(Unit_DarknetTraining, ReadsTheV7HeadSettings)
 {
@@ -219,8 +218,8 @@ TEST(Unit_DarknetTraining, ReadsTheV7HeadSettings)
     SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
 
     ASSERT_EQ(training.heads.size(), 1u);
-    expect_head(training.heads[0], ExpectedHead{BoxLoss::CompleteIou, ObjectnessTarget::BestIou,
-                                                0.05f, 1.0f, 0.5f, 2.0f, 0.2f, 0.7f});
+    expect_head(training.heads[0], ExpectedHead{BoxLoss::CompleteIoU, ObjectnessTarget::BestIoU,
+                                                0.05f, 1.0f, 2.0f, 0.2f, 0.7f});
 }
 
 /**
@@ -307,7 +306,7 @@ TEST(Unit_DarknetTraining, KeepsTheHeadsInFileOrderAndSkipsOtherSections)
  * @brief Tests that the spelled defaults, mse and objectness_smooth 0, give the same options as
  *        absent keys.
  */
-TEST(Unit_DarknetTraining, ReadsMseAndObjectnessSmoothZeroAsTheDefaults)
+TEST(Unit_DarknetTraining, ReadsMSEAndObjectnessSmoothZeroAsTheDefaults)
 {
     const std::string text =
         "[net]\n"
@@ -319,7 +318,27 @@ TEST(Unit_DarknetTraining, ReadsMseAndObjectnessSmoothZeroAsTheDefaults)
 
     ASSERT_EQ(training.heads.size(), 1u);
     expect_head(training.heads[0], ExpectedHead{BoxLoss::SquaredError, ObjectnessTarget::One,
-                                                0.75f, 1.0f, 1.0f, 0.0f, 1.0f, 0.7f});
+                                                0.75f, 1.0f, 0.0f, 1.0f, 0.7f});
+}
+
+/**
+ * @brief Tests that a head takes the Darknet-compatible box gradient under either box loss.
+ */
+TEST(Unit_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientForEveryHead)
+{
+    const std::string text =
+        "[net]\n"
+        "[yolo]\n"
+        "iou_loss=ciou\n"
+        "[yolo]\n"
+        "iou_loss=mse\n";
+
+    SA_ASSERT_OK_AND_ASSIGN(const DarknetTraining training, read_cfg_text(text));
+
+    ASSERT_EQ(training.heads.size(), 2u);
+    EXPECT_EQ(training.heads[0].box_gradient, BoxGradient::DarknetCompatible);
+    EXPECT_EQ(training.heads[1].box_gradient, BoxGradient::DarknetCompatible);
+    EXPECT_EQ(HeadTrainingOptions{}.box_gradient, BoxGradient::Analytic);
 }
 
 /**
@@ -372,7 +391,7 @@ TEST(Unit_DarknetTraining, RefusesANonZeroLabelSmooth)
 }
 
 /** @brief Tests that an iou_loss other than mse and ciou is refused, naming its line. */
-TEST(Unit_DarknetTraining, RefusesAnIouLossOtherThanMseAndCiou)
+TEST(Unit_DarknetTraining, RefusesAnIoULossOtherThanMSEAndCIoU)
 {
     const std::string text =
         "[net]\n"
@@ -383,6 +402,17 @@ TEST(Unit_DarknetTraining, RefusesAnIouLossOtherThanMseAndCiou)
 }
 
 /** @brief Tests that an objectness_smooth other than 0 or 1 is invalid, naming its line. */
+TEST(Unit_DarknetTraining, RefusesAClsNormalizerThatIsNotANumber)
+{
+    const std::string text =
+        "[net]\n"
+        "[yolo]\n"
+        "cls_normalizer=half\n";
+
+    SA_EXPECT_FAILURE(read_cfg_text(text), StatusCode::InvalidDescription, "line 3",
+                      "cls_normalizer");
+}
+
 TEST(Unit_DarknetTraining, RefusesAnObjectnessSmoothOtherThanZeroOrOne)
 {
     const std::string text =

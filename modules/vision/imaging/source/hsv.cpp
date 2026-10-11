@@ -80,7 +80,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    void validate_hsv(const HsvSettings& settings)
+    void validate_hsv(const HSVSettings& settings)
     {
         SA_THROW_IF(!is_gain(settings.hue_gain) || !is_gain(settings.saturation_gain) ||
                         !is_gain(settings.value_gain),
@@ -89,29 +89,29 @@ namespace SushiAI::Vision::Imaging
                     settings.hue_gain, settings.saturation_gain, settings.value_gain);
     }
 
-    HsvPlan plan_hsv(const HsvSettings& settings, Random& random)
+    HSVPlan plan_hsv(const HSVSettings& settings, Random& random)
     {
         validate_hsv(settings);
 
-        HsvPlan plan;
+        HSVPlan plan;
         plan.hue = random.uniform(-1.0f, 1.0f) * settings.hue_gain;
         plan.saturation = random.uniform(-1.0f, 1.0f) * settings.saturation_gain;
         plan.value = random.uniform(-1.0f, 1.0f) * settings.value_gain;
         return plan;
     }
 
-    bool is_hsv_identity(const HsvPlan& plan) noexcept
+    bool is_hsv_identity(const HSVPlan& plan) noexcept
     {
         return plan.hue == 0.0f && plan.saturation == 0.0f && plan.value == 0.0f;
     }
 
-    HsvTables make_hsv_tables(const HsvPlan& plan) noexcept
+    HSVTables make_hsv_tables(const HSVPlan& plan) noexcept
     {
         const double hue_shift = static_cast<double>(plan.hue) * K_HUE_STEPS;
         const double saturation_scale = static_cast<double>(plan.saturation) + 1.0;
         const double value_scale = static_cast<double>(plan.value) + 1.0;
 
-        HsvTables tables;
+        HSVTables tables;
         for (std::size_t x = 0; x < tables.hue.size(); ++x)
         {
             const auto level = static_cast<double>(x);
@@ -124,7 +124,7 @@ namespace SushiAI::Vision::Imaging
         return tables;
     }
 
-    HsvPixel to_hsv(RgbPixel pixel) noexcept
+    HSVPixel to_hsv(RGBPixel pixel) noexcept
     {
         const std::int32_t red = pixel.red;
         const std::int32_t green = pixel.green;
@@ -132,7 +132,7 @@ namespace SushiAI::Vision::Imaging
         const std::int32_t largest = std::max(red, std::max(green, blue));
         const std::int32_t spread = largest - std::min(red, std::min(green, blue));
 
-        HsvPixel result;
+        HSVPixel result;
         result.value = static_cast<std::uint8_t>(largest);
 
         if (largest != 0)
@@ -161,7 +161,7 @@ namespace SushiAI::Vision::Imaging
         return result;
     }
 
-    RgbPixel to_rgb(HsvPixel pixel) noexcept
+    RGBPixel to_rgb(HSVPixel pixel) noexcept
     {
         const std::int32_t hue = pixel.hue % K_HUE_STEPS;
         const std::int32_t saturation = pixel.saturation;
@@ -183,21 +183,21 @@ namespace SushiAI::Vision::Imaging
         switch (sector)
         {
             case 0:
-                return RgbPixel{high, rising, low};
+                return RGBPixel{high, rising, low};
             case 1:
-                return RgbPixel{falling, high, low};
+                return RGBPixel{falling, high, low};
             case 2:
-                return RgbPixel{low, high, rising};
+                return RGBPixel{low, high, rising};
             case 3:
-                return RgbPixel{low, falling, high};
+                return RGBPixel{low, falling, high};
             case 4:
-                return RgbPixel{rising, low, high};
+                return RGBPixel{rising, low, high};
             default:
-                return RgbPixel{high, low, falling};
+                return RGBPixel{high, low, falling};
         }
     }
 
-    void apply_hsv(ImageView source, const HsvPlan& plan, Image& destination)
+    void apply_hsv(ImageView source, const HSVPlan& plan, Image& destination)
     {
         check_source(source, destination, "apply_hsv");
 
@@ -209,15 +209,15 @@ namespace SushiAI::Vision::Imaging
             return;
         }
 
-        const HsvTables tables = make_hsv_tables(plan);
+        const HSVTables tables = make_hsv_tables(plan);
         const std::uint8_t* in = source.data();
         const std::uint8_t* const end = in + source.byte_count();
         std::uint8_t* out = destination.data();
 
         for (; in != end; in += K_RGB_CHANNELS, out += K_RGB_CHANNELS)
         {
-            const HsvPixel hsv = to_hsv(RgbPixel{in[0], in[1], in[2]});
-            const RgbPixel rgb = to_rgb(HsvPixel{tables.hue[hsv.hue],
+            const HSVPixel hsv = to_hsv(RGBPixel{in[0], in[1], in[2]});
+            const RGBPixel rgb = to_rgb(HSVPixel{tables.hue[hsv.hue],
                                                  tables.saturation[hsv.saturation],
                                                  tables.value[hsv.value]});
             out[0] = rgb.red;

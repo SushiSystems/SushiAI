@@ -40,7 +40,7 @@ namespace SushiAI::Vision::Imaging
     inline constexpr std::int32_t K_HUE_STEPS = 180;
 
     /** @brief Holds one 8-bit RGB pixel. */
-    struct RgbPixel
+    struct RGBPixel
     {
         /** @brief Holds the red level. */
         std::uint8_t red = 0;
@@ -53,7 +53,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Holds one 8-bit HSV pixel: hue in [0, K_HUE_STEPS), the others in [0, 255]. */
-    struct HsvPixel
+    struct HSVPixel
     {
         /** @brief Holds the hue in steps of two degrees. */
         std::uint8_t hue = 0;
@@ -66,7 +66,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Holds what the caller chooses about the jitter: the half-range of each gain. */
-    struct HsvSettings
+    struct HSVSettings
     {
         /** @brief Holds the hue half-range as a fraction of a full turn (cfg/default.yaml:115). */
         float hue_gain = 0.015f;
@@ -79,7 +79,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Holds everything apply_hsv needs: the three drawn gains. */
-    struct HsvPlan
+    struct HSVPlan
     {
         /** @brief Holds the hue shift as a fraction of a full turn, in [-hue_gain, hue_gain). */
         float hue = 0.0f;
@@ -92,7 +92,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Holds the three lookup tables a plan turns into, indexed by the 8-bit input. */
-    struct HsvTables
+    struct HSVTables
     {
         /** @brief Maps a hue to its shifted hue; entries from K_HUE_STEPS up are never read. */
         std::array<std::uint8_t, 256> hue{};
@@ -105,7 +105,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Throws Error unless each of the three gains is finite and not negative. */
-    void validate_hsv(const HsvSettings& settings);
+    void validate_hsv(const HSVSettings& settings);
 
     /**
      * @brief Draws the three gains of one jitter.
@@ -114,7 +114,7 @@ namespace SushiAI::Vision::Imaging
      * random.uniform(-1.0f, 1.0f) multiplied in float by its gain. The draws are made even
      * when a gain is zero. Throws Error, before any draw, on what validate_hsv rejects.
      */
-    [[nodiscard]] HsvPlan plan_hsv(const HsvSettings& settings, Random& random);
+    [[nodiscard]] HSVPlan plan_hsv(const HSVSettings& settings, Random& random);
 
     /**
      * @brief Reports whether a plan changes no pixel: all three of its gains are zero.
@@ -122,7 +122,7 @@ namespace SushiAI::Vision::Imaging
      * Three zero settings always give such a plan, which is the case the reference skips
      * (data/augment.py:1514).
      */
-    [[nodiscard]] bool is_hsv_identity(const HsvPlan& plan) noexcept;
+    [[nodiscard]] bool is_hsv_identity(const HSVPlan& plan) noexcept;
 
     /**
      * @brief Builds the lookup tables of a plan.
@@ -132,7 +132,7 @@ namespace SushiAI::Vision::Imaging
      * x * (1 + plan.value), each clamped to [0, 255]. All three truncate toward zero, and
      * saturation[0] is 0.
      */
-    [[nodiscard]] HsvTables make_hsv_tables(const HsvPlan& plan) noexcept;
+    [[nodiscard]] HSVTables make_hsv_tables(const HSVPlan& plan) noexcept;
 
     /**
      * @brief Converts an RGB pixel to 8-bit HSV in integer arithmetic.
@@ -141,7 +141,7 @@ namespace SushiAI::Vision::Imaging
      * hue is the hexcone angle in steps of two degrees, each rounded half up. A grey pixel
      * has hue 0 and a black one saturation 0. README.md, section hsv.hpp, gives the formulas.
      */
-    [[nodiscard]] HsvPixel to_hsv(RgbPixel pixel) noexcept;
+    [[nodiscard]] HSVPixel to_hsv(RGBPixel pixel) noexcept;
 
     /**
      * @brief Converts an 8-bit HSV pixel to RGB in integer arithmetic.
@@ -150,7 +150,7 @@ namespace SushiAI::Vision::Imaging
      * README.md, section hsv.hpp, gives the formulas.
      * @pre pixel.hue < K_HUE_STEPS.
      */
-    [[nodiscard]] RgbPixel to_rgb(HsvPixel pixel) noexcept;
+    [[nodiscard]] RGBPixel to_rgb(HSVPixel pixel) noexcept;
 
     /**
      * @brief Jitters the colour of an image.
@@ -160,5 +160,5 @@ namespace SushiAI::Vision::Imaging
      * another channel count or when is_hsv_identity(plan). No label moves.
      * @param destination Reset to the source's size and channels; must pass check_source.
      */
-    void apply_hsv(ImageView source, const HsvPlan& plan, Image& destination);
+    void apply_hsv(ImageView source, const HSVPlan& plan, Image& destination);
 } // namespace SushiAI::Vision::Imaging

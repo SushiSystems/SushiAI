@@ -325,11 +325,11 @@ TEST(Unit_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
     C3k2<Bottleneck> block = make_row2();
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 4u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 4u);
@@ -350,7 +350,7 @@ TEST(Unit_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
     C3k2<Bottleneck> block = make_row2();
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -383,7 +383,7 @@ TEST(Unit_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
     NN::ModuleList<Bottleneck> inner;
     inner.push_back(Bottleneck(16, 16, 8, true, K_YOLO_NORM));
     inner.push_back(Bottleneck(16, 16, 8, true, K_YOLO_NORM));
@@ -408,11 +408,11 @@ TEST(Unit_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 128}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 128}, "x");
     C3k2<C3k> block = make_row6();
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 9u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 9u);
@@ -434,7 +434,7 @@ TEST(Unit_BlockC3k2, StateMatchesManifestRow2)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
     C3k2<Bottleneck> block = make_row2();
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -450,7 +450,7 @@ TEST(Unit_BlockC3k2, StateMatchesManifestRow6)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 128}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 128}, "x");
     C3k2<C3k> block = make_row6();
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -493,9 +493,9 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow22)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 384}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 384}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -513,7 +513,7 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow22)
  * @brief Tests that the factory refuses a hidden width whose head count does not divide it:
  *        200 channels take max(200 / 64, 1) = 3 heads, and 3 does not divide 200.
  */
-TEST(Unit_BlockC3k2, TheFactoryRefusesAPsaHeadCountThatDoesNotDivideHidden)
+TEST(Unit_BlockC3k2, TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden)
 {
     const Shape input{4, 4, 192};
     const Config::Value attributes =
@@ -542,9 +542,9 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow2)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -574,9 +574,9 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow6)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 128}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 128}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_CONCAT_CHANNELS.id), 2u);
@@ -600,8 +600,8 @@ TEST(Unit_BlockC3k2, TheFactoryReadsTheShortcutOfAC3kInnerBlock)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 128}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 128}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 9u);
@@ -623,8 +623,8 @@ TEST(Unit_BlockC3k2, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 4u);
@@ -645,8 +645,8 @@ TEST(Unit_BlockC3k2, TheFactoryReadsRepeatsAndShortcut)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 32}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 32}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 8u);
@@ -732,7 +732,7 @@ TEST(Unit_BlockC3k2, AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock)
  * @brief Tests that the bottleneck_psa factory refuses a row whose "inner" names the C3k, and
  *        accepts a row that names its own block.
  */
-TEST(Unit_BlockC3k2, TheBottleneckPsaFactoryRefusesARowThatNamesAnotherInnerBlock)
+TEST(Unit_BlockC3k2, TheBottleneckPSAFactoryRefusesARowThatNamesAnotherInnerBlock)
 {
     const Shape input{4, 4, 32};
     const Config::Value of_c3k = attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c3k"})");

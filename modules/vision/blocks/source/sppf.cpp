@@ -83,20 +83,20 @@ namespace SushiAI
 
         }
 
-        Graph::ValueId SPPF::forward(const NN::Trace& trace, Graph::ValueId x)
+        Graph::ValueID SPPF::forward(const NN::Trace& trace, Graph::ValueID x)
         {
             const Graph::GraphBuilder& builder = trace.builder();
 
-            std::vector<Graph::ValueId> parts;
+            std::vector<Graph::ValueID> parts;
             parts.reserve(static_cast<std::size_t>(pools) + 1);
             parts.push_back(NN::trace_layer(cv1, trace, x));
             for (int64_t index = 0; index < pools; ++index)
                 parts.push_back(NN::trace_layer(pool, trace, parts.back()));
 
-            const Graph::ValueId y = NN::trace_layer(
+            const Graph::ValueID y = NN::trace_layer(
                 cv2, trace,
                 builder.concat_channels(
-                    SushiRuntime::span<const Graph::ValueId>(parts.data(), parts.size())));
+                    SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size())));
             if (!adds_input)
                 return y;
 

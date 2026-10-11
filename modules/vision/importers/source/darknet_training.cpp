@@ -50,6 +50,10 @@ namespace SushiAI
             using Detect::Anchor::HeadTrainingOptions;
             using Detect::Anchor::ObjectnessTarget;
 
+            /** @brief Holds the form of the complete IoU gradient every imported head takes. */
+            constexpr Detect::BoxGradient K_IMPORTED_BOX_GRADIENT =
+                Detect::BoxGradient::DarknetCompatible;
+
             /** @brief Holds the section type of one anchor head. */
             constexpr std::string_view K_YOLO_SECTION = "yolo";
 
@@ -72,7 +76,7 @@ namespace SushiAI
             /** @brief Lists every iou_loss this importer reads. */
             constexpr BoxLossRow K_BOX_LOSSES[] = {
                 {"mse", BoxLoss::SquaredError},
-                {"ciou", BoxLoss::CompleteIou},
+                {"ciou", BoxLoss::CompleteIoU},
             };
 
             /** @brief Returns the box-loss row of @p name, or null when none holds it. */
@@ -183,7 +187,7 @@ namespace SushiAI
             }
 
             /**
-             * @brief Reads the objectness target of a head from objectness_smooth: 1 is BestIou.
+             * @brief Reads the objectness target of a head from objectness_smooth: 1 is BestIoU.
              * @return InvalidDescription naming the line of a value other than 0 and 1.
              */
             [[nodiscard]] Status read_objectness_target(const DarknetSection& section,
@@ -195,7 +199,7 @@ namespace SushiAI
                            "line {}: 'objectness_smooth' is {}; it is 0 or 1",
                            find_option(section, "objectness_smooth")->line, smooth);
 
-                target = smooth == 1 ? ObjectnessTarget::BestIou : ObjectnessTarget::One;
+                target = smooth == 1 ? ObjectnessTarget::BestIoU : ObjectnessTarget::One;
                 return Status();
             }
 
@@ -208,14 +212,15 @@ namespace SushiAI
             [[nodiscard]] Result<HeadTrainingOptions> read_head(const DarknetSection& section)
             {
                 HeadTrainingOptions options;
+                options.box_gradient = K_IMPORTED_BOX_GRADIENT;
                 SA_TRY(read_box_loss(section, options.box_loss));
                 SA_TRY(read_objectness_target(section, options.objectness_target));
                 SA_TRY_ASSIGN(options.box_weight,
                               read_narrowed(section, "iou_normalizer", options.box_weight));
                 SA_TRY_ASSIGN(options.object_weight,
                               read_narrowed(section, "obj_normalizer", options.object_weight));
-                SA_TRY_ASSIGN(options.class_weight,
-                              read_narrowed(section, "cls_normalizer", options.class_weight));
+                // cls_normalizer scales no delta here, so its number is checked and dropped.
+                SA_TRY(read_real(section, "cls_normalizer", 1.0));
                 SA_TRY_ASSIGN(options.max_delta,
                               read_narrowed(section, "max_delta", options.max_delta));
                 SA_TRY_ASSIGN(options.thresholds.match_threshold,

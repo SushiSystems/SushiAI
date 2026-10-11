@@ -37,6 +37,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
+#include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/result.hpp>
@@ -45,6 +46,7 @@
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
@@ -53,6 +55,8 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/trace.hpp>
+#include <SushiAI/train/objective_registry.hpp>
+#include <SushiAI/vision/datasets/reader_section.hpp>
 #include <SushiAI/vision/registration.hpp>
 #include <common/reference_fixture.hpp>
 #include <common/test_status.hpp>
@@ -97,6 +101,14 @@ namespace
         {"c3k2", R"({"filters": 8, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 8}},
         {"sppf", R"({"filters": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"c2psa", R"({"filters": 4, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
+    };
+
+    /** @brief Holds the minimal object of segment_head, the row after detect. */
+    const MinimalCase K_SEGMENT_HEAD_CASE = {
+        "segment_head",
+        R"({"classes": 3, "scale": 2})",
+        {Shape{8, 8, 4}},
+        Shape{16, 16, 3},
     };
 
     /**
@@ -195,7 +207,7 @@ namespace
     }
 
     /**
-     * @brief Lists the weights.sacp records of rows @p first to @p last, in manifest order.
+     * @brief Lists the weights.sushi records of rows @p first to @p last, in manifest order.
      * @return Each record as state_record() writes it; a name ending in a running statistic is a
      *         buffer.
      */
@@ -203,7 +215,7 @@ namespace
                                               std::size_t last)
     {
         std::vector<std::string> records;
-        const Config::Value& weights = manifest_file(manifest, "weights.sacp");
+        const Config::Value& weights = manifest_file(manifest, "weights.sushi");
         for (const Config::Value& tensor : weights.at("tensors", "weights").as_array("tensors"))
         {
             const std::string& name = tensor.at("name", "tensor").as_string("name");
@@ -323,13 +335,13 @@ namespace
                         "repository's files cannot be located"
 
 /**
- * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, sppf, c2psa and detect, in
- *        that order.
+ * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, sppf, c2psa, detect and
+ *        segment_head, in that order.
  */
-TEST(Unit_VisionRegistration, RegisterNodesAddsTheSevenBlocks)
+TEST(Unit_VisionRegistration, RegisterNodesAddsTheEightBlocks)
 {
     const std::vector<std::string_view> expected = {
-        "conv", "bottleneck", "c3k", "c3k2", "sppf", "c2psa", "detect",
+        "conv", "bottleneck", "c3k", "c3k2", "sppf", "c2psa", "detect", "segment_head",
     };
 
     NN::NodeRegistry registry;
@@ -339,10 +351,10 @@ TEST(Unit_VisionRegistration, RegisterNodesAddsTheSevenBlocks)
     EXPECT_TRUE(registry.layers().empty());
 }
 
-/** @brief Tests that register_datasets adds the one row "mnist", with a factory. */
-TEST(Unit_VisionRegistration, RegisterDatasetsAddsMnist)
+/** @brief Tests that register_datasets adds "mnist" and "reader", each with a factory. */
+TEST(Unit_VisionRegistration, RegisterDatasetsAddsMNISTAndReader)
 {
-    const std::vector<std::string_view> expected = {"mnist"};
+    const std::vector<std::string_view> expected = {"mnist", "reader"};
 
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Vision::register_datasets(registry));
@@ -351,6 +363,10 @@ TEST(Unit_VisionRegistration, RegisterDatasetsAddsMnist)
     const Data::DatasetEntry* const mnist = registry.find("mnist");
     ASSERT_NE(mnist, nullptr);
     EXPECT_NE(mnist->make, nullptr);
+
+    const Data::DatasetEntry* const reader = registry.find(Config::K_READER_DATA_TYPE);
+    ASSERT_NE(reader, nullptr);
+    EXPECT_EQ(reader->make, &Vision::Datasets::make_reader_dataset);
 }
 
 /** @brief Tests that build_model over register_layers alone fails at the first conv row. */
@@ -366,17 +382,31 @@ TEST(Unit_VisionRegistration, ARegistryWithoutTheBlocksRefusesConv)
 
 /**
  * @brief Tests that every row of register_nodes has a minimal case here, in row order, with
- *        detect last.
+ *        detect and segment_head last.
  */
 TEST(Unit_VisionRegistration, EveryRowHasAMinimalCase)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
     const SushiRuntime::span<const NN::NodeEntry> nodes = registry.nodes();
-    ASSERT_EQ(K_MINIMAL_CASES.size() + 1, nodes.size());
+    ASSERT_EQ(K_MINIMAL_CASES.size() + 2, nodes.size());
 
     for (std::size_t index = 0; index < K_MINIMAL_CASES.size(); ++index)
         EXPECT_EQ(K_MINIMAL_CASES[index].type, nodes[index].type);
     EXPECT_EQ(K_DETECT_CASE.type, nodes[K_MINIMAL_CASES.size()].type);
+    EXPECT_EQ(K_SEGMENT_HEAD_CASE.type, nodes[K_MINIMAL_CASES.size() + 1].type);
+}
+
+/** @brief Tests that segment_head builds one port at twice the extents, a channel per class. */
+TEST(Unit_VisionRegistration, SegmentHeadBuildsOnePortAtTheUpsampledSize)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, blocks_alone());
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> node,
+        make_minimal(registry, K_SEGMENT_HEAD_CASE, K_SEGMENT_HEAD_CASE.attributes));
+
+    ASSERT_NE(node, nullptr);
+    ASSERT_EQ(node->ports().size(), 1u);
+    EXPECT_EQ(node->ports()[0].shape, K_SEGMENT_HEAD_CASE.output);
 }
 
 /**
@@ -431,7 +461,7 @@ TEST(Unit_VisionRegistration, EachRowRejectsAnUnknownKey)
  * @brief Tests that the YOLO26n file parses to its 24 rows: the types in order, the sources
  *        of the four joins and of the head, the merged defaults and the one output.
  */
-TEST(Unit_VisionRegistration, TheYolo26FileHoldsItsTwentyFourRows)
+TEST(Unit_VisionRegistration, TheYOLO26FileHoldsItsTwentyFourRows)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     const Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
@@ -479,7 +509,7 @@ TEST(Unit_VisionRegistration, TheYolo26FileHoldsItsTwentyFourRows)
  *        of MANIFEST.json's 594 records and the twelve ports of the detect row published in
  *        port order.
  */
-TEST(Unit_VisionRegistration, TheYolo26FileBuildsWhole)
+TEST(Unit_VisionRegistration, TheYOLO26FileBuildsWhole)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
@@ -502,7 +532,7 @@ TEST(Unit_VisionRegistration, TheYolo26FileBuildsWhole)
  * @brief Tests that rows 2 and 4 of the YOLO26n file each trace one ADD, the shortcut of the
  *        one Bottleneck a C3k2 of the pinned Ultralytics commit builds with shortcut=True.
  */
-TEST(Unit_VisionRegistration, Yolo26RowsTwoAndFourAddTheirBottlenecksInput)
+TEST(Unit_VisionRegistration, YOLO26RowsTwoAndFourAddTheirBottlenecksInput)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
@@ -524,7 +554,7 @@ TEST(Unit_VisionRegistration, Yolo26RowsTwoAndFourAddTheirBottlenecksInput)
  * @brief Tests that rows 0 to 9 of the YOLO26n file build and yield exactly the records
  *        MANIFEST.json lists under model.0 to model.9: names, shapes and order.
  */
-TEST(Unit_VisionRegistration, Yolo26RowsZeroToNineMatchTheManifest)
+TEST(Unit_VisionRegistration, YOLO26RowsZeroToNineMatchTheManifest)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
@@ -546,7 +576,7 @@ TEST(Unit_VisionRegistration, Yolo26RowsZeroToNineMatchTheManifest)
  * @brief Tests that rows 0 to 9 and 11 to 21 of the YOLO26n file build to the per-sample
  *        shapes of the reference, with a silu row standing in for row 10.
  */
-TEST(Unit_VisionRegistration, Yolo26RowsBuildToTheReferenceShapes)
+TEST(Unit_VisionRegistration, YOLO26RowsBuildToTheReferenceShapes)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
@@ -570,7 +600,7 @@ TEST(Unit_VisionRegistration, Yolo26RowsBuildToTheReferenceShapes)
  *        records for feature levels 0 and 1, and that rows 11 to 21 yield the manifest's
  *        records for rows 13 to 20.
  */
-TEST(Unit_VisionRegistration, Yolo26NeckTracesToTheReferenceLevels)
+TEST(Unit_VisionRegistration, YOLO26NeckTracesToTheReferenceLevels)
 {
     SA_FIND_REPOSITORY_OR_SKIP(root);
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
@@ -613,4 +643,103 @@ TEST(Unit_VisionRegistration, Yolo26NeckTracesToTheReferenceLevels)
     ASSERT_EQ(neck.size(), 145u);
     expected.insert(expected.end(), neck.begin(), neck.end());
     EXPECT_EQ(trace.state, expected);
+}
+
+/** @brief Tests that the vision domain adds its three objectives after the layers' rows. */
+TEST(Unit_VisionRegistration, RegistersTheAnchorAndThePixelObjectives)
+{
+    Train::ObjectiveRegistry registry;
+    SA_EXPECT_OK(Train::register_objectives(registry));
+    const std::size_t layers = registry.rows().size();
+    SA_EXPECT_OK(Vision::register_objectives(registry));
+
+    ASSERT_EQ(registry.rows().size(), layers + 3);
+    EXPECT_EQ(registry.rows()[0].type, "cross_entropy");
+    EXPECT_EQ(registry.rows()[layers].type, "anchor");
+    EXPECT_EQ(registry.rows()[layers + 1].type, "pixel_cross_entropy");
+    EXPECT_EQ(registry.rows()[layers + 2].type, "dice");
+
+    SA_EXPECT_FAILURE(Vision::register_objectives(registry), StatusCode::InvalidDescription,
+                      "'anchor'", "already registered");
+}
+
+/** @brief Tests that the registered row refuses a model file that has no task section. */
+TEST(Unit_VisionRegistration, TheAnchorRowReadsTheTaskOfTheModel)
+{
+    Train::ObjectiveRegistry registry;
+    SA_EXPECT_OK(Vision::register_objectives(registry));
+    const Config::Value empty = Config::parse_json("{}", "<test>");
+
+    SA_EXPECT_FAILURE(Train::make_objective(registry, "anchor", Train::ObjectiveContext{},
+                                            empty, "the objective block"),
+                      StatusCode::InvalidDescription, "the objective block", "'task'");
+}
+
+/** @brief Tests that each pixel row builds its objective over one [N, H, W, C] output. */
+TEST(Unit_VisionRegistration, ThePixelRowsBuildOverOneLogitMap)
+{
+    Train::ObjectiveRegistry registry;
+    SA_EXPECT_OK(Vision::register_objectives(registry));
+    Train::ObjectiveContext given;
+    given.batch = 2;
+    given.input_sample = Shape{4, 4, 3};
+    given.outputs.push_back(Train::OutputShape{"output", Shape{2, 4, 4, 3}});
+    const Config::Value section = Config::parse_json(R"({"ignore_index": 255})", "<test>");
+
+    for (const std::string_view type : {"pixel_cross_entropy", "dice"})
+    {
+        SCOPED_TRACE(std::string(type));
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Objective> objective,
+                                Train::make_objective(registry, type, given, section,
+                                                      "the objective block"));
+
+        ASSERT_NE(objective, nullptr);
+        EXPECT_EQ(objective->name(), type);
+    }
+}
+
+/** @brief Tests that the vision domain adds the "darknet" importer and refuses a repeat. */
+TEST(Unit_VisionRegistration, RegistersTheDarknetImporter)
+{
+    IO::ImporterRegistry registry;
+    SA_EXPECT_OK(Vision::register_importers(registry));
+
+    ASSERT_EQ(registry.rows().size(), 1u);
+    EXPECT_EQ(registry.rows()[0].format, "darknet");
+
+    SA_EXPECT_FAILURE(Vision::register_importers(registry), StatusCode::InvalidDescription,
+                      "'darknet'", "already registered");
+}
+
+/** @brief Tests that the registered row reaches the Darknet importer, which counts its files. */
+TEST(Unit_VisionRegistration, TheDarknetRowRefusesACallWithoutFiles)
+{
+    IO::ImporterRegistry registry;
+    SA_EXPECT_OK(Vision::register_importers(registry));
+
+    SA_EXPECT_FAILURE(IO::import_model(registry, "darknet", {}),
+                      StatusCode::InvalidDescription, "'darknet'", ".cfg", "0 files");
+}
+
+namespace
+{
+    /** @brief Provides an engine for the dataset rows, whose factories take one. */
+    class Unit_VisionRegistrationData : public SushiAI::Test::EngineTest
+    {
+    };
+} // namespace
+
+/** @brief Tests that the "reader" row reaches the reader table through the registry. */
+TEST_F(Unit_VisionRegistrationData, TheReaderRowBuildsADataSection)
+{
+    Data::DatasetRegistry registry;
+    SA_EXPECT_OK(Vision::register_datasets(registry));
+
+    const Config::Value section = SushiAI::Test::attributes_from(
+        R"({"reader": "no_such_reader", "task": "detection", "root": "sushiai_absent_root"})");
+
+    SA_EXPECT_FAILURE(Data::make_dataset(registry, *engine, Config::K_READER_DATA_TYPE, section,
+                                         "the data block"),
+                      StatusCode::InvalidDescription, "the data block 'reader'",
+                      "'no_such_reader'", "'coco_json'", "'yolo_txt'");
 }

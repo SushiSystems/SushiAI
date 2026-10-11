@@ -32,6 +32,7 @@
 
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/detect/anchor/assignment_thresholds.hpp>
+#include <SushiAI/vision/detect/iou_gradient.hpp>
 
 namespace SushiAI
 {
@@ -41,14 +42,14 @@ namespace SushiAI
         enum class BoxLoss : std::uint8_t
         {
             SquaredError, /**< Each box entry moves toward its own target value. */
-            CompleteIou,  /**< The box moves along the gradient of its complete IoU. */
+            CompleteIoU,  /**< The box moves along the gradient of its complete IoU. */
         };
 
         /** @brief Names the objectness an assigned or an ignored slot is pulled toward. */
         enum class ObjectnessTarget : std::uint8_t
         {
             One,     /**< An assigned slot is pulled toward 1; an ignored slot is left alone. */
-            BestIou, /**< An ignored slot is pulled toward its best IoU with a truth. */
+            BestIoU, /**< An ignored slot is pulled toward its best IoU with a truth. */
         };
 
         /** @brief Holds what the delta of a head needs besides the head's decode options. */
@@ -56,10 +57,11 @@ namespace SushiAI
         {
             AssignmentThresholds thresholds;      /**< Shape IoU to match, box IoU to ignore. */
             BoxLoss box_loss = BoxLoss::SquaredError;                   /**< Box term. */
+            /// @brief Holds the form of the CompleteIoU gradient; Analytic unless set.
+            BoxGradient box_gradient = BoxGradient::Analytic;
             ObjectnessTarget objectness_target = ObjectnessTarget::One; /**< Objectness term. */
             float box_weight = 0.75f;   /**< Factor of the box deltas. */
             float object_weight = 1.0f; /**< Factor of the objectness deltas. */
-            float class_weight = 1.0f;  /**< Factor of the class deltas. */
             float max_delta = 0.0f;     /**< Bound of a box delta's magnitude; 0 sets none. */
             float class_gate = 0.25f;   /**< Class probability a slot needs to be ignored. */
         };

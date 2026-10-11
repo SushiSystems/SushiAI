@@ -38,11 +38,15 @@
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
+#include <common/test_status.hpp>
 
 namespace
 {
+    using SushiAI::Status;
     using SushiAI::StatusCode;
+    using SushiAI::Test::status_is_ok;
     using SushiAI::Vision::Detect::Anchor::AnchorLayout;
+    using SushiAI::Vision::Detect::BoxGradient;
     using SushiAI::Vision::Detect::Anchor::compute_head_delta;
     using SushiAI::Vision::Detect::Anchor::HeadDelta;
     using SushiAI::Vision::Detect::Anchor::HeadOptions;
@@ -54,6 +58,9 @@ namespace
 
     /** @brief Holds the absolute tolerance of every delta, from the unit's acceptance. */
     constexpr float K_TOLERANCE = 1e-6f;
+
+    /** @brief Holds a value no enumeration of the training options names. */
+    constexpr std::uint8_t K_UNKNOWN_ENUMERATOR = 200;
 
     /** @brief Holds a logit whose float32 logistic is exactly 1, and exactly 0 when negated. */
     constexpr float K_SATURATED = 100.0f;
@@ -165,11 +172,11 @@ namespace
             truth = grown;
         }
 
-        /** @brief Runs compute_head_delta on the case's head. */
-        void compute()
+        /** @brief Runs compute_head_delta on the case's head and returns its status. */
+        [[nodiscard]] Status compute()
         {
             const NetworkSize network{K_NETWORK_SIDE, K_NETWORK_SIDE};
-            compute_head_delta(head, shape, options, layout, head_index, training, truth,
+            return compute_head_delta(head, shape, options, layout, head_index, training, truth,
                                network, result);
         }
     };
@@ -217,8 +224,10 @@ TEST(Unit_DetectAnchorDelta, TrainingOptionsOutsideTheirRangeAreRefused)
     refused[3].class_gate = 1.5f;
     refused[4].box_weight = -1.0f;
     refused[5].object_weight = not_a_number;
-    refused[6].class_weight = std::numeric_limits<float>::infinity();
+    refused[6].box_weight = std::numeric_limits<float>::infinity();
     refused[7].max_delta = -2.0f;
+    refused.emplace_back();
+    refused.back().box_gradient = static_cast<BoxGradient>(K_UNKNOWN_ENUMERATOR);
 
     for (std::size_t index = 0; index < refused.size(); ++index)
     {
@@ -248,7 +257,7 @@ TEST(Unit_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
     head.at(assigned, K_FIRST_CLASS) = 0.0f;
     head.at(assigned, K_FIRST_CLASS + 1) = 0.0f;
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     const double k = (2.0 - 0.5 * 0.5) * 0.75;
     std::vector<float> expected(head.head.size(), 0.0f);
@@ -273,7 +282,7 @@ TEST(Unit_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
 }
 
 /** @brief Tests that the IoU sum takes the IoU of the assigned slot's box with its truth. */
-TEST(Unit_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIouSum)
+TEST(Unit_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}};
@@ -282,7 +291,7 @@ TEST(Unit_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIouSum)
     // Zero logits decode to the cell centre and the anchor, which is the truth's box.
     head.add_truth(16.0f, 16.0f, 48.0f, 48.0f, 0);
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     EXPECT_EQ(head.result.assignments, 1);
     EXPECT_NEAR(head.result.iou_sum, 1.0, 1e-6);
@@ -299,7 +308,7 @@ TEST(Unit_DetectAnchorDelta, ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing)
     // The truth has the size of anchor 1, which head 1 owns.
     head.add_truth(16.0f, 16.0f, 48.0f, 48.0f, 1);
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     std::vector<float> expected(head.head.size(), 0.0f);
     for (std::size_t position = 0; position < 4; ++position)
@@ -330,7 +339,7 @@ TEST(Unit_DetectAnchorDelta, AnOverlappingSlotIsIgnoredOnlyWithAClassAboveTheGat
     head.at(head.position(0, 0, 0, 0), K_FIRST_CLASS + 1) = -1.0f;
     head.at(head.position(1, 0, 0, 0), K_FIRST_CLASS + 1) = -1.2f;
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     EXPECT_EQ(head.result.assignments, 0);
     EXPECT_EQ(head.delta(head.position(0, 0, 0, 0), K_OBJECTNESS), 0.0f);
@@ -348,7 +357,7 @@ TEST(Unit_DetectAnchorDelta, AnOverlapBelowTheIgnoreThresholdIsNotIgnored)
     // Class probabilities of 0.5 pass the gate; the IoU of 0.81 stays under 0.9.
     head.training.thresholds.ignore_threshold = 0.9f;
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     EXPECT_NEAR(head.delta(0, K_OBJECTNESS), -0.5f, K_TOLERANCE);
 }
@@ -364,7 +373,7 @@ TEST(Unit_DetectAnchorDelta, TwoTruthsInOneSlotUpdateOneClassOnly)
     head.add_truth(16.0f, 16.0f, 48.0f, 48.0f, 0);
     head.add_truth(16.0f, 16.0f, 48.0f, 48.0f, 2);
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     // The second truth rewrites class 2 alone; a full update would turn class 0 to -0.5.
     const double k = (2.0 - 0.5 * 0.5) * 0.75;
@@ -395,7 +404,7 @@ TEST(Unit_DetectAnchorDelta, AnEmptyTruthListGivesObjectnessDeltasAlone)
     for (float& value : head.head)
         value = logits(generator);
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     std::vector<float> expected(head.head.size(), 0.0f);
     for (std::size_t index = K_OBJECTNESS; index < expected.size(); index += head.entries())
@@ -419,7 +428,7 @@ TEST(Unit_DetectAnchorDelta, APaddingRowAssignsNothing)
     head.add_truth(16.0f, 16.0f, 48.0f, 48.0f, 0);
     head.truth.valid[0] = 0;
 
-    head.compute();
+    ASSERT_TRUE(status_is_ok(head.compute()));
 
     // Zero logits give an objectness of 0.5; the slot would be ignored if the row counted.
     EXPECT_EQ(head.result.assignments, 0);

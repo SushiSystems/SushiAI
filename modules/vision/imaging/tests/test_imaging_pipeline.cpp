@@ -264,7 +264,7 @@ namespace
     }
 
     /** @brief Checks that a colour jitter plan holds the three draws of another. */
-    void expect_same_hsv(const HsvPlan& actual, const HsvPlan& expected)
+    void expect_same_hsv(const HSVPlan& actual, const HSVPlan& expected)
     {
         EXPECT_NEAR(actual.hue, expected.hue, K_REPLAY_TOLERANCE);
         EXPECT_NEAR(actual.saturation, expected.saturation, K_REPLAY_TOLERANCE);
@@ -373,7 +373,7 @@ TEST(Unit_ImagingPipeline, SampleRandomDerivesFromTheSeedTheEpochAndTheIndex)
 }
 
 /** @brief Tests that a sample draws partners, gate and centre, then affine, jitter and flip. */
-TEST(Unit_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHsvThenFlip)
+TEST(Unit_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
 {
     MemorySource source;
     fill_source(source);
@@ -389,7 +389,7 @@ TEST(Unit_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHsvThenFlip)
     const MosaicDraw mosaic = draw_mosaic(settings.mosaic, K_SIDE, 2, partners, replica);
     const AffinePlan affine = plan_affine(settings.affine, ImageSize{2 * K_SIDE, 2 * K_SIDE},
                                           ImageSize{K_SIDE, K_SIDE}, replica);
-    const HsvPlan hsv = plan_hsv(settings.hsv, replica);
+    const HSVPlan hsv = plan_hsv(settings.hsv, replica);
     const FlipPlan flip = plan_flip(settings.flip, ImageSize{K_SIDE, K_SIDE}, replica);
 
     EXPECT_FALSE(trace.is_mosaic_closed);
@@ -573,7 +573,7 @@ TEST(Unit_ImagingPipeline, ClosedEpochSkipsTheMosaicAndItsDraws)
     Random replica = make_sample_random(12u, 7, 0);
     const AffinePlan affine = plan_affine(settings.affine, ImageSize{16, 32},
                                           ImageSize{K_SIDE, K_SIDE}, replica);
-    const HsvPlan hsv = plan_hsv(settings.hsv, replica);
+    const HSVPlan hsv = plan_hsv(settings.hsv, replica);
     const FlipPlan flip = plan_flip(settings.flip, ImageSize{K_SIDE, K_SIDE}, replica);
 
     EXPECT_TRUE(trace.is_mosaic_closed);
@@ -814,7 +814,7 @@ TEST(Unit_ImagingPipeline, TrainingRejectsIndicesAndEpochsOutsideTheirRange)
 }
 
 /** @brief Tests that a one-channel image leaves the training pipeline with three equal channels. */
-TEST(Unit_ImagingPipeline, TrainingExpandsAGreyImageToRgb)
+TEST(Unit_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 1, 77), FileLabels{});
@@ -994,7 +994,7 @@ TEST(Unit_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
 }
 
 /** @brief Tests that validation expands a grey image and pads it in three channels. */
-TEST(Unit_ImagingPipeline, ValidationExpandsAGreyImageToRgb)
+TEST(Unit_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{8, 16}, 1, 61), FileLabels{});

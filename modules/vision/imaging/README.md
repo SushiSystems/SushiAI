@@ -5,12 +5,15 @@ letterbox, mosaic, random affine, HSV jitter and horizontal flip, composed into 
 pipeline and a validation pipeline. Everything works on `uint8` pixels and `float` boxes in host
 memory. Nothing here reaches an engine, SYCL or a third-party library, so every unit is tested
 without a device. The module depends on `core` for `Error` and `SA_THROW_IF` and on the C++
-standard library.
+standard library. `affine_nearest.hpp` and `mask_pipeline.hpp` return a `Status` and include
+`<SushiAI/core/status.hpp>`, so `core` has to become a public dependency;
+`modules/vision/imaging/CMakeLists.txt` still declares it private.
 
 Each header has one source under `modules/vision/imaging/source/` and one test file under
-`modules/vision/imaging/tests/`, named `test_imaging_<header>.cpp`. Three files break that pairing:
+`modules/vision/imaging/tests/`, named `test_imaging_<header>.cpp`. Four files break that pairing:
 `partner_source.hpp` is an interface with no source; `test_imaging_partners.cpp` tests both of
-its implementations; `modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
+its implementations; `test_imaging_mask_pipeline.cpp` tests `affine_nearest.hpp` and
+`mask_pipeline.hpp`, which have not run; `modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
 fixed-point arithmetic the resize, the letterbox and the warp share. The unit files are compiled
 into `sushiai_tests`, which passed all 1803 cases in the run of 2026-10-09
 (`docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`).
@@ -86,7 +89,7 @@ one small vector per axis and per call.
 **A plan and its image.** A plan made for an image holds that image's size as `source`, and its
 image `apply_` throws unless the view has exactly that size: `AffinePlan`, `FlipPlan` and
 `LetterboxPlan` do. `MosaicPlan` holds a placement per patch and checks each against its patch.
-`HsvPlan` holds three gains and fits any image.
+`HSVPlan` holds three gains and fits any image.
 
 **Errors.** `SA_THROW_IF` with `SushiAI::Error`. Every message opens with the name of the public
 function that was called, a colon and a space: `apply_flip: `, `Image::reset: `,
@@ -300,6 +303,17 @@ in unsigned 32-bit arithmetic; the largest sum is 2048 * 2048 * 255 + 2^21, belo
 weight rounding and the blend are `Detail::to_weight`, `Detail::blend_pair` and
 `Detail::blend_rows` in `modules/vision/imaging/source/bilinear.hpp`; the warp uses the same three.
 
+### resize_nearest
+
+Each destination pixel is a copy of one source pixel, so the function never produces a value the
+source does not hold, which is what an image of class indices needs. Destination column `x` reads
+source column `floor((x + 0.5) * source.width / width)`, computed in 64-bit integers as
+`(2x + 1) * source.width / (2 * width)` and capped at the last column; rows likewise. The
+function has no reference: the label pipeline of the reference carries polygons, not masks. It
+throws through `check_source` and through `Image::reset`, which is where a size outside the
+bounds of an image is refused. `Datasets::fit_mask` computes the same index with its own
+kernel, because it writes into a region of a letterboxed mask.
+
 ### resize_long_side
 
 `resize_bilinear` to `fit_long_side`, or a copy when the size does not change.
@@ -366,7 +380,7 @@ corners that is `x1 = w - x2` and `x2 = w - x1`; `w` is `plan.source.width`, 640
 
 ## hsv.hpp
 
-### HsvSettings, validate_hsv, plan_hsv
+### HSVSettings, validate_hsv, plan_hsv
 
 Gains 0.015, 0.7 and 0.4 (`cfg/default.yaml:115-117`). The reference draws
 `np.random.uniform(-1, 1, 3) * [hgain, sgain, vgain]` (`data/augment.py:1517`), three values in
@@ -502,6 +516,73 @@ arithmetic does.
 Both tests compare `scale_box(source box, scale, scale)` with the new box. The source box of an
 object with a polygon is the box its label carried into the warp, not one rebuilt from the
 polygon, as in the reference.
+
+## affine_nearest.hpp
+
+### apply_affine_nearest
+
+The warp of `apply_affine` with one tap in place of four. Output pixel `(x, y)` reads the source
+pixel at `((x - m[2]) / m[0], (y - m[5]) / m[4])`, each coordinate computed in `double` and
+rounded half up, `floor(position + 0.5)`. A coordinate that rounds outside the source gives
+`plan.border_value`. No two source values are blended, so an image of class indices holds only
+indices of its source and the border value. Every channel of a pixel moves together.
+
+It takes the `AffinePlan` that `plan_affine` made for the image, so a mask warped with it lies
+under the image `apply_affine` warped: both read the same source position, one blends its four
+neighbours and the other takes the nearest. The caller sets `border_value` to the byte that
+names no class.
+
+It returns a `Status` and throws nothing.
+
+| Code | When |
+| --- | --- |
+| `InvalidDescription` | A source of no pixels or of a size or channel count outside the bounds; a source that shares pixels with the destination; an output size outside the bounds; matrix scales that are not finite, not above zero or not `plan.scale`; an off-diagonal term; a translation that is not finite |
+| `Incompatible` | A source of another size than `plan.source` |
+| `OutOfMemory` | An allocation fails |
+
+## mask_pipeline.hpp
+
+### MaskSource
+
+The seam a mask is loaded through, as `SampleSource` is for an image: `load(index, mask)`
+returns the mask of image `index` at the image's stored resolution, one channel, one class index
+per pixel, or the status of what kept it from being read.
+
+### TrainingMaskPipeline
+
+`make_mask(index, trace, loaded_size, mask)` gives a mask the geometry of the sample
+`TrainingPipeline::make_sample` made for `index`. It draws nothing; every decision comes from
+the `TrainingTrace` and the settings.
+
+1. `load(index)`, then `resize_nearest` to `fit_long_side` of the mask's size, the size the
+   image was loaded at. The result must be `loaded_size`, which is `Sample::loaded_size`.
+2. When `trace.mosaic.is_enabled`: load and resize the masks of the three partners the same
+   way, `plan_mosaic` with the trace's draw and the four mask sizes, and `apply_mosaic` with
+   the fill value replaced by the void value.
+3. `apply_affine_nearest` with `trace.affine`, its border value replaced by the void value.
+4. `apply_flip` with `trace.flip`.
+
+The colour jitter is not applied: it moves no pixel. The void value is the constructor's third
+argument; `vision/datasets` passes `K_MASK_VOID`, 255.
+
+A partner's mask is placed by the size it has, which is its image's when the dataset is
+consistent. Only the sample's own mask is compared with its image.
+
+| Code | When |
+| --- | --- |
+| `Incompatible` | A mask of several channels or of no pixels; the sample's own mask loaded at another size than its image; a warped mask of another size than the flip was planned for |
+| `InvalidDescription` | An `image_size` outside [1, 16384]; what `apply_affine_nearest` refuses |
+| `OutOfMemory` | An allocation fails |
+| Any other | What `MaskSource::load` returns |
+
+The settings must be the ones the `TrainingPipeline` was constructed with. The calls into
+`resize_nearest`, `plan_mosaic`, `apply_mosaic` and `apply_flip` run under `Detail::guard`,
+which stops the process for an `Error`: after the checks above, one of them throwing is a
+defect of this unit.
+
+Both units are in `test_imaging_mask_pipeline.cpp`. The mosaic test gives image `i` one box
+over all of it with the class `i` and a mask that is `i` everywhere, and expects the mask to
+hold a box's class at every pixel at least 2 pixels inside the box.
 
 ## partner_source.hpp, dataset_partners.hpp, recent_partners.hpp
 
@@ -648,7 +729,7 @@ Every multi-byte field is little-endian. The header is 24 bytes; no field is pad
 | 8 | 4 | `height` | unsigned, in [1, 16384] |
 | 12 | 4 | `width` | unsigned, in [1, 16384] |
 | 16 | 4 | `channels` | unsigned, 1 or 3 |
-| 20 | 4 | `channel_order` | unsigned: 0 `Gray`, 1 `Rgb`, 2 `Bgr` |
+| 20 | 4 | `channel_order` | unsigned: 0 `Gray`, 1 `RGB`, 2 `BGR` |
 | 24 | height * width * channels | pixels | `uint8`, row-major, channels innermost |
 
 `channels` is 1 exactly when `channel_order` is `Gray`. The file ends with the last pixel byte.
@@ -670,7 +751,7 @@ it resets the destination, so a truncated or padded file costs no allocation. Th
 `read_raw_image_pixels`, cannot know a stream's length; its allocation is bounded by
 `K_MAX_IMAGE_SIDE` and it throws when the stream ends early.
 
-The reader returns the module's order. A `Bgr` file has channels 0 and 2 swapped as it is read,
+The reader returns the module's order. A `BGR` file has channels 0 and 2 swapped as it is read,
 so a cache written from OpenCV-ordered pixels is usable without rewriting it. A `Gray` file is
 read as one channel and stays one channel in the format; the detection pipelines expand it.
 

@@ -40,8 +40,8 @@ namespace SushiAI::Vision::Training
      * @return The id of the [1] result, a SCALE node's first output.
      * @throws Error If @p head and @p delta differ in shape or element type.
      */
-    [[nodiscard]] Graph::ValueId emit_head_delta_loss(const Graph::GraphBuilder& builder,
-                                                      Graph::ValueId head, Graph::ValueId delta,
+    [[nodiscard]] Graph::ValueID emit_head_delta_loss(const Graph::GraphBuilder& builder,
+                                                      Graph::ValueID head, Graph::ValueID delta,
                                                       double scale);
 
 } // namespace SushiAI::Vision::Training

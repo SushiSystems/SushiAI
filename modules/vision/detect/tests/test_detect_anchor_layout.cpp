@@ -54,7 +54,7 @@ namespace
 } // namespace
 
 /** @brief Tests that shape_iou of a size with itself is 1. */
-TEST(Unit_DetectAnchorLayout, ShapeIouOfASizeWithItselfIsOne)
+TEST(Unit_DetectAnchorLayout, ShapeIoUOfASizeWithItselfIsOne)
 {
     const AnchorSize size{0.3f, 0.7f};
 
@@ -62,7 +62,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIouOfASizeWithItselfIsOne)
 }
 
 /** @brief Tests that shape_iou of a contained size is the ratio of the two areas. */
-TEST(Unit_DetectAnchorLayout, ShapeIouOfAContainedSizeIsTheRatioOfTheAreas)
+TEST(Unit_DetectAnchorLayout, ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas)
 {
     const AnchorSize outer{0.2f, 0.4f};
     const AnchorSize inner{0.1f, 0.2f};
@@ -73,7 +73,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIouOfAContainedSizeIsTheRatioOfTheAreas)
 }
 
 /** @brief Tests that shape_iou of a wide and a tall size counts the rectangle they share. */
-TEST(Unit_DetectAnchorLayout, ShapeIouOfCrossedSizesCountsTheSharedRectangle)
+TEST(Unit_DetectAnchorLayout, ShapeIoUOfCrossedSizesCountsTheSharedRectangle)
 {
     const AnchorSize wide{0.4f, 0.1f};
     const AnchorSize tall{0.1f, 0.4f};
@@ -83,7 +83,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIouOfCrossedSizesCountsTheSharedRectangle)
 }
 
 /** @brief Tests that shape_iou with a zero area is 0, and 0 for two zero areas. */
-TEST(Unit_DetectAnchorLayout, ShapeIouWithAZeroAreaIsZero)
+TEST(Unit_DetectAnchorLayout, ShapeIoUWithAZeroAreaIsZero)
 {
     const AnchorSize flat{0.0f, 0.3f};
     const AnchorSize size{0.2f, 0.2f};

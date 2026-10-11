@@ -180,11 +180,11 @@ TEST(Unit_BlockSppf, Row9EmitsThreePoolsOneConcatAndOneAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
@@ -204,7 +204,7 @@ TEST(Unit_BlockSppf, TheJoinReadsTheNarrowedValueThenEachPoolInAChain)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -232,11 +232,11 @@ TEST(Unit_BlockSppf, TheClosingAddReadsTheResultThenTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_TRUE(block.adds_input);
     ASSERT_EQ(count_nodes(graph, Ops::K_ADD.id), 1u);
@@ -273,7 +273,7 @@ TEST(Unit_BlockSppf, ThePoolCountSetsThePoolsAndTheJoinedWidth)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
     SPPF block(64, 64, 3, 1, false, K_YOLO_NORM);
 
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
@@ -291,12 +291,12 @@ TEST(Unit_BlockSppf, StateMatchesManifestRow9)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 2680.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 2680.
     const std::vector<std::string> expected = {
         record("model.9.cv1.conv.weight", Shape{128, 1, 1, 256}, StateKind::Parameter),
         record("model.9.cv1.bn.weight", Shape{128}, StateKind::Parameter),
@@ -331,9 +331,9 @@ TEST(Unit_BlockSppf, TheFactoryBuildsRow9)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -363,8 +363,8 @@ TEST(Unit_BlockSppf, TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 3u);
@@ -424,9 +424,9 @@ TEST(Unit_BlockSppf, TheFactoryHandsTheNormOptionsToBothNorms)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);
@@ -450,8 +450,8 @@ TEST(Unit_BlockSppf, TheFactoryReadsKernelAndPools)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(count_nodes(graph, Ops::K_MAXPOOL2D.id), 1u);

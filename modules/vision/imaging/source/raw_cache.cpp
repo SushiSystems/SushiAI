@@ -47,12 +47,12 @@ namespace SushiAI::Vision::Imaging
         /** @brief Holds the channel count of a Gray file. */
         constexpr std::uint32_t K_GRAY_FILE_CHANNELS = 1u;
 
-        /** @brief Holds the channel count of an Rgb or a Bgr file. */
+        /** @brief Holds the channel count of an RGB or a BGR file. */
         constexpr std::uint32_t K_COLOR_FILE_CHANNELS = 3u;
 
         /** @brief Holds the largest value a channel_order field may have. */
         constexpr std::uint32_t K_LAST_CHANNEL_ORDER =
-            static_cast<std::uint32_t>(ChannelOrder::Bgr);
+            static_cast<std::uint32_t>(ChannelOrder::BGR);
 
         /** @brief Writes a value as four little-endian bytes at the given address. */
         void store_u32(char* bytes, std::uint32_t value) noexcept
@@ -194,7 +194,7 @@ namespace SushiAI::Vision::Imaging
                     "read_raw_image_pixels: the pixels ended after {} of {} bytes", in.gcount(),
                     byte_count);
 
-        if (header.order == ChannelOrder::Bgr)
+        if (header.order == ChannelOrder::BGR)
             swap_red_and_blue(destination);
     }
 

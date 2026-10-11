@@ -28,7 +28,6 @@
 
 #include <SushiAI/vision/detect/anchor/head_decode.hpp>
 
-#include <cmath>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -36,43 +35,17 @@
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
+#include "slot_decode.hpp"
+
 namespace SushiAI
 {
     namespace Vision::Detect::Anchor
     {
         namespace
         {
-            /** @brief Reads a head whose offsets and scores are logits and sizes exponents. */
-            struct LogitRule
-            {
-                /** @brief Returns the logistic of an offset, objectness or class entry. */
-                static float activate(float value) noexcept
-                {
-                    return 1.0f / (1.0f + std::exp(-value));
-                }
-
-                /** @brief Returns a box side: the exponential of @p value times @p anchor. */
-                static float size(float value, float anchor) noexcept
-                {
-                    return std::exp(value) * anchor;
-                }
-            };
-
-            /** @brief Reads a head whose entries all arrive in (0, 1). */
-            struct ActivatedRule
-            {
-                /** @brief Returns an offset, objectness or class entry as it is. */
-                static float activate(float value) noexcept
-                {
-                    return value;
-                }
-
-                /** @brief Returns a box side: @p value squared, times four, times @p anchor. */
-                static float size(float value, float anchor) noexcept
-                {
-                    return value * value * 4.0f * anchor;
-                }
-            };
+            using Detail::ActivatedRule;
+            using Detail::LogitRule;
+            using Detail::SlotBox;
 
             /** @brief Holds the extents and the settings one decode loop reads. */
             struct DecodePlan
@@ -81,8 +54,7 @@ namespace SushiAI
                 std::size_t height = 0;   /**< Grid rows H. */
                 std::size_t width = 0;    /**< Grid columns W. */
                 std::size_t classes = 0;  /**< Class entries C. */
-                float scale = 1.0f;       /**< Stretch of an offset. */
-                float shift = 0.0f;       /**< `(scale - 1) / 2`, taken off a stretched offset. */
+                Detail::SlotFrame frame;  /**< Grid and stretch of the head's slots. */
                 const std::vector<AnchorSize>* anchors = nullptr;     /**< Every anchor. */
                 const std::vector<std::int64_t>* slots = nullptr;     /**< The head's anchors. */
             };
@@ -97,8 +69,6 @@ namespace SushiAI
             {
                 const std::size_t entries =
                     static_cast<std::size_t>(K_FIRST_CLASS_ENTRY) + plan.classes;
-                const float grid_width = static_cast<float>(plan.width);
-                const float grid_height = static_cast<float>(plan.height);
 
                 for (std::size_t image = 0; image < plan.images; ++image)
                 {
@@ -110,15 +80,13 @@ namespace SushiAI
                             {
                                 const AnchorSize& anchor =
                                     (*plan.anchors)[static_cast<std::size_t>(anchor_index)];
-                                const float x =
-                                    Rule::activate(head[K_X_ENTRY]) * plan.scale - plan.shift;
-                                const float y =
-                                    Rule::activate(head[K_Y_ENTRY]) * plan.scale - plan.shift;
+                                const SlotBox box = Detail::decode_slot<Rule>(
+                                    head, plan.frame, row, col, anchor);
 
-                                boxes[0] = (static_cast<float>(col) + x) / grid_width;
-                                boxes[1] = (static_cast<float>(row) + y) / grid_height;
-                                boxes[2] = Rule::size(head[K_WIDTH_ENTRY], anchor.width);
-                                boxes[3] = Rule::size(head[K_HEIGHT_ENTRY], anchor.height);
+                                boxes[0] = box.x;
+                                boxes[1] = box.y;
+                                boxes[2] = box.width;
+                                boxes[3] = box.height;
 
                                 const float objectness = Rule::activate(head[K_OBJECTNESS_ENTRY]);
                                 const float* classes = head + K_FIRST_CLASS_ENTRY;
@@ -168,8 +136,7 @@ namespace SushiAI
             plan.height = static_cast<std::size_t>(shape.height);
             plan.width = static_cast<std::size_t>(shape.width);
             plan.classes = classes;
-            plan.scale = options.scale_xy;
-            plan.shift = (options.scale_xy - 1.0f) / 2.0f;
+            plan.frame = Detail::make_slot_frame(plan.height, plan.width, options.scale_xy);
             plan.anchors = &layout.anchors;
             plan.slots = &layout.head_anchors[static_cast<std::size_t>(head_index)];
 

@@ -64,11 +64,11 @@ namespace SushiAI
             }
 
             /** @brief Joins @p parts along the channel axis. */
-            [[nodiscard]] Graph::ValueId join(const Graph::GraphBuilder& builder,
-                                              const std::vector<Graph::ValueId>& parts)
+            [[nodiscard]] Graph::ValueID join(const Graph::GraphBuilder& builder,
+                                              const std::vector<Graph::ValueID>& parts)
             {
                 return builder.concat_channels(
-                    SushiRuntime::span<const Graph::ValueId>(parts.data(), parts.size()));
+                    SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size()));
             }
 
         } // namespace
@@ -85,10 +85,10 @@ namespace SushiAI
 
         }
 
-        Graph::ValueId Attention::forward(const NN::Trace& trace, Graph::ValueId x)
+        Graph::ValueID Attention::forward(const NN::Trace& trace, Graph::ValueID x)
         {
             const Graph::GraphBuilder& builder = trace.builder();
-            const Graph::ValueId mixed = NN::trace_layer(qkv, trace, x);
+            const Graph::ValueID mixed = NN::trace_layer(qkv, trace, x);
 
             // The shape is held by value; each emitter below grows the table it would refer to.
             const Shape image = builder.graph().value(mixed).shape;
@@ -99,32 +99,32 @@ namespace SushiAI
             const int64_t head_width = 2 * key_dim + head_dim;
             const double scale = 1.0 / std::sqrt(static_cast<double>(key_dim));
 
-            std::vector<Graph::ValueId> attended;
-            std::vector<Graph::ValueId> values;
+            std::vector<Graph::ValueID> attended;
+            std::vector<Graph::ValueID> values;
             attended.reserve(static_cast<std::size_t>(heads));
             values.reserve(static_cast<std::size_t>(heads));
             for (int64_t head = 0; head < heads; ++head)
             {
                 // qkv is head-major: each head holds its queries, then its keys, then its values.
                 const int64_t offset = head * head_width;
-                const Graph::ValueId q = builder.scale(
+                const Graph::ValueID q = builder.scale(
                     builder.reshape(builder.slice_channels(mixed, offset, key_dim), key_tokens),
                     scale);
-                const Graph::ValueId k = builder.reshape(
+                const Graph::ValueID k = builder.reshape(
                     builder.slice_channels(mixed, offset + key_dim, key_dim), key_tokens);
-                const Graph::ValueId v =
+                const Graph::ValueID v =
                     builder.slice_channels(mixed, offset + 2 * key_dim, head_dim);
 
-                const Graph::ValueId scores = builder.softmax(builder.matmul(q, k, false, true));
-                const Graph::ValueId weighed =
+                const Graph::ValueID scores = builder.softmax(builder.matmul(q, k, false, true));
+                const Graph::ValueID weighed =
                     builder.matmul(scores, builder.reshape(v, value_tokens));
 
                 attended.push_back(builder.reshape(weighed, value_map));
                 values.push_back(v);
             }
 
-            const Graph::ValueId joined = join(builder, attended);
-            const Graph::ValueId position = NN::trace_layer(pe, trace, join(builder, values));
+            const Graph::ValueID joined = join(builder, attended);
+            const Graph::ValueID position = NN::trace_layer(pe, trace, join(builder, values));
 
             return NN::trace_layer(proj, trace, builder.add(joined, position));
         }

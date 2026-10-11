@@ -80,7 +80,7 @@ namespace SushiAI
             Candidates collect_candidates(SushiRuntime::span<const float> boxes,
                                           SushiRuntime::span<const float> scores,
                                           std::size_t classes,
-                                          const NmsConfig& config)
+                                          const NMSConfig& config)
             {
                 const bool every_class = config.label_mode == LabelMode::MultiLabel && classes > 1;
                 const std::size_t anchors = boxes.size() / K_BOX_VALUES;
@@ -129,7 +129,7 @@ namespace SushiAI
             void select_image_detections(SushiRuntime::span<const float> boxes,
                                          SushiRuntime::span<const float> scores,
                                          std::size_t classes,
-                                         const NmsConfig& config,
+                                         const NMSConfig& config,
                                          std::vector<float>& detections)
             {
                 detections.clear();
@@ -173,7 +173,7 @@ namespace SushiAI
             SA_THROW_IF(boxes.size() != count * K_BOX_VALUES,
                         "a suppression needs [N, 4] boxes and [N] scores; got {} and {} values",
                         boxes.size(), count);
-            suppress_overlaps(boxes, scores, iou_threshold, SuppressionCriterion::Iou,
+            suppress_overlaps(boxes, scores, iou_threshold, SuppressionCriterion::IoU,
                               K_DEFAULT_DISTANCE_EXPONENT, kept);
         }
 
@@ -188,9 +188,9 @@ namespace SushiAI
             SA_FATAL_IF(boxes.size() != count * K_BOX_VALUES,
                         "a suppression needs [N, 4] boxes and [N] scores; got {} and {} values",
                         boxes.size(), count);
-            SA_FATAL_IF(criterion != SuppressionCriterion::Iou &&
-                            criterion != SuppressionCriterion::DistanceIou,
-                        "a suppression criterion must be Iou or DistanceIou; got {}",
+            SA_FATAL_IF(criterion != SuppressionCriterion::IoU &&
+                            criterion != SuppressionCriterion::DistanceIoU,
+                        "a suppression criterion must be IoU or DistanceIoU; got {}",
                         static_cast<unsigned>(criterion));
 
             std::vector<std::int64_t> order;
@@ -233,7 +233,7 @@ namespace SushiAI
         void select_nms_detections(SushiRuntime::span<const float> boxes,
                                    SushiRuntime::span<const float> scores,
                                    const PredictionShape& shape,
-                                   const NmsConfig& config,
+                                   const NMSConfig& config,
                                    std::vector<std::vector<float>>& detections)
         {
             SA_THROW_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0,

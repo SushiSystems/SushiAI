@@ -216,7 +216,7 @@ namespace
         Graph::GraphBuilder builder{graph};
 
         /** @brief Holds the id of each level's [K_BATCH, side, side, width] input. */
-        std::vector<Graph::ValueId> features;
+        std::vector<Graph::ValueID> features;
 
         /** @brief Declares one input per level of K_TRACED_SIDES and K_WIDTHS. */
         FeatureGraph()
@@ -296,10 +296,10 @@ TEST(Unit_BlockDetectHead, StateMatchesManifestRecords390To593)
     ASSERT_NE(head, nullptr);
     FeatureGraph traced;
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(head->forward(Trace::training(traced.builder, list), traced.inputs(), outputs));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 6485.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 6485.
     std::vector<std::string> expected;
     append_box_branches(expected, "model.23.cv2");
     append_class_branches(expected, "model.23.cv3");
@@ -320,10 +320,10 @@ TEST(Unit_BlockDetectHead, ATrainingTraceDetachesEachFeatureOnce)
     ASSERT_NE(head, nullptr);
     FeatureGraph traced;
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(head->forward(Trace::training(traced.builder, list), traced.inputs(), outputs));
 
-    std::vector<Graph::ValueId> detached;
+    std::vector<Graph::ValueID> detached;
     for (const Graph::Node& node : traced.graph.nodes())
     {
         if (node.op == Ops::K_STOP_GRADIENT.id)
@@ -351,7 +351,7 @@ TEST(Unit_BlockDetectHead, AnEvaluationTraceEmitsNoStopGradient)
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
     FeatureGraph traced;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(head->forward(Trace::evaluation(traced.builder), traced.inputs(), outputs));
 
     EXPECT_EQ(count_nodes(traced.graph, Ops::K_STOP_GRADIENT.id), 0u);
@@ -373,8 +373,8 @@ TEST(Unit_BlockDetectHead, TheFirstLevelSetsTheBranchWidths)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{K_BATCH, 4, 4, 128}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{K_BATCH, 4, 4, 128}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(head->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     const std::vector<std::string> state = walk(*head, "");
@@ -394,7 +394,7 @@ TEST(Unit_BlockDetectHead, ForwardRefusesAWrongInputCount)
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
     FeatureGraph traced;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(head->forward(Trace::evaluation(traced.builder),
                                     NN::ValueSpan(traced.features.data(), 2), outputs),
@@ -439,7 +439,7 @@ TEST(Unit_BlockDetectHead, TheFactoryBuildsRow23)
 
     FeatureGraph traced;
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(traced.builder, list), traced.inputs(), outputs));
 
     // Both constants are stored as given, so they compare exactly.

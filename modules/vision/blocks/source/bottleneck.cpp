@@ -58,9 +58,9 @@ namespace SushiAI
 
         }
 
-        Graph::ValueId Bottleneck::forward(const NN::Trace& trace, Graph::ValueId x)
+        Graph::ValueID Bottleneck::forward(const NN::Trace& trace, Graph::ValueID x)
         {
-            const Graph::ValueId y = NN::trace_layer(cv2, trace, NN::trace_layer(cv1, trace, x));
+            const Graph::ValueID y = NN::trace_layer(cv2, trace, NN::trace_layer(cv1, trace, x));
             if (!adds_input)
                 return y;
 

@@ -169,11 +169,11 @@ TEST(Unit_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
     C3k block(64, 64, 2, true, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);
@@ -193,7 +193,7 @@ TEST(Unit_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
     C3k block(64, 64, 2, true, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -215,7 +215,7 @@ TEST(Unit_BlockC3k, NoShortcutTracesNoAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
     C3k block(64, 64, 2, false, K_YOLO_NORM);
 
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
@@ -229,10 +229,10 @@ TEST(Unit_BlockC3k, TheHiddenWidthIsHalfTheOutputWidthRoundedDown)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 8}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 8}, "x");
     C3k block(8, 7, 1, true, K_YOLO_NORM);
 
-    const Graph::ValueId y = block.forward(Trace::evaluation(builder), x);
+    const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(block.cv1.conv.weight.shape(), (Shape{3, 1, 1, 8}));
     EXPECT_EQ(block.cv2.conv.weight.shape(), (Shape{3, 1, 1, 8}));
@@ -250,12 +250,12 @@ TEST(Unit_BlockC3k, StateMatchesManifestRow6Inner)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
     C3k block(64, 64, 2, true, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 1303.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 1303.
     const std::vector<std::string> expected = {
         record("model.6.m.0.cv1.conv.weight", Shape{32, 1, 1, 64}, StateKind::Parameter),
         record("model.6.m.0.cv1.bn.weight", Shape{32}, StateKind::Parameter),
@@ -313,8 +313,8 @@ TEST(Unit_BlockC3k, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -335,8 +335,8 @@ TEST(Unit_BlockC3k, TheFactoryReadsRepeatsAndShortcut)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 7u);
@@ -400,9 +400,9 @@ TEST(Unit_BlockC3k, TheFactoryHandsTheNormOptionsToEveryNorm)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 7u);

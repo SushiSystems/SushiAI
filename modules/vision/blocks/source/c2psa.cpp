@@ -60,20 +60,20 @@ namespace SushiAI
                 m.push_back(PSABlock(hidden_channels, heads, norm));
         }
 
-        Graph::ValueId C2PSA::forward(const NN::Trace& trace, Graph::ValueId x)
+        Graph::ValueID C2PSA::forward(const NN::Trace& trace, Graph::ValueID x)
         {
             const Graph::GraphBuilder& builder = trace.builder();
-            const Graph::ValueId stem = NN::trace_layer(cv1, trace, x);
+            const Graph::ValueID stem = NN::trace_layer(cv1, trace, x);
 
-            const Graph::ValueId kept = builder.slice_channels(stem, 0, hidden);
-            Graph::ValueId chained = builder.slice_channels(stem, hidden, hidden);
+            const Graph::ValueID kept = builder.slice_channels(stem, 0, hidden);
+            Graph::ValueID chained = builder.slice_channels(stem, hidden, hidden);
             for (PSABlock& block : m)
                 chained = NN::trace_layer(block, trace, chained);
 
-            const Graph::ValueId parts[] = {kept, chained};
+            const Graph::ValueID parts[] = {kept, chained};
             return NN::trace_layer(
                 cv2, trace,
-                builder.concat_channels(SushiRuntime::span<const Graph::ValueId>(parts)));
+                builder.concat_channels(SushiRuntime::span<const Graph::ValueID>(parts)));
         }
 
         Shape C2PSA::output_shape(const Shape& input) const

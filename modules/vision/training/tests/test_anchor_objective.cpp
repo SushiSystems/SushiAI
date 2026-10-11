@@ -53,7 +53,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 using Vision::Detect::Anchor::AnchorLayout;
 using Vision::Detect::Anchor::HeadCost;
 using Vision::Detect::Anchor::HeadDelta;
@@ -154,14 +154,14 @@ TEST(Unit_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
     Train::ObjectiveLeaves leaves;
     objective.declare(builder, leaves);
 
-    const ValueId fine = builder.parameter(Shape{2, 4, 4, 14}, "fine");
-    const ValueId coarse = builder.parameter(Shape{2, 2, 2, 14}, "coarse");
+    const ValueID fine = builder.parameter(Shape{2, 4, 4, 14}, "fine");
+    const ValueID coarse = builder.parameter(Shape{2, 2, 2, 14}, "coarse");
     NN::ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("head.1", coarse));
     SA_EXPECT_OK(outputs.add("head.0", fine));
     const std::size_t first = graph.node_count();
 
-    const ValueId root = objective.loss(builder, graph, outputs, leaves);
+    const ValueID root = objective.loss(builder, graph, outputs, leaves);
 
     ASSERT_EQ(op_names(graph, first), (std::vector<std::string>{
         "sushiai.mul", "sushiai.reshape", "sushiai.sum_rows", "sushiai.scale",
@@ -176,13 +176,13 @@ TEST(Unit_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
     const Graph::Node& sum = graph.nodes()[first + 8];
 
     // Each head meets the leaf of its own name, whatever order the model published them in.
-    EXPECT_EQ(fine_product.inputs, (std::vector<ValueId>{leaves.at("delta.head.0"), fine}));
-    EXPECT_EQ(coarse_product.inputs, (std::vector<ValueId>{leaves.at("delta.head.1"), coarse}));
+    EXPECT_EQ(fine_product.inputs, (std::vector<ValueID>{leaves.at("delta.head.0"), fine}));
+    EXPECT_EQ(coarse_product.inputs, (std::vector<ValueID>{leaves.at("delta.head.1"), coarse}));
     EXPECT_NEAR(fine_scale.attributes.get(0), -1.0 / 2.0, K_ATTRIBUTE_TOLERANCE);
     EXPECT_NEAR(coarse_scale.attributes.get(0), -1.0 / 2.0, K_ATTRIBUTE_TOLERANCE);
     EXPECT_EQ(sum.inputs,
-              (std::vector<ValueId>{fine_scale.outputs.at(0), coarse_scale.outputs.at(0)}));
-    EXPECT_EQ(sum.outputs, (std::vector<ValueId>{root}));
+              (std::vector<ValueID>{fine_scale.outputs.at(0), coarse_scale.outputs.at(0)}));
+    EXPECT_EQ(sum.outputs, (std::vector<ValueID>{root}));
     EXPECT_EQ(graph.value(root).shape, (Shape{1}));
 }
 
@@ -257,16 +257,13 @@ TEST(Unit_AnchorObjective, TheCostIsTheSumOverTheHeads)
     EXPECT_NEAR(cost.stored, 14.0 + 5.0, K_COST_TOLERANCE);
 }
 
-/** @brief Tests that score offers no metric and that the name is "anchor_delta". */
-TEST(Unit_AnchorObjective, OffersNoMetricAndNamesItself)
+/** @brief Tests that the name is "anchor_delta" and that no batch alone feeds the objective. */
+TEST(Unit_AnchorObjective, NamesItselfAndIsFedByItsOwnStep)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
 
-    const Data::Batch batch{};
-    const SushiBLAS::Tensor output{};
-
-    EXPECT_FALSE(objective.score(batch, output).has_value());
+    EXPECT_FALSE(objective.is_fed_by_batch());
     EXPECT_EQ(objective.name(), "anchor_delta");
     EXPECT_EQ(objective.heads().size(), 2u);
     EXPECT_EQ(objective.layout().anchors.size(), 4u);

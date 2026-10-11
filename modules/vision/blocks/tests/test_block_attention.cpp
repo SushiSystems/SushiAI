@@ -149,7 +149,7 @@ namespace
     }
 
     /** @brief Returns the node of @p graph that produced @p value. */
-    const Graph::Node& producer_of(const Graph::Graph& graph, Graph::ValueId value)
+    const Graph::Node& producer_of(const Graph::Graph& graph, Graph::ValueID value)
     {
         return graph.node(graph.value(value).producer);
     }
@@ -171,8 +171,8 @@ namespace
      * @brief Expects @p tokens to be a RESHAPE to @p shape of a slice of @p source that starts
      *        at @p offset and holds @p count channels.
      */
-    void expect_tokens_of_slice(const Graph::Graph& graph, Graph::ValueId tokens,
-                                const Shape& shape, Graph::ValueId source, int64_t offset,
+    void expect_tokens_of_slice(const Graph::Graph& graph, Graph::ValueID tokens,
+                                const Shape& shape, Graph::ValueID source, int64_t offset,
                                 int64_t count)
     {
         const Graph::Node& reshape = producer_of(graph, tokens);
@@ -202,10 +202,10 @@ namespace
         BufferUpdateList list;
 
         /** @brief Holds the [K_BATCH, K_SIDE, K_SIDE, K_CHANNELS] input's id. */
-        Graph::ValueId x = Graph::K_NO_VALUE;
+        Graph::ValueID x = Graph::K_NO_VALUE;
 
         /** @brief Holds the id forward() returned. */
-        Graph::ValueId y = Graph::K_NO_VALUE;
+        Graph::ValueID y = Graph::K_NO_VALUE;
 
         /** @brief Declares the input and traces the block over it. */
         TracedAttention()
@@ -216,7 +216,7 @@ namespace
         }
 
         /** @brief Returns the id of qkv's normalised result, which every slice reads. */
-        Graph::ValueId mixed() const
+        Graph::ValueID mixed() const
         {
             return graph.nodes()[first_node(graph, Ops::K_BATCHNORM2D.id)].outputs[0];
         }
@@ -425,7 +425,7 @@ TEST(Unit_BlockAttention, StateMatchesManifestRecords175To189)
 {
     TracedAttention traced;
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 3004.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 3004.
     const std::string prefix = "model.10.m.0.attn";
     std::vector<std::string> expected;
     append_conv_norm(expected, prefix + ".qkv", Shape{256, 1, 1, 128}, 256);
@@ -440,10 +440,10 @@ TEST(Unit_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}, "x");
+    const Graph::ValueID x = builder.input(Shape{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS}, "x");
     Attention block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
 
-    const Graph::ValueId y = block.forward(Trace::evaluation(builder), x);
+    const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 3u);

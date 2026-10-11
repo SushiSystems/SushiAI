@@ -9,6 +9,7 @@
 sushiai_add_module(NAME imaging TIER vision
     SOURCES
         source/affine.cpp
+        source/affine_nearest.cpp
         source/bilinear.cpp
         source/boxes.cpp
         source/dataset_partners.cpp
@@ -19,6 +20,7 @@ sushiai_add_module(NAME imaging TIER vision
         source/label_set.cpp
         source/labels.cpp
         source/letterbox.cpp
+        source/mask_pipeline.cpp
         source/mosaic.cpp
         source/pipeline.cpp
         source/polygon.cpp
@@ -27,7 +29,7 @@ sushiai_add_module(NAME imaging TIER vision
         source/recent_partners.cpp
         source/rectangle.cpp
         source/resize.cpp
-    PRIVATE_DEPENDS core
+    PUBLIC_DEPENDS core
     TESTS
         tests/test_imaging_affine.cpp
         tests/test_imaging_boxes.cpp
@@ -38,6 +40,7 @@ sushiai_add_module(NAME imaging TIER vision
         tests/test_imaging_label_set.cpp
         tests/test_imaging_labels.cpp
         tests/test_imaging_letterbox.cpp
+        tests/test_imaging_mask_pipeline.cpp
         tests/test_imaging_mosaic.cpp
         tests/test_imaging_partners.cpp
         tests/test_imaging_pipeline.cpp

@@ -140,7 +140,7 @@ namespace SushiAI
              */
             void trace_copy(NN::ModuleList<BoxBranch>& boxes, NN::ModuleList<ClassBranch>& classes,
                             const NN::Trace& trace, NN::ValueSpan features,
-                            std::vector<Graph::ValueId>& results)
+                            std::vector<Graph::ValueID>& results)
             {
                 for (std::size_t level = 0; level < features.size(); ++level)
                     results.push_back(NN::trace_layer(boxes[level], trace, features[level]));
@@ -153,14 +153,14 @@ namespace SushiAI
              * @brief Lists what the one-to-one copy reads: each feature behind a STOP_GRADIENT
              *        in a training trace, the features themselves otherwise.
              */
-            [[nodiscard]] std::vector<Graph::ValueId> one_to_one_features(const NN::Trace& trace,
+            [[nodiscard]] std::vector<Graph::ValueID> one_to_one_features(const NN::Trace& trace,
                                                                           NN::ValueSpan features)
             {
-                std::vector<Graph::ValueId> read(features.begin(), features.end());
+                std::vector<Graph::ValueID> read(features.begin(), features.end());
                 if (trace.mode() != NN::TraceMode::Training)
                     return read;
 
-                for (Graph::ValueId& feature : read)
+                for (Graph::ValueID& feature : read)
                     feature = trace.builder().stop_gradient(feature);
 
                 return read;
@@ -233,17 +233,17 @@ namespace SushiAI
         }
 
         Status DetectHead::forward(const NN::Trace& trace, NN::ValueSpan inputs,
-                                   std::vector<Graph::ValueId>& outputs)
+                                   std::vector<Graph::ValueID>& outputs)
         {
             SA_TRY(NN::Detail::require_input_count(inputs, level_count_));
-            const Result<std::vector<Graph::ValueId>> traced =
+            const Result<std::vector<Graph::ValueID>> traced =
                 NN::Detail::bridge_throwing([this, &trace, &inputs]()
             {
-                std::vector<Graph::ValueId> results;
+                std::vector<Graph::ValueID> results;
                 results.reserve(ports_.size());
                 trace_copy(branches_.cv2, branches_.cv3, trace, inputs, results);
 
-                const std::vector<Graph::ValueId> read = one_to_one_features(trace, inputs);
+                const std::vector<Graph::ValueID> read = one_to_one_features(trace, inputs);
                 trace_copy(branches_.one2one_cv2, branches_.one2one_cv3, trace,
                            NN::ValueSpan(read.data(), read.size()), results);
 

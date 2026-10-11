@@ -85,7 +85,7 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, channels] value.
              * @return The [N, H, W, channels] result's id.
              */
-            Graph::ValueId forward(const NN::Trace& trace, Graph::ValueId x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
 
             /**
              * @brief Computes the per-sample shape forward() produces, which is the input's.

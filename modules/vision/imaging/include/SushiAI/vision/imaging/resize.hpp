@@ -21,7 +21,7 @@
 
 /**
  * @file resize.hpp
- * @brief Declares the bilinear resize of an 8-bit image and the training-load size rule.
+ * @brief Declares the resizes of an 8-bit image and the training-load size rule.
  * @author Mustafa Garip
  */
 
@@ -56,6 +56,16 @@ namespace SushiAI::Vision::Imaging
      * @param destination Reset to size with the source's channels; must pass check_source.
      */
     void resize_bilinear(ImageView source, ImageSize size, Image& destination);
+
+    /**
+     * @brief Resizes an image by giving each pixel the source pixel its centre falls in.
+     *
+     * Destination column x reads source column floor((x + 0.5) * source width / width),
+     * and rows likewise. No two values are blended, so an image of class indices stays one.
+     * @param size Must pass is_valid_size; otherwise Image::reset throws Error.
+     * @param destination Reset to size with the source's channels; must pass check_source.
+     */
+    void resize_nearest(ImageView source, ImageSize size, Image& destination);
 
     /**
      * @brief Resizes an image to fit_long_side(source.size(), image_size).

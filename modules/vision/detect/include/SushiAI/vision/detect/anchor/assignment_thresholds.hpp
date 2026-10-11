@@ -37,7 +37,7 @@ namespace SushiAI
         /** @brief Holds the two thresholds that decide which slots a truth box trains. */
         struct AssignmentThresholds
         {
-            /// @brief Holds the shape_iou from which a further anchor of a head takes a truth.
+            /// @brief Holds the shape_iou a further anchor of a head must exceed to take a truth.
             float match_threshold = 1.0f;
             /// @brief Holds the box IoU above which an unassigned slot is left out of the cost.
             float ignore_threshold = 0.7f;

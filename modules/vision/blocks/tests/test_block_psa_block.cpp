@@ -178,15 +178,15 @@ TEST(Unit_BlockPsaBlock, OutputShapeIsTheInputShape)
  * @brief Tests that a traced block emits three ADDs, one SILU, five norms and ten buffer
  *        updates, and keeps the input's shape.
  */
-TEST(Unit_BlockPsaBlock, EmitsThreeAddsOneSiluFiveNormsAndTenUpdates)
+TEST(Unit_BlockPsaBlock, EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, K_CHANNELS}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, K_CHANNELS}, "x");
     PSABlock block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     // One ADD belongs to the attention, and the block adds two more.
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 3u);
@@ -204,11 +204,11 @@ TEST(Unit_BlockPsaBlock, TheResidualAddsReadTheInputThenAttentionThenTheFeedForw
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, K_CHANNELS}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, K_CHANNELS}, "x");
     PSABlock block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     // The attention emits the first ADD, so the block's two are the second and the third.
     const std::size_t after_attention_index = node_index(graph, Ops::K_ADD.id, 1);
@@ -235,7 +235,7 @@ TEST(Unit_BlockPsaBlock, StateMatchesManifestRow10Block)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, K_CHANNELS}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, K_CHANNELS}, "x");
     PSABlock block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));

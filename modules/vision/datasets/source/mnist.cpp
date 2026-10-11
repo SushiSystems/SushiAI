@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -37,7 +38,10 @@
 #include <SushiBLAS/core/format.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 
 namespace SushiAI::Vision::Datasets
 {
@@ -85,14 +89,14 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief The IDX image file for a split. */
-        std::filesystem::path image_path(const MnistOptions& options)
+        std::filesystem::path image_path(const MNISTOptions& options)
         {
             return options.directory /
                    (options.test_split ? K_MNIST_TEST_IMAGES : K_MNIST_TRAIN_IMAGES);
         }
 
         /** @brief The IDX label file for a split. */
-        std::filesystem::path label_path(const MnistOptions& options)
+        std::filesystem::path label_path(const MNISTOptions& options)
         {
             return options.directory /
                    (options.test_split ? K_MNIST_TEST_LABELS : K_MNIST_TRAIN_LABELS);
@@ -101,14 +105,14 @@ namespace SushiAI::Vision::Datasets
         /**
          * @brief Reads the optional "split" key of a "mnist" dataset.
          * @return True for the test split, false for the training split, and the
-         *         MnistOptions default for an absent key; InvalidDescription for a value
+         *         MNISTOptions default for an absent key; InvalidDescription for a value
          *         that names neither split.
          */
         [[nodiscard]] Result<bool> is_test_split(const Config::Value& attributes,
                                                  const std::string& prefix)
         {
             const Config::Value spelled = Config::Value::string(std::string(
-                MnistOptions().test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN));
+                MNISTOptions().test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN));
             const std::string& split =
                 attributes.at_or("split", spelled).as_string(prefix + " 'split'");
 
@@ -122,13 +126,13 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Reads the optional "layout" key of a "mnist" dataset.
-         * @return Flat or Image, the MnistOptions default for an absent key; or
+         * @return Flat or Image, the MNISTOptions default for an absent key; or
          *         InvalidDescription for a value that names neither layout.
          */
-        [[nodiscard]] Result<MnistLayout> read_layout(const Config::Value& attributes,
+        [[nodiscard]] Result<MNISTLayout> read_layout(const Config::Value& attributes,
                                                       const std::string& prefix)
         {
-            const bool image_default = MnistOptions().layout == MnistLayout::Image;
+            const bool image_default = MNISTOptions().layout == MNISTLayout::Image;
             const Config::Value spelled = Config::Value::string(std::string(
                 image_default ? K_MNIST_LAYOUT_IMAGE : K_MNIST_LAYOUT_FLAT));
             const std::string layout =
@@ -139,7 +143,7 @@ namespace SushiAI::Vision::Datasets
                        "{} 'layout' is '{}'; it must be '{}' or '{}'",
                        prefix, layout, K_MNIST_LAYOUT_FLAT, K_MNIST_LAYOUT_IMAGE);
 
-            return layout == K_MNIST_LAYOUT_IMAGE ? MnistLayout::Image : MnistLayout::Flat;
+            return layout == K_MNIST_LAYOUT_IMAGE ? MNISTLayout::Image : MNISTLayout::Flat;
         }
 
         /**
@@ -150,7 +154,7 @@ namespace SushiAI::Vision::Datasets
          *         positive, or the failure of an allocation.
          */
         [[nodiscard]] Status read_mnist(SushiBLAS::Engine& engine,
-                                        const MnistOptions& options,
+                                        const MNISTOptions& options,
                                         std::unique_ptr<Data::Dataset>& dataset)
         {
             SA_FAIL_IF(!mnist_available(options), StatusCode::FileNotFound,
@@ -187,9 +191,10 @@ namespace SushiAI::Vision::Datasets
                        image_rows, image_cols);
 
             const int64_t pixels = static_cast<int64_t>(image_rows) * image_cols;
-            const Shape sample = options.layout == MnistLayout::Image
+            const Shape sample = options.layout == MNISTLayout::Image
                 ? Shape{static_cast<int64_t>(image_rows), static_cast<int64_t>(image_cols), 1}
                 : Shape{pixels};
+            const Data::InputDescription input{sample, DType::Float32};
             const int64_t available = static_cast<int64_t>(image_count);
             const int64_t wanted = options.max_samples > 0
                                  ? std::min(available, options.max_samples)
@@ -201,6 +206,8 @@ namespace SushiAI::Vision::Datasets
                        "MNIST has {} usable samples, fewer than one batch of {}", wanted, rows);
 
             const int64_t classes = 10;
+            std::vector<Data::TargetDescription> targets{Data::TargetDescription{
+                std::string(Data::K_ROLE_LABELS), Shape{}, DType::Int32, classes}};
 
             std::vector<unsigned char> raw(static_cast<std::size_t>(rows * pixels));
             std::vector<unsigned char> raw_labels(static_cast<std::size_t>(rows));
@@ -220,39 +227,39 @@ namespace SushiAI::Vision::Datasets
                            b, batch_total);
 
                 SA_TRY_ASSIGN(Data::Batch batch,
-                              Data::allocate_batch(engine, rows, sample, classes));
+                              Data::allocate_batch(engine, rows, input, targets));
 
                 float* pixel_data = batch.inputs.data_as<float>();
                 for (std::size_t i = 0; i < raw.size(); ++i)
                     pixel_data[i] = static_cast<float>(raw[i]) / 255.0f;
 
+                int32_t* label_data = batch.targets.front().values.data_as<int32_t>();
                 for (int64_t r = 0; r < rows; ++r)
                 {
                     const int32_t label =
                         static_cast<int32_t>(raw_labels[static_cast<std::size_t>(r)]);
                     SA_FAIL_IF(label < 0 || label >= classes, StatusCode::InvalidFile,
                                "MNIST label {} is out of range", label);
-                    batch.labels[static_cast<std::size_t>(r)] = label;
+                    label_data[r] = label;
                 }
 
-                Data::write_one_hot(batch.targets, batch.labels, classes);
                 batches.push_back(std::move(batch));
             }
 
-            dataset = std::make_unique<Data::MaterialisedDataset>(std::move(batches), rows,
-                                                                  sample, classes, "mnist");
+            dataset = std::make_unique<Data::MaterialisedDataset>(
+                std::move(batches), rows, input, std::move(targets), "mnist");
             return Status();
         }
     } // namespace
 
-    bool mnist_available(const MnistOptions& options)
+    bool mnist_available(const MNISTOptions& options)
     {
         std::error_code ignored;
         return std::filesystem::is_regular_file(image_path(options), ignored)
             && std::filesystem::is_regular_file(label_path(options), ignored);
     }
 
-    std::string mnist_expected_paths(const MnistOptions& options)
+    std::string mnist_expected_paths(const MNISTOptions& options)
     {
         return SushiBLAS::Core::format("images: {}, labels: {}",
                                        image_path(options).string(),
@@ -260,7 +267,7 @@ namespace SushiAI::Vision::Datasets
     }
 
     Result<std::unique_ptr<Data::Dataset>> try_load_mnist(SushiBLAS::Engine& engine,
-                                                          const MnistOptions& options)
+                                                          const MNISTOptions& options)
     {
         std::unique_ptr<Data::Dataset> dataset;
         SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
@@ -278,7 +285,7 @@ namespace SushiAI::Vision::Datasets
             context,
             SushiRuntime::span<const std::string_view>(K_MNIST_KEYS, std::size(K_MNIST_KEYS)));
 
-        MnistOptions options;
+        MNISTOptions options;
         const std::string prefix(context);
 
         options.directory = attributes.at("directory", context)

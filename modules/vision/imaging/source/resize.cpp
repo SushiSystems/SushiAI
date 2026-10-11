@@ -21,7 +21,7 @@
 
 /**
  * @file resize.cpp
- * @brief Implements the bilinear resize of an 8-bit image and the training-load size rule.
+ * @brief Implements the resizes of an 8-bit image and the training-load size rule.
  * @author Mustafa Garip
  */
 
@@ -29,7 +29,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
+#include <vector>
 
 #include <SushiAI/core/common.hpp>
 
@@ -37,6 +39,22 @@
 
 namespace SushiAI::Vision::Imaging
 {
+    namespace
+    {
+        /**
+         * @brief Returns the source index the centre of destination index @p at falls in.
+         * @pre @p source and @p destination are positive and @p at is in [0, destination).
+         */
+        [[nodiscard]] constexpr std::int32_t nearest_source_index(
+            std::int32_t at, std::int32_t source, std::int32_t destination) noexcept
+        {
+            const std::int64_t index = (2 * static_cast<std::int64_t>(at) + 1) * source /
+                                       (2 * static_cast<std::int64_t>(destination));
+
+            return static_cast<std::int32_t>(std::min<std::int64_t>(index, source - 1));
+        }
+    } // namespace
+
     ImageSize fit_long_side(ImageSize original, std::int32_t image_size) noexcept
     {
         const std::int32_t long_side = std::max(original.height, original.width);
@@ -62,6 +80,35 @@ namespace SushiAI::Vision::Imaging
 
         destination.reset(size, source.channels());
         Detail::resize_rows(source, size, destination.data(), destination.row_bytes());
+    }
+
+    void resize_nearest(ImageView source, ImageSize size, Image& destination)
+    {
+        check_source(source, destination, "resize_nearest");
+
+        // reset() throws on a size outside the bounds of an image.
+        destination.reset(size, source.channels());
+
+        const std::size_t channels = static_cast<std::size_t>(source.channels());
+        std::vector<std::size_t> offsets(static_cast<std::size_t>(size.width));
+        for (std::int32_t x = 0; x < size.width; ++x)
+        {
+            offsets[static_cast<std::size_t>(x)] =
+                static_cast<std::size_t>(nearest_source_index(x, source.width(), size.width)) *
+                channels;
+        }
+
+        for (std::int32_t y = 0; y < size.height; ++y)
+        {
+            const std::uint8_t* const in =
+                source.row(nearest_source_index(y, source.height(), size.height));
+            std::uint8_t* out = destination.row(y);
+            for (const std::size_t offset : offsets)
+            {
+                std::memcpy(out, in + offset, channels);
+                out += channels;
+            }
+        }
     }
 
     void resize_long_side(ImageView source, std::int32_t image_size, Image& destination)

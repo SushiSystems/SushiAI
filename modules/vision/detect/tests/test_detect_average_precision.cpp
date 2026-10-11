@@ -379,7 +379,7 @@ TEST(Unit_AveragePrecision, DetectionWhoseBestBoxIsTakenStaysUnmatched)
 }
 
 /** @brief Tests that a detection over two boxes matches the one of larger IoU, listed second. */
-TEST(Unit_AveragePrecision, DetectionTakesTheBoxOfLargestIou)
+TEST(Unit_AveragePrecision, DetectionTakesTheBoxOfLargestIoU)
 {
     // IoU is 40 / 56 = 0.714 with K_BOX_LOOSE and 56 / 64 = 0.875 with K_BOX_A: 0.85 passes.
     const std::vector<std::uint8_t> correct =
@@ -388,7 +388,7 @@ TEST(Unit_AveragePrecision, DetectionTakesTheBoxOfLargestIou)
 }
 
 /** @brief Tests that a detection whose IoU is not a number matches at no threshold. */
-TEST(Unit_AveragePrecision, DetectionWithNanBoxDoesNotMatch)
+TEST(Unit_AveragePrecision, DetectionWithNaNBoxDoesNotMatch)
 {
     const std::vector<float> detection{std::numeric_limits<float>::quiet_NaN(),
                                        0.0f, 8.0f, 8.0f, 0.9f, 0.0f};

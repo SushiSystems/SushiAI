@@ -230,11 +230,11 @@ TEST(Unit_BlockC2psa, Row10EmitsEightSlicesThreeAddsAndThreeJoins)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     C2PSA block = make_row10();
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     // Two halves of the stem, and six slices of the attention's qkv.
     EXPECT_EQ(count_nodes(graph, Ops::K_SLICE_CHANNELS.id), 8u);
@@ -255,7 +255,7 @@ TEST(Unit_BlockC2psa, TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSlic
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     C2PSA block = make_row10();
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -292,7 +292,7 @@ TEST(Unit_BlockC2psa, EachRepeatReadsTheResultOfThePreviousOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     C2PSA block(256, 256, K_HIDDEN, 2, 2, K_YOLO_NORM);
 
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
@@ -313,7 +313,7 @@ TEST(Unit_BlockC2psa, StateMatchesManifestRow10)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     C2PSA block = make_row10();
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
@@ -340,9 +340,9 @@ TEST(Unit_BlockC2psa, TheFactoryBuildsRow10)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -367,8 +367,8 @@ TEST(Unit_BlockC2psa, TheFactoryDefaultsToOneBlockAndHiddenOver64Heads)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 256}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 256}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 2u);
@@ -390,8 +390,8 @@ TEST(Unit_BlockC2psa, TheFactoryGivesOneHeadForAHiddenWidthUnder128)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 64}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 64}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 1u);

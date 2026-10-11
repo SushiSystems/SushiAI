@@ -74,7 +74,8 @@ namespace SushiAI
             /** @brief Holds the settings read from the [net] section. */
             DarknetSolver solver;
 
-            /** @brief Holds one entry per [yolo] section, in the order the file lists them. */
+            /// @brief Holds one entry per [yolo] section, in file order; each has the box
+            ///        gradient BoxGradient::DarknetCompatible.
             std::vector<Detect::Anchor::HeadTrainingOptions> heads;
         };
 

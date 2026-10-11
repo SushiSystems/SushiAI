@@ -104,6 +104,22 @@ namespace SushiAI::Vision::Training
             /** @brief Returns the training step, for its counters. */
             [[nodiscard]] const Train::TrainingStep& training() const noexcept;
 
+            /** @brief Returns how many times run() has finished, counted from a restored count. */
+            [[nodiscard]] std::size_t run_count() const noexcept;
+
+            /**
+             * @brief Sets the run count of both passes to that of a saved run.
+             * @param count What run_count() of the saved run returned.
+             * @return What Graph::CompiledStep::restore_run_count() returns for either pass.
+             */
+            [[nodiscard]] Status restore_run_count(std::size_t count);
+
+            /** @brief Returns the objective that describes the heads. */
+            [[nodiscard]] const AnchorObjective& objective() const noexcept;
+
+            /** @brief Returns the optimizer whose update run() applies. */
+            [[nodiscard]] Optim::Optimizer& optimizer() noexcept;
+
         private:
             /** @brief Takes the parts make() built; the tensor lists are filled by make(). */
             AnchorTrainingStep(SushiBLAS::Engine& engine, AnchorObjective objective,

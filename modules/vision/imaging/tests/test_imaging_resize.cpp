@@ -21,7 +21,7 @@
 
 /**
  * @file test_imaging_resize.cpp
- * @brief Tests the bilinear resize on hand-computed images and the training-load size rule.
+ * @brief Tests the resizes on hand-computed images and the training-load size rule.
  * @author Mustafa Garip
  */
 
@@ -41,6 +41,7 @@ using SushiAI::Vision::Imaging::ImageView;
 using SushiAI::Vision::Imaging::K_MAX_IMAGE_SIDE;
 using SushiAI::Vision::Imaging::resize_bilinear;
 using SushiAI::Vision::Imaging::resize_long_side;
+using SushiAI::Vision::Imaging::resize_nearest;
 
 namespace
 {
@@ -465,4 +466,70 @@ TEST(Unit_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageB
                     "resize_long_side", "source size", "0x2");
     SA_EXPECT_ERROR(resize_long_side(ImageView(bytes.data(), ImageSize{2, 2}, 5), 4, destination),
                     "resize_long_side", "source channel count", "5");
+}
+
+/** @brief Tests that an enlargement repeats each source pixel over its block. */
+TEST(Unit_ImagingResize, NearestRepeatsEachPixelWhenEnlarged)
+{
+    const Image source = make_image(ImageSize{2, 2}, 1, Bytes{1, 2, 3, 4});
+    Image destination;
+
+    resize_nearest(source.view(), ImageSize{4, 4}, destination);
+
+    EXPECT_EQ(destination.size(), (ImageSize{4, 4}));
+    EXPECT_EQ(destination.channels(), 1);
+    EXPECT_EQ(bytes_of(destination),
+              (Bytes{1, 1, 2, 2, 1, 1, 2, 2, 3, 3, 4, 4, 3, 3, 4, 4}));
+}
+
+/** @brief Tests that a reduction reads the pixel under each destination centre. */
+TEST(Unit_ImagingResize, NearestReadsThePixelUnderEachCentreWhenReduced)
+{
+    // Centres 0.5 and 1.5 of two columns fall at 1.25 and 3.75 of five: columns 1 and 3.
+    const Image source = make_image(ImageSize{1, 5}, 1, Bytes{10, 11, 12, 13, 14});
+    Image destination;
+
+    resize_nearest(source.view(), ImageSize{1, 2}, destination);
+
+    EXPECT_EQ(bytes_of(destination), (Bytes{11, 13}));
+}
+
+/** @brief Tests that seven columns read from two hold the two source values alone. */
+TEST(Unit_ImagingResize, NearestKeepsClassIndicesUnblended)
+{
+    const Image source = make_image(ImageSize{1, 2}, 1, Bytes{0, 255});
+    Image destination;
+
+    resize_nearest(source.view(), ImageSize{1, 7}, destination);
+
+    EXPECT_EQ(bytes_of(destination), (Bytes{0, 0, 0, 255, 255, 255, 255}));
+}
+
+/** @brief Tests that the channels of a pixel are copied together. */
+TEST(Unit_ImagingResize, NearestCopiesEveryChannelOfAPixel)
+{
+    const Image source = make_image(ImageSize{1, 2}, 3, Bytes{1, 2, 3, 4, 5, 6});
+    Image destination(ImageSize{9, 9}, 1);
+
+    resize_nearest(source.view(), ImageSize{2, 2}, destination);
+
+    EXPECT_EQ(destination.size(), (ImageSize{2, 2}));
+    EXPECT_EQ(destination.channels(), 3);
+    EXPECT_EQ(bytes_of(destination), (Bytes{1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6}));
+}
+
+/** @brief Tests that resize_nearest refuses what check_source and Image::reset refuse. */
+TEST(Unit_ImagingResize, NearestRejectsABadSourceABadSizeAndAnAliasedDestination)
+{
+    Image image(ImageSize{2, 2}, 1);
+    image.fill(9);
+    Image destination;
+
+    SA_EXPECT_ERROR(resize_nearest(ImageView(), ImageSize{2, 2}, destination),
+                    "resize_nearest", "source", "no pixels");
+    SA_EXPECT_ERROR(resize_nearest(image.view(), ImageSize{0, 2}, destination),
+                    "Image::reset", "0x2");
+    SA_EXPECT_ERROR(resize_nearest(image.view(), ImageSize{4, 4}, image),
+                    "resize_nearest", "destination holds the source's pixels");
+    EXPECT_EQ(bytes_of(image), (Bytes{9, 9, 9, 9}));
 }

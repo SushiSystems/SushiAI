@@ -41,7 +41,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 using Vision::Training::emit_head_delta_loss;
 
 namespace
@@ -74,11 +74,11 @@ TEST(Unit_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId head = builder.parameter(head_shape(), "head");
-    const ValueId delta = builder.input(head_shape(), "delta");
+    const ValueID head = builder.parameter(head_shape(), "head");
+    const ValueID delta = builder.input(head_shape(), "delta");
     const std::size_t leaves = graph.node_count();
 
-    const ValueId loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
+    const ValueID loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
 
     ASSERT_EQ(op_names(graph, leaves), (std::vector<std::string>{
         "sushiai.mul",
@@ -92,11 +92,11 @@ TEST(Unit_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
     const Graph::Node& sum = graph.nodes()[leaves + 2];
     const Graph::Node& root = graph.nodes()[leaves + 3];
 
-    EXPECT_EQ(product.inputs, (std::vector<ValueId>{delta, head}));
-    EXPECT_EQ(column.inputs, (std::vector<ValueId>{product.outputs.at(0)}));
-    EXPECT_EQ(sum.inputs, (std::vector<ValueId>{column.outputs.at(0)}));
-    EXPECT_EQ(root.inputs, (std::vector<ValueId>{sum.outputs.at(0)}));
-    EXPECT_EQ(root.outputs, (std::vector<ValueId>{loss}));
+    EXPECT_EQ(product.inputs, (std::vector<ValueID>{delta, head}));
+    EXPECT_EQ(column.inputs, (std::vector<ValueID>{product.outputs.at(0)}));
+    EXPECT_EQ(sum.inputs, (std::vector<ValueID>{column.outputs.at(0)}));
+    EXPECT_EQ(root.inputs, (std::vector<ValueID>{sum.outputs.at(0)}));
+    EXPECT_EQ(root.outputs, (std::vector<ValueID>{loss}));
 
     EXPECT_EQ(graph.value(column.outputs.at(0)).shape, (Shape{126, 1}));
     EXPECT_EQ(graph.value(loss).shape, (Shape{1}));
@@ -109,10 +109,10 @@ TEST(Unit_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId head = builder.parameter(head_shape(), "head", DType::Float64);
-    const ValueId delta = builder.input(head_shape(), "delta", DType::Float64);
+    const ValueID head = builder.parameter(head_shape(), "head", DType::Float64);
+    const ValueID delta = builder.input(head_shape(), "delta", DType::Float64);
 
-    const ValueId loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
+    const ValueID loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
 
     EXPECT_EQ(graph.value(loss).dtype, DType::Float64);
 }
@@ -123,14 +123,14 @@ TEST(Unit_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId head = builder.parameter(head_shape(), "head");
-    const ValueId delta = builder.input(head_shape(), "delta");
-    const ValueId loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
+    const ValueID head = builder.parameter(head_shape(), "head");
+    const ValueID delta = builder.input(head_shape(), "delta");
+    const ValueID loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
 
-    const std::vector<ValueId> wrt = {head};
-    std::vector<ValueId> gradients;
+    const std::vector<ValueID> wrt = {head};
+    std::vector<ValueID> gradients;
     ASSERT_NO_THROW(gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())));
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_NE(gradients[0], Graph::K_NO_VALUE);
@@ -144,8 +144,8 @@ TEST(Unit_HeadDeltaLoss, ADeltaOfAnotherShapeThrowsNamingBothShapes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId head = builder.parameter(head_shape(), "head");
-    const ValueId delta = builder.input(Shape{2, 3, 3, 6}, "delta");
+    const ValueID head = builder.parameter(head_shape(), "head");
+    const ValueID delta = builder.input(Shape{2, 3, 3, 6}, "delta");
     const std::size_t leaves = graph.node_count();
 
     SA_EXPECT_ERROR((void)emit_head_delta_loss(builder, head, delta, K_SCALE),
@@ -159,8 +159,8 @@ TEST(Unit_HeadDeltaLoss, ADeltaOfAnotherElementTypeThrowsNamingBothTypes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId head = builder.parameter(head_shape(), "head");
-    const ValueId delta = builder.input(head_shape(), "delta", DType::Float64);
+    const ValueID head = builder.parameter(head_shape(), "head");
+    const ValueID delta = builder.input(head_shape(), "delta", DType::Float64);
     const std::size_t leaves = graph.node_count();
 
     SA_EXPECT_ERROR((void)emit_head_delta_loss(builder, head, delta, K_SCALE),

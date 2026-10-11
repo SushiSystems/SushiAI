@@ -52,7 +52,7 @@ namespace SushiAI
         /**
          * @brief Measures the reported cost of a head's delta and of its assignments.
          * @return The cost. `stored` is the sum of every squared entry for SquaredError; for
-         *         CompleteIou it is box_weight times the mean of 1 - IoU over the assignments,
+         *         CompleteIoU it is box_weight times the mean of 1 - IoU over the assignments,
          *         0 without one, plus object_weight times the squared non-box entries.
          * @pre The delta holds `batch * height * width * slots * (5 + C)` values for some
          *      slot count, and the batch, the grid and the class count are positive.

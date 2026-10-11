@@ -15,7 +15,10 @@ sushiai_add_module(NAME detect TIER vision
         source/anchor/anchor_plan.cpp
         source/anchor/anchor_review.cpp
         source/anchor/anchor_size.cpp
+        source/anchor/anchor_task.cpp
+        source/anchor/head_training_section.cpp
         source/anchor/assignment_thresholds.cpp
+        source/anchor/box_delta_iou.cpp
         source/anchor/box_delta_squared.cpp
         source/anchor/head_assignment.cpp
         source/anchor/head_cost.cpp
@@ -23,6 +26,7 @@ sushiai_add_module(NAME detect TIER vision
         source/anchor/head_delta.cpp
         source/anchor/head_options.cpp
         source/anchor/head_training_options.cpp
+        source/anchor/head_truth.cpp
         source/anchor/seeded_sequence.cpp
         source/average_precision.cpp
         source/box_format.cpp
@@ -40,7 +44,7 @@ sushiai_add_module(NAME detect TIER vision
         source/iou_gradient.cpp
         source/suppression_criterion.cpp
         source/top_k.cpp
-    PUBLIC_DEPENDS core
+    PUBLIC_DEPENDS core config
     EXTERNAL_PUBLIC SushiRuntime::SushiRuntime
     TESTS
         tests/test_detect_anchor_clustering.cpp
@@ -48,11 +52,17 @@ sushiai_add_module(NAME detect TIER vision
         tests/test_detect_anchor_count.cpp
         tests/test_detect_anchor_decode.cpp
         tests/test_detect_anchor_delta.cpp
+        tests/test_detect_anchor_delta_activated.cpp
+        tests/test_detect_anchor_delta_gradient.cpp
+        tests/test_detect_anchor_delta_iou.cpp
         tests/test_detect_anchor_fit.cpp
         tests/test_detect_anchor_head_assignment.cpp
+        tests/test_detect_anchor_head_truth.cpp
         tests/test_detect_anchor_layout.cpp
         tests/test_detect_anchor_plan.cpp
         tests/test_detect_anchor_review.cpp
+        tests/test_detect_anchor_task.cpp
+        tests/test_detect_anchor_training_section.cpp
         tests/test_detect_anchor_thresholds.cpp
         tests/test_detect_anchors.cpp
         tests/test_detect_assigner.cpp
