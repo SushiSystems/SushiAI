@@ -37,6 +37,8 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/input.hpp>
+#include <SushiAI/data/target.hpp>
 
 namespace SushiAI
 {
@@ -52,21 +54,23 @@ namespace SushiAI
                 /**
                  * @brief Holds @p batches and the extents they were built with.
                  * @param batches Every batch of the epoch, in order; each holds @p batch_size
-                 *                samples shaped @p sample and targets @p classes wide.
+                 *                samples as @p input describes them and one target per entry
+                 *                of @p targets, in that order.
                  * @param name The name a run report prints.
                  */
                 MaterialisedDataset(std::vector<Batch> batches, int64_t batch_size,
-                                    const Shape& sample, int64_t classes, std::string name);
+                                    const InputDescription& input,
+                                    std::vector<TargetDescription> targets, std::string name);
 
                 int64_t batch_size() const noexcept override { return batch_size_; }
-                int64_t input_dim() const noexcept override
+                Shape sample_shape() const override { return input_.sample_shape; }
+                DType sample_dtype() const noexcept override { return input_.dtype; }
+                const std::vector<TargetDescription>& targets() const noexcept override
                 {
-                    return sample_shape_.num_elements();
+                    return targets_;
                 }
-                Shape sample_shape() const override { return sample_shape_; }
-                int64_t num_classes() const noexcept override { return classes_; }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
-                const Batch& batch(std::size_t index) const override;
+                [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
                 std::string_view name() const noexcept override { return name_; }
 
             private:
@@ -76,34 +80,45 @@ namespace SushiAI
                 /** @brief Holds the samples per batch. */
                 int64_t batch_size_;
 
-                /** @brief Holds the shape of one sample, batch axis left out. */
-                Shape sample_shape_;
+                /** @brief Holds the per-sample shape and the element type of the inputs. */
+                InputDescription input_;
 
-                /** @brief Holds the width of the target matrix. */
-                int64_t classes_;
+                /** @brief Holds the description of every role the batches carry. */
+                std::vector<TargetDescription> targets_;
 
                 /** @brief Holds the name a run report prints. */
                 std::string name_;
         };
 
         /**
-         * @brief Allocates the tensors of one batch and sizes its label list.
-         * @param rows Samples in the batch.
-         * @param sample The shape of one sample; the input tensor is [rows, sample...].
-         * @param classes Width of the target matrix.
-         * @return The batch, its contents unset; InvalidDescription when [rows, sample...]
-         *         exceeds the maximum rank, or the failure of an allocation.
+         * @brief Allocates the input tensor of one batch and one tensor per target.
+         * @param input The input tensor is [rows, sample_shape...] of the type it names.
+         * @param targets One description per role; its tensor is [rows, sample_shape...].
+         * @return The batch, its targets in the order of @p targets and its contents unset;
+         *         InvalidDescription when a shape exceeds the maximum rank, or the failure of
+         *         an allocation.
          */
         [[nodiscard]] Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
-                                                   const Shape& sample, int64_t classes);
+                                                   const InputDescription& input,
+                                                   const std::vector<TargetDescription>& targets);
 
         /**
-         * @brief Writes a one-hot row pattern straight into shared USM.
-         * @param targets A [labels.size(), classes] float tensor.
-         * @param labels One class index per row, each in [0, classes).
+         * @brief Makes @p batch share the tensors of @p held; no element is copied.
+         * @param batch Overwritten; its role list is reused when it is long enough.
+         * @return Success, or OutOfMemory when the role list of @p batch cannot grow.
          */
-        void write_one_hot(SushiBLAS::Tensor& targets, const std::vector<int32_t>& labels,
-                           int64_t classes);
+        [[nodiscard]] Status share_batch(const Batch& held, Batch& batch) noexcept;
+
+        /**
+         * @brief Leaves @p batch with tensors of one layout that nothing else references.
+         * @param batch Kept as it is when it already holds that layout alone; replaced by
+         *              allocate_batch() otherwise, so storage a dataset shares is not written.
+         * @return Success with the contents unset, or the failure of allocate_batch().
+         */
+        [[nodiscard]] Status prepare_batch(SushiBLAS::Engine& engine, int64_t rows,
+                                           const InputDescription& input,
+                                           const std::vector<TargetDescription>& targets,
+                                           Batch& batch);
 
     } // namespace Data
 } // namespace SushiAI

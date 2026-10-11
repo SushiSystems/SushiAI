@@ -93,6 +93,37 @@ namespace SushiAI
 
             static_assert(Ops::K_ADAMW_UPDATE.name == std::string_view(K_TASK_NAME),
                           "the fused update's task name must be the string its OpID hashes");
+
+            /**
+             * @brief Applies one element's AdamW update from its true gradient.
+             * @param g The gradient with the loss scale, and the clip when there is one,
+             *          already taken out.
+             * @param s The step's scalars, indexed by the constants above.
+             * @param decays Whether the decoupled decay applies to this parameter.
+             */
+            template<typename T>
+            void apply_update(T& theta, T g, T& m, T& v, const float* s, bool decays)
+            {
+                // Invariant: Decoupled weight decay applies to previous theta value.
+                const T decay = static_cast<T>(s[K_DECAY_FACTOR]);
+                if (decays && decay != static_cast<T>(1)) theta = theta * decay;
+
+                // 2. m <- beta1 * m + (1 - beta1) * g
+                m = m * static_cast<T>(s[K_BETA1])
+                  + static_cast<T>(s[K_ONE_MINUS_BETA1]) * g;
+
+                // 3. v <- beta2 * v + (1 - beta2) * g^2
+                v = v * static_cast<T>(s[K_BETA2])
+                  + static_cast<T>(s[K_ONE_MINUS_BETA2]) * (g * g);
+
+                // Invariant: Bias correction scales v before square root and epsilon addition.
+                T denom = v * static_cast<T>(s[K_INVERSE_BC2]);
+                denom = SushiBLAS::Dispatch::safe_sqrt(denom);
+                denom = denom + static_cast<T>(s[K_EPSILON]);
+
+                // 5. theta <- theta - (lr / bc1) * m / denom
+                theta = theta + static_cast<T>(s[K_STEP_SIZE]) * (m / denom);
+            }
         }
 
         Result<std::unique_ptr<AdamW>> AdamW::make(SushiBLAS::Engine& engine,
@@ -167,6 +198,21 @@ namespace SushiAI
         {
         }
 
+        void AdamW::append_state_tensors(std::vector<StateTensor>& tensors)
+        {
+            const std::vector<ParameterSlot>& parameters = slots();
+            tensors.reserve(tensors.size() + 2 * parameters.size());
+            for (std::size_t i = 0; i < parameters.size(); ++i)
+            {
+                tensors.push_back(
+                    StateTensor{parameters[i].name + std::string(K_FIRST_MOMENT_ROLE),
+                                state_[i].first});
+                tensors.push_back(
+                    StateTensor{parameters[i].name + std::string(K_SECOND_MOMENT_ROLE),
+                                state_[i].second});
+            }
+        }
+
         void AdamW::write_step_scalars()
         {
             const double t = static_cast<double>(step_count() + 1);
@@ -222,47 +268,53 @@ namespace SushiAI
             // Gate pointer evaluates gradient overflow flags uniformly for step skip.
             const std::int64_t* const gate = gradient_gate();
 
+            // Null without a clip, and then no update declares a read of the factor.
+            const SushiBLAS::Tensor* const clip = clip_scale();
+
             for (std::size_t i = 0; i < slots().size(); ++i)
             {
                 ParameterSlot& slot = slots()[i];
                 State& state = state_[i];
+                const bool decays = options_.decay_all || slot.decays;
 
                 std::array<SushiBLAS::Tensor*, 4> operands{
                     &slot.parameter, &slot.gradient, &state.first, &state.second,
                 };
 
+                if (clip == nullptr)
+                {
+                    SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
+                        K_TASK_NAME, Ops::K_ADAMW_UPDATE.id,
+                        [s, gate, i, decays](auto& theta, auto& g_scaled, auto& m, auto& v)
+                        {
+                            using T = std::decay_t<decltype(theta)>;
+
+                            // Invariant: Early exit preserves theta, m, and v on overflow.
+                            if (gate != nullptr && gate[i] != 0) return;
+
+                            // Invariant: Unscaling occurs prior to moment and decay updates.
+                            const T g = g_scaled * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
+                            apply_update<T>(theta, g, m, v, s, decays);
+                        });
+                    continue;
+                }
+
                 SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
                     K_TASK_NAME, Ops::K_ADAMW_UPDATE.id,
-                    [s, gate, i](auto& theta, auto& g_scaled, auto& m, auto& v)
-                    {
-                        using T = std::decay_t<decltype(theta)>;
+                    SushiBLAS::Dispatch::bind_reads(
+                        [s, gate, i, decays](auto& theta, auto& g_scaled, auto& m, auto& v,
+                                             auto clip_factor)
+                        {
+                            using T = std::decay_t<decltype(theta)>;
 
-                        // Invariant: Early exit preserves theta, m, and v exactly when gradients overflow.
-                        if (gate != nullptr && gate[i] != 0) return;
+                            if (gate != nullptr && gate[i] != 0) return;
 
-                        // Invariant: Unscaling occurs prior to moment and decay updates.
-                        const T g = g_scaled * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
-
-                        // Invariant: Decoupled weight decay applies to previous theta value.
-                        const T decay = static_cast<T>(s[K_DECAY_FACTOR]);
-                        if (decay != static_cast<T>(1)) theta = theta * decay;
-
-                        // 2. m <- beta1 * m + (1 - beta1) * g
-                        m = m * static_cast<T>(s[K_BETA1])
-                          + static_cast<T>(s[K_ONE_MINUS_BETA1]) * g;
-
-                        // 3. v <- beta2 * v + (1 - beta2) * g^2
-                        v = v * static_cast<T>(s[K_BETA2])
-                          + static_cast<T>(s[K_ONE_MINUS_BETA2]) * (g * g);
-
-                        // Invariant: Bias correction scales v before square root and epsilon addition.
-                        T denom = v * static_cast<T>(s[K_INVERSE_BC2]);
-                        denom = SushiBLAS::Dispatch::safe_sqrt(denom);
-                        denom = denom + static_cast<T>(s[K_EPSILON]);
-
-                        // 5. theta <- theta - (lr / bc1) * m / denom
-                        theta = theta + static_cast<T>(s[K_STEP_SIZE]) * (m / denom);
-                    });
+                            // The factor is at most 1 and applies to the unscaled gradient.
+                            const T g = g_scaled * static_cast<T>(s[K_INVERSE_LOSS_SCALE])
+                                      * clip_factor[0];
+                            apply_update<T>(theta, g, m, v, s, decays);
+                        },
+                        SushiBLAS::Dispatch::read_as_element(*clip)));
             }
 
             return slots().size();
@@ -293,7 +345,7 @@ namespace SushiAI
                 State& state = state_[i];
 
                 // 1. Decoupled decay, on theta_{t-1}, before anything else.
-                if (decay_factor != 1.0f)
+                if (decay_factor != 1.0f && (options_.decay_all || slot.decays))
                 {
                     blas.scal(decay_factor, slot.parameter);
                     ++recorded;

@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/result.hpp>
@@ -39,6 +40,9 @@ namespace SushiAI
 {
     namespace Optim
     {
+        /** @brief Names an AdamW in a training file and in the run state of a checkpoint. */
+        inline constexpr std::string_view K_ADAMW_TYPE = "adamw";
+
         /**
          * @struct AdamWOptions
          * @brief AdamW's hyperparameters, with the reference defaults.
@@ -59,6 +63,9 @@ namespace SushiAI
 
             /** @brief Decoupled weight decay, applied multiplicatively before the step. */
             double weight_decay = 0.01;
+
+            /** @brief Decays every slot, also one whose ParameterSlot::decays is false. */
+            bool decay_all = false;
 
             /**
              * @brief One fused kernel per parameter, or the twelve separate ops.
@@ -91,11 +98,23 @@ namespace SushiAI
                     return options_.kernel == UpdateKernel::Fused;
                 }
 
+                /** @brief Returns @ref K_ADAMW_TYPE. */
+                [[nodiscard]] std::string_view type_name() const noexcept override
+                {
+                    return K_ADAMW_TYPE;
+                }
+
                 /** @brief The hyperparameters in force. */
                 const AdamWOptions& options() const noexcept { return options_; }
 
                 /** @brief Mutable access, for a learning-rate schedule. */
                 AdamWOptions& options() noexcept { return options_; }
+
+                /** @brief Returns the step size the next update applies. */
+                [[nodiscard]] double learning_rate() const noexcept override
+                {
+                    return options_.learning_rate;
+                }
 
                 /**
                  * @brief Returns parameter's first moment tensor for inspection.
@@ -114,6 +133,15 @@ namespace SushiAI
                 const SushiBLAS::Tensor& second_moment(std::size_t index) const;
 
             protected:
+                /** @brief Stores @p rate as the step size of the options. */
+                void store_learning_rate(double rate) noexcept override
+                {
+                    options_.learning_rate = rate;
+                }
+
+                /** @brief Appends "<parameter>.first_moment" and ".second_moment" per slot. */
+                void append_state_tensors(std::vector<StateTensor>& tensors) override;
+
                 /**
                  * @brief Records the update for every parameter into @p recorder.
                  * @param recorder The recorder the tasks are added to; nothing is executed.

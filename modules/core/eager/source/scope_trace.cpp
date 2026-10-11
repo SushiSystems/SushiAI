@@ -110,7 +110,7 @@ namespace SushiAI
 
         void ScopeTrace::end_segment()
         {
-            const Graph::NodeId end = static_cast<Graph::NodeId>(graph_->node_count());
+            const Graph::NodeID end = static_cast<Graph::NodeID>(graph_->node_count());
             if (end == segment_begin_)
                 return;
 

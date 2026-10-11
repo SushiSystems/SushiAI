@@ -28,9 +28,11 @@
 #include <SushiAI/config/model_config.hpp>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/config/registry.hpp>
 
 namespace SushiAI
 {
@@ -55,10 +57,27 @@ namespace SushiAI
 
             /** @brief Every key a model document may carry at the top level. */
             constexpr std::string_view K_MODEL_KEYS[] = {"format_version", "input", "defaults",
-                                                       "layers", "outputs"};
+                                                       "layers", "outputs", "task"};
 
             /** @brief Every key the "input" object may carry. */
-            constexpr std::string_view K_INPUT_KEYS[] = {"shape"};
+            constexpr std::string_view K_INPUT_KEYS[] = {"shape", "dtype"};
+
+            /** @brief Holds one element type the "input" object may name. */
+            struct InputTypeEntry
+            {
+                std::string_view type; /**< The text a model file spells. */
+                DType dtype;           /**< The element type it names. */
+            };
+
+            /**
+             * @brief Lists every element type the "input" object may name.
+             *
+             * A file without the key has the first.
+             */
+            constexpr std::array<InputTypeEntry, 2> K_INPUT_TYPES = {{
+                {"float32", DType::Float32},
+                {"int32", DType::Int32},
+            }};
 
             /** @brief Lists every key a version 1 document may carry at the top level. */
             constexpr std::string_view K_FIRST_MODEL_KEYS[] = {"sushiai_model", "input", "layers"};
@@ -219,6 +238,17 @@ namespace SushiAI
 
                 return Shape(SushiRuntime::span<const std::int64_t>(extents.data(),
                                                                     extents.size()));
+            }
+
+            /** @brief Reads "dtype" of the "input" object; an absent key gives float32. */
+            DType parse_input_dtype(const Value& input, const std::string& context)
+            {
+                if (!input.has("dtype"))
+                    return K_INPUT_TYPES.front().dtype;
+
+                const std::string dtype_context = context + " 'dtype'";
+                const std::string& stated = input.at("dtype", context).as_string(dtype_context);
+                return find_entry(K_INPUT_TYPES, stated, dtype_context).dtype;
             }
 
             /** @brief Returns the text that names the "defaults" block of @p origin. */
@@ -468,6 +498,21 @@ namespace SushiAI
                 return outputs;
             }
 
+            /**
+             * @brief Reads "task" of @p root; an absent key gives the null value.
+             * @return The object as the file states it, checked for a string "type" only.
+             */
+            Value parse_task(const Value& root, std::string_view origin)
+            {
+                if (!root.has("task"))
+                    return Value();
+
+                const std::string context = "'" + std::string(origin) + "'s 'task'";
+                const Value& task = root.at("task", origin);
+                (void)task.at("type", context).as_string(context + " 'type'");
+                return task;
+            }
+
             /** @brief Reads a version 2 model document into a @ref ModelSpec. */
             ModelSpec parse_current_model(const Value& root, std::string_view origin)
             {
@@ -475,6 +520,8 @@ namespace SushiAI
 
                 ModelSpec model;
                 model.input_shape = parse_input_shape(root.at("input", origin),
+                                                      "'" + std::string(origin) + "'s 'input'");
+                model.input_dtype = parse_input_dtype(root.at("input", origin),
                                                       "'" + std::string(origin) + "'s 'input'");
 
                 const Value no_defaults = Value::object({}, {});
@@ -507,6 +554,7 @@ namespace SushiAI
 
                 check_defaults_are_used(defaults, model.layers, origin);
                 model.outputs = parse_outputs(root, layers.size(), origin);
+                model.task = parse_task(root, origin);
                 return model;
             }
         }

@@ -93,7 +93,7 @@ namespace SushiAI
                 std::vector<Segment> segments_;
 
                 /// @brief First node of the running segment.
-                Graph::NodeId segment_begin_ = 0;
+                Graph::NodeID segment_begin_ = 0;
 
                 /// @brief Segments emitted so far, per scope path.
                 std::unordered_map<std::string, std::uint32_t> occurrences_;

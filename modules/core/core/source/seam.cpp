@@ -88,6 +88,7 @@ namespace SushiAI
                     case Errc::invalid_graph:
                     case Errc::compile_failed:
                     case Errc::invalid_access:
+                    case Errc::invalid_state:
                     case Errc::dangling_resource:
                         SA_FATAL("SushiRuntime reported {}: {}",
                                  SushiRuntime::Core::to_string(code), failure.what());
@@ -157,7 +158,7 @@ namespace SushiAI
             return guard(SeamPhase::Execute, [&]()
             {
                 engine.execute();
-                engine.get_context().wait_all();
+                engine.get_context().devices().wait_all();
                 return Status();
             });
         }
@@ -178,7 +179,7 @@ namespace SushiAI
             return guard(SeamPhase::Execute, [&]()
             {
                 context.get_execution_engine().execute(plan);
-                context.wait_all();
+                context.devices().wait_all();
                 return Status();
             });
         }

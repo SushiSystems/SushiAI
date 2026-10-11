@@ -39,7 +39,7 @@ namespace SushiAI
             /** @brief Every key a train document may carry at the top level. */
             constexpr std::string_view K_TRAIN_KEYS[] = {
                 "sushiai_train", "model", "objective", "data", "optimizer",
-                "epochs", "checkpoint",
+                "schedule", "epochs", "seed", "weights", "resume", "checkpoint",
             };
 
             /** @brief Every key a standalone data document may carry. */
@@ -91,6 +91,28 @@ namespace SushiAI
                 // Stripping the type discriminator isolates component-specific attributes.
                 attributes = block.without("type");
             }
+
+            /**
+             * @brief Reads the "data" block: a typed block, or one that states a reader.
+             * @param root The document root.
+             * @param origin What to call the document in a diagnostic.
+             * @param data A block with "reader" and no "type" gets the type
+             *             K_READER_DATA_TYPE and keeps every key; any other is a typed block.
+             */
+            void read_data_block(const Value& root, std::string_view origin, DataSpec& data)
+            {
+                const Value absent;
+                const Value& block = root.at_or("data", absent);
+
+                if (block.has(K_READER_DATA_TYPE) && !block.has("type"))
+                {
+                    data.type = std::string(K_READER_DATA_TYPE);
+                    data.attributes = block;
+                    return;
+                }
+
+                read_typed_block(root, "data", origin, data.type, data.attributes);
+            }
         }
 
         TrainSpec parse_train(const Value& root, std::string_view origin,
@@ -109,12 +131,31 @@ namespace SushiAI
                              spec.objective_type, spec.objective_attributes);
             read_typed_block(root, "optimizer", origin,
                              spec.optimizer_type, spec.optimizer_attributes);
-            read_typed_block(root, "data", origin, spec.data.type, spec.data.attributes);
+            read_data_block(root, origin, spec.data);
+
+            // The section stays opaque here; an absent key leaves the null value.
+            spec.schedule = root.at_or("schedule", Value());
 
             const Value one = Value::integer(1);
             spec.epochs = root.at_or("epochs", one).as_int("'" + origin_text + "'s 'epochs'");
             SA_THROW_IF(spec.epochs <= 0,
                         "'{}'s 'epochs' must be positive, but it is {}", origin, spec.epochs);
+
+            // The range of the seed is checked by read_run_seed(), which returns a status.
+            const Value zero = Value::integer(0);
+            spec.seed = root.at_or("seed", zero).as_int("'" + origin_text + "'s 'seed'");
+
+            // Starting weights are optional; a run without them initialises the model.
+            if (root.has("weights"))
+                spec.weights = resolve(
+                    base, root.at("weights", origin)
+                              .as_string("'" + origin_text + "'s 'weights'"));
+
+            // A resumed run takes its model state and its run state from one checkpoint.
+            if (root.has("resume"))
+                spec.resume = resolve(
+                    base, root.at("resume", origin)
+                              .as_string("'" + origin_text + "'s 'resume'"));
 
             // Checkpoint path is optional; training can run without writing snapshots.
             if (root.has("checkpoint"))
@@ -134,13 +175,31 @@ namespace SushiAI
             return parse_train(parse_json_file(path), path.string(), base);
         }
 
+        Status check_start(const TrainSpec& spec, std::string_view origin)
+        {
+            SA_FAIL_IF(!spec.weights.empty() && !spec.resume.empty(),
+                       StatusCode::InvalidDescription,
+                       "'{}' states both 'weights' and 'resume'; 'weights' starts a run from "
+                       "model state alone and 'resume' goes on from model state and run state, "
+                       "so a file states one of them",
+                       origin);
+            return Status();
+        }
+
+        Result<std::uint64_t> read_run_seed(const TrainSpec& spec, std::string_view origin)
+        {
+            SA_FAIL_IF(spec.seed < 0, StatusCode::InvalidDescription,
+                       "'{}'s 'seed' must not be negative, but it is {}", origin, spec.seed);
+            return static_cast<std::uint64_t>(spec.seed);
+        }
+
         DataSpec parse_data(const Value& root, std::string_view origin)
         {
             require_version(root, "sushiai_data", K_DATA_VERSION, origin);
             root.reject_unknown_keys(origin, as_span(K_DATA_KEYS));
 
             DataSpec data;
-            read_typed_block(root, "data", origin, data.type, data.attributes);
+            read_data_block(root, origin, data);
             return data;
         }
 

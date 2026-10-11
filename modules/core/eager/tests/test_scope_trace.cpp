@@ -42,8 +42,8 @@ using Eager::Scope;
 using Eager::ScopeTrace;
 using Eager::Segment;
 using Graph::Lifetime;
-using Graph::NodeId;
-using Graph::ValueId;
+using Graph::NodeID;
+using Graph::ValueID;
 
 namespace
 {
@@ -52,10 +52,10 @@ namespace
      */
     void trace_nodes(Graph::Graph& graph, std::size_t count)
     {
-        const ValueId source = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+        const ValueID source = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
         for (std::size_t i = 0; i < count; ++i)
         {
-            const ValueId result = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
+            const ValueID result = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
             graph.add_node(Ops::K_ADD.id, {source, source}, {result});
         }
     }
@@ -65,7 +65,7 @@ namespace
      * @return Success, or a failure printing the segment's four fields.
      */
     ::testing::AssertionResult segment_is(const Segment& segment, const std::string& name,
-                                          std::uint32_t occurrence, NodeId begin, NodeId end)
+                                          std::uint32_t occurrence, NodeID begin, NodeID end)
     {
         if (segment.name == name && segment.occurrence == occurrence && segment.begin == begin &&
             segment.end == end)
@@ -239,7 +239,7 @@ TEST(Unit_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
     trace_nodes(graph, 1);
     const std::vector<Segment> segments = trace.seal();
 
-    NodeId next = 0;
+    NodeID next = 0;
     for (const Segment& segment : segments)
     {
         EXPECT_EQ(segment.begin, next);

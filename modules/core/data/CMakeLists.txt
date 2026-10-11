@@ -6,11 +6,21 @@
 
 # data: the dataset interface, the synthetic datasets and their registry.
 
+# The loader runs readers on threads of the standard library.
+find_package(Threads REQUIRED)
+
 sushiai_add_module(NAME data TIER core
     SOURCES
         source/dataset.cpp
         source/dataset_registry.cpp
+        source/epoch.cpp
+        source/epoch_permutation.cpp
         source/materialised_dataset.cpp
+        source/threaded_loader.cpp
     PUBLIC_DEPENDS core config
+    EXTERNAL_PUBLIC Threads::Threads
     TESTS
-        tests/test_dataset_registry.cpp)
+        tests/test_dataset_registry.cpp
+        tests/test_epoch_permutation.cpp
+        tests/test_target.cpp
+        tests/test_threaded_loader.cpp)

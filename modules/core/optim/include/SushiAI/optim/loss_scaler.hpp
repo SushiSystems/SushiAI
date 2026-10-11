@@ -35,6 +35,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiAI
 {
@@ -102,6 +103,13 @@ namespace SushiAI
                  * @param overflow Whether any gradient came back non-finite.
                  */
                 void observe(bool overflow) noexcept;
+
+                /**
+                 * @brief Sets the scale and the clean-step count a saved run left off at.
+                 * @return Incompatible for a scale that is no power of two within the bounds
+                 *         of the options, and for a count at or above the growth interval.
+                 */
+                [[nodiscard]] Status restore(double scale, std::uint64_t good_steps);
 
                 /** @brief The scale the next step will run at. */
                 double scale() const noexcept { return scale_; }
@@ -203,6 +211,12 @@ namespace SushiAI
                  * synchronisation the loop was not already paying.
                  */
                 void after_replay();
+
+                /**
+                 * @brief Sets the scale and the clean-step count a saved run left off at.
+                 * @return What LossScaleState::restore returns.
+                 */
+                [[nodiscard]] Status restore(double scale, std::uint64_t good_steps);
 
                 /**
                  * @brief Returns pointer to device non-finite count buffer for gating.

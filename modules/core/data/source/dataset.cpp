@@ -27,17 +27,22 @@
 
 #include <SushiAI/data/dataset.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/seam.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 
 namespace SushiAI
 {
@@ -89,11 +94,26 @@ namespace SushiAI
                 return attributes.at_or(key, spelled)
                                  .as_real(prefix + " '" + std::string(key) + "'");
             }
+
+            /**
+             * @brief Returns the one description a dataset of class indices publishes.
+             * @return K_ROLE_LABELS as one int32 per sample over @p classes classes, or
+             *         OutOfMemory when the list cannot be built.
+             */
+            [[nodiscard]] Result<std::vector<TargetDescription>> describe_labels(int64_t classes)
+            {
+                return Detail::guard_value(Detail::SeamPhase::Allocate, [classes]()
+                {
+                    return std::vector<TargetDescription>{TargetDescription{
+                        std::string(K_ROLE_LABELS), Shape{}, DType::Int32, classes}};
+                });
+            }
         }
 
         SyntheticClassification::SyntheticClassification(SyntheticOptions options,
+                                                         std::vector<TargetDescription> targets,
                                                          std::vector<Batch> batches) noexcept
-            : options_(options), batches_(std::move(batches))
+            : options_(options), targets_(std::move(targets)), batches_(std::move(batches))
         {
 
         }
@@ -115,7 +135,9 @@ namespace SushiAI
             const int64_t rows = options.batch_size;
             const int64_t features = options.features;
             const int64_t classes = options.classes;
-            const Shape sample{features};
+            const InputDescription input{Shape{features}, DType::Float32};
+
+            SA_TRY_ASSIGN(std::vector<TargetDescription> targets, describe_labels(classes));
 
             // Class means are shared across all batches to form a consistent task.
             const int64_t mean_dims[2] = {classes, features};
@@ -142,18 +164,22 @@ namespace SushiAI
                 int64_t running = 0;
                 for (int64_t b = 0; b < options.batches; ++b)
                 {
-                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, sample, classes));
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, input, targets));
+
+                    int32_t* labels = batch.targets.front().values.data_as<int32_t>();
+                    const float* class_means = means.data_as<float>();
+                    float* x = batch.inputs.data_as<float>();
 
                     for (int64_t r = 0; r < rows; ++r)
-                        batch.labels[static_cast<std::size_t>(r)] =
-                            static_cast<int32_t>((running++) % classes);
+                    {
+                        // Round-robin class assignment balances every batch evenly.
+                        const int64_t label = (running++) % classes;
+                        labels[r] = static_cast<int32_t>(label);
+                        std::copy_n(class_means + label * features, features, x + r * features);
+                    }
 
-                    write_one_hot(batch.targets, batch.labels, classes);
-
-                    // Matrix multiplication by one-hot targets gathers each sample's class mean.
                     SA_TRY(Detail::record_and_run(engine, [&]()
                     {
-                        blas.gemm(batch.targets, means, batch.inputs);
                         random.normal(noise, 0.0, options.noise);
                         blas.axpy(1.0f, noise, batch.inputs);
                         return Status();
@@ -167,19 +193,20 @@ namespace SushiAI
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
                 return std::unique_ptr<SyntheticClassification>(
-                    new SyntheticClassification(options, std::move(batches)));
+                    new SyntheticClassification(options, std::move(targets), std::move(batches)));
             });
         }
 
-        const Batch& SyntheticClassification::batch(std::size_t index) const
+        Status SyntheticClassification::read(std::size_t index, Batch& batch) const
         {
             SA_FATAL_IF(index >= batches_.size(),
                         "Batch {} is out of range; the dataset has {}", index, batches_.size());
-            return batches_[index];
+            return share_batch(batches_[index], batch);
         }
 
-        Rings::Rings(RingsOptions options, std::vector<Batch> batches) noexcept
-            : options_(options), batches_(std::move(batches))
+        Rings::Rings(RingsOptions options, std::vector<TargetDescription> targets,
+                     std::vector<Batch> batches) noexcept
+            : options_(options), targets_(std::move(targets)), batches_(std::move(batches))
         {
 
         }
@@ -203,7 +230,9 @@ namespace SushiAI
             const int64_t features = 2 + options.distractor_features;
             const int64_t classes = options.classes;
             const int64_t rows = options.batch_size;
-            const Shape sample{features};
+            const InputDescription input{Shape{features}, DType::Float32};
+
+            SA_TRY_ASSIGN(std::vector<TargetDescription> targets, describe_labels(classes));
 
             constexpr double K_TWO_PI = 6.283185307179586476925286766559;
 
@@ -222,15 +251,16 @@ namespace SushiAI
                 int64_t running = 0;
                 for (int64_t b = 0; b < options.batches; ++b)
                 {
-                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, sample, classes));
+                    SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, input, targets));
 
+                    int32_t* labels = batch.targets.front().values.data_as<int32_t>();
                     float* x = batch.inputs.data_as<float>();
 
                     for (int64_t r = 0; r < rows; ++r)
                     {
                         // Round-robin class assignment balances every batch evenly.
                         const int64_t label = (running++) % classes;
-                        batch.labels[static_cast<std::size_t>(r)] = static_cast<int32_t>(label);
+                        labels[r] = static_cast<int32_t>(label);
 
                         const double radius = static_cast<double>(label) + band_dist(rng);
                         const double theta = theta_dist(rng);
@@ -242,7 +272,6 @@ namespace SushiAI
                             row[2 + f] = static_cast<float>(distractor(rng));
                     }
 
-                    write_one_hot(batch.targets, batch.labels, classes);
                     batches.push_back(std::move(batch));
                 }
                 return Status();
@@ -250,15 +279,16 @@ namespace SushiAI
 
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
-                return std::unique_ptr<Rings>(new Rings(options, std::move(batches)));
+                return std::unique_ptr<Rings>(
+                    new Rings(options, std::move(targets), std::move(batches)));
             });
         }
 
-        const Batch& Rings::batch(std::size_t index) const
+        Status Rings::read(std::size_t index, Batch& batch) const
         {
             SA_FATAL_IF(index >= batches_.size(),
                         "Batch {} is out of range; the dataset has {}", index, batches_.size());
-            return batches_[index];
+            return share_batch(batches_[index], batch);
         }
 
         Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,
