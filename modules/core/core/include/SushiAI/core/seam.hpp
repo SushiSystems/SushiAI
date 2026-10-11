@@ -21,7 +21,8 @@
 
 /**
  * @file seam.hpp
- * @brief Declares the guards that turn an exception of SushiBLAS or SushiRuntime into a Status.
+ * @brief Declares the guards that turn an exception of SushiBLAS or an Error of SushiRuntime
+ *        into a Status.
  * @author Mustafa Garip
  */
 
@@ -32,8 +33,7 @@
 #include <type_traits>
 #include <utility>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/execution/execution_engine.hpp>
-#include <SushiRuntime/graph/task_graph.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 
@@ -51,6 +51,16 @@ namespace SushiAI
             Allocate, /**< Allocating storage. */
             Execute,  /**< Compiling or running a graph. */
         };
+
+        /**
+         * @brief Returns the Status of an Error SushiRuntime returned, by its code.
+         *
+         * Stops the process for a code that reports a defect of the caller.
+         * @param phase Decides the code of an Error whose own code is Ok.
+         * @return A failure whose message is the Error's; never a success.
+         */
+        [[nodiscard]] Status status_of_error(const SushiRuntime::Error& error,
+                                             SeamPhase phase) noexcept;
 
         /**
          * @brief Returns the Status of the exception being handled.
@@ -75,19 +85,25 @@ namespace SushiAI
         [[nodiscard]] auto guard_value(SeamPhase phase, Call&& call) noexcept
             -> Result<std::decay_t<decltype(std::forward<Call>(call)())>>;
 
+        /**
+         * @brief Creates the runtime an engine is built on.
+         * @return The runtime, or the Status of the Error SushiRuntime returned for it.
+         */
+        [[nodiscard]] Result<SushiRuntime::Runtime> create_runtime(
+            const SushiRuntime::RuntimeConfig& config = {}) noexcept;
+
         /** @brief Runs the tasks recorded on @p engine and waits until they have finished. */
+
         [[nodiscard]] Status run_recorded(SushiBLAS::Engine& engine) noexcept;
 
-        /** @brief Compiles @p graph and stores the plan in @p plan. */
-        [[nodiscard]] Status compile_graph(SushiRuntime::Graph::TaskGraph& graph,
-                                           SushiRuntime::Execution::CompiledGraph& plan) noexcept;
+        /**
+         * @brief Runs one step of @p graph on @p runtime and waits until it has finished.
+         * @param runtime The runtime @p graph came from.
+         * @param report Refilled by the run; its previous contents are lost.
+         */
+        [[nodiscard]] Status run_step(SushiRuntime::Runtime& runtime, SushiRuntime::Graph& graph,
+                                      SushiRuntime::RunReport& report) noexcept;
 
-        /** @brief Runs @p plan on @p context and waits until it has finished. */
-        [[nodiscard]] Status run_plan(SushiRuntime::Execution::RuntimeContext& context,
-                                      SushiRuntime::Execution::CompiledGraph& plan) noexcept;
-
-        /** @brief Takes the nodes recorded in @p graph and destroys them. */
-        [[nodiscard]] Status discard_recorded(SushiRuntime::Graph::TaskGraph& graph) noexcept;
 
         /**
          * @brief Destroys every task recorded on @p engine that has not run.

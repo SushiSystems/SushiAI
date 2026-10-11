@@ -18554,11 +18554,12 @@ the depth stays 0.
 Suites: `Unit_Seam`, `Unit_SeamEngine`.
 
 Tests the seam in `modules/core/core/include/SushiAI/core/seam.hpp`, the one place where an exception of SushiBLAS
-or SushiRuntime, or of another standard type, becomes a `Status`. `guard` and `guard_value` run a
-call and return its Status or its value. `status_of_current_exception` chooses the code from the
-type of the exception and from the `SeamPhase` the call was in: `Record`, `Allocate` or `Execute`.
+or of a standard type, or an `Error` SushiRuntime returned, becomes a `Status`. `guard` and
+`guard_value` run a call and return its Status or its value. `status_of_current_exception`
+chooses the code from the type of the exception and from the `SeamPhase` the call was in:
+`Record`, `Allocate` or `Execute`. `status_of_error` chooses it from the `ErrorCode`.
 
-The `Unit_Seam` cases need no device and build each exception they map by hand. The
+The `Unit_Seam` cases need no device and build each exception and each `Error` they map by hand. The
 `Unit_SeamEngine` fixture is an `EngineTest`: its cases record work on an engine through
 `record_and_run`.
 
@@ -18585,25 +18586,26 @@ A plain `std::invalid_argument` maps to `InvalidDescription`, and its text is ke
 
 ### PlainRuntimeErrorTakesItsCodeFromThePhase
 
-A plain SushiRuntime error maps to `OutOfMemory` when the call was allocating, and to
+A plain `std::runtime_error` maps to `OutOfMemory` when the call was allocating, and to
 `DeviceFailed` when it was recording or executing.
 
 ### RuntimeFailureThatTheUserCanActOnMapsByItsCode
 
-A SushiRuntime failure that carries a code the user can act on keeps it: `OutOfMemory` for a
+A SushiRuntime `Error` that carries a code the user can act on keeps it: `OutOfMemory` for a
 missing USM allocation, `DeviceFailed` for a device fault or an unplugged device, and `Unsupported`
 for a missing fp16 path.
 
 ### RuntimeFailureWithTheOkCodeTakesItsCodeFromThePhase
 
-A SushiRuntime failure that carries the `Ok` code takes its code from the phase, as a plain error
-does.
+A SushiRuntime `Error` that carries the `Ok` code takes its code from the phase, as a plain
+`std::runtime_error` does.
 
 ### RuntimeFailureThatReportsADefectIsFatal
 
-A SushiRuntime failure that reports a defect stops the process rather than returning a Status.
-The case checks four defect codes with `SA_EXPECT_FATAL`: `invalid_graph`, `compile_failed`,
-`invalid_access` and `dangling_resource`.
+A SushiRuntime `Error` that reports a defect stops the process rather than returning a Status.
+The case checks five defect codes with `SA_EXPECT_FATAL`: `InvalidGraph`, `CompileFailed`,
+`InvalidAccess`, `InvalidState` and `DanglingResource`.
+
 
 ### ErrorOfAHostUnitIsFatalWithItsText
 
@@ -18874,7 +18876,7 @@ Suites: `Unit_Shape`.
 Tests Shape's extents, indexing, validation, equality and hash.
 
 This file needs no device. Shape is host-lane vocabulary and must stay testable without a
-RuntimeContext, which is what keeps the unit tier fast.
+runtime, which is what keeps the unit tier fast.
 
 ### DefaultIsAScalarWithOneElement
 

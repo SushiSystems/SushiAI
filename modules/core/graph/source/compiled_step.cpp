@@ -21,7 +21,7 @@
 
 /**
  * @file compiled_step.cpp
- * @brief Implements the lowering, the single compilation and the replay of CompiledStep.
+ * @brief Implements the lowering, the recording and the replay of CompiledStep.
  * @author Mustafa Garip
  */
 
@@ -39,10 +39,39 @@ namespace SushiAI
     namespace Graph
     {
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing)
-            : engine_(&engine), trailing_(trailing),
-              recorder_(graph_, engine.get_scratch_pool(), engine.get_mode())
+            : engine_(&engine), trailing_(trailing), graph_(engine.runtime().graph()),
+              recorder_(graph_.recorder(), engine.scratch_pool(), engine.mode())
         {
 
+        }
+
+        Status CompiledStep::add_replay_hooks(std::vector<ReplayPrelude> preludes)
+        {
+            return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                const std::size_t* finished_runs = &run_count_;
+                for (ReplayPrelude& prelude : preludes)
+                {
+                    // A run() replays one step, so the hook's own count is always 0.
+                    graph_.before_each_step(
+                        [finished_runs, work = std::move(prelude)](std::size_t)
+                    {
+                        work(static_cast<std::uint64_t>(*finished_runs));
+                    });
+                    ++prelude_count_;
+                }
+
+                if (trailing_)
+                {
+                    StepRecorder* trailing = trailing_;
+                    graph_.before_each_step([trailing](std::size_t)
+                    {
+                        trailing->before_replay();
+                    });
+                }
+
+                return Status();
+            });
         }
 
         Result<std::unique_ptr<CompiledStep>> CompiledStep::compile(
@@ -60,12 +89,11 @@ namespace SushiAI
             }));
 
             const DeviceFusionSelector device = DeviceFusionSelector::for_engine(engine);
-            Lowering lowering(step->recorder_, engine.get_rng(), pool,
+            Lowering lowering(step->recorder_, engine.rng(), pool,
                               selector ? *selector : device);
 
             Status recorded = lowering.record(graph);
             step->operations_ = lowering.emitted_operations();
-            step->preludes_ = lowering.take_preludes();
 
             const Status copied = SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
                                                          [&]()
@@ -86,26 +114,18 @@ namespace SushiAI
                     recorded = trailed.status();
             }
 
-            if (!recorded.is_ok())
-            {
-                const Status dropped = SushiAI::Detail::discard_recorded(step->graph_);
-                SA_FATAL_IF(!dropped.is_ok(), "A failed recording could not be dropped: {}",
-                            dropped.message());
-                return recorded;
-            }
+            // A step that fails here dies with what it recorded when this function returns.
+            SA_TRY(recorded);
 
-            SA_TRY(SushiAI::Detail::compile_graph(step->graph_, step->plan_));
-            ++step->compile_count_;
-            step->empty_ = step->plan_.roots.empty();
+            const SushiRuntime::Recorder& tasks = step->graph_.recorder();
+            if (const SushiRuntime::Error* refused = tasks.refusal())
+                return SushiAI::Detail::status_of_error(*refused,
+                                                        SushiAI::Detail::SeamPhase::Record);
+
+            step->empty_ = tasks.node_count() == 0;
+            SA_TRY(step->add_replay_hooks(lowering.take_preludes()));
 
             SA_TRY(pool.flush_constants());
-
-            // The base state is captured after compilation, which sets the in-degrees it reads.
-            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Execute, [&]()
-            {
-                step->plan_.capture_base_state();
-                return Status();
-            }));
 
             return std::move(step);
         }
@@ -126,15 +146,7 @@ namespace SushiAI
             if (empty_)
                 return Status();
 
-            // The plan is idle here, so a prelude may write memory its kernels read.
-            for (const ReplayPrelude& prelude : preludes_)
-                prelude(static_cast<std::uint64_t>(run_count_));
-
-            if (trailing_)
-                trailing_->before_replay();
-
-            plan_.rearm();
-            SA_TRY(SushiAI::Detail::run_plan(engine_->get_context(), plan_));
+            SA_TRY(SushiAI::Detail::run_step(engine_->runtime(), graph_, report_));
             ++run_count_;
 
             if (trailing_)
