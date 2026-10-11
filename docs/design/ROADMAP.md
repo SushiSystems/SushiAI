@@ -535,7 +535,7 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   the caller, so an aux buffer the functor wrote would get no edge and its reader would race the
   write. SushiBLAS now takes the epilogue's access set —
   `Dispatch::gemm_epilogue(f).reads(t).writes(t)` — so the aux write is declarable. Everything this
-  entry then listed as outstanding landed as `FusedForm::GemmBiasGelu`, with one item resolving
+  entry then listed as outstanding landed as `FusedForm::GEMMBiasGELU`, with one item resolving
   more cheaply than expected: the "backward rule reading the spill" turned out to need no new rule
   at all. Fusion runs *after* differentiation, so `gelu_backward` is already in the graph reading
   the pre-activation by id; making that same id the fused node's second output means the existing
@@ -644,7 +644,7 @@ width, features, classes, lr, optimizer, seed, MNIST directory) that trains end 
 reports the compile count, the per-epoch loss trajectory, the final accuracy and the wall clock.
 It is a separate binary from `sushiai_example` on purpose: a demo is a supported entry point with
 an output contract, an example is a teaching file people edit. Pinned by the
-`Integration_Demo.MlpRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
+`Integration_Demo.MLPRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
 
 Still open against the hard-gate list above:
 - **AI-2 and AI-3 are both in it now** (2026-08-03). AI-2: `graph/memory_plan.hpp` +

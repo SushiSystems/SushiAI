@@ -37,6 +37,9 @@ Each was made by the owner on 2026-10-07.
 | YOLO26 references | Produced by running the pinned Ultralytics commit, never stated |
 | Darknet-era YOLO | Ruled on 2026-10-09: YOLOv3, YOLOv4, YOLOv7 and their tiny variants run and train on the library, YOLOv3-tiny first, through one anchor-based detection unit; they are inside the feature freeze of 0.1.0. YOLOv1 and YOLOv2 are outside it. References come from AlexeyAB's Darknet, built outside the repository for that purpose and deleted afterwards |
 | Domain modules | Ruled on 2026-10-09: a field of use is a top folder and its own library target; vision is the first; layers stay in `nn`. The design is [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md) |
+| Model import | Ruled on 2026-10-11: every foreign format (Darknet, later ONNX, Caffe, Ultralytics) enters through one import step that writes a model file in JSON and a `.sushi` weight file; training and inference read those alone. `.sushi` is the official weight extension. The design is [`MODEL_IMPORT.md`](MODEL_IMPORT.md) |
+| Datasets | Ruled on 2026-10-11: a dataset is a task and a format reader; `Data::Batch` breaks to carry roles; classification, binary, multi-label, detection, semantic segmentation and regression are inside the feature freeze of 0.1.0; libjpeg-turbo and libpng are dependencies. The design is [`DATASETS.md`](DATASETS.md) |
+| Language | Ruled on 2026-10-11: a language domain is inside the feature freeze of 0.1.0. A decoder-only transformer trains on the library; the reference for parity is a nanoGPT-scale PyTorch model run outside the repository. Training across several machines through SushiRuntime's distributed layer is wanted; its design is not written |
 | Batch normalisation | The batch variance is an output of `K_BATCHNORM2D`; the running statistics are updated beside the graph |
 
 ## Stages
@@ -50,7 +53,10 @@ Each was made by the owner on 2026-10-07.
 | 4 | Eager front end | A model traced under scopes trains to the same loss as the compiled path, and a changed scope rebuilds only its own regions | `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md` |
 | 5 | YOLO26 | Stages a to e of its map: body forward, imported-weight parity, loss parity, overfit, full run | `docs/agent/2026_10_07_YOLO26/SPEC.md` |
 | 6 | Darknet-era YOLO | YOLOv3-tiny runs its forward pass on imported Darknet weights and equals a reference, then trains; v3, v4-tiny, v4, v7-tiny and v7 follow through the same anchor unit | `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` and `PLAN.md` |
-| 7 | Release 0.1.0 | The readiness list is closed | `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` |
+| 7 | Model import | A Darknet model is imported once and its six parity suites pass from the imported files | [`MODEL_IMPORT.md`](MODEL_IMPORT.md) |
+| 8 | Datasets and tasks | A YOLOv7-tiny trains from a model file, a `.sushi` file and a folder of images; a binary and a segmentation model each overfit one batch | [`DATASETS.md`](DATASETS.md) |
+| 9 | Language | A small decoder-only transformer equals its reference on one forward pass and one step, then trains on one machine; the multi-machine run follows its own design | [`LANGUAGE.md`](LANGUAGE.md) |
+| 10 | Release 0.1.0 | The readiness list is closed | `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` |
 
 Stages 1 and 2 touch the same files and are planned as one pass over the library. Stages 3 to 5
 each have units that call no engine and are written ahead of stage 1; their lowerings are written
@@ -58,8 +64,9 @@ once, after it.
 
 ## Feature freeze of 0.1.0
 
-The first tag holds what stages 1 to 6 name and nothing else: the compiled and the eager front
+The first tag holds what stages 1 to 9 name and nothing else: the compiled and the eager front
 end, the status contract, convolutional networks from a model file, YOLO26 training and forward
-pass, and the Darknet-era YOLO models through the anchor-based detection unit. A feature outside
+pass, the Darknet-era YOLO models through the anchor-based detection unit, the import step
+of stage 7, the datasets and tasks of stage 8 and the language domain of stage 9. A feature outside
 this list waits for a later version; the owner adds to the list, as he did on 2026-10-09 for
-stage 6.
+stage 6 and on 2026-10-11 for stages 7 to 9.

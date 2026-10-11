@@ -128,7 +128,7 @@ Yes. `sushiai train` and `sushiai inference` read JSON:
 ```bash
 sushiai train      applications/examples/heavy_mlp/train.json
 sushiai inference  applications/examples/heavy_mlp/model.json \
-                   applications/examples/heavy_mlp/heavy_mlp.ckpt \
+                   applications/examples/heavy_mlp/heavy_mlp.sushi \
                    applications/examples/heavy_mlp/eval.json
 ```
 

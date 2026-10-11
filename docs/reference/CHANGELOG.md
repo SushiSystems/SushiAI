@@ -2,6 +2,103 @@
 
 ## Unreleased
 
+- 2026-10-11 — programs: Made sushiai train seed its graphs and resume at the saved run count, epoch and batch, refusing another seed (`train.cpp`, `run_start.cpp`, `trainer_run.cpp`, `PreparedRun`).
+- 2026-10-11 — io: Added four progress records to the run state of a version 2 checkpoint; run state without them no longer resumes (`run_progress.hpp`, `RunProgress`, `check_run_seed`).
+- 2026-10-11 — vision: Added a first epoch and a first batch to the anchor loop and a run count to its step (`anchor_training_loop.hpp`, `AnchorLoopOptions`, `AnchorTrainingStep::restore_run_count`).
+- 2026-10-11 — train: Added restore_run_count to Trainer and EvaluationStep (`trainer.hpp`, `evaluation_step.hpp`).
+- 2026-10-11 — graph: Added CompiledStep::restore_run_count, which sets the run index of a resumed step once, before its first run (`compiled_step.hpp`).
+- 2026-10-11 — config: Added the optional seed key of a training file and read_run_seed, which refuses a negative one (`train_config.hpp`, `TrainSpec::seed`).
+- 2026-10-11 — programs: Removed domains_none.cpp, which no target built (`applications/programs/source`).
+- 2026-10-11 — core: Renamed every PascalCase name to keep its acronyms in capitals, so ValueId is ValueID and Layout::Nchw is Layout::NCHW; callers of the old spellings break (`ValueID`, `NodeID`, `TokenID`, `SGD`).
+- 2026-10-11 — tests: Added the rotary integration tests to the language binary (`test_rotary_generation.cpp`, `test_rotary_embedding.cpp`, `test_rotary_decoder_overfit.cpp`).
+- 2026-10-11 — language: Made CachedGenerator keep its rows across a slide for a rotary model through a ring fed by a position feed (`cached_generator.cpp`, `PositionFeed`, `RingPositionFeed`).
+- 2026-10-11 — language: Added rotary positions to the attention and both transformer blocks behind the positions key (`rotary_embedding.hpp`, `rotary_positions.hpp`, `AttentionPositions`).
+- 2026-10-11 — train: Added the host tables of a step, filled once when it is built (`TracedStep::tables`, `fill_host_tables`).
+- 2026-10-11 — nn: Added Trace::host_table, a buffer leaf a layer fills with host values and no state holds (`host_table.hpp`, `trace.hpp`).
+- 2026-10-11 — train: Added GraphOptions::seed, which the training and probe graphs pass to the trace (`steps.hpp`).
+- 2026-10-11 — nn: Made Dropout drop in training with a seed per site; a model that states a rate above 0 now trains differently (`dropout.hpp`, `trace.hpp`).
+- 2026-10-11 — autograd: Added the dropout rule, which multiplies the gradient by the saved mask (`rules/random.hpp`, `K_RANDOM_RULES`).
+- 2026-10-11 — graph: Added K_DROPOUT and its host-drawn mask from SplitMix64 keyed by seed, run and element (`dropout_mask.hpp`, `lowering/random.hpp`, `GraphBuilder::dropout`).
+- 2026-10-11 — graph: Added replay preludes, which a lowering row registers and CompiledStep::run calls with the run index (`replay_prelude.hpp`, `LoweringContext`).
+- 2026-10-11 — tests: Added the resumed-run and the program-run integration tests, the second in a binary of its own (`test_run_checkpoint.cpp`, `test_program_runs.cpp`, `sushiai_program_tests`).
+- 2026-10-11 — programs: Made sushiai train resume from the resume key and write run state into every checkpoint (`train.cpp`, `run_start.cpp`).
+- 2026-10-11 — language: Moved the generation and dataset section readers onto SectionReader, which changed four refusal texts (`generation/source/section.hpp`, `datasets/source/section.hpp`).
+- 2026-10-11 — data: Removed the deprecated Shape overloads of MaterialisedDataset, allocate_batch and prepare_batch (`materialised_dataset.hpp`).
+- 2026-10-11 — vision: Moved read_coco_json onto read_json_events so it holds no document; a file that states one of its three lists twice is now refused (`coco_json.cpp`).
+- 2026-10-11 — config: Added read_json_events, which streams a JSON file to a JSONEvents handler through a 64 KiB buffer (`json_events.hpp`).
+- 2026-10-11 — config: Added the resume key of a training file and check_start, which refuses a file that states both weights and resume (`train_config.hpp`).
+- 2026-10-11 — optim: Added Optimizer::run_state, restore_scalars, check_state_owner and type_name, and LossScaleState::restore (`run_state.hpp`, `optimizer.hpp`, `loss_scaler.hpp`).
+- 2026-10-11 — io: Added save_run_checkpoint and load_run_checkpoint, which write and strictly restore an optimizer's run state (`run_checkpoint.hpp`, `model_records.hpp`).
+- 2026-10-11 — io: Added version 2 of the .sushi format with a run-state section; earlier builds refuse the new files and version 1 files still read (`checkpoint_format.hpp`, `CheckpointWriter`, `CheckpointReader`).
+- 2026-10-11 — optim: Moved the clip task's identity into the operation table (`Ops::K_CLIP_SCALE`, `K_UNLOWERED`, `gradient_clip.cpp`).
+- 2026-10-11 — language: Added the expert_balance objective and the output key of next_token; a sum of the two trains a mixture and reports each expert's usage (`expert_balance_objective.hpp`, `next_token_objective.hpp`).
+- 2026-10-11 — language: Added the mixture of experts: MoEFeedForward with a dense or top-k router, and a transformer_block row with experts (`moe_feed_forward.hpp`, `expert_transformer_block.hpp`, `Language::register_nodes`).
+- 2026-10-11 — vision: Added the sample cache, the fit and augmentation pipelines of ReaderDataset, masks painted from polygons and mask_png suffixes (`sample_cache.hpp`, `AugmentPipeline`, `paint_polygon_mask`, `MaskPNGOptions`).
+- 2026-10-11 — data: Added ThreadedLoader, EpochAware and EpochPermutation; the training loops tell a dataset which epoch begins (`threaded_loader.hpp`, `Data::begin_epoch`, `epoch_permutation.hpp`, `trainer.cpp`).
+- 2026-10-11 — language: Added the key and value cache: one-position forms of the blocks and CachedGenerator, chosen by the cache key of the generation task (`cached_generator.hpp`, `incremental.hpp`, `generation_task.hpp`).
+- 2026-10-11 — train: Added steps fed by several named leaves and steps that carry values between runs (`EvaluationStep::run_by_name`, `EvaluationStep::reset`, `build_carrying_graph`, `build_incremental_graph`).
+- 2026-10-11 — nn: Added fed leaves and carried values to a trace, and an incremental form a node may implement (`Trace::feed`, `Trace::carry`, `Node::forward_incremental`, `ModelGraph::trace_incremental`).
+- 2026-10-11 — config: Added SectionReader, the Status-returning readers of one section; the schedule and anchor sections read through it (`config/section_reader.hpp`, `anchor_task.cpp`, `schedule_section.hpp`).
+- 2026-10-11 — language: Removed Language::Training::register_objectives; Language::register_objectives adds next_token (`language/registration.hpp`).
+- 2026-10-11 — vision: Replaced the Dice one-hot leaf with two int32 index leaves, so DiceObjective::make refuses N*H*W*C above int32; AnchorLoopOptions::schedule is a RateSchedule (`dice_objective.hpp`, `anchor_training_loop.hpp`).
+- 2026-10-11 — optim: Removed read_run_schedule; read_rate_schedule returns a step or a cosine schedule, and sushiai train accepts both (`run_schedule.hpp`, `validate_rate_schedule`, `train.cpp`).
+- 2026-10-11 — train: Removed Trainer::make over a StepSpec, RunReport::last_accuracy and Objective::score; pass the TrainingGraph and its Objective and read last_metrics (`trainer.hpp`, `objective.hpp`).
+- 2026-10-11 — train: Added the sum objective, a weighted sum of terms built through the registry; a term fed by its own step is refused (`sum_objective.hpp`, `Objective::is_fed_by_batch`, `ObjectiveContext::registry`).
+- 2026-10-11 — autograd: Added the backward rule of the row scatter-add, a gather of the incoming gradient (`K_SCATTER_ADD_ROWS`, `scatter_add_rows_backward`, `rules/linalg.cpp`).
+- 2026-10-11 — language: Added generation: four samplers, the window generator and the next_token_generation report of sushiai inference (`language/generation`, `Sampler`, `WindowGenerator`, `PromptDataset`).
+- 2026-10-11 — cli: Added sushiai tokenize train and encode, which write a vocabulary file and a token file (`tokenize.cpp`, `cli.py`, `encode_stream`).
+- 2026-10-11 — language: Added the registration module, the tokens dataset row and the position table block; a decoder builds and trains from files (`language/registration`, `PositionEmbedding`, `make_tokens_dataset`).
+- 2026-10-11 — nn: Added linked node rows, whose factory receives the rows above; a language_head row may tie to an embedding row (`BuiltRows`, `LinkedNodeEntry`, `find_embedding`, `node_registry.hpp`).
+- 2026-10-11 — config: Added the optional dtype of a model file's input, float32 or int32 (`ModelSpec::input_dtype`, `model_config.cpp`, `model_writer.cpp`).
+- 2026-10-11 — vision: Added the pixel_cross_entropy and dice objectives with mean IoU and pixel accuracy, and the SegmentHead block with its node row (`pixel_cross_entropy_objective.hpp`, `dice_objective.hpp`, `segment_head.hpp`).
+- 2026-10-11 — vision: Added the segment module: the confusion matrix, IoU, pixel accuracy and a polygon rasteriser; added a nearest resize to imaging (`vision/segment`, `ConfusionMatrix`, `rasterise_outlines`, `resize_nearest`).
+- 2026-10-11 — build: Followed two header moves of SushiRuntime ae9ace3 (`SushiRuntime/task/task_types.hpp`, `SushiRuntime/logging/logger.hpp`, `ops.hpp`, `test_main.cpp`).
+- 2026-10-11 — programs: Split the domain seam of the programs by domain and made Trainer the run of every objective without a step of its own (`domains_language.cpp`, `RunRegistry::set_fallback`, `register_vision_domain`).
+- 2026-10-11 — train: Added the binary_cross_entropy, multi_label and mean_squared_error objectives with their metrics (`binary_cross_entropy_objective.hpp`, `multi_label_objective.hpp`, `dense_losses.hpp`).
+- 2026-10-11 — train: Moved the feed and the metrics of a step into its objective; renamed track_accuracy to track_metrics and replaced StepMetrics::accuracy (`Objective::feed`, `Objective::measure`, `Metrics`, `trainer.cpp`).
+- 2026-10-11 — vision: Added the binary, multi-label, regression and segmentation collators with their task rows, the mask fit and TableDataset (`BinaryCollator`, `SegmentationCollator`, `fit_mask`, `TableDataset`, `task_table.hpp`).
+- 2026-10-11 — vision: Added the readers of COCO annotations, Pascal VOC XML, image and mask folders and CSV files, and a parser of the XML subset VOC uses (`read_coco_json`, `read_voc_xml`, `read_mask_png`, `read_csv`, `parse_xml`).
+- 2026-10-11 — language: Added the next-token objective over integer labels, its metrics and its registry row, and a head tied to the embedding table (`language/training`, `NextTokenObjective`, `LanguageHead::tie_to`).
+- 2026-10-11 — nn: Added a normal initialiser of fixed deviation; an Embedding table now starts at deviation 0.02 and has its own parameter role (`ParameterInit::normal`, `ParameterRole::Embedding`, `Linear::weight_init`).
+- 2026-10-11 — optim: Added the cosine schedule with warm-up and a schedule read by its type; apply_step_schedule became a template over any schedule (`CosineSchedule`, `RateSchedule`, `read_rate_schedule`).
+- 2026-10-11 — optim: Added gradient clipping by global norm, recorded in the step, with the key clip_norm (`GradientClip`, `Optimizer::enable_gradient_clip`, `Optimizer::set_clip_norm`).
+- 2026-10-11 — optim: Changed weight decay to reach weights only, not biases, normalisation scales or embeddings; decay_all restores the old behaviour (`ParameterSlot::decays`, `takes_weight_decay`, `bind_parameters`).
+- 2026-10-11 — programs: Added an inference report chosen by the model's task type; an anchor_detection model prints its detections over a split (`inference_run.hpp`, `inference.cpp`, `domains_vision.cpp`).
+- 2026-10-11 — cli: Added sushiai import, which writes model.json, weights.sushi and train.json from a Darknet cfg and weights (`import.cpp`, `cli.py`, `import_darknet_files`, `Vision::register_importers`).
+- 2026-10-11 — io: Added ImportedModel, the importer registry and the writer of an imported model's three files (`imported_model.hpp`, `importer_registry.hpp`, `write_imported_model`).
+- 2026-10-11 — train: Removed the five-argument make_objective; objectives are made through ObjectiveRegistry (`objective.hpp`, `objective_registry.cpp`).
+- 2026-10-11 — programs: Added the run table of sushiai train: cross_entropy runs through Trainer and anchor through run_anchor_training (`training_run.hpp`, `trainer_run.cpp`, `domains_vision.cpp`, `train.cpp`).
+- 2026-10-11 — vision: Added the reader dataset row: a data block with reader and task builds a ReaderDataset from files (`make_reader_dataset`, `reader_table.hpp`, `task_table.hpp`).
+- 2026-10-11 — config: Added the weights key and the data block with reader to the training file (`TrainSpec::weights`, `K_READER_DATA_TYPE`, `train_config.cpp`).
+- 2026-10-11 — data: Added the input's element type to a dataset and deprecated the Shape overloads of batch allocation (`InputDescription`, `Dataset::sample_dtype`, `allocate_batch`, `prepare_batch`, `match_input`).
+- 2026-10-11 — vision: Added run_anchor_training, the anchor objective's factory and its registry row `anchor` (`anchor_training_loop.hpp`, `anchor_objective_factory.hpp`, `Vision::register_objectives`).
+- 2026-10-11 — train: Replaced K_OBJECTIVE_REGISTRY with ObjectiveRegistry; a factory now takes an ObjectiveContext and returns a Result, the old make_objective is deprecated (`objective_registry.hpp`, `objective_context.hpp`).
+- 2026-10-11 — optim: Added Optimizer::set_learning_rate, apply_step_schedule and read_run_schedule; a schedule beside optimizer.learning_rate is refused (`optimizer.hpp`, `apply_step_schedule.hpp`, `run_schedule.hpp`).
+- 2026-10-11 — config: Added the optional schedule section to the training file, carried unread in TrainSpec (`train_config.hpp`, `TrainSpec::schedule`).
+- 2026-10-11 — language: Added the token file and TokenDataset, which reads a corpus in windows with the next token as labels (`write_token_file`, `read_token_range`, `NextTokenCollator`, `TokenDataset`).
+- 2026-10-11 — language: Added the byte-pair tokenizer: Vocabulary, train_bpe, encode_text and decode_tokens, and the vocabulary file (`language/text`, `vocabulary_file.hpp`, `codec.hpp`).
+- 2026-10-11 — autograd: Added the gradient of a log-softmax outside the fused cross entropy, which no longer refuses; softmax and attention differentiate (`K_LOG_SOFTMAX_BACKWARD`, `rules/loss.cpp`, `lowering/loss.cpp`).
+- 2026-10-11 — data: Replaced Dataset::batch with a fallible read into a caller's Batch; removed batch() and ReaderDataset::read_batch (`Dataset::read`, `share_batch`, `prepare_batch`, `trainer.cpp`).
+- 2026-10-11 — language: Added the language tier, its library SushiAI::language and its blocks: causal self-attention, feed-forward, transformer block, head (`language/blocks`, `SA_BUILD_LANGUAGE`, `language.h`).
+- 2026-10-11 — nn: Added the LayerNorm layer and a Dropout layer that stores its rate and draws no mask yet (`nn/layer_norm.hpp`, `nn/dropout.hpp`, `layer_registry.cpp`).
+- 2026-10-11 — graph: Added layer normalisation over the last axis with its gradient, and the causal mask on attention scores (`K_LAYER_NORM`, `K_LAYER_NORM_BACKWARD`, `K_CAUSAL_MASK`, `builder.hpp`).
+- 2026-10-11 — vision: Added truth_from_roles and the reader and writer of the anchor objective section of a training file (`truth_from_roles.hpp`, `describe_truth_roles`, `head_training_section.hpp`).
+- 2026-10-11 — optim: Added the reader and writer of the step schedule section of a training file (`optim/step_schedule_section.hpp`, `read_step_schedule_section`).
+- 2026-10-11 — vision: Added the classification and detection collators and ReaderDataset, which builds a batch from a sample list on demand (`Collator`, `fit_sample`, `load_sample_image`, `ReaderDataset::read_batch`).
+- 2026-10-11 — nn: Added the Embedding layer and its `embedding` node type over an int32 input (`nn/embedding.hpp`, `layer_registry.cpp`).
+- 2026-10-11 — graph: Added the row gather and its scatter-add gradient, lowered to a sparse matrix product (`K_GATHER_ROWS`, `K_SCATTER_ADD_ROWS`, `GraphBuilder::gather_rows`, `rules/linalg.cpp`).
+- 2026-10-11 — vision: Added the readers of the folder-per-class, YOLO text, IDX and CIFAR layouts, which list a split's samples (`read_image_folder`, `read_yolo_txt`, `read_idx`, `read_cifar`, `SampleList`).
+- 2026-10-11 — vision: Added the codecs module, which decodes JPEG, PNG and raw image files into an Image (`decode_image`, `load_image`, `decode_jpeg`, `decode_png`, `detect_image_format`).
+- 2026-10-11 — train: Added fill_one_hot and match_roles; an objective now states the batch roles it reads (`train/one_hot.hpp`, `train/role_match.hpp`, `ObjectiveLeaves::require`).
+- 2026-10-11 — data: Replaced Batch's one-hot targets and labels with named targets; removed Dataset::num_classes, Dataset::input_dim and write_one_hot (`Batch::targets`, `Dataset::targets`, `data/target.hpp`).
+- 2026-10-11 — vision: Added AnchorTask with read_anchor_task and write_anchor_task, and an optional task section to the model file; an older build refuses a file that has one (`detect/anchor/anchor_task.hpp`, `ModelSpec::task`).
+- 2026-10-11 — config: Added write_json and write_model, which write a Config::Value and a ModelSpec as the text of a model file (`config/json_writer.hpp`, `config/model_writer.hpp`).
+- 2026-10-11 — io: Renamed the weight file's extension to .sushi; examples, the programs' usage text and the YOLO26 fixture no longer name .ckpt or weights.sacp (`train.json`, `inference.cpp`, `export_yolo26_reference.py`).
+- 2026-10-11 — build: Followed SushiRuntime v0.4.0's accessors and namespaces; needs that SushiRuntime (`RuntimeContext::devices`, `RuntimeContext::memory`, `Observability::RunReport`, `seam.cpp`, `trainer.hpp`).
+- 2026-10-10 — tests: Added training parity against Darknet for six models: settings, deltas, heads, updates, rolling statistics, a one-batch overfit (`tests/vision_support/darknet_training.hpp`, `test_darknet_yolov3_training.cpp`).
+- 2026-10-10 — vision: Changed compute_head_delta to return a Status and to refuse a truth box outside the input; removed HeadTrainingOptions::class_weight (`head_delta.hpp`, `head_truth.hpp`, `head_training_options.hpp`).
+- 2026-10-10 — vision: Added the head delta over IoU boxes and over the activated coding, with the box gradient chosen by HeadTrainingOptions::box_gradient (`box_delta_iou.cpp`, `slot_decode.hpp`, `BoxGradient`).
+- 2026-10-10 — optim: Added StepSchedule, a learning rate by iteration with a power warm-up and step scales (`optim/step_schedule.hpp`, `validate_step_schedule`).
 - 2026-10-09 — tests: Added forward parity against Darknet for YOLOv3, v4-tiny, v4, v7-tiny and v7, and a layer-by-layer comparison over a table of models (`tests/vision_support/darknet_forward.hpp`, `test_darknet_yolov7_forward.cpp`).
 - 2026-10-09 — vision: Added the IoU box gradient in an analytic and a Darknet-compatible form, and plan_anchors, the one call of the automatic anchoring (`detect/iou_gradient.hpp`, `detect/anchor/anchor_plan.hpp`).
 - 2026-10-09 — vision: Added the cfg and weights importer of the Darknet-era YOLO models, with batch norm folded or kept separate (`vision/importers/`, `darknet_config.hpp`, `darknet_weights.hpp`, `darknet_model.hpp`).
@@ -23,7 +120,7 @@
 - 2026-10-09 — tools: Rewrote the layering check for the module tree and pointed the contract check at modules/ and applications/ (`check_layering.py`, `check_contract.py`).
 - 2026-10-09 — docs: Added a README to each of the 18 modules (`modules/core/`, `modules/layers/`, `modules/vision/`).
 - 2026-10-09 — vision: Moved detect, imaging and the blocks under vision/ and into SushiAI::Vision; breaks their include paths and namespaces (`vision/detect/`, `vision/imaging/`, `vision/blocks/`, `vision/registration.hpp`).
-- 2026-10-09 — vision: Moved MNIST out of data into Vision::Datasets and made MaterialisedDataset, allocate_batch and write_one_hot public; breaks the Data::Mnist names (`vision/datasets/mnist.hpp`, `data/materialised_dataset.hpp`).
+- 2026-10-09 — vision: Moved MNIST out of data into Vision::Datasets and made MaterialisedDataset, allocate_batch and write_one_hot public; breaks the Data::MNIST names (`vision/datasets/mnist.hpp`, `data/materialised_dataset.hpp`).
 - 2026-10-09 — nn: Moved the readers of a model-file row from the blocks into nn, where batch norm and the blocks both reach them (`nn/node_attributes.hpp`, `node_attributes.cpp`).
 - 2026-10-09 — nn: Replaced the node and layer tables with NodeRegistry, a value build_model, make_node and build_layer_stack take; breaks their callers (`node_registry.hpp`, `layer_registry.hpp`, `blocks/registration.hpp`).
 - 2026-10-09 — data: Replaced the dataset table with DatasetRegistry, a value make_dataset takes; breaks its callers (`dataset_registry.hpp`, `dataset.hpp`).

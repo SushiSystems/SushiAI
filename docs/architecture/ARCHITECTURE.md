@@ -626,7 +626,7 @@ already take the output, so GELU was the only one the use count genuinely
 refused.
 
 **The auxiliary-buffer GELU epilogue — cuBLASLt's `GELU_AUX_BIAS` shape — is
-implemented.** `FusedForm::GemmBiasGelu`'s epilogue stores the fully formed
+implemented.** `FusedForm::GEMMBiasGELU`'s epilogue stores the fully formed
 pre-activation to a second buffer on its way past and then returns `gelu` of it,
 so the tensor `gelu_backward` differentiates at is written after all and the
 fold is exact rather than approximate.
@@ -635,7 +635,7 @@ Four things make that work, and each is a place it could have gone silently
 wrong:
 
 - **The second output is the same value.** `Graph::Node::outputs` was already a
-  vector; the fused node's `outputs[1]` is the very `ValueId` the absorbed
+  vector; the fused node's `outputs[1]` is the very `ValueID` the absorbed
   `K_BIAS_ADD` used to produce. So `gelu_backward` reads what it always read, no
   backward rule changed, and no pass had to learn about a new tensor.
 - **Rule 1 is relaxed for exactly that value and nothing else.** A catalog entry
@@ -678,12 +678,12 @@ access declarations - one node per fused GEMM, no kernel launch, counted apart b
 a `RunReport::ordering_nodes_per_step`. All of that is gone.
 `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) hands SushiBLAS the
 epilogue and its operands together,
-`gemm_epilogue(BiasReluEpilogue{...}).reads(bias)`. Each row of the fused table
+`gemm_epilogue(BiasReLUEpilogue{...}).reads(bias)`. Each row of the fused table
 builds its own epilogue and access set, because the access set belongs to the
 spelling: the row that spills a pre-activation declares a write the others do
 not. The edge lands on the GEMM task itself, so
 `operations_per_step` is the plan's node count again.
-`Regression_Fusion.AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias` asserts
+`Regression_Fusion.AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias` asserts
 that edge on `in_degree` rather than on a loss: with no edge the tasks may still
 come out in the right order on any given run, so a loss that falls proves
 nothing.
@@ -769,7 +769,7 @@ matches no entry. Under a narrowing policy a GELU layer therefore folds to
 `gemm+bias` and the activation runs on its own — exactly as it did before the
 entry existed — and `narrows_under_mixed_precision` answers false for both
 `K_GELU` and `K_GEMM_BIAS_GELU` so the two halves cannot drift.
-`Regression_MixedPrecision.AGeluLayerIsNotFoldedUnderANarrowingPolicy` pins it.
+`Regression_MixedPrecision.AGELULayerIsNotFoldedUnderANarrowingPolicy` pins it.
 
 **Where the pass runs, and why exactly there.** Between `differentiate()` and
 `fuse()`. After differentiation, because a backward node needs casting as much
@@ -864,7 +864,7 @@ applications/programs/source/train.cpp  (no type names; never edited again)
    |                            "flatten", "upsample", "silu"
    +-- Data::K_DATASET_REGISTRY   "rings", "mnist"
    +-- Optim::K_OPTIMIZER_REGISTRY "adamw", "sgd"
-   +-- Train::K_OBJECTIVE_REGISTRY "cross_entropy"
+   +-- Train::ObjectiveRegistry    "cross_entropy", "anchor"
 ```
 
 Each is a file-scope `constexpr` array of `{name, factory function pointer}`,
@@ -894,8 +894,9 @@ does not restate it.
 
 ### Checkpoints, split along the host/device lane
 
-`io/checkpoint_format.hpp` is the `SACP` byte stream alone — a magic, a
-version, and per tensor a name, a dtype, a `Shape` and a payload, every scalar
+`io/checkpoint_format.hpp` is the `SACP` byte stream alone: a magic, a
+version (2; version 1 still reads), the model-state records and the run-state
+records of an optimizer, each a name, a dtype, a `Shape` and a payload, every scalar
 encoded a byte at a time so the little-endian order is stated rather than
 inherited. No tensors, no engine, so its whole malformed-file surface is a
 device-free unit test. `CheckpointWriter::create` and `CheckpointReader::open`

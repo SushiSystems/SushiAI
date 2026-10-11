@@ -98,7 +98,8 @@ boxes within 1.3e-4, the scores within 1e-6.
 - **A detection dataset and a threaded loader** over the imaging pipelines: a directory-backed
   sample source, the build pass that parses and rejects labels once, one pipeline per thread.
 - **The image decode tool** that writes the raw cache, with libjpeg-turbo through vcpkg.
-- **MuSGD, parameter groups, the learning-rate schedule with warmup, and the weight EMA.**
+- **MuSGD, parameter groups, the cosine learning-rate schedule with warmup, and the weight
+  EMA.**
 - **The tolerance of a HALF comparison between the reference path and the device.** The
   toolchain's host float-to-half conversion truncates below 2^-13, so a HALF result of smaller
   magnitude computed under `ForceReference` sits one HALF unit in the last place under the
@@ -127,24 +128,138 @@ The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.m
 ## Darknet-era YOLO
 
 Inside the feature freeze of 0.1.0 by the owner's ruling of 2026-10-09; stage 6 of
-[`PROGRAMME.md`](PROGRAMME.md). No design document exists yet.
+[`PROGRAMME.md`](PROGRAMME.md). The scope is YOLOv3, v4, v7 and their tiny forms, with training.
+The specification, the plan and the report are in `docs/agent/2026_10_09_DARKNET_YOLO/`; the
+module rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md).
 
-- **Decide where the anchor unit lives.** The owner's decision, to be brought with the design:
-  inside `detect`, or in `detect/anchor/` beside the anchor-free head of YOLO26, sharing the box,
-  IoU and NMS bricks.
-- **Write the anchor-based detection unit**: a decoder (cell offset through a sigmoid, size
-  through an exponential times the anchor), a host assigner by best-anchor IoU with an ignore
-  threshold, and a loss. One unit with an options structure for the `region` form of v2 and the
-  `yolo` form of v3 and v4, not a class per version.
-- **Write the Darknet importer**: the `.cfg` text to a model graph and the `.weights` binary to
-  parameters and buffers, with batch normalisation stored as bias, scale, mean, variance and
-  then the weights.
-- **Add the layers the models need**: `reorg` for v2, `Mish` and a grouped `route` for v4, the
-  fully connected detection head of v1, and letterbox preprocessing with its inverse for boxes.
-- **Check `MaxPool2d` against YOLOv3-tiny's 2x2 pool of stride 1**, which Darknet pads on one
-  side only.
-- **Produce the references by running Darknet**, as the YOLO26 references are produced, never
-  stated. YOLOv3-tiny on its published weights is the first.
+Built and passing on 2026-10-09: the cfg and weights importer, the anchor-box path of
+`vision/detect`, the automatic anchoring, and the forward pass of the six models against
+Darknet's tensors.
+
+- **Build and run the training parity tests.** The step schedule, the delta over IoU boxes and
+  over the activated coding, the box gradient option, the six
+  `test_darknet_<model>_training.cpp` suites and the one-batch overfit check are written and
+  syntax-checked, and have never been compiled. The build waits on SushiBLAS following
+  SushiRuntime v0.4.0.
+- **Follow SushiRuntime v0.4.0.** The spellings SushiAI uses are already the new ones
+  (`devices()`, `memory()`, `TaskGraph()`, `Observability::`, `Memory::`); they are unverified
+  until that build.
+- **Confirm weights-only decay against Darknet** once a parity suite states a decay; the
+  rule is written. Was: **Decay the weights only.** `Optim::SGD` decays every slot it updates; the Darknet solver
+  decays the convolution weights and neither the biases nor the batch norm scales. It needs
+  parameter groups, which the YOLO26 line below also asks for.
+- **Drive `StepSchedule` from a training loop.** The schedule returns a rate per iteration; no
+  loop reads it yet.
+- **Train a model from a cfg in `sushiai train`**, and report its detections in
+  `sushiai inference`.
+- **Letterbox preprocessing with its inverse for boxes.**
+- **Delete the temporary Darknet checkout** outside the repository once the training tests
+  pass; the references and their SHA-256 lists are already copied.
+- **An exception to rule 4 of the `testing` skill** for the suites that read
+  `SA_REFERENCE_DATA_DIR`, or the references inside the repository: the owner's decision. The
+  suites skip when the directory is absent.
+
+## Model import
+
+Ruled on 2026-10-11; the design and its four phases are in
+[`MODEL_IMPORT.md`](MODEL_IMPORT.md).
+
+- **Build and run the writers and the task section.** `write_json`, `write_model`, `AnchorTask`
+  and their tests are written and have not been built.
+- **The registry row of the `task` section**, and `inference` decoding a model from it.
+- **The `anchor` objective and the step schedule in the training file.**
+- **The `idx` reader row cannot name its two files**, and no row sets the letterbox.
+- **What phase 3 still lacks**, listed in `MODEL_IMPORT.md`: subdivisions, options per head,
+  a restorable step count.
+- **Build and run the import**: the exact text of the three written files, and whether
+  `load_checkpoint` accepts the written weights of all six models.
+- **Thresholds of the detection report in `eval.json`**, and inference on one image file.
+- **`sushiai import darknet`**, and the parity suites reading the imported files.
+
+## Datasets and tasks
+
+Ruled on 2026-10-11; the design and its seven phases are in [`DATASETS.md`](DATASETS.md).
+
+- **Build and run `Batch` with roles and `vision/codecs`.** Both are written and have not been
+  built; `test_learning_curve`, `test_determinism` and `test_compile_once` cover the synthetic
+  data that changed its construction.
+- **Check that the engine allocates under concurrent calls**, which the first read of a
+  `ReaderDataset` into a new `Batch` does; the loader on threads depends on it.
+- **A death test inside an engine fixture**: `ABatchOutsideTheEpochStopsTheProcess` is the
+  first, and whether its child process gets through engine start-up is not known.
+- **Turn the detection roles into a `GroundTruthBatch`**, in `vision/training`: int32 classes to
+  int64, the float `valid` to bytes.
+- **Give the imaging functions a status.** They throw, and `fit_sample` reports any of their
+  errors as a file fault.
+- **A resize that averages on reduction.** `resize_bilinear` aliases a large image fitted to a
+  small input.
+- **Write the raw cache from a folder of images**, the rest of phase 2.
+- **One unit for the exception boundary of the decoders**, which four functions of
+  `vision/codecs` repeat, and a `raw_decoder` unit out of `decode_image.cpp`.
+- **A 16-bit PNG without a `gAMA` chunk** has no test.
+- **A way for a collator to say it reads no mask**; one is decoded whenever a sample has it.
+- **Build and run the loader**: no test allocates from two threads, and the claim that it is
+  safe is read from SushiRuntime's allocator, not run.
+- **The detection collator and `train` over `AnchorTrainingStep`.**
+- **A checkpoint inside an epoch.** The run state carries a batch index, but `sushiai train`
+  saves only when the run returns, so the batch it writes is 0.
+- **A test of the program loops from a start other than zero**, in `test_program_runs.cpp`;
+  the bit-for-bit resume test drives its own loop over `Trainer::run_step`.
+- **`Trainer::fit` begins at epoch 0 on every call**; the CLI does not use it.
+- **`tools/reference/export_yolo26_reference.py` still writes version 1** of the weight file;
+  its files read.
+- **A refused save truncates the old file**: the target is opened before the writer can refuse.
+- **A way for an objective to name its metrics before it measures**, so a sum of two terms
+  does not compute mean IoU twice.
+- **Build and run segmentation**: the objectives, the head and the overfit test are written.
+- **A bilinear upsample in the graph**, for a head whose boundaries are finer than its scale.
+- **Several polygons per object in a label**, for outlines of more than one part.
+- **Keys for the probabilities and gains of the `default` pipeline**, and for its mosaic epochs.
+
+## Language
+
+Ruled into 0.1.0 on 2026-10-11; stage 9 of [`PROGRAMME.md`](PROGRAMME.md). The design and its
+seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are written and not yet built.
+
+- **Phase 6 of the design**, the decision model: the first work after the build passes, by
+  the owner's ruling of 2026-10-11.
+- **Per-term losses in a step's view**, so perplexity inside a sum is that of the fit alone.
+- **A port that is one value per step**, not per sample; a balance stands behind an axis of 1.
+- **Usage metrics without a balance term**: a sum refuses a weight of 0.
+- **Rotary leftovers**: a position past 2^28 is not refused; rotary under mixed precision is
+  not exercised (`fill_host_tables` refuses a half leaf); `tiny_decoder` stays on the
+  learned table; the window form declares its tables per block.
+- **An in-place row write in the graph**, in place of the scatter-add into zeros.
+- **A token-file writer that appends**, so `sushiai tokenize encode` holds one piece and not
+  every id of the corpus.
+- **One factory signature for every node**, once vision's rows can change; linked rows then go.
+- **Call `match_input` from the anchor loop**, which matches roles only; the step holds its
+  input leaf privately.
+- **The epoch in the dataset seam**, without which window starts cannot be redrawn: one pure
+  virtual, 8 overrides and 68 call sites.
+- **One home for `at_boundary` and the little-endian readers**, which `vision/datasets`,
+  `language/text` and `language/datasets` each hold privately.
+- **Measure `train_bpe` on a corpus of tens of megabytes.**
+- **The points phase 2 left open**, listed in `LANGUAGE.md`.
+- **Dropout: the device fill.** The mask is drawn on the host until SushiBLAS lands B1. No
+  test covers dropout in HALF or FLOAT64 on an engine.
+- **Tests whose body and name disagree**: `DropoutRefusesOperandsThatDoNotFit` asserts no
+  empty input; the second half of `AMergeOfALaterTokenIsRefused` breaks another byte;
+  `AMissingFileFails` of the tokens section checks no code or message;
+  `ARefusedDiceFillChangesNothing` reads back four of the five leaves.
+- **`TheYOLO26FileNamesEachMissingBlock` has no successor** since the YOLO26 cases moved to
+  `vision/registration`; decide whether a model file with a missing block still needs a case.
+- **The older sections of `tests/unit/README.md`**: about 190 were checked for headings and
+  suites only, not sentence by sentence against their sources; 106 lines pass 100 columns.
+- **The Darknet sections of `tests/integration/README.md`** were written from the case briefs
+  and model descriptions, not from the bodies of the shared check helpers.
+- **Check a token id against the table's rows before a step.** An index outside the table reads
+  or writes out of bounds in the sparse product; nothing validates it yet.
+- **An int32 input in the model file.** `Config::ModelSpec` states no input type, so an
+  `embedding` row works from C++ only.
+- **Deferred by the owner: how a run spans machines** on SushiRuntime's distributed layer: what is shipped per
+  step, and what the network between the owner's five machines can carry. Mixture of experts is
+  asked about; it needs a top-k router and a balance term.
 
 ## Memory planning
 
@@ -171,13 +286,6 @@ Inside the feature freeze of 0.1.0 by the owner's ruling of 2026-10-09; stage 6 
 - **Fuse `K_NLL_LOSS`.** It lowers to three calls because the SushiBLAS whole-tensor reduction
   takes no transform functor, so the elementwise multiply cannot ride into the sum
   (`src/graph/lowering.cpp`).
-- **Differentiate standalone `K_LOG_SOFTMAX`.** The rule is `dx = dy - exp(L) * rowsum(dy)` and a
-  backward rule writes IR, so it needs an IR node for a row-wise sum: an op identity, a builder
-  entry, a shape rule, a lowering and the rule (`include/SushiAI/core/ops.hpp`,
-  `src/autograd/rules/loss.cpp`).
-
-## Training and precision
-
 - **Skip the whole step on overflow.** `LossScaler` screens each parameter's gradient and skips
   that parameter's update. Freezing every parameter when any gradient overflows needs a
   dependency edge `execute_zip_inplace` cannot declare: one hand-written task that reads the

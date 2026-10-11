@@ -100,7 +100,7 @@ Expectations for a mergeable change:
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
 4. **A change to `sa demo mlp`'s output keeps the compile-count line.** Two
-   tests pin it: the `Integration_Demo.MlpRunsAndReportsOneCompile` CTest
+   tests pin it: the `Integration_Demo.MLPRunsAndReportsOneCompile` CTest
    entry and `cli/tests/test_demo.py`.
 
 ---
@@ -267,7 +267,7 @@ doubled, so the compiler lists what is left.
 
    ```cpp
    // modules/core/graph/source/builder.cpp
-   ValueId GraphBuilder::softsign(ValueId x) const
+   ValueID GraphBuilder::softsign(ValueID x) const
    {
        return unary(Ops::K_SOFTSIGN.id, x);
    }

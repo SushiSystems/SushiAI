@@ -86,7 +86,7 @@ feature that plan hasn't reached.
   trainer that reports its compile count.
 - **A model can be a JSON file** (`config/`, `nn/layer.hpp`,
   `nn/layer_stack.hpp`) — `sushiai train train.json` and
-  `sushiai inference model.json model.ckpt eval.json` contain **no layer,
+  `sushiai inference model.json model.sushi eval.json` contain **no layer,
   loss, dataset or optimizer type name**; each arrives through a constant
   `{name, factory}` table keyed by a string out of the configuration. The
   runtime layer list costs nothing per step, because `forward()` runs once at
@@ -315,7 +315,7 @@ per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::p
 `1.791759` is `ln 6` to the last digit — the exact uniform-prior loss a
 zero-initialised classifier must start at. **`compiles: 1`** is the claim the
 whole design rests on: 128 training steps, one lowering, one compile. The
-CTest entry `Integration_Demo.MlpRunsAndReportsOneCompile` and
+CTest entry `Integration_Demo.MLPRunsAndReportsOneCompile` and
 `cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
 
 **`ops per step: 25`** is 21 graph nodes plus one fused update per parameter —
@@ -512,9 +512,12 @@ sa::Status train()
     SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
                   sa::Optim::AdamW::make(engine, std::move(parameters)));
 
+    // The objective build_classifier traced; it feeds and measures every step.
+    const sa::Train::CrossEntropyObjective objective(32, 6, sa::DType::Float32);
+
     // Trainer::make lowers and compiles; it is the only compile of the run.
     SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
-                  sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer));
+                  sa::Train::Trainer::make(engine, built, pool, objective, *optimizer));
 
     sa::Data::SyntheticOptions synthetic;
     synthetic.features = 32;

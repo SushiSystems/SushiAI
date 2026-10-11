@@ -1,6 +1,6 @@
 # Domain modules
 
-**Status:** Open — the module tree is built and passing; the split of `vision/detect` and the module `vision/training` are ruled and being written. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
+**Status:** Open — the module tree, the split of `vision/detect`, `vision/importers` and `vision/training` are built; the build of the training parity tests is pending. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
 
 How SushiAI keeps what belongs to one field of use (vision today; language, physics and
 reinforcement learning later) apart from the library every field shares, so that a field can be
@@ -22,7 +22,7 @@ Each was made by the owner on 2026-10-09.
 | `NodeRegistry` | One registry with two `add` overloads, `find_node` and `find_layer` |
 | Vision switched off | The programs link a registration file with or without vision; the examples are built only with it |
 | Detection | `vision/detect` stays one module, split inside itself: the root holds what both families use (boxes, IoU, suppression, top-k, average precision), `free/` the anchor-free path of YOLO26 (`Vision::Detect::Free`) and `anchor/` the anchor-box path of the Darknet-era models (`Vision::Detect::Anchor`) |
-| Detection training | The detection objectives, the host stage and the training step live in a module `vision/training`, which depends on `train` and `vision/detect`; `vision/detect` keeps depending on `core` alone |
+| Detection training | The detection objectives, the host stage and the training step live in a module `vision/training`, which depends on `train` and `vision/detect`; `vision/detect` depends on modules of the core tier alone (`core`, and `config` for the task section of a model file) |
 | Anchoring | Anchors are derived, assigned to heads and checked against a dataset by the unit, as automatically as sound engineering allows; an imported model keeps the anchors of its file |
 | Reference implementations | Nothing is quoted from one. Darknet and Ultralytics are run outside the repository to produce tensors; SushiAI's own implementation is written from the behaviour |
 
@@ -56,7 +56,8 @@ domain to another.
 | --- | --- | --- |
 | `core` | `core`, `version`, `graph`, `config`, `autograd`, `optim`, `data`, `eager` | No layer type, no domain |
 | `layers` | `nn`, `io`, `train`, `umbrella` | The core tier. Layer types, `ModelGraph`, `ModelState`, the steps and the checkpoints over them, the registries' types. No domain |
-| `vision` | `imaging`, `detect`, `blocks`, `datasets`, `registration`, `umbrella` | The core and layers tiers. No other domain |
+| `language` | `text`, `blocks`, `datasets`, `training`, `generation`, `registration`, `umbrella` | The core and layers tiers. No other domain |
+| `vision` | `imaging`, `codecs`, `detect`, `segment`, `blocks`, `datasets`, `importers`, `training`, `registration`, `umbrella` | The core and layers tiers. No other domain |
 
 The programs under `applications/` and the tests under root `tests/` may use whatever they link.
 The next domain is a sibling folder of `modules/vision/` and one word in the tier table.
@@ -74,15 +75,15 @@ the names of the first.
 | --- | --- | --- |
 | One per kind of data | The data type, its transforms and its file readers | `imaging` |
 | One per task | Geometry, assignment, decoding and metrics of one task | `detect`, with `free/` and `anchor/` inside it |
-| `training` | The objectives of the domain's tasks and the steps that train them | Not created yet |
+| `training` | The objectives of the domain's tasks and the steps that train them | The delta loss, `AnchorObjective`, `AnchorTrainingStep` |
 | `blocks` | Model blocks built from `nn` layers that one family of models uses | `ConvNorm`, `Bottleneck`, `C3k`, `C3k2`, `SPPF` |
-| `datasets` | Dataset types of the domain | MNIST |
-| `importers` | Readers of other frameworks' model and weight files | Not created yet; the Darknet importer |
+| `datasets` | Dataset types of the domain and the readers of on-disk layouts and the collators; depends on `imaging` and `codecs` | MNIST, `read_yolo_txt` |
+| `importers` | Readers of other frameworks' model and weight files | The Darknet cfg and weights importer |
 | `registration` | The functions that add the domain's rows to a registry | `register_nodes`, `register_datasets` |
 | `umbrella` | The header that includes the library's umbrella and every header of the domain | `SushiAI/vision/vision.h` |
 
 Namespaces: `SushiAI::Vision::Detect`, `SushiAI::Vision::Imaging`, `SushiAI::Vision::Blocks`,
-`SushiAI::Vision::Datasets`. A second task (segmentation, pose) is a sibling of `detect`, not a
+`SushiAI::Vision::Datasets`, `SushiAI::Vision::Importers`, `SushiAI::Vision::Training`. A second task (segmentation, pose) is a sibling of `detect`, not a
 growth of it.
 
 ## Registration
