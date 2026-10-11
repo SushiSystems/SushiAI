@@ -60,6 +60,25 @@ shared SushiStack dependency tree, so its environment work is what
 toolchain's `bin` and `lib` on `PATH`. The sibling checkouts in the cache key come from
 `PROFILE` and are not listed a second time.
 
+## memory_limit.py
+
+`sa test` and `sa run` put the CLI process into a Windows job object whose committed memory
+is capped, before they start anything. A child inherits the job, so the ceiling covers a
+test binary and whatever it starts. A program that reaches it has its next allocation
+refused: SushiBLAS reports the size, the step returns `out_of_memory`, and the test fails
+by name. Without the ceiling the same program fills the page file and the machine stops
+answering, which is what a training step of the full YOLOv3 did on 2026-10-11 on a machine
+of 15 GB.
+
+The ceiling is `--memory-limit GB`, else `SA_MEMORY_LIMIT_GB`, else half of the physical
+memory; 0 applies none. `resolve_limit_bytes` decides it from values it is handed and
+`apply_limit` enforces it, so the first has tests that need no operating system.
+
+On a platform other than Windows `apply_limit` applies nothing and returns False. An
+address-space limit is the mechanism at hand there, and it counts what a device runtime
+reserves and never commits, so it would refuse programs that fit. `sushiai train` and the
+other program commands run without a ceiling: their memory is the user's to size.
+
 ## services/diag.py
 
 `sa config` and `sa env` are read-only troubleshooting. When a build picks the wrong

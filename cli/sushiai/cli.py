@@ -121,6 +121,10 @@ def test(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
+    memory_limit: Optional[float] = typer.Option(
+        None, "--memory-limit", min=0.0, metavar="GB",
+        help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
+             "Defaults to SA_MEMORY_LIMIT_GB, or half of the machine's memory."),
 ) -> None:
     """Run the test suite via CTest labels.
 
@@ -130,7 +134,7 @@ def test(
     --suite package is the exception: it runs no CTest at all, so --filter and
     --repeat are rejected there.
     """
-    raise typer.Exit(project_svc.test(suite, filter, repeat))
+    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit))
 
 
 @app.command(
@@ -148,9 +152,14 @@ def run(
         None, help="Executable name to run (exact, then substring match)."),
     sort: bool = typer.Option(
         False, "--sort", help="Interactively pick an executable."),
+    memory_limit: Optional[float] = typer.Option(
+        None, "--memory-limit", min=0.0, metavar="GB",
+        help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
+             "Defaults to SA_MEMORY_LIMIT_GB, or half of the machine's memory."),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
-    raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args)))
+    raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args),
+                                     memory_limit_gb=memory_limit))
 
 
 @app.command(

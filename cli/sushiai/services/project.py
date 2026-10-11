@@ -23,6 +23,7 @@ from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
 from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
 
 from .. import console
+from .. import memory_limit
 from ..config import Config, PROFILE, find_project_root, load_config
 from ..env import load_build_env
 from . import discovery
@@ -257,7 +258,21 @@ def build(build_type: BuildType, clean: bool = False,
     return rc
 
 
-def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int = 0) -> int:
+def _enter_memory_limit(limit_gb: float | None) -> bool:
+    """Applies the memory ceiling of a test or a run; returns False when it is refused."""
+    try:
+        limit = memory_limit.resolve_limit_bytes(
+            limit_gb, dict(os.environ), memory_limit.physical_memory_bytes())
+        if memory_limit.apply_limit(limit):
+            console.info(f"Memory limit: {limit / memory_limit.K_BYTES_PER_GB:.1f} GB")
+    except memory_limit.LimitError as error:
+        console.error(str(error))
+        return False
+    return True
+
+
+def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int = 0,
+         memory_limit_gb: float | None = None) -> int:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
@@ -275,6 +290,8 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
         return 1
 
     env = load_build_env(cfg, build_dir)
+    if not _enter_memory_limit(memory_limit_gb):
+        return 2
 
     if suite is Suite.package:
         if filter or repeat:
@@ -475,7 +492,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
 
 
 def run(target: str | None = None, sort: bool = False,
-        app_args: list[str] | None = None) -> int:
+        app_args: list[str] | None = None, memory_limit_gb: float | None = None) -> int:
     """Runs a built executable from the project root, forwarding *app_args* to it."""
     console.header("Project Run")
     root = find_project_root()
@@ -490,6 +507,9 @@ def run(target: str | None = None, sort: bool = False,
     exe = discovery.resolve(build_dir, console, target=target, sort=sort, default=cfg.target_bin)
     if exe is None:
         return 1
+
+    if not _enter_memory_limit(memory_limit_gb):
+        return 2
 
     console.info(f"Executing: {exe.name}")
     console.console.print(f"[muted]{exe}[/muted]")
