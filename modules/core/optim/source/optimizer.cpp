@@ -341,7 +341,7 @@ namespace SushiAI
             before_replay();
             SA_TRY(Detail::record_and_run(*engine_, [this]() -> Status
             {
-                SA_TRY(record_all(engine_->get_recorder()));
+                SA_TRY(record_all(engine_->recorder()));
                 return Status();
             }));
             after_replay();

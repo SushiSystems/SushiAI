@@ -158,10 +158,10 @@ builds its batches calls `prepare_batch` and so `allocate_tensor`, then writes t
 through the tensor's host pointer. Both are safe from any thread:
 
 - `allocate_tensor` (`modules/core/core/source/allocation.cpp`) builds a `SushiBLAS::Storage`
-  with `Residency::Shared` and reads `Engine::get_layout()`. It touches no recorder and no
-  task graph of the engine.
-- `Storage` calls `RuntimeContext::memory().allocate` (sushiblas:
-  `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp`, `allocate_usm`).
+  with `Residency::Shared` and reads `Engine::layout()`. It touches no recorder and no
+  graph of the engine.
+- `Storage` calls `Runtime::buffer` (sushiblas:
+  `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp`).
 - `Memory::USMAllocator` states "Every method may be called from any thread at any time"
   (sushiruntime: `modules/platform/memory/include/SushiRuntime/memory/usm_allocator.hpp`). Its
   `allocate` calls `sycl::aligned_alloc_shared` and records the address in a `USMRegistry`

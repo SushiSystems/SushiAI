@@ -118,7 +118,7 @@ TEST_F(Integration_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
     const Status run = record_and_run(*engine, [&]() -> Status
     {
         SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(engine->get_recorder()));
+                      recorder.record_into_step(engine->recorder()));
         recorded = count;
         return Status();
     });
@@ -147,7 +147,7 @@ TEST_F(Integration_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
     const Status run = record_and_run(*engine, [&]() -> Status
     {
         SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(engine->get_recorder()));
+                      recorder.record_into_step(engine->recorder()));
         static_cast<void>(count);
         return Status();
     });
@@ -172,7 +172,7 @@ TEST_F(Integration_BufferUpdateRecorder, NoSlotRecordsNothing)
     const Status run = record_and_run(*engine, [&]() -> Status
     {
         SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(engine->get_recorder()));
+                      recorder.record_into_step(engine->recorder()));
         recorded = count;
         return Status();
     });

@@ -76,7 +76,7 @@ namespace SushiAI
             bool holds_alone(const SushiBLAS::Tensor& tensor, int64_t rows, const Shape& sample,
                              DType dtype) noexcept
             {
-                if (!tensor.storage || tensor.storage->get_ref_count() != 1)
+                if (!tensor.storage || tensor.storage->ref_count() != 1)
                     return false;
                 if (tensor.storage_offset != 0 || tensor.dtype != dtype
                     || tensor.layout != SushiBLAS::Core::Layout::RowMajor

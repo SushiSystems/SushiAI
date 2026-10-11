@@ -98,7 +98,7 @@ namespace SushiAI
              *
              * Defaults to allocator alignment to preserve vectorization and reproducibility.
              */
-            std::size_t alignment = SushiRuntime::Core::DEFAULT_ALIGNMENT;
+            std::size_t alignment = SushiRuntime::K_DEFAULT_ALIGNMENT;
 
             /**
              * @brief Above this many nodes, reuse is declined rather than approximated.
