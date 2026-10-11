@@ -20,7 +20,7 @@ conda run -n sushiai-yolo26-ref python tools/reference/export_yolo26_reference.p
 | `--seed N` | Seed of the weights, the BatchNorm draws and the input image; default 0 |
 | `--bn-state perturbed` | Default. Draws every BatchNorm weight, bias, running mean and running variance from the seed |
 | `--bn-state initial` | Keeps torch's initial BatchNorm state: weight 1, bias 0, mean 0, variance 1 |
-| `--external-weights DIR` | Writes `weights.sacp` to `DIR`; the manifest marks it `external` |
+| `--external-weights DIR` | Writes `weights.sushi` to `DIR`; the manifest marks it `external` |
 
 One run builds the model, does one eval-mode forward pass, one train-mode forward pass with one
 loss evaluation and one backward. It takes about 6 seconds on two CPU threads. The exporter
@@ -43,9 +43,9 @@ arithmetic of the running-variance candidates) are tested by
 
 | File | Contents |
 | --- | --- |
-| `weights.sacp` | Every floating state-dict entry under its Ultralytics name, as the model stood before either pass |
+| `weights.sushi` | Every floating state-dict entry under its Ultralytics name, as the model stood before either pass |
 | `input.sacp` | `image`, `[1, 640, 640, 3]` NHWC, uniform draws in [0, 1); torch receives `image.permute(0, 3, 1, 2)` |
-| `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sacp`: six feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
+| `forward.sacp` | Eval mode, BatchNorm on the running statistics in `weights.sushi`: six feature maps, twelve raw head outputs, both decodes, the top-k detections, the rows suppression keeps at a lowered confidence |
 | `loss.sacp` | Train mode, BatchNorm on batch statistics: ground truth, loss items per branch, the inputs and the outputs of label assignment per branch, total loss, three gradients, one BatchNorm's running statistics after the pass |
 | `batchnorm.sacp` | Train mode: two BatchNorm passes, each with its input, parameters, running statistics before and after, output, and two candidate values of the updated running variance |
 | `MANIFEST.json` | Versions, seed, per file SHA-256 and size, per tensor name, dtype, shape, source and min, max, mean |
