@@ -36,6 +36,7 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 
 namespace SushiAI
@@ -70,11 +71,24 @@ namespace SushiAI
                  * @param emitted The pass's count of recorded tasks; count() adds to it.
                  * @pre Every reference argument outlives the context.
                  */
-                LoweringContext(SushiBLAS::TaskRecorder& recorder, SushiBLAS::RngStream& stream,
-                                TensorPool& pool, const Graph& graph, NodeId id,
+                LoweringContext(SushiBLAS::TaskRecorder& recorder, SushiBLAS::RNGStream& stream,
+                                TensorPool& pool, const Graph& graph, NodeID id,
                                 const FusionSelector& selector,
                                 std::vector<FusionSelection>& selections,
                                 std::size_t& emitted) noexcept;
+
+                /**
+                 * @brief Binds the context as the constructor above does, and to the pass's
+                 *        list of replay preludes.
+                 * @param preludes The list before_each_replay() appends to.
+                 * @pre Every reference argument outlives the context.
+                 */
+                LoweringContext(SushiBLAS::TaskRecorder& recorder, SushiBLAS::RNGStream& stream,
+                                TensorPool& pool, const Graph& graph, NodeID id,
+                                const FusionSelector& selector,
+                                std::vector<FusionSelection>& selections,
+                                std::size_t& emitted,
+                                std::vector<ReplayPrelude>& preludes) noexcept;
 
                 LoweringContext(const LoweringContext&) = delete;
                 LoweringContext& operator=(const LoweringContext&) = delete;
@@ -86,13 +100,13 @@ namespace SushiAI
                 [[nodiscard]] SushiBLAS::TaskRecorder& recorder() const noexcept;
 
                 /** @brief The random stream that random operations draw from. */
-                [[nodiscard]] SushiBLAS::RngStream& stream() const noexcept;
+                [[nodiscard]] SushiBLAS::RNGStream& stream() const noexcept;
 
                 /** @brief The graph being lowered. */
                 [[nodiscard]] const Graph& graph() const noexcept;
 
                 /** @brief The id of the node this context describes. */
-                [[nodiscard]] NodeId id() const noexcept;
+                [[nodiscard]] NodeID id() const noexcept;
 
                 /**
                  * @brief The node this context describes.
@@ -221,6 +235,14 @@ namespace SushiAI
                  */
                 void close_selection(std::size_t emitted_before) const noexcept;
 
+                /**
+                 * @brief Asks the step to run @p prelude on its own thread before each replay.
+                 * @param prelude Holds a target; an empty one is fatal.
+                 * @return Success, StatusCode::Unsupported when the context was bound without a
+                 *         list of preludes, or StatusCode::OutOfMemory when the list cannot grow.
+                 */
+                [[nodiscard]] Status before_each_replay(ReplayPrelude prelude) const;
+
             private:
                 /** @brief Stops the process unless @p index is a valid operand of the node. */
                 void check_input(std::size_t index) const;
@@ -229,13 +251,16 @@ namespace SushiAI
                 void check_output(std::size_t index) const;
 
                 SushiBLAS::TaskRecorder& recorder_;
-                SushiBLAS::RngStream& stream_;
+                SushiBLAS::RNGStream& stream_;
                 TensorPool& pool_;
                 const Graph& graph_;
-                NodeId id_;
+                NodeID id_;
                 const FusionSelector& selector_;
                 std::vector<FusionSelection>& selections_;
                 std::size_t& emitted_;
+
+                /// @brief The pass's list of replay preludes, or null when it keeps none.
+                std::vector<ReplayPrelude>* preludes_;
         };
     } // namespace Graph
 } // namespace SushiAI

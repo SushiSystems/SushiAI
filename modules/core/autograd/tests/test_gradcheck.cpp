@@ -152,7 +152,7 @@ TEST(Unit_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
         EXPECT_GE(std::abs(v), options.kink_margin * options.min_step * 0.999);
 }
 
-TEST(Unit_GradCheck, AReluFamilyFunctionNeedsToBeSampledOffTheKink)
+TEST(Unit_GradCheck, AReLUFamilyFunctionNeedsToBeSampledOffTheKink)
 {
     // The step keeps the pushed coordinates at 1e-3; see tests/unit/README.md.
     GradCheckOptions options;

@@ -55,16 +55,16 @@ namespace SushiAI
             None,
 
             /** @brief @c K_MATMUL then @c K_BIAS_ADD, as one GEMM with a bias epilogue. */
-            GemmBias,
+            GEMMBias,
 
             /** @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_RELU, as one GEMM. */
-            GemmBiasRelu,
+            GEMMBiasReLU,
 
             /** @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_SIGMOID, as one GEMM. */
-            GemmBiasSigmoid,
+            GEMMBiasSigmoid,
 
             /** @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_TANH, as one GEMM. */
-            GemmBiasTanh,
+            GEMMBiasTanh,
 
             /**
              * @brief @c K_MATMUL, @c K_BIAS_ADD then @c K_GELU, spilling the pre-activation.
@@ -72,7 +72,7 @@ namespace SushiAI
              * The only entry that writes two values. See @ref spill; without
              * the spill this row could not exist, and the build says so.
              */
-            GemmBiasGelu,
+            GEMMBiasGELU,
 
             /** @brief @c K_EXP, @c K_SUB then @c K_SCALE, as one elementwise pass. */
             ExpSubScale,
@@ -84,11 +84,11 @@ namespace SushiAI
             switch (form)
             {
                 case FusedForm::None:              return "none";
-                case FusedForm::GemmBias:         return "gemm+bias";
-                case FusedForm::GemmBiasRelu:    return "gemm+bias+relu";
-                case FusedForm::GemmBiasSigmoid: return "gemm+bias+sigmoid";
-                case FusedForm::GemmBiasTanh:    return "gemm+bias+tanh";
-                case FusedForm::GemmBiasGelu:    return "gemm+bias+gelu";
+                case FusedForm::GEMMBias:         return "gemm+bias";
+                case FusedForm::GEMMBiasReLU:    return "gemm+bias+relu";
+                case FusedForm::GEMMBiasSigmoid: return "gemm+bias+sigmoid";
+                case FusedForm::GEMMBiasTanh:    return "gemm+bias+tanh";
+                case FusedForm::GEMMBiasGELU:    return "gemm+bias+gelu";
                 case FusedForm::ExpSubScale:     return "exp-sub-scale";
             }
             return "unknown";
@@ -122,11 +122,11 @@ namespace SushiAI
          */
         constexpr bool is_gemm_epilogue(FusedForm form) noexcept
         {
-            return form == FusedForm::GemmBias
-                || form == FusedForm::GemmBiasRelu
-                || form == FusedForm::GemmBiasSigmoid
-                || form == FusedForm::GemmBiasTanh
-                || form == FusedForm::GemmBiasGelu;
+            return form == FusedForm::GEMMBias
+                || form == FusedForm::GEMMBiasReLU
+                || form == FusedForm::GEMMBiasSigmoid
+                || form == FusedForm::GEMMBiasTanh
+                || form == FusedForm::GEMMBiasGELU;
         }
 
         /**
@@ -246,7 +246,7 @@ namespace SushiAI
             /**
              * @brief Values read externally whose buffers must not be eliminated.
              */
-            SushiRuntime::span<const ValueId> observed{};
+            SushiRuntime::span<const ValueID> observed{};
 
             /**
              * @brief Catalog entries to leave unmatched during fusion.
@@ -267,18 +267,18 @@ namespace SushiAI
             FusedForm form = FusedForm::None;
 
             /** @brief The chain's nodes, in producer order; the last one is its root. */
-            std::vector<NodeId> chain;
+            std::vector<NodeID> chain;
 
             /** @brief The value the fused node writes - the root's own result. */
-            ValueId result = K_NO_VALUE;
+            ValueID result = K_NO_VALUE;
 
             /**
              * @brief Pre-activation value the fused node also writes, or @c K_NO_VALUE.
              */
-            ValueId spilled = K_NO_VALUE;
+            ValueID spilled = K_NO_VALUE;
 
             /** @brief The values that stopped being written; they have no buffer now. */
-            std::vector<ValueId> eliminated;
+            std::vector<ValueID> eliminated;
         };
 
         /**
@@ -301,10 +301,10 @@ namespace SushiAI
             OpID op{};
 
             /** @brief That operation's node, in the graph as it arrived. */
-            NodeId root = K_NO_NODE;
+            NodeID root = K_NO_NODE;
 
             /** @brief The value that blocked it, or @c K_NO_VALUE when none did. */
-            ValueId blocked_by = K_NO_VALUE;
+            ValueID blocked_by = K_NO_VALUE;
 
             /** @brief Why. */
             FusionDecline reason = FusionDecline::None;

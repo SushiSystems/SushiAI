@@ -45,9 +45,9 @@ namespace SushiAI
              *
              * Value ids remain stable when nodes are inserted during the pass.
              */
-            std::vector<ValueId> stored_column_matrices(const Graph& graph)
+            std::vector<ValueID> stored_column_matrices(const Graph& graph)
             {
-                std::vector<ValueId> stored;
+                std::vector<ValueID> stored;
                 for (const Node& node : graph.nodes())
                     if (node.op == Ops::K_IM2COL.id && !node.outputs.empty())
                         stored.push_back(node.outputs.front());
@@ -55,15 +55,15 @@ namespace SushiAI
             }
 
             /** @brief The nodes after @p from that read @p value, in graph order. */
-            std::vector<NodeId> consumers_after(const Graph& graph, NodeId from, ValueId value)
+            std::vector<NodeID> consumers_after(const Graph& graph, NodeID from, ValueID value)
             {
-                std::vector<NodeId> consumers;
+                std::vector<NodeID> consumers;
                 for (std::size_t i = from + 1; i < graph.node_count(); ++i)
                 {
-                    for (ValueId in : graph.nodes()[i].inputs)
+                    for (ValueID in : graph.nodes()[i].inputs)
                     {
                         if (in != value) continue;
-                        consumers.push_back(static_cast<NodeId>(i));
+                        consumers.push_back(static_cast<NodeID>(i));
                         break;
                     }
                 }
@@ -75,10 +75,10 @@ namespace SushiAI
         {
             const GraphBuilder builder(graph);
 
-            for (ValueId cols : stored_column_matrices(graph))
+            for (ValueID cols : stored_column_matrices(graph))
             {
-                const NodeId gather = graph.value(cols).producer;
-                const std::vector<NodeId> consumers = consumers_after(graph, gather, cols);
+                const NodeID gather = graph.value(cols).producer;
+                const std::vector<NodeID> consumers = consumers_after(graph, gather, cols);
 
                 // Rematerialisation targets column matrices consumed across multiple phases.
                 if (consumers.size() < 2) continue;
@@ -88,7 +88,7 @@ namespace SushiAI
                 const Value original = graph.value(cols);
 
                 // Clones must preserve original tensor layout to satisfy layout proof invariants.
-                const ValueId clone = builder.declare_like(cols, original.shape, original.dtype,
+                const ValueID clone = builder.declare_like(cols, original.shape, original.dtype,
                                                            Lifetime::Scratch, K_REMAT_NAME);
                 graph.value(clone).requires_grad = original.requires_grad;
 
@@ -98,7 +98,7 @@ namespace SushiAI
 
                 // Subsequent consumers are updated to read the cloned value operand.
                 for (std::size_t i = 1; i < consumers.size(); ++i)
-                    for (ValueId& in : graph.node(consumers[i] + 1).inputs)
+                    for (ValueID& in : graph.node(consumers[i] + 1).inputs)
                         if (in == cols) in = clone;
 
                 // The original column matrix is demoted to scratch lifetime.

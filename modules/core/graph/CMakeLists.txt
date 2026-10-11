@@ -12,6 +12,7 @@ sushiai_add_module(NAME graph TIER core
         source/builder.cpp
         source/cast_insertion.cpp
         source/compiled_step.cpp
+        source/dropout_mask.cpp
         source/fusion.cpp
         source/fusion_selector.cpp
         source/lowering.cpp
@@ -22,6 +23,7 @@ sushiai_add_module(NAME graph TIER core
         source/lowering/linalg.cpp
         source/lowering/loss.cpp
         source/lowering/norm.cpp
+        source/lowering/random.cpp
         source/lowering/shape.cpp
         source/lowering/spatial.cpp
         source/memory_plan.cpp
@@ -31,10 +33,17 @@ sushiai_add_module(NAME graph TIER core
     PUBLIC_DEPENDS core
     TESTS
         tests/test_batched_matmul.cpp
+        tests/test_causal_mask_ops.cpp
+        tests/test_compiled_step.cpp
         tests/test_depthwise_ops.cpp
+        tests/test_dropout_mask.cpp
+        tests/test_dropout_ops.cpp
         tests/test_elementwise_ops.cpp
         tests/test_fusion.cpp
+        tests/test_gather_ops.cpp
         tests/test_ir.cpp
+        tests/test_layer_norm_ops.cpp
+        tests/test_log_softmax_ops.cpp
         tests/test_lowering_table.cpp
         tests/test_memory_plan.cpp
         tests/test_step_recorder.cpp

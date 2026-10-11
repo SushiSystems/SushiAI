@@ -132,7 +132,7 @@ namespace SushiAI
 
             SushiBLAS::BLASOps blas(context.recorder());
             blas.copy(x, y);
-            blas.scal(static_cast<float>(context.node().attributes.get(0)), y);
+            blas.scal(context.node().attributes.get(0), y);
             context.count(2);
             return Status();
         }

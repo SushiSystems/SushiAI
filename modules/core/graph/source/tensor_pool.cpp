@@ -84,7 +84,7 @@ namespace SushiAI
             return *arenas_;
         }
 
-        Status TensorPool::bind(ValueId id, SushiBLAS::Tensor tensor)
+        Status TensorPool::bind(ValueID id, SushiBLAS::Tensor tensor)
         {
             SA_FATAL_IF(is_bound(id),
                         "Value {} is already bound to a tensor; a value has one buffer", id);
@@ -96,7 +96,7 @@ namespace SushiAI
             });
         }
 
-        SushiBLAS::Tensor& TensorPool::tensor(ValueId id)
+        SushiBLAS::Tensor& TensorPool::tensor(ValueID id)
         {
             const auto it = tensors_.find(id);
             SA_FATAL_IF(it == tensors_.end(),
@@ -104,7 +104,7 @@ namespace SushiAI
             return it->second;
         }
 
-        const SushiBLAS::Tensor& TensorPool::tensor(ValueId id) const
+        const SushiBLAS::Tensor& TensorPool::tensor(ValueID id) const
         {
             const auto it = tensors_.find(id);
             SA_FATAL_IF(it == tensors_.end(),
@@ -120,7 +120,7 @@ namespace SushiAI
             standalone_bytes_ += bytes;
         }
 
-        Result<SushiBLAS::Tensor&> TensorPool::materialise(ValueId id, const Value& value)
+        Result<SushiBLAS::Tensor&> TensorPool::materialise(ValueID id, const Value& value)
         {
             const auto it = tensors_.find(id);
             if (it != tensors_.end()) return it->second;
@@ -128,7 +128,7 @@ namespace SushiAI
             if (arenas_.has_value())
             {
                 // Materialises alias chains through buffer owner to align with planner liveness.
-                const ValueId owner = arenas_->plan().buffer_of(id);
+                const ValueID owner = arenas_->plan().buffer_of(id);
                 if (owner != id)
                 {
                     SA_TRY_ASSIGN(SushiBLAS::Tensor& shared, materialise(owner, value));
@@ -161,13 +161,13 @@ namespace SushiAI
             for (const Node& node : graph.nodes())
             {
                 if (node.op != Ops::K_LEAF.id) continue;
-                for (ValueId out : node.outputs)
+                for (ValueID out : node.outputs)
                     SA_TRY(materialise(out, graph.value(out)));
             }
             return Status();
         }
 
-        Status TensorPool::alias(ValueId target, ValueId source)
+        Status TensorPool::alias(ValueID target, ValueID source)
         {
             const auto it = tensors_.find(source);
             SA_FATAL_IF(it == tensors_.end(),
@@ -214,7 +214,7 @@ namespace SushiAI
             return slot;
         }
 
-        Result<SushiBLAS::Tensor&> TensorPool::scratch(NodeId node, int slot,
+        Result<SushiBLAS::Tensor&> TensorPool::scratch(NodeID node, int slot,
                                                        const Shape& shape, DType dtype)
         {
             const ScratchKey key{node, slot};

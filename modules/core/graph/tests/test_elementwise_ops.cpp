@@ -39,7 +39,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -48,7 +48,7 @@ namespace
     {
         std::string_view name;                                   /**< @brief Label for a failure. */
         OpID op;                                                 /**< @brief Expected identity. */
-        ValueId (GraphBuilder::*emit)(ValueId, ValueId) const;   /**< @brief The emitter. */
+        ValueID (GraphBuilder::*emit)(ValueID, ValueID) const;   /**< @brief The emitter. */
     };
 
     /** @brief Names one single-operand emitter and the identity it must write. */
@@ -56,7 +56,7 @@ namespace
     {
         std::string_view name;                          /**< @brief Label for a failure. */
         OpID op;                                        /**< @brief Expected identity. */
-        ValueId (GraphBuilder::*emit)(ValueId) const;   /**< @brief The emitter. */
+        ValueID (GraphBuilder::*emit)(ValueID) const;   /**< @brief The emitter. */
     };
 
     /** @brief Lists every two-operand emitter under test. */
@@ -82,18 +82,18 @@ namespace
     }};
 
     /** @brief Declares a rank-4 input and converts it to NCHW; the extents survive the permute. */
-    ValueId nchw_input(const GraphBuilder& builder, std::string_view debug_name,
+    ValueID nchw_input(const GraphBuilder& builder, std::string_view debug_name,
                        DType dtype = DType::Float32)
     {
-        const ValueId nhwc = builder.input(Shape{2, 2, 2, 2}, debug_name, dtype);
-        return builder.layout_convert(nhwc, Graph::TensorLayout::Nchw);
+        const ValueID nhwc = builder.input(Shape{2, 2, 2, 2}, debug_name, dtype);
+        return builder.layout_convert(nhwc, Graph::TensorLayout::NCHW);
     }
 
     /** @brief Expects @p out to be the single result of an @p op node that reads @p inputs. */
-    void expect_produced_by(const Graph::Graph& graph, ValueId out, OpID op,
-                            const std::vector<ValueId>& inputs)
+    void expect_produced_by(const Graph::Graph& graph, ValueID out, OpID op,
+                            const std::vector<ValueID>& inputs)
     {
-        const Graph::NodeId producer = graph.value(out).producer;
+        const Graph::NodeID producer = graph.value(out).producer;
         ASSERT_NE(producer, Graph::K_NO_NODE);
 
         const Graph::Node& node = graph.node(producer);
@@ -104,7 +104,7 @@ namespace
     }
 
     /** @brief Expects @p out to copy the shape, dtype and layout of @p like as an activation. */
-    void expect_described_like(const Graph::Graph& graph, ValueId out, ValueId like)
+    void expect_described_like(const Graph::Graph& graph, ValueID out, ValueID like)
     {
         EXPECT_EQ(graph.value(out).shape, graph.value(like).shape);
         EXPECT_EQ(graph.value(out).dtype, graph.value(like).dtype);
@@ -122,17 +122,17 @@ TEST(Unit_ElementwiseOps, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrde
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId a = builder.input(Shape{4, 3}, "a");
-        const ValueId b = builder.input(Shape{4, 3}, "b");
+        const ValueID a = builder.input(Shape{4, 3}, "a");
+        const ValueID b = builder.input(Shape{4, 3}, "b");
 
-        const ValueId out = (builder.*emitter.emit)(a, b);
+        const ValueID out = (builder.*emitter.emit)(a, b);
 
         expect_produced_by(graph, out, emitter.op, {a, b});
     }
 }
 
 /** @brief Tests that each two-operand emitter gives its result the first operand's description. */
-TEST(Unit_ElementwiseOps, BinaryEmittersKeepShapeDtypeAndLayout)
+TEST(Unit_ElementwiseOps, BinaryEmittersKeepShapeDTypeAndLayout)
 {
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
     {
@@ -140,13 +140,13 @@ TEST(Unit_ElementwiseOps, BinaryEmittersKeepShapeDtypeAndLayout)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId a = nchw_input(builder, "a", DType::Float64);
-        const ValueId b = nchw_input(builder, "b", DType::Float64);
+        const ValueID a = nchw_input(builder, "a", DType::Float64);
+        const ValueID b = nchw_input(builder, "b", DType::Float64);
 
-        const ValueId out = (builder.*emitter.emit)(a, b);
+        const ValueID out = (builder.*emitter.emit)(a, b);
 
         expect_described_like(graph, out, a);
-        EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::Nchw);
+        EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
         EXPECT_EQ(graph.value(out).dtype, DType::Float64);
     }
 }
@@ -160,9 +160,9 @@ TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId matrix = builder.input(Shape{4, 3}, "matrix");
-        const ValueId column = builder.input(Shape{4, 1}, "column");
-        const ValueId row = builder.input(Shape{3}, "row");
+        const ValueID matrix = builder.input(Shape{4, 3}, "matrix");
+        const ValueID column = builder.input(Shape{4, 1}, "column");
+        const ValueID row = builder.input(Shape{3}, "row");
         const std::size_t nodes_before = graph.node_count();
 
         EXPECT_THROW((void)(builder.*emitter.emit)(matrix, column), Error);
@@ -181,8 +181,8 @@ TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId single = builder.input(Shape{4, 3}, "single", DType::Float32);
-        const ValueId wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+        const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
+        const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
         EXPECT_THROW((void)(builder.*emitter.emit)(single, wide), Error);
         EXPECT_THROW((void)(builder.*emitter.emit)(wide, single), Error);
@@ -190,14 +190,14 @@ TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
 }
 
 /** @brief Tests that LESS_EQUAL yields its mask in the operands' element type, not a mask type. */
-TEST(Unit_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDtype)
+TEST(Unit_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDType)
 {
     for (DType dtype : {DType::Float32, DType::Float64})
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId a = builder.input(Shape{4, 3}, "a", dtype);
-        const ValueId b = builder.input(Shape{4, 3}, "b", dtype);
+        const ValueID a = builder.input(Shape{4, 3}, "a", dtype);
+        const ValueID b = builder.input(Shape{4, 3}, "b", dtype);
 
         EXPECT_EQ(graph.value(builder.less_equal(a, b)).dtype, dtype);
     }
@@ -212,9 +212,9 @@ TEST(Unit_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId x = builder.input(Shape{4, 3}, "x");
+        const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        const ValueId out = (builder.*emitter.emit)(x);
+        const ValueID out = (builder.*emitter.emit)(x);
 
         EXPECT_NE(out, x) << "the emitter must write a new value, not its operand";
         expect_produced_by(graph, out, emitter.op, {x});
@@ -222,7 +222,7 @@ TEST(Unit_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
 }
 
 /** @brief Tests that each single-operand emitter gives its result the operand's description. */
-TEST(Unit_ElementwiseOps, UnaryEmittersKeepShapeDtypeAndLayout)
+TEST(Unit_ElementwiseOps, UnaryEmittersKeepShapeDTypeAndLayout)
 {
     for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
     {
@@ -230,12 +230,12 @@ TEST(Unit_ElementwiseOps, UnaryEmittersKeepShapeDtypeAndLayout)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId x = nchw_input(builder, "x", DType::Float64);
+        const ValueID x = nchw_input(builder, "x", DType::Float64);
 
-        const ValueId out = (builder.*emitter.emit)(x);
+        const ValueID out = (builder.*emitter.emit)(x);
 
         expect_described_like(graph, out, x);
-        EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::Nchw);
+        EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
         EXPECT_EQ(graph.value(out).dtype, DType::Float64);
     }
 }
@@ -245,28 +245,28 @@ TEST(Unit_ElementwiseOps, SelectReadsItsConditionThenBothBranches)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId condition = builder.input(Shape{4, 3}, "condition");
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{4, 3}, "b");
+    const ValueID condition = builder.input(Shape{4, 3}, "condition");
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 3}, "b");
 
-    const ValueId out = builder.select(condition, a, b);
+    const ValueID out = builder.select(condition, a, b);
 
     expect_produced_by(graph, out, Ops::K_SELECT.id, {condition, a, b});
 }
 
 /** @brief Tests that SELECT gives its result the shape, dtype and layout of its branches. */
-TEST(Unit_ElementwiseOps, SelectKeepsShapeDtypeAndLayout)
+TEST(Unit_ElementwiseOps, SelectKeepsShapeDTypeAndLayout)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId condition = nchw_input(builder, "condition", DType::Float64);
-    const ValueId a = nchw_input(builder, "a", DType::Float64);
-    const ValueId b = nchw_input(builder, "b", DType::Float64);
+    const ValueID condition = nchw_input(builder, "condition", DType::Float64);
+    const ValueID a = nchw_input(builder, "a", DType::Float64);
+    const ValueID b = nchw_input(builder, "b", DType::Float64);
 
-    const ValueId out = builder.select(condition, a, b);
+    const ValueID out = builder.select(condition, a, b);
 
     expect_described_like(graph, out, a);
-    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::Nchw);
+    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
 }
 
 /** @brief Tests that SELECT refuses a condition whose shape differs from its branches. */
@@ -274,9 +274,9 @@ TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId per_row = builder.input(Shape{4, 1}, "per_row");
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{4, 3}, "b");
+    const ValueID per_row = builder.input(Shape{4, 1}, "per_row");
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 3}, "b");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.select(per_row, a, b), Error);
@@ -284,13 +284,13 @@ TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherShape)
 }
 
 /** @brief Tests that SELECT refuses a condition whose element type differs from its branches. */
-TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherDtype)
+TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId condition = builder.input(Shape{4, 3}, "condition", DType::Int64);
-    const ValueId a = builder.input(Shape{4, 3}, "a", DType::Float32);
-    const ValueId b = builder.input(Shape{4, 3}, "b", DType::Float32);
+    const ValueID condition = builder.input(Shape{4, 3}, "condition", DType::Int64);
+    const ValueID a = builder.input(Shape{4, 3}, "a", DType::Float32);
+    const ValueID b = builder.input(Shape{4, 3}, "b", DType::Float32);
 
     EXPECT_THROW((void)builder.select(condition, a, b), Error);
 }
@@ -300,22 +300,22 @@ TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId condition = builder.input(Shape{4, 3}, "condition");
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId narrow = builder.input(Shape{4, 1}, "narrow");
+    const ValueID condition = builder.input(Shape{4, 3}, "condition");
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID narrow = builder.input(Shape{4, 1}, "narrow");
 
     EXPECT_THROW((void)builder.select(condition, a, narrow), Error);
     EXPECT_THROW((void)builder.select(condition, narrow, a), Error);
 }
 
 /** @brief Tests that SELECT refuses two branches of unequal element type. */
-TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalDtype)
+TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId condition = builder.input(Shape{4, 3}, "condition", DType::Float32);
-    const ValueId a = builder.input(Shape{4, 3}, "a", DType::Float32);
-    const ValueId wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+    const ValueID condition = builder.input(Shape{4, 3}, "condition", DType::Float32);
+    const ValueID a = builder.input(Shape{4, 3}, "a", DType::Float32);
+    const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
     EXPECT_THROW((void)builder.select(condition, a, wide), Error);
     EXPECT_THROW((void)builder.select(condition, wide, a), Error);
@@ -330,10 +330,10 @@ TEST(Unit_ElementwiseOps, ActivationBackwardEmitsTheInputReadingGradients)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId dy = builder.input(Shape{4, 3}, "dy");
-        const ValueId x = builder.input(Shape{4, 3}, "x");
+        const ValueID dy = builder.input(Shape{4, 3}, "dy");
+        const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        const ValueId dx = builder.activation_backward(gradient, dy, x);
+        const ValueID dx = builder.activation_backward(gradient, dy, x);
 
         expect_produced_by(graph, dx, gradient, {dy, x});
         expect_described_like(graph, dx, dy);
@@ -349,15 +349,15 @@ TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherShape)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId dy = builder.input(Shape{4, 1}, "dy");
-        const ValueId x = builder.input(Shape{4, 3}, "x");
+        const ValueID dy = builder.input(Shape{4, 1}, "dy");
+        const ValueID x = builder.input(Shape{4, 3}, "x");
 
         EXPECT_THROW((void)builder.activation_backward(gradient, dy, x), Error);
     }
 }
 
 /** @brief Tests that each input-reading gradient refuses a dy of another element type. */
-TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDtype)
+TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDType)
 {
     for (OpID gradient : K_INPUT_READING_GRADIENTS)
     {
@@ -365,8 +365,8 @@ TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDtype)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId single = builder.input(Shape{4, 3}, "single", DType::Float32);
-        const ValueId wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+        const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
+        const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
         EXPECT_THROW((void)builder.activation_backward(gradient, single, wide), Error);
         EXPECT_THROW((void)builder.activation_backward(gradient, wide, single), Error);
@@ -378,8 +378,8 @@ TEST(Unit_ElementwiseOps, ActivationBackwardRejectsAnIdentityThatIsNotAnActivati
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId dy = builder.input(Shape{4, 3}, "dy");
-    const ValueId x = builder.input(Shape{4, 3}, "x");
+    const ValueID dy = builder.input(Shape{4, 3}, "dy");
+    const ValueID x = builder.input(Shape{4, 3}, "x");
 
     EXPECT_THROW((void)builder.activation_backward(Ops::K_SILU.id, dy, x), Error);
     EXPECT_THROW((void)builder.activation_backward(Ops::K_SOFTPLUS.id, dy, x), Error);
@@ -391,10 +391,10 @@ TEST(Unit_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId a = nchw_input(builder, "a");
-    const ValueId b = nchw_input(builder, "b");
+    const ValueID a = nchw_input(builder, "a");
+    const ValueID b = nchw_input(builder, "b");
 
-    ValueId chained = a;
+    ValueID chained = a;
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
         chained = (builder.*emitter.emit)(chained, b);
     for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
@@ -413,8 +413,8 @@ TEST(Unit_ElementwiseOps, FinaliseRejectsOperandsInTwoLayouts)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueId nchw = nchw_input(builder, "nchw");
-        const ValueId nhwc = builder.input(Shape{2, 2, 2, 2}, "nhwc");
+        const ValueID nchw = nchw_input(builder, "nchw");
+        const ValueID nhwc = builder.input(Shape{2, 2, 2, 2}, "nhwc");
 
         (void)(builder.*emitter.emit)(nchw, nhwc);
 
@@ -427,9 +427,9 @@ TEST(Unit_ElementwiseOps, FinaliseRejectsASelectConditionInAnotherLayout)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId condition = builder.input(Shape{2, 2, 2, 2}, "condition");
-    const ValueId a = nchw_input(builder, "a");
-    const ValueId b = nchw_input(builder, "b");
+    const ValueID condition = builder.input(Shape{2, 2, 2, 2}, "condition");
+    const ValueID a = nchw_input(builder, "a");
+    const ValueID b = nchw_input(builder, "b");
 
     (void)builder.select(condition, a, b);
 
@@ -441,11 +441,11 @@ TEST(Unit_ElementwiseOps, ResultsOfAParameterRequireAGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId weight = builder.parameter(Shape{4, 3}, "weight");
-    const ValueId constant = builder.input(Shape{4, 3}, "constant");
+    const ValueID weight = builder.parameter(Shape{4, 3}, "weight");
+    const ValueID constant = builder.input(Shape{4, 3}, "constant");
 
-    const ValueId from_parameter = builder.silu(builder.div(weight, constant));
-    const ValueId from_inputs = builder.atan(builder.maximum(constant, constant));
+    const ValueID from_parameter = builder.silu(builder.div(weight, constant));
+    const ValueID from_inputs = builder.atan(builder.maximum(constant, constant));
     graph.finalise();
 
     EXPECT_TRUE(graph.value(from_parameter).requires_grad);
@@ -457,11 +457,11 @@ TEST(Unit_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId weight = builder.parameter(Shape{4, 3}, "weight");
-    const ValueId bound = builder.input(Shape{4, 3}, "bound");
+    const ValueID weight = builder.parameter(Shape{4, 3}, "weight");
+    const ValueID bound = builder.input(Shape{4, 3}, "bound");
 
-    const ValueId mask = builder.less_equal(weight, bound);
-    const ValueId selected = builder.select(mask, bound, bound);
+    const ValueID mask = builder.less_equal(weight, bound);
+    const ValueID selected = builder.select(mask, bound, bound);
     graph.finalise();
 
     EXPECT_FALSE(graph.value(mask).requires_grad);
@@ -477,14 +477,14 @@ TEST(Unit_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId out = builder.constant(Shape{4, 3}, K_VALUE, DType::Float64);
+    const ValueID out = builder.constant(Shape{4, 3}, K_VALUE, DType::Float64);
 
     expect_produced_by(graph, out, Ops::K_CONSTANT.id, {});
     EXPECT_NEAR(graph.node(graph.value(out).producer).attributes.get(0), K_VALUE,
                 K_VALUE_TOLERANCE);
     EXPECT_EQ(graph.value(out).shape, (Shape{4, 3}));
     EXPECT_EQ(graph.value(out).dtype, DType::Float64);
-    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NHWC);
     EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation);
 }
 
@@ -512,17 +512,17 @@ TEST(Unit_ElementwiseOps, ConstantRejectsAnElementTypeThatIsNotRealFloating)
 }
 
 /** @brief Tests that constant_like() copies the shape, dtype and layout of the value it names. */
-TEST(Unit_ElementwiseOps, ConstantLikeCopiesShapeDtypeAndLayoutWithoutReadingItsOperand)
+TEST(Unit_ElementwiseOps, ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingItsOperand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = nchw_input(builder, "x", DType::Float64);
+    const ValueID x = nchw_input(builder, "x", DType::Float64);
 
-    const ValueId out = builder.constant_like(x, 0.5);
+    const ValueID out = builder.constant_like(x, 0.5);
 
     expect_produced_by(graph, out, Ops::K_CONSTANT.id, {});
     expect_described_like(graph, out, x);
-    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::Nchw);
+    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
     EXPECT_EQ(graph.value(out).dtype, DType::Float64);
 }
 
@@ -531,7 +531,7 @@ TEST(Unit_ElementwiseOps, ConstantLikeRejectsAValueThatIsNotRealFloating)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{4, 3}, "x", DType::Int64);
+    const ValueID x = builder.input(Shape{4, 3}, "x", DType::Int64);
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
@@ -545,9 +545,9 @@ TEST(Unit_ElementwiseOps, AConstantLikeAValueIsAnOperandThatFinaliseAccepts)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = nchw_input(builder, "x");
+    const ValueID x = nchw_input(builder, "x");
 
-    const ValueId shifted = builder.add(x, builder.constant_like(x, 1e-7));
+    const ValueID shifted = builder.add(x, builder.constant_like(x, 1e-7));
 
     EXPECT_NO_THROW(graph.finalise());
     EXPECT_FALSE(graph.value(shifted).requires_grad);
@@ -558,7 +558,7 @@ TEST(Unit_ElementwiseOps, ZerosStillWritesTheZeroIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{4, 3}, "x");
+    const ValueID x = builder.input(Shape{4, 3}, "x");
 
     expect_produced_by(graph, builder.zeros(Shape{4, 3}), Ops::K_ZERO.id, {});
     expect_produced_by(graph, builder.zeros_like(x, Shape{4, 3}), Ops::K_ZERO.id, {});

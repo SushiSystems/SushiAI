@@ -43,11 +43,23 @@ namespace SushiAI
         /** @brief Records the column sums of a rank-2 operand. */
         [[nodiscard]] Status lower_sum_rows(const LoweringContext& context);
 
+        /** @brief Records the product of a row-selection matrix and a [V, D] table. */
+        [[nodiscard]] Status lower_gather_rows(const LoweringContext& context);
+
+        /** @brief Records the product of a transposed row-selection matrix and [N, D] rows. */
+        [[nodiscard]] Status lower_scatter_add_rows(const LoweringContext& context);
+
+        /** @brief Records a per-entry scale and shift that replaces the upper triangle. */
+        [[nodiscard]] Status lower_causal_mask(const LoweringContext& context);
+
         /** @brief Pairs each linear-algebra operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 3> K_LINALG_LOWERINGS = {{
+        inline constexpr std::array<LoweringEntry, 6> K_LINALG_LOWERINGS = {{
             {Ops::K_MATMUL.id, &lower_matmul},
             {Ops::K_BIAS_ADD.id, &lower_bias_add},
             {Ops::K_SUM_ROWS.id, &lower_sum_rows},
+            {Ops::K_GATHER_ROWS.id, &lower_gather_rows},
+            {Ops::K_SCATTER_ADD_ROWS.id, &lower_scatter_add_rows},
+            {Ops::K_CAUSAL_MASK.id, &lower_causal_mask},
         }};
     } // namespace Graph
 } // namespace SushiAI

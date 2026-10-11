@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <utility>
 #include <vector>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -36,6 +37,7 @@
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
+#include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 
 namespace SushiAI
@@ -54,7 +56,7 @@ namespace SushiAI
                  * @brief Binds the lowering to the recorder, stream, pool and selector of one step.
                  * @pre Every argument outlives the lowering.
                  */
-                Lowering(SushiBLAS::TaskRecorder& recorder, SushiBLAS::RngStream& stream,
+                Lowering(SushiBLAS::TaskRecorder& recorder, SushiBLAS::RNGStream& stream,
                          TensorPool& pool, const FusionSelector& selector) noexcept
                     : recorder_(&recorder), stream_(&stream), pool_(&pool), selector_(&selector)
                 {
@@ -80,12 +82,22 @@ namespace SushiAI
                                                                      selections_.size());
                 }
 
+                /**
+                 * @brief Hands over the replay preludes of the last record(), in node order.
+                 * @return The list, which whoever replays the recorded work calls before each
+                 *         replay; the lowering keeps none of it.
+                 */
+                [[nodiscard]] std::vector<ReplayPrelude> take_preludes() noexcept
+                {
+                    return std::move(preludes_);
+                }
+
             private:
                 /** @brief The recorder every row records on. */
                 SushiBLAS::TaskRecorder* recorder_;
 
                 /** @brief The random stream handed to every row. */
-                SushiBLAS::RngStream* stream_;
+                SushiBLAS::RNGStream* stream_;
 
                 /** @brief The pool that holds the tensor of each value. */
                 TensorPool* pool_;
@@ -98,6 +110,9 @@ namespace SushiAI
 
                 /** @brief The number of tasks the last record() recorded. */
                 std::size_t emitted_ = 0;
+
+                /** @brief The replay preludes the rows of the last record() registered. */
+                std::vector<ReplayPrelude> preludes_;
         };
 
     } // namespace Graph

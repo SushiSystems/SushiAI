@@ -38,17 +38,17 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
     /** @brief The nodes of @p graph reading @p value, in graph order. */
-    std::vector<Graph::NodeId> readers_of(const Graph::Graph& graph, ValueId value)
+    std::vector<Graph::NodeID> readers_of(const Graph::Graph& graph, ValueID value)
     {
-        std::vector<Graph::NodeId> readers;
+        std::vector<Graph::NodeID> readers;
         for (std::size_t i = 0; i < graph.node_count(); ++i)
-            for (ValueId in : graph.nodes()[i].inputs)
-                if (in == value) { readers.push_back(static_cast<Graph::NodeId>(i)); break; }
+            for (ValueID in : graph.nodes()[i].inputs)
+                if (in == value) { readers.push_back(static_cast<Graph::NodeID>(i)); break; }
         return readers;
     }
 
@@ -70,16 +70,16 @@ namespace
     struct ConvGraph
     {
         Graph::Graph graph;
-        ValueId cols = Graph::K_NO_VALUE;
-        ValueId weight = Graph::K_NO_VALUE;
-        ValueId loss = Graph::K_NO_VALUE;
+        ValueID cols = Graph::K_NO_VALUE;
+        ValueID weight = Graph::K_NO_VALUE;
+        ValueID loss = Graph::K_NO_VALUE;
     };
 
     /** @brief Builds and differentiates a one-convolution graph. */
     void build_and_differentiate(ConvGraph& c, Shape image, Shape weight_shape)
     {
         const GraphBuilder builder(c.graph);
-        const ValueId x = builder.input(image, "x");
+        const ValueID x = builder.input(image, "x");
         c.weight = builder.parameter(weight_shape, "w");
 
         Graph::ConvGeometry g;
@@ -87,16 +87,16 @@ namespace
         g.pad_top = 1;  g.pad_left = 1;
 
         c.cols = builder.im2col(x, g);
-        const ValueId out = builder.matmul(c.cols, c.weight);
+        const ValueID out = builder.matmul(c.cols, c.weight);
 
         const Shape logits = c.graph.value(out).shape;
-        const ValueId target = builder.input(logits, "target");
+        const ValueID target = builder.input(logits, "target");
         c.loss = builder.nll_loss(builder.log_softmax(out), target);
         c.graph.finalise();
 
-        const std::array<ValueId, 1> wrt = {c.weight};
+        const std::array<ValueID, 1> wrt = {c.weight};
         (void)Autograd::differentiate(c.graph, c.loss,
-            SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
     }
 }
 
@@ -133,7 +133,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
     EXPECT_GT(c.graph.node_count(), before) << "no clone was inserted";
     EXPECT_EQ(c.graph.node_count(), before + 1) << "one clone, shared by the later consumers";
 
-    const Graph::NodeId original_id = c.graph.value(c.cols).producer;
+    const Graph::NodeID original_id = c.graph.value(c.cols).producer;
     const Graph::Node& original = c.graph.node(original_id);
 
     std::size_t clones = 0;
@@ -166,9 +166,9 @@ TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
     Graph::rematerialise_im2col(c.graph);
 
     for (std::size_t i = 0; i < c.graph.node_count(); ++i)
-        for (ValueId in : c.graph.nodes()[i].inputs)
+        for (ValueID in : c.graph.nodes()[i].inputs)
         {
-            const Graph::NodeId producer = c.graph.value(in).producer;
+            const Graph::NodeID producer = c.graph.value(in).producer;
             if (producer == Graph::K_NO_NODE) continue;
             EXPECT_LT(producer, i) << "node " << i << " reads value " << in
                                    << ", which node " << producer << " writes";
@@ -186,12 +186,12 @@ TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
     // An inference graph has no second consumer; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
+    const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
 
     Graph::ConvGeometry g;
     g.kernel_h = 3; g.kernel_w = 3;
 
-    const ValueId cols = builder.im2col(x, g);
+    const ValueID cols = builder.im2col(x, g);
     graph.finalise();
 
     const std::size_t before = graph.node_count();
@@ -206,14 +206,14 @@ TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
     // A column matrix with one reader is not cloned; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
-    const ValueId w = builder.input(Shape{18, 4}, "w");
+    const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
+    const ValueID w = builder.input(Shape{18, 4}, "w");
 
     Graph::ConvGeometry g;
     g.kernel_h = 3; g.kernel_w = 3;
     g.pad_top = 1;  g.pad_left = 1;
 
-    const ValueId cols = builder.im2col(x, g);
+    const ValueID cols = builder.im2col(x, g);
     (void)builder.matmul(cols, w);
     graph.finalise();
 

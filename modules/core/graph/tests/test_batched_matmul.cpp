@@ -36,7 +36,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -45,14 +45,14 @@ namespace
      *
      * Every emitter adds the node that writes its result, so the producer exists.
      */
-    const Graph::Node& producer_of(const Graph::Graph& graph, ValueId value)
+    const Graph::Node& producer_of(const Graph::Graph& graph, ValueID value)
     {
         return graph.node(graph.value(value).producer);
     }
 
     /** @brief Expects @p node to read @p inputs and to write exactly one value, @p out. */
-    void expect_reads_and_writes(const Graph::Node& node, ValueId out,
-                                 const std::vector<ValueId>& inputs)
+    void expect_reads_and_writes(const Graph::Node& node, ValueID out,
+                                 const std::vector<ValueID>& inputs)
     {
         EXPECT_EQ(node.inputs, inputs);
         ASSERT_EQ(node.outputs.size(), 1u);
@@ -65,10 +65,10 @@ TEST(Unit_BatchedMatmul, Rank2ProductKeepsItsShapeAndFlags)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId a = builder.input(Shape{3, 4}, "a");
-    const ValueId b = builder.input(Shape{5, 4}, "b");
+    const ValueID a = builder.input(Shape{3, 4}, "a");
+    const ValueID b = builder.input(Shape{5, 4}, "b");
 
-    const ValueId out = builder.matmul(a, b, false, true);
+    const ValueID out = builder.matmul(a, b, false, true);
 
     EXPECT_EQ(graph.value(out).shape, Shape({3, 5}));
     const Graph::Node& node = producer_of(graph, out);
@@ -88,10 +88,10 @@ TEST(Unit_BatchedMatmul, FourFlagCombinationsYieldBatchedProducts)
         Graph::Graph graph;
         const GraphBuilder builder(graph);
         // A is [B, m, k] or [B, k, m]; B is [B, k, n] or [B, n, k]; here m=3, k=4, n=5, B=2.
-        const ValueId a = builder.input(transpose_a ? Shape{2, 4, 3} : Shape{2, 3, 4}, "a");
-        const ValueId b = builder.input(transpose_b ? Shape{2, 5, 4} : Shape{2, 4, 5}, "b");
+        const ValueID a = builder.input(transpose_a ? Shape{2, 4, 3} : Shape{2, 3, 4}, "a");
+        const ValueID b = builder.input(transpose_b ? Shape{2, 5, 4} : Shape{2, 4, 5}, "b");
 
-        const ValueId out = builder.matmul(a, b, transpose_a, transpose_b);
+        const ValueID out = builder.matmul(a, b, transpose_a, transpose_b);
 
         EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 5})) << "flags " << flags;
         const Graph::Node& node = producer_of(graph, out);
@@ -107,10 +107,10 @@ TEST(Unit_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId a = builder.input(Shape{7, 2, 3}, "a");
-    const ValueId b = builder.input(Shape{7, 3, 6}, "b");
+    const ValueID a = builder.input(Shape{7, 2, 3}, "a");
+    const ValueID b = builder.input(Shape{7, 3, 6}, "b");
 
-    const ValueId out = builder.matmul(a, b);
+    const ValueID out = builder.matmul(a, b);
 
     EXPECT_EQ(graph.value(out).shape, Shape({7, 2, 6}));
     EXPECT_EQ(graph.value(out).layout, graph.value(a).layout);
@@ -122,11 +122,11 @@ TEST(Unit_BatchedMatmul, RefusesMixedRanksAndRanksOutsideTwoAndThree)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId matrix = builder.input(Shape{3, 4}, "matrix");
-    const ValueId batch = builder.input(Shape{2, 4, 5}, "batch");
-    const ValueId vector = builder.input(Shape{4}, "vector");
-    const ValueId quad_a = builder.input(Shape{2, 3, 4, 1}, "quad_a");
-    const ValueId quad_b = builder.input(Shape{2, 4, 5, 1}, "quad_b");
+    const ValueID matrix = builder.input(Shape{3, 4}, "matrix");
+    const ValueID batch = builder.input(Shape{2, 4, 5}, "batch");
+    const ValueID vector = builder.input(Shape{4}, "vector");
+    const ValueID quad_a = builder.input(Shape{2, 3, 4, 1}, "quad_a");
+    const ValueID quad_b = builder.input(Shape{2, 4, 5, 1}, "quad_b");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.matmul(matrix, batch), Error);
@@ -141,9 +141,9 @@ TEST(Unit_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId a = builder.input(Shape{2, 3, 4}, "a");
-    const ValueId other_batch = builder.input(Shape{3, 4, 5}, "other_batch");
-    const ValueId wrong_inner = builder.input(Shape{2, 5, 3}, "wrong_inner");
+    const ValueID a = builder.input(Shape{2, 3, 4}, "a");
+    const ValueID other_batch = builder.input(Shape{3, 4, 5}, "other_batch");
+    const ValueID wrong_inner = builder.input(Shape{2, 5, 3}, "wrong_inner");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.matmul(a, other_batch), Error);
@@ -156,29 +156,29 @@ TEST(Unit_BatchedMatmul, SoftmaxEmitsReshapeLogSoftmaxExpReshape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 3, 3}, "x");
+    const ValueID x = builder.input(Shape{2, 3, 3}, "x");
     const std::size_t nodes_before = graph.node_count();
 
-    const ValueId out = builder.softmax(x);
+    const ValueID out = builder.softmax(x);
 
     ASSERT_EQ(graph.node_count(), nodes_before + 4);
     const Graph::Node& last = producer_of(graph, out);
     EXPECT_EQ(last.op, Ops::K_RESHAPE.id);
     EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 3}));
 
-    const ValueId exponentials = last.inputs[0];
+    const ValueID exponentials = last.inputs[0];
     const Graph::Node& exp_node = producer_of(graph, exponentials);
     EXPECT_EQ(exp_node.op, Ops::K_EXP.id);
 
-    const ValueId normalised = exp_node.inputs[0];
+    const ValueID normalised = exp_node.inputs[0];
     const Graph::Node& log_node = producer_of(graph, normalised);
     EXPECT_EQ(log_node.op, Ops::K_LOG_SOFTMAX.id);
     EXPECT_EQ(graph.value(normalised).shape, Shape({6, 3}));
 
-    const ValueId flat = log_node.inputs[0];
+    const ValueID flat = log_node.inputs[0];
     const Graph::Node& flatten = producer_of(graph, flat);
     EXPECT_EQ(flatten.op, Ops::K_RESHAPE.id);
-    EXPECT_EQ(flatten.inputs, std::vector<ValueId>{x});
+    EXPECT_EQ(flatten.inputs, std::vector<ValueID>{x});
     EXPECT_EQ(graph.value(flat).shape, Shape({6, 3}));
 }
 
@@ -187,9 +187,9 @@ TEST(Unit_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{4, 5}, "x");
+    const ValueID x = builder.input(Shape{4, 5}, "x");
 
-    const ValueId out = builder.softmax(x);
+    const ValueID out = builder.softmax(x);
 
     EXPECT_EQ(graph.value(out).shape, Shape({4, 5}));
     const Graph::Node& exp_node = producer_of(graph, producer_of(graph, out).inputs[0]);
@@ -202,7 +202,7 @@ TEST(Unit_BatchedMatmul, SoftmaxRefusesRankBelowTwo)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId vector = builder.input(Shape{5}, "vector");
+    const ValueID vector = builder.input(Shape{5}, "vector");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.softmax(vector), Error);

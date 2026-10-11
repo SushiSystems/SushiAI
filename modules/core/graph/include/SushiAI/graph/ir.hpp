@@ -41,16 +41,16 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Identifies a value in a Graph; an index, not a pointer. */
-        using ValueId = std::uint32_t;
+        using ValueID = std::uint32_t;
 
         /** @brief Identifies a node in a Graph; an index, not a pointer. */
-        using NodeId = std::uint32_t;
+        using NodeID = std::uint32_t;
 
         /** @brief The absent-value sentinel, used for "no producer" and "no gradient". */
-        inline constexpr ValueId K_NO_VALUE = ~ValueId{0};
+        inline constexpr ValueID K_NO_VALUE = ~ValueID{0};
 
         /** @brief The absent-node sentinel, marking a value that no node produces. */
-        inline constexpr NodeId K_NO_NODE = ~NodeId{0};
+        inline constexpr NodeID K_NO_NODE = ~NodeID{0};
 
         /**
          * @enum Lifetime
@@ -139,9 +139,9 @@ namespace SushiAI
         enum class TensorLayout : std::uint8_t
         {
             /** @brief Channels innermost - the single native layout (CV-3). */
-            Nhwc,
+            NHWC,
             /** @brief Channels before the spatial axes; a boundary only. */
-            Nchw,
+            NCHW,
         };
 
         /**
@@ -162,13 +162,13 @@ namespace SushiAI
              * Graph-wide rather than free-floating: see @ref TensorLayout and
              * @c Graph::finalise(), which proves every node preserves it.
              */
-            TensorLayout layout = TensorLayout::Nhwc;
+            TensorLayout layout = TensorLayout::NHWC;
 
             /** @brief Which arena owns this value's storage. */
             Lifetime lifetime = Lifetime::Activation;
 
             /** @brief The node that writes this value, or NO_NODE for a leaf. */
-            NodeId producer = K_NO_NODE;
+            NodeID producer = K_NO_NODE;
 
             /**
              * @brief Whether a gradient flows back through this value.
@@ -194,10 +194,10 @@ namespace SushiAI
             OpID op{};
 
             /** @brief The values read, in the order the operation expects them. */
-            std::vector<ValueId> inputs;
+            std::vector<ValueID> inputs;
 
             /** @brief The values written, in the order the operation produces them. */
-            std::vector<ValueId> outputs;
+            std::vector<ValueID> outputs;
 
             /** @brief The operation's scalar configuration. */
             Attributes attributes{};
@@ -220,14 +220,14 @@ namespace SushiAI
                  * @param debug_name A label for diagnostics; must outlive the graph.
                  * @return The new value's id.
                  */
-                ValueId add_value(Shape shape,
+                ValueID add_value(Shape shape,
                                   DType dtype,
                                   Lifetime lifetime,
                                   std::string_view debug_name = {})
                 {
-                    values_.push_back(Value{shape, dtype, TensorLayout::Nhwc, lifetime,
+                    values_.push_back(Value{shape, dtype, TensorLayout::NHWC, lifetime,
                                             K_NO_NODE, false, debug_name});
-                    return static_cast<ValueId>(values_.size() - 1);
+                    return static_cast<ValueID>(values_.size() - 1);
                 }
 
                 /**
@@ -238,19 +238,19 @@ namespace SushiAI
                  * @return The new node index.
                  * @throws Error If an operand is unknown or output already claimed.
                  */
-                NodeId add_node(OpID op,
-                                std::vector<ValueId> inputs,
-                                std::vector<ValueId> outputs,
+                NodeID add_node(OpID op,
+                                std::vector<ValueID> inputs,
+                                std::vector<ValueID> outputs,
                                 Attributes attributes = {})
                 {
-                    for (ValueId v : inputs)
+                    for (ValueID v : inputs)
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} reads value {}, which does not exist",
                                     Ops::name_of(op), v);
 
-                    const NodeId id = static_cast<NodeId>(nodes_.size());
+                    const NodeID id = static_cast<NodeID>(nodes_.size());
 
-                    for (ValueId v : outputs)
+                    for (ValueID v : outputs)
                     {
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} writes value {}, which does not exist",
@@ -274,13 +274,13 @@ namespace SushiAI
                  * @return The inserted node index.
                  * @throws Error If out of bounds or topological order is violated.
                  */
-                NodeId insert_node(NodeId before, Node node)
+                NodeID insert_node(NodeID before, Node node)
                 {
                     SA_THROW_IF(before > nodes_.size(),
                                 "Cannot insert before node {}; the graph has {} nodes",
                                 before, nodes_.size());
 
-                    for (ValueId v : node.inputs)
+                    for (ValueID v : node.inputs)
                     {
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} reads value {}, which does not exist",
@@ -293,7 +293,7 @@ namespace SushiAI
                                     Ops::name_of(node.op), before, v, values_[v].producer);
                     }
 
-                    for (ValueId v : node.outputs)
+                    for (ValueID v : node.outputs)
                     {
                         SA_THROW_IF(v >= values_.size(),
                                     "Operation {} writes value {}, which does not exist",
@@ -305,8 +305,8 @@ namespace SushiAI
                                     Ops::name_of(nodes_[values_[v].producer].op));
 
                         // A result must not already be read before its proposed insertion point.
-                        for (NodeId reader = 0; reader < before; ++reader)
-                            for (ValueId in : nodes_[reader].inputs)
+                        for (NodeID reader = 0; reader < before; ++reader)
+                            for (ValueID in : nodes_[reader].inputs)
                                 SA_THROW_IF(in == v,
                                             "Operation {} would be inserted at {} but writes "
                                             "value {}, which node {} reads. Insertion order must "
@@ -320,7 +320,7 @@ namespace SushiAI
                         if (value.producer != K_NO_NODE && value.producer >= before)
                             ++value.producer;
 
-                    for (ValueId v : node.outputs)
+                    for (ValueID v : node.outputs)
                         values_[v].producer = before;
 
                     nodes_.insert(nodes_.begin() + static_cast<std::ptrdiff_t>(before),
@@ -329,28 +329,28 @@ namespace SushiAI
                 }
 
                 /** @brief Read-only access to a value. */
-                const Value& value(ValueId id) const
+                const Value& value(ValueID id) const
                 {
                     SA_THROW_IF(id >= values_.size(), "Value {} does not exist", id);
                     return values_[id];
                 }
 
                 /** @brief Mutable access to a value, for passes that annotate. */
-                Value& value(ValueId id)
+                Value& value(ValueID id)
                 {
                     SA_THROW_IF(id >= values_.size(), "Value {} does not exist", id);
                     return values_[id];
                 }
 
                 /** @brief Read-only access to a node. */
-                const Node& node(NodeId id) const
+                const Node& node(NodeID id) const
                 {
                     SA_THROW_IF(id >= nodes_.size(), "Node {} does not exist", id);
                     return nodes_[id];
                 }
 
                 /** @brief Mutable access to a node, for passes that rewrite. */
-                Node& node(NodeId id)
+                Node& node(NodeID id)
                 {
                     SA_THROW_IF(id >= nodes_.size(), "Node {} does not exist", id);
                     return nodes_[id];
@@ -378,9 +378,9 @@ namespace SushiAI
                  * @brief Returns this graph's leaf for @p state.
                  * @return The leaf's id, or NO_VALUE when the graph records none for @p state.
                  */
-                [[nodiscard]] ValueId state_leaf(StateId state) const noexcept
+                [[nodiscard]] ValueID state_leaf(StateID state) const noexcept
                 {
-                    for (const std::pair<StateId, ValueId>& bound : state_leaves_)
+                    for (const std::pair<StateID, ValueID>& bound : state_leaves_)
                     {
                         if (bound.first == state)
                             return bound.second;
@@ -394,7 +394,7 @@ namespace SushiAI
                  * @param state An assigned identity this graph has no leaf for; else it throws.
                  * @param leaf A value of this graph that stands for no other state; else it throws.
                  */
-                void bind_state_leaf(StateId state, ValueId leaf)
+                void bind_state_leaf(StateID state, ValueID leaf)
                 {
                     SA_THROW_IF(state == K_NO_STATE,
                                 "Cannot bind value {} to a state that has no identity; draw one "
@@ -404,7 +404,7 @@ namespace SushiAI
                                 "Cannot bind state {} to value {}, which does not exist",
                                 static_cast<std::uint64_t>(state), leaf);
 
-                    for (const std::pair<StateId, ValueId>& bound : state_leaves_)
+                    for (const std::pair<StateID, ValueID>& bound : state_leaves_)
                     {
                         SA_THROW_IF(bound.first == state,
                                     "State {} already has leaf {} in this graph; it cannot also "
@@ -421,7 +421,7 @@ namespace SushiAI
                 }
 
                 /** @brief Lists every recorded state and its leaf, in the order they were bound. */
-                [[nodiscard]] const std::vector<std::pair<StateId, ValueId>>&
+                [[nodiscard]] const std::vector<std::pair<StateID, ValueID>>&
                 state_leaves() const noexcept
                 {
                     return state_leaves_;
@@ -485,13 +485,13 @@ namespace SushiAI
                             continue;
 
                         const TensorLayout expected = values_[n.inputs.front()].layout;
-                        for (ValueId in : n.inputs)
+                        for (ValueID in : n.inputs)
                             SA_THROW_IF(values_[in].layout != expected,
                                         "Node '{}' reads operands in two different layouts; "
                                         "only LAYOUT_CONVERT may cross layouts (CV-4).",
                                         Ops::name_of(n.op));
 
-                        for (ValueId out : n.outputs)
+                        for (ValueID out : n.outputs)
                             SA_THROW_IF(values_[out].layout != expected,
                                         "Node '{}' produces a result whose layout differs "
                                         "from its operands'. Only LAYOUT_CONVERT may do that "
@@ -517,11 +517,11 @@ namespace SushiAI
                             continue;
 
                         bool any = false;
-                        for (ValueId in : n.inputs)
+                        for (ValueID in : n.inputs)
                             if (values_[in].requires_grad) { any = true; break; }
 
                         if (any)
-                            for (ValueId out : n.outputs)
+                            for (ValueID out : n.outputs)
                                 values_[out].requires_grad = true;
                     }
                 }
@@ -530,7 +530,7 @@ namespace SushiAI
                 std::vector<Node> nodes_;
 
                 /** @brief Holds each recorded state with its leaf, in the order they were bound. */
-                std::vector<std::pair<StateId, ValueId>> state_leaves_;
+                std::vector<std::pair<StateID, ValueID>> state_leaves_;
 
                 /** @brief Holds whether an emitter refused part of the description. */
                 bool refused_ = false;

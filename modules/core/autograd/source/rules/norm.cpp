@@ -27,6 +27,9 @@
 
 #include <SushiAI/autograd/rules/norm.hpp>
 
+#include <SushiAI/core/check.hpp>
+#include <SushiAI/graph/builder.hpp>
+
 namespace SushiAI
 {
     namespace Autograd
@@ -41,7 +44,7 @@ namespace SushiAI
                         "channel for this node's own backward (CV-7), not a differentiable "
                         "result, and this rule has no path to propagate one.");
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Batch normalization gradients share batch reductions across input, scale, and bias.
@@ -56,7 +59,7 @@ namespace SushiAI
 
         void channel_affine_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::Node& node = tape.node();
@@ -74,6 +77,31 @@ namespace SushiAI
                     tape.builder().mul(dy, node.inputs[0])));
             if (tape.input_requires_grad(2))
                 tape.contribute_input(2, tape.builder().sum_channels(dy));
+        }
+
+        void layer_norm_backward(const GradientTape& tape)
+        {
+            SA_FATAL_IF(tape.output_grad(1) != Graph::K_NO_VALUE
+                        || tape.output_grad(2) != Graph::K_NO_VALUE,
+                        "LAYER_NORM's saved statistics received a gradient; they are read by "
+                        "this node's own backward and by nothing else");
+
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+
+            // The ids are copied out before the emission grows the graph.
+            const Graph::ValueID x = tape.node().inputs.at(0);
+            const Graph::ValueID gamma = tape.node().inputs.at(1);
+            const Graph::ValueID mean = tape.node().outputs.at(1);
+            const Graph::ValueID inv_std = tape.node().outputs.at(2);
+
+            // The forward emitter checked every operand, so a refusal here is fatal in value().
+            const Graph::LayerNormGrads g =
+                tape.builder().layer_norm_backward(dy, x, gamma, mean, inv_std).value();
+
+            if (tape.input_requires_grad(0)) tape.contribute_input(0, g.dx);
+            if (tape.input_requires_grad(1)) tape.contribute_input(1, g.dgamma);
+            if (tape.input_requires_grad(2)) tape.contribute_input(2, g.dbeta);
         }
     }
 }

@@ -43,13 +43,13 @@ namespace SushiAI
              * @param where_set Index of the operand served where the mask is 1.
              * @param where_clear Index of the operand served where the mask is 0.
              */
-            void route_gradient(const GradientTape& tape, Graph::ValueId dy, Graph::ValueId mask,
+            void route_gradient(const GradientTape& tape, Graph::ValueID dy, Graph::ValueID mask,
                                 std::size_t where_set, std::size_t where_clear)
             {
                 const Graph::GraphBuilder& builder = tape.builder();
                 const Shape shape = tape.graph().value(dy).shape;
                 const DType dtype = tape.graph().value(dy).dtype;
-                const Graph::ValueId zero = builder.zeros_like(dy, shape, dtype);
+                const Graph::ValueID zero = builder.zeros_like(dy, shape, dtype);
 
                 if (tape.input_requires_grad(where_set))
                     tape.contribute_input(where_set, builder.select(mask, dy, zero));
@@ -60,7 +60,7 @@ namespace SushiAI
 
         void add_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
 
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dc);
@@ -69,7 +69,7 @@ namespace SushiAI
 
         void sub_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
 
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dc);
@@ -79,7 +79,7 @@ namespace SushiAI
         void mul_backward(const GradientTape& tape)
         {
             const Graph::Node& node = tape.node();
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
@@ -91,7 +91,7 @@ namespace SushiAI
 
         void scale_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
@@ -100,7 +100,7 @@ namespace SushiAI
 
         void exp_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
@@ -110,7 +110,7 @@ namespace SushiAI
 
         void accumulate_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dout = tape.output_grad(0);
+            const Graph::ValueID dout = tape.output_grad(0);
             if (dout == Graph::K_NO_VALUE) return;
 
             if (tape.input_requires_grad(0)) tape.contribute_input(0, dout);
@@ -119,7 +119,7 @@ namespace SushiAI
 
         void div_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
@@ -127,7 +127,7 @@ namespace SushiAI
 
             const Graph::Node& node = tape.node();
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueId quotient = builder.div(dc, node.inputs.at(1));
+            const Graph::ValueID quotient = builder.div(dc, node.inputs.at(1));
 
             if (tape.input_requires_grad(0))
                 tape.contribute_input(0, quotient);
@@ -140,7 +140,7 @@ namespace SushiAI
 
         void minimum_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
@@ -148,14 +148,14 @@ namespace SushiAI
 
             // A tie satisfies a <= b, so operand 0 takes the whole gradient there.
             const Graph::Node& node = tape.node();
-            const Graph::ValueId first_wins =
+            const Graph::ValueID first_wins =
                 tape.builder().less_equal(node.inputs.at(0), node.inputs.at(1));
             route_gradient(tape, dc, first_wins, 0, 1);
         }
 
         void maximum_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
@@ -163,52 +163,52 @@ namespace SushiAI
 
             // A tie satisfies b <= a, so operand 0 takes the whole gradient there.
             const Graph::Node& node = tape.node();
-            const Graph::ValueId first_wins =
+            const Graph::ValueID first_wins =
                 tape.builder().less_equal(node.inputs.at(1), node.inputs.at(0));
             route_gradient(tape, dc, first_wins, 0, 1);
         }
 
         void abs_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0))
                 return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueId x = tape.node().inputs.at(0);
+            const Graph::ValueID x = tape.node().inputs.at(0);
             const Shape shape = tape.graph().value(x).shape;
             const DType dtype = tape.graph().value(x).dtype;
-            const Graph::ValueId zero = builder.zeros_like(x, shape, dtype);
+            const Graph::ValueID zero = builder.zeros_like(x, shape, dtype);
 
             // sign(x) is [0 <= x] - [x <= 0]; both masks are 1 at x = 0, so the sign is 0 there.
-            const Graph::ValueId not_negative = builder.less_equal(zero, x);
-            const Graph::ValueId not_positive = builder.less_equal(x, zero);
-            const Graph::ValueId sign = builder.sub(not_negative, not_positive);
+            const Graph::ValueID not_negative = builder.less_equal(zero, x);
+            const Graph::ValueID not_positive = builder.less_equal(x, zero);
+            const Graph::ValueID sign = builder.sub(not_negative, not_positive);
 
             tape.contribute_input(0, builder.mul(dy, sign));
         }
 
         void atan_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(0))
                 return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueId x = tape.node().inputs.at(0);
-            const Graph::ValueId squared = builder.mul(x, x);
-            const Graph::ValueId denominator = builder.add(squared, builder.constant_like(x, 1.0));
+            const Graph::ValueID x = tape.node().inputs.at(0);
+            const Graph::ValueID squared = builder.mul(x, x);
+            const Graph::ValueID denominator = builder.add(squared, builder.constant_like(x, 1.0));
 
             tape.contribute_input(0, builder.div(dy, denominator));
         }
 
         void select_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE)
                 return;
             if (!tape.input_requires_grad(1) && !tape.input_requires_grad(2))

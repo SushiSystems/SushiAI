@@ -39,14 +39,14 @@ using Graph::Lifetime;
 using Graph::K_NO_STATE;
 using Graph::K_NO_NODE;
 using Graph::K_NO_VALUE;
-using Graph::StateId;
+using Graph::StateID;
 using Graph::StateIdentity;
-using Graph::ValueId;
+using Graph::ValueID;
 
-TEST(Unit_Ir, AddValueRecordsShapeDtypeAndLifetime)
+TEST(Unit_Ir, AddValueRecordsShapeDTypeAndLifetime)
 {
     Graph::Graph graph;
-    const ValueId id = graph.add_value(Shape{2, 3}, DType::Float64,
+    const ValueID id = graph.add_value(Shape{2, 3}, DType::Float64,
                                        Lifetime::Parameter, "w");
 
     EXPECT_EQ(graph.value_count(), 1u);
@@ -60,11 +60,11 @@ TEST(Unit_Ir, AddValueRecordsShapeDtypeAndLifetime)
 TEST(Unit_Ir, AddNodeClaimsItsOutputs)
 {
     Graph::Graph graph;
-    const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
-    const ValueId b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
-    const ValueId c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
+    const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueID b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueID c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
 
-    const Graph::NodeId node = graph.add_node(Ops::K_ADD.id, {a, b}, {c});
+    const Graph::NodeID node = graph.add_node(Ops::K_ADD.id, {a, b}, {c});
 
     EXPECT_EQ(graph.value(c).producer, node);
     EXPECT_EQ(graph.node(node).inputs.size(), 2u);
@@ -74,9 +74,9 @@ TEST(Unit_Ir, ASecondProducerForOneValueThrows)
 {
     // A value has exactly one producer; see tests/unit/README.md.
     Graph::Graph graph;
-    const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
-    const ValueId b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
-    const ValueId c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
+    const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueID b = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueID c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
 
     graph.add_node(Ops::K_ADD.id, {a, b}, {c});
     EXPECT_THROW(graph.add_node(Ops::K_SUB.id, {a, b}, {c}), Error);
@@ -85,7 +85,7 @@ TEST(Unit_Ir, ASecondProducerForOneValueThrows)
 TEST(Unit_Ir, ReferencingAnUnknownValueThrows)
 {
     Graph::Graph graph;
-    const ValueId a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
+    const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
 
     EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a, 99}, {a}), Error);
     EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a}, {99}), Error);
@@ -96,10 +96,10 @@ TEST(Unit_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId w = builder.parameter(Shape{5, 3}, "w");
-    const ValueId y = builder.matmul(x, w, false, true);
-    const ValueId z = builder.relu(y);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID w = builder.parameter(Shape{5, 3}, "w");
+    const ValueID y = builder.matmul(x, w, false, true);
+    const ValueID z = builder.relu(y);
 
     EXPECT_FALSE(graph.value(y).requires_grad);
     EXPECT_FALSE(graph.value(z).requires_grad);
@@ -117,10 +117,10 @@ TEST(Unit_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId frozen = builder.relu(x);
-    const ValueId w = builder.parameter(Shape{3, 3}, "w");
-    const ValueId live = builder.matmul(x, w, false, false);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID frozen = builder.relu(x);
+    const ValueID w = builder.parameter(Shape{3, 3}, "w");
+    const ValueID live = builder.matmul(x, w, false, false);
 
     graph.finalise();
 
@@ -133,10 +133,10 @@ TEST(Unit_Ir, BuilderInfersMatmulShapesForEveryTranspositionCase)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 3}, "a");    // [m, k]
-    const ValueId at = builder.input(Shape{3, 4}, "at");  // [k, m]
-    const ValueId b = builder.input(Shape{3, 5}, "b");    // [k, n]
-    const ValueId bt = builder.input(Shape{5, 3}, "bt");  // [n, k]
+    const ValueID a = builder.input(Shape{4, 3}, "a");    // [m, k]
+    const ValueID at = builder.input(Shape{3, 4}, "at");  // [k, m]
+    const ValueID b = builder.input(Shape{3, 5}, "b");    // [k, n]
+    const ValueID bt = builder.input(Shape{5, 3}, "bt");  // [n, k]
 
     EXPECT_EQ(graph.value(builder.matmul(a, b, false, false)).shape, Shape({4, 5}));
     EXPECT_EQ(graph.value(builder.matmul(at, b, true, false)).shape, Shape({4, 5}));
@@ -149,8 +149,8 @@ TEST(Unit_Ir, BuilderRejectsAContractionMismatch)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4, 3}, "a");
-    const ValueId b = builder.input(Shape{7, 5}, "b");
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{7, 5}, "b");
 
     EXPECT_THROW((void)builder.matmul(a, b, false, false), Error);
 }
@@ -160,19 +160,19 @@ TEST(Unit_Ir, BuilderChecksBiasAndLossShapes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 5}, "x");
-    const ValueId good = builder.input(Shape{5}, "good");
-    const ValueId bad = builder.input(Shape{4}, "bad");
+    const ValueID x = builder.input(Shape{4, 5}, "x");
+    const ValueID good = builder.input(Shape{5}, "good");
+    const ValueID bad = builder.input(Shape{4}, "bad");
 
     EXPECT_EQ(graph.value(builder.bias_add(x, good)).shape, Shape({4, 5}));
     EXPECT_THROW((void)builder.bias_add(x, bad), Error);
 
     EXPECT_EQ(graph.value(builder.sum_rows(x)).shape, Shape({5}));
 
-    const ValueId targets = builder.input(Shape{4, 5}, "targets");
+    const ValueID targets = builder.input(Shape{4, 5}, "targets");
     EXPECT_EQ(graph.value(builder.nll_loss(x, targets)).shape, Shape({1}));
 
-    const ValueId wrong = builder.input(Shape{4, 6}, "wrong");
+    const ValueID wrong = builder.input(Shape{4, 6}, "wrong");
     EXPECT_THROW((void)builder.nll_loss(x, wrong), Error);
 }
 
@@ -181,8 +181,8 @@ TEST(Unit_Ir, BuilderRejectsMixedElementTypes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId single = builder.input(Shape{4, 4}, "f32", DType::Float32);
-    const ValueId doubled = builder.input(Shape{4, 4}, "f64", DType::Float64);
+    const ValueID single = builder.input(Shape{4, 4}, "f32", DType::Float32);
+    const ValueID doubled = builder.input(Shape{4, 4}, "f64", DType::Float64);
 
     EXPECT_THROW((void)builder.add(single, doubled), Error);
     EXPECT_THROW((void)builder.matmul(single, doubled, false, false), Error);
@@ -194,15 +194,15 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2}, "x");
-    const ValueId y = builder.relu(x);
-    const ValueId z = builder.tanh(y);
+    const ValueID x = builder.input(Shape{2, 2}, "x");
+    const ValueID y = builder.relu(x);
+    const ValueID z = builder.tanh(y);
     (void)z;
 
     for (std::size_t i = 0; i < graph.node_count(); ++i)
-        for (Graph::ValueId in : graph.nodes()[i].inputs)
+        for (Graph::ValueID in : graph.nodes()[i].inputs)
         {
-            const Graph::NodeId producer = graph.value(in).producer;
+            const Graph::NodeID producer = graph.value(in).producer;
             if (producer != K_NO_NODE) EXPECT_LT(producer, i);
         }
 }
@@ -211,9 +211,9 @@ TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
 {
     // insert_node refuses a producer placed after its reader; see tests/unit/README.md.
     Graph::Graph graph;
-    const ValueId x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
-    const ValueId orphan = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "orphan");
-    const ValueId y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
+    const ValueID x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
+    const ValueID orphan = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "orphan");
+    const ValueID y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
 
     // Node 0 reads `orphan`, which nothing writes yet.
     (void)graph.add_node(Ops::K_ADD.id, {x, orphan}, {y});
@@ -228,17 +228,17 @@ TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
     // The same node ahead of the reader is accepted; see tests/unit/README.md.
     EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}));
     EXPECT_EQ(graph.node_count(), 2u);
-    EXPECT_EQ(graph.value(orphan).producer, Graph::NodeId{0});
-    EXPECT_EQ(graph.value(y).producer, Graph::NodeId{1});
+    EXPECT_EQ(graph.value(orphan).producer, Graph::NodeID{0});
+    EXPECT_EQ(graph.value(y).producer, Graph::NodeID{1});
 }
 
 TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
 {
     // The mirror of the case above, and the one that was guarded first.
     Graph::Graph graph;
-    const ValueId x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
-    const ValueId y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
-    const ValueId z = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "z");
+    const ValueID x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
+    const ValueID y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
+    const ValueID z = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "z");
 
     (void)graph.add_node(Ops::K_RELU.id, {x}, {y});
 
@@ -269,9 +269,9 @@ TEST(Unit_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId running = builder.buffer(Shape{3}, "running_mean", DType::Float64);
-    const ValueId y = builder.bias_add(x, builder.buffer(Shape{3}, "shift"));
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID running = builder.buffer(Shape{3}, "running_mean", DType::Float64);
+    const ValueID y = builder.bias_add(x, builder.buffer(Shape{3}, "shift"));
 
     graph.finalise();
 
@@ -305,23 +305,23 @@ TEST(Unit_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId weight = builder.parameter(Shape{3}, "weight");
-    const ValueId running = builder.buffer(Shape{3}, "running_mean");
+    const ValueID weight = builder.parameter(Shape{3}, "weight");
+    const ValueID running = builder.buffer(Shape{3}, "running_mean");
 
-    EXPECT_EQ(graph.state_leaf(StateId{7}), K_NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(StateID{7}), K_NO_VALUE);
     EXPECT_TRUE(graph.state_leaves().empty());
 
-    graph.bind_state_leaf(StateId{7}, running);
-    graph.bind_state_leaf(StateId{5}, weight);
+    graph.bind_state_leaf(StateID{7}, running);
+    graph.bind_state_leaf(StateID{5}, weight);
 
-    EXPECT_EQ(graph.state_leaf(StateId{7}), running);
-    EXPECT_EQ(graph.state_leaf(StateId{5}), weight);
-    EXPECT_EQ(graph.state_leaf(StateId{6}), K_NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(StateID{7}), running);
+    EXPECT_EQ(graph.state_leaf(StateID{5}), weight);
+    EXPECT_EQ(graph.state_leaf(StateID{6}), K_NO_VALUE);
     EXPECT_EQ(graph.state_leaf(K_NO_STATE), K_NO_VALUE);
 
     ASSERT_EQ(graph.state_leaves().size(), 2u);
-    EXPECT_EQ(graph.state_leaves()[0], std::make_pair(StateId{7}, running));
-    EXPECT_EQ(graph.state_leaves()[1], std::make_pair(StateId{5}, weight));
+    EXPECT_EQ(graph.state_leaves()[0], std::make_pair(StateID{7}, running));
+    EXPECT_EQ(graph.state_leaves()[1], std::make_pair(StateID{5}, weight));
 }
 
 /** @brief Tests that a state binds one leaf and a leaf stands for one state, in one graph. */
@@ -329,20 +329,20 @@ TEST(Unit_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId first = builder.buffer(Shape{3}, "first");
-    const ValueId second = builder.buffer(Shape{3}, "second");
+    const ValueID first = builder.buffer(Shape{3}, "first");
+    const ValueID second = builder.buffer(Shape{3}, "second");
 
-    graph.bind_state_leaf(StateId{7}, first);
+    graph.bind_state_leaf(StateID{7}, first);
 
-    SA_EXPECT_ERROR(graph.bind_state_leaf(StateId{7}, second), "State 7", "already has leaf");
-    SA_EXPECT_ERROR(graph.bind_state_leaf(StateId{8}, first), "already stands for state 7");
+    SA_EXPECT_ERROR(graph.bind_state_leaf(StateID{7}, second), "State 7", "already has leaf");
+    SA_EXPECT_ERROR(graph.bind_state_leaf(StateID{8}, first), "already stands for state 7");
     SA_EXPECT_ERROR(graph.bind_state_leaf(K_NO_STATE, second), "no identity");
-    SA_EXPECT_ERROR(graph.bind_state_leaf(StateId{9}, ValueId{99}), "value 99", "does not exist");
+    SA_EXPECT_ERROR(graph.bind_state_leaf(StateID{9}, ValueID{99}), "value 99", "does not exist");
 
     // A refused binding records nothing, so the table still holds the first pair alone.
     ASSERT_EQ(graph.state_leaves().size(), 1u);
-    EXPECT_EQ(graph.state_leaf(StateId{7}), first);
-    EXPECT_EQ(graph.state_leaf(StateId{8}), K_NO_VALUE);
+    EXPECT_EQ(graph.state_leaf(StateID{7}), first);
+    EXPECT_EQ(graph.state_leaf(StateID{8}), K_NO_VALUE);
 }
 
 /** @brief Tests that without_nodes keeps every value field and state leaf and holds no node. */
@@ -351,12 +351,12 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 3, 4, 4}, "x", DType::Float64);
-    const ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
-    const ValueId weight = builder.parameter(Shape{2, 3}, "weight");
-    const ValueId running = builder.buffer(Shape{3}, "running", DType::Half);
-    graph.bind_state_leaf(StateId{11}, weight);
-    graph.bind_state_leaf(StateId{12}, running);
+    const ValueID x = builder.input(Shape{1, 3, 4, 4}, "x", DType::Float64);
+    const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueID weight = builder.parameter(Shape{2, 3}, "weight");
+    const ValueID running = builder.buffer(Shape{3}, "running", DType::Half);
+    graph.bind_state_leaf(StateID{11}, weight);
+    graph.bind_state_leaf(StateID{12}, running);
     graph.finalise();
 
     const Graph::Graph stripped = graph.without_nodes();
@@ -364,7 +364,7 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
     EXPECT_EQ(stripped.node_count(), 0u);
     ASSERT_EQ(stripped.value_count(), graph.value_count());
 
-    for (ValueId id = 0; id < static_cast<ValueId>(graph.value_count()); ++id)
+    for (ValueID id = 0; id < static_cast<ValueID>(graph.value_count()); ++id)
     {
         const Graph::Value& before = graph.value(id);
         const Graph::Value& after = stripped.value(id);
@@ -379,12 +379,12 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
     }
 
     // The fixture holds both layouts, both gradient flags and three element types.
-    EXPECT_EQ(stripped.value(x_nchw).layout, Graph::TensorLayout::Nchw);
+    EXPECT_EQ(stripped.value(x_nchw).layout, Graph::TensorLayout::NCHW);
     EXPECT_TRUE(stripped.value(weight).requires_grad);
     EXPECT_EQ(stripped.value(running).dtype, DType::Half);
 
     EXPECT_EQ(stripped.state_leaves(), graph.state_leaves());
-    EXPECT_EQ(stripped.state_leaf(StateId{12}), running);
+    EXPECT_EQ(stripped.state_leaf(StateID{12}), running);
 
     // The source graph is not changed by the copy.
     EXPECT_NE(graph.value(x_nchw).producer, K_NO_NODE);
@@ -414,7 +414,7 @@ TEST(Unit_Ir, StateIdentityDrawsOneIdentityPerHolder)
 
     EXPECT_EQ(first.peek(), K_NO_STATE);
 
-    const StateId drawn = first.get();
+    const StateID drawn = first.get();
     EXPECT_NE(drawn, K_NO_STATE);
     EXPECT_EQ(first.get(), drawn);
     EXPECT_EQ(first.peek(), drawn);
@@ -427,14 +427,14 @@ TEST(Unit_Ir, StateIdentityDrawsOneIdentityPerHolder)
 TEST(Unit_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
 {
     StateIdentity source;
-    const StateId drawn = source.get();
+    const StateID drawn = source.get();
 
     StateIdentity copied(source);
     EXPECT_EQ(copied.peek(), K_NO_STATE);
     EXPECT_NE(copied.get(), drawn);
 
     StateIdentity assigned;
-    const StateId replaced = assigned.get();
+    const StateID replaced = assigned.get();
     assigned = source;
     EXPECT_EQ(assigned.peek(), K_NO_STATE);
     EXPECT_NE(assigned.get(), drawn);
@@ -447,7 +447,7 @@ TEST(Unit_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
 TEST(Unit_Ir, AMovedStateIdentityCarriesItsIdentityAway)
 {
     StateIdentity source;
-    const StateId drawn = source.get();
+    const StateID drawn = source.get();
 
     StateIdentity moved(std::move(source));
     EXPECT_EQ(moved.peek(), drawn);

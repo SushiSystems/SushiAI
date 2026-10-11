@@ -34,19 +34,19 @@ namespace SushiAI
         void matmul_backward(const GradientTape& tape)
         {
             const Graph::Node& node = tape.node();
-            const Graph::ValueId dc = tape.output_grad(0);
+            const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueId a = node.inputs.at(0);
-            const Graph::ValueId b = node.inputs.at(1);
+            const Graph::ValueID a = node.inputs.at(0);
+            const Graph::ValueID b = node.inputs.at(1);
             const bool ta = node.attributes.flag(0);
             const bool tb = node.attributes.flag(1);
 
             // Matrix multiplication gradients derive from dU = dC V^T and dV = U^T dC.
             if (tape.input_requires_grad(0))
             {
-                Graph::ValueId da;
+                Graph::ValueID da;
                 if (!ta && !tb)     da = builder.matmul(dc, b, false, true);
                 else if (ta && !tb) da = builder.matmul(b, dc, false, true);
                 else if (!ta)       da = builder.matmul(dc, b, false, false);
@@ -56,7 +56,7 @@ namespace SushiAI
 
             if (tape.input_requires_grad(1))
             {
-                Graph::ValueId db;
+                Graph::ValueID db;
                 if (!ta && !tb)     db = builder.matmul(a, dc, true, false);
                 else if (ta && !tb) db = builder.matmul(a, dc, false, false);
                 else if (!ta)       db = builder.matmul(dc, a, true, false);
@@ -67,7 +67,7 @@ namespace SushiAI
 
         void bias_add_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Bias addition passes gradient directly to input and sums across rows for bias.
@@ -77,16 +77,58 @@ namespace SushiAI
 
         void sum_rows_backward(const GradientTape& tape)
         {
-            const Graph::ValueId ds = tape.output_grad(0);
+            const Graph::ValueID ds = tape.output_grad(0);
             if (ds == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId x = tape.node().inputs.at(0);
+            const Graph::ValueID x = tape.node().inputs.at(0);
             const Graph::Value& value = tape.graph().value(x);
 
             // Sum-rows adjoint broadcasts row gradients back over matrix shape via bias addition on zeros.
-            const Graph::ValueId zeros = tape.builder().zeros_like(ds, value.shape, value.dtype);
+            const Graph::ValueID zeros = tape.builder().zeros_like(ds, value.shape, value.dtype);
             tape.contribute_input(0, tape.builder().bias_add(zeros, ds));
+        }
+
+        void gather_rows_backward(const GradientTape& tape)
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+            if (!tape.input_requires_grad(0)) return;
+
+            // The ids and the row count are copied out before the emission grows the graph.
+            const Graph::ValueID table = tape.node().inputs.at(0);
+            const Graph::ValueID indices = tape.node().inputs.at(1);
+            const int64_t table_rows = tape.graph().value(table).shape[0];
+
+            // The forward emitter checked both operands, so a refusal here is fatal in value().
+            tape.contribute_input(
+                0, tape.builder().scatter_add_rows(dy, indices, table_rows).value());
+        }
+
+        void scatter_add_rows_backward(const GradientTape& tape)
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+            if (!tape.input_requires_grad(0)) return;
+
+            // The id is copied out before the emission grows the graph.
+            const Graph::ValueID indices = tape.node().inputs.at(1);
+
+            // The forward emitter checked both operands, so a refusal here is fatal in value().
+            tape.contribute_input(0, tape.builder().gather_rows(dy, indices).value());
+        }
+
+        void causal_mask_backward(const GradientTape& tape)
+        {
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+            if (!tape.input_requires_grad(0)) return;
+
+            // A replaced entry does not depend on its input, so its gradient is zero.
+            constexpr double K_NO_GRADIENT = 0.0;
+
+            // The forward emitter checked the shape, so a refusal here is fatal in value().
+            tape.contribute_input(0, tape.builder().causal_mask(dy, K_NO_GRADIENT).value());
         }
 
     } // namespace Autograd

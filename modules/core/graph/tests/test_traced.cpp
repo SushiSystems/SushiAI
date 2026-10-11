@@ -42,12 +42,12 @@ using SushiAI::Status;
 using SushiAI::StatusCode;
 using SushiAI::Detail::live_failure_count;
 using SushiAI::Graph::Traced;
-using SushiAI::Graph::ValueId;
+using SushiAI::Graph::ValueID;
 
 static_assert(std::is_nothrow_default_constructible<Traced>::value, "an absent operand is free");
-static_assert(std::is_nothrow_constructible<Traced, ValueId>::value, "holding an id is free");
+static_assert(std::is_nothrow_constructible<Traced, ValueID>::value, "holding an id is free");
 static_assert(std::is_nothrow_constructible<Traced, Status>::value, "a failure never throws");
-static_assert(std::is_convertible<ValueId, Traced>::value, "an id is an operand");
+static_assert(std::is_convertible<ValueID, Traced>::value, "an id is an operand");
 static_assert(std::is_convertible<Status, Traced>::value, "a failure is a result");
 static_assert(sizeof(Traced) == 2 * sizeof(void*), "a Traced is an id and one pointer");
 
@@ -57,7 +57,7 @@ namespace
     struct TraceLog
     {
         /** @brief Holds how many values were emitted. */
-        ValueId emitted = 0;
+        ValueID emitted = 0;
 
         /** @brief Holds how many refusals were recorded. */
         int refusals = 0;
@@ -74,7 +74,7 @@ namespace
             }
 
             /** @brief Issues the next id. */
-            [[nodiscard]] ValueId emit() const noexcept
+            [[nodiscard]] ValueID emit() const noexcept
             {
                 return log_->emitted++;
             }
@@ -93,9 +93,9 @@ namespace
 
     /** @brief Emits one value over @p operand, refusing an id above @p limit. */
     Traced emit_below(const StandInBuilder& builder, const Traced& operand,
-                      ValueId limit) noexcept
+                      ValueID limit) noexcept
     {
-        SA_TRY_ASSIGN(const ValueId x, operand);
+        SA_TRY_ASSIGN(const ValueID x, operand);
         SA_REFUSE_IF(builder, x > limit, "operand {} is above the limit {}", x, limit);
 
         return builder.emit();
@@ -104,7 +104,7 @@ namespace
     /** @brief Emits one value over @p operand, which may be absent. */
     Traced emit_over(const StandInBuilder& builder, const Traced& operand) noexcept
     {
-        SA_TRY_ASSIGN(const ValueId x, operand);
+        SA_TRY_ASSIGN(const ValueID x, operand);
         static_cast<void>(x);
 
         return builder.emit();
@@ -146,15 +146,15 @@ TEST(Unit_Traced, DefaultHoldsTheAbsentValueAndNoFailure)
     EXPECT_EQ(absent.value(), SushiAI::Graph::K_NO_VALUE);
 }
 
-TEST(Unit_Traced, HoldsAnIdWithASuccessStatus)
+TEST(Unit_Traced, HoldsAnIDWithASuccessStatus)
 {
-    const Traced traced(ValueId{12});
+    const Traced traced(ValueID{12});
     EXPECT_TRUE(traced.has_value());
     SA_EXPECT_OK(traced);
-    EXPECT_EQ(traced.value(), ValueId{12});
+    EXPECT_EQ(traced.value(), ValueID{12});
 }
 
-TEST(Unit_Traced, HoldsAFailureAndTheAbsentId)
+TEST(Unit_Traced, HoldsAFailureAndTheAbsentID)
 {
     const Traced traced(description_failure("MATMUL needs two rank-2 operands"));
     EXPECT_FALSE(traced.has_value());
@@ -174,8 +174,8 @@ TEST(Unit_Traced, SuccessPathCreatesNoFailureBlock)
     Traced copied(second);
     const Traced moved(std::move(copied));
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId id, moved);
-    EXPECT_EQ(id, ValueId{1});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID id, moved);
+    EXPECT_EQ(id, ValueID{1});
     EXPECT_EQ(log.refusals, 0);
     EXPECT_EQ(live_failure_count(), before);
 }
@@ -187,19 +187,19 @@ TEST(Unit_Traced, MovedFromTracedKeepsItsState)
     SA_EXPECT_FAILURE(taken, StatusCode::InvalidDescription, "window is larger");
     SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "window is larger");
 
-    Traced held(ValueId{4});
+    Traced held(ValueID{4});
     Traced assigned;
     assigned = std::move(held);
-    EXPECT_EQ(assigned.value(), ValueId{4});
-    EXPECT_EQ(held.value(), ValueId{4});
+    EXPECT_EQ(assigned.value(), ValueID{4});
+    EXPECT_EQ(held.value(), ValueID{4});
 }
 
-TEST(Unit_Traced, AssignmentReplacesAFailureWithAnId)
+TEST(Unit_Traced, AssignmentReplacesAFailureWithAnID)
 {
     Traced traced(description_failure("first attempt"));
-    traced = ValueId{3};
+    traced = ValueID{3};
     EXPECT_TRUE(traced.has_value());
-    EXPECT_EQ(traced.value(), ValueId{3});
+    EXPECT_EQ(traced.value(), ValueID{3});
 
     traced = description_failure("second attempt");
     SA_EXPECT_FAILURE(traced, StatusCode::InvalidDescription, "second attempt");
@@ -210,9 +210,9 @@ TEST(Unit_Traced, AnAbsentOperandPassesThroughAnEmitter)
     TraceLog log;
     const StandInBuilder builder(log);
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId id, emit_over(builder, Traced()));
-    EXPECT_EQ(id, ValueId{0});
-    EXPECT_EQ(log.emitted, ValueId{1});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID id, emit_over(builder, Traced()));
+    EXPECT_EQ(id, ValueID{0});
+    EXPECT_EQ(log.emitted, ValueID{1});
 }
 
 TEST(Unit_Traced, RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing)
@@ -220,18 +220,18 @@ TEST(Unit_Traced, RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing)
     TraceLog log;
     const StandInBuilder builder(log);
 
-    const Traced refused = emit_below(builder, ValueId{9}, 4);
+    const Traced refused = emit_below(builder, ValueID{9}, 4);
     SA_EXPECT_FAILURE(refused, StatusCode::InvalidDescription,
                       "operand 9 is above the limit 4");
     EXPECT_EQ(log.refusals, 1);
-    EXPECT_EQ(log.emitted, ValueId{0});
+    EXPECT_EQ(log.emitted, ValueID{0});
 
     const Traced chained = emit_over(builder, emit_below(builder, refused, 100));
     SA_EXPECT_FAILURE(chained, StatusCode::InvalidDescription,
                       "operand 9 is above the limit 4");
     EXPECT_EQ(chained.status().message().data(), refused.status().message().data());
     EXPECT_EQ(log.refusals, 1);
-    EXPECT_EQ(log.emitted, ValueId{0});
+    EXPECT_EQ(log.emitted, ValueID{0});
 }
 
 TEST(Unit_Traced, NestedCallsEmitWhenNothingIsRefused)
@@ -239,10 +239,10 @@ TEST(Unit_Traced, NestedCallsEmitWhenNothingIsRefused)
     TraceLog log;
     const StandInBuilder builder(log);
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId id,
-                            emit_over(builder, emit_below(builder, ValueId{2}, 4)));
-    EXPECT_EQ(id, ValueId{1});
-    EXPECT_EQ(log.emitted, ValueId{2});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID id,
+                            emit_over(builder, emit_below(builder, ValueID{2}, 4)));
+    EXPECT_EQ(id, ValueID{1});
+    EXPECT_EQ(log.emitted, ValueID{2});
     EXPECT_EQ(log.refusals, 0);
 }
 
@@ -253,7 +253,7 @@ TEST(Unit_Traced, TryForwardsATracedFailureAsAStatus)
                       StatusCode::InvalidDescription, "bias shape");
     EXPECT_FALSE(reached_end);
 
-    SA_EXPECT_OK(forward_traced(ValueId{1}, reached_end));
+    SA_EXPECT_OK(forward_traced(ValueID{1}, reached_end));
     EXPECT_TRUE(reached_end);
 }
 
@@ -290,8 +290,8 @@ TEST(Unit_Traced, RefuseIfOverAGraphBuilderMarksTheGraphOnlyOnARefusal)
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId id, declare_below(builder, 4, 8));
-    EXPECT_EQ(id, ValueId{0});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID id, declare_below(builder, 4, 8));
+    EXPECT_EQ(id, ValueID{0});
     EXPECT_EQ(graph.value_count(), 1u);
     EXPECT_FALSE(graph.has_refusal());
 

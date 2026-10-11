@@ -29,16 +29,19 @@
 
 #include <cstddef>
 #include <string_view>
+#include <utility>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/ops.hpp>
+#include <SushiAI/core/seam.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiAI
 {
     namespace Graph
     {
         LoweringContext::LoweringContext(SushiBLAS::TaskRecorder& recorder,
-                                         SushiBLAS::RngStream& stream, TensorPool& pool,
-                                         const Graph& graph, NodeId id,
+                                         SushiBLAS::RNGStream& stream, TensorPool& pool,
+                                         const Graph& graph, NodeID id,
                                          const FusionSelector& selector,
                                          std::vector<FusionSelection>& selections,
                                          std::size_t& emitted) noexcept
@@ -49,7 +52,27 @@ namespace SushiAI
               id_(id),
               selector_(selector),
               selections_(selections),
-              emitted_(emitted)
+              emitted_(emitted),
+              preludes_(nullptr)
+        {
+        }
+
+        LoweringContext::LoweringContext(SushiBLAS::TaskRecorder& recorder,
+                                         SushiBLAS::RNGStream& stream, TensorPool& pool,
+                                         const Graph& graph, NodeID id,
+                                         const FusionSelector& selector,
+                                         std::vector<FusionSelection>& selections,
+                                         std::size_t& emitted,
+                                         std::vector<ReplayPrelude>& preludes) noexcept
+            : recorder_(recorder),
+              stream_(stream),
+              pool_(pool),
+              graph_(graph),
+              id_(id),
+              selector_(selector),
+              selections_(selections),
+              emitted_(emitted),
+              preludes_(&preludes)
         {
         }
 
@@ -58,7 +81,7 @@ namespace SushiAI
             return recorder_;
         }
 
-        SushiBLAS::RngStream& LoweringContext::stream() const noexcept
+        SushiBLAS::RNGStream& LoweringContext::stream() const noexcept
         {
             return stream_;
         }
@@ -68,7 +91,7 @@ namespace SushiAI
             return graph_;
         }
 
-        NodeId LoweringContext::id() const noexcept
+        NodeID LoweringContext::id() const noexcept
         {
             return id_;
         }
@@ -155,7 +178,7 @@ namespace SushiAI
         Result<SushiBLAS::Tensor&> LoweringContext::output(std::size_t index) const
         {
             check_output(index);
-            const ValueId target = node().outputs[index];
+            const ValueID target = node().outputs[index];
             return pool_.materialise(target, graph_.value(target));
         }
 
@@ -198,9 +221,9 @@ namespace SushiAI
         {
             const FusionChoice choice = selector_.choose(query);
 
-            // A GEMM epilogue narrowed to FusedForm::GemmBias is still a spelling of the match.
+            // A GEMM epilogue narrowed to FusedForm::GEMMBias is still a spelling of the match.
             const bool narrowed_within_family =
-                is_gemm_epilogue(query.matched) && choice.form == FusedForm::GemmBias;
+                is_gemm_epilogue(query.matched) && choice.form == FusedForm::GEMMBias;
 
             SA_FATAL_IF(choice.form != FusedForm::None && choice.form != query.matched
                         && !narrowed_within_family,
@@ -216,6 +239,22 @@ namespace SushiAI
         void LoweringContext::close_selection(std::size_t emitted_before) const noexcept
         {
             selections_.back().tasks = emitted_ - emitted_before;
+        }
+
+        Status LoweringContext::before_each_replay(ReplayPrelude prelude) const
+        {
+            SA_FATAL_IF(!prelude, "{} (node {}) registered a replay prelude with no target",
+                        name(), id_);
+            SA_FAIL_IF(preludes_ == nullptr, StatusCode::Unsupported,
+                       "{} (node {}) needs host work before each replay, and this lowering "
+                       "keeps no list of it; compile the graph through CompiledStep",
+                       name(), id_);
+
+            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
+            {
+                preludes_->push_back(std::move(prelude));
+                return Status();
+            });
         }
     } // namespace Graph
 } // namespace SushiAI

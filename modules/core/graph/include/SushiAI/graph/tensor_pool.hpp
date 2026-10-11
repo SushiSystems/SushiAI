@@ -99,10 +99,10 @@ namespace SushiAI
                  * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  * @pre @p id is not bound yet; a second binding stops the process.
                  */
-                [[nodiscard]] Status bind(ValueId id, SushiBLAS::Tensor tensor);
+                [[nodiscard]] Status bind(ValueID id, SushiBLAS::Tensor tensor);
 
                 /** @brief Whether @p id has a tensor behind it yet. */
-                bool is_bound(ValueId id) const noexcept
+                bool is_bound(ValueID id) const noexcept
                 {
                     return tensors_.find(id) != tensors_.end();
                 }
@@ -113,10 +113,10 @@ namespace SushiAI
                  * @return A reference stable for the pool's lifetime.
                  * @pre @p id is bound; asking for an unbound value stops the process.
                  */
-                SushiBLAS::Tensor& tensor(ValueId id);
+                SushiBLAS::Tensor& tensor(ValueID id);
 
                 /** @brief Const overload of tensor(). */
-                const SushiBLAS::Tensor& tensor(ValueId id) const;
+                const SushiBLAS::Tensor& tensor(ValueID id) const;
 
                 /**
                  * @brief Returns @p id's tensor, allocating it on first request.
@@ -124,7 +124,7 @@ namespace SushiAI
                  * @param value The value's description, read for shape and dtype.
                  * @return A reference stable for the pool's lifetime, or the allocation failure.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor&> materialise(ValueId id,
+                [[nodiscard]] Result<SushiBLAS::Tensor&> materialise(ValueID id,
                                                                      const Value& value);
 
                 /**
@@ -143,7 +143,7 @@ namespace SushiAI
                  * @pre @p source is bound, and @p target is unbound or already aliases it; any
                  *      other case stops the process.
                  */
-                [[nodiscard]] Status alias(ValueId target, ValueId source);
+                [[nodiscard]] Status alias(ValueID target, ValueID source);
 
                 /**
                  * @brief Retrieves or creates a shared constant all-ones tensor.
@@ -162,7 +162,7 @@ namespace SushiAI
                  *
                  * @return Stable reference to scratch tensor, or the allocation failure.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(NodeId node, int slot,
+                [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(NodeID node, int slot,
                                                                  const Shape& shape, DType dtype);
 
                 /**
@@ -234,7 +234,7 @@ namespace SushiAI
 
                 struct ScratchKey
                 {
-                    NodeId node;
+                    NodeID node;
                     int slot;
 
                     bool operator==(const ScratchKey& other) const noexcept
@@ -254,7 +254,7 @@ namespace SushiAI
 
                 SushiBLAS::Engine* engine_;
                 std::optional<ArenaSet> arenas_;
-                std::unordered_map<ValueId, SushiBLAS::Tensor> tensors_;
+                std::unordered_map<ValueID, SushiBLAS::Tensor> tensors_;
                 std::unordered_map<ShapeKey, SushiBLAS::Tensor, ShapeKeyHash> ones_;
                 std::unordered_map<ScratchKey, SushiBLAS::Tensor, ScratchKeyHash> scratch_;
                 std::vector<std::pair<SushiBLAS::Tensor*, double>> pending_constants_;

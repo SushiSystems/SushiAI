@@ -38,9 +38,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief The extra entry that only exists to produce a good error. */
-            constexpr RuleEntry K_LOG_SOFTMAX_RULE{Ops::K_LOG_SOFTMAX.id, &log_softmax_backward};
-
             /** @brief Holds d(loss)/d(loss), the value an explicit root seed is filled with. */
             constexpr double K_ROOT_SEED = 1.0;
 
@@ -49,7 +46,6 @@ namespace SushiAI
             {
                 for (const RuleEntry& entry : K_RULES)
                     if (entry.op == op) return entry.rule;
-                if (op == K_LOG_SOFTMAX_RULE.op) return K_LOG_SOFTMAX_RULE.rule;
                 return nullptr;
             }
         }
@@ -59,7 +55,7 @@ namespace SushiAI
             return find_rule(op) != nullptr;
         }
 
-        void Differentiator::contribute(Graph::ValueId primal, Graph::ValueId gradient)
+        void Differentiator::contribute(Graph::ValueID primal, Graph::ValueID gradient)
         {
             SA_THROW_IF(resolved_.find(primal) != resolved_.end(),
                         "A gradient contribution to value {} arrived after its gradient was "
@@ -77,7 +73,7 @@ namespace SushiAI
             contributions_[primal].push_back(gradient);
         }
 
-        void Differentiator::skip(Graph::NodeId node)
+        void Differentiator::skip(Graph::NodeID node)
         {
             SA_THROW_IF(node >= skipped_.size(),
                         "Cannot skip node {}; the forward graph has {} nodes",
@@ -85,17 +81,17 @@ namespace SushiAI
             skipped_[node] = true;
         }
 
-        Graph::ValueId Differentiator::resolve(Graph::ValueId primal)
+        Graph::ValueID Differentiator::resolve(Graph::ValueID primal)
         {
             const auto cached = resolved_.find(primal);
             if (cached != resolved_.end()) return cached->second;
 
-            Graph::ValueId result = Graph::K_NO_VALUE;
+            Graph::ValueID result = Graph::K_NO_VALUE;
             const auto found = contributions_.find(primal);
 
             if (found != contributions_.end() && !found->second.empty())
             {
-                const std::vector<Graph::ValueId>& parts = found->second;
+                const std::vector<Graph::ValueID>& parts = found->second;
                 result = parts.front();
                 for (std::size_t i = 1; i < parts.size(); ++i)
                     result = builder_.accumulate(result, parts[i]);
@@ -105,11 +101,11 @@ namespace SushiAI
             return result;
         }
 
-        Graph::ValueId Differentiator::resolve_requested(Graph::ValueId value)
+        Graph::ValueID Differentiator::resolve_requested(Graph::ValueID value)
         {
             const std::size_t nodes_before = graph_.node_count();
-            const Graph::ValueId gradient = resolve(value);
-            const Graph::NodeId producer = graph_.value(value).producer;
+            const Graph::ValueID gradient = resolve(value);
+            const Graph::NodeID producer = graph_.value(value).producer;
 
             SA_THROW_IF(provenance_ != nullptr && graph_.node_count() > nodes_before
                             && producer == Graph::K_NO_NODE,
@@ -122,7 +118,7 @@ namespace SushiAI
             return gradient;
         }
 
-        void Differentiator::stamp_appended(Graph::NodeId origin)
+        void Differentiator::stamp_appended(Graph::NodeID origin)
         {
             if (provenance_ == nullptr)
                 return;
@@ -131,7 +127,7 @@ namespace SushiAI
             provenance_->origin.resize(graph_.node_count() - forward_node_count_, origin);
         }
 
-        void Differentiator::require_requestable(Graph::ValueId value) const
+        void Differentiator::require_requestable(Graph::ValueID value) const
         {
             const Graph::Value& requested = graph_.value(value);
 
@@ -150,7 +146,7 @@ namespace SushiAI
                         "differentiate() needs a scalar to differentiate; value {} has shape {}",
                         loss_, graph_.value(loss_).shape.to_string());
 
-            const Graph::NodeId root_producer = graph_.value(loss_).producer;
+            const Graph::NodeID root_producer = graph_.value(loss_).producer;
             SA_THROW_IF(root_producer == Graph::K_NO_NODE,
                         "differentiate() cannot seed a gradient for value {}: nothing produces "
                         "it. The loss must be the result of an operation that has a backward "
@@ -167,13 +163,13 @@ namespace SushiAI
 
             for (std::size_t offset = forward_node_count_; offset > 0; --offset)
             {
-                const Graph::NodeId id = static_cast<Graph::NodeId>(offset - 1);
+                const Graph::NodeID id = static_cast<Graph::NodeID>(offset - 1);
                 differentiate_node(id);
                 stamp_appended(id);
             }
         }
 
-        void Differentiator::require_seedable_root(Graph::NodeId producer) const
+        void Differentiator::require_seedable_root(Graph::NodeID producer) const
         {
             const OpID op = graph_.node(producer).op;
             const DType dtype = graph_.value(loss_).dtype;
@@ -207,14 +203,14 @@ namespace SushiAI
                         loss_, Ops::name_of(op));
         }
 
-        void Differentiator::seed_root(Graph::NodeId producer)
+        void Differentiator::seed_root(Graph::NodeID producer)
         {
-            const Graph::ValueId one = builder_.constant_like(loss_, K_ROOT_SEED);
+            const Graph::ValueID one = builder_.constant_like(loss_, K_ROOT_SEED);
             contribute(loss_, tape_.apply_seed_factor(one));
             stamp_appended(producer);
         }
 
-        void Differentiator::differentiate_node(Graph::NodeId id)
+        void Differentiator::differentiate_node(Graph::NodeID id)
         {
             if (skipped_[id])
                 return;
@@ -226,7 +222,7 @@ namespace SushiAI
                 return;
 
             bool any_input_needs_grad = false;
-            for (Graph::ValueId in : current_node_.inputs)
+            for (Graph::ValueID in : current_node_.inputs)
             {
                 if (graph_.value(in).requires_grad)
                 {
@@ -240,7 +236,7 @@ namespace SushiAI
                 return;
 
             bool reachable = false;
-            for (Graph::ValueId out : current_node_.outputs)
+            for (Graph::ValueID out : current_node_.outputs)
             {
                 if (is_root(out) || resolve(out) != Graph::K_NO_VALUE)
                 {
@@ -263,26 +259,26 @@ namespace SushiAI
             rule(tape_);
         }
 
-        std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
-                                                  Graph::ValueId loss,
-                                                  SushiRuntime::span<const Graph::ValueId> wrt,
-                                                  Graph::ValueId seed_factor,
+        std::vector<Graph::ValueID> differentiate(Graph::Graph& graph,
+                                                  Graph::ValueID loss,
+                                                  SushiRuntime::span<const Graph::ValueID> wrt,
+                                                  Graph::ValueID seed_factor,
                                                   Provenance* provenance)
         {
             Differentiator differentiator(graph, loss, seed_factor, provenance);
 
             // Every request is checked before the sweep, so a refused one appends no node.
-            for (Graph::ValueId value : wrt)
+            for (Graph::ValueID value : wrt)
                 differentiator.require_requestable(value);
 
             differentiator.run();
 
-            std::vector<Graph::ValueId> gradients;
+            std::vector<Graph::ValueID> gradients;
             gradients.reserve(wrt.size());
 
-            for (Graph::ValueId value : wrt)
+            for (Graph::ValueID value : wrt)
             {
-                const Graph::ValueId gradient = differentiator.resolve_requested(value);
+                const Graph::ValueID gradient = differentiator.resolve_requested(value);
                 gradients.push_back(gradient);
 
                 // Parameter gradients persist across execution and receive Lifetime::GRADIENT.

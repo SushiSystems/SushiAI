@@ -21,7 +21,7 @@
 
 /**
  * @file state_id.hpp
- * @brief Declares StateId and StateIdentity, which name a piece of model state across graphs.
+ * @brief Declares StateID and StateIdentity, which name a piece of model state across graphs.
  * @author Mustafa Garip
  */
 
@@ -35,13 +35,13 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Identifies one piece of model state across every graph it is traced into. */
-        enum class StateId : std::uint64_t
+        enum class StateID : std::uint64_t
         {
 
         };
 
         /** @brief Marks state that has not been assigned an identity. */
-        inline constexpr StateId K_NO_STATE{0};
+        inline constexpr StateID K_NO_STATE{0};
 
         namespace Detail
         {
@@ -49,9 +49,9 @@ namespace SushiAI
             inline std::atomic<std::uint64_t> next_state_id{1};
 
             /** @brief Draws an identity no earlier call in this process returned. */
-            [[nodiscard]] inline StateId draw_state_id() noexcept
+            [[nodiscard]] inline StateID draw_state_id() noexcept
             {
-                return StateId{next_state_id.fetch_add(1, std::memory_order_relaxed)};
+                return StateID{next_state_id.fetch_add(1, std::memory_order_relaxed)};
             }
 
         } // namespace Detail
@@ -108,7 +108,7 @@ namespace SushiAI
                  * @brief Returns the identity, drawing one from the process-wide counter if none.
                  * @pre No other thread calls get() on this holder at the same time.
                  */
-                [[nodiscard]] StateId get() noexcept
+                [[nodiscard]] StateID get() noexcept
                 {
                     if (id_ == K_NO_STATE)
                         id_ = Detail::draw_state_id();
@@ -117,14 +117,14 @@ namespace SushiAI
                 }
 
                 /** @brief Returns the identity, or K_NO_STATE when none was drawn. */
-                [[nodiscard]] StateId peek() const noexcept
+                [[nodiscard]] StateID peek() const noexcept
                 {
                     return id_;
                 }
 
             private:
                 /** @brief Holds the identity; K_NO_STATE until get() draws one. */
-                StateId id_ = K_NO_STATE;
+                StateID id_ = K_NO_STATE;
         };
 
     } // namespace Graph

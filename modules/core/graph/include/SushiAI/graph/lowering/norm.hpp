@@ -46,12 +46,20 @@ namespace SushiAI
         /** @brief Records the fold of saved statistics into one per-channel scale and shift. */
         [[nodiscard]] Status lower_batchnorm_fold(const LoweringContext& context);
 
+        /** @brief Records layer normalization and the two row statistics it saves. */
+        [[nodiscard]] Status lower_layer_norm(const LoweringContext& context);
+
+        /** @brief Records the gradients of layer normalization for x, gamma and beta. */
+        [[nodiscard]] Status lower_layer_norm_backward(const LoweringContext& context);
+
         /** @brief Pairs each normalization operation with the row that lowers it. */
-        inline constexpr std::array<LoweringEntry, 4> K_NORM_LOWERINGS = {{
+        inline constexpr std::array<LoweringEntry, 6> K_NORM_LOWERINGS = {{
             {Ops::K_BATCHNORM2D.id, &lower_batchnorm2d},
             {Ops::K_BATCHNORM2D_BACKWARD.id, &lower_batchnorm2d_backward},
             {Ops::K_CHANNEL_AFFINE.id, &lower_channel_affine},
             {Ops::K_BATCHNORM_FOLD.id, &lower_batchnorm_fold},
+            {Ops::K_LAYER_NORM.id, &lower_layer_norm},
+            {Ops::K_LAYER_NORM_BACKWARD.id, &lower_layer_norm_backward},
         }};
     } // namespace Graph
 } // namespace SushiAI

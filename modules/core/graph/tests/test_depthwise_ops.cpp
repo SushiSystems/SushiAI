@@ -37,7 +37,7 @@
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -53,18 +53,18 @@ namespace
     }
 
     /** @brief Declares a rank-4 input and converts it to NCHW; the extents survive the permute. */
-    ValueId nchw_input(const GraphBuilder& builder, std::string_view debug_name,
+    ValueID nchw_input(const GraphBuilder& builder, std::string_view debug_name,
                        DType dtype = DType::Float32)
     {
-        const ValueId nhwc = builder.input(Shape{2, 5, 5, 3}, debug_name, dtype);
-        return builder.layout_convert(nhwc, Graph::TensorLayout::Nchw);
+        const ValueID nhwc = builder.input(Shape{2, 5, 5, 3}, debug_name, dtype);
+        return builder.layout_convert(nhwc, Graph::TensorLayout::NCHW);
     }
 
     /** @brief Expects @p out to be the single result of an @p op node that reads @p inputs. */
-    void expect_produced_by(const Graph::Graph& graph, ValueId out, OpID op,
-                            const std::vector<ValueId>& inputs)
+    void expect_produced_by(const Graph::Graph& graph, ValueID out, OpID op,
+                            const std::vector<ValueID>& inputs)
     {
-        const Graph::NodeId producer = graph.value(out).producer;
+        const Graph::NodeID producer = graph.value(out).producer;
         ASSERT_NE(producer, Graph::K_NO_NODE);
 
         const Graph::Node& node = graph.node(producer);
@@ -80,10 +80,10 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dWritesItsIdentityOverInputAndTapsInOrder)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
-    const ValueId out = builder.depthwise_conv2d(x, w, same_3x3());
+    const ValueID out = builder.depthwise_conv2d(x, w, same_3x3());
 
     expect_produced_by(graph, out, Ops::K_DEPTHWISE_CONV2D.id, {x, w});
 }
@@ -93,8 +93,8 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
     Graph::ConvGeometry unit = same_3x3();
     EXPECT_EQ(graph.value(builder.depthwise_conv2d(x, w, unit)).shape, Shape({2, 5, 5, 3}));
@@ -106,16 +106,16 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput)
 }
 
 /** @brief Tests that the forward emitter keeps the input's layout, element type and lifetime. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dKeepsLayoutDtypeAndLifetime)
+TEST(Unit_DepthwiseOps, DepthwiseConv2dKeepsLayoutDTypeAndLifetime)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float64);
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w", DType::Float64);
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float64);
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w", DType::Float64);
 
-    const ValueId out = builder.depthwise_conv2d(x, w, same_3x3());
+    const ValueID out = builder.depthwise_conv2d(x, w, same_3x3());
 
-    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NHWC);
     EXPECT_EQ(graph.value(out).dtype, DType::Float64);
     EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation);
 }
@@ -125,8 +125,8 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 7, 9, 3}, "x");
-    const ValueId w = builder.parameter(Shape{3, 5, 3}, "w");
+    const ValueID x = builder.input(Shape{2, 7, 9, 3}, "x");
+    const ValueID w = builder.parameter(Shape{3, 5, 3}, "w");
 
     Graph::ConvGeometry g;
     g.kernel_h = 3;
@@ -134,7 +134,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
     g.pad_top = 1;
     g.pad_left = 2;
 
-    const ValueId out = builder.depthwise_conv2d(x, w, g);
+    const ValueID out = builder.depthwise_conv2d(x, w, g);
 
     const Graph::Node& node = graph.node(graph.value(out).producer);
     const double expected[8] = {3.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0};
@@ -147,8 +147,8 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x");
-    const ValueId w = builder.parameter(Shape{3, 3, 3, 1}, "w");
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
+    const ValueID w = builder.parameter(Shape{3, 3, 3, 1}, "w");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.depthwise_conv2d(x, w, same_3x3()), Error);
@@ -160,10 +160,10 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x");
-    const ValueId tall = builder.parameter(Shape{5, 3, 3}, "tall");
-    const ValueId wide = builder.parameter(Shape{3, 5, 3}, "wide");
-    const ValueId narrow = builder.parameter(Shape{3, 3, 4}, "narrow");
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
+    const ValueID tall = builder.parameter(Shape{5, 3, 3}, "tall");
+    const ValueID wide = builder.parameter(Shape{3, 5, 3}, "wide");
+    const ValueID narrow = builder.parameter(Shape{3, 3, 4}, "narrow");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.depthwise_conv2d(x, tall, same_3x3()), Error);
@@ -173,23 +173,23 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
 }
 
 /** @brief Tests that the forward emitter refuses an NCHW input. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAnNchwInput)
+TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAnNCHWInput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = nchw_input(builder, "x");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID x = nchw_input(builder, "x");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
     EXPECT_THROW((void)builder.depthwise_conv2d(x, w, same_3x3()), Error);
 }
 
 /** @brief Tests that the forward emitter refuses taps of another element type. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherDtype)
+TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float32);
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w", DType::Float64);
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float32);
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w", DType::Float64);
 
     EXPECT_THROW((void)builder.depthwise_conv2d(x, w, same_3x3()), Error);
 }
@@ -199,8 +199,8 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAWindowThatDoesNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{2, 2, 2, 3}, "x");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID x = builder.input(Shape{2, 2, 2, 3}, "x");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
     Graph::ConvGeometry unpadded = same_3x3();
     unpadded.pad_top = 0;
@@ -214,10 +214,10 @@ TEST(Unit_DepthwiseOps, BackwardInputWritesItsIdentityOverGradientAndTapsInOrder
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId dy = builder.input(Shape{2, 5, 5, 3}, "dy");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
-    const ValueId dx =
+    const ValueID dx =
         builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3}, same_3x3());
 
     expect_produced_by(graph, dx, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, {dy, w});
@@ -228,17 +228,17 @@ TEST(Unit_DepthwiseOps, BackwardInputRecoversTheForwardInputShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId dy = builder.input(Shape{2, 3, 3, 3}, "dy");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID dy = builder.input(Shape{2, 3, 3, 3}, "dy");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
     Graph::ConvGeometry strided = same_3x3();
     strided.stride_h = 2;
     strided.stride_w = 2;
 
-    const ValueId dx = builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3}, strided);
+    const ValueID dx = builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3}, strided);
 
     EXPECT_EQ(graph.value(dx).shape, Shape({2, 5, 5, 3}));
-    EXPECT_EQ(graph.value(dx).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(dx).layout, Graph::TensorLayout::NHWC);
     EXPECT_EQ(graph.value(dx).dtype, DType::Float32);
 }
 
@@ -247,10 +247,10 @@ TEST(Unit_DepthwiseOps, BackwardInputRefusesAGradientOnAnotherGrid)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId short_grid = builder.input(Shape{2, 4, 5, 3}, "short_grid");
-    const ValueId wide_channels = builder.input(Shape{2, 5, 5, 4}, "wide_channels");
-    const ValueId flat = builder.input(Shape{2, 5, 3}, "flat");
-    const ValueId w = builder.parameter(Shape{3, 3, 3}, "w");
+    const ValueID short_grid = builder.input(Shape{2, 4, 5, 3}, "short_grid");
+    const ValueID wide_channels = builder.input(Shape{2, 5, 5, 4}, "wide_channels");
+    const ValueID flat = builder.input(Shape{2, 5, 3}, "flat");
+    const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.depthwise_conv2d_backward_input(short_grid, w, Shape{2, 5, 5, 3},
@@ -268,40 +268,40 @@ TEST(Unit_DepthwiseOps, BackwardWeightWritesItsIdentityOverGradientAndInputInOrd
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId dy = builder.input(Shape{2, 5, 5, 3}, "dy");
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x");
+    const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy");
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
 
-    const ValueId dw = builder.depthwise_conv2d_backward_weight(dy, x, same_3x3());
+    const ValueID dw = builder.depthwise_conv2d_backward_weight(dy, x, same_3x3());
 
     expect_produced_by(graph, dw, Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id, {dy, x});
 }
 
 /** @brief Tests that the tap-gradient emitter yields a [kernel_h, kernel_w, C] gradient. */
-TEST(Unit_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDtype)
+TEST(Unit_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId dy = builder.input(Shape{2, 5, 5, 3}, "dy", DType::Float64);
-    const ValueId x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float64);
+    const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy", DType::Float64);
+    const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float64);
 
-    const ValueId dw = builder.depthwise_conv2d_backward_weight(dy, x, same_3x3());
+    const ValueID dw = builder.depthwise_conv2d_backward_weight(dy, x, same_3x3());
 
     EXPECT_EQ(graph.value(dw).shape, Shape({3, 3, 3}));
-    EXPECT_EQ(graph.value(dw).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(dw).layout, Graph::TensorLayout::NHWC);
     EXPECT_EQ(graph.value(dw).dtype, DType::Float64);
     EXPECT_EQ(graph.value(dw).lifetime, Graph::Lifetime::Activation);
 }
 
 /** @brief Tests that the tap-gradient emitter refuses operands that disagree in batch or depth. */
-TEST(Unit_DepthwiseOps, BackwardWeightRefusesMismatchedBatchChannelsOrDtype)
+TEST(Unit_DepthwiseOps, BackwardWeightRefusesMismatchedBatchChannelsOrDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId dy = builder.input(Shape{2, 5, 5, 3}, "dy");
-    const ValueId other_batch = builder.input(Shape{1, 5, 5, 3}, "other_batch");
-    const ValueId other_channels = builder.input(Shape{2, 5, 5, 4}, "other_channels");
-    const ValueId wide = builder.input(Shape{2, 5, 5, 3}, "wide", DType::Float64);
-    const ValueId rank_three = builder.input(Shape{2, 5, 3}, "rank_three");
+    const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy");
+    const ValueID other_batch = builder.input(Shape{1, 5, 5, 3}, "other_batch");
+    const ValueID other_channels = builder.input(Shape{2, 5, 5, 4}, "other_channels");
+    const ValueID wide = builder.input(Shape{2, 5, 5, 3}, "wide", DType::Float64);
+    const ValueID rank_three = builder.input(Shape{2, 5, 3}, "rank_three");
     const std::size_t nodes_before = graph.node_count();
 
     EXPECT_THROW((void)builder.depthwise_conv2d_backward_weight(dy, other_batch, same_3x3()),
