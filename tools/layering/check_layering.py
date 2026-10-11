@@ -23,8 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common.checker import Checker, Issue, run  # noqa: E402
 
-K_TIER_ORDER: tuple[str, ...] = ("core", "layers", "vision")
-K_DOMAIN_TIERS: tuple[str, ...] = ("vision",)
+K_TIER_ORDER: tuple[str, ...] = ("core", "layers", "vision", "language")
+K_DOMAIN_TIERS: tuple[str, ...] = ("vision", "language")
 K_MODULE_TIERS: dict[str, str] = {
     "core": "core",
     "version": "core",
@@ -39,13 +39,22 @@ K_MODULE_TIERS: dict[str, str] = {
     "train": "layers",
     "umbrella": "layers",
     "vision/imaging": "vision",
+    "vision/codecs": "vision",
     "vision/detect": "vision",
+    "vision/segment": "vision",
     "vision/blocks": "vision",
     "vision/datasets": "vision",
     "vision/importers": "vision",
     "vision/training": "vision",
     "vision/registration": "vision",
     "vision/umbrella": "vision",
+    "language/text": "language",
+    "language/blocks": "language",
+    "language/datasets": "language",
+    "language/training": "language",
+    "language/generation": "language",
+    "language/registration": "language",
+    "language/umbrella": "language",
 }
 K_SCOPED_ROOTS: dict[str, str | None] = {
     "tests/common": "layers",

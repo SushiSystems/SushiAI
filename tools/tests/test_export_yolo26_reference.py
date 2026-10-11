@@ -188,9 +188,9 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(entry["tensors"][0]["max"], 6.0)
 
     def test_write_puts_weights_in_the_external_directory(self) -> None:
-        """Checks that only weights.sacp leaves the output directory."""
+        """Checks that only weights.sushi leaves the output directory."""
         files = [
-            _reference_file("weights.sacp", _float_record("w", (1,), [1.0])),
+            _reference_file("weights.sushi", _float_record("w", (1,), [1.0])),
             _reference_file("input.sacp", _float_record("image", (1,), [1.0])),
         ]
         payloads = encode_files(files)
@@ -200,7 +200,7 @@ class ManifestTest(unittest.TestCase):
             write_reference_files(payloads, manifest, output, external)
             written = sorted(path.name for path in output.iterdir())
             self.assertEqual(written, ["MANIFEST.json", "input.sacp"])
-            self.assertEqual((external / "weights.sacp").read_bytes(), payloads["weights.sacp"])
+            self.assertEqual((external / "weights.sushi").read_bytes(), payloads["weights.sushi"])
         self.assertEqual(json.loads(manifest)["files"][0]["location"], "external")
 
     def test_write_refuses_an_output_above_the_ceiling(self) -> None:

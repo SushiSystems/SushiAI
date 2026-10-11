@@ -40,7 +40,7 @@ K_DEFAULT_SEED = 0
 K_FIXTURE_CEILING_BYTES = 64 * 1024 * 1024
 K_MANIFEST_NAME = "MANIFEST.json"
 K_MANIFEST_FORMAT_VERSION = 1
-K_WEIGHTS_FILE = "weights.sacp"
+K_WEIGHTS_FILE = "weights.sushi"
 K_BRANCHES = ("one2many", "one2one")
 K_GAIN_NAMES = ("box", "cls", "dfl")
 K_ASSIGNER_INPUTS = ("scores", "boxes")
@@ -335,7 +335,7 @@ def write_reference_files(
     if in_output > K_FIXTURE_CEILING_BYTES:
         raise FixtureTooLargeError(
             f"{in_output} bytes exceed the {K_FIXTURE_CEILING_BYTES} byte ceiling; "
-            "pass --external-weights DIR to keep weights.sacp outside the output directory",
+            "pass --external-weights DIR to keep weights.sushi outside the output directory",
         )
     for name, path in targets.items():
         path.parent.mkdir(parents=True, exist_ok=True)
