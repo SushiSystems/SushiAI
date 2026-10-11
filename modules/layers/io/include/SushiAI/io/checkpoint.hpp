@@ -65,7 +65,7 @@ namespace SushiAI
         }
 
         /**
-         * @brief Writes every entry of a model state to disk, parameters and buffers alike.
+         * @brief Writes every entry of a model state to disk, with no run-state section.
          * @param path Target filesystem path for the checkpoint.
          * @param state The tensors to write, in the order the state lists them.
          * @param engine Engine whose recorded tasks run before the tensor memory is read.
@@ -75,8 +75,8 @@ namespace SushiAI
                                              NN::ModelState& state, SushiBLAS::Engine& engine);
 
         /**
-         * @brief Loads a checkpoint into a model state, strictly in both directions.
-         * @param path Checkpoint path to read from disk.
+         * @brief Loads the model state of a checkpoint, strictly in both directions.
+         * @param path Checkpoint path to read from disk; its run-state section is not read.
          * @param state The state every entry of which the file must supply exactly once.
          * @return Success, or the failure of import_weights() with no rename rule.
          */

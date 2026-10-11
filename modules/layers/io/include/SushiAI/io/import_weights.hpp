@@ -59,7 +59,7 @@ namespace SushiAI
 
         /**
          * @brief Loads an SACP file into state, renaming each record first; strict both ways.
-         * @param path The checkpoint file to read.
+         * @param path The checkpoint file to read; its run-state section is not read.
          * @param state The state whose every entry the file must supply exactly once.
          * @param rules The rules applied to each record name before the lookup.
          * @return FileNotFound for an unreadable file; Incompatible for a record that matches no

@@ -28,9 +28,12 @@
 #include <SushiAI/io/checkpoint_format.hpp>
 
 #include <array>
+#include <cstring>
 #include <istream>
 #include <ostream>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include <SushiAI/core/seam.hpp>
 
@@ -47,6 +50,19 @@ namespace SushiAI
                 DType::Int32, DType::Int64,
             };
 
+            /** @brief Holds what the header of a version 1 file declares after its version. */
+            struct HeaderV1
+            {
+                std::uint32_t count = 0; /**< Holds the count of model-state records. */
+            };
+
+            /** @brief Holds what the header of a version 2 file declares after its version. */
+            struct HeaderV2
+            {
+                std::uint32_t count = 0;           /**< Holds the model-state record count. */
+                std::uint32_t run_state_count = 0; /**< Holds the run-state record count. */
+            };
+
             /**
              * @brief Returns whether @p encoded is the value of an entry of @ref K_KNOWN_DTYPES.
              */
@@ -59,6 +75,24 @@ namespace SushiAI
                 }
 
                 return false;
+            }
+
+            /** @brief Reports whether this host stores the low byte of a word first. */
+            [[nodiscard]] bool is_little_endian_host() noexcept
+            {
+                const std::uint32_t word = 1u;
+                unsigned char first = 0;
+                std::memcpy(&first, &word, 1);
+                return first == 1;
+            }
+
+            /** @brief Returns Unsupported on a host whose tensor bytes are not little-endian. */
+            [[nodiscard]] Status check_host_byte_order()
+            {
+                SA_FAIL_IF(!is_little_endian_host(), StatusCode::Unsupported,
+                           "a checkpoint holds little-endian payloads, and this host is not "
+                           "little-endian");
+                return Status();
             }
 
             /** @brief Writes @p value as four little-endian bytes. */
@@ -118,32 +152,136 @@ namespace SushiAI
                 return static_cast<std::int64_t>(bits);
             }
 
+            /**
+             * @brief Reads a length and that many bytes of a name.
+             * @param subject Names what declares the name, in the message of the bound.
+             * @param what Names the name, in the message of a stream that ends first.
+             * @return The name; InvalidFile for a length above @ref K_MAX_NAME_LENGTH and
+             *         for a stream that ends first.
+             */
+            [[nodiscard]] Result<std::string> get_name(std::istream& in,
+                                                       std::string_view subject,
+                                                       std::string_view what)
+            {
+                SA_TRY_ASSIGN(const std::uint32_t length,
+                              get_u32(in, std::string(what) + " length"));
+                SA_FAIL_IF(length > K_MAX_NAME_LENGTH, StatusCode::InvalidFile,
+                           "{} declares a {}-byte name; at most {} are allowed",
+                           subject, length, K_MAX_NAME_LENGTH);
+
+                std::string name;
+                SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    name.resize(length);
+                    return Status();
+                }));
+                if (length != 0)
+                {
+                    in.read(name.data(), static_cast<std::streamsize>(length));
+                    SA_FAIL_IF(!in, StatusCode::InvalidFile,
+                               "the checkpoint ended while reading {}", what);
+                }
+
+                return std::move(name);
+            }
+
+            /** @brief Reads what a version 1 header holds after its version. */
+            [[nodiscard]] Result<HeaderV1> read_header_v1(std::istream& in)
+            {
+                HeaderV1 header;
+                SA_TRY_ASSIGN(header.count, get_u32(in, "the tensor count"));
+                return header;
+            }
+
+            /** @brief Reads what a version 2 header holds after its version. */
+            [[nodiscard]] Result<HeaderV2> read_header_v2(std::istream& in)
+            {
+                HeaderV2 header;
+                SA_TRY_ASSIGN(header.count, get_u32(in, "the tensor count"));
+                SA_TRY_ASSIGN(header.run_state_count, get_u32(in, "the run-state count"));
+                return header;
+            }
+
+            /** @brief Returns a version 1 header as version 2 reads it: with no run state. */
+            [[nodiscard]] HeaderV2 upgrade_header(const HeaderV1& header) noexcept
+            {
+                HeaderV2 upgraded;
+                upgraded.count = header.count;
+                upgraded.run_state_count = 0;
+                return upgraded;
+            }
+
+            /** @brief Reads the header of @p version and upgrades it to the current one. */
+            [[nodiscard]] Result<HeaderV2> read_header(std::istream& in, std::uint32_t version)
+            {
+                if (version == K_CHECKPOINT_FIRST_VERSION)
+                {
+                    SA_TRY_ASSIGN(const HeaderV1 first, read_header_v1(in));
+                    return upgrade_header(first);
+                }
+
+                return read_header_v2(in);
+            }
+
         } // namespace
 
-        Result<CheckpointWriter> CheckpointWriter::create(std::ostream& out, std::uint32_t count)
+        Result<CheckpointWriter> CheckpointWriter::create(std::ostream& out, std::uint32_t count,
+                                                          std::uint32_t run_state_count)
         {
             SA_FAIL_IF(count > K_MAX_TENSOR_COUNT, StatusCode::InvalidDescription,
                        "a checkpoint may hold at most {} tensors; {} were declared",
                        K_MAX_TENSOR_COUNT, count);
+            SA_FAIL_IF(run_state_count > K_MAX_RUN_STATE_COUNT, StatusCode::InvalidDescription,
+                       "a checkpoint may hold at most {} run-state records; {} were declared",
+                       K_MAX_RUN_STATE_COUNT, run_state_count);
+            SA_TRY(check_host_byte_order());
 
             put_u32(out, K_CHECKPOINT_MAGIC);
             put_u32(out, K_CHECKPOINT_VERSION);
             put_u32(out, count);
+            put_u32(out, run_state_count);
             SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing the checkpoint header");
 
-            return CheckpointWriter(out, count);
+            return CheckpointWriter(out, count, run_state_count);
         }
 
-        CheckpointWriter::CheckpointWriter(std::ostream& out, std::uint32_t count) noexcept
-            : out_(&out), declared_(count)
+        CheckpointWriter::CheckpointWriter(std::ostream& out, std::uint32_t count,
+                                           std::uint32_t run_state_count) noexcept
+            : out_(&out), declared_(count), run_state_declared_(run_state_count)
         {
+        }
+
+        Status CheckpointWriter::begin_run_state(std::string_view owner)
+        {
+            SA_FATAL_IF(in_run_state_, "the run-state section of this checkpoint is already open");
+            SA_FATAL_IF(written_ != declared_,
+                        "this checkpoint declared {} records but {} were written before its "
+                        "run-state section was opened", declared_, written_);
+            SA_FATAL_IF(run_state_declared_ == 0,
+                        "this checkpoint declared no run-state record, and its run-state "
+                        "section was opened for '{}'", owner);
+            SA_FAIL_IF(owner.empty() || owner.size() > K_MAX_NAME_LENGTH,
+                       StatusCode::InvalidDescription,
+                       "the owner of a run-state section is {} bytes long; it may be 1 to {}",
+                       owner.size(), K_MAX_NAME_LENGTH);
+
+            put_u32(*out_, static_cast<std::uint32_t>(owner.size()));
+            out_->write(owner.data(), static_cast<std::streamsize>(owner.size()));
+            SA_FAIL_IF(!*out_, StatusCode::InvalidFile,
+                       "failed writing the run-state owner '{}' to the checkpoint", owner);
+
+            in_run_state_ = true;
+            return Status();
         }
 
         Status CheckpointWriter::write(const TensorRecord& record, const void* payload)
         {
-            SA_FATAL_IF(written_ >= declared_,
+            SA_FATAL_IF(!in_run_state_ && written_ >= declared_,
                         "this checkpoint declared {} records and a further one "
                         "('{}') was written", declared_, record.name);
+            SA_FATAL_IF(in_run_state_ && run_state_written_ >= run_state_declared_,
+                        "this checkpoint declared {} run-state records and a further one "
+                        "('{}') was written", run_state_declared_, record.name);
             SA_FATAL_IF(payload == nullptr,
                         "'{}' was written with no payload", record.name);
             SA_FAIL_IF(record.name.size() > K_MAX_NAME_LENGTH, StatusCode::InvalidDescription,
@@ -165,7 +303,11 @@ namespace SushiAI
             SA_FAIL_IF(!*out_, StatusCode::InvalidFile,
                        "failed writing '{}' to the checkpoint", record.name);
 
-            ++written_;
+            if (in_run_state_)
+                ++run_state_written_;
+            else
+                ++written_;
+
             return Status();
         }
 
@@ -174,56 +316,75 @@ namespace SushiAI
             SA_FATAL_IF(written_ != declared_,
                         "this checkpoint declared {} records but {} were written",
                         declared_, written_);
+            SA_FATAL_IF(run_state_written_ != run_state_declared_,
+                        "this checkpoint declared {} run-state records but {} were written",
+                        run_state_declared_, run_state_written_);
         }
 
         Result<CheckpointReader> CheckpointReader::open(std::istream& in)
         {
+            SA_TRY(check_host_byte_order());
+
             SA_TRY_ASSIGN(const std::uint32_t magic, get_u32(in, "the magic number"));
             SA_FAIL_IF(magic != K_CHECKPOINT_MAGIC, StatusCode::InvalidFile,
                        "this is not a SushiAI checkpoint: expected the magic bytes "
                        "'SACP' (0x{:08X}), got 0x{:08X}", K_CHECKPOINT_MAGIC, magic);
 
             SA_TRY_ASSIGN(const std::uint32_t version, get_u32(in, "the version"));
-            SA_FAIL_IF(version != K_CHECKPOINT_VERSION, StatusCode::InvalidFile,
-                       "this checkpoint is version {}; this build reads version {}",
-                       version, K_CHECKPOINT_VERSION);
+            SA_FAIL_IF(version < K_CHECKPOINT_FIRST_VERSION || version > K_CHECKPOINT_VERSION,
+                       StatusCode::InvalidFile,
+                       "this checkpoint is version {}; this build reads versions {} to {}",
+                       version, K_CHECKPOINT_FIRST_VERSION, K_CHECKPOINT_VERSION);
 
-            SA_TRY_ASSIGN(const std::uint32_t count, get_u32(in, "the tensor count"));
-            SA_FAIL_IF(count > K_MAX_TENSOR_COUNT, StatusCode::InvalidFile,
+            SA_TRY_ASSIGN(const HeaderV2 header, read_header(in, version));
+            SA_FAIL_IF(header.count > K_MAX_TENSOR_COUNT, StatusCode::InvalidFile,
                        "this checkpoint declares {} tensors; at most {} are allowed",
-                       count, K_MAX_TENSOR_COUNT);
+                       header.count, K_MAX_TENSOR_COUNT);
+            SA_FAIL_IF(header.run_state_count > K_MAX_RUN_STATE_COUNT, StatusCode::InvalidFile,
+                       "this checkpoint declares {} run-state records; at most {} are allowed",
+                       header.run_state_count, K_MAX_RUN_STATE_COUNT);
 
-            return CheckpointReader(in, count);
+            return CheckpointReader(in, version, header.count, header.run_state_count);
         }
 
-        CheckpointReader::CheckpointReader(std::istream& in, std::uint32_t count) noexcept
-            : in_(&in), count_(count)
+        CheckpointReader::CheckpointReader(std::istream& in, std::uint32_t version,
+                                           std::uint32_t count,
+                                           std::uint32_t run_state_count) noexcept
+            : in_(&in), version_(version), count_(count), run_state_count_(run_state_count)
         {
+        }
+
+        Result<std::string> CheckpointReader::begin_run_state()
+        {
+            SA_FATAL_IF(in_run_state_, "the run-state section of this checkpoint is already open");
+            SA_FATAL_IF(read_ != count_,
+                        "this checkpoint declared {} records and {} were read before its "
+                        "run-state section was opened", count_, read_);
+            SA_FATAL_IF(run_state_count_ == 0,
+                        "this checkpoint declares no run-state record, and its run-state "
+                        "section was opened");
+
+            SA_TRY_ASSIGN(std::string owner,
+                          get_name(*in_, "a checkpoint's run-state section",
+                                   "the run-state owner's name"));
+            SA_FAIL_IF(owner.empty(), StatusCode::InvalidFile,
+                       "the run-state section of this checkpoint names no owner");
+
+            in_run_state_ = true;
+            return std::move(owner);
         }
 
         Result<TensorRecord> CheckpointReader::next()
         {
-            SA_FATAL_IF(read_ >= count_,
+            SA_FATAL_IF(!in_run_state_ && read_ >= count_,
                         "this checkpoint declared {} records and a further one was requested",
                         count_);
-
-            SA_TRY_ASSIGN(const std::uint32_t name_length, get_u32(*in_, "a record's name length"));
-            SA_FAIL_IF(name_length > K_MAX_NAME_LENGTH, StatusCode::InvalidFile,
-                       "a checkpoint record declares a {}-byte name; at most {} are allowed",
-                       name_length, K_MAX_NAME_LENGTH);
+            SA_FATAL_IF(in_run_state_ && run_state_read_ >= run_state_count_,
+                        "this checkpoint declared {} run-state records and a further one was "
+                        "requested", run_state_count_);
 
             TensorRecord record;
-            SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
-            {
-                record.name.resize(name_length);
-                return Status();
-            }));
-            if (name_length != 0)
-            {
-                in_->read(record.name.data(), static_cast<std::streamsize>(name_length));
-                SA_FAIL_IF(!*in_, StatusCode::InvalidFile,
-                           "the checkpoint ended while reading a record's name");
-            }
+            SA_TRY_ASSIGN(record.name, get_name(*in_, "a checkpoint record", "a record's name"));
 
             SA_TRY_ASSIGN(const std::uint32_t encoded_dtype,
                           get_u32(*in_, "'" + record.name + "'s dtype"));
@@ -251,7 +412,11 @@ namespace SushiAI
             }
             record.shape = Shape(SushiRuntime::span<const int64_t>(dims.data(), rank));
 
-            ++read_;
+            if (in_run_state_)
+                ++run_state_read_;
+            else
+                ++read_;
+
             return record;
         }
 

@@ -27,23 +27,15 @@
 
 #include <SushiAI/io/import_weights.hpp>
 
-#include <cstddef>
-#include <cstdint>
 #include <fstream>
 #include <ios>
 #include <string>
 #include <string_view>
-#include <unordered_set>
-#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/tensor_shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include "model_records.hpp"
 
 namespace SushiAI
 {
@@ -88,54 +80,8 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
 
-            // The renamed names the file has supplied; a name in here is never accepted twice.
-            std::unordered_set<std::string> supplied;
-            while (reader.read_count() < reader.count())
-            {
-                SA_TRY_ASSIGN(const TensorRecord record, reader.next());
-
-                SA_TRY_ASSIGN(const std::string target,
-                              SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,
-                                                           [&]()
-                {
-                    return renamed(record.name, rules);
-                }));
-
-                const Result<SushiBLAS::Tensor*> found = state.tensor(target);
-                SA_FAIL_IF(!found.has_value(), StatusCode::Incompatible,
-                           "'{}' holds '{}', which renames to '{}', and this model has no such "
-                           "entry",
-                           path.string(), record.name, target);
-                SushiBLAS::Tensor* tensor = found.value();
-
-                SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
-                {
-                    SA_FAIL_IF(!supplied.insert(target).second, StatusCode::Incompatible,
-                               "'{}' supplies '{}' twice", path.string(), target);
-                    return Status();
-                }));
-
-                SA_FAIL_IF(record.dtype != tensor->dtype, StatusCode::Incompatible,
-                           "'{}' holds '{}' as {}, but this model's is {}",
-                           path.string(), record.name,
-                           dtype_name(record.dtype), dtype_name(tensor->dtype));
-
-                const Shape expected = shape_of(*tensor);
-                SA_FAIL_IF(record.shape != expected, StatusCode::Incompatible,
-                           "'{}' holds '{}' with shape {}, but this model's is {}",
-                           path.string(), record.name,
-                           record.shape.to_string(), expected.to_string());
-
-                // Payloads are streamed directly into the state's own memory.
-                SA_TRY(reader.read_payload(record, tensor->data()));
-            }
-
-            for (const NN::StateEntry& entry : state.entries())
-            {
-                SA_FAIL_IF(supplied.count(entry.name) == 0, StatusCode::Incompatible,
-                           "'{}' does not supply this model's '{}'", path.string(), entry.name);
-            }
-            return Status();
+            // A run-state section follows the model records and is left unread.
+            return Detail::read_model_records(reader, path, state, rules);
         }
 
     } // namespace IO

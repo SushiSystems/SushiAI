@@ -37,6 +37,7 @@
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include "model_records.hpp"
 
 namespace SushiAI
 {
@@ -51,15 +52,10 @@ namespace SushiAI
             SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
                        path.string());
 
-            const SushiRuntime::span<const NN::StateEntry> entries = state.entries();
             SA_TRY_ASSIGN(CheckpointWriter writer,
                           CheckpointWriter::create(
-                              out, static_cast<std::uint32_t>(entries.size())));
-            for (const NN::StateEntry& entry : entries)
-            {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entry.state));
-                SA_TRY(writer.write(Detail::record_for(entry.name, *tensor), tensor->data()));
-            }
+                              out, static_cast<std::uint32_t>(state.entries().size())));
+            SA_TRY(Detail::write_model_records(writer, state));
             writer.finish();
 
             SA_FAIL_IF(!out, StatusCode::InvalidFile, "failed writing the checkpoint to '{}'",
