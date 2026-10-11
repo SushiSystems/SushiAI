@@ -21,7 +21,8 @@
 
 /**
  * @file seam.cpp
- * @brief Implements the mapping from a sibling's exception to a Status and the guarded runs.
+ * @brief Implements the mapping from a sibling's exception or Error to a Status and the
+ *        guarded runs.
  * @author Mustafa Garip
  */
 
@@ -30,9 +31,8 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <SushiBLAS/core/errors.hpp>
-#include <SushiRuntime/core/error.hpp>
-#include <SushiRuntime/execution/runtime_context.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -63,44 +63,6 @@ namespace SushiAI
             }
 
             /**
-             * @brief Returns the Status of a SushiRuntime failure, by its error code.
-             *
-             * Stops the process for a code that reports a defect of the caller.
-             */
-            [[nodiscard]] Status status_of_runtime_failure(
-                const SushiRuntime::Core::SushiException& failure, SeamPhase phase) noexcept
-            {
-                using SushiRuntime::Core::Errc;
-
-                const Errc code = failure.error().code;
-                switch (code)
-                {
-                    case Errc::allocation_failed:
-                        return failure_of(StatusCode::OutOfMemory, failure.what());
-
-                    case Errc::kernel_failed:
-                    case Errc::device_lost:
-                        return failure_of(StatusCode::DeviceFailed, failure.what());
-
-                    case Errc::unsupported:
-                        return failure_of(StatusCode::Unsupported, failure.what());
-
-                    case Errc::invalid_graph:
-                    case Errc::compile_failed:
-                    case Errc::invalid_access:
-                    case Errc::invalid_state:
-                    case Errc::dangling_resource:
-                        SA_FATAL("SushiRuntime reported {}: {}",
-                                 SushiRuntime::Core::to_string(code), failure.what());
-
-                    case Errc::ok:
-                        break;
-                }
-
-                return failure_of(untyped_code(phase), failure.what());
-            }
-
-            /**
              * @brief Returns the Status of a std::runtime_error, by its dynamic type.
              *
              * Stops the process for a SushiAI::Error.
@@ -111,15 +73,52 @@ namespace SushiAI
                 if (dynamic_cast<const Error*>(&error) != nullptr)
                     SA_FATAL("{}", error.what());
 
-                const auto* failure =
-                    dynamic_cast<const SushiRuntime::Core::SushiException*>(&error);
-                if (failure != nullptr)
-                    return status_of_runtime_failure(*failure, phase);
-
                 return failure_of(untyped_code(phase), error.what());
             }
 
+            /** @brief Waits until every device queue of @p runtime is idle. */
+            [[nodiscard]] Status wait_for_devices(const SushiRuntime::Runtime& runtime)
+            {
+                const SushiRuntime::Result<void> waited = runtime.wait();
+                if (!waited)
+                    return status_of_error(waited.error(), SeamPhase::Execute);
+
+                return Status();
+            }
+
         } // namespace
+
+        Status status_of_error(const SushiRuntime::Error& error, SeamPhase phase) noexcept
+        {
+            using SushiRuntime::ErrorCode;
+
+            const char* text = error.message.c_str();
+            switch (error.code)
+            {
+                case ErrorCode::AllocationFailed:
+                    return failure_of(StatusCode::OutOfMemory, text);
+
+                case ErrorCode::KernelFailed:
+                case ErrorCode::DeviceLost:
+                    return failure_of(StatusCode::DeviceFailed, text);
+
+                case ErrorCode::Unsupported:
+                    return failure_of(StatusCode::Unsupported, text);
+
+                case ErrorCode::InvalidGraph:
+                case ErrorCode::CompileFailed:
+                case ErrorCode::InvalidAccess:
+                case ErrorCode::InvalidState:
+                case ErrorCode::DanglingResource:
+                    SA_FATAL("SushiRuntime reported {}: {}",
+                             SushiRuntime::to_string(error.code), text);
+
+                case ErrorCode::Ok:
+                    break;
+            }
+
+            return failure_of(untyped_code(phase), text);
+        }
 
         Status status_of_current_exception(SeamPhase phase) noexcept
         {
@@ -153,44 +152,46 @@ namespace SushiAI
             }
         }
 
+        Result<SushiRuntime::Runtime> create_runtime(
+            const SushiRuntime::RuntimeConfig& config) noexcept
+        {
+            try
+            {
+                SushiRuntime::Result<SushiRuntime::Runtime> created =
+                    SushiRuntime::Runtime::create(config);
+                if (!created)
+                    return status_of_error(created.error(), SeamPhase::Allocate);
+
+                return std::move(*created);
+            }
+            catch (...)
+            {
+                return status_of_current_exception(SeamPhase::Allocate);
+            }
+        }
+
         Status run_recorded(SushiBLAS::Engine& engine) noexcept
         {
             return guard(SeamPhase::Execute, [&]()
             {
-                engine.execute();
-                engine.get_context().devices().wait_all();
-                return Status();
+                const SushiRuntime::Result<void> ran = engine.execute();
+                if (!ran)
+                    return status_of_error(ran.error(), SeamPhase::Execute);
+
+                return wait_for_devices(engine.runtime());
             });
         }
 
-        Status compile_graph(SushiRuntime::Graph::TaskGraph& graph,
-                             SushiRuntime::Execution::CompiledGraph& plan) noexcept
+        Status run_step(SushiRuntime::Runtime& runtime, SushiRuntime::Graph& graph,
+                        SushiRuntime::RunReport& report) noexcept
         {
             return guard(SeamPhase::Execute, [&]()
             {
-                plan = graph.compile();
-                return Status();
-            });
-        }
+                const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
+                if (!ran)
+                    return status_of_error(ran.error(), SeamPhase::Execute);
 
-        Status run_plan(SushiRuntime::Execution::RuntimeContext& context,
-                        SushiRuntime::Execution::CompiledGraph& plan) noexcept
-        {
-            return guard(SeamPhase::Execute, [&]()
-            {
-                context.get_execution_engine().execute(plan);
-                context.devices().wait_all();
-                return Status();
-            });
-        }
-
-        Status discard_recorded(SushiRuntime::Graph::TaskGraph& graph) noexcept
-        {
-            return guard(SeamPhase::Execute, [&]()
-            {
-                // The returned vector is a temporary; its nodes die at the end of the statement.
-                static_cast<void>(graph.take_nodes());
-                return Status();
+                return wait_for_devices(runtime);
             });
         }
 

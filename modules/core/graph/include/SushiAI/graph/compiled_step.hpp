@@ -21,7 +21,7 @@
 
 /**
  * @file compiled_step.hpp
- * @brief Declares the CompiledStep class, which lowers, compiles and replays one step.
+ * @brief Declares the CompiledStep class, which lowers, records and replays one step.
  * @author Mustafa Garip
  */
 
@@ -32,9 +32,8 @@
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/execution/execution_engine.hpp>
-#include <SushiRuntime/graph/task_graph.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
@@ -50,18 +49,18 @@ namespace SushiAI
     {
         /**
          * @class CompiledStep
-         * @brief Owns the task graph of one step, compiles it once and replays its plan.
+         * @brief Owns the SushiRuntime graph of one step and replays it.
          */
         class CompiledStep final
         {
             public:
                 /**
-                 * @brief Lowers @p graph into a new step, compiles it once and arms it.
+                 * @brief Lowers @p graph into a new step and records it on the step's own graph.
                  * @param engine Must outlive the step.
                  * @param pool Holds the tensor of each value; must outlive the step.
                  * @param trailing Records extra work behind the graph's; must outlive the step.
                  * @param selector Picks the form of a fusible node; null selects by device.
-                 * @return The step, or the first refusal of the recording or the compilation.
+                 * @return The step, compiled by its first run(), or the first refusal.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
                     SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
@@ -74,15 +73,17 @@ namespace SushiAI
                 ~CompiledStep() = default;
 
                 /**
-                 * @brief Calls each replay prelude with run_count(), re-arms the plan, runs it
-                 *        and waits until it has finished.
+                 * @brief Replays the step once and waits until it has finished.
+                 *
+                 * Each replay prelude is called with run_count() before the step is submitted.
+                 * @return Success, also for an empty step, or the failure of the run.
                  */
                 [[nodiscard]] Status run();
 
                 /** @brief Returns how many replay preludes the lowered nodes registered. */
                 [[nodiscard]] std::size_t replay_prelude_count() const noexcept
                 {
-                    return preludes_.size();
+                    return prelude_count_;
                 }
 
                 /** @brief Returns whether a trailing recorder added work to this step. */
@@ -91,10 +92,13 @@ namespace SushiAI
                     return trailing_ != nullptr;
                 }
 
-                /** @brief Returns how many times this step has been compiled. */
+                /**
+                 * @brief Returns how many times the runtime has compiled this step.
+                 * @return 0 before the first run() of a step that is not empty.
+                 */
                 [[nodiscard]] std::size_t compile_count() const noexcept
                 {
-                    return compile_count_;
+                    return graph_.compile_count();
                 }
 
                 /** @brief Returns the index the next run() gives its replay preludes. */
@@ -131,13 +135,14 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Returns the compiled plan, for the profiling calls of the execution
-                 *        engine.
-                 * @pre The caller does not compile, re-arm or execute the plan.
+                 * @brief Returns the report of the last run() that succeeded.
+                 * @return A report with no node timing before the first run(), and on a
+                 *         runtime built without profiling.
                  */
-                [[nodiscard]] SushiRuntime::Execution::CompiledGraph& plan() noexcept
+
+                [[nodiscard]] const SushiRuntime::RunReport& last_report() const noexcept
                 {
-                    return plan_;
+                    return report_;
                 }
 
             private:
@@ -147,29 +152,33 @@ namespace SushiAI
                  */
                 CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing);
 
-                /// @brief The engine whose context runs the plan.
+                /**
+                 * @brief Adds the hooks graph_ calls before each replay: one per prelude, in
+                 *        the order given, then one for the trailing recorder.
+                 * @return Success, or OutOfMemory when a hook could not be stored.
+                 */
+                [[nodiscard]] Status add_replay_hooks(std::vector<ReplayPrelude> preludes);
+
+                /// @brief The engine whose runtime runs the graph.
                 SushiBLAS::Engine* engine_;
 
                 /// @brief The recorder of the trailing work, or null; not owned.
                 StepRecorder* trailing_;
 
-                /// @brief The task graph the step records into and compiles.
-                SushiRuntime::Graph::TaskGraph graph_;
+                /// @brief The graph the step records into; the runtime compiles and replays it.
+                SushiRuntime::Graph graph_;
 
-                /// @brief The recorder bound to graph_.
+                /// @brief The recorder bound to the recorder of graph_.
                 SushiBLAS::TaskRecorder recorder_;
 
-                /// @brief The plan compiled from graph_.
-                SushiRuntime::Execution::CompiledGraph plan_;
+                /// @brief The report each run() refills.
+                SushiRuntime::RunReport report_;
 
                 /// @brief The fusion decisions of the lowering, in execution order.
                 std::vector<FusionSelection> selections_;
 
-                /// @brief The host work the lowered nodes need before each replay, in node order.
-                std::vector<ReplayPrelude> preludes_;
-
-                /// @brief The number of times graph_ has been compiled.
-                std::size_t compile_count_ = 0;
+                /// @brief The number of replay preludes graph_ holds as hooks.
+                std::size_t prelude_count_ = 0;
 
                 /// @brief The runs finished, counted from what restore_run_count() set.
                 std::size_t run_count_ = 0;
@@ -177,7 +186,8 @@ namespace SushiAI
                 /// @brief The number of tasks the lowering and the trailing recorder recorded.
                 std::size_t operations_ = 0;
 
-                /// @brief Whether the plan holds no root.
+                /// @brief Whether nothing was recorded on graph_.
+
                 bool empty_ = false;
         };
 

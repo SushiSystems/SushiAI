@@ -8,7 +8,7 @@ shape-checked nodes into one. The module also owns the passes over a graph (cast
 static subtree fusion, the dynamic fusion selector, precision policies and im2col
 rematerialisation), the memory plan with its `ArenaSet`, and the `TensorPool` that holds the
 tensors behind the values. Lowering turns a graph into SushiBLAS tasks through the tables under
-`lowering/`, and `CompiledStep` compiles and replays one step. `StateID` names model state
+`lowering/`, and `CompiledStep` records one step on a `SushiRuntime::Graph` and replays it. `StateID` names model state
 across graphs, and `Traced` carries a traced value or the failure that stopped the trace.
 
 ## Depends on
@@ -98,20 +98,21 @@ the gradient with a fill of zero. Neither operation narrows under `MixedPrecisio
 
 A lowering row calls `LoweringContext::before_each_replay` with a `ReplayPrelude`, a
 `std::function<void(std::uint64_t run)>`. `Lowering` collects the preludes of a pass in node
-order and hands them over through `take_preludes`. `CompiledStep` keeps them and, at the top of
-`run()`, calls each one with `run_count()` on the calling thread, before the trailing recorder's
-`before_replay`. `run_count()` is 0 before the first replay and counts the replays that
+order and hands them over through `take_preludes`. `CompiledStep` adds each one to its graph
+with `before_each_step`, in that order, and the hook of the trailing recorder's `before_replay`
+behind them. The graph calls the hooks on the thread that called `run()`, before it submits the
+step, and each prelude gets `run_count()`. `run_count()` is 0 before the first replay and counts the replays that
 finished. `restore_run_count(count)` sets it to what the step of a saved run had reached, so
 the preludes of a resumed run get the indices the saved run would have given next. It returns
 `InvalidDescription` with the count once the step has run or has been restored to a count
 above 0. `replay_prelude_count()` returns how many a step
-holds. A step whose graph registers none runs as it did before the seam: the list is empty, so
-`run()` makes no call and no allocation.
+holds. A step whose graph registers none and has no trailing recorder adds no hook.
 
-A prelude writes host-addressable memory that no task of the plan writes, while no replay is in
-flight. The kernels of the next replay read those bytes. SushiRuntime states this on
-`CompiledGraph::rearm` and tests it in
-`modules/engine/execution/tests/test_replay_host_write.cpp`. A caller that
+A prelude writes host-addressable memory that no task of the step writes, while no replay is in
+flight. The kernels of the next replay read those bytes. SushiRuntime states this in the
+`before_each_step` section of
+`modules/surface/api/include/SushiRuntime/api/graph/README.md`. A caller that
+
 uses `Lowering` without `CompiledStep` and replays the recorded work itself calls the preludes
 it took. A `LoweringContext` built by the constructor without a list answers `Unsupported`.
 

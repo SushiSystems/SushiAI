@@ -37,7 +37,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiRuntime/core/error.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/common.hpp>
@@ -54,7 +54,8 @@ using SushiAI::Detail::guard;
 using SushiAI::Detail::guard_value;
 using SushiAI::Detail::record_and_run;
 using SushiAI::Detail::SeamPhase;
-using SushiRuntime::Core::Errc;
+using SushiAI::Detail::status_of_error;
+using SushiRuntime::ErrorCode;
 
 namespace SaTest = SushiAI::Test;
 
@@ -103,11 +104,10 @@ namespace
         });
     }
 
-    /** @brief Builds the exception SushiRuntime throws for @p code, with the message @p text. */
-    SushiRuntime::Core::SushiException runtime_failure(Errc code, std::string_view text)
+    /** @brief Builds the Error SushiRuntime returns for @p code, with the message @p text. */
+    SushiRuntime::Error runtime_failure(ErrorCode code, std::string_view text)
     {
-        return SushiRuntime::Core::SushiException(
-            SushiRuntime::Core::Error{code, std::string(text)});
+        return SushiRuntime::Error{code, std::string(text)};
     }
 
     /** @brief Derives from std::exception alone, as an exception of SYCL does. */
@@ -191,44 +191,53 @@ TEST(Unit_Seam, PlainRuntimeErrorTakesItsCodeFromThePhase)
 TEST(Unit_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
 {
     SA_EXPECT_FAILURE(
-        status_of_throw(SeamPhase::Execute, runtime_failure(Errc::allocation_failed, "no USM")),
+        status_of_error(runtime_failure(ErrorCode::AllocationFailed, "no USM"),
+                        SeamPhase::Execute),
         StatusCode::OutOfMemory, "no USM");
     SA_EXPECT_FAILURE(
-        status_of_throw(SeamPhase::Execute, runtime_failure(Errc::kernel_failed, "a fault")),
+        status_of_error(runtime_failure(ErrorCode::KernelFailed, "a fault"), SeamPhase::Execute),
         StatusCode::DeviceFailed, "a fault");
     SA_EXPECT_FAILURE(
-        status_of_throw(SeamPhase::Execute, runtime_failure(Errc::device_lost, "unplugged")),
+        status_of_error(runtime_failure(ErrorCode::DeviceLost, "unplugged"), SeamPhase::Execute),
         StatusCode::DeviceFailed, "unplugged");
     SA_EXPECT_FAILURE(
-        status_of_throw(SeamPhase::Allocate, runtime_failure(Errc::unsupported, "no fp16")),
+        status_of_error(runtime_failure(ErrorCode::Unsupported, "no fp16"), SeamPhase::Allocate),
         StatusCode::Unsupported, "no fp16");
 }
 
 TEST(Unit_Seam, RuntimeFailureWithTheOkCodeTakesItsCodeFromThePhase)
 {
     SA_EXPECT_FAILURE(
-        status_of_throw(SeamPhase::Allocate, runtime_failure(Errc::ok, "no cause named")),
+        status_of_error(runtime_failure(ErrorCode::Ok, "no cause named"), SeamPhase::Allocate),
         StatusCode::OutOfMemory, "no cause named");
     SA_EXPECT_FAILURE(
-        status_of_throw(SeamPhase::Execute, runtime_failure(Errc::ok, "no cause named")),
+        status_of_error(runtime_failure(ErrorCode::Ok, "no cause named"), SeamPhase::Execute),
         StatusCode::DeviceFailed, "no cause named");
 }
 
 TEST(Unit_Seam, RuntimeFailureThatReportsADefectIsFatal)
 {
     SA_EXPECT_FATAL(
-        (void)status_of_throw(SeamPhase::Execute, runtime_failure(Errc::invalid_graph, "cyclic")),
-        "SushiRuntime reported invalid_graph", "cyclic");
+        (void)status_of_error(runtime_failure(ErrorCode::InvalidGraph, "cyclic"),
+                              SeamPhase::Execute),
+        "SushiRuntime reported InvalidGraph", "cyclic");
     SA_EXPECT_FATAL(
-        (void)status_of_throw(SeamPhase::Execute, runtime_failure(Errc::compile_failed, "deps")),
-        "SushiRuntime reported compile_failed", "deps");
+        (void)status_of_error(runtime_failure(ErrorCode::CompileFailed, "deps"),
+                              SeamPhase::Execute),
+        "SushiRuntime reported CompileFailed", "deps");
     SA_EXPECT_FATAL(
-        (void)status_of_throw(SeamPhase::Execute, runtime_failure(Errc::invalid_access, "host")),
-        "SushiRuntime reported invalid_access", "host");
+        (void)status_of_error(runtime_failure(ErrorCode::InvalidAccess, "host"),
+                              SeamPhase::Execute),
+        "SushiRuntime reported InvalidAccess", "host");
     SA_EXPECT_FATAL(
-        (void)status_of_throw(SeamPhase::Execute,
-                              runtime_failure(Errc::dangling_resource, "freed")),
-        "SushiRuntime reported dangling_resource", "freed");
+        (void)status_of_error(runtime_failure(ErrorCode::InvalidState, "mid-run"),
+                              SeamPhase::Execute),
+        "SushiRuntime reported InvalidState", "mid-run");
+    SA_EXPECT_FATAL(
+        (void)status_of_error(runtime_failure(ErrorCode::DanglingResource, "freed"),
+                              SeamPhase::Execute),
+        "SushiRuntime reported DanglingResource", "freed");
+
 }
 
 TEST(Unit_Seam, ErrorOfAHostUnitIsFatalWithItsText)
