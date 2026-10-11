@@ -1577,8 +1577,8 @@ batch norm buffers alone, and the two refusals it makes.
 
 ### TheStepCompilesOnce
 
-The step is made from an MLP's evaluation graph. `compile_count()` is 0 after `make()` and 1
-after three runs.
+The step is made from an MLP's evaluation graph. `compile_count()` is 1 after `make()` and still
+1 after three runs.
 
 
 ### AnEvaluationStepSeesAWeightTheTrainingStepJustMoved
