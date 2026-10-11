@@ -33,6 +33,7 @@
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/train/objective.hpp>
 
@@ -47,16 +48,16 @@ namespace SushiAI
         struct StepSpec
         {
             /** @brief The [N, D] minibatch input leaf, rewritten per step. */
-            Graph::ValueId inputs = Graph::K_NO_VALUE;
+            Graph::ValueID inputs = Graph::K_NO_VALUE;
 
             /** @brief The [N, C] one-hot target leaf, rewritten per step. */
-            Graph::ValueId targets = Graph::K_NO_VALUE;
+            Graph::ValueID targets = Graph::K_NO_VALUE;
 
             /** @brief The model's [N, C] logits, read for accuracy. */
-            Graph::ValueId logits = Graph::K_NO_VALUE;
+            Graph::ValueID logits = Graph::K_NO_VALUE;
 
             /** @brief The 1-element loss that was differentiated. */
-            Graph::ValueId loss = Graph::K_NO_VALUE;
+            Graph::ValueID loss = Graph::K_NO_VALUE;
         };
 
         /**
@@ -69,10 +70,13 @@ namespace SushiAI
             std::string name;
 
             /** @brief The parameter's value id. */
-            Graph::ValueId value = Graph::K_NO_VALUE;
+            Graph::ValueID value = Graph::K_NO_VALUE;
 
             /** @brief Its gradient's value id; Graph::K_NO_VALUE if none flows. */
-            Graph::ValueId gradient = Graph::K_NO_VALUE;
+            Graph::ValueID gradient = Graph::K_NO_VALUE;
+
+            /** @brief What the parameter is for, which decides whether weight decay applies. */
+            NN::ParameterRole role = NN::ParameterRole::Weight;
         };
 
         /**
@@ -93,7 +97,7 @@ namespace SushiAI
             /**
              * @brief The 1-element leaf the backward seed is multiplied by.
              */
-            Graph::ValueId loss_scale = Graph::K_NO_VALUE;
+            Graph::ValueID loss_scale = Graph::K_NO_VALUE;
 
             /**
              * @brief Holds leaves declared by the objective, indexed by role.
@@ -112,8 +116,11 @@ namespace SushiAI
             /** @brief Holds the buffer updates the training trace requested. */
             NN::BufferUpdateList updates;
 
+            /** @brief Lists the leaves the step fills once with numbers of the host. */
+            NN::HostTableList tables;
+
             /** @brief Lists the values the memory planner must not pack. */
-            std::vector<Graph::ValueId> pinned;
+            std::vector<Graph::ValueID> pinned;
         };
 
     } // namespace Train

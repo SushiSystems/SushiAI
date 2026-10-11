@@ -29,7 +29,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -55,6 +54,7 @@
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/train/objective.hpp>
+#include <SushiAI/train/parameter_groups.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include <common/test_status.hpp>
@@ -68,7 +68,7 @@ using Train::CrossEntropyObjective;
 namespace
 {
     /** @brief The model whose training graph the golden below was derived for. */
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     /** @brief A model that requests buffer updates and still ends in [N, classes]. */
     using NormClassifier = NN::Sequential<BatchNorm2d, NN::Flatten, NN::Linear>;
@@ -102,9 +102,9 @@ namespace
     };
 
     /** @brief Builds the MLP over K_FEATURES, K_HIDDEN and K_CLASSES. */
-    Mlp make_mlp()
+    MLP make_mlp()
     {
-        return Mlp(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        return MLP(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     }
 
     /** @brief Builds the batch-norm classifier over a K_SIDE by K_SIDE image. */
@@ -150,7 +150,7 @@ namespace
         std::size_t count = 0;
         for (std::size_t id = 0; id < graph.value_count(); ++id)
         {
-            if (graph.value(static_cast<Graph::ValueId>(id)).lifetime == Graph::Lifetime::Buffer)
+            if (graph.value(static_cast<Graph::ValueID>(id)).lifetime == Graph::Lifetime::Buffer)
                 ++count;
         }
 
@@ -159,9 +159,9 @@ namespace
 
     /** @brief Returns the state identity of every declared parameter of @p model, in walk order. */
     template<typename M>
-    std::vector<Graph::StateId> parameter_states(M& model)
+    std::vector<Graph::StateID> parameter_states(M& model)
     {
-        std::vector<Graph::StateId> states;
+        std::vector<Graph::StateID> states;
         NN::for_each_parameter(model, [&states](const std::string&, NN::Parameter& parameter)
         {
             states.push_back(parameter.state());
@@ -194,19 +194,12 @@ namespace
              * @brief Emits the cross-entropy of the named output against "targets".
              * @pre @p outputs holds the name; a missing one stops the process.
              */
-            Graph::ValueId loss(const Graph::GraphBuilder& builder, const Graph::Graph&,
+            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph&,
                                 const NN::ModelOutputs& outputs,
                                 const Train::ObjectiveLeaves& leaves) const override
             {
-                const Graph::ValueId logits = outputs.at(output_).value();
+                const Graph::ValueID logits = outputs.at(output_).value();
                 return NN::CrossEntropyLoss{}.forward(builder, logits, leaves.at("targets"));
-            }
-
-            /** @brief Returns no metric. */
-            std::optional<Train::Metric> score(const Data::Batch&,
-                                               const SushiBLAS::Tensor&) const override
-            {
-                return std::nullopt;
             }
 
             /** @brief Returns "named_output". */
@@ -232,9 +225,9 @@ namespace
  * @brief Tests that the training graph of the MLP has the node count and the operation
  *        sequence build_graph gave for it.
  */
-TEST(Unit_Steps, ATrainingGraphOfAnMlpHasTheNodesBuildGraphGave)
+TEST(Unit_Steps, ATrainingGraphOfAnMLPHasTheNodesBuildGraphGave)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TrainingGraph built,
@@ -250,14 +243,14 @@ TEST(Unit_Steps, ATrainingGraphOfAnMlpHasTheNodesBuildGraphGave)
 /** @brief Tests that every binding names the leaf its parameter has in the built graph. */
 TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsLeafInThatGraph)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TrainingGraph built,
         Train::build_training_graph(model, objective, Shape{K_BATCH, K_FEATURES}));
 
     std::vector<std::string> names;
-    std::vector<Graph::ValueId> leaves;
+    std::vector<Graph::ValueID> leaves;
     NN::for_each_parameter(model, [&](const std::string& name, NN::Parameter& parameter)
     {
         names.push_back(name);
@@ -276,6 +269,35 @@ TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsLeafInThatGraph)
     }
 }
 
+/** @brief Tests that every binding carries the role its parameter declared. */
+TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsRole)
+{
+    MLP model = make_mlp();
+    const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const Train::TrainingGraph built,
+        Train::build_training_graph(model, objective, Shape{K_BATCH, K_FEATURES}));
+
+    // The walk yields each layer's weight, then its bias.
+    ASSERT_EQ(built.parameters.size(), 4u);
+    EXPECT_EQ(built.parameters[0].role, NN::ParameterRole::Weight);
+    EXPECT_EQ(built.parameters[1].role, NN::ParameterRole::Bias);
+    EXPECT_EQ(built.parameters[2].role, NN::ParameterRole::Weight);
+    EXPECT_EQ(built.parameters[3].role, NN::ParameterRole::Bias);
+}
+
+/** @brief Tests that weight decay applies to a weight and to no other role. */
+TEST(Unit_Steps, WeightDecayAppliesToWeightsOnly)
+{
+    static_assert(Train::takes_weight_decay(NN::ParameterRole::Weight),
+                  "a weight takes weight decay");
+    EXPECT_TRUE(Train::takes_weight_decay(NN::ParameterRole::Weight));
+    EXPECT_FALSE(Train::takes_weight_decay(NN::ParameterRole::Bias));
+    EXPECT_FALSE(Train::takes_weight_decay(NN::ParameterRole::Scale));
+    EXPECT_FALSE(Train::takes_weight_decay(NN::ParameterRole::Embedding));
+    EXPECT_EQ(Train::ParameterBinding{}.role, NN::ParameterRole::Weight);
+}
+
 /** @brief Tests that a batch-norm model requests two updates and that both sources are pinned. */
 TEST(Unit_Steps, ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources)
 {
@@ -286,8 +308,8 @@ TEST(Unit_Steps, ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources)
 
     ASSERT_EQ(built.updates.updates().size(), 2u);
 
-    const SushiRuntime::span<const Graph::ValueId> sources = built.updates.sources();
-    for (const Graph::ValueId source : sources)
+    const SushiRuntime::span<const Graph::ValueID> sources = built.updates.sources();
+    for (const Graph::ValueID source : sources)
         EXPECT_NE(std::find(built.pinned.begin(), built.pinned.end(), source),
                   built.pinned.end()) << "source " << source;
 }
@@ -300,7 +322,7 @@ TEST(Unit_Steps, ATrainingGraphPinsTheLossAndTheOutputs)
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
                             Train::build_training_graph(model, objective, image_batch()));
 
-    const auto is_pinned = [&built](Graph::ValueId id)
+    const auto is_pinned = [&built](Graph::ValueID id)
     {
         return std::find(built.pinned.begin(), built.pinned.end(), id) != built.pinned.end();
     };
@@ -336,14 +358,14 @@ TEST(Unit_Steps, AnEvaluationGraphFoldsTheStoredStatistics)
 }
 
 /** @brief Tests that three traces of one model bind each parameter under one state identity. */
-TEST(Unit_Steps, OneModelTracedThreeTimesKeepsOneStateIdPerParameter)
+TEST(Unit_Steps, OneModelTracedThreeTimesKeepsOneStateIDPerParameter)
 {
     NormClassifier model = make_norm_classifier();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
 
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph training,
                             Train::build_training_graph(model, objective, image_batch()));
-    const std::vector<Graph::StateId> states = parameter_states(model);
+    const std::vector<Graph::StateID> states = parameter_states(model);
 
     SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep probe,
                             Train::build_probe_graph(model, image_batch()));
@@ -399,4 +421,47 @@ TEST(Unit_Steps, BatchShapePrependsTheBatch)
 
     SA_EXPECT_FAILURE(Train::batch_shape(0, Shape{28, 28, 1}), StatusCode::InvalidDescription,
                       "batch", "positive");
+}
+
+/** @brief Tests that an evaluation graph and a probe graph feed one leaf and carry nothing. */
+TEST(Unit_Steps, AnEvaluationGraphAndAProbeGraphFeedTheModelInputAlone)
+{
+    NormClassifier model = make_norm_classifier();
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep probe,
+                            Train::build_probe_graph(model, image_batch()));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep evaluation,
+                            Train::build_evaluation_graph(model, image_batch()));
+
+    EXPECT_TRUE(probe.fed.leaves().empty());
+    EXPECT_TRUE(probe.carried.values().empty());
+    EXPECT_TRUE(evaluation.fed.leaves().empty());
+    EXPECT_TRUE(evaluation.carried.values().empty());
+}
+
+/** @brief Tests that a carrying graph traces batch normalisation as an evaluation graph does. */
+TEST(Unit_Steps, ACarryingGraphFoldsTheStoredStatisticsAndUpdatesNoBuffer)
+{
+    BatchNorm2d model(K_CHANNELS, NormOptions{});
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep evaluation,
+                            Train::build_evaluation_graph(model, image_batch()));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep carrying,
+                            Train::build_carrying_graph(model, image_batch()));
+
+    EXPECT_EQ(op_names(carrying.graph), op_names(evaluation.graph));
+    EXPECT_EQ(count_nodes(carrying.graph, Ops::K_BATCHNORM2D.id), 0u);
+    EXPECT_EQ(count_buffer_leaves(carrying.graph), 2u);
+    EXPECT_TRUE(carrying.fed.leaves().empty());
+    EXPECT_TRUE(carrying.carried.values().empty());
+}
+
+/** @brief Tests that the incremental builder refuses a node without an incremental form. */
+TEST(Unit_Steps, AnIncrementalGraphNamesTheNodeThatHasNoIncrementalForm)
+{
+    NN::ModelGraph model(Shape{K_FEATURES});
+    SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRef dense,
+                            model.add("dense", NN::Linear{K_FEATURES, K_CLASSES}, model.input()));
+    SA_EXPECT_OK(model.output("logits", dense));
+
+    SA_EXPECT_FAILURE(Train::build_incremental_graph(model, Shape{1, K_FEATURES}),
+                      StatusCode::Unsupported, "node 'dense'", "no incremental form");
 }

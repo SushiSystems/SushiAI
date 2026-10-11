@@ -8,15 +8,45 @@
 
 sushiai_add_module(NAME train TIER layers
     SOURCES
+        source/batch_role.cpp
+        source/binary_confusion.cpp
+        source/binary_cross_entropy_objective.cpp
         source/buffer_update_recorder.cpp
+        source/decision_threshold.cpp
+        source/dense_losses.cpp
+        source/dense_objective.cpp
+        source/dense_targets.cpp
         source/evaluation_step.cpp
         source/feed.cpp
+        source/host_values.cpp
+        source/input_match.cpp
+        source/mean_squared_error_objective.cpp
+        source/metrics.cpp
+        source/multi_label_objective.cpp
         source/objective.cpp
+        source/objective_context.cpp
+        source/objective_registry.cpp
+        source/one_hot.cpp
+        source/role_match.cpp
+        source/step_view.cpp
         source/steps.cpp
+        source/sum_objective.cpp
         source/trainer.cpp
         source/training_step.cpp
     PUBLIC_DEPENDS core graph config data optim nn
     PRIVATE_DEPENDS autograd
     TESTS
+        tests/test_binary_confusion.cpp
+        tests/test_carrying_step.cpp
+        tests/test_dense_losses.cpp
+        tests/test_dense_objectives.cpp
+        tests/test_dense_targets.cpp
+        tests/test_input_match.cpp
+        tests/test_metrics.cpp
         tests/test_objective.cpp
-        tests/test_steps.cpp)
+        tests/test_objective_context.cpp
+        tests/test_objective_registry.cpp
+        tests/test_one_hot.cpp
+        tests/test_role_match.cpp
+        tests/test_steps.cpp
+        tests/test_sum_objective.cpp)

@@ -31,13 +31,15 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/core/run_report.hpp>
+#include <SushiRuntime/observability/run_report.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -47,6 +49,9 @@
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
 #include <SushiAI/train/feed.hpp>
+#include <SushiAI/train/metrics.hpp>
+#include <SushiAI/train/objective.hpp>
+#include <SushiAI/train/step_view.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include <SushiAI/train/training_step.hpp>
@@ -65,8 +70,8 @@ namespace SushiAI
          * @param built The traced graph; its pinned values follow those of @p options.
          * @param state The state of the model @p built was traced from; it owns the parameters.
          * @param pool Holds no leaf of the graph yet; a plan it holds must leave them unpacked.
-         * @return Parameter slots over the state's tensors, InvalidDescription for a parameter
-         *         no gradient reaches, or the failure of the state, the planner or the pool.
+         * @return Slots over the state's tensors, decaying by takes_weight_decay() of their
+         *         role; InvalidDescription for a parameter no gradient reaches; or the failure.
          */
         [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_parameters(
             const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool,
@@ -81,8 +86,8 @@ namespace SushiAI
             /** @brief How many passes over the dataset fit() makes. */
             int64_t epochs = 1;
 
-            /** @brief Score accuracy, at the cost of one host read of the logits per step. */
-            bool track_accuracy = true;
+            /** @brief Asks the objective for its metrics after every step, a host read each. */
+            bool track_metrics = true;
 
             /** @brief Collect the runtime's per-node timings; needs a profiling RuntimeContext. */
             bool profile = false;
@@ -107,11 +112,11 @@ namespace SushiAI
          */
         struct StepMetrics
         {
-            /** @brief The batch's mean cross-entropy. */
+            /** @brief The loss the step computed. */
             double loss = 0.0;
 
-            /** @brief The fraction correct, or 0 when accuracy tracking is off. */
-            double accuracy = 0.0;
+            /** @brief What the objective measured; empty when metric tracking is off. */
+            Metrics metrics;
         };
 
         /**
@@ -137,14 +142,14 @@ namespace SushiAI
             /** @brief The last step's loss. */
             double last_loss = 0.0;
 
-            /** @brief The last step's accuracy. */
-            double last_accuracy = 0.0;
+            /** @brief The last step's metrics; empty when metric tracking is off. */
+            Metrics last_metrics;
 
             /** @brief Wall-clock time spent inside fit(). */
             double duration_ms = 0.0;
 
             /** @brief Per-node timings; empty unless the runtime has profiling on. */
-            std::vector<SushiRuntime::Core::NodeTiming> node_timings;
+            std::vector<SushiRuntime::Observability::NodeTiming> node_timings;
 
             /** @brief A multi-line human-readable summary. */
             std::string to_string() const;
@@ -158,16 +163,17 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Checks @p spec, lowers @p graph, compiles the step and builds a trainer.
+                 * @brief Lowers the graph of @p built, compiles the step and builds a trainer.
                  * @param engine Must outlive the trainer, as must @p pool and @p optimizer.
-                 * @param spec Inputs, targets and loss set; logits set, and of rank 2, when
-                 *        accuracy is tracked. The loss holds one float32 or float64 element.
+                 * @param built Its loss holds one float32 or float64 element.
+                 * @param objective What @p built was built with; outlives the trainer.
                  * @param updates The running-statistic updates every step applies.
                  * @return The trainer, or InvalidDescription, or the failure of the compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<Trainer>> make(
-                    SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
-                    StepSpec spec, Optim::Optimizer& optimizer, TrainerOptions options = {},
+                    SushiBLAS::Engine& engine, const TrainingGraph& built,
+                    Graph::TensorPool& pool, const Objective& objective,
+                    Optim::Optimizer& optimizer, TrainerOptions options = {},
                     std::vector<BufferUpdateSlot> updates = {});
 
                 Trainer(const Trainer&) = delete;
@@ -178,9 +184,10 @@ namespace SushiAI
 
                 /**
                  * @brief Runs one step: feed, replay, read metrics, update.
-                 * @param batch The batch to train on.
-                 * @return The step's loss and accuracy, or Incompatible when @p batch does not
-                 *         match the compiled shapes, or the failure of the run.
+                 * @param batch The batch to train on; the objective fills its leaves from it.
+                 * @return The loss and the metrics of the step, the refusal of the feed() or
+                 *         the measure() of the objective, Incompatible when @p batch does
+                 *         not match the compiled shapes, or the failure of the run.
                  */
                 [[nodiscard]] Result<StepMetrics> run_step(const Data::Batch& batch);
 
@@ -188,8 +195,8 @@ namespace SushiAI
                  * @brief Runs @c options.epochs passes over @p dataset.
                  * @param dataset The batches to train on.
                  * @return The run's summary, or InvalidDescription for an empty dataset, or
-                 *         Incompatible when its shapes do not match the compiled step, or the
-                 *         failure of a step.
+                 *         Incompatible for another batch size, or the failure of match_input(),
+                 *         of match_roles() for the roles the objective reads, or of a step.
                  */
                 [[nodiscard]] Result<RunReport> fit(const Data::Dataset& dataset);
 
@@ -217,6 +224,17 @@ namespace SushiAI
                     return step_->step();
                 }
 
+                /**
+                 * @brief Sets the run count of the compiled step to that of a saved run.
+                 * @param count What step().run_count() of the saved run returned; step_count()
+                 *              keeps counting the steps of this trainer.
+                 * @return What Graph::CompiledStep::restore_run_count() returns.
+                 */
+                [[nodiscard]] Status restore_run_count(std::size_t count)
+                {
+                    return step_->step().restore_run_count(count);
+                }
+
                 /** @brief Reads the loss tensor's current value from the host. */
                 [[nodiscard]] double current_loss() const;
 
@@ -227,22 +245,37 @@ namespace SushiAI
                 }
 
             private:
-                /**
-                 * @brief Stores the parts make() checked and compiled.
-                 * @param step The training step; never null.
-                 * @param rows The inputs' first extent.
-                 * @param classes The logits' second extent, or 0 when they are not rank 2.
-                 */
-                Trainer(SushiBLAS::Engine& engine, Graph::TensorPool& pool, StepSpec spec,
-                        TrainerOptions options, std::unique_ptr<TrainingStep> step,
-                        int64_t rows, int64_t classes) noexcept;
+                /** @brief Holds what the loop reads of a training graph. */
+                struct Binding
+                {
+                    Graph::ValueID inputs = Graph::K_NO_VALUE; /**< The minibatch input leaf. */
+                    Graph::ValueID loss = Graph::K_NO_VALUE;   /**< The 1-element loss. */
+                    ObjectiveLeaves leaves;                    /**< Leaves the objective fills. */
+                    NN::ModelOutputs outputs;                  /**< What the model published. */
+                };
 
                 /**
-                 * @brief Returns the fraction of @p batch whose label is the argmax of its logits.
-                 * @return The fraction, or InvalidDescription when the logits are not rank 2,
-                 *         or neither float32 nor float64.
+                 * @brief Checks @p binding, compiles the step and builds the trainer.
+                 * @param objective Fills the leaves of @p binding; outlives the trainer.
+                 * @return The trainer, or InvalidDescription, or the failure of the compilation.
                  */
-                [[nodiscard]] Result<double> score_accuracy(const Data::Batch& batch) const;
+                [[nodiscard]] static Result<std::unique_ptr<Trainer>> assemble(
+                    SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
+                    Binding binding, const Objective& objective, Optim::Optimizer& optimizer,
+                    TrainerOptions options, std::vector<BufferUpdateSlot> updates);
+
+                /**
+                 * @brief Stores the parts assemble() checked and compiled.
+                 * @param step The training step; never null.
+                 * @param rows The first extent of the inputs.
+                 * @param input What the input leaf reads from a batch.
+                 * @param outputs The tensor of every output the model published.
+                 */
+                Trainer(SushiBLAS::Engine& engine, Graph::TensorPool& pool, Binding binding,
+                        const Objective& objective, TrainerOptions options,
+                        std::unique_ptr<TrainingStep> step, int64_t rows,
+                        const Data::InputDescription& input,
+                        std::vector<StepOutput> outputs) noexcept;
 
                 /// @brief The engine the batch copies are recorded on; not owned.
                 SushiBLAS::Engine* engine_;
@@ -250,8 +283,11 @@ namespace SushiAI
                 /// @brief The pool that holds the step's tensors; not owned.
                 Graph::TensorPool* pool_;
 
-                /// @brief The values the loop reads and writes.
-                StepSpec spec_;
+                /// @brief The values the loop reads and the leaves the objective fills.
+                Binding binding_;
+
+                /// @brief The objective that feeds and measures every step; not owned.
+                const Objective* objective_;
 
                 /// @brief The options in force.
                 TrainerOptions options_;
@@ -262,8 +298,11 @@ namespace SushiAI
                 /// @brief The number of samples per batch.
                 int64_t rows_ = 0;
 
-                /// @brief The number of classes per sample; 0 when the logits are not rank 2.
-                int64_t classes_ = 0;
+                /// @brief The input the step reads, matched against a dataset by fit().
+                Data::InputDescription input_;
+
+                /// @brief The tensor of every output the model published, read by measure().
+                std::vector<StepOutput> outputs_;
 
                 /// @brief The number of steps that have run.
                 std::size_t steps_ = 0;

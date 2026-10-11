@@ -21,7 +21,7 @@
 
 /**
  * @file steps.hpp
- * @brief Declares the builders that trace a model into a training, probe or evaluation graph.
+ * @brief Declares the builders that trace a model into the graph of each kind of step.
  * @author Mustafa Garip
  */
 
@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -55,6 +56,9 @@ namespace SushiAI
 {
     namespace Train
     {
+        /** @brief Names the model input among the leaves a run feeds. */
+        inline constexpr std::string_view K_MODEL_INPUT_NAME = "inputs";
+
         /** @brief States how a step's graph is built. */
         struct GraphOptions
         {
@@ -69,6 +73,9 @@ namespace SushiAI
 
             /** @brief Asks for the loss-scale leaf; read by build_training_graph() only. */
             bool loss_scaling = false;
+
+            /** @brief Seeds the random sites of a Training trace, such as each dropout. */
+            std::uint64_t seed = 0;
         };
 
         /** @brief Holds one forward-only graph and what a step reads from it. */
@@ -78,7 +85,7 @@ namespace SushiAI
             Graph::Graph graph;
 
             /** @brief Names the minibatch input leaf, rewritten per step. */
-            Graph::ValueId input = Graph::K_NO_VALUE;
+            Graph::ValueID input = Graph::K_NO_VALUE;
 
             /** @brief Holds every value the model published, by name. */
             NN::ModelOutputs outputs;
@@ -88,6 +95,15 @@ namespace SushiAI
 
             /** @brief Holds what the fusion pass did to @c graph, and what it refused. */
             Graph::FusionReport fusion;
+
+            /** @brief Lists the leaves a carrying trace declared beside @c input, in order. */
+            NN::FedLeafList fed;
+
+            /** @brief Lists the values the step keeps from a run to the next. */
+            NN::CarriedValueList carried;
+
+            /** @brief Lists the leaves the step fills once with numbers of the host. */
+            NN::HostTableList tables;
         };
 
         /**
@@ -102,12 +118,21 @@ namespace SushiAI
          * @return OutOfMemory when a list cannot grow.
          */
         [[nodiscard]] Status retain(const NN::BufferUpdateList& updates,
-                                    std::vector<Graph::ValueId>& observed,
-                                    std::vector<Graph::ValueId>& pinned);
+                                    std::vector<Graph::ValueID>& observed,
+                                    std::vector<Graph::ValueID>& pinned);
+
+        /**
+         * @brief Writes the values of every table into its leaf, on the host.
+         * @pre @p pool holds the leaf of every table and the engine holds no recorded task.
+         * @return Success, or Incompatible for a leaf that is not the float32 or float64
+         *         tensor of as many elements as its table holds.
+         */
+        [[nodiscard]] Status fill_host_tables(const NN::HostTableList& tables,
+                                              Graph::TensorPool& pool);
 
         namespace Detail
         {
-            /** @brief Detects trace(const Trace&, ValueId) returning Result<ModelOutputs> on M. */
+            /** @brief Detects trace(const Trace&, ValueID) returning Result<ModelOutputs> on M. */
             template<typename M, typename = void>
             struct TracesToOutputs : std::false_type
             {
@@ -119,7 +144,7 @@ namespace SushiAI
             struct TracesToOutputs<M, std::enable_if_t<std::is_same<
                 decltype(std::declval<M&>().trace(
                     std::declval<const NN::Trace&>(),
-                    std::declval<Graph::ValueId>())),
+                    std::declval<Graph::ValueID>())),
                 Result<NN::ModelOutputs>>::value>>
                 : std::true_type
             {
@@ -127,12 +152,12 @@ namespace SushiAI
             };
 
             /** @brief Declares the input leaf of a step over @p batch_shape and returns it. */
-            [[nodiscard]] Result<Graph::ValueId> declare_input(const Graph::GraphBuilder& builder,
+            [[nodiscard]] Result<Graph::ValueID> declare_input(const Graph::GraphBuilder& builder,
                                                                const Shape& batch_shape,
                                                                DType dtype);
 
             /** @brief Returns a set that holds @p id under NN::K_SINGLE_PORT_NAME. */
-            [[nodiscard]] Result<NN::ModelOutputs> single_output(Graph::ValueId id);
+            [[nodiscard]] Result<NN::ModelOutputs> single_output(Graph::ValueID id);
 
             /** @brief Records the leaves @p objective declares in @c built.leaves. */
             [[nodiscard]] Status declare_objective(TrainingGraph& built,
@@ -158,7 +183,7 @@ namespace SushiAI
 
             /**
              * @brief Runs the cast pass and the fusion pass over a forward-only graph.
-             * @pre @c step.input and @c step.outputs are set.
+             * @pre @c step.input, @c step.outputs, @c step.fed and @c step.carried are set.
              */
             [[nodiscard]] Status finish_traced_step(TracedStep& step, const GraphOptions& options);
 
@@ -179,7 +204,7 @@ namespace SushiAI
              */
             template<typename M>
             [[nodiscard]] Result<NN::ModelOutputs> trace_outputs(M& model, const NN::Trace& trace,
-                                                                 Graph::ValueId input)
+                                                                 Graph::ValueID input)
             {
                 if constexpr (TracesToOutputs<M>::value)
                 {
@@ -187,7 +212,7 @@ namespace SushiAI
                 }
                 else
                 {
-                    SA_TRY_ASSIGN(const Graph::ValueId traced,
+                    SA_TRY_ASSIGN(const Graph::ValueID traced,
                                   NN::Detail::bridge_throwing([&model, &trace, input]()
                     {
                         return NN::trace_layer(model, trace, input);
@@ -200,7 +225,8 @@ namespace SushiAI
 
             /**
              * @brief Lists every declared parameter of @p model with its leaf in @p graph.
-             * @return The bindings in walk order; a parameter with no leaf holds K_NO_VALUE.
+             * @return The bindings in walk order, each with the role its parameter declared;
+             *         a parameter with no leaf holds K_NO_VALUE.
              */
             template<typename M>
             [[nodiscard]] Result<std::vector<ParameterBinding>> list_parameters(
@@ -214,7 +240,8 @@ namespace SushiAI
                                                       NN::Parameter& parameter)
                     {
                         parameters.push_back(ParameterBinding{name, parameter.id_in(graph),
-                                                              Graph::K_NO_VALUE});
+                                                              Graph::K_NO_VALUE,
+                                                              parameter.role()});
                     });
                     return Status();
                 }));
@@ -246,7 +273,8 @@ namespace SushiAI
             SA_TRY(Detail::declare_objective(built, builder, objective));
 
             {
-                const NN::Trace trace = NN::Trace::training(builder, built.updates);
+                NN::Trace trace = NN::Trace::training(builder, built.updates, options.seed);
+                trace.collect_tables(built.tables);
                 SA_TRY_ASSIGN(built.outputs,
                               Detail::trace_outputs(model, trace, built.spec.inputs));
             }
@@ -273,7 +301,9 @@ namespace SushiAI
             SA_TRY_ASSIGN(step.input, Detail::declare_input(builder, batch_shape, options.dtype));
 
             {
-                const NN::Trace trace = NN::Trace::training(builder, NN::discard_updates());
+                NN::Trace trace = NN::Trace::training(builder, NN::discard_updates(),
+                                                      options.seed);
+                trace.collect_tables(step.tables);
                 SA_TRY_ASSIGN(step.outputs, Detail::trace_outputs(model, trace, step.input));
             }
 
@@ -297,13 +327,82 @@ namespace SushiAI
             SA_TRY_ASSIGN(step.input, Detail::declare_input(builder, batch_shape, options.dtype));
 
             {
-                const NN::Trace trace = NN::Trace::evaluation(builder);
+                NN::Trace trace = NN::Trace::evaluation(builder);
+                trace.collect_tables(step.tables);
                 SA_TRY_ASSIGN(step.outputs, Detail::trace_outputs(model, trace, step.input));
             }
 
             SA_TRY(Detail::finish_traced_step(step, options));
 
             return Result<TracedStep>(std::move(step));
+        }
+
+        namespace Detail
+        {
+            /**
+             * @brief Builds a forward graph through a carrying trace.
+             * @param trace_model Called as trace_model(const NN::Trace&, Graph::ValueID) and
+             *        returns Result<NN::ModelOutputs>.
+             * @return The graph after the cast pass and the fusion pass, with what the trace
+             *         declared in @c fed and @c carried.
+             */
+            template<typename TraceModel>
+            [[nodiscard]] Result<TracedStep> build_carrying(const Shape& batch_shape,
+                                                            const GraphOptions& options,
+                                                            TraceModel&& trace_model)
+            {
+                TracedStep step;
+                const Graph::GraphBuilder builder(step.graph);
+
+                SA_TRY_ASSIGN(step.input, declare_input(builder, batch_shape, options.dtype));
+
+                {
+                    NN::Trace trace = NN::Trace::carrying(builder, step.fed, step.carried);
+                    trace.collect_tables(step.tables);
+                    SA_TRY_ASSIGN(step.outputs,
+                                  std::forward<TraceModel>(trace_model)(trace, step.input));
+                }
+
+                SA_TRY(finish_traced_step(step, options));
+
+                return Result<TracedStep>(std::move(step));
+            }
+
+        } // namespace Detail
+
+        /**
+         * @brief Traces @p model in Evaluation mode for a step that carries state between runs.
+         * @param batch_shape The extents of the input leaf, batch first.
+         * @return The forward graph after the cast pass and the fusion pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TracedStep> build_carrying_graph(M& model, const Shape& batch_shape,
+                                                              GraphOptions options = {})
+        {
+            return Detail::build_carrying(batch_shape, options,
+                                          [&model](const NN::Trace& trace, Graph::ValueID input)
+            {
+                return Detail::trace_outputs(model, trace, input);
+            });
+        }
+
+        /**
+         * @brief Traces the incremental form of @p model for a step that carries state.
+         * @tparam M A model with trace_incremental(const NN::Trace&, Graph::ValueID), as
+         *         NN::ModelGraph has.
+         * @param slice_shape The extents of the input leaf: one slice of the model input.
+         * @return The forward graph after the cast pass and the fusion pass.
+         */
+        template<typename M>
+        [[nodiscard]] Result<TracedStep> build_incremental_graph(M& model,
+                                                                 const Shape& slice_shape,
+                                                                 GraphOptions options = {})
+        {
+            return Detail::build_carrying(slice_shape, options,
+                                          [&model](const NN::Trace& trace, Graph::ValueID input)
+            {
+                return model.trace_incremental(trace, input);
+            });
         }
 
         /**

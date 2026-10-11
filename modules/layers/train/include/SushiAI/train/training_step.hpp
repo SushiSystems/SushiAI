@@ -111,6 +111,12 @@ namespace SushiAI
                     return optimizer_in_plan_;
                 }
 
+                /** @brief Returns the optimizer whose update the step applies. */
+                [[nodiscard]] Optim::Optimizer& optimizer() noexcept
+                {
+                    return *optimizer_;
+                }
+
                 /** @brief Returns the compiled step. */
                 [[nodiscard]] Graph::CompiledStep& step() noexcept
                 {
