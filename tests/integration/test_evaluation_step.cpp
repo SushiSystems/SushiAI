@@ -138,7 +138,7 @@ namespace
 
 } // namespace
 
-/** @brief Tests that a step compiles at its first run and not again over three runs. */
+/** @brief Tests that a step compiles in make() and not again over three runs. */
 TEST_F(Integration_EvaluationStep, TheStepCompilesOnce)
 {
     MLP model = make_mlp();
@@ -151,7 +151,7 @@ TEST_F(Integration_EvaluationStep, TheStepCompilesOnce)
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
                             Train::EvaluationStep::make(*engine, traced, state, pool));
-    EXPECT_EQ(step->step().compile_count(), 0u);
+    EXPECT_EQ(step->step().compile_count(), 1u);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs,
                             noise_of(*engine, Shape{K_BATCH, K_FEATURES}));

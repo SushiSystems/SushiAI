@@ -55,12 +55,14 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Lowers @p graph into a new step and records it on the step's own graph.
+                 * @brief Lowers @p graph into a new step, records it on the step's own graph and
+                 *        compiles that graph.
                  * @param engine Must outlive the step.
                  * @param pool Holds the tensor of each value; must outlive the step.
                  * @param trailing Records extra work behind the graph's; must outlive the step.
                  * @param selector Picks the form of a fusible node; null selects by device.
-                 * @return The step, compiled by its first run(), or the first refusal.
+                 * @return The step, or the first refusal of the lowering, the recording or the
+                 *         compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
                     SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
@@ -94,7 +96,7 @@ namespace SushiAI
 
                 /**
                  * @brief Returns how many times the runtime has compiled this step.
-                 * @return 0 before the first run() of a step that is not empty.
+                 * @return 1 from compile() on, and 0 for an empty step.
                  */
                 [[nodiscard]] std::size_t compile_count() const noexcept
                 {
@@ -165,7 +167,7 @@ namespace SushiAI
                 /// @brief The recorder of the trailing work, or null; not owned.
                 StepRecorder* trailing_;
 
-                /// @brief The graph the step records into; the runtime compiles and replays it.
+                /// @brief The graph the step records into, compiles once and replays.
                 SushiRuntime::Graph graph_;
 
                 /// @brief The recorder bound to the recorder of graph_.

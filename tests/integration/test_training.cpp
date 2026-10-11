@@ -214,7 +214,7 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options));
 
-    EXPECT_EQ(trainer->compile_count(), 0u);
+    EXPECT_EQ(trainer->compile_count(), 1u);
 
     Train::TrainerOptions options;
     options.epochs = 5;

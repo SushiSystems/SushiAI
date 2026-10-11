@@ -111,7 +111,7 @@ thing that distinguishes that from a step that ran is the contents of the output
 
 So the test first poisons the buffer with a value the graph cannot produce, and it asserts that the
 poison is gone. A run that dispatched nothing leaves the poison where it was. The step reports
-`compile_count()` 0 before that first run and 1 after the four runs.
+`compile_count()` 1 before that first run and still 1 after the four runs.
 
 The replay loop repeats the check three times. Each pass poisons the output again, changes the
 input, and requires the output to track the new input and not the old answer or the poison.

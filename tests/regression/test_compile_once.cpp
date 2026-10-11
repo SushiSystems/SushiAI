@@ -98,7 +98,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
     SA_ASSERT_OK_AND_ASSIGN(auto dataset,
                             Data::SyntheticClassification::make(*engine, make_data_options()));
 
-    ASSERT_EQ(trainer->compile_count(), 0u);
+    ASSERT_EQ(trainer->compile_count(), 1u);
 
     std::size_t steps = 0;
     for (int epoch = 0; epoch < 6; ++epoch)
@@ -193,7 +193,7 @@ TEST_F(Regression_CompileOnce,
 
     SA_ASSERT_OK_AND_ASSIGN(auto step, Graph::CompiledStep::compile(*engine, graph, pool));
     ASSERT_FALSE(step->empty()) << "this graph has real work in it";
-    ASSERT_EQ(step->compile_count(), 0u);
+    ASSERT_EQ(step->compile_count(), 1u);
     ASSERT_EQ(step->run_count(), 0u);
 
     constexpr double K_POISON = -12345.0;
@@ -267,7 +267,7 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
                             Data::SyntheticClassification::make(*engine, make_data_options()));
     SA_ASSERT_OK_AND_ASSIGN(auto second, Data::SyntheticClassification::make(*engine, other));
 
-    ASSERT_EQ(trainer->compile_count(), 0u);
+    ASSERT_EQ(trainer->compile_count(), 1u);
 
     for (int round = 0; round < 4; ++round)
     {

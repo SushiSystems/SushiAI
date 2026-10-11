@@ -125,6 +125,15 @@ namespace SushiAI
             step->empty_ = tasks.node_count() == 0;
             SA_TRY(step->add_replay_hooks(lowering.take_preludes()));
 
+            // The runtime refuses to compile a graph that holds no task.
+            if (!step->empty_)
+            {
+                const SushiRuntime::Result<void> compiled = step->graph_.compile();
+                if (!compiled)
+                    return SushiAI::Detail::status_of_error(compiled.error(),
+                                                            SushiAI::Detail::SeamPhase::Execute);
+            }
+
             SA_TRY(pool.flush_constants());
 
             return std::move(step);

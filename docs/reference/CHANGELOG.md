@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-12 — graph: Made CompiledStep::compile compile the step's graph, so a compile failure returns from compile() and compile_count() is 1 before the first run (`compiled_step.cpp`, `compiled_step.hpp`).
 - 2026-10-12 — core: Moved every caller to the bare accessors of SushiBLAS and to OperationID, and renamed the three get_ readers of the checkpoint format to read_ (`ops.hpp`, `allocation.cpp`, `checkpoint_format.cpp`).
 - 2026-10-12 — train: Breaking change: Made Trainer::fit sum the node timings of each step's run report and built the programs and the tests on a SushiRuntime::Runtime (`trainer.hpp`, `create_runtime`, `test_environment.hpp`).
 - 2026-10-12 — graph: Breaking change: Made CompiledStep replay a SushiRuntime graph its first run compiles, so compile_count() starts at 0; removed plan(), compile_graph and run_plan (`compiled_step.hpp`, `seam.hpp`, `status_of_error`).

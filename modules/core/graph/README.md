@@ -8,7 +8,7 @@ shape-checked nodes into one. The module also owns the passes over a graph (cast
 static subtree fusion, the dynamic fusion selector, precision policies and im2col
 rematerialisation), the memory plan with its `ArenaSet`, and the `TensorPool` that holds the
 tensors behind the values. Lowering turns a graph into SushiBLAS tasks through the tables under
-`lowering/`, and `CompiledStep` records one step on a `SushiRuntime::Graph` and replays it. `StateID` names model state
+`lowering/`, and `CompiledStep` records one step on a `SushiRuntime::Graph`, compiles it in `compile()` and replays it, so `compile_count()` is 1 before the first run. `StateID` names model state
 across graphs, and `Traced` carries a traced value or the failure that stopped the trace.
 
 ## Depends on
