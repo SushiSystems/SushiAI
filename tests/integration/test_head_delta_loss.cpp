@@ -43,7 +43,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 using Vision::Training::emit_head_delta_loss;
 
 namespace
@@ -81,9 +81,9 @@ namespace
             delta = builder.input(shape, "delta");
             loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
 
-            const std::vector<ValueId> wrt = {head};
+            const std::vector<ValueID> wrt = {head};
             gradient = Autograd::differentiate(
-                graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size())).at(0);
+                graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
 
             SA_EXPECT_OK(pool.materialise_leaves(graph));
             Result<std::unique_ptr<CompiledStep>> compiled =
@@ -116,10 +116,10 @@ namespace
         Graph::Graph graph;                      /**< @brief Holds the graph under test. */
         TensorPool pool;                         /**< @brief Holds the tensors of the graph. */
         std::unique_ptr<CompiledStep> step;      /**< @brief Holds the step, null when refused. */
-        ValueId head = Graph::K_NO_VALUE;        /**< @brief Holds the head, a parameter. */
-        ValueId delta = Graph::K_NO_VALUE;       /**< @brief Holds the delta, an input leaf. */
-        ValueId loss = Graph::K_NO_VALUE;        /**< @brief Holds the emitted root. */
-        ValueId gradient = Graph::K_NO_VALUE;    /**< @brief Holds the gradient at the head. */
+        ValueID head = Graph::K_NO_VALUE;        /**< @brief Holds the head, a parameter. */
+        ValueID delta = Graph::K_NO_VALUE;       /**< @brief Holds the delta, an input leaf. */
+        ValueID loss = Graph::K_NO_VALUE;        /**< @brief Holds the emitted root. */
+        ValueID gradient = Graph::K_NO_VALUE;    /**< @brief Holds the gradient at the head. */
         std::vector<double> head_values;         /**< @brief Holds the head as the tensor has it. */
         std::vector<double> delta_values;        /**< @brief Holds the delta the tensor holds. */
     };

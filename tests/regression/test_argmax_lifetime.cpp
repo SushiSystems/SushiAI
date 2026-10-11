@@ -42,7 +42,7 @@ using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::MemoryPlan;
 using Graph::Placement;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -60,8 +60,8 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     const GraphBuilder builder(graph);
 
     // x is a parameter so MAXPOOL2D_BACKWARD is emitted; see tests/regression/README.md.
-    const ValueId x = builder.parameter(Shape{2, 8, 8, 4}, "x", DType::Float64);
-    const ValueId w = builder.parameter(Shape{4, 4}, "w", DType::Float64);
+    const ValueID x = builder.parameter(Shape{2, 8, 8, 4}, "x", DType::Float64);
+    const ValueID w = builder.parameter(Shape{4, 4}, "w", DType::Float64);
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
@@ -70,22 +70,22 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     const Graph::PoolResult pooled = builder.maxpool2d(x, g);
 
     // Activations live and die while the argmax waits; see tests/regression/README.md.
-    const ValueId mean = builder.spatial_mean(pooled.output);
-    const ValueId rows = builder.reshape(mean, Shape{2, 4});
-    const ValueId hidden = builder.relu(builder.matmul(rows, w));
-    const ValueId target = builder.input(Shape{2, 4}, "target", DType::Float64);
-    const ValueId loss = builder.nll_loss(builder.log_softmax(hidden), target);
+    const ValueID mean = builder.spatial_mean(pooled.output);
+    const ValueID rows = builder.reshape(mean, Shape{2, 4});
+    const ValueID hidden = builder.relu(builder.matmul(rows, w));
+    const ValueID target = builder.input(Shape{2, 4}, "target", DType::Float64);
+    const ValueID loss = builder.nll_loss(builder.log_softmax(hidden), target);
     graph.finalise();
 
-    const std::array<ValueId, 2> wrt = {w, x};
+    const std::array<ValueID, 2> wrt = {w, x};
     (void)Autograd::differentiate(graph, loss,
-        SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     // Differentiation emitted a reader of the indices; see tests/regression/README.md.
     bool backward_reads_the_indices = false;
     for (const Graph::Node& node : graph.nodes())
         if (node.op == Ops::K_MAXPOOL2D_BACKWARD.id)
-            for (ValueId in : node.inputs)
+            for (ValueID in : node.inputs)
                 if (in == pooled.indices) backward_reads_the_indices = true;
 
     ASSERT_TRUE(backward_reads_the_indices)
@@ -110,7 +110,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     std::size_t overlapping_neighbours = 0;
     for (std::size_t i = 0; i < plan.value_count(); ++i)
     {
-        const ValueId other = static_cast<ValueId>(i);
+        const ValueID other = static_cast<ValueID>(i);
         if (!plan.is_packed(other)) continue;
         if (plan.buffer_of(other) == plan.buffer_of(pooled.indices)) continue;
 

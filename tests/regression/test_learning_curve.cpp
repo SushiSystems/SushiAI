@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -48,7 +49,7 @@ namespace
 {
     class Regression_LearningCurve : public ::testing::Test {};
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
@@ -81,7 +82,7 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -97,9 +98,10 @@ namespace
         SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer, Optim::SGD::make(engine, slots, sgd));
 
         Train::TrainerOptions options;
-        options.track_accuracy = false;
+        options.track_metrics = false;
+        const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
                                            options));
 
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
@@ -111,8 +113,10 @@ namespace
         for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
             for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
+                Data::Batch dataset_batch;
+                SA_TRY(dataset->read(batch, dataset_batch));
                 SA_TRY_ASSIGN(const Train::StepMetrics metrics,
-                              trainer->run_step(dataset->batch(batch)));
+                              trainer->run_step(dataset_batch));
                 losses.push_back(metrics.loss);
             }
 

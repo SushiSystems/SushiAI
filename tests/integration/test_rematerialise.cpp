@@ -44,7 +44,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
 
@@ -105,23 +105,23 @@ namespace
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{1, 5, 4, 2}, "x", DType::Float64);
-        const ValueId w = builder.parameter(Shape{18, 4}, "w", DType::Float64);
+        const ValueID x = builder.input(Shape{1, 5, 4, 2}, "x", DType::Float64);
+        const ValueID w = builder.parameter(Shape{18, 4}, "w", DType::Float64);
 
         Graph::ConvGeometry g;
         g.kernel_h = 3; g.kernel_w = 3;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueId cols = builder.im2col(x, g);
-        const ValueId out = builder.matmul(cols, w);
-        const ValueId target = builder.input(graph.value(out).shape, "target", DType::Float64);
-        const ValueId loss = builder.nll_loss(builder.log_softmax(out), target);
+        const ValueID cols = builder.im2col(x, g);
+        const ValueID out = builder.matmul(cols, w);
+        const ValueID target = builder.input(graph.value(out).shape, "target", DType::Float64);
+        const ValueID loss = builder.nll_loss(builder.log_softmax(out), target);
         graph.finalise();
 
-        const std::array<ValueId, 1> wrt = {w};
-        const std::vector<ValueId> grads = Autograd::differentiate(graph, loss,
-            SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
-        const ValueId dw = grads.front();
+        const std::array<ValueID, 1> wrt = {w};
+        const std::vector<ValueID> grads = Autograd::differentiate(graph, loss,
+            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+        const ValueID dw = grads.front();
 
         if (rematerialise) Graph::rematerialise_im2col(graph);
 
@@ -189,22 +189,22 @@ TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 5, 4, 2}, "x", DType::Float64);
-    const ValueId w = builder.parameter(Shape{18, 4}, "w", DType::Float64);
+    const ValueID x = builder.input(Shape{1, 5, 4, 2}, "x", DType::Float64);
+    const ValueID w = builder.parameter(Shape{18, 4}, "w", DType::Float64);
 
     Graph::ConvGeometry g;
     g.kernel_h = 3; g.kernel_w = 3;
     g.pad_top = 1;  g.pad_left = 1;
 
-    const ValueId cols = builder.im2col(x, g);
-    const ValueId out = builder.matmul(cols, w);
-    const ValueId target = builder.input(graph.value(out).shape, "target", DType::Float64);
-    const ValueId loss = builder.nll_loss(builder.log_softmax(out), target);
+    const ValueID cols = builder.im2col(x, g);
+    const ValueID out = builder.matmul(cols, w);
+    const ValueID target = builder.input(graph.value(out).shape, "target", DType::Float64);
+    const ValueID loss = builder.nll_loss(builder.log_softmax(out), target);
     graph.finalise();
 
-    const std::array<ValueId, 1> wrt = {w};
+    const std::array<ValueID, 1> wrt = {w};
     (void)Autograd::differentiate(graph, loss,
-        SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     const Graph::MemoryPlan before = Graph::MemoryPlan::build(graph);
     ASSERT_TRUE(before.is_packed(cols));

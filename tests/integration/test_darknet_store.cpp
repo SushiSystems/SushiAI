@@ -68,7 +68,7 @@ namespace
     {
         NN::StateEntry entry;
         entry.name = std::move(name);
-        entry.state = Graph::StateId{state};
+        entry.state = Graph::StateID{state};
         entry.shape = shape;
         return entry;
     }

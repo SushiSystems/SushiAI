@@ -85,7 +85,7 @@ namespace
         SA_EXPECT_OK(norm.model.output("normalised", out));
 
         const Graph::GraphBuilder builder(norm.graph);
-        const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+        const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
         SA_EXPECT_OK(norm.model.trace(NN::Trace::training(builder, norm.updates), x));
     }
 
@@ -157,7 +157,7 @@ namespace
  */
 TEST_F(Integration_StateCheckpoint, SavesAndLoadsParametersAndBuffersBitForBit)
 {
-    const ScratchFile file("sushiai_state_roundtrip.ckpt");
+    const ScratchFile file("sushiai_state_roundtrip.sushi");
 
     NormModel saved_model;
     trace_norm(saved_model);
@@ -190,7 +190,7 @@ TEST_F(Integration_StateCheckpoint, SavesAndLoadsParametersAndBuffersBitForBit)
  */
 TEST_F(Integration_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
 {
-    const ScratchFile file("sushiai_state_walk_order.ckpt");
+    const ScratchFile file("sushiai_state_walk_order.sushi");
 
     NormModel norm;
     trace_norm(norm);
@@ -224,7 +224,7 @@ TEST_F(Integration_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
  */
 TEST_F(Integration_StateCheckpoint, ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean)
 {
-    const ScratchFile file("sushiai_state_no_buffers.ckpt");
+    const ScratchFile file("sushiai_state_no_buffers.sushi");
 
     NormModel norm;
     trace_norm(norm);
@@ -249,6 +249,6 @@ TEST_F(Integration_StateCheckpoint, AnUnwritablePathIsInvalidFile)
     trace_norm(norm);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, norm.model));
 
-    SA_EXPECT_FAILURE(IO::save_checkpoint(directory / "state.ckpt", state, *engine),
+    SA_EXPECT_FAILURE(IO::save_checkpoint(directory / "state.sushi", state, *engine),
                       StatusCode::InvalidFile);
 }

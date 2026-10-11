@@ -53,6 +53,7 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -65,7 +66,7 @@ namespace
     class Integration_EvaluationStep : public SaTest::EngineTest {};
 
     /** @brief The model the cases without a buffer run. */
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
     /** @brief Samples per step in every case of this file. */
     constexpr int64_t K_BATCH = 4;
@@ -89,9 +90,9 @@ namespace
     constexpr std::uint64_t K_INPUT_SEED = 0x5EED5EEDull;
 
     /** @brief Builds the MLP over K_FEATURES, K_HIDDEN and K_CLASSES. */
-    Mlp make_mlp()
+    MLP make_mlp()
     {
-        return Mlp(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        return MLP(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     }
 
     /** @brief Allocates a float32 tensor of @p shape and fills it from the seeded stream. */
@@ -140,7 +141,7 @@ namespace
 /** @brief Tests that a step compiles in make() and not again over three runs. */
 TEST_F(Integration_EvaluationStep, TheStepCompilesOnce)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TracedStep traced,
         Train::build_evaluation_graph(model, Shape{K_BATCH, K_FEATURES}));
@@ -166,7 +167,7 @@ TEST_F(Integration_EvaluationStep, TheStepCompilesOnce)
  */
 TEST_F(Integration_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJustMoved)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
     SA_ASSERT_OK_AND_ASSIGN(
@@ -184,10 +185,11 @@ TEST_F(Integration_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJus
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, training_pool,
-                                                 built.spec, *optimizer, options));
+                            Train::Trainer::make(*engine, built, training_pool,
+                                                 objective, *optimizer, options));
 
     Graph::TensorPool evaluation_pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(
@@ -208,8 +210,10 @@ TEST_F(Integration_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJus
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<unsigned char> before,
                             run_and_read(*step, inputs));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                            trainer->run_step(dataset->batch(0)));
+                            trainer->run_step(dataset_batch));
     static_cast<void>(metrics);
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<unsigned char> after,
                             run_and_read(*step, inputs));
@@ -254,7 +258,7 @@ TEST_F(Integration_EvaluationStep, AProbeRunLeavesBothRunningVectorsUnchanged)
 /** @brief Tests that run() refuses an input of another batch and prints both shapes. */
 TEST_F(Integration_EvaluationStep, AnInputOfAnotherShapeIsRefusedWithBothShapes)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TracedStep traced,
         Train::build_evaluation_graph(model, Shape{K_BATCH, K_FEATURES}));
@@ -274,7 +278,7 @@ TEST_F(Integration_EvaluationStep, AnInputOfAnotherShapeIsRefusedWithBothShapes)
 /** @brief Tests that output() refuses a name the model did not publish and lists what it did. */
 TEST_F(Integration_EvaluationStep, AnUnknownOutputNameListsTheNames)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(
         const Train::TracedStep traced,
         Train::build_evaluation_graph(model, Shape{K_BATCH, K_FEATURES}));

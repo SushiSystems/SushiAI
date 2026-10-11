@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_utils.hpp>
 #include <common/test_status.hpp>
 
@@ -41,17 +42,17 @@ using Graph::InsertedCast;
 using Graph::MixedPrecisionPolicy;
 using Graph::TensorPool;
 using Graph::UniformPrecisionPolicy;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
     class Integration_MixedPrecision : public SaTest::EngineTest {};
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp make_model(int64_t features, int64_t hidden, int64_t classes)
+    MLP make_model(int64_t features, int64_t hidden, int64_t classes)
     {
-        return Mlp(NN::Linear{features, hidden}, NN::ReLU{}, NN::Linear{hidden, classes});
+        return MLP(NN::Linear{features, hidden}, NN::ReLU{}, NN::Linear{hidden, classes});
     }
 
     constexpr int64_t K_BATCH = 16;
@@ -81,10 +82,10 @@ namespace
     }
 }
 
-TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
+TEST_F(Integration_MixedPrecision, AModelWithFP16ProductsStillLearns)
 {
     // Correctness is asserted; speed is not; see tests/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
+    MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -106,8 +107,9 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     Train::TrainerOptions options;
     options.epochs = 25;
     options.precision = &precision;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
@@ -121,13 +123,14 @@ TEST_F(Integration_MixedPrecision, AModelWithFp16ProductsStillLearns)
     // ln(4) is where a zeroed classifier starts; see tests/integration/README.md.
     EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(K_CLASSES)), 1e-4);
     EXPECT_LT(report.last_loss, 0.5 * report.first_loss);
-    EXPECT_GT(report.last_accuracy, 0.75);
+    ASSERT_NE(report.last_metrics.find("accuracy"), nullptr);
+    EXPECT_GT(report.last_metrics.find("accuracy")->value, 0.75);
 }
 
 TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 {
     // Tensors must carry the dtypes the IR claims; see tests/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
+    MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -146,8 +149,9 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
     Train::TrainerOptions options;
     options.precision = &precision;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     // Every tensor the optimizer touches - both sides of the update.
@@ -173,15 +177,17 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
     // SushiBLAS refuses a mixed-dtype gemm by name; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options()));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                            trainer->run_step(dataset->batch(0)));
+                            trainer->run_step(dataset_batch));
     EXPECT_TRUE(std::isfinite(metrics.loss));
 }
 
 TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
     // The graph skipped the cast pass on purpose; see tests/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
+    MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -198,7 +204,8 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
     Train::TrainerOptions options;
     options.precision = &precision;
 
-    SA_EXPECT_FAILURE(Train::Trainer::make(*engine, built.graph, pool, built.spec, *optimizer,
+    const auto objective = SaTest::classifier_objective(built);
+    SA_EXPECT_FAILURE(Train::Trainer::make(*engine, built, pool, objective, *optimizer,
                                            options),
                       StatusCode::InvalidDescription, "does not agree with the precision policy");
 
@@ -206,14 +213,14 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
     const UniformPrecisionPolicy single;
     Train::TrainerOptions consistent;
     consistent.precision = &single;
-    SA_EXPECT_OK(Train::Trainer::make(*engine, built.graph, pool, built.spec, *optimizer,
+    SA_EXPECT_OK(Train::Trainer::make(*engine, built, pool, objective, *optimizer,
                                       consistent));
 }
 
 TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
     // A half buffer must not be read as float; see tests/integration/README.md.
-    Mlp model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
+    MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -235,13 +242,16 @@ TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
                             Optim::AdamW::make(*engine, slots, optimizer_options()));
 
     Train::TrainerOptions options;
-    options.track_accuracy = true;
+    options.track_metrics = true;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options()));
-    SA_EXPECT_FAILURE(trainer->run_step(dataset->batch(0)), StatusCode::InvalidDescription,
-                      "Accuracy needs a host read of the logits");
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_FAILURE(trainer->run_step(dataset_batch), StatusCode::InvalidDescription,
+                      "needs a host read of the logits");
 }

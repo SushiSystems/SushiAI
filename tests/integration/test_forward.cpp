@@ -44,7 +44,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
 
@@ -87,12 +87,12 @@ TEST_F(Integration_Forward, LinearLayerMatchesHandComputedValues)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2}, "x");
-    const ValueId w = builder.input(Shape{3, 2}, "w");
-    const ValueId b = builder.input(Shape{3}, "b");
+    const ValueID x = builder.input(Shape{2, 2}, "x");
+    const ValueID w = builder.input(Shape{3, 2}, "w");
+    const ValueID b = builder.input(Shape{3}, "b");
 
-    const ValueId y = builder.bias_add(builder.matmul(x, w, false, true), b);
-    const ValueId z = builder.relu(y);
+    const ValueID y = builder.bias_add(builder.matmul(x, w, false, true), b);
+    const ValueID z = builder.relu(y);
 
     OneShot run(*engine, graph);
 
@@ -121,8 +121,8 @@ TEST_F(Integration_Forward, SumRowsProducesColumnSums)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{3, 2}, "x");
-    const ValueId sums = builder.sum_rows(x);
+    const ValueID x = builder.input(Shape{3, 2}, "x");
+    const ValueID sums = builder.sum_rows(x);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6});
@@ -141,8 +141,8 @@ TEST_F(Integration_Forward, ReshapeReinterpretsRowMajorLinearOrder)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{3, 4}, "x");
-    const ValueId y = builder.reshape(x, Shape{2, 6});
+    const ValueID x = builder.input(Shape{3, 4}, "x");
+    const ValueID y = builder.reshape(x, Shape{2, 6});
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
@@ -162,8 +162,8 @@ TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
     const GraphBuilder builder(graph);
 
     // N=1, H=1, W=2, C=3: small enough to hand-trace every element's move.
-    const ValueId x = builder.input(Shape{1, 1, 2, 3}, "x");
-    const ValueId y = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const ValueID x = builder.input(Shape{1, 1, 2, 3}, "x");
+    const ValueID y = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     OneShot run(*engine, graph);
 
@@ -186,14 +186,14 @@ TEST_F(Integration_Forward, ElementwiseAndScaleMatchTheirDefinitions)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{2, 2}, "a");
-    const ValueId b = builder.input(Shape{2, 2}, "b");
+    const ValueID a = builder.input(Shape{2, 2}, "a");
+    const ValueID b = builder.input(Shape{2, 2}, "b");
 
-    const ValueId sum = builder.add(a, b);
-    const ValueId difference = builder.sub(a, b);
-    const ValueId product = builder.mul(a, b);
-    const ValueId scaled = builder.scale(a, -2.5);
-    const ValueId exponent = builder.exp(b);
+    const ValueID sum = builder.add(a, b);
+    const ValueID difference = builder.sub(a, b);
+    const ValueID product = builder.mul(a, b);
+    const ValueID scaled = builder.scale(a, -2.5);
+    const ValueID exponent = builder.exp(b);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
@@ -232,11 +232,11 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 4}, "x");
-    const ValueId r = builder.relu(x);
-    const ValueId s = builder.sigmoid(x);
-    const ValueId t = builder.tanh(x);
-    const ValueId lr = builder.leaky_relu(x, 0.1);
+    const ValueID x = builder.input(Shape{1, 4}, "x");
+    const ValueID r = builder.relu(x);
+    const ValueID s = builder.sigmoid(x);
+    const ValueID t = builder.tanh(x);
+    const ValueID lr = builder.leaky_relu(x, 0.1);
 
     OneShot run(*engine, graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
@@ -271,8 +271,8 @@ TEST_F(Integration_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 3}, "x");
-    const ValueId l = builder.log_softmax(x);
+    const ValueID x = builder.input(Shape{2, 3}, "x");
+    const ValueID l = builder.log_softmax(x);
 
     OneShot run(*engine, graph);
     // Row two is row one shifted by a constant; see tests/integration/README.md.
@@ -305,9 +305,9 @@ TEST_F(Integration_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 5}, "x");
-    const ValueId targets = builder.input(Shape{4, 5}, "targets");
-    const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
+    const ValueID x = builder.input(Shape{4, 5}, "x");
+    const ValueID targets = builder.input(Shape{4, 5}, "targets");
+    const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>(20, 0.0));
@@ -327,9 +327,9 @@ TEST_F(Integration_Forward, CrossEntropyMatchesAHandComputedSingleRow)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 3}, "x");
-    const ValueId targets = builder.input(Shape{1, 3}, "targets");
-    const ValueId loss = builder.nll_loss(builder.log_softmax(x), targets);
+    const ValueID x = builder.input(Shape{1, 3}, "x");
+    const ValueID targets = builder.input(Shape{1, 3}, "targets");
+    const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0});
@@ -347,9 +347,9 @@ TEST_F(Integration_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{4}, "a");
-    const ValueId b = builder.input(Shape{4}, "b");
-    const ValueId total = builder.accumulate(a, b);
+    const ValueID a = builder.input(Shape{4}, "a");
+    const ValueID b = builder.input(Shape{4}, "b");
+    const ValueID total = builder.accumulate(a, b);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
@@ -373,9 +373,9 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId zeros = builder.zeros(Shape{2, 3}, DType::Float32);
-    const ValueId bias = builder.input(Shape{3}, "bias");
-    const ValueId broadcast = builder.bias_add(zeros, bias);
+    const ValueID zeros = builder.zeros(Shape{2, 3}, DType::Float32);
+    const ValueID bias = builder.input(Shape{3}, "bias");
+    const ValueID broadcast = builder.bias_add(zeros, bias);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(bias), std::vector<double>{1.0, -2.0, 3.0});
@@ -398,11 +398,11 @@ TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const ValueId cols = builder.im2col(x, g);
+    const ValueID cols = builder.im2col(x, g);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -423,11 +423,11 @@ TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId cols = builder.input(Shape{4, 4}, "cols");
+    const ValueID cols = builder.input(Shape{4, 4}, "cols");
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const ValueId image = builder.col2im(cols, Shape{1, 3, 3, 1}, g);
+    const ValueID image = builder.col2im(cols, Shape{1, 3, 3, 1}, g);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(cols), std::vector<double>(16, 1.0));
@@ -448,12 +448,12 @@ TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGiven
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 4, 5, 1}, "x");
+    const ValueID x = builder.input(Shape{1, 4, 5, 1}, "x");
 
     Graph::ConvGeometry g;
     g.kernel_h = 3; g.kernel_w = 3;
     g.pad_top = 1;  g.pad_left = 1;
-    const ValueId cols = builder.im2col_with_extents(x, g, 5, 4);
+    const ValueID cols = builder.im2col_with_extents(x, g, 5, 4);
 
     OneShot run(*engine, graph);
     std::vector<double> image(20);
@@ -498,7 +498,7 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
@@ -522,9 +522,9 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     const GraphBuilder builder(graph);
 
     // Values 1..8 are distinct, in NHWC order; see tests/integration/README.md.
-    const ValueId x = builder.input(Shape{1, 2, 2, 2}, "x");
-    const ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
-    const ValueId back = builder.layout_convert(nchw, Graph::TensorLayout::Nhwc);
+    const ValueID x = builder.input(Shape{1, 2, 2, 2}, "x");
+    const ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    const ValueID back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
     graph.finalise();
 
     ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
@@ -563,20 +563,20 @@ TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesIts
     const GraphBuilder builder(graph);
 
     // Only taps 6 and 7 receive a gradient; see tests/integration/README.md.
-    const ValueId x = builder.parameter(Shape{1, 2, 2, 2}, "x");
-    const ValueId target = builder.input(Shape{1, 2}, "target");
+    const ValueID x = builder.parameter(Shape{1, 2, 2, 2}, "x");
+    const ValueID target = builder.input(Shape{1, 2}, "target");
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
 
     const Graph::PoolResult pooled = builder.maxpool2d(x, g);
-    const ValueId logits = builder.spatial_mean(pooled.output);
-    const ValueId loss = builder.nll_loss(builder.log_softmax(logits), target);
+    const ValueID logits = builder.spatial_mean(pooled.output);
+    const ValueID loss = builder.nll_loss(builder.log_softmax(logits), target);
     graph.finalise();
 
-    const std::array<ValueId, 1> wrt = {x};
-    const std::vector<ValueId> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+    const std::array<ValueID, 1> wrt = {x};
+    const std::vector<ValueID> gradients = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_EQ(graph.value(pooled.indices).dtype, DType::Int64);
@@ -617,11 +617,11 @@ TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const ValueId pooled = builder.avgpool2d(x, g);
+    const ValueID pooled = builder.avgpool2d(x, g);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -640,8 +640,8 @@ TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 1, 1, 1}, "x");
-    const ValueId up = builder.upsample2d(x, 2, 2);
+    const ValueID x = builder.input(Shape{1, 1, 1, 1}, "x");
+    const ValueID up = builder.upsample2d(x, 2, 2);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{5.0});
@@ -662,8 +662,8 @@ TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 2, 2, 1}, "x");
-    const ValueId mean = builder.spatial_mean(x);
+    const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
+    const ValueID mean = builder.spatial_mean(x);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -682,11 +682,11 @@ TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId left = builder.input(Shape{1, 1, 1, 1}, "left");
-    const ValueId right = builder.input(Shape{1, 1, 1, 1}, "right");
-    const std::array<ValueId, 2> parts = {left, right};
-    const ValueId cat = builder.concat_channels(
-        SushiRuntime::span<const ValueId>(parts.data(), parts.size()));
+    const ValueID left = builder.input(Shape{1, 1, 1, 1}, "left");
+    const ValueID right = builder.input(Shape{1, 1, 1, 1}, "right");
+    const std::array<ValueID, 2> parts = {left, right};
+    const ValueID cat = builder.concat_channels(
+        SushiRuntime::span<const ValueID>(parts.data(), parts.size()));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(left), std::vector<double>{10.0});
@@ -708,8 +708,8 @@ TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 1, 1, 4}, "x");
-    const ValueId sliced = builder.slice_channels(x, 1, 2);
+    const ValueID x = builder.input(Shape{1, 1, 1, 4}, "x");
+    const ValueID sliced = builder.slice_channels(x, 1, 2);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0});
@@ -730,10 +730,10 @@ TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{1, 1, 2, 2}, "x");
-    const ValueId gamma = builder.input(Shape{2}, "gamma");
-    const ValueId beta = builder.input(Shape{2}, "beta");
-    const ValueId y = builder.channel_affine(x, gamma, beta);
+    const ValueID x = builder.input(Shape{1, 1, 2, 2}, "x");
+    const ValueID gamma = builder.input(Shape{2}, "gamma");
+    const ValueID beta = builder.input(Shape{2}, "beta");
+    const ValueID y = builder.channel_affine(x, gamma, beta);
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4});
@@ -759,9 +759,9 @@ TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2, 1, 2}, "x");
-    const ValueId gamma = builder.input(Shape{2}, "gamma");
-    const ValueId beta = builder.input(Shape{2}, "beta");
+    const ValueID x = builder.input(Shape{2, 2, 1, 2}, "x");
+    const ValueID gamma = builder.input(Shape{2}, "gamma");
+    const ValueID beta = builder.input(Shape{2}, "beta");
     const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, K_EPSILON);
 
     OneShot run(*engine, graph);
@@ -806,7 +806,7 @@ TEST_F(Integration_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithG
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2}, "x");
+    const ValueID x = builder.input(Shape{2, 2}, "x");
     (void)builder.relu(x);
 
     TensorPool pool(*engine);
@@ -819,8 +819,8 @@ TEST_F(Integration_ForwardDeathTest, AnUnimplementedOperationNamesItself)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{2, 2}, "x");
-    const ValueId out = graph.add_value(Shape{2, 2}, DType::Float32,
+    const ValueID x = builder.input(Shape{2, 2}, "x");
+    const ValueID out = graph.add_value(Shape{2, 2}, DType::Float32,
                                         Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0xABCD'1234u), {x}, {out});
 

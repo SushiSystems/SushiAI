@@ -229,12 +229,12 @@ namespace SushiAI
             std::int64_t classes = 0;              /**< Class entries of an anchor slot. */
             std::int64_t slots = 0;                /**< Anchor slots of each head. */
             float suppression = 0.0f;              /**< The suppression threshold of every run. */
-            float distance_exponent = 0.0f;        /**< Read for DistanceIou alone. */
+            float distance_exponent = 0.0f;        /**< Read for DistanceIoU alone. */
             DarknetParityBounds bounds;            /**< The tolerances of the suite. */
             Vision::Detect::Anchor::HeadCoding coding =
                 Vision::Detect::Anchor::HeadCoding::Logit; /**< Coding of every head. */
             Vision::Detect::SuppressionCriterion criterion =
-                Vision::Detect::SuppressionCriterion::Iou; /**< Criterion of the cfg. */
+                Vision::Detect::SuppressionCriterion::IoU; /**< Criterion of the cfg. */
         };
 
         /**

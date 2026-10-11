@@ -62,18 +62,18 @@ namespace
     constexpr double K_STORED_TOLERANCE = 0.0;
 
     /** @brief The architecture every case that needs a parameter model traces. */
-    using Mlp = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
-    Mlp make_mlp()
+    MLP make_mlp()
     {
-        return Mlp(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
+        return MLP(NN::Linear{6, 8}, NN::GELU{}, NN::Linear{8, 4});
     }
 
     /** @brief Traces @p model into @p graph from a [4, 6] input. */
-    void trace_mlp(Mlp& model, Graph::Graph& graph)
+    void trace_mlp(MLP& model, Graph::Graph& graph)
     {
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
+        const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
         static_cast<void>(model.forward(builder, x));
     }
 
@@ -82,7 +82,7 @@ namespace
     {
         NN::StateEntry entry;
         entry.name = std::move(name);
-        entry.state = Graph::StateId{state};
+        entry.state = Graph::StateID{state};
         entry.shape = Shape{2};
         return entry;
     }
@@ -91,7 +91,7 @@ namespace
 /** @brief Tests that a traced Sequential lists its parameters in walk order with their shapes. */
 TEST_F(Integration_ModelState, CreateListsParametersInWalkOrder)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
 
@@ -123,7 +123,7 @@ TEST_F(Integration_ModelState, CreateListsBuffersAfterATrainingTrace)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
     NN::BufferUpdateList list;
     SA_EXPECT_OK(model.trace(NN::Trace::training(builder, list), x));
 
@@ -147,7 +147,7 @@ TEST_F(Integration_ModelState, CreateListsBuffersAfterATrainingTrace)
 /** @brief Tests that a model never traced gives a valid state with no entries. */
 TEST_F(Integration_ModelState, AnUntracedModelGivesAnEmptyState)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     EXPECT_TRUE(state.entries().empty());
@@ -156,7 +156,7 @@ TEST_F(Integration_ModelState, AnUntracedModelGivesAnEmptyState)
 /** @brief Tests that a prefix given to create() is joined to every entry name. */
 TEST_F(Integration_ModelState, APrefixIsJoinedToEveryName)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
 
@@ -188,12 +188,12 @@ TEST_F(Integration_ModelStateDeathTest, AnEntryWithNoIdentityIsFatal)
 /** @brief Tests that the name form and the identity form return the same tensor. */
 TEST_F(Integration_ModelState, TensorByNameAndByStateAreTheSameStorage)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
 
-    const Graph::StateId id = state.entries()[0].state;
+    const Graph::StateID id = state.entries()[0].state;
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* by_name, state.tensor("0.weight"));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* by_state, state.tensor(id));
     EXPECT_EQ(by_name, by_state);
@@ -202,7 +202,7 @@ TEST_F(Integration_ModelState, TensorByNameAndByStateAreTheSameStorage)
 /** @brief Tests that an unknown name is refused, and the refusal names it and the entry count. */
 TEST_F(Integration_ModelState, AnUnknownNameIsRefusedAndNamed)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
@@ -214,7 +214,7 @@ TEST_F(Integration_ModelState, AnUnknownNameIsRefusedAndNamed)
 /** @brief Tests that attach() binds each state leaf of the graph to the state's own storage. */
 TEST_F(Integration_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
@@ -222,7 +222,7 @@ TEST_F(Integration_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
     Graph::TensorPool pool(*engine);
     SA_EXPECT_OK(state.attach(graph, pool));
     ASSERT_EQ(graph.state_leaves().size(), 4u);
-    for (const std::pair<Graph::StateId, Graph::ValueId>& leaf : graph.state_leaves())
+    for (const std::pair<Graph::StateID, Graph::ValueID>& leaf : graph.state_leaves())
     {
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* held, state.tensor(leaf.first));
         EXPECT_EQ(pool.tensor(leaf.second).data(), held->data());
@@ -232,12 +232,12 @@ TEST_F(Integration_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
 /** @brief Tests that attach() refuses a graph traced from a different model. */
 TEST_F(Integration_ModelState, AttachRefusesAGraphOfAnotherModel)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
 
-    Mlp other = make_mlp();
+    MLP other = make_mlp();
     Graph::Graph other_graph;
     trace_mlp(other, other_graph);
 
@@ -248,7 +248,7 @@ TEST_F(Integration_ModelState, AttachRefusesAGraphOfAnotherModel)
 /** @brief Tests that two pools attached to one state read and write the same numbers. */
 TEST_F(Integration_ModelState, TwoPoolsAttachedToOneStateShareStorage)
 {
-    Mlp model = make_mlp();
+    MLP model = make_mlp();
     Graph::Graph graph;
     trace_mlp(model, graph);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
@@ -258,7 +258,7 @@ TEST_F(Integration_ModelState, TwoPoolsAttachedToOneStateShareStorage)
     SA_EXPECT_OK(state.attach(graph, first));
     SA_EXPECT_OK(state.attach(graph, second));
 
-    const Graph::ValueId leaf = graph.state_leaves().front().second;
+    const Graph::ValueID leaf = graph.state_leaves().front().second;
     first.tensor(leaf).data_as<float>()[0] = 42.5f;
     EXPECT_NEAR(second.tensor(leaf).data_as<float>()[0], 42.5, K_STORED_TOLERANCE);
 }

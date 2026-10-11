@@ -3,51 +3,194 @@
 Each file under `modules/*/*/tests/` that has a section stays on this page, under a heading
 that gives the file's path and so names its module.
 
-The unit tier runs without a device. Every file in this folder builds a graph, a config
-document, a byte stream, an image or a plain array on the host and inspects the result, so no
-case needs an Engine, a TensorPool or SYCL. A few cases touch the disk. The path-resolution
-cases of `test_config.cpp` use config files on disk. `test_imaging_raw_cache.cpp` writes small
-files under the system's temporary directory and removes them. The `test_detect_*.cpp` cases
-that compare with the reference, and the two reference cases of `test_batch_norm2d.cpp`,
-read tensors from `tests/fixtures/yolo26/` and report themselves skipped when a file is
-absent. The YOLO26n cases of `test_node_registry.cpp` read `applications/examples/yolo26/model.json` and
-`tests/fixtures/yolo26/MANIFEST.json`.
+Most unit test files run without a device: they build a graph, a config document, a byte
+stream, an image or a plain array on the host and inspect the result. A file whose fixture
+derives from `EngineTest` needs an engine, because its cases allocate tensors, fill batches or
+run a compiled step; the opening paragraph of its section says so.
+
+Some cases touch the disk. These files write small files under the system's temporary
+directory, read them back and remove them:
+
+- `modules/core/config/tests/test_json_events.cpp`;
+- the path-resolution cases of `modules/layers/nn/tests/test_config.cpp`;
+- `modules/layers/io/tests/test_imported_model_writer.cpp`;
+- `modules/language/text/tests/test_text_vocabulary_file.cpp`;
+- under `modules/language/datasets/tests/`: `test_datasets_prompt_dataset.cpp`,
+  `test_datasets_token_dataset.cpp`, `test_datasets_token_file.cpp` and
+  `test_datasets_tokens_section.cpp`;
+- `modules/vision/codecs/tests/test_codecs_decode_image.cpp`;
+- under `modules/vision/datasets/tests/`: `test_datasets_cifar.cpp`,
+  `test_datasets_coco_json.cpp`, `test_datasets_csv.cpp`, `test_datasets_fit_mask.cpp`,
+  `test_datasets_idx.cpp`, `test_datasets_idx_file.cpp`, `test_datasets_image_folder.cpp`,
+  `test_datasets_load_sample_image.cpp`, `test_datasets_mask_png.cpp`,
+  `test_datasets_pipelines.cpp`, `test_datasets_reader_dataset.cpp`,
+  `test_datasets_reader_section.cpp`, `test_datasets_sample_cache.cpp`,
+  `test_datasets_stored_pixels.cpp`, `test_datasets_voc_xml.cpp` and
+  `test_datasets_yolo_txt.cpp`;
+- `modules/vision/imaging/tests/test_imaging_raw_cache.cpp`;
+- `modules/vision/importers/tests/test_darknet_weights.cpp`.
+
+Other cases read files the repository holds. The reference cases of `test_detect_anchors.cpp`,
+`test_detect_assigner.cpp`, `test_detect_boxes.cpp` and `test_detect_postprocess.cpp`, and the
+two reference cases of `test_batch_norm2d.cpp`, read tensors from `tests/fixtures/yolo26/` and
+report themselves skipped when a file is absent. The YOLO26 cases of
+`modules/vision/registration/tests/test_registration.cpp` read
+`applications/examples/yolo26/model.json` and `tests/fixtures/yolo26/MANIFEST.json`, and the
+two example cases of `test_model_writer.cpp` read the `model.json` of the examples `mnist_cnn`
+and `yolo26`; both files report those cases skipped when the fixture folder is not defined for
+the binary. One case of `modules/vision/registration/tests/test_datasets_mnist.cpp` reads the
+MNIST IDX files and reports itself skipped when they are absent.
 
 This page holds the reasoning behind the cases. A `//` line in a test states the invariant the
 case relies on and cites this page. The section under the test's name says why the invariant
 matters, which number it was measured at, or which failure it once let through. Where a test has
 several such lines, each paragraph opens with the assertion or the statement it explains.
-Sections follow the files in path order, and inside a file the headings follow the order of the
-tests.
+Sections follow the files in file-name order, whatever module a file is in, and inside a file
+the headings follow the order of the tests.
 
 ## Files
 
 | File | What it tests |
 | --- | --- |
+| [`test_add.cpp`](../../modules/layers/nn/tests/test_add.cpp) | That the Add node takes exactly two rank-3 inputs of one shape, emits one ADD reading them in order, returns a failure for values that do not add, and what its factory refuses. |
+| [`test_anchor_objective.cpp`](../../modules/vision/training/tests/test_anchor_objective.cpp) | The leaves `AnchorObjective` declares per head, the delta losses its root sums scaled by the batch, its cost as the sum over the heads, and the heads, names and options `make` refuses. |
+| [`test_anchor_objective_factory.cpp`](../../modules/vision/training/tests/test_anchor_objective_factory.cpp) | That the anchor objective takes its heads from the published shapes, its options from the `objective` section and its anchors from the task, and what it refuses. |
+| [`test_anchor_training_loop.cpp`](../../modules/vision/training/tests/test_anchor_training_loop.cpp) | The rate each update takes from a step schedule and from a cosine schedule over two epochs, a run without a schedule, a start at a later epoch and batch, the run count of both passes restored once, the datasets, options and starts refused before any update, and a callback that throws. Needs an engine. |
+| [`test_apply_step_schedule.cpp`](../../modules/core/optim/tests/test_apply_step_schedule.cpp) | That a schedule's rate reaches SGD and AdamW through `Optimizer::set_learning_rate`, and that an update moves the parameter by the rate that was set. Needs an engine. |
 | [`test_avg_pool2d.cpp`](../../modules/layers/nn/tests/test_avg_pool2d.cpp) | The shapes the AvgPool2d layer traces and reports, and the inputs it refuses. |
 | [`test_backward.cpp`](test_backward.cpp) | The graph that differentiation emits and the coverage of the backward rule table. |
 | [`test_batch_norm2d.cpp`](../../modules/layers/nn/tests/test_batch_norm2d.cpp) | BatchNorm2d's two trace forms and the running-statistic update. |
+| [`test_batched_matmul.cpp`](../../modules/core/graph/tests/test_batched_matmul.cpp) | The shape and transpose flags `GraphBuilder::matmul` gives a rank-2 and a rank-3 product, the operands it refuses, and the four nodes `GraphBuilder::softmax` emits. |
+| [`test_binary_confusion.cpp`](../../modules/layers/train/tests/test_binary_confusion.cpp) | The four counts of a column, the ratios over them and over nothing, the threshold's cut and the threshold reader's refusals. Needs an engine. |
+| [`test_block_attention.cpp`](../../modules/vision/blocks/tests/test_block_attention.cpp) | The Attention block's head and key widths, the nodes two heads trace and what each product and the add read, its fifteen state records against MANIFEST.json, the evaluation fold, and the widths it refuses. |
 | [`test_block_bottleneck.cpp`](../../modules/vision/blocks/tests/test_block_bottleneck.cpp) | Bottleneck's trace, its state names against YOLO26n row 2, and its factory. |
+| [`test_block_c2psa.cpp`](../../modules/vision/blocks/tests/test_block_c2psa.cpp) | The C2PSA block's trace at YOLO26n row 10, what its join and its repeats read, its 35 state records against MANIFEST.json, and what its factory defaults and refuses. |
 | [`test_block_c3k.cpp`](../../modules/vision/blocks/tests/test_block_c3k.cpp) | C3k's trace, its state names against YOLO26n row 6, and its factory. |
-| [`test_block_c3k2.cpp`](../../modules/vision/blocks/tests/test_block_c3k2.cpp) | C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factories. |
-| [`test_block_conv_norm.cpp`](../../modules/vision/blocks/tests/test_block_conv_norm.cpp) | ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node. |
+| [`test_block_c3k2.cpp`](../../modules/vision/blocks/tests/test_block_c3k2.cpp) | C3k2's trace, its state names against YOLO26n rows 2, 6 and 22, its table of inner blocks, and its factories. |
+| [`test_block_causal_self_attention.cpp`](../../modules/language/blocks/tests/test_block_causal_self_attention.cpp) | The attention's trace with and without the mask, its node counts, its state, its refusals and its factory; the rotary trace, its ring rows, its fed slot and angles, and the `positions` key. |
+| [`test_block_conv_norm.cpp`](../../modules/vision/blocks/tests/test_block_conv_norm.cpp) | ConvNorm's trace, the depthwise `DWConv` and `DWConvLinear`, their state names against YOLO26n, and make_conv_node. |
+| [`test_block_detect_head.cpp`](../../modules/vision/blocks/tests/test_block_detect_head.cpp) | The DetectHead's twelve ports and their names, its 204 state records against MANIFEST.json, the STOP_GRADIENT nodes of a training trace, the branch widths, and what `create` and the factory refuse. |
+| [`test_block_expert_transformer_block.cpp`](../../modules/language/blocks/tests/test_block_expert_transformer_block.cpp) | The two branches of a block with experts, its fourteen state names, the `experts` and `top_k` keys of the `transformer_block` row, one position of the incremental form, and `positions` handed to the attention. |
+| [`test_block_feed_forward.cpp`](../../modules/language/blocks/tests/test_block_feed_forward.cpp) | The feed-forward's trace, its state, its refusals and its factory. |
+| [`test_block_language_head.cpp`](../../modules/language/blocks/tests/test_block_language_head.cpp) | The head's trace to vocabulary logits without a bias, its state, its shape rule and its factory. |
+| [`test_block_moe_feed_forward.cpp`](../../modules/language/blocks/tests/test_block_moe_feed_forward.cpp) | The mixture's trace and its 31 nodes, the 7 + 4k nodes of `top_k`, the six state names, the refusals, the three-port node and its factory, and the incremental form. |
+| [`test_block_position_embedding.cpp`](../../modules/language/blocks/tests/test_block_position_embedding.cpp) | The table added in one `BIAS_ADD`, the leading rows of a longer table, the refusal of a longer sequence, its state and its factory. |
+| [`test_block_psa_block.cpp`](../../modules/vision/blocks/tests/test_block_psa_block.cpp) | The PSABlock's node counts in a training trace, what its two residual adds read, its 25 state records against MANIFEST.json, and the width it refuses. |
+| [`test_block_rotary_embedding.cpp`](../../modules/language/blocks/tests/test_block_rotary_embedding.cpp) | The 18 nodes and two leaves of a turn, the tables against `rotary_angle`, float64 tables, no state, the two fed rows of the incremental form, and each refusal. |
+| [`test_block_rotary_positions.cpp`](../../modules/language/blocks/tests/test_block_rotary_positions.cpp) | `rotary_angle` against hand-worked angles, position 0 as cosine 1 and sine 0, a row against the host's cosine and sine, a position of 2^40, and the fatal span mismatches. |
+| [`test_block_segment_head.cpp`](../../modules/vision/blocks/tests/test_block_segment_head.cpp) | SegmentHead's shape, its trace ending at the upsample, its seven pieces of state, and its factory. |
 | [`test_block_sppf.cpp`](../../modules/vision/blocks/tests/test_block_sppf.cpp) | SPPF's trace, its state names against YOLO26n row 9, and its factory. |
+| [`test_block_transformer_block.cpp`](../../modules/language/blocks/tests/test_block_transformer_block.cpp) | The pre-norm order of the transformer block, its mask option, its state and its factory, which hands `positions` to its attention and refuses an odd head. |
 | [`test_buffer.cpp`](../../modules/layers/nn/tests/test_buffer.cpp) | Buffer: its description, its one leaf per graph and its identity. |
-| [`test_checkpoint_format.cpp`](../../modules/layers/io/tests/test_checkpoint_format.cpp) | The checkpoint format's round trip and its refusal of each malformed byte pattern. |
+| [`test_carrying_step.cpp`](../../modules/layers/train/tests/test_carrying_step.cpp) | An EvaluationStep fed two leaves by name and in order, a value carried across runs, its reset, the feeds refused, and an ordinary step that carries nothing. Its fixture cases need an engine. |
+| [`test_causal_mask_backward.cpp`](../../modules/core/autograd/tests/test_causal_mask_backward.cpp) | That the causal mask differentiates into the same mask over the gradient with a fill of zero. |
+| [`test_causal_mask_ops.cpp`](../../modules/core/graph/tests/test_causal_mask_ops.cpp) | The shape rules and IR of the causal mask emitter. |
+| [`test_channel_slice.cpp`](../../modules/layers/nn/tests/test_channel_slice.cpp) | The ChannelSlice layer's shape inference, the one SLICE_CHANNELS node it emits with its offset, the offsets, counts and ranks it rejects, and its empty state. |
+| [`test_checkpoint_format.cpp`](../../modules/layers/io/tests/test_checkpoint_format.cpp) | The checkpoint format's round trip, a version 1 file, the run-state section, and its refusal of each malformed byte pattern. |
+| [`test_codecs_decode_image.cpp`](../../modules/vision/codecs/tests/test_codecs_decode_image.cpp) | The dispatch on an image file's leading bytes, the raw image path, and the load of a file from disk. |
+| [`test_codecs_image_format.cpp`](../../modules/vision/codecs/tests/test_codecs_image_format.cpp) | The detection of JPEG, PNG and raw image files from their leading bytes. |
+| [`test_codecs_jpeg.cpp`](../../modules/vision/codecs/tests/test_codecs_jpeg.cpp) | The JPEG decoder on files encoded in memory: colour spaces, layouts, cut files and the side limit. |
+| [`test_codecs_png.cpp`](../../modules/vision/codecs/tests/test_codecs_png.cpp) | The PNG decoder on files encoded in memory: bit depths, alpha, palette indices, cut files and the side limit. |
+| [`test_compiled_step.cpp`](../../modules/core/graph/tests/test_compiled_step.cpp) | That a compiled step restores its run count once and before its first run, and then draws the dropout mask of that run. Needs an engine. |
 | [`test_concat.cpp`](../../modules/layers/nn/tests/test_concat.cpp) | The Concat node's shape check, its port and the node it traces. |
 | [`test_config.cpp`](../../modules/layers/nn/tests/test_config.cpp) | How the config layer parses its JSON documents and which ones it refuses. |
 | [`test_conv2d.cpp`](test_conv2d.cpp) | The Conv2d layer's trace, parameters, shape inference and rejections. |
+| [`test_cosine_schedule.cpp`](../../modules/core/optim/tests/test_cosine_schedule.cpp) | The warm-up and the cosine decay at its quarters, the check, and the section's round trip and refusals. |
+| [`test_darknet_config.cpp`](../../modules/vision/importers/tests/test_darknet_config.cpp) | The sections, keys, values and line numbers `parse_darknet_config` reads from a config text, the malformed texts it refuses with origin and line, and the code for a missing file. |
+| [`test_darknet_fold.cpp`](../../modules/vision/importers/tests/test_darknet_fold.cpp) | That `fold_darknet_normalisation` gives the weights and bias of the formula in long double, that the folded and the unfolded convolution agree on the host, and the two misuses that stop the process. |
+| [`test_darknet_import.cpp`](../../modules/vision/importers/tests/test_darknet_import.cpp) | The imported model of a cfg: rows and outputs kept, the task read back, tensor names, the recipe and its notes, and the files refused. |
+| [`test_darknet_model.cpp`](../../modules/vision/importers/tests/test_darknet_model.cpp) | The model rows, sources, heads, anchors, convolution shapes and state targets a config text translates to in the Separate and the Folded form, and the sections, keys and values refused by line. Two cases need an engine. |
+| [`test_darknet_recipe.cpp`](../../modules/vision/importers/tests/test_darknet_recipe.cpp) | The training recipe written from a solver and its heads, the notes that name a line and a value, and heads that differ refused. |
+| [`test_darknet_route_groups.cpp`](../../modules/vision/importers/tests/test_darknet_route_groups.cpp) | The rows a grouped `[route]` section translates to: one `slice_channels` row per source, a `concat` over them, no row for an ungrouped source, and the group counts and indices refused by line. |
+| [`test_darknet_shortcut.cpp`](../../modules/vision/importers/tests/test_darknet_shortcut.cpp) | That a `[shortcut]` section translates to an `add` row over the layer before it and the layer `from` names, and the sections refused by line. |
+| [`test_darknet_tensors.cpp`](../../modules/vision/importers/tests/test_darknet_tensors.cpp) | One tensor per weight target in the kernel-last layout, batch-norm names, and the lengths, names and shapes refused. |
+| [`test_darknet_training.cpp`](../../modules/vision/importers/tests/test_darknet_training.cpp) | The head training options and the solver settings `read_darknet_training` reads from a parsed config, with their defaults for absent keys, and the keys and values it refuses by line. |
+| [`test_darknet_weights.cpp`](../../modules/vision/importers/tests/test_darknet_weights.cpp) | The header `read_darknet_header` reads for each version, the vectors `read_darknet_weights` fills per convolution in file order with their bits kept, and the files and shapes refused. |
+| [`test_dataset_registry.cpp`](../../modules/core/data/tests/test_dataset_registry.cpp) | That `Data::DatasetRegistry` keeps its rows in insertion order, finds a row by type, refuses a type added twice, and that `Data::register_datasets` adds the "rings" row alone. |
+| [`test_datasets_cifar.cpp`](../../modules/vision/datasets/tests/test_datasets_cifar.cpp) | The CIFAR-10 and CIFAR-100 binary reader: file order, the label taken, the planes read back, and the record a bad label names. |
+| [`test_datasets_coco_json.cpp`](../../modules/vision/datasets/tests/test_datasets_coco_json.cpp) | The COCO annotation reader: dense class indices from sparse ids, boxes, dropped crowds, kept polygons, and an annotation naming an unknown image or category with its index. |
+| [`test_datasets_collators.cpp`](../../modules/vision/datasets/tests/test_datasets_collators.cpp) | The scaled inputs and the roles the classification and detection collators write, and the batches they refuse. Needs an engine. |
+| [`test_datasets_csv.cpp`](../../modules/vision/datasets/tests/test_datasets_csv.cpp) | The CSV reader: named feature and target columns, quoted fields and CRLF, and a cell that is no finite number with its line and column. |
+| [`test_datasets_fit_mask.cpp`](../../modules/vision/datasets/tests/test_datasets_fit_mask.cpp) | A mask fitted by nearest neighbour with its image's geometry and padded with the void value, and a sample's mask loaded with its indices kept. |
+| [`test_datasets_fit_sample.cpp`](../../modules/vision/datasets/tests/test_datasets_fit_sample.cpp) | A sample fitted to the input size by resize and by letterbox, with its boxes carried along. |
+| [`test_datasets_idx.cpp`](../../modules/vision/datasets/tests/test_datasets_idx.cpp) | The IDX dataset reader: classes, pixel offsets, named files and the image or label files it refuses. |
+| [`test_datasets_idx_file.cpp`](../../modules/vision/datasets/tests/test_datasets_idx_file.cpp) | The IDX header and payload readers and each malformed header they refuse. |
+| [`test_datasets_image_folder.cpp`](../../modules/vision/datasets/tests/test_datasets_image_folder.cpp) | The folder-per-class reader: sorted classes and files, the extension table, and the splits it refuses. |
+| [`test_datasets_load_sample_image.cpp`](../../modules/vision/datasets/tests/test_datasets_load_sample_image.cpp) | A sample's image read from stored pixels or decoded from its file, and the samples it refuses. |
+| [`test_datasets_mask_png.cpp`](../../modules/vision/datasets/tests/test_datasets_mask_png.cpp) | The image and mask folder reader: pairs by relative path, and an image without a mask refused. |
+| [`test_datasets_mnist.cpp`](../../modules/vision/registration/tests/test_datasets_mnist.cpp) | The "mnist" row of the vision module's dataset registry: the keys, splits and layouts it refuses, the files it names when they are absent, and the rank-4 batches of the "image" layout. Needs an engine. |
+| [`test_datasets_next_token_collator.cpp`](../../modules/language/datasets/tests/test_datasets_next_token_collator.cpp) | The task description, labels as the next token of each position, and the ids and batches collate refuses. Needs an engine. |
+| [`test_datasets_pipelines.cpp`](../../modules/vision/datasets/tests/test_datasets_pipelines.cpp) | The pipeline table, the fit the same in every epoch, a training sample identical alone, in a batch and reversed, the mosaic epochs, masks, and the refusals. |
+| [`test_datasets_polygon_mask.cpp`](../../modules/vision/datasets/tests/test_datasets_polygon_mask.cpp) | Pixels a polygon paints, the later object winning, no object, an object without a polygon, a class above 254. |
+| [`test_datasets_prompt_dataset.cpp`](../../modules/language/datasets/tests/test_datasets_prompt_dataset.cpp) | The one batch of a prompt, its last ids when it is longer than the window, its length role, and the `prompt` data block. Needs an engine. |
+| [`test_datasets_reader_dataset.cpp`](../../modules/vision/datasets/tests/test_datasets_reader_dataset.cpp) | ReaderDataset's queries, a batch built on demand in list order, the tensors a second read reuses, and the refusals of make and read. Needs an engine. |
+| [`test_datasets_reader_section.cpp`](../../modules/vision/datasets/tests/test_datasets_reader_section.cpp) | The reader and task tables, a detection and a classification section read into batches, and the sections refused: an unknown reader or task, a key of another task, a class count below the list's. Needs an engine. |
+| [`test_datasets_sample_cache.cpp`](../../modules/vision/datasets/tests/test_datasets_sample_cache.cpp) | A first pass that writes and a second that reuses, pixels read back, the longest side, a changed source found stale, stored pixels and masks left alone. |
+| [`test_datasets_stored_pixels.cpp`](../../modules/vision/datasets/tests/test_datasets_stored_pixels.cpp) | The copy of interleaved and planar pixels out of a file into an image. |
+| [`test_datasets_table_dataset.cpp`](../../modules/vision/datasets/tests/test_datasets_table_dataset.cpp) | TableDataset: the rows of a value table read as feature and value batches. Needs an engine. |
+| [`test_datasets_task_collators.cpp`](../../modules/vision/datasets/tests/test_datasets_task_collators.cpp) | The roles the binary, multi-label, regression and segmentation collators write, and the samples they refuse. Needs an engine. |
+| [`test_datasets_token_dataset.cpp`](../../modules/language/datasets/tests/test_datasets_token_dataset.cpp) | The int32 inputs and labels of a window batch, the next-token property over overlapping windows, tensor reuse, and a bad id or a cut file named with its offset. Needs an engine. |
+| [`test_datasets_token_file.cpp`](../../modules/language/datasets/tests/test_datasets_token_file.cpp) | The documented bytes, the header and ranges read back, the ids the writer refuses, truncated and oversized files, and an id outside the vocabulary with its byte offset. |
+| [`test_datasets_tokens_section.cpp`](../../modules/language/datasets/tests/test_datasets_tokens_section.cpp) | A `tokens` data block built into a next-token dataset, its default batch size and the keys it refuses. Needs an engine. |
+| [`test_datasets_voc_xml.cpp`](../../modules/vision/datasets/tests/test_datasets_voc_xml.cpp) | The Pascal VOC reader: boxes counted from one, difficult objects dropped or kept, class names stated or collected, and a file refused with its line. |
+| [`test_datasets_window_layout.cpp`](../../modules/language/datasets/tests/test_datasets_window_layout.cpp) | The window count and starts of a stride, whole windows only, and the layouts refused. |
+| [`test_datasets_xml_element.cpp`](../../modules/vision/datasets/tests/test_datasets_xml_element.cpp) | The XML subset parse_xml reads, its five entities, and each construct it refuses with a line. |
+| [`test_datasets_yolo_txt.cpp`](../../modules/vision/datasets/tests/test_datasets_yolo_txt.cpp) | The image-and-label-text reader: the label path rule, both split forms, and the file and line of a bad label. |
+| [`test_dense_losses.cpp`](../../modules/layers/train/tests/test_dense_losses.cpp) | The node sequence of the mean, of the logistic loss in its stable form and of the squared error. |
+| [`test_dense_objectives.cpp`](../../modules/layers/train/tests/test_dense_objectives.cpp) | The leaf and role each of the binary, multi-label and squared-error objectives declares, what each refuses, their feeds and their metrics. Needs an engine. |
+| [`test_dense_targets.cpp`](../../modules/layers/train/tests/test_dense_targets.cpp) | The fills of a real target leaf and of a 0 or 1 leaf, the counts and types refused with the leaf kept. Needs an engine. |
+| [`test_depthwise_conv2d.cpp`](../../modules/layers/nn/tests/test_depthwise_conv2d.cpp) | The DepthwiseConv2d layer's one DEPTHWISE_CONV2D node, its [kernel_h, kernel_w, channels] weight with role and fans, shape inference against the trace, `same_padded`, and the inputs it rejects. |
+| [`test_depthwise_ops.cpp`](../../modules/core/graph/tests/test_depthwise_ops.cpp) | The IR that `GraphBuilder::depthwise_conv2d` and its two backward emitters write: operand order, result shape, layout, element type, geometry slots, and each refusal. |
+| [`test_detect_anchor_clustering.cpp`](../../modules/vision/detect/tests/test_detect_anchor_clustering.cpp) | `SeededSequence` against the published SplitMix64 numbers, and that `cluster_anchors` recovers a six-rung ladder of box sizes within 5 %, repeats bit for bit, leaves out degenerate boxes and refuses bad options. |
+| [`test_detect_anchor_cost.cpp`](../../modules/vision/detect/tests/test_detect_anchor_cost.cpp) | The four numbers `measure_head_cost` reports for a head whose delta is known: total, box share, non-box share and stored cost, under the squared-error and the CompleteIoU box loss. |
+| [`test_detect_anchor_count.cpp`](../../modules/vision/detect/tests/test_detect_anchor_count.cpp) | The anchors per head `choose_anchor_count` settles on for a ladder, a single blob and two sizes, the trials it returns, and the options, head counts and box lists it refuses. |
+| [`test_detect_anchor_decode.cpp`](../../modules/vision/detect/tests/test_detect_anchor_decode.cpp) | The boxes and scores an anchor head decodes to under the Logit and the Activated coding and under `scale_xy`, the order of the decoded rows, the channel and row counts, and what `validate_head` refuses. |
+| [`test_detect_anchor_delta.cpp`](../../modules/vision/detect/tests/test_detect_anchor_delta.cpp) | The delta an anchor head with Logit coding receives: the assigned cell and slot, the IoU sum, the ignore rule and its class gate, two truths in one slot, padding rows, and the training options refused. |
+| [`test_detect_anchor_delta_activated.cpp`](../../modules/vision/detect/tests/test_detect_anchor_delta_activated.cpp) | The delta of an anchor head with the Activated coding: the objectness of an ignored and of an assigned slot under each `ObjectnessTarget`, the box delta without a size factor, and class deltas read as probabilities. |
+| [`test_detect_anchor_delta_gradient.cpp`](../../modules/vision/detect/tests/test_detect_anchor_delta_gradient.cpp) | The box deltas an anchor head writes under `BoxGradient::Analytic` and `BoxGradient::DarknetCompatible`, against values worked by hand and against twelve dumped cells the file holds. |
+| [`test_detect_anchor_delta_iou.cpp`](../../modules/vision/detect/tests/test_detect_anchor_delta_iou.cpp) | The delta of an anchor head under the IoU box loss: further anchors above the match threshold, the IoU sum, the division by positive class deltas, the clip at `max_delta`, and non-finite components. |
+| [`test_detect_anchor_fit.cpp`](../../modules/vision/detect/tests/test_detect_anchor_fit.cpp) | The numbers `measure_anchor_fit` reports for a layout over a box list: mean best IoU, best possible recall, tenth percentile, unowned share and per-anchor share, and what it refuses. |
+| [`test_detect_anchor_head_assignment.cpp`](../../modules/vision/detect/tests/test_detect_anchor_head_assignment.cpp) | The head masks `assign_anchors_to_heads` computes from anchors and strides: runs in ascending area from the smallest stride, the remainder, `per_head` counts, and the inputs it refuses. |
+| [`test_detect_anchor_head_truth.cpp`](../../modules/vision/detect/tests/test_detect_anchor_head_truth.cpp) | The truth rows `validate_head_truth` accepts and refuses by centre, size, class, array shape and network size, and that `compute_head_delta` refuses the same truth and writes nothing. |
+| [`test_detect_anchor_layout.cpp`](../../modules/vision/detect/tests/test_detect_anchor_layout.cpp) | The value of `shape_iou` for equal, contained, crossed and zero-area sizes, and the layouts `validate_anchor_layout` accepts and refuses. |
+| [`test_detect_anchor_plan.cpp`](../../modules/vision/detect/tests/test_detect_anchor_plan.cpp) | That `plan_anchors` returns the layout, fit, thresholds and trials its four steps give one by one, for a chosen and a given count per head and any stride order, and what it refuses. |
+| [`test_detect_anchor_review.cpp`](../../modules/vision/detect/tests/test_detect_anchor_review.cpp) | The verdict `review_anchors` gives a layout on its own boxes and on shifted ones, the proposal's anchors and counts per head, the two fits it reports, and what it refuses. |
+| [`test_detect_anchor_task.cpp`](../../modules/vision/detect/tests/test_detect_anchor_task.cpp) | That an anchor task and the `task` section of a model file convert both ways without loss, and which sections and tasks are refused. |
+| [`test_detect_anchor_thresholds.cpp`](../../modules/vision/detect/tests/test_detect_anchor_thresholds.cpp) | The default `AssignmentThresholds`, and the match and ignore thresholds `derive_assignment_thresholds` takes from a fit, with the clamp at each end of both ranges. |
+| [`test_detect_anchor_training_section.cpp`](../../modules/vision/detect/tests/test_detect_anchor_training_section.cpp) | That `HeadTrainingOptions` and the `anchor` objective section of a training file convert both ways without loss, and which sections and options are refused. |
 | [`test_detect_anchors.cpp`](../../modules/vision/detect/tests/test_detect_anchors.cpp) | The anchor grid, the per-image anchor leaves and the copies between a level and the joined anchor axis. |
 | [`test_detect_assigner.cpp`](../../modules/vision/detect/tests/test_detect_assigner.cpp) | The task-aligned assigner, its presets, the padded ground truth and the target leaves. |
 | [`test_detect_average_precision.cpp`](../../modules/vision/detect/tests/test_detect_average_precision.cpp) | Detection matching, the 101-point average precision and the validation table. |
 | [`test_detect_boxes.cpp`](../../modules/vision/detect/tests/test_detect_boxes.cpp) | Box decoding and encoding, the two box formats and the IoU forms. |
+| [`test_detect_iou_gradient.cpp`](../../modules/vision/detect/tests/test_detect_iou_gradient.cpp) | The IoU box gradient of `iou_gradient.hpp`: the analytic form against a central difference on fixed and seeded box pairs, and the `DarknetCompatible` form against hand values and twelve dumped cells. |
 | [`test_detect_postprocess.cpp`](../../modules/vision/detect/tests/test_detect_postprocess.cpp) | The top-k selection, both postprocess paths and the overlap suppression. |
+| [`test_detect_suppression_criterion.cpp`](../../modules/vision/detect/tests/test_detect_suppression_criterion.cpp) | The value of `measure_suppression` under the IoU and the DistanceIoU criterion, which rows `suppress_overlaps` keeps under each, the `NMSConfig` defaults, and the two fatal refusals. |
 | [`test_diagnostics.cpp`](test_diagnostics.cpp) | That each host-lane precondition raises a message carrying the values that disagree. |
+| [`test_dropout.cpp`](../../modules/layers/nn/tests/test_dropout.cpp) | That Dropout emits one DROPOUT node in training with its rate and site seed, returns its input in evaluation and at rate 0, gives each site its own seed, its rate check and its factory. |
+| [`test_dropout_backward.cpp`](../../modules/core/autograd/tests/test_dropout_backward.cpp) | That the gradient of DROPOUT is a MUL reading the saved mask, that it draws no second mask, and that an input without a gradient adds no reader. |
+| [`test_dropout_mask.cpp`](../../modules/core/graph/tests/test_dropout_mask.cpp) | The dropout generator against the published SplitMix64 sequence and golden bits and masks, the kept fraction of 2^20 draws within 0.002, and that a draw depends on seed, run and element alone. |
+| [`test_dropout_ops.cpp`](../../modules/core/graph/tests/test_dropout_ops.cpp) | The IR `GraphBuilder::dropout` emits, the 64-bit seed through its two attribute slots, each refusal, and the row of `K_RANDOM_LOWERINGS`. |
 | [`test_elementwise_ops.cpp`](../../modules/core/graph/tests/test_elementwise_ops.cpp) | The nodes the builder emits for the elementwise, comparison, selection and constant operations. |
+| [`test_embedding.cpp`](../../modules/layers/nn/tests/test_embedding.cpp) | The Embedding layer's trace over an int32 index, its table parameter, its shape rule and its factory. |
+| [`test_epoch_permutation.cpp`](../../modules/core/data/tests/test_epoch_permutation.cpp) | Every sample once for counts on both sides of a power of four, three golden orders by seed and epoch, and the count. |
 | [`test_flatten.cpp`](../../modules/layers/nn/tests/test_flatten.cpp) | The Flatten layer's trace, shape rule, rejections and parameter walk. |
 | [`test_fusion.cpp`](../../modules/core/graph/tests/test_fusion.cpp) | The matches and the refusals of the static fusion pass on synthetic graphs. |
+| [`test_gather_backward.cpp`](../../modules/core/autograd/tests/test_gather_backward.cpp) | That a row gather differentiates into a scatter-add on its table, a scatter-add into a gather on its rows, and that neither index gets a gradient. |
+| [`test_gather_ops.cpp`](../../modules/core/graph/tests/test_gather_ops.cpp) | The shape rules and IR of the row gather and scatter-add emitters, and an int32 input leaf under finalise and the cast pass. |
+| [`test_generation_greedy_sampler.cpp`](../../modules/language/generation/tests/test_generation_greedy_sampler.cpp) | The largest logit, the first of equal ones, and a generator left as it was. |
+| [`test_generation_nucleus_sampler.cpp`](../../modules/language/generation/tests/test_generation_nucleus_sampler.cpp) | The fewest tokens that reach a mass, their shares, a mass of one, and the values refused. |
+| [`test_generation_position_feed.cpp`](../../modules/language/generation/tests/test_generation_position_feed.cpp) | `make_position_feed`: a step fed a position gets the table feed, one fed a slot gets the ring feed, and one fed both or neither is refused. |
+| [`test_generation_ring_position_feed.cpp`](../../modules/language/generation/tests/test_generation_ring_position_feed.cpp) | `RingPositionFeed`: slot, cosines, sines in that order; the slot is the position modulo T while the angles keep the position; every row survives a slide; its refusals. |
+| [`test_generation_sampler_section.cpp`](../../modules/language/generation/tests/test_generation_sampler_section.cpp) | The sampler of each type, the unknown type with the four listed, and the keys refused. |
+| [`test_generation_table_position_feed.cpp`](../../modules/language/generation/tests/test_generation_table_position_feed.cpp) | `TablePositionFeed`: one `[1, 1]` int32 leaf, `place` writes the position, no row survives a slide, an absent or mistyped leaf is refused. |
+| [`test_generation_task.cpp`](../../modules/language/generation/tests/test_generation_task.cpp) | The keys of a `next_token_generation` section, their defaults and their refusals. |
+| [`test_generation_temperature_sampler.cpp`](../../modules/language/generation/tests/test_generation_temperature_sampler.cpp) | The shares of two hand-worked softmaxes, one sequence per seed, and the temperatures refused. |
+| [`test_generation_top_k_sampler.cpp`](../../modules/language/generation/tests/test_generation_top_k_sampler.cpp) | The shares over the k largest logits, the tie at the edge, k of one, and the values refused. |
 | [`test_global_avg_pool.cpp`](../../modules/layers/nn/tests/test_global_avg_pool.cpp) | The shapes GlobalAvgPool traces and reports, and the inputs it refuses. |
 | [`test_gradcheck.cpp`](../../modules/core/autograd/tests/test_gradcheck.cpp) | The gradient checker against closed-form functions and a wrong gradient. |
+| [`test_gradient_clip.cpp`](../../modules/core/optim/tests/test_gradient_clip.cpp) | The factor of a global norm over one and two slots, a norm set at run time, both SGD kernels and AdamW, the task count with and without a clip, and the key `clip_norm`. Needs an engine. |
+| [`test_head_delta_loss.cpp`](../../modules/vision/training/tests/test_head_delta_loss.cpp) | The four nodes `emit_head_delta_loss` of the vision training module adds, the scale and element type of its one-element result, that autograd takes it as a root, and the deltas it refuses. |
+| [`test_host_table.cpp`](../../modules/layers/nn/tests/test_host_table.cpp) | `Trace::host_table`: a table is a buffer leaf listed with its values, two declarations are two leaves, and a trace without a sink, a wrong type or a wrong count is refused. |
 | [`test_identity.cpp`](../../modules/layers/nn/tests/test_identity.cpp) | That the Identity layer returns its input, emits nothing and holds no state. |
 | [`test_imaging_affine.cpp`](../../modules/vision/imaging/tests/test_imaging_affine.cpp) | The plan and the application of the scale and translation warp to an image and its labels. |
 | [`test_imaging_boxes.cpp`](../../modules/vision/imaging/tests/test_imaging_boxes.cpp) | The two box forms, their conversions and the candidate filter. |
@@ -58,6 +201,7 @@ tests.
 | [`test_imaging_label_set.cpp`](../../modules/vision/imaging/tests/test_imaging_label_set.cpp) | The label set that holds classes, boxes and polygons in step, and its conversions. |
 | [`test_imaging_labels.cpp`](../../modules/vision/imaging/tests/test_imaging_labels.cpp) | The parser of a label file's text. |
 | [`test_imaging_letterbox.cpp`](../../modules/vision/imaging/tests/test_imaging_letterbox.cpp) | The plan and the application of the letterbox to an image and its labels. |
+| [`test_imaging_mask_pipeline.cpp`](../../modules/vision/imaging/tests/test_imaging_mask_pipeline.cpp) | The nearest warp and a mask replayed from a training trace: a flip mirrored exactly, a mosaic mask holding each box's class inside the box, and the refusals. |
 | [`test_imaging_mosaic.cpp`](../../modules/vision/imaging/tests/test_imaging_mosaic.cpp) | The draw, the plan and the application of the four-image mosaic. |
 | [`test_imaging_partners.cpp`](../../modules/vision/imaging/tests/test_imaging_partners.cpp) | The two sources of a mosaic's three partner images. |
 | [`test_imaging_pipeline.cpp`](../../modules/vision/imaging/tests/test_imaging_pipeline.cpp) | The training and the validation pipeline that compose the imaging transforms into a sample. |
@@ -65,46 +209,404 @@ tests.
 | [`test_imaging_random.cpp`](../../modules/vision/imaging/tests/test_imaging_random.cpp) | The generator every augmentation draws from. |
 | [`test_imaging_raw_cache.cpp`](../../modules/vision/imaging/tests/test_imaging_raw_cache.cpp) | The raw image file: its bytes, its header checks and its file reader and writer. |
 | [`test_imaging_rectangle.cpp`](../../modules/vision/imaging/tests/test_imaging_rectangle.cpp) | The plan that orders a dataset by aspect ratio and gives each batch one shape. |
-| [`test_imaging_resize.cpp`](../../modules/vision/imaging/tests/test_imaging_resize.cpp) | The bilinear resize and the fit of an image's long side. |
+| [`test_imaging_resize.cpp`](../../modules/vision/imaging/tests/test_imaging_resize.cpp) | The bilinear and the nearest-neighbour resize and the fit of an image's long side. |
+| [`test_imported_model_writer.cpp`](../../modules/layers/io/tests/test_imported_model_writer.cpp) | The three files of an imported model read back, the key order of the training file with `data` null, existing files refused or replaced, and a bad tensor writing nothing. |
+| [`test_importer_registry.cpp`](../../modules/layers/io/tests/test_importer_registry.cpp) | The importer rows in insertion order, a repeated format, a row's failure passed on and an unknown format listing the rows. |
+| [`test_input_match.cpp`](../../modules/layers/train/tests/test_input_match.cpp) | describe_input_leaf and match_input: the input a leaf reads, and the status that names both element types or both shapes when a dataset publishes another. |
 | [`test_ir.cpp`](../../modules/core/graph/tests/test_ir.cpp) | The IR's single-assignment and ordering rules and the builder's shape inference. |
+| [`test_json_events.cpp`](../../modules/core/config/tests/test_json_events.cpp) | The reader that streams a JSON file as events: their order, a document longer than the buffer, a handler that stops, and each refusal with its byte offset. |
+| [`test_json_writer.cpp`](../../modules/core/config/tests/test_json_writer.cpp) | How a `Config::Value` is written as JSON text: layout, numbers that read back exactly, escapes and the refusals. |
+| [`test_layer_norm.cpp`](../../modules/layers/nn/tests/test_layer_norm.cpp) | The LayerNorm layer's trace, its gain and bias, its refusals and its factory. |
+| [`test_layer_norm_backward.cpp`](../../modules/core/autograd/tests/test_layer_norm_backward.cpp) | That one gradient node serves the input, the gain and the bias of a layer normalisation and reads its saved statistics. |
+| [`test_layer_norm_ops.cpp`](../../modules/core/graph/tests/test_layer_norm_ops.cpp) | The shape rules and IR of the layer normalisation emitter and of its gradient emitter. |
 | [`test_layer_registry.cpp`](test_layer_registry.cpp) | Each layer registry row's factory, the keys it reads and the model it builds. |
 | [`test_layer_stack.cpp`](../../modules/layers/nn/tests/test_layer_stack.cpp) | The runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread. |
 | [`test_layout.cpp`](../../modules/core/autograd/tests/test_layout.cpp) | That every value carries a tensor layout and that the rebuilding passes keep it. |
 | [`test_leaky_relu.cpp`](../../modules/layers/nn/tests/test_leaky_relu.cpp) | The LeakyReLU layer's trace, shape inference and slope range. |
+| [`test_linked_rows.cpp`](../../modules/layers/nn/tests/test_linked_rows.cpp) | The three forms of a row reference and its refusals, the linked rows of a registry, the rows `build_model` hands a linked factory, and `BuiltRows`. |
+| [`test_log_softmax_ops.cpp`](../../modules/core/graph/tests/test_log_softmax_ops.cpp) | The shape rules and IR of the log-softmax gradient emitter. |
 | [`test_loss_roots.cpp`](test_loss_roots.cpp) | Which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT barrier. |
 | [`test_loss_scaling.cpp`](test_loss_scaling.cpp) | The dynamic loss-scaling rule on LossScaleState, with no device involved. |
 | [`test_lowering_table.cpp`](../../modules/core/graph/tests/test_lowering_table.cpp) | That every operation identity has one lowering row or is listed as unlowered, across the eight domain tables. |
-| [`test_max_pool2d.cpp`](../../modules/layers/nn/tests/test_max_pool2d.cpp) | The MaxPool2d layer's trace, shape inference and rejections. |
+| [`test_max_pool2d.cpp`](../../modules/layers/nn/tests/test_max_pool2d.cpp) | The MaxPool2d layer's trace, shape inference, trailing padding and rejections. |
 | [`test_memory_plan.cpp`](../../modules/core/graph/tests/test_memory_plan.cpp) | That the memory planner never shares a byte between two values live together. |
-| [`test_model_graph.cpp`](../../modules/layers/nn/tests/test_model_graph.cpp) | ModelGraph: what add and output refuse, what a trace emits, and the state names. |
+| [`test_metrics.cpp`](../../modules/layers/train/tests/test_metrics.cpp) | The order and lookup of a step's named numbers, and the names and counts it refuses. |
+| [`test_mish.cpp`](../../modules/layers/nn/tests/test_mish.cpp) | That the Mish layer emits SOFTPLUS, TANH and MUL over its input, keeps the input's shape, element type and layout, and holds no state. |
+| [`test_model_graph.cpp`](../../modules/layers/nn/tests/test_model_graph.cpp) | ModelGraph: what add and output refuse, what a trace and an incremental trace emit, and the state names. |
 | [`test_model_outputs.cpp`](../../modules/layers/nn/tests/test_model_outputs.cpp) | ModelOutputs: publishing named values and reading them back. |
-| [`test_module.cpp`](../../modules/layers/nn/tests/test_module.cpp) | Parameter across graphs and the state walk over layers, containers and fields. |
+| [`test_model_writer.cpp`](../../modules/core/config/tests/test_model_writer.cpp) | That a `ModelSpec` written by `write_model` parses back to the same spec, and which specs it refuses. |
+| [`test_module.cpp`](../../modules/layers/nn/tests/test_module.cpp) | Parameter across graphs, the fill a parameter declares, and the state walk over layers, containers and fields. |
 | [`test_module_list.cpp`](../../modules/layers/nn/tests/test_module_list.cpp) | ModuleList: its storage, its index names and its place in the state walk. |
 | [`test_node.cpp`](../../modules/layers/nn/tests/test_node.cpp) | ModuleNode, LayerNode and the buffer check LayerAdapter makes at compile time. |
-| [`test_node_registry.cpp`](../../modules/layers/nn/tests/test_node_registry.cpp) | The node registry, make_node, build_model and the YOLO26n model file. |
-| [`test_objective.cpp`](../../modules/layers/train/tests/test_objective.cpp) | The objective seam: the leaves it declares, the loss it emits and the resulting IR. |
+| [`test_node_registry.cpp`](../../modules/layers/nn/tests/test_node_registry.cpp) | NodeRegistry, register_layers, make_node and build_model over the rows of the nn module. |
+| [`test_objective.cpp`](../../modules/layers/train/tests/test_objective.cpp) | The objective seam: the leaves it declares, the loss it emits, its feed and its metrics, and the defaults of the base. The feed and metric cases need an engine. |
+| [`test_objective_context.cpp`](../../modules/layers/train/tests/test_objective_context.cpp) | The extents `list_output_shapes` lists for a traced model, from a probe trace with no engine. |
+| [`test_objective_registry.cpp`](../../modules/layers/train/tests/test_objective_registry.cpp) | The objective rows a training file may name, the context a factory receives, and the refusal of an unknown type. |
+| [`test_one_hot.cpp`](../../modules/layers/train/tests/test_one_hot.cpp) | fill_one_hot: the matrix it writes from class indices and the labels and leaves it refuses. Its fixture cases need an engine. |
 | [`test_ops.cpp`](../../modules/core/core/tests/test_ops.cpp) | That the operation table is complete and that the reverse lookup resolves names. |
+| [`test_parameter_decay.cpp`](../../modules/core/optim/tests/test_parameter_decay.cpp) | That decay reaches only the slots that take it in both optimizers and both kernels, and that `decay_all` and its key override it. Needs an engine. |
+| [`test_pixel_objectives.cpp`](../../modules/vision/training/tests/test_pixel_objectives.cpp) | What the two per-pixel objectives keep and refuse, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, their leaves, the nodes of both losses, and both factories. |
+| [`test_pixel_targets.cpp`](../../modules/vision/training/tests/test_pixel_targets.cpp) | The label check, the indices and weights of the per-pixel cross entropy, the four Dice leaves, and that a refused fill writes nothing. Needs an engine. |
 | [`test_precision.cpp`](../../modules/core/autograd/tests/test_precision.cpp) | The mixed-precision policy and where the cast insertion pass places its casts. |
 | [`test_provenance.cpp`](../../modules/core/autograd/tests/test_provenance.cpp) | The forward origin that differentiation records for every node it appends. |
+| [`test_rate_schedule.cpp`](../../modules/core/optim/tests/test_rate_schedule.cpp) | That a schedule section is read by the type it states, the default of `step`, the unknown type, and the step-only reader's refusal of a cosine file. |
 | [`test_region_signature.cpp`](../../modules/core/eager/tests/test_region_signature.cpp) | The signature that `signature_of` computes for one region of a partition. |
+| [`test_registration.cpp`](../../modules/language/registration/tests/test_registration.cpp) | The rows the language module's `register_nodes`, `register_datasets` and `register_objectives` add, and that a decoder written as a model file builds from them and publishes what the balance objective reads. |
+| [`test_registration.cpp`](../../modules/vision/registration/tests/test_registration.cpp) | The rows the vision module's `register_nodes`, `register_datasets`, `register_objectives` and `register_importers` add, that each block row builds from a minimal object, and that the YOLO26n model file builds to the state and shapes MANIFEST.json records. The dataset row case needs an engine. |
 | [`test_rematerialise.cpp`](../../modules/core/autograd/tests/test_rematerialise.cpp) | The structure of the graph that the K_IM2COL rematerialisation pass rewrites. |
 | [`test_result.cpp`](../../modules/core/core/tests/test_result.cpp) | Result, its reference form and SA_TRY_ASSIGN. |
+| [`test_role_match.cpp`](../../modules/layers/train/tests/test_role_match.cpp) | match_roles: the roles a dataset must publish for a step, and the status that names a missing or differing one. |
 | [`test_rule_table.cpp`](../../modules/core/autograd/tests/test_rule_table.cpp) | That every domain's backward rules reach the combined table exactly once. |
+| [`test_run_progress.cpp`](../../modules/layers/io/tests/test_run_progress.cpp) | The default of a run's progress, the names of its four records, and the refusal of a resume under another seed. |
+| [`test_run_schedule.cpp`](../../modules/core/optim/tests/test_run_schedule.cpp) | That a run reads its rate from one section: a schedule beside `optimizer.learning_rate` is refused, and so is a schedule without a `base_rate` above zero. |
+| [`test_run_state.cpp`](../../modules/core/optim/tests/test_run_state.cpp) | The run state an optimizer lists and restores: the names of SGD and AdamW, the step count, and the refusal of each scalar that does not fit. Its fixture cases need an engine. |
 | [`test_scope_partitioner.cpp`](../../modules/core/eager/tests/test_scope_partitioner.cpp) | The region keys ScopePartitioner gives the nodes of a differentiated graph. |
 | [`test_scope_trace.cpp`](../../modules/core/eager/tests/test_scope_trace.cpp) | How ScopeTrace cuts a trace into segments and which calls it rejects. |
-| [`test_seam.cpp`](test_seam.cpp) | The Status that core/seam.hpp gives each exception type a guard catches, and what the guards pass through. |
+| [`test_seam.cpp`](test_seam.cpp) | The Status that core/seam.hpp gives each exception type a guard catches, what the guards pass through, and that `record_and_run` discards what a failed recording recorded. The `record_and_run` cases need an engine. |
+| [`test_section_reader.cpp`](../../modules/core/config/tests/test_section_reader.cpp) | The Status-returning readers of one section and the full text of each refusal. |
+| [`test_segment_confusion_matrix.cpp`](../../modules/vision/segment/tests/test_segment_confusion_matrix.cpp) | Pixel counts by true and predicted class, the ignore index, sums over batches, merge, and the refusals that count nothing. |
+| [`test_segment_metrics.cpp`](../../modules/vision/segment/tests/test_segment_metrics.cpp) | IoU per class and its mean over the classes that occur, pixel accuracy, an empty matrix, and the class pick with its tie. |
+| [`test_segment_rasterise.cpp`](../../modules/vision/segment/tests/test_segment_rasterise.cpp) | The even-odd fill by pixel centres, a shared edge, a hole, clipping, the later outline winning an overlap, and the refusals. |
+| [`test_segmentation_metrics.cpp`](../../modules/vision/training/tests/test_segmentation_metrics.cpp) | Mean IoU and pixel accuracy of one step by hand, and the steps refused. Needs an engine. |
 | [`test_shape.cpp`](../../modules/core/core/tests/test_shape.cpp) | Shape's extents, indexing, validation, equality and hash. |
 | [`test_silu.cpp`](../../modules/layers/nn/tests/test_silu.cpp) | The SiLU layer's trace, shape inference and empty state. |
 | [`test_spatial_shapes.cpp`](../../modules/core/autograd/tests/test_spatial_shapes.cpp) | The shapes the builder infers for spatial operations and the layouts it refuses. |
 | [`test_status.cpp`](../../modules/core/core/tests/test_status.cpp) | Status, its macros, the fatal family and the assertions of test_status.hpp. |
 | [`test_step_recorder.cpp`](../../modules/core/graph/tests/test_step_recorder.cpp) | That StepRecorderList drives its members as one recorder, in the order added. |
-| [`test_steps.cpp`](../../modules/layers/train/tests/test_steps.cpp) | The training, probe and evaluation graph builders, and the batch shape function. |
+| [`test_step_schedule.cpp`](../../modules/core/optim/tests/test_step_schedule.cpp) | The rate `Optim::StepSchedule::rate_at` gives under a constant policy, a warm-up and listed steps, and the schedules `validate_step_schedule` refuses. |
+| [`test_step_schedule_section.cpp`](../../modules/core/optim/tests/test_step_schedule_section.cpp) | That a `StepSchedule` and the `schedule` section of a training file convert both ways without loss, and which sections and schedules are refused. |
+| [`test_steps.cpp`](../../modules/layers/train/tests/test_steps.cpp) | The training, probe, evaluation, carrying and incremental graph builders, the role of each parameter binding, and the batch shape function. |
+| [`test_sum_objective.cpp`](../../modules/layers/train/tests/test_sum_objective.cpp) | The composite objective: its terms, the refusal of a step-fed term, the prefixed leaves, the emitted SCALE and ADD, the first-wins metric merge and the `sum` factory. |
+| [`test_target.cpp`](../../modules/core/data/tests/test_target.cpp) | find_target over the targets of a batch and over the descriptions of a dataset. Its fixture cases need an engine. |
+| [`test_text_bpe_trainer.cpp`](../../modules/language/text/tests/test_text_bpe_trainer.cpp) | Two hand-worked merge orders, the tie rule, the chunk edge, determinism over a seeded corpus, the stop rules and the size bounds. |
+| [`test_text_codec.cpp`](../../modules/language/text/tests/test_text_codec.cpp) | The round trip of seeded random bytes and invalid UTF-8, merge order in encoding, a text of several chunks, special tokens in decoding and the id decode refuses. |
+| [`test_text_stream_encoder.cpp`](../../modules/language/text/tests/test_text_stream_encoder.cpp) | The ids of a stream read in pieces of five sizes against those of the whole text. |
+| [`test_text_vocabulary.cpp`](../../modules/language/text/tests/test_text_vocabulary.cpp) | The id ranges of bytes, special and merged tokens, the lookups, and the merges and names make refuses. |
+| [`test_text_vocabulary_file.cpp`](../../modules/language/text/tests/test_text_vocabulary_file.cpp) | The documented bytes, the round trip, and the refusal of every truncated length, trailing bytes, another magic or version and fields out of bounds, each with its offset. |
+| [`test_threaded_loader.cpp`](../../modules/core/data/tests/test_threaded_loader.cpp) | Index order on worker threads, no read further ahead than `prefetch`, a failed read as the status of its index alone, an index out of order, `begin_epoch` forwarded, the destructor with reads pending. No device, no clock. |
 | [`test_throwing_bridge.cpp`](../../modules/layers/nn/tests/test_throwing_bridge.cpp) | bridge_throwing: a value passes through and a thrown Error becomes a Status. |
-| [`test_trace.cpp`](../../modules/layers/nn/tests/test_trace.cpp) | Trace, the buffer-update sinks, the three layer forms and trace_layer. |
+| [`test_trace.cpp`](../../modules/layers/nn/tests/test_trace.cpp) | Trace, the buffer-update sinks, the fed leaves and carried values of a carrying trace, the three layer forms and trace_layer. |
 | [`test_traced.cpp`](../../modules/core/graph/tests/test_traced.cpp) | Traced and the refusal it carries through a chain of emitters. |
+| [`test_train_config.cpp`](../../modules/core/config/tests/test_train_config.cpp) | That `TrainSpec` carries the `schedule` section unread, resolves `weights` and `resume` against the file and refuses the two together, reads `seed` as 0 when it is absent and refuses a negative one, and takes a data block with `reader` and no `type` whole. |
+| [`test_training_expert_balance_objective.cpp`](../../modules/language/training/tests/test_training_expert_balance_objective.cpp) | The mean of the balance outputs, the factory's reading of outputs by name, its refusals, and `expert_usage_min` and `expert_usage_max`. The metrics suite needs an engine. |
+| [`test_training_next_token_objective.cpp`](../../modules/language/training/tests/test_training_next_token_objective.cpp) | The int32 leaf and the labels role, the gather-built loss graph, the int32 limit, the factory's refusals and the registry row. |
+| [`test_training_next_token_targets.cpp`](../../modules/language/training/tests/test_training_next_token_targets.cpp) | The index of each position's label, the labels and sizes the fill refuses, and the perplexity and metrics. Needs an engine. |
+| [`test_truth_from_roles.cpp`](../../modules/vision/training/tests/test_truth_from_roles.cpp) | The three roles a detection step requires, their copy into a `GroundTruthBatch`, the storage kept between batches, and the refusals. Needs an engine. |
 | [`test_unflatten.cpp`](../../modules/layers/nn/tests/test_unflatten.cpp) | The trace, the shape rule and the rejected inputs of the Unflatten layer. |
 | [`test_upsample2d.cpp`](../../modules/layers/nn/tests/test_upsample2d.cpp) | The shape, layout and rejections of the Upsample2d layer. |
 | [`test_version.cpp`](../../modules/core/version/tests/test_version.cpp) | That the runtime version agrees with the compile-time macros. |
+
+## modules/layers/nn/tests/test_add.cpp
+
+Suites: `Unit_Add`.
+
+Tests `NN::Add` in `modules/layers/nn/include/SushiAI/nn/add.hpp` and its factory
+`NN::make_add_node`. Unless a case says otherwise, the node is built over two [8, 6, 3] shapes
+and traced over two [2, 8, 6, 3] inputs.
+
+### CreateKeepsTheSharedShapeAsThePort
+
+The node has one port, named "output", of the shape [8, 6, 3].
+
+### CreateRejectsOneInput
+
+`create` over one shape fails with `InvalidDescription`, and the message holds "takes 2 inputs"
+and "was given 1".
+
+### CreateRejectsThreeInputs
+
+`create` over three shapes fails with "takes 2 inputs" and "was given 3".
+
+### CreateRejectsNoInput
+
+`create` over an empty list fails with "takes 2 inputs" and "was given 0".
+
+### CreateRejectsUnequalChannels
+
+[8, 6, 3] with [8, 6, 5] fails with `InvalidDescription` and "share one shape".
+
+### CreateRejectsUnequalHeight
+
+[8, 6, 3] with [4, 6, 3] fails with "share one shape".
+
+### CreateRejectsUnequalWidth
+
+[8, 6, 3] with [8, 12, 3] fails with "share one shape".
+
+### CreateRejectsAnInputThatIsNotAFeatureMap
+
+[8, 6, 3] with [144] fails with a message holding "add input 1" and "rank-3".
+
+### CreateRejectsAFirstInputThatIsNotAFeatureMap
+
+[144] with [144] fails with a message holding "add input 0" and "rank-3".
+
+### TheInputCountIsTwo
+
+`input_count()` is 2.
+
+### ForwardEmitsOneAddReadingBothInputsInOrder
+
+`forward` over the inputs b and a adds one node. Its operation is `Ops::K_ADD`, its inputs are
+b then a, and its one output is the one value `forward` returned.
+
+### ForwardResultIsThePortShapeWithABatchAxis
+
+The traced value has the shape [2, 8, 6, 3], and the port's shape stays [8, 6, 3].
+
+### ForwardRejectsAnInputCountItWasNotBuiltOver
+
+`forward` over one input fails with `InvalidDescription`, "input count is 2" and "given is 1".
+It returns no output and adds no node.
+
+### ForwardReturnsTheFailureOfValuesThatDoNotAdd
+
+`forward` over a [2, 8, 6, 3] value and a [2, 8, 6, 5] value returns an `InvalidDescription`
+status, no output, and adds no node.
+
+### TheFactoryBuildsANodeFromARowWithNoKey
+
+`make_add_node` over two [8, 6, 3] shapes and an empty row returns an `Add` with two inputs and
+one port of the shape [8, 6, 3].
+
+### TheFactoryRefusesAKeyAndShapesThatDoNotMatch
+
+A row with the key "alpha" fails with a message holding "layer 3 'add'", "'alpha'" and
+"no key". An empty row over [8, 6, 3] and [8, 6, 5] fails with "layer 3 'add'" and
+"share one shape".
+
+### TheStateWalkVisitsNothing
+
+After a trace, `walk_state` calls neither the parameter visitor nor the buffer visitor.
+
+## modules/vision/training/tests/test_anchor_objective.cpp
+
+Suites: `Unit_AnchorObjective`.
+
+Tests `AnchorObjective` of the vision training module over a 64-pixel network, a batch of 2
+and two classes. Most cases use two heads, "head.0" on a 4x4 grid and "head.1" on a 2x2 grid,
+each with two anchors and so 14 channels.
+
+### DeclaresOneLeafPerHeadInTheShapeOfItsOutput
+
+`declare` adds two leaves, "delta.head.0" of the shape [2, 4, 4, 14] and "delta.head.1" of
+[2, 2, 2, 14]. Both are `Float32` and do not require a gradient, and `leaf_role(1)` is
+"delta.head.1".
+
+### TheRootSumsOneDeltaLossPerHeadScaledByTheBatch
+
+`loss` adds MUL, RESHAPE, SUM_ROWS and SCALE once per head and then one ADD. Each MUL reads the
+leaf of its head's name and then that head's output, although the model published "head.1"
+first. Each SCALE carries -1/2 to 1e-12. The ADD reads the two SCALE results and writes the
+root, whose shape is [1].
+
+### AModelWithoutAHeadThrowsNamingTheHead
+
+`loss` over outputs that hold "head.0" alone throws an error naming "head.1".
+
+### AHeadOfAnotherShapeThrowsNamingBothShapes
+
+`loss` over a "head.0" of the shape [2, 4, 4, 21] throws an error naming "[2, 4, 4, 14]" and
+"[2, 4, 4, 21]".
+
+### TheCostIsTheSumOverTheHeads
+
+For two heads of one anchor and one class, the second with an object weight of 0.5, and deltas
+set by hand, `measure_cost` returns a total of 7 + 2.5, a non-box share of 6.5 + 0.25, a box
+share of 0.5 + 2.25 and a stored cost of 14 + 5, each to 1e-12.
+
+### NamesItselfAndIsFedByItsOwnStep
+
+`name()` is "anchor_delta" and `is_fed_by_batch()` is false. The objective holds two heads, four
+anchors and a network width of 64.
+
+### AHeadCountOtherThanTheLayoutsIsRefused
+
+`make` with no head, and with one head, over a two-head layout fails with `InvalidDescription`.
+The messages hold "0 heads" and "1 heads", each with "holds 2".
+
+### HeadsOfDifferentBatchesAreRefused
+
+A second head with a batch of 3 fails with `InvalidDescription`, and the message holds
+"head.1", "batch of 3" and "head.0".
+
+### AnEmptyOrARepeatedOutputNameIsRefused
+
+A head with an empty output name fails with "head 1" and "names no model output". Two heads
+that both name "head.0" fail with "both read" and "head.0". Both codes are
+`InvalidDescription`.
+
+### AnExtentOrANetworkSideBelowOneIsRefused
+
+A head with a height of 0 fails with "head.0" and "[2, 0, 4]". A network size of 0 by 64 fails
+with "0 by 64". Both codes are `InvalidDescription`.
+
+### OptionsTheValidatorsRefuseAreRefused
+
+A head with no class fails with `InvalidDescription` and "at least one class". A head with a
+box weight of -1 fails with `InvalidDescription`.
+
+## modules/vision/training/tests/test_anchor_objective_factory.cpp
+
+Suites: `Unit_AnchorObjectiveFactory`.
+
+Tests `build_anchor_objective` and `make_anchor_objective` in
+`modules/vision/training/include/SushiAI/vision/training/anchor_objective_factory.hpp`. The
+context has a batch of 2, 2 classes and the input sample [8, 6, 3]. Its task states four
+anchors and two heads of two anchors each: "head.0" with the coding "logit" and "head.1" with
+"activated" and a `scale_xy` of 1.5. It publishes the outputs "head.0" of [2, 4, 3, 14],
+"stem" of [2, 4, 3, 8] and "head.1" of [2, 2, 1, 14].
+
+### EachHeadTakesItsExtentsFromItsPublishedOutput
+
+With an empty section the objective has a network of height 8 and width 6, four anchors and
+two heads. The first reads "head.0" with a batch of 2, a height of 4, a width of 3, 2 classes
+and `HeadCoding::Logit`. The second reads "head.1" with a height of 2, a width of 1,
+`HeadCoding::Activated` and a `scale_xy` of 1.5.
+
+### TheSectionSetsTheTrainingOptionsOfEveryHead
+
+With the section `{"type": "anchor", "box_weight": 0.5}`, every head has a box weight of 0.5
+and the default object weight and box loss of `HeadTrainingOptions`.
+
+### TheClassCountOfTheDataMustBeTheTasks
+
+A context with 0 classes builds. One with 80 classes fails with `Incompatible`, "80 classes"
+and "task states 2".
+
+### AModelWithoutATaskIsRefused
+
+A context whose task is a null value fails with `InvalidDescription`, "'task'" and "'anchor'".
+
+### AHeadTheModelDoesNotPublishIsRefused
+
+Without the output "head.1" the build fails with `InvalidDescription`, "head 1", "'head.1'",
+"'head.0'" and "'stem'".
+
+### AnOutputOfOtherExtentsIsRefused
+
+The build fails with `Incompatible` for "head.0" with 15 channels ("'head.0'",
+"[2, 4, 3, 15]", "[2, H, W, 14]"), for "head.1" with a batch of 3 ("'head.1'",
+"[2, H, W, 14]") and for "head.0" of rank 2 ("'head.0'", "[2, H, W, 14]").
+
+### AnInputOfAnotherRankIsRefused
+
+An input sample of [192] fails with `InvalidDescription`, "[192]" and "[H, W, C]".
+
+### AKeyTheSectionDoesNotHaveIsRefused
+
+A section with the key `label_smoothing` fails with `InvalidDescription`, "objective" and
+"'label_smoothing'".
+
+### TheRegistryFormPrefixesARefusalWithItsContext
+
+`make_anchor_objective` with the context "the objective block" returns an objective whose
+`name` is "anchor_delta". With a null task it fails with `InvalidDescription`,
+"the objective block" and "'task'".
+
+## modules/vision/training/tests/test_anchor_training_loop.cpp
+
+Suites: `Unit_AnchorTrainingLoop`.
+
+Tests `run_anchor_training` in
+`modules/vision/training/include/SushiAI/vision/training/anchor_training_loop.hpp` and
+`AnchorTrainingStep::restore_run_count`. The fixture is an `EngineTest`. It builds a model of
+one convolution published as "head" over an [8, 8, 3] input, an `AnchorObjective` of one head
+with two anchors and 2 classes on a 4 by 4 grid, an SGD made with the rate 0.2 and the
+`AnchorTrainingStep` over them. Its dataset, named "truths", holds three batches of two seeded
+images with the three truth roles of `describe_truth_roles(2, 2)`.
+
+### EachUpdateTakesTheRateOfItsIteration
+
+With a `StepSchedule` of base rate 0.1 that halves at the updates 2 and 5, a run of two epochs
+calls `on_update` six times. Call i reports the epoch i / 3 + 1, the batch i modulo 3, the
+iteration i + 1 and the rates 0.1, 0.05, 0.05, 0.05, 0.025, 0.025. The report states 6
+updates and a last rate of 0.025, which is also the optimizer's rate, and its first and last
+costs equal those of the first and last call. The optimizer's step count is 6 and the
+training step's compile count is 1.
+
+### ACosineScheduleSetsTheRateOfEachUpdate
+
+With a `CosineSchedule` of base rate 0.1, 6 total iterations and a final rate of 0.01, each of
+the six updates reports the rate `rate_at` gives its iteration, and the report's last rate is
+`rate_at(6)`.
+
+### ARunWithoutAScheduleKeepsTheOptimizersRate
+
+A run without options reports 3 updates and a last rate of 0.2, and the optimizer's rate
+stays 0.2.
+
+### ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdate
+
+The run fails with `Incompatible` for batches of three images ("'truths'", "batch of 3",
+"declared for 2"), and with `InvalidDescription` for a dataset of no batch ("'truths'",
+"no batches") and for one whose only role is `labels` ("'truths'", "'boxes'"). The
+optimizer's step count stays 0.
+
+### OptionsARunCannotUseAreRefused
+
+The run fails with `InvalidDescription` for 0 epochs ("at least one epoch", "0") and for a
+schedule of two steps and one scale ("2 steps", "1 scales"). The optimizer's step count stays
+0.
+
+### ARunStartsAtTheEpochAndTheBatchItsOptionsState
+
+With two epochs, `first_epoch` 3 and `first_batch` 2, over a dataset that records each
+`begin_epoch`, the run makes 4 updates and begins the epochs 3 and 4. The first call reports
+the epoch 1 and the batch 2, and the second the epoch 2 and the batch 0.
+
+### AStartTheDatasetLacksIsRefused
+
+`first_epoch` -1 fails with `InvalidDescription`, "epoch index" and "-1". `first_batch` 3
+fails with `Incompatible`, "batch 3", "'truths'" and "3 batches". The optimizer's step count
+stays 0.
+
+### ARestoredRunCountIsTheCountOfBothPasses
+
+The step's run count starts at 0. After `restore_run_count(4)` it is 4, and so is the run
+count of the evaluation step. After a run of three batches both are 7. A second
+`restore_run_count` then fails with `InvalidDescription`, "before its first run" and "run 7".
+
+### ACallbackThatThrowsEndsTheRunAsAFailure
+
+With an `on_update` that throws `std::runtime_error("stop here")`, the run returns a failure
+whose message holds "stop here", and the optimizer's step count is 1.
+
+## modules/core/optim/tests/test_apply_step_schedule.cpp
+
+Suites: `Unit_ApplyStepSchedule`.
+
+Tests `Optim::apply_step_schedule` and `Optimizer::set_learning_rate`. The fixture needs an
+engine and gives each optimizer one float32 parameter of three zeros whose gradient is 2 in
+every element. The schedule most cases use has the base rate 0.5 and halves at updates 2 and 3.
+
+### TheRateSetIsTheScheduleAtTheNextUpdate
+
+Over an SGD made with the rate 0.75, four calls of `apply_step_schedule`, each followed by a
+step, return 0.5, 0.25, 0.125 and 0.125. `learning_rate()` equals the returned rate after each
+call, and `step_count()` ends at 4.
+
+### AnUpdateUsesTheRateThatWasSet
+
+Over three updates, every element of the parameter equals the running sum of minus the applied
+rate times the gradient, within 1e-6.
+
+### AdamWTakesTheRateThroughTheSameSeam
+
+An AdamW made with the rate 0.75 reports 0.75 through the `Optimizer` interface. After
+`apply_step_schedule` returns 0.5, `options().learning_rate` is 0.5.
+
+### ANegativeRateIsFatal
+
+`set_learning_rate(-0.1)` stops the process with a report containing "learning rate" and
+"negative".
+
+### ACosineScheduleTakesTheSameSeam
+
+A `CosineSchedule` with the base rate 0.5, two warm-up updates and four updates in total gives
+0.25 at the first update. Held in a `RateSchedule` it gives 0.5 at the second update, and
+`learning_rate()` is 0.5. At the third update a `RateSchedule` holding the halving schedule
+gives 0.125 and the held cosine gives 0.25.
 
 ## modules/layers/nn/tests/test_avg_pool2d.cpp
 
@@ -137,7 +639,7 @@ Four `static_assert` lines hold the layer's place in the layer library: `AvgPool
 `ModuleContainer`, and it has no parameter walk of its own, so the walk reaches it through
 `fields()`.
 
-### ForwardTracesThePooledShapeInNhwc
+### ForwardTracesThePooledShapeInNHWC
 
 A 3x3 window with stride 3 over a [2, 6, 6, 3] input traces a [2, 2, 2, 3] value tagged NHWC.
 
@@ -188,12 +690,12 @@ A top padding of -1 throws with a message containing "AvgPool2d" and "padding -1
 
 `forward()` throws on a [2, 8] input.
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 A [1, 6, 6, 3] input is converted with `layout_convert` to NCHW, and `forward()` throws on the
 converted value.
 
-### ForwardNamesTheLayoutOfAnNchwInputNarrowerThanTheWindow
+### ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow
 
 A [1, 8, 8, 2] input converted to NCHW has 2 on the axis an NHWC reader takes for the height,
 which a 3x3 window does not fit. The message contains "NHWC", so the layout check runs before
@@ -305,8 +807,8 @@ line for.
 The named tests live in `tests/integration/test_autograd_numeric.cpp` and all run in
 FLOAT64, for the reason `modules/core/autograd/include/SushiAI/autograd/gradcheck.hpp` derives.
 
-The K_LOG_SOFTMAX entry names a message test. K_LOG_SOFTMAX's rule exists only to produce a good
-error, so there is no gradient to verify and the message test is its proof.
+The K_LOG_SOFTMAX entries name the cases of `tests/integration/test_attention_gradient.cpp`:
+the unfused rule against its closed form, a softmax, and a causal attention block.
 
 The `unproven` vector lists the eight rules no finite-difference case names: K_DIV, K_MINIMUM,
 K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and K_SILU. Its size must equal `K_UNPROVEN_RULES`, every
@@ -314,7 +816,7 @@ entry must have a rule, and no operation may appear in both the ledger and this 
 over `Ops::K_ALL` accepts a rule that either list names. An entry leaves `unproven` when a
 finite-difference case names its rule in the ledger.
 
-### TwoLayerMlpProducesTheExpectedBackwardTopology
+### TwoLayerMLPProducesTheExpectedBackwardTopology
 
 The `op_names` comparison expects the cross-entropy pair to be differentiated as one fused
 rule: exp of the log-probabilities, minus the one-hot targets, scaled by 1/N. The chain then
@@ -334,6 +836,11 @@ computed and discarded.
 `x` feeds two branches, so its gradient has two contributors and the tiered accumulation drops
 to its ordered K_ACCUMULATE form.
 
+### ThreeContributorsChainTwoAccumulates
+
+A parameter feeds a ReLU, a tanh and a sigmoid whose sum is the loss operand. After
+`differentiate` the graph holds two ACCUMULATE nodes.
+
 ### ADisconnectedParameterGetsASymbolicZeroNotABuffer
 
 A zero gradient must cost nothing: no K_ZERO node, no allocation, no wasted kernel. Only the live
@@ -350,10 +857,27 @@ gradients nobody reads.
 The `mystery` value is produced by a synthetic identity that no rule covers. It stands in for a
 future operation added to the lowering but not to the rule table.
 
-### LogSoftmaxOutsideTheFusedPairSaysSoClearly
+### ANonScalarRootIsRejected
 
-A K_RELU consumes the log-softmax result, so the cross-entropy fusion does not apply and the
-standalone rule has to refuse.
+`differentiate` from a [4, 3] ReLU output throws `Error`.
+
+### LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity
+
+A RELU between LOG_SOFTMAX and NLL_LOSS keeps the fusion away. The walk appends SCALE,
+RELU_BACKWARD and one LOG_SOFTMAX_BACKWARD over the incoming gradient and the forward result.
+
+### TheFusedPairAppendsNoLogSoftmaxGradient
+
+NLL_LOSS directly over LOG_SOFTMAX appends EXP, SUB and SCALE, and no LOG_SOFTMAX_BACKWARD.
+
+### ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode
+
+A log-softmax over an input, multiplied by a parameter, appends no gradient node of its own.
+
+### ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax
+
+The LOG_SOFTMAX_BACKWARD of a softmax reads the MUL that the rule of EXP emitted and the
+forward log-probabilities.
 
 ### DivReadsItsDivisorAndItsOwnQuotient
 
@@ -412,7 +936,7 @@ For `softplus(x)` one K_SOFTPLUS_BACKWARD is appended after the K_SCALE, and it 
 `x`. The case asserts that `x` and the forward result are different values first, so the
 operand check distinguishes the input from the output.
 
-### SiluBackwardReadsTheForwardInputNotTheOutput
+### SiLUBackwardReadsTheForwardInputNotTheOutput
 
 For `silu(x)` one K_SILU_BACKWARD is appended after the K_SCALE, and it reads the seed and `x`.
 
@@ -654,7 +1178,7 @@ Over a [2, 2, 2, 4] input both forms fail with a message containing "BatchNorm2d
 "[N, H, W, 3]". Over a [2, 3] input both fail with "rank-4". The graph gains no value and the
 list no update.
 
-### AnNchwInputFails
+### AnNCHWInputFails
 
 Over a value converted to NCHW both forms fail with a message containing "BatchNorm2d(3)" and
 "NHWC", and the graph gains no value.
@@ -726,6 +1250,179 @@ test's own comment gives the miss of the unscaled variance on this case as 8.3e-
 `expect_reference_case("model.9.cv1.bn", K_MODEL_CASE_TOLERANCE)` checks the case recorded at
 that layer of the reference model. The test's own comment gives the miss of the unscaled
 variance on this case as 1.4e-5.
+
+## modules/core/graph/tests/test_batched_matmul.cpp
+
+Suites: `Unit_BatchedMatmul`.
+
+Tests the IR that `GraphBuilder::matmul` emits for rank-2 and rank-3 operands and that
+`GraphBuilder::softmax` emits over the last axis. Every refusal case also expects the graph's
+node count to be what it was before the refused calls.
+
+### Rank2ProductKeepsItsShapeAndFlags
+
+`matmul` over [3, 4] and [5, 4] with the second operand transposed yields [3, 5]. The node's
+operation is `Ops::K_MATMUL`, its flag 0 is false and its flag 1 is true.
+
+### FourFlagCombinationsYieldBatchedProducts
+
+For each of the four transpose pairs, with operands shaped to fit it, a rank-3 product yields
+[2, 3, 5]. The node is a MATMUL that reads the two operands in order, writes one value and
+carries the two flags it was given.
+
+### BatchedProductTakesTheSharedBatchCount
+
+`matmul` over [7, 2, 3] and [7, 3, 6] yields [7, 2, 6] with the first operand's layout and the
+element type `Float32`.
+
+### RefusesMixedRanksAndRanksOutsideTwoAndThree
+
+`matmul` throws `Error` for a rank-2 operand with a rank-3 one in either order, for a rank-1
+operand with a rank-3 one, and for two rank-4 operands.
+
+### RefusesUnequalBatchesAndInnerExtents
+
+Against a [2, 3, 4] operand, `matmul` throws `Error` for a [3, 4, 5] operand, whose batch
+differs, and for a [2, 5, 3] operand, whose inner extent differs.
+
+### SoftmaxEmitsReshapeLogSoftmaxExpReshape
+
+`softmax` over a [2, 3, 3] input adds four nodes. Read back from the result they are RESHAPE,
+EXP, LOG_SOFTMAX and RESHAPE. The first RESHAPE reads the input and yields [6, 3], LOG_SOFTMAX
+yields [6, 3], and the result has the shape [2, 3, 3].
+
+### SoftmaxOverRank2KeepsItsRowsAndLastAxis
+
+`softmax` over a [4, 5] input yields [4, 5], and the EXP node behind the last RESHAPE reads a
+[4, 5] value.
+
+### SoftmaxRefusesRankBelowTwo
+
+`softmax` over a [5] input throws `Error` and adds no node.
+
+## modules/layers/train/tests/test_binary_confusion.cpp
+
+Suites: `Unit_BinaryConfusion`, `Unit_BinaryConfusionRatios`, `Unit_DecisionThreshold`.
+
+Tests `Train::count_confusion`, the four ratios over a `BinaryConfusion`, `Train::logit_of`,
+`Train::read_threshold` and `Train::require_host_reals`. The `Unit_BinaryConfusion` fixture
+needs an engine to allocate the logits and the truth. The other two suites run on the host.
+
+### EachRowLandsInOneOfTheFourCounts
+
+Five rows of one column with the logits 2, 1, -1, -3, 0 and the truth 1, 0, 1, 0, 1, cut at
+`logit_of(0.5)`, give 2 true positives, 1 false positive, 1 false negative and 1 true negative.
+The accuracy is 3/5, and the precision, the recall and the F1 are each 2/3.
+
+### AColumnIsCountedAlone
+
+Over a [2, 2] float64 matrix of logits and a [2, 2] truth, column 0 counts 2 true positives.
+Column 1 counts 0 true positives, 1 false negative and 1 false positive.
+
+### TheThresholdMovesTheCut
+
+One row with the logit 1 and the truth 1 is a true positive at the threshold 0.5 and a false
+negative at the threshold 0.9.
+
+### ARatioOverNothingIsZero
+
+For a `BinaryConfusion` of four zeros the accuracy, the precision, the recall and the F1 are
+each 0. With 4 true negatives and nothing else the accuracy is 1 and the F1 is 0.
+
+### LogitOfInvertsTheSigmoid
+
+`logit_of(0.5)` is exactly 0. For 0.1, 0.731 and 0.9 the sigmoid of `logit_of(p)` is p within
+1e-12.
+
+### TheReaderDefaultsToOneHalf
+
+`read_threshold` over `{}` returns `K_DEFAULT_THRESHOLD`, and over `{"threshold": 0.25}` it
+returns 0.25.
+
+### TheReaderRefusesWhatIsNoProbability
+
+The key `cut` fails with `InvalidDescription` and a message naming "objective", `'cut'` and
+`'threshold'`. The value `"high"` fails with a message containing "number". The thresholds 0,
+1, -0.5 and 1.5 each fail with "above 0 and below 1".
+
+### TheHostReadRefusesWhatItCannotRead
+
+`require_host_reals` is ok for a float64 tensor of four elements asked for 4 values, and
+`host_real(reals, 2)` is 2.5. An int32 tensor fails with `InvalidDescription` and a message
+containing "host read of the logits" and "int32". Asking the float64 tensor for 6 values fails
+with `Incompatible`, "6 values" and "holds 4".
+
+## modules/vision/blocks/tests/test_block_attention.cpp
+
+Suites: `Unit_BlockAttention`.
+
+Tests the `Attention` block at the width of row 10 of YOLO26n: 128 channels, two heads, a
+query and key width of 32 and a value width of 64 per head. The traced cases run the block in
+training mode over a [2, 4, 4, 128] input, which is 16 positions per sample. The norm options
+are the epsilon 1e-3 and the momentum 0.03 that `tests/fixtures/yolo26/MANIFEST.json` records.
+
+### TwoHeadsOver128ChannelsGiveAHeadOf64AndAKeyOf32
+
+`Attention(128, 2)` has `heads` 2, `head_dim` 64 and `key_dim` 32. Its `qkv` convolution has
+256 output channels, and its `pe` convolution has a kernel height of 3 and a top padding of 1.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([20, 20, 128])` is [20, 20, 128].
+
+### TwoHeadsEmitSixSlicesTwoScalesFourProductsTwoSoftmaxesAndOneAdd
+
+The training trace holds 6 SLICE_CHANNELS, 2 SCALE, 4 MATMUL over rank-3 operands,
+2 LOG_SOFTMAX, 2 EXP, 1 ADD, 1 DEPTHWISE_CONV2D, 2 CONCAT_CHANNELS and 3 BATCHNORM2D nodes, and
+no SILU node. The result has the shape [2, 4, 4, 128].
+
+### TheScoreProductReadsScaledQueriesThenTransposedKeys
+
+For each head, the first of its two products has transpose flags 0 and 1 and yields
+[2, 16, 16]. Its first operand is a SCALE of the head's queries and its second is the head's
+keys. Each is a RESHAPE to [2, 16, 32] of a slice of `qkv`'s normalised result, the queries
+from channel `head * 128` and the keys 32 channels further on.
+
+### TheValueProductReadsTheSoftmaxOfTheScoresThenTheValues
+
+For each head, the second product has both transpose flags 0 and yields [2, 16, 64]. Its first
+operand is the RESHAPE, EXP, LOG_SOFTMAX, RESHAPE chain over the head's scores, with
+LOG_SOFTMAX reading a [32, 16] value. Its second operand is a RESHAPE to [2, 16, 64] of a
+64-channel slice of `qkv`'s result that starts at channel `head * 128 + 64`.
+
+### TheQueriesAreScaledByTheInverseRootOfTheKeyWidth
+
+Both SCALE nodes carry 1 / sqrt(32) in attribute 0, which is 0.17677669529663687, to 1e-15
+absolute.
+
+### TheAddReadsTheAttendedHeadsThenThePositionalConvolution
+
+The one ADD reads two values. The first is a CONCAT_CHANNELS of two [2, 4, 4, 64] maps, each a
+RESHAPE of a head's value product. The second is the BATCHNORM2D of the DEPTHWISE_CONV2D over a
+CONCAT_CHANNELS of both heads' value slices, a [2, 4, 4, 128] value. One RESHAPE reads the ADD,
+and the block's result comes out of a BATCHNORM2D.
+
+### StateMatchesManifestRecords175To189
+
+Walked under the prefix "model.10.m.0.attn", the traced block yields fifteen records in order:
+a convolution weight and four norm records each for `qkv` ([256, 1, 1, 128], width 256), `proj`
+([128, 1, 1, 128], width 128) and `pe` ([3, 3, 128], width 128). In each group the norm's
+weight and bias are parameters and its running mean and variance are buffers.
+
+### AnEvaluationTraceFoldsTheThreeNorms
+
+An evaluation trace holds no BATCHNORM2D node, three BATCHNORM_FOLD nodes and four rank-3
+products, and the result has the shape [2, 4, 4, 128].
+
+### AWidthTheHeadCountDoesNotDivideIsRefused
+
+`Attention(100, 3)` throws an error naming "head count divides", "100 channels" and "3 heads".
+`Attention(128, 0)` throws one naming "128 channels" and "0 heads".
+
+### OneChannelPerHeadIsRefused
+
+`Attention(2, 2)` throws an error naming "at least 2 channels per head", "2 channels" and
+"2 heads".
 
 ## modules/vision/blocks/tests/test_block_bottleneck.cpp
 
@@ -836,6 +1533,73 @@ The input shape [256] fails with "[256]" and "rank-3".
 
 A row with `bn_epsilon` 0.001 and `bn_momentum` 0.03 traces two K_BATCHNORM2D nodes and four
 updates, and `expect_norm_options` finds those two values on all of them.
+
+## modules/vision/blocks/tests/test_block_c2psa.cpp
+
+Suites: `Unit_BlockC2psa`.
+
+Tests the `C2PSA` block and its factory `Vision::Blocks::make_c2psa_node` at row 10 of YOLO26n:
+256 channels in and out and a hidden width of 128. The traced cases use a [2, 4, 4, 256] input
+and the norm options `tests/fixtures/yolo26/MANIFEST.json` records, epsilon 1e-3 and momentum
+0.03.
+
+### OutputShapeKeepsTheExtentsAndSetsTheWidth
+
+`output_shape([20, 20, 256])` is [20, 20, 256].
+
+### Row10EmitsEightSlicesThreeAddsAndThreeJoins
+
+A training trace holds 8 SLICE_CHANNELS, 3 ADD, 3 CONCAT_CHANNELS, 3 SILU and 7 BATCHNORM2D
+nodes, and the update list holds 14 updates. The result has the shape [2, 4, 4, 256]. Every
+BATCHNORM2D node carries the epsilon 1e-3 and every update the momentum 0.03.
+
+### TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSlice
+
+The first two slices read the same value, at the offsets 0 and 128. The second ADD of the
+graph reads the second slice as its first input. The third CONCAT_CHANNELS reads the first
+slice and then the third ADD's result, and yields [2, 4, 4, 256].
+
+### EachRepeatReadsTheResultOfThePreviousOne
+
+With two repeats the block holds two inner blocks and an evaluation trace holds six ADD nodes.
+The fifth ADD reads the third ADD's result as its first input.
+
+### StateMatchesManifestRow10
+
+Walked under the prefix "model.10" after a training trace, the block yields the 35 records the
+file lists by name, shape, kind and order, from `model.10.cv1.conv.weight` on.
+
+### TheFactoryBuildsRow10
+
+`make_c2psa_node` over a [20, 20, 256] input, with the row's filters, hidden width, repeats,
+heads and norm constants, returns a node with one port of the shape [20, 20, 256]. Its training
+trace holds 7 BATCHNORM2D nodes with the row's epsilon and 14 updates with the row's momentum,
+and its state walk yields the same 35 records.
+
+### TheFactoryDefaultsToOneBlockAndHiddenOver64Heads
+
+A row with only "filters" 256 and "hidden" 128 traces to two LOG_SOFTMAX nodes and three ADD
+nodes, and its state walk yields 35 records.
+
+### TheFactoryGivesOneHeadForAHiddenWidthUnder128
+
+A row with "filters" 64 and "hidden" 64 over a 64-channel input traces to one LOG_SOFTMAX node.
+
+### TheFactoryRefusesAFilterWidthThatIsNotTheInput
+
+"filters" 128 over a 256-channel input fails with `InvalidDescription`, and the message holds
+"'filters'", "128" and "256 channels".
+
+### TheFactoryRefusesAHiddenWidthTheHeadsDoNotSplit
+
+A hidden width of 128 with 3 heads, and with 128 heads, each fail with `InvalidDescription`,
+"'hidden'" and "parts of at least 2 channels".
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+An unknown key "inner" fails with a message holding "layer 10 'c2psa'" and "'inner'". A row
+without "hidden" fails with "'hidden'" and "absent". A [512] input fails with "[512]" and
+"rank-3".
 
 ## modules/vision/blocks/tests/test_block_c3k.cpp
 
@@ -1074,10 +1838,23 @@ The walk of traced row 2 under "model.2" equals `row2_records()`.
 
 The walk of traced row 6 under "model.6" equals `row6_records()`.
 
-### TheInnerTableListsBottleneckAndC3k
+### TheInnerTableListsEachInnerBlockWithItsFactory
 
-`NN::K_C3K2_INNER` has two entries: "bottleneck" with `&NN::make_c3k2_of_bottleneck` and "c3k"
-with `&NN::make_c3k2_of_c3k`.
+`K_C3K2_INNER` has three entries: "bottleneck" with `&make_c3k2_of_bottleneck`, "c3k" with
+`&make_c3k2_of_c3k` and "bottleneck_psa" with `&make_c3k2_of_bottleneck_psa`.
+
+### TheFactoryBuildsRow22
+
+`make_c3k2_node` over the input [20, 20, 384], with `filters` 256, `hidden` 128, `repeats` 1,
+`inner` "bottleneck_psa" and `shortcut` true, gives one port of shape [20, 20, 256]. Its
+training trace holds 9 BATCHNORM2D, 5 SILU, 4 ADD, 8 SLICE_CHANNELS and 3 CONCAT_CHANNELS
+nodes and 18 buffer updates, every norm carries the row's epsilon and momentum, and the state
+walk under "model.22" equals `row22_records()`.
+
+### TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden
+
+With `hidden` 200 and `inner` "bottleneck_psa", `make_c3k2_node` fails with
+`InvalidDescription`, "'hidden'" and "must split into 3 parts".
 
 ### TheFactoryBuildsRow2
 
@@ -1132,6 +1909,142 @@ The key `heads` fails with the context and "'heads'". A row without `hidden` fai
 fails with "'inner' is 'bottleneck'" and "builds 'c3k'". `make_c3k2_of_bottleneck` given
 `"inner": 2` fails with "'inner'" and "string". Each factory accepts a row that names its own
 block.
+
+### TheBottleneckPSAFactoryRefusesARowThatNamesAnotherInnerBlock
+
+`make_c3k2_of_bottleneck_psa` fails for a row whose `inner` is "c3k" with
+`InvalidDescription`, "'inner' is 'c3k'" and "builds 'bottleneck_psa'". It builds a row whose
+`inner` is "bottleneck_psa".
+
+## modules/language/blocks/tests/test_block_causal_self_attention.cpp
+
+Suites: `Unit_BlockCausalSelfAttention`.
+
+Tests `Language::Blocks::CausalSelfAttention` in
+`modules/language/blocks/include/SushiAI/language/blocks/causal_self_attention.hpp` and its node
+factory `make_causal_self_attention_node`: the ordinary trace, the incremental trace of one
+position, the rotary form of both, the state walk and the refusals. Every case uses a width of
+8 and two heads. Most ordinary traces read a [2, 5, 8] input, and the incremental ones read a
+[1, 1, 8] input over a per-sample shape of [5, 8].
+
+### ACausalTraceMasksEveryHead
+
+A causal block traced over [2, 5, 8] returns a [2, 5, 8] value, records no failure and no
+refusal, and adds 45 nodes: 15 around the heads and 15 per head. The graph holds two
+CAUSAL_MASK, two LOG_SOFTMAX, six SLICE_CHANNELS, one CONCAT_CHANNELS, six MATMUL and two SCALE
+nodes.
+
+### EachMaskReadsTheScaledScoresOfItsHead
+
+The first input of every CAUSAL_MASK node has the shape [2, 5, 5] and comes from a SCALE node
+whose attribute is 0.5 and whose input comes from a MATMUL node. The mask's own attribute is
+below -1e8.
+
+### ATraceWithoutAMaskEmitsNone
+
+A block built with `AttentionMask::None` adds no CAUSAL_MASK node and 43 nodes in total, 15
+around the heads and 14 per head.
+
+### TheWalkYieldsTheTwoProjections
+
+After a trace, `NN::walk_state` under the prefix "attn" yields "attn.qkv.weight",
+"attn.qkv.bias", "attn.proj.weight" and "attn.proj.bias" in that order. The `qkv` weight has
+the shape [24, 8] and the `proj` weight [8, 8].
+
+### AnInputThatDoesNotFitFails
+
+`forward` returns its input and the trace fails with `InvalidDescription` for a [5, 8] input
+("CausalSelfAttention", "rank-3 [N, T, 8] input", "[5, 8]"), a [2, 5, 10] input
+("CausalSelfAttention", "[2, 5, 10]") and an `Int32` input ("half, float32 or float64 input",
+"int32"). The three traces add no node, the `qkv` weight stays undeclared, and the graph holds
+a refusal.
+
+### ABlockDescribedWrongFails
+
+A block of width 8 with three heads fails with `InvalidDescription` and a message containing
+"head count divides" and "dim=8 heads=3". A default-constructed block fails with "dim=0
+heads=0". Each `forward` returns its input.
+
+### TheFactoryReadsTheHeadsAndTheMask
+
+Over a [5, 8] sample, the row `{"heads": 4}` builds a `ModuleNode<CausalSelfAttention>` whose
+layer has `dim` 8, `heads` 4 and the mask `Causal`, with one port of the shape [5, 8]. The row
+`{"heads": 2, "causal": false}` builds a layer whose mask is `None`.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The factory fails with `InvalidDescription` and a message containing "layer 3" for a `dropout`
+key ("'dropout'"), a row without `heads` ("'heads'", "absent"), three heads over a width of 8
+("dim=8 heads=3") and a [4, 4, 8] sample ("rank-2 [T, C] input", "[4, 4, 8]").
+
+### TheIncrementalFormWritesOneRowPerCacheAndReadsEveryRow
+
+`forward_incremental` over a carrying trace returns a [1, 1, 8] value with no failure and no
+refusal. The graph holds two SCATTER_ADD_ROWS, no CAUSAL_MASK, two LOG_SOFTMAX, nine
+SLICE_CHANNELS, one CONCAT_CHANNELS, six MATMUL, two SCALE and four ADD nodes.
+
+### TheIncrementalFormDeclaresTwoFedLeavesAndTwoCarriedValues
+
+The trace declares two fed leaves: `K_POSITION_LEAF`, an `Int32` value of the shape [1, 1],
+then `K_ATTENTION_MASK_LEAF` of the shape [1, 5]. It carries two values. The leaf and the next
+value of each have the shape [5, 8], the leaf has the lifetime `Input`, and an ADD node
+produces the next value.
+
+### TwoBlocksOfOneTraceShareTheirFedLeaves
+
+Two blocks traced incrementally one after the other in one carrying trace leave two fed leaves
+and four carried values.
+
+### TheIncrementalFormDeclaresTheParametersOfTheOrdinaryForm
+
+After an incremental trace, `NN::parameter_count` of the block is 4 and `NN::buffer_count` is 0.
+
+### TheIncrementalFormRefusesWhatItCannotCache
+
+`forward_incremental` returns its input and the trace fails with `InvalidDescription` in four
+cases: a block without a mask ("no mask", "no incremental form"), a [1, 3, 8] input ("one
+position", "[1, 3, 8]"), an evaluation trace in place of a carrying one ("'position'",
+"carrying trace") and a per-sample shape of [5] ("per-sample", "[5]").
+
+### ARotaryTraceTurnsTheQueriesAndTheKeysOnce
+
+A causal block with `AttentionPositions::Rotary`, traced with a `HostTableList` collecting
+tables, returns a [2, 5, 8] value and adds 68 nodes, 23 more than the learned form. The graph
+holds two CHANNEL_AFFINE, nine SLICE_CHANNELS, four CONCAT_CHANNELS and two CAUSAL_MASK nodes.
+The list holds two tables, each a [5, 2] leaf of the lifetime `Buffer` that requires no
+gradient and has ten values. The first value of the first table is 1 and of the second is 0.
+
+### ARotaryBlockHoldsTheStateOfALearnedOne
+
+After a rotary trace, `NN::walk_state` under "attn" yields the same four names as the learned
+block: the weight and the bias of `qkv`, then of `proj`.
+
+### ARotaryTraceRefusesWhatItCannotTurn
+
+A rotary block traced without `collect_tables` fails with `InvalidDescription` and a message
+containing "'rotary_cosine'" and "collect_tables". A rotary block of width 6 with two heads
+fails with "rotary positions" and "3 channels". Each `forward` returns its input.
+
+### TheFactoryReadsThePositions
+
+The row `{"heads": 2}` builds a layer whose `positions` is `Learned`, and `"positions":
+"rotary"` builds one whose `positions` is `Rotary`. The factory fails with `InvalidDescription`
+and "layer 3" for `"positions": "sinusoidal"` ("'positions'", "'sinusoidal'", "'learned'",
+"'rotary'"), for `"positions": 1` ("'positions'", "must be a string") and for a rotary row
+over a [5, 6] sample ("rotary positions", "3 channels").
+
+### TheRotaryIncrementalFormReplacesARowOfEachRing
+
+The incremental trace of a rotary block returns a [1, 1, 8] value with no failure and no
+refusal. The graph holds three SCATTER_ADD_ROWS, two SELECT, three ADD, two CHANNEL_AFFINE and
+no CAUSAL_MASK nodes. Two values are carried; each leaf has the shape [5, 8], a SELECT node
+produces each next value, and the third input of that node is the leaf.
+
+### TheRotaryIncrementalFormIsFedASlotAndTheAngles
+
+Two rotary blocks traced incrementally in one carrying trace declare four fed leaves in the
+order `K_CACHE_SLOT_LEAF` (`Int32`, [1, 1]), `K_ATTENTION_MASK_LEAF` ([1, 5]),
+`K_ROTARY_COSINE_LEAF` ([1, 2]) and `K_ROTARY_SINE_LEAF` ([1, 2]), and carry four values.
 
 ## modules/vision/blocks/tests/test_block_conv_norm.cpp
 
@@ -1190,7 +2103,7 @@ prefix, in walk order.
 
 `Conv(32, 64, 1, 1)` maps [7, 9, 32] to [7, 9, 64].
 
-### ATrainingTraceEmitsConvolutionNormThenSilu
+### ATrainingTraceEmitsConvolutionNormThenSiLU
 
 A training trace of `Conv(3, 16, 3, 2)` over [2, 8, 8, 3] emits one K_MATMUL, one K_BATCHNORM2D
 and one K_SILU, in that order, and no K_BIAS_ADD. The K_SILU's output is the returned value, of
@@ -1216,6 +2129,34 @@ value is output 0 of the K_BATCHNORM2D node.
 The walk of a traced `Conv(3, 16, 3, 2)` under "model.0" yields five records in this order:
 "model.0.conv.weight" [16, 3, 3, 3], "model.0.bn.weight" [16] and "model.0.bn.bias" [16] as
 parameters, then "model.0.bn.running_mean" [16] and "model.0.bn.running_var" [16] as buffers.
+
+### ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU
+
+A training trace of `DWConv(16, 16, 3, 1)` over [2, 8, 8, 16] holds one DEPTHWISE_CONV2D, one
+BATCHNORM2D and one SILU in that order and no MATMUL. The convolution reads the input, the
+SILU writes the result, and the result has the input's shape.
+
+### DWConvLinearEmitsNoActivation
+
+A training trace of `DWConvLinear(16, 16, 3, 1)` holds one DEPTHWISE_CONV2D, one BATCHNORM2D
+and no SILU, and the BATCHNORM2D writes the result.
+
+### ADepthwiseOutputShapeKeepsTheWidth
+
+For the input [80, 80, 64], a 3x3 `DWConv` reports [80, 80, 64] at stride 1 and [40, 40, 64]
+at stride 2.
+
+### DepthwiseStateMatchesTheManifestPositionalConvolution
+
+After a training trace of `DWConvLinear(128, 128, 3, 1)`, the state walk under
+"model.10.m.0.attn.pe" gives five records in order: the parameters `conv.weight` [3, 3, 128],
+`bn.weight` [128] and `bn.bias` [128], then the buffers `bn.running_mean` [128] and
+`bn.running_var` [128].
+
+### ADepthwiseBlockRefusesUnequalWidths
+
+Constructing `DWConv(16, 32, 3, 1)` raises an error holding "keeps its channel count",
+"in=16" and "out=32".
 
 ### AnUntracedBlockYieldsNoState
 
@@ -1259,6 +2200,511 @@ fails with "'bn_epsilon'" and "number". A `bn_momentum` of 1.5 fails with "'bn_m
 
 Two input shapes fail with a message containing the context, "one input" and "2". The one
 shape [192] fails with "[192]" and "rank-3".
+
+## modules/vision/blocks/tests/test_block_detect_head.cpp
+
+Suites: `Unit_BlockDetectHead`.
+
+Tests `DetectHead` and its factory `Vision::Blocks::make_detect_node` at row 23 of YOLO26n:
+three feature levels of 64, 128 and 256 channels with the sides 80, 40 and 20, and 80 classes.
+The traced cases feed a batch of 2 with the sides 8, 4 and 2.
+
+### ThePortsCarryTheFixtureNamesAndShapes
+
+The head takes three inputs and has twelve ports. They are named
+`<copy>.level<n>.<role>`, with the copy "one2many" before "one2one", the role "boxes" before
+"scores", and the levels in order inside a role. A boxes port has 4 channels and a scores port
+80, at its level's side.
+
+### StateMatchesManifestRecords390To593
+
+Walked under the prefix "model.23" after a training trace, the head yields 204 records in
+order: the box branches under `cv2`, the class branches under `cv3`, then the same two groups
+under `one2one_cv2` and `one2one_cv3`.
+
+### ATrainingTraceDetachesEachFeatureOnce
+
+A training trace holds three STOP_GRADIENT nodes, whose inputs are the three features in level
+order. `forward` appends twelve values, each of its port's channel count at the traced side of
+its level, with the batch extent 2 in front.
+
+### AnEvaluationTraceEmitsNoStopGradient
+
+An evaluation trace holds no STOP_GRADIENT and no BATCHNORM2D node, 36 BATCHNORM_FOLD nodes and
+12 DEPTHWISE_CONV2D nodes, and appends twelve values.
+
+### TheFirstLevelSetsTheBranchWidths
+
+A head over one [4, 4, 128] level and 3 classes has 68 state records after a trace. Among them
+are `cv2.0.0.conv.weight` of [32, 3, 3, 128], `cv2.0.2.weight` of [4, 1, 1, 32],
+`cv3.0.0.1.conv.weight` of [128, 1, 1, 128] and `cv3.0.2.weight` of [3, 1, 1, 128]. Port 1 has
+the shape [4, 4, 3].
+
+### ForwardRefusesAWrongInputCount
+
+`forward` given two values for three levels fails with `InvalidDescription`, "input count is 3"
+and "given is 2", and appends nothing.
+
+### CreateRefusesLevelsOrClassesThatDoNotFit
+
+`create` fails with `InvalidDescription` for no level ("at least one feature level"), for a
+rank-2 second level ("level 1", "[40, 128]", "rank-3") and for a class count of zero
+("at least one class", "0").
+
+### TheFactoryBuildsRow23
+
+`make_detect_node` over the three levels, with "classes" 80 and the norm constants, returns a
+node with three inputs and twelve ports. Port 0 is "one2many.level0.boxes" of [80, 80, 4] and
+port 11 is "one2one.level2.scores" of [20, 20, 80]. A training trace holds 36 BATCHNORM2D nodes
+that carry the row's epsilon, every update carries the row's momentum, and the state walk
+yields 204 records.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+An unknown key "filters" fails with a message holding "layer 23 'detect'" and "'filters'". A
+row without "classes" fails with "'classes'" and "absent". An empty level list fails with
+"layer 23 'detect'" and "at least one feature level".
+
+## modules/language/blocks/tests/test_block_expert_transformer_block.cpp
+
+Suites: `Unit_BlockExpertTransformerBlock`.
+
+Tests `Language::Blocks::ExpertTransformerBlock` in
+`modules/language/blocks/include/SushiAI/language/blocks/expert_transformer_block.hpp`, and the
+`transformer_block` row of `make_transformer_block_node` when it states `experts`. The block of
+every case is causal, has a width of 8, two heads and four experts of hidden width 16.
+
+### ATraceAddsANormalisedAttentionThenANormalisedMixture
+
+`trace_experts` over a [2, 5, 8] input returns an output of the shape [2, 5, 8], a balance of
+[1, 1] and a usage of [1, 4], with no failure and no refusal. The trace adds 84 nodes, among
+them two LAYER_NORM, two CAUSAL_MASK and one UPSAMPLE2D. An ADD node produces the output; its
+first input comes from another ADD node whose first input is the block's input.
+
+### TheWalkYieldsTheFourChildren
+
+After a trace, `NN::walk_state` under "h" yields fourteen names: the weight and the bias of
+`norm1`, of `attn.qkv`, of `attn.proj`, of `norm2`, of `ff.router`, of `ff.expand` and of
+`ff.project`, in that order.
+
+### AnInputThatDoesNotFitFails
+
+Over a [2, 5, 9] input `forward` returns the input and the trace fails with
+`InvalidDescription` and a message containing "LayerNorm(8)" and "[2, 5, 9]". The graph holds
+no LAYER_NORM node and the router's weight stays undeclared.
+
+### TheTransformerRowWithExpertsHasThreePorts
+
+Over a [5, 8] sample, the rows `{"heads": 2}` and `{"heads": 2, "experts": 0}` build nodes of
+one port. The row with `"experts": 4, "top_k": 1` builds a node of three ports:
+`K_SINGLE_PORT_NAME` of the shape [5, 8], `K_BALANCE_PORT`, and `K_USAGE_PORT` of the shape [4].
+Traced over [2, 5, 8], that node writes three outputs, the third of the shape [1, 4]; the graph
+holds one MAXPOOL2D node and a GELU node whose result has the shape [10, 128].
+
+### TheTransformerRowRefusesCountsThatDoNotFit
+
+The row fails with `InvalidDescription` and "layer 3" for a `top_k` without `experts`
+("'top_k'", "no 'experts'"), for `"experts": 2, "top_k": 3` ("top_k=3") and for `"experts": -1`
+("'experts'", "zero or more").
+
+### TheIncrementalFormTracesEachChildOverOnePosition
+
+`trace_experts_incremental` of a block that keeps one expert, over a [1, 1, 8] input and a
+per-sample shape of [5, 8], returns an output of [1, 1, 8] and a usage of [1, 4]. The graph
+holds two LAYER_NORM, two SCATTER_ADD_ROWS, no CAUSAL_MASK and one MAXPOOL2D node, and two
+values are carried. The node of the row `{"heads": 2, "experts": 4}` writes three outputs
+through `forward_incremental`, the first of the shape [1, 1, 8], and carries two values.
+
+### TheBlockAndItsRowPassThePositionsToTheAttention
+
+A block built without positions has `attn.positions` equal to `Learned`, and one built with
+`AttentionPositions::Rotary` has `Rotary`. The node of a row with four experts and `"positions":
+"rotary"`, traced with tables collected, leaves two host tables and two CHANNEL_AFFINE nodes.
+The same row with eight heads fails with `InvalidDescription` and a message containing "layer
+3", "rotary positions" and "1 channels".
+
+## modules/language/blocks/tests/test_block_feed_forward.cpp
+
+Suites: `Unit_BlockFeedForward`.
+
+Tests `Language::Blocks::FeedForward` in
+`modules/language/blocks/include/SushiAI/language/blocks/feed_forward.hpp` and its node factory
+`make_feed_forward_node`. Every case uses a width of 6 and a hidden width of 24.
+
+### ATraceMapsTheRowsThroughBothLayers
+
+A trace over a [2, 5, 6] input returns a [2, 5, 6] value and adds 11 nodes. A RESHAPE node
+produces the result; walking back through first inputs gives BIAS_ADD, MATMUL and GELU, and
+the GELU result has the shape [10, 24].
+
+### TheWalkYieldsTheTwoLinearLayers
+
+After a trace, `NN::walk_state` under "ff" yields "ff.expand.weight", "ff.expand.bias",
+"ff.project.weight" and "ff.project.bias" in that order. The `expand` weight has the shape
+[24, 6] and the `project` weight [6, 24].
+
+### AnInputOrADescriptionThatDoesNotFitFails
+
+A [5, 6] input fails the trace with `InvalidDescription` and a message containing
+"FeedForward", "rank-3 [N, T, 6] input" and "[5, 6]". A default-constructed block fails with
+"positive widths" and "dim=0 hidden=0". Each `forward` returns its input, no node is added and
+the `expand` weight stays undeclared.
+
+### TheFactoryReadsTheHiddenWidth
+
+Over a [5, 6] sample, the row `{"hidden": 24}` builds a `ModuleNode<FeedForward>` whose layer
+has `dim` 6 and `hidden` 24, with one port of the shape [5, 6]. The factory fails with
+`InvalidDescription` and "layer 3" for a row without `hidden` ("'hidden'", "absent") and for a
+`bias` key ("'bias'").
+
+### TheIncrementalFormIsTheOrdinaryTraceOfOnePosition
+
+`forward_incremental` over a [1, 1, 6] input in a carrying trace returns a [1, 1, 6] value. Its
+graph has as many nodes as the graph of `forward` over a [1, 1, 6] input, with the same
+operation at every index. The trace declares no fed leaf and carries no value.
+
+## modules/language/blocks/tests/test_block_language_head.cpp
+
+Suites: `Unit_BlockLanguageHead`, `Unit_BlockLanguageHeadDeathTest`.
+
+Tests `Language::Blocks::LanguageHead` in
+`modules/language/blocks/include/SushiAI/language/blocks/language_head.hpp` and its node factory
+`make_language_head_node`, with and without a weight tied to an embedding table. Every case
+uses a width of 6 and a vocabulary of 11.
+
+### ATraceNormalisesThenMapsToTheVocabulary
+
+A trace over a [2, 5, 6] input returns a [2, 5, 11] value and adds 7 nodes. Walking back from
+the result through first inputs gives RESHAPE, MATMUL, RESHAPE and LAYER_NORM, and the
+LAYER_NORM node reads the head's input. The bias of `linear` stays undeclared.
+
+### TheWalkYieldsTheNormalisationAndTheWeight
+
+After a trace, `NN::walk_state` under "head" yields "head.norm.weight", "head.norm.bias" and
+"head.linear.weight". The `linear` weight has the shape [11, 6].
+
+### AnInputOrADescriptionThatDoesNotFitFails
+
+A [2, 5, 7] input fails the trace with `InvalidDescription` and a message containing
+"LanguageHead", "rank-3 [N, T, 6] input" and "[2, 5, 7]". A default-constructed head fails
+with "positive widths" and "dim=0 vocabulary=0". Each `forward` returns its input and no node
+is added.
+
+### ATiedHeadScoresWithTheEmbeddingsTable
+
+A head tied with `tie_to` to the weight of an `NN::Embedding` of 11 rows and 6 columns, traced
+over that embedding's [2, 5, 6] result, returns a [2, 5, 11] value and adds 6 nodes, one fewer
+than the untied head. The second input of its MATMUL node is the embedding's weight. The
+head's own `linear` weight stays undeclared, `NN::parameter_count` of the head is 2 and of the
+embedding is 1.
+
+### ATiedTableThatDoesNotFitFails
+
+A head tied to a parameter that was never declared fails the trace with `InvalidDescription`
+and "tied to a table no layer has declared". A head tied to a declared [11, 5] table fails with
+"table of [11, 6]" and "tied to a float32 table of [11, 5]". Each `forward` returns its input.
+
+### OutputShapeReplacesTheWidthByTheVocabulary
+
+`output_shape([5, 6])` is [5, 11].
+
+### TheFactoryReadsTheVocabulary
+
+Over a [5, 6] sample, the row `{"vocabulary": 11, "ln_epsilon": 0.001}` builds a
+`ModuleNode<LanguageHead>` whose layer has `dim` 6, `vocabulary` 11 and a normalisation epsilon
+of 0.001, with one port of the shape [5, 11]. The factory fails with `InvalidDescription` and
+"layer 3" for an empty row ("'vocabulary'", "absent") and for a [6] sample ("rank-2 [T, C]
+input").
+
+### TheFactoryTiesTheHeadToAnEmbeddingRow
+
+Above the head stands a `ModelGraph` whose row 0 is an 11 by 6 embedding and whose row 1 is a
+layer normalisation. With `NN::BuiltRows` over that model, the row `{"tie": 0}` builds a head
+of vocabulary 11 whose `tied_weight` is the address of the embedding's weight, with a port of
+the shape [5, 11]. The factory fails with `InvalidDescription` for `"tie": -1` ("layer 2",
+"'tie'", "row 1", "no 'embedding' row"), for `"tie": 0, "vocabulary": 12` ("layer 2", "12
+tokens", "[11, 6] table"), for `"tie": 2` ("'tie'", "row 2", "not above") and for a tied row
+built without the rows above it ("layer 0", "not above").
+
+### OutputShapeOverARankOneSampleIsFatal
+
+`output_shape([6])` stops the process with a report containing "LanguageHead::output_shape"
+and "[6]". The case is in the suite `Unit_BlockLanguageHeadDeathTest`.
+
+### TheIncrementalFormIsTheOrdinaryTraceOfOnePosition
+
+`forward_incremental` over a [1, 1, 6] input in a carrying trace returns a [1, 1, 11] value.
+Its graph has as many nodes as the graph of `forward` over a [1, 1, 6] input, with the same
+operation at every index. The trace declares no fed leaf and carries no value.
+
+## modules/language/blocks/tests/test_block_moe_feed_forward.cpp
+
+Suites: `Unit_BlockMoeFeedForward`.
+
+Tests `Language::Blocks::MoEFeedForward` in
+`modules/language/blocks/include/SushiAI/language/blocks/moe_feed_forward.hpp` and its node
+factory `make_moe_feed_forward_node`. Every case uses a width of 6 and four experts of hidden
+width 8. A `top_k` of 0 keeps every expert.
+
+### ATraceMixesEveryExpertByItsGate
+
+`trace_experts` of a block with `top_k` 0 over a [2, 5, 6] input returns an output of the
+shape [2, 5, 6], a balance of [1, 1] and a usage of [1, 4], and adds 31 nodes. The graph holds
+one LOG_SOFTMAX, no MAXPOOL2D, one UPSAMPLE2D, one GELU and five MATMUL nodes. Walking back
+from the output through first inputs gives RESHAPE, ADD, MATMUL and MUL, and the MUL result
+has the shape [10, 32].
+
+### KeepingTheTopScoresAddsOneWindowPerLevel
+
+For `top_k` 1, 2 and 4, the trace returns a [2, 5, 6] output and adds 31 + 7 + 4 * `top_k`
+nodes. The graph holds `top_k` MAXPOOL2D, `top_k` LESS_EQUAL and `top_k` SELECT nodes and two
+LOG_SOFTMAX nodes, and a RESHAPE node produces the usage.
+
+### TheWalkYieldsTheRouterAndTheStackedLayers
+
+After a trace, the state walk under "ff" yields the weight and the bias of `router`, of
+`expand` and of `project`, in that order. The shapes are [4, 6] for the router's weight,
+[32, 6] for the `expand` weight, [6, 32] for the `project` weight and [4, 6] for the `project`
+bias, whose role is `ParameterRole::Bias`.
+
+### AnInputOrADescriptionThatDoesNotFitFails
+
+`forward` over a [5, 6] input returns the input and fails the trace with `InvalidDescription`
+("MoEFeedForward", "rank-3 [N, T, 6] input", "[5, 6]"). A default-constructed block fails with
+"at least one expert" and "dim=0 hidden=0 experts=0". `trace_experts` of a block with `top_k`
+5 returns a failure containing "1 to 4 of them" and "top_k=5" and leaves the trace's own
+status ok. No node is added and the router's weight stays undeclared.
+
+### TheFactoryBuildsANodeOfThreePorts
+
+Over a [5, 6] sample, the row `{"experts": 4, "hidden": 8, "top_k": 2}` builds a node of one
+input and three ports: `K_SINGLE_PORT_NAME` of [5, 6], `K_BALANCE_PORT` of [1] and
+`K_USAGE_PORT` of [4]. Traced over [2, 5, 6], the node writes three outputs of the shapes
+[2, 5, 6], [1, 1] and [1, 4], the graph holds two MAXPOOL2D nodes, and the state walk yields
+six names. `forward` over a [5, 6] input fails with `InvalidDescription` ("MoEFeedForward",
+"[5, 6]") and leaves the three outputs in the vector.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The factory fails with `InvalidDescription` and "layer 3" for a row without `experts`
+("'experts'", "absent"), a row without `hidden` ("'hidden'", "absent"), a `noise` key
+("'noise'"), a `top_k` of 5 ("top_k=5"), a `top_k` of -1 ("'top_k'", "zero or more") and a
+`top_k` of 0.5 ("'top_k'", "whole number").
+
+### TheIncrementalFormIsTheOrdinaryTraceOfOnePosition
+
+`forward_incremental` of a block with `top_k` 1 over a [1, 1, 6] input in a carrying trace
+returns a [1, 1, 6] value. Its graph has as many nodes as the graph of `forward` over a
+[1, 1, 6] input, with the same operation at every index. The trace declares no fed leaf and
+carries no value.
+
+## modules/language/blocks/tests/test_block_position_embedding.cpp
+
+Suites: `Unit_BlockPositionEmbedding`.
+
+Tests `Language::Blocks::PositionEmbedding` in
+`modules/language/blocks/include/SushiAI/language/blocks/position_embedding.hpp` and its node
+factory `make_position_embedding_node`. The sequence of every case has five positions and a
+width of 6.
+
+### ATraceAddsTheTableToEveryRow
+
+A block of five rows traced over a [2, 5, 6] input returns a [2, 5, 6] value and adds 5 nodes.
+Its weight has the shape [5, 6] and the role `ParameterRole::Embedding`. A RESHAPE node
+produces the result from a BIAS_ADD node whose inputs have the shapes [2, 30] and [30].
+
+### AShorterSequenceReadsTheLeadingRows
+
+A block of eight rows traced over a [2, 5, 6] input adds 7 nodes and declares a [8, 6] weight.
+The second input of the BIAS_ADD node comes from a RESHAPE node that reads a SLICE_CHANNELS
+node; the slice's result has the shape [1, 1, 1, 30] and its first attribute is 0.
+
+### ASequenceLongerThanTheTableIsRefused
+
+Over a [2, 5, 6] input, `forward` returns the input and the trace fails with
+`InvalidDescription` for a block of four rows ("5 positions", "4 rows"), whose weight stays
+undeclared, for a block of width 7 ("PositionEmbedding", "[N, T, 7]") and for a
+default-constructed block ("positive extents").
+
+### TheWalkYieldsTheTable
+
+After a trace, `NN::for_each_parameter` under "positions" yields the one name
+"positions.weight".
+
+### TheFactoryReadsTheLength
+
+Over a [5, 6] sample, an empty row builds a `ModuleNode<PositionEmbedding>` whose layer has
+`length` 5 and `dim` 6, with one port of the sample's shape. The row `{"length": 9}` builds a
+layer of `length` 9. The factory fails with `InvalidDescription` and "layer 1" for `"length":
+4` ("'length' is 4", "5 positions"), for a `rows` key ("'rows'") and for a [6] sample ("rank-2
+[T, C] input").
+
+### TheIncrementalFormAddsTheRowOfTheFedPosition
+
+`forward_incremental` over a [1, 1, 6] input in a carrying trace returns a [1, 1, 6] value.
+The graph holds one GATHER_ROWS, one ADD and no BIAS_ADD node, and the weight's value has the
+shape [5, 6]. The trace declares one fed leaf, `K_POSITION_LEAF`, an `Int32` value of the
+shape [1, 1], and carries no value.
+
+### TheIncrementalFormRefusesAWindowItsTableCannotServe
+
+`forward_incremental` returns its input and the trace fails with `InvalidDescription` for a
+per-sample shape of [6, 6] over a table of five rows ("6 positions", "5 rows"), which declares
+no fed leaf, and for a [1, 2, 6] input ("one position", "[1, 2, 6]").
+
+## modules/vision/blocks/tests/test_block_psa_block.cpp
+
+Suites: `Unit_BlockPsaBlock`.
+
+Tests `PSABlock` at the width of row 10 of YOLO26n, 128 channels over two heads, traced in
+training mode over a [2, 4, 4, 128] input.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([20, 20, 128])` is [20, 20, 128].
+
+### EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates
+
+The trace holds three ADD nodes, one SILU node and five BATCHNORM2D nodes, and the buffer
+update list holds ten updates. The result has the shape [2, 4, 4, 128].
+
+### TheResidualAddsReadTheInputThenAttentionThenTheFeedForward
+
+The second ADD of the graph reads the block's input and a BATCHNORM2D result. The third ADD
+reads the second ADD's result and a BATCHNORM2D result, and its output is the value `forward`
+returned.
+
+### StateMatchesManifestRow10Block
+
+Walked under the prefix "model.10.m.0", the traced block yields 25 records in order: five each
+for `attn.qkv`, `attn.proj`, `attn.pe`, `ffn.0` and `ffn.1`. `ffn.0` has a [256, 1, 1, 128]
+weight and `ffn.1` a [128, 1, 1, 256] weight.
+
+### AWidthTheHeadCountDoesNotDivideThrows
+
+`PSABlock(100, 3)` throws an error naming "head count divides", "100 channels" and "3 heads".
+
+## modules/language/blocks/tests/test_block_rotary_embedding.cpp
+
+Suites: `Unit_BlockRotaryEmbedding`.
+
+Tests `Language::Blocks::RotaryEmbedding` in
+`modules/language/blocks/include/SushiAI/language/blocks/rotary_embedding.hpp` and
+`Language::Blocks::check_rotary_widths`. Every case uses a width of 8 cut into two groups, so
+each group has two pairs. The ordinary traces read five positions.
+
+### ATraceWeighsTheValueAndItsSwappedHalves
+
+A trace over a [2, 5, 8] input with tables collected returns a [2, 5, 8] value, with no
+failure and no refusal, and adds 20 nodes: two table leaves and 18 others. The graph holds two
+CHANNEL_AFFINE, two SLICE_CHANNELS, three CONCAT_CHANNELS, one SCALE and one ADD node. Each
+CHANNEL_AFFINE node reads a [2, 1, 1, 40] value and a [40] value that requires no gradient.
+
+### TheTablesHoldTheAnglesOfEveryPosition
+
+The trace leaves two host tables, cosines then sines. Each leaf has the shape [5, 2], the
+cosine leaf is `Float32`, and each table has ten values. For every row and pair the two values
+are within 1e-15 of the cosine and the sine of `rotary_angle(row, pair, 2)`.
+
+### ADoubleValueReadsDoubleTables
+
+Over a `Float64` input of the shape [1, 5, 8] the result is `Float64`, the first of the two
+table leaves is `Float64` and the graph holds no CAST node.
+
+### TheBlockHoldsNoState
+
+After a trace, `NN::walk_state` yields no parameter and no buffer, and the graph's
+`state_leaves()` is empty. `output_shape([5, 8])` is [5, 8].
+
+### TheIncrementalFormIsFedTheAnglesOfItsPosition
+
+`forward_incremental` over a [1, 1, 8] input in a carrying trace returns a [1, 1, 8] value and
+adds 20 nodes, with no failure and no refusal. The trace carries no value and declares two
+fed leaves, `K_ROTARY_COSINE_LEAF` then `K_ROTARY_SINE_LEAF`, each a `Float32` value of the
+shape [1, 2].
+
+### ABlockOrAnInputThatDoesNotFitIsRefused
+
+`check_rotary_widths(8, 2)` is ok. It fails with `InvalidDescription` for (6, 2) ("pairs",
+"width=6 groups=2"), (8, 3) ("width=8 groups=3") and (0, 0) ("width=0 groups=0"). `forward`
+over a [2, 5, 10] input returns the input, fails with "RotaryEmbedding" and "[2, 5, 10]" and
+collects no table. `forward` in a trace that collects no tables fails with "'rotary_cosine'"
+and "collect_tables", and `forward_incremental` in an evaluation trace fails with
+"'rotary_cosine'" and "carrying trace".
+
+## modules/language/blocks/tests/test_block_rotary_positions.cpp
+
+Suites: `Unit_BlockRotaryPositions`, `Unit_BlockRotaryPositionsDeathTest`.
+
+Tests `Language::Blocks::rotary_angle` and `Language::Blocks::write_rotary_row` in
+`modules/language/blocks/include/SushiAI/language/blocks/rotary_positions.hpp`. Angles are
+compared within 1e-12 and `float` rows within 1e-6.
+
+### AnAngleIsThePositionTimesTheFrequencyOfThePair
+
+`K_ROTARY_BASE` is 10000. `rotary_angle(position, pair, pairs)` is 0 for (0, 1, 4), 7 for
+(7, 0, 4), 0.03 for (3, 1, 2), 0.5 for (5, 1, 4), 0.05 for (5, 2, 4) and 0.005 for (5, 3, 4).
+
+### PositionZeroTurnsNothing
+
+`write_rotary_row` for position 0 over four pairs writes a cosine of exactly 1 and a sine of
+exactly 0 for every pair.
+
+### ARowHoldsTheCosineAndTheSineOfEachAngle
+
+The row of position 11 over four pairs holds, for every pair, the cosine and the sine of
+`rotary_angle(11, pair, 4)` converted to `float`. The cosine of pair 0 is 0.0044257 and its
+sine is -0.9999902.
+
+### ALargePositionWritesAPointOfTheUnitCircle
+
+For position 2^40 over four pairs, the squared cosine plus the squared sine of every pair is 1
+within 1e-6.
+
+### ARowWithoutMatchingSpansIsFatal
+
+`write_rotary_row` stops the process for two empty spans, with a report containing "0
+cosines", and for a span of two cosines beside a span of three sines, with "2 cosines" and "3
+sines". The case is in the suite `Unit_BlockRotaryPositionsDeathTest`.
+
+## modules/vision/blocks/tests/test_block_segment_head.cpp
+
+Suites: `Unit_BlockSegmentHead`.
+
+Tests `Vision::Blocks::SegmentHead` and `make_segment_head_node` in
+`modules/vision/blocks/include/SushiAI/vision/blocks/segment_head.hpp`. Every head takes 16
+input channels and five classes, with an epsilon of 1e-3 and a momentum of 0.03 for its
+normalisation.
+
+### OutputShapeScalesTheExtentsAndSetsTheClasses
+
+For the input [6, 10, 16], a head of scale 4 reports [24, 40, 5] and a head of scale 1 reports
+[6, 10, 5].
+
+### TheTraceEndsAtTheUpsample
+
+A training trace of a head with 8 hidden channels and scale 2 over [2, 4, 4, 16] holds one
+BATCHNORM2D, one SILU and one UPSAMPLE2D. The result has the shape [2, 8, 8, 5] and the
+UPSAMPLE2D node produces it.
+
+### StateIsListedUnderCv1AndCv2
+
+After a training trace the state walk gives seven records in this order: `cv1.conv.weight`
+[8, 3, 3, 16], `cv1.bn.weight`, `cv1.bn.bias`, `cv1.bn.running_mean` and `cv1.bn.running_var`,
+each [8], then `cv2.weight` [5, 1, 1, 8] and `cv2.bias` [5].
+
+### TheFactoryBuildsTheRow
+
+Over the input [4, 4, 16], the row with `classes` 5, `hidden` 8 and `scale` 2 gives a node with
+one port of shape [8, 8, 5]. The row with only `classes` 5 gives one port of shape [4, 4, 5];
+after an evaluation trace it has seven pieces of state, the first being `cv1.conv.weight`
+[16, 3, 3, 16].
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+`make_segment_head_node` fails with `InvalidDescription` for a row with the key `mode`
+("layer 3 'segment_head'", "'mode'"), for a row without `classes` ("'classes'", "absent") and
+for `scale` 0 ("'scale'", "positive").
 
 ## modules/vision/blocks/tests/test_block_sppf.cpp
 
@@ -1396,6 +2842,77 @@ updates, and `expect_norm_options` finds those two values on all of them.
 With `kernel` 3 and `pools` 1 the trace holds one K_MAXPOOL2D whose attributes 0, 1 and 6, which
 are kernel_h, kernel_w and pad_top, are 3, 3 and 1. The `cv2` weight is [64, 1, 1, 64].
 
+## modules/language/blocks/tests/test_block_transformer_block.cpp
+
+Suites: `Unit_BlockTransformerBlock`.
+
+Tests `Language::Blocks::TransformerBlock` in
+`modules/language/blocks/include/SushiAI/language/blocks/transformer_block.hpp` and its node
+factory `make_transformer_block_node`. Every block has a width of 8, two heads and a
+feed-forward of hidden width 16, and is causal unless the case says otherwise.
+
+### ATraceAddsANormalisedAttentionThenANormalisedFeedForward
+
+A trace over a [2, 5, 8] input returns a [2, 5, 8] value and adds 64 nodes, among them two
+LAYER_NORM, two ADD, two CAUSAL_MASK and one GELU. An ADD node produces the result; its first
+input comes from the other ADD node, whose first input is the block's input. Each LAYER_NORM
+node reads either the block's input or the result of the first ADD node.
+
+### ABlockWithoutAMaskEmitsNone
+
+A block built with `AttentionMask::None` traces without failure into a graph of no CAUSAL_MASK
+node and two LOG_SOFTMAX nodes.
+
+### TheWalkYieldsTheFourChildren
+
+After a trace, `NN::walk_state` under "h" yields twelve names: the weight and the bias of
+`norm1`, of `attn.qkv`, of `attn.proj`, of `norm2`, of `ff.expand` and of `ff.project`, in that
+order.
+
+### AnInputThatDoesNotFitFails
+
+Over a [2, 5, 9] input `forward` returns the input and the trace fails with
+`InvalidDescription` and a message containing "LayerNorm(8)" and "[2, 5, 9]". The graph holds
+no LAYER_NORM node and holds a refusal.
+
+### TheFactoryReadsItsKeysOverTheirDefaults
+
+Over a [5, 8] sample, the row `{"heads": 2}` builds a `ModuleNode<TransformerBlock>` with two
+heads, a hidden width of 32, the mask `Causal` and `K_LAYER_NORM_EPSILON` in `norm1`, and a
+port of the shape [5, 8]. The row `{"heads": 4, "hidden": 16, "causal": false, "ln_epsilon":
+0.001}` builds one with four heads, a hidden width of 16, the mask `None` and an epsilon of
+0.001 in `norm2`.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The factory fails with `InvalidDescription` and "layer 3" for a `depth` key ("'depth'"), a row
+without `heads` ("'heads'", "absent") and five heads over a width of 8 ("dim=8 heads=5").
+
+### TheIncrementalFormTracesEachChildOverOnePosition
+
+`forward_incremental` over a [1, 1, 8] input and a per-sample shape of [5, 8] returns a
+[1, 1, 8] value with no failure and no refusal. The graph holds two LAYER_NORM, two
+SCATTER_ADD_ROWS, no CAUSAL_MASK and one GELU node. The trace declares two fed leaves and
+carries two values.
+
+### BothFormsDeclareTheSameParameters
+
+A block traced with `forward` over [1, 5, 8] and a second block traced with
+`forward_incremental` over [1, 1, 8] have the same `NN::parameter_count`, and the second has a
+`NN::buffer_count` of 0.
+
+### AnUnmaskedBlockHasNoIncrementalForm
+
+`forward_incremental` of a block built with `AttentionMask::None` returns its input, and the
+trace fails with `InvalidDescription` and a message containing "no mask".
+
+### TheFactoryPassesThePositionsToItsAttention
+
+The row `{"heads": 2}` builds a layer whose `attn.positions` is `Learned`, and `"positions":
+"rotary"` builds one whose `attn.positions` is `Rotary`. A rotary row over a [5, 6] sample
+fails with `InvalidDescription` and a message containing "layer 3", "rotary positions" and "3
+channels".
+
 ## modules/layers/nn/tests/test_buffer.cpp
 
 Suites: `Unit_Buffer`, `Unit_BufferDeathTest`.
@@ -1456,13 +2973,13 @@ The first graph holds a padding input, so the buffer's leaf there is value 1, an
 second graph it is value 0. `id_in` returns each graph's own leaf, and the buffer's state is
 the same after both reads.
 
-### ACopiedBufferHasANewStateId
+### ACopiedBufferHasANewStateID
 
 A copy of a defined and read buffer has the original's shape and starting value and a state
 that is neither `K_NO_STATE` nor the original's. `copy.id_in(graph)` is `K_NO_VALUE` until the
 copy is read, and its leaf then differs from the original's, which keeps its own.
 
-### AMovedBufferKeepsItsStateId
+### AMovedBufferKeepsItsStateID
 
 A buffer move-constructed from a read one has the same state and the same leaf in the graph.
 Reading it again returns that leaf and adds no value.
@@ -1472,7 +2989,7 @@ Reading it again returns that leaf and adds no value.
 After a move construction and after a move assignment the source reports `declared()` false
 and the state `K_NO_STATE`. The assigned target is declared and has a state.
 
-### ACopyAssignedBufferHasANewStateId
+### ACopyAssignedBufferHasANewStateID
 
 A defined [2] buffer copy-assigned from a [8] FLOAT64 one takes that shape and type. Its state
 differs from the state it had before and from the source's.
@@ -1506,6 +3023,204 @@ containing "Buffer was defined as" and "is now defined as". The starting value s
 The case is in the suite `Unit_BufferDeathTest`. `read()` on an undefined buffer stops the
 process with a report containing "'running_mean'" and "before define()".
 
+## modules/layers/train/tests/test_carrying_step.cpp
+
+Suites: `Unit_CarryingStep`, `Unit_PlainEvaluationStep`.
+
+Tests a `Train::EvaluationStep` that is fed two leaves and carries a value between runs. Both
+fixtures need an engine. The model of `Unit_CarryingStep` is a local `Accumulator` whose
+`forward` feeds a leaf named `gain`, declares a carried leaf `sum` with the initial value 1 and
+returns sum + x * gain. The fixture builds the step with `Train::build_carrying_graph` over a
+[1, 3] row and fills x with 1, 2, 3 and the gain with 2, 2, 2. A `static_assert` holds that
+`Accumulator` is a `TraceModule`.
+
+### TheStepNamesTheModelInputThenTheFedLeaves
+
+`input_names()` is `K_MODEL_INPUT_NAME` then `gain`, and both `carries_state()` and
+`step().has_trailing_work()` are true. `input("gain")` returns a tensor whose second extent is
+3. `input("absent")` fails with `InvalidDescription` and a message naming `'absent'`,
+`'inputs'` and `'gain'`.
+
+### ARunReadsWhatTheRunBeforeCarried
+
+After one, two and three runs by name, element i of the output is 1 + (i + 1) * 2 * runs within
+1e-6. The step compiled once and ran three times.
+
+### AResetRestoresTheInitialValue
+
+After two runs, `reset()` and one more run, the output is what one run gives. The compile count
+stays 1.
+
+### ARunInOrderFeedsTheLeavesAsTheStepListsThem
+
+`run_in_order` with x then the gain gives the output of one run by name.
+
+### ARunOfOneTensorIsRefusedByAStepFedTwoLeaves
+
+`run(x)` fails with `Incompatible` and a message containing "1 tensors", "fed 2" and `'gain'`.
+The run count stays 0.
+
+### NamedFeedsThatDoNotCoverTheLeavesAreRefused
+
+`run_by_name` fails with `InvalidDescription` three times: for a feed named `scale` ("'scale'",
+"no input leaf"), for `gain` given twice ("'gain' twice") and for one feed alone ("1 named
+tensors", "fed 2"). The run count stays 0.
+
+### AFeedOfAnotherShapeIsRefusedUnderItsName
+
+A [1, 4] tensor fed as `gain` fails with `Incompatible` and a message containing "gain",
+"[1, 4]" and "[1, 3]".
+
+### AnOrdinaryStepFeedsOneLeafAndCarriesNothing
+
+A step built with `Train::build_evaluation_graph` over `NN::Linear{3, 3}` lists one input,
+`K_MODEL_INPUT_NAME`. `carries_state()` and `has_trailing_work()` are false, `reset()` is ok and
+the run count is 0.
+
+## modules/core/autograd/tests/test_causal_mask_backward.cpp
+
+Suites: `Unit_CausalMaskBackward`.
+
+Tests the nodes `Autograd::differentiate` appends for CAUSAL_MASK. The two graph cases mask
+[4, 4] scores with the fill -1e9 and take the `nll_loss` of the `log_softmax` of the masked
+value against a `targets` input.
+
+### TheMaskHasARule
+
+`Ops::K_CAUSAL_MASK` is differentiable, does not block the gradient, and
+`Autograd::has_backward_rule` is true for its id.
+
+### TheScoreGradientIsTheGradientMaskedWithZero
+
+With the scores as a parameter, the graph holds two CAUSAL_MASK nodes after differentiation.
+The first has the fill -1e9 in attribute slot 0 and the second has 0. The one output of the
+second is the returned gradient, whose shape is [4, 4].
+
+### ScoresThatNeedNoGradientAddNoNode
+
+With the scores as an input, the returned gradient is `K_NO_VALUE` and the graph holds one
+CAUSAL_MASK node.
+
+## modules/core/graph/tests/test_causal_mask_ops.cpp
+
+Suites: `Unit_CausalMaskOps`.
+
+Tests `GraphBuilder::causal_mask`: the node it emits, the shapes it accepts and the operands it
+refuses. Every case uses the fill -1e9.
+
+### TheMaskWritesItsIdentityAndKeepsTheShape
+
+Over [2, 5, 5] float64 scores the call is ok and emits one CAUSAL_MASK node that reads the
+scores, writes the returned value and holds the fill in attribute slot 0. The result has the
+shape [2, 5, 5], the type float64 and the lifetime `Activation`, and the graph has no refusal.
+
+### TheMaskAcceptsAnyNumberOfLeadingAxes
+
+A [3, 3] matrix and a [2, 4, 3, 3] value both return a value of their own shape.
+
+### TheMaskRefusesOperandsThatDoNotFit
+
+Four calls fail with `InvalidDescription`: a [5] vector ("[..., T, T] scores"), a [2, 4, 5]
+value ("[2, 4, 5]"), int32 scores ("half, float32 or float64 scores") and a fill of minus
+infinity ("finite fill"). After each the node count is unchanged and `has_refusal()` is true.
+
+## modules/layers/nn/tests/test_channel_slice.cpp
+
+Suites: `Unit_ChannelSlice`.
+
+Tests `NN::ChannelSlice` in `modules/layers/nn/include/SushiAI/nn/channel_slice.hpp`, which
+keeps `count` channels of an image batch from `offset` on.
+
+Two `static_assert` lines at the top of the file hold that `ChannelSlice` is a `Module` and is
+not a `ModuleContainer`.
+
+### TheOffsetAndCountFieldsAreSetInOrder
+
+`ChannelSlice{32, 16}` has `offset` 32 and `count` 16.
+
+### OutputShapeKeepsHeightAndWidthAndTakesTheRange
+
+With offset 32 and count 32, `output_shape([5, 3, 64])` is [5, 3, 32].
+
+### OutputShapeAcceptsTheFirstLastAndWholeRanges
+
+Over [4, 2, 4], the ranges {0, 1} and {3, 1} give [4, 2, 1], {1, 3} gives [4, 2, 3] and {0, 4}
+gives [4, 2, 4].
+
+### TheResultIsTaggedNHWC
+
+The traced result over a [2, 5, 3, 64] input has rank 4 and the layout `TensorLayout::NHWC`.
+
+### ForwardEmitsOneSliceNodeCarryingTheOffset
+
+`forward` with offset 32 and count 32 adds one node. Its operation is `Ops::K_SLICE_CHANNELS`,
+its one input is the value passed in, its attribute 0 is 32, and the result has the shape
+[2, 5, 3, 32].
+
+### TheWholeChannelRangeTracesToTheInputShape
+
+`ChannelSlice{0, 64}` over a [2, 5, 3, 64] input traces to [2, 5, 3, 64].
+
+### OutputShapeAgreesWithTheTracedShape
+
+For {32, 32} over 64 channels and for {1, 2} over 6 channels, `output_shape` equals the traced
+shape with its batch axis dropped.
+
+### OutputShapeRejectsANegativeOffset
+
+Offset -1 with count 4 throws an error naming "ChannelSlice", "offset=-1, count=4" and
+"64 channels".
+
+### OutputShapeRejectsAZeroCount
+
+Offset 0 with count 0 throws an error naming "ChannelSlice", "offset=0, count=0" and
+"64 channels".
+
+### OutputShapeRejectsANegativeCount
+
+Offset 8 with count -2 throws an error naming "ChannelSlice", "offset=8, count=-2" and
+"64 channels".
+
+### OutputShapeRejectsARangePastTheChannels
+
+Offset 32 with count 40 over 64 channels throws an error naming "offset=32, count=40" and
+"64 channels".
+
+### OutputShapeRejectsAnOffsetAtTheChannelCount
+
+Offset 64 with count 1 over 64 channels throws an error naming "offset=64, count=1".
+
+### OutputShapeRejectsExtremeValuesWithoutOverflow
+
+An offset of the largest `int64_t` with count 1, and offset 1 with a count of the largest
+`int64_t`, each throw an error naming "ChannelSlice" and "64 channels".
+
+### OutputShapeRejectsARankOnePerSampleShape
+
+`output_shape([16])` throws an error naming "ChannelSlice", "[H, W, C]" and "[16]".
+
+### OutputShapeRejectsARankFourShape
+
+`output_shape([2, 3, 5, 7])` throws `Error`.
+
+### ForwardRejectsARankTwoInput
+
+`forward` over a [2, 12] input throws an error naming "ChannelSlice", "rank-4" and "[2, 12]".
+
+### ForwardRejectsARangePastTheChannels
+
+`forward` with offset 2 and count 2 over a three-channel input throws an error naming
+"ChannelSlice", "offset=2, count=2" and "3 channels".
+
+### ForwardRejectsAnNCHWInput
+
+`forward` over a value converted to NCHW throws an error naming "slice_channels" and "NHWC".
+
+### TheParameterWalkVisitsNothing
+
+After a trace, `NN::for_each_parameter` calls its visitor zero times and
+`NN::parameter_count` is 0.
+
 ## modules/layers/io/tests/test_checkpoint_format.cpp
 
 Suites: `Unit_CheckpointFormat`, `Unit_CheckpointFormatDeathTest`.
@@ -1526,11 +3241,523 @@ format.
 The `OFFSET_` constants are byte offsets into `sample_stream()`, whose first record is
 "0.weight", FLOAT32, [2, 3]. They are stated once so that a case names the field it breaks.
 
+### RoundTripsNamesShapesAndPayloads
+
+The sample stream opens as two records. The first is `0.weight`, `Float32`, [2, 3], 24
+payload bytes, and its payload reads back as the six floats written. The second is `0.bias`
+of [2] with the two floats written. `read_count` is then 2.
+
 ### DistinguishesTwoShapesWithTheSameElementCount
 
 This case covers the defect the format exists to close: an element count alone lets a [2, 3]
 weight load into a [3, 2] one. The shape is recorded, so the two records are not
 interchangeable.
+
+### RejectsAForeignMagic
+
+With the magic bytes replaced by "JUNK" the read fails with `InvalidFile`, "SACP" and
+"not a SushiAI checkpoint".
+
+### RejectsAFutureVersion
+
+With the version patched to 3 the read fails with `InvalidFile`, "version 3" and
+"versions 1 to 2".
+
+### RejectsACountOverTheBound
+
+With the record count patched to 4097 the read fails with `InvalidFile`, "4097" and "4096".
+
+### RejectsATruncatedHeader
+
+The first six bytes of the stream fail with `InvalidFile`, "ended while reading" and
+"version".
+
+### RejectsATruncatedPayload
+
+The stream without its last four bytes fails with `InvalidFile`, "ended while reading" and
+"0.bias".
+
+### RejectsANameLengthOverTheBound
+
+With the first name length patched to 257 the read fails with `InvalidFile`, "257" and "256".
+
+### RejectsARankOverTheBound
+
+With the first rank patched to 7 the read fails with `InvalidFile`, "0.weight", "rank 7" and
+"6".
+
+### RejectsANonPositiveDim
+
+With the first extent patched to 0 the read fails with `InvalidFile`, "0.weight" and
+"must be positive".
+
+### RejectsAnUnknownDType
+
+With the first element type patched to 99 the read fails with `InvalidFile`, "0.weight", "99"
+and "does not know".
+
+### RejectsMoreRecordsThanDeclared
+
+A writer created for 2 records writes two. A third `write` is fatal with "declared 2" and
+"'c'".
+
+### RejectsFewerRecordsThanDeclared
+
+A writer created for 2 records writes one. `finish` is fatal with "declared 2" and
+"1 were written".
+
+### RejectsATensorCountOverTheBoundAtConstruction
+
+`CheckpointWriter::create` for 4097 records fails with `InvalidDescription`, "4097" and
+"4096".
+
+### ReadingPastTheDeclaredCountIsAnError
+
+After both records of the sample stream are read, a third `next` is fatal with "declared 2".
+
+### WritesTheVersionTwoHeaderByteByByte
+
+The sample stream opens with the sixteen bytes 'S', 'A', 'C', 'P', then 2, 2 and 0 as
+little-endian 32-bit values. Its size is those sixteen bytes plus 60 bytes for the weight
+record and 34 for the bias record.
+
+### AVersionOneFileReadsAsModelStateAlone
+
+A version 1 stream opens with `version` 1, two records and a run-state count of 0, and both
+payloads read back as written.
+
+### RejectsAVersionBelowTheFirst
+
+With the version patched to 0 the read fails with `InvalidFile`, "version 0" and
+"versions 1 to 2".
+
+### RoundTripsARunStateSection
+
+In the run-state stream, byte 50 opens the section with the owner length 3 and "sgd", and the
+run-state count field holds 2. The reader reports version 2, one model record and two
+run-state records. After the model record, `begin_run_state` returns "sgd". The next records
+are `step_count`, `Int64` of [1] holding seven, and `0.bias.momentum` holding the two floats
+written. `read_count` is 1 and `run_state_read_count` is 2.
+
+### AReaderOfModelStateLeavesTheRunStateUnread
+
+Reading the model records of the run-state stream alone succeeds.
+
+### RejectsARunStateCountOverTheBound
+
+With the run-state count patched to 16385 the read fails with `InvalidFile`, "16385",
+"16384" and "run-state". `CheckpointWriter::create` with 16385 run-state records fails with
+`InvalidDescription` and the same three texts.
+
+### RejectsAMalformedRunStateOwner
+
+The read fails with `InvalidFile` for an owner length of 0 ("names no owner"), an owner
+length of 257 ("run-state section", "257", "256") and a stream cut inside the owner
+("ended while reading", "run-state owner"). `begin_run_state("")` on a writer fails with
+`InvalidDescription`, "owner" and "0 bytes".
+
+### RejectsATruncatedRunStatePayload
+
+The run-state stream without its last three bytes fails with `InvalidFile`,
+"ended while reading" and "0.bias.momentum".
+
+### TheRunStateOpensAfterTheModelRecords
+
+On a writer that declared one model record and wrote none, `begin_run_state` is fatal with
+"declared 1 records" and "0 were written". On a reader that has read none it is fatal with
+"declared 1 records" and "0 were read".
+
+### ARunStateThatWasNotDeclaredCannotOpen
+
+On a writer created without run-state records, `begin_run_state` is fatal with
+"declared no run-state record". On a reader of a version 1 stream, after both records are
+read, it is fatal with "declares no run-state record".
+
+### TheRunStateHoldsExactlyTheRecordsDeclared
+
+On a writer that declared one run-state record, `finish` right after `begin_run_state` is
+fatal with "declared 1 run-state records" and "0 were written". After one record is written,
+a second `write` is fatal with "declared 1 run-state records" and "'b'".
+
+## modules/vision/codecs/tests/test_codecs_decode_image.cpp
+
+Suites: `Unit_CodecsDecodeImage`.
+
+Tests `decode_image` and `load_image` in
+`modules/vision/codecs/include/SushiAI/vision/codecs/decode_image.hpp`. The inputs are a 2 by 2
+RGB PNG that libpng encodes, an 8 by 8 gray JPEG of level 140 that libjpeg encodes at quality
+100, and raw image files that `write_raw_image` writes. A level decoded from the JPEG may
+differ from 140 by 3. The `Load` cases write their files into a directory under the system's
+temporary directory and remove it.
+
+### PNGBytesReachThePNGDecoder
+
+The PNG decodes to a 2 by 2 image of three channels whose bytes are the encoded samples.
+
+### JPEGBytesReachTheJPEGDecoder
+
+The JPEG decodes to an 8 by 8 image of one channel, every byte within 3 of 140.
+
+### OptionsReachTheSelectedDecoder
+
+With `ChannelLayout::Color` the gray JPEG decodes to three channels. With
+`ChannelLayout::Gray` the RGB PNG decodes to one.
+
+### RawRGBFileDecodesToItsStoredSamples
+
+A raw RGB file decodes to a 2 by 2 image of three channels holding the samples written, with
+the default options and with `ChannelLayout::Color`.
+
+### RawBGRFileDecodesToRGB
+
+A raw file written in BGR order decodes with the first and third byte of every pixel swapped:
+0, 0, 255, 0, 255, 0, 255, 0, 0, 30, 20, 10.
+
+### RawGrayFileDecodesToOneChannelOrToThreeEqualOnes
+
+A raw gray file of 3, 60, 190, 255 decodes to those four bytes in one channel, by default and
+with `ChannelLayout::Gray`. With `ChannelLayout::Color` it decodes to three channels, each
+level repeated three times.
+
+### RawRGBFileIsRefusedAsGray
+
+A raw RGB file read with `ChannelLayout::Gray` fails with `Unsupported`, "decode_image: ",
+"3 channels" and "gray".
+
+### RawFileCutShortIsInvalid
+
+A raw file one byte short fails with `InvalidFile`, "holds 35 bytes" and "declares 36". Its
+first 10 bytes fail with `InvalidFile`, "decode_image: " and "10 of 24".
+
+### RawFileWithTrailingBytesIsInvalid
+
+A raw file with one byte appended fails with `InvalidFile`, "holds 37 bytes" and "declares 36".
+
+### RawFileWithASideAboveTheLimitIsInvalidBeforeAnyAllocation
+
+A raw file whose height bytes are set to 16385 fails with `InvalidFile`, "height 16385" and
+"16384".
+
+### BytesOfNoKnownFormatAreUnsupported
+
+`decode_image` fails with `Unsupported` and "decode_image: " for 64 bytes of 0x5A ("64 bytes"),
+for a GIF signature and for an empty span ("0 bytes").
+
+### SignatureWithNothingBehindItFailsInItsDecoder
+
+Each signature alone fails with `InvalidFile`: the three JPEG bytes with "decode_jpeg: ", the
+eight PNG bytes with "decode_png: ", and the letters SAIM with "decode_image: " and "4 of 24".
+
+### LoadReportsAMissingPathAndNamesIt
+
+`load_image` of a file that does not exist fails with `FileNotFound`, "absent.png" and
+"load_image: ".
+
+### LoadDecodesAPNGFile
+
+The PNG written to `image.png` loads as three channels holding the encoded samples.
+
+### LoadDecodesAJPEGFileWhateverItsExtension
+
+The JPEG written to a file named `image.png` loads with `ChannelLayout::Color` as 8 by 8 by 3
+bytes, each within 3 of 140.
+
+### LoadDecodesARawImageFile
+
+The raw gray file written to `image.saim` loads as one channel holding 3, 60, 190, 255.
+
+### LoadNamesThePathOfAFileItsDecoderRejects
+
+The first 40 bytes of the PNG, written to `cut.png`, fail with `InvalidFile`, "cut.png" and
+"decode_png: ".
+
+### LoadNamesThePathOfAFileOfNoKnownFormat
+
+A file `notes.txt` holding "hello" fails with `Unsupported`, "notes.txt" and "decode_image: ".
+An empty `empty.png` fails with `Unsupported`, "empty.png" and "0 bytes".
+
+### LoadRefusesADirectory
+
+`load_image` of the scratch directory itself fails with `InvalidFile`, the directory's name
+and "regular file".
+
+## modules/vision/codecs/tests/test_codecs_image_format.cpp
+
+Suites: `Unit_CodecsImageFormat`.
+
+Tests `detect_image_format` in
+`modules/vision/codecs/include/SushiAI/vision/codecs/image_format.hpp`.
+
+### JPEGIsDetectedFromItsThreeLeadingBytes
+
+The bytes FF D8 FF give `ImageFormat::JPEG`.
+
+### JPEGIsDetectedWhateverFollowsItsSignature
+
+FF D8 FF followed by E0 00 10, and followed by E1 12 34, both give `ImageFormat::JPEG`.
+
+### PNGIsDetectedFromItsEightByteSignature
+
+The eight signature bytes give `ImageFormat::PNG`, and so do the same bytes with one zero
+byte appended.
+
+### RawImageIsDetectedFromTheCacheMagic
+
+The four bytes of `K_RAW_IMAGE_MAGIC`, least significant first, give `ImageFormat::Raw`.
+
+### RawImageIsDetectedFromTheLettersSAIM
+
+The bytes 'S', 'A', 'I', 'M', 1, 0, 0, 0 give `ImageFormat::Raw`.
+
+### NoBytesAreUnknown
+
+An empty span gives `ImageFormat::Unknown`.
+
+### GarbageIsUnknown
+
+The text "not an img", sixteen zero bytes and the GIF signature each give
+`ImageFormat::Unknown`.
+
+### SignatureCutShortIsUnknown
+
+The first two bytes of the JPEG signature, the first seven of the PNG signature and the first
+three of SAIM each give `ImageFormat::Unknown`.
+
+### SignatureWithOneByteChangedIsUnknown
+
+The PNG signature with its last byte set to 0x0B, the bytes FF D8 00 and the letters SAIN each
+give `ImageFormat::Unknown`.
+
+## modules/vision/codecs/tests/test_codecs_jpeg.cpp
+
+Suites: `Unit_CodecsJpeg`.
+
+Tests `decode_jpeg` in `modules/vision/codecs/include/SushiAI/vision/codecs/jpeg_decoder.hpp`
+on files the cases encode in memory with libjpeg at quality 100 and without subsampling. A
+quadrant image is 16 by 16 pixels with one colour per 8 by 8 quadrant, and a decoded channel
+may differ from its colour by 3 levels.
+
+### GrayFileDecodesToOneChannel
+
+The gray quadrant file of levels 10, 100, 180 and 250 decodes to one channel holding those
+levels.
+
+### GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked
+
+With `ChannelLayout::Color` the gray file decodes to three channels holding the gray levels,
+and the three bytes of every pixel are equal.
+
+### ColorFileDecodesToRGB
+
+A YCbCr file of four RGB colours decodes with the default options to three channels holding
+those colours.
+
+### ColorFileDecodesToRGBWhenColorIsAsked
+
+The same file decodes to the same colours with `ChannelLayout::Color`.
+
+### ColorFileOfNeutralPixelsDecodesToTheirLevelWhenGrayIsAsked
+
+A YCbCr file whose pixels have three equal channels of 10, 100, 180 and 250 decodes with
+`ChannelLayout::Gray` to one channel holding those levels.
+
+### RGBFileWithoutAColorTransformDecodesToRGB
+
+A file stored in the RGB colour space decodes to three channels holding its colours.
+
+### CMYKFileDecodesToRGB
+
+A file stored as CMYK, where 255 means no ink, decodes to three channels: (255, 255, 255, 255)
+to white, (0, 255, 255, 255) to (0, 255, 255), (255, 255, 255, 0) to black and
+(128, 255, 64, 255) to (128, 255, 64).
+
+### YCCKFileDecodesToRGB
+
+The same CMYK pixels stored as YCCK decode with `ChannelLayout::Color` to the same four RGB
+colours.
+
+### CMYKFileIsRefusedAsGrayAndTheColorSpaceIsNamed
+
+With `ChannelLayout::Gray` the CMYK file fails with `Unsupported`, "decode_jpeg: ", "CMYK" and
+"gray", and the YCCK file fails with `Unsupported`, "decode_jpeg: ", "YCCK" and "gray".
+
+### FileCutInHalfIsInvalid
+
+The first half of the colour file fails with `InvalidFile` and "decode_jpeg: ".
+
+### FileWithoutItsEndMarkerIsInvalidAndCarriesTheLibraryMessage
+
+The gray file without its last two bytes fails with `InvalidFile`,
+"decode_jpeg: the data is corrupt: " and "JPEG".
+
+### EveryProperPrefixOfAFileFails
+
+`decode_jpeg` returns no image for every prefix of the gray file, from zero bytes to one byte
+short of the whole.
+
+### NoBytesAreInvalid
+
+An empty span fails with `InvalidFile` and "decode_jpeg: ".
+
+### BytesThatAreNotAJPEGAreInvalid
+
+64 bytes of 0x5A fail with `InvalidFile` and "decode_jpeg: ".
+
+### DecoderIsUsableAfterAFailure
+
+After 64 bytes of 0x5A fail with `InvalidFile`, the gray file decodes to its four levels in
+one channel.
+
+### SideAtTheLimitDecodes
+
+A gray file `K_MAX_IMAGE_SIDE` pixels wide and one high decodes to an image of that width, a
+height of 1 and one channel.
+
+### WidthAboveTheLimitIsRefused
+
+A file 16385 pixels wide and one high fails with `Unsupported`, "1x16385" and "16384".
+
+### HeightAboveTheLimitIsRefused
+
+A file one pixel wide and 16385 high fails with `Unsupported`, "16385x1" and "16384".
+
+## modules/vision/codecs/tests/test_codecs_png.cpp
+
+Suites: `Unit_CodecsPng`.
+
+Tests `decode_png` in `modules/vision/codecs/include/SushiAI/vision/codecs/png_decoder.hpp` on
+files the cases encode in memory with libpng's simplified writer. The gray file is 2 rows by 3
+columns of 0, 17, 128, 200, 254, 255. The palette file is 2 by 4 with the indices 3, 0, 1, 2,
+2, 2, 0, 3 over the palette red, green, blue and (40, 40, 40). The pattern file is a 16 by 16
+RGB image of generated bytes.
+
+### GrayFileDecodesToItsStoredSamples
+
+The gray file decodes to 2 rows, 3 columns and one channel holding its samples.
+
+### GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked
+
+With `ChannelLayout::Color` the gray file decodes to 18 bytes in three channels, each pixel
+holding its gray sample three times.
+
+### ColorFileDecodesToItsStoredSamplesInRGBOrder
+
+A 2 by 2 RGB file decodes to three channels whose bytes are the samples encoded.
+
+### ColorFileOfGrayPixelsDecodesToThoseLevelsWhenGrayIsAsked
+
+An RGB file whose pixels have three equal channels of 0, 90, 200 and 255 decodes with
+`ChannelLayout::Gray` to one channel holding 0, 90, 200, 255.
+
+### AlphaIsDroppedAndTheColorsKeepTheirStoredValues
+
+An RGBA file with the alphas 0, 128, 255 and 1 decodes to three channels holding the stored
+red, green and blue of each pixel.
+
+### GrayAlphaFileDecodesToItsStoredGrayLevels
+
+A gray-alpha file of the levels 5, 100, 180 and 250 with the alphas 0, 60, 255 and 128
+decodes to one channel holding 5, 100, 180, 250.
+
+### GrayAlphaFileDecodesToThreeEqualChannelsWhenColorIsAsked
+
+A gray-alpha file of the levels 5 and 250 decodes with `ChannelLayout::Color` to 5, 5, 5, 250,
+250, 250.
+
+### PaletteFileYieldsItsStoredIndicesWhenIndicesAreAsked
+
+With `PaletteRead::Indices` and `ChannelLayout::Stored` the palette file decodes to 2 rows, 4
+columns and one channel holding its indices.
+
+### PaletteIndicesComeOutInOneChannelWhateverTheLayout
+
+With `PaletteRead::Indices` the palette file decodes to one channel holding its indices under
+`ChannelLayout::Color` and under `ChannelLayout::Gray`.
+
+### PaletteFileDecodesToItsPaletteColorsByDefault
+
+With the default options the palette file decodes to three channels, each pixel holding the
+palette entry its index names.
+
+### PaletteFileReadAsGrayIsAConversionAndNotItsIndices
+
+With `ChannelLayout::Gray` and palette colours the palette file decodes to one channel of
+eight bytes. The first and the last pixel, both of index 3, hold 40.
+
+### IndicesOptionLeavesAFileWithoutAPaletteToItsLayout
+
+The gray file read with `PaletteRead::Indices` decodes to one channel holding its samples.
+
+### SixteenBitGrayFileDecodesToEightBits
+
+A 16-bit gray file of 0, 65535, 65535, 0, 65535, 0 decodes to 2 rows, 3 columns and one
+channel holding 0, 255, 255, 0, 255, 0.
+
+### SixteenBitColorFileDecodesToEightBitRGB
+
+A 16-bit RGB file of a red, a green, a blue and a black pixel at 65535 decodes to three
+channels holding 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0.
+
+### FileCutInHalfIsInvalid
+
+The first half of the pattern file fails with `InvalidFile` and "decode_png: ".
+
+### FileCutInsideItsHeaderIsInvalid
+
+The first 0, 7, 8 and 20 bytes of the pattern file each fail with `InvalidFile` and
+"decode_png: ".
+
+### EveryPrefixOfAFileFailsOrDecodesToTheFullSize
+
+Every prefix of the pattern file shorter than the file either fails with `InvalidFile` or
+decodes to an image of 16 by 16 by 3 bytes.
+
+### BytesThatAreNotAPNGAreInvalid
+
+64 bytes of 0x5A fail with `InvalidFile` and "decode_png: ".
+
+### FileWithADamagedChunkIsInvalid
+
+The pattern file with one bit of byte 19 flipped fails with `InvalidFile` and "decode_png: ".
+
+### SideAtTheLimitDecodes
+
+A gray file `K_MAX_IMAGE_SIDE` pixels wide and one high decodes to an image of that width and
+a height of 1 holding its samples.
+
+### WidthAboveTheLimitIsRefused
+
+A file 16385 pixels wide and one high fails with `Unsupported`, "1x16385" and "16384".
+
+### HeightAboveTheLimitIsRefused
+
+A file one pixel wide and 16385 high fails with `Unsupported`, "16385x1" and "16384".
+
+## modules/core/graph/tests/test_compiled_step.cpp
+
+Suites: `Unit_CompiledStep`.
+
+Tests `CompiledStep::restore_run_count` in
+`modules/core/graph/include/SushiAI/graph/compiled_step.hpp`. The fixture is an `EngineTest`.
+Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
+the step's output is the mask: 4/3 where `dropout_keeps` keeps an element and 0 elsewhere,
+compared within 1e-6.
+
+### ARestoredRunCountIsTheIndexOfTheNextRun
+
+One step runs three times. A second step, with a run count of 0, is restored to 2 and runs
+once. Its run count is then 3, its output equals the first step's third output, and that
+output is the mask `dropout_keeps` gives for run 2.
+
+### ARestoreAfterARunIsRefusedWithTheCount
+
+After one run, `restore_run_count(4)` fails with `InvalidDescription`, "before its first run"
+and "run 1", and the run count stays 1.
+
+### ASecondRestoreIsRefused
+
+`restore_run_count(0)` and then `restore_run_count(5)` succeed. A third call with 7 fails with
+`InvalidDescription` and "run 5", and the run count stays 5.
 
 ## modules/layers/nn/tests/test_concat.cpp
 
@@ -1640,6 +3867,12 @@ The cases fall into two groups, in file order:
 - the model document in both of its versions, and the layer registry it selects through
 - the train and eval documents
 
+### ParsesEveryScalarKind
+
+An object with a whole number, a real, a string, a boolean, a null and an array of two parses
+to `Kind::Object`, and each member reads back through `as_int`, `as_real`, `as_string`,
+`as_bool`, `is_null` and `as_array`.
+
 ### KeepsTheKeyOrderTheFileSpelled
 
 Key order is what lets a "this object carries ..." diagnostic read the way the file does, so
@@ -1649,6 +3882,25 @@ the test treats it as a property and not as an accident.
 
 JSON's grammar distinguishes 3 from 3.0 and the config layer keeps that, so `"units": 2.5` is
 refused, not truncated. The widening goes one way only.
+
+### AWrongKindNamesBothTheContextAndTheKindFound
+
+`as_int("layer 0 'units'")` on a string raises an error holding "layer 0 'units'" and
+"a string".
+
+### AMissingKeyNamesTheKeyAndListsWhatIsPresent
+
+`at("gamma", "model.json")` on an object of `alpha` and `beta` raises an error holding
+"model.json", "'gamma'", "'alpha'" and "'beta'".
+
+### ReadingAKeyOffANonObjectSaysWhatItActuallyIs
+
+`at("units", "the model")` on an array raises an error holding "the model" and "an array".
+
+### AnUnknownKeyIsAnErrorThatListsWhatIsAllowed
+
+`reject_unknown_keys` with the allowed keys `type` and `units` over an object holding `unitss`
+raises an error holding "layer 0 'linear'", "'unitss'", "'units'" and "'type'".
 
 ### AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything
 
@@ -1665,6 +3917,15 @@ goes through the same call.
 A non-object falls back and does not throw. A layer spelled `{"type": "gelu"}`, whose attributes
 are an empty object, therefore reads its optional keys through the same call as any other layer.
 
+### MalformedJSONNamesTheOriginAndTheComplaint
+
+`parse_json("{ not json", "train.json")` raises an error holding "train.json" and
+"not valid JSON".
+
+### AnObjectBuiltFromMismatchedVectorsIsRefused
+
+`Value::object` of two keys and one value raises an error holding "2 keys" and "1 value".
+
 ### ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes
 
 "type" is gone from the attributes, so no factory has to allow the key that selected it.
@@ -1673,6 +3934,11 @@ are an empty object, therefore reads its optional keys through the same call as 
 
 The activation preserves the width it was handed, which is why the file never states a width
 for it.
+
+### AConfiguredStackTracesToTheDeclaredOutputWidth
+
+The stack `build_layer_stack` makes from `K_GOOD_MODEL` traces a [4, 6] input to a [4, 4]
+value.
 
 ### AnUnknownLayerTypeListsEveryTypeThisBuildHas
 
@@ -1722,6 +3988,41 @@ output. Two specs compare equal as text when every one of those fields agrees.
 `current_model_from` wraps a `layers` array, and optionally more top-level keys, in a version
 2 document whose input shape is [6].
 
+### ALayerFactoryRefusesANonPositiveWidth
+
+A `linear` row with `units` 0 makes `build_layer_stack` raise an error holding
+"layer 0 'linear'" and "'units'".
+
+### UseBiasDefaultsToTrueAndCanBeTurnedOff
+
+After a trace, a `linear` row has two parameters, and one with `use_bias` false has one.
+
+### AMissingModelVersionIsAnErrorThatSaysWhy
+
+A model document without `sushiai_model` raises an error holding "sushiai_model" and
+"misread".
+
+### AFutureModelVersionIsAnError
+
+`sushiai_model` 2 raises an error holding "version 2" and "version 1".
+
+### AnUnknownTopLevelModelKeyIsAnError
+
+A version 1 document with the key `optimizer` raises an error holding "'optimizer'" and
+"'layers'".
+
+### AModelWithNoLayersIsAnError
+
+An empty `layers` array raises an error holding "no layers".
+
+### ANonPositiveInputWidthIsAnError
+
+`features` 0 raises an error holding "'features'" and "positive".
+
+### ALayerThatIsNotAnObjectIsAnError
+
+A layer given as the string "linear" raises an error holding "layer 0" and "a string".
+
 ### AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite
 
 `spec_text` of the two documents is equal. The expected text is asserted as a literal too: the
@@ -1742,6 +4043,16 @@ The input shape [28, 28, 1] is kept at rank 3 and its `num_elements()` is 784.
 An empty `shape` throws with a message containing "'input' 'shape'" and "empty". The shape
 [28, 0, 1] throws with "'shape' entry 1" and "positive". A version 2 input that states
 `features` throws with "'features'" and "'shape'".
+
+### TheInputElementTypeIsFloat32UnlessTheFileStatesInt32
+
+A version 2 document without `dtype`, and one with `dtype` "float32", both parse to an input
+of `Float32`. One with "int32" parses to `Int32`.
+
+### AnInputElementTypeOutsideTheListIsAnError
+
+The `dtype` "int64" raises an error holding "'input' 'dtype'", "'int64'" and
+"'float32', 'int32'". The `dtype` 32 raises one holding "'input' 'dtype'".
 
 ### AnInputShapeAboveTheRankOrTheElementLimitIsAnError
 
@@ -1837,16 +4148,76 @@ that a relative path resolves against the config file's own directory and not ag
 process working directory, and that cannot be asserted without a config file that exists
 somewhere.
 
+### AModelWithoutATaskHoldsANullTask
+
+A version 2 document without `task`, and `K_FIRST_VERSION_MODEL`, both parse to a null task.
+
+### ATaskIsKeptWholeWithItsKeysInFileOrder
+
+A task stating `classes`, `type` and `heads` in that order parses to an object with those
+keys in that order, the type "anchor_detection", 80 classes and one head.
+
+### AMalformedTaskIsAnError
+
+The parse raises an error for a task given as an array ("'model.json's 'task'", "an array"),
+as null ("'model.json's 'task'", "null"), without a type ("'model.json's 'task'",
+"no 'type'", "'classes'") and with the type 3 ("'task' 'type'", "a whole number").
+
+### AVersionOneDocumentRefusesATask
+
+A version 1 document with a `task` raises an error holding "'task'" and "'layers'".
+
+### ParsesATrainDocumentIntoItsFourTypedBlocks
+
+`K_GOOD_TRAIN` parses to the objective type "cross_entropy", the data type "rings", the
+optimizer type "adamw" and 3 epochs. The optimizer attributes hold no `type` and a
+`learning_rate` of 0.003, and the data attributes hold a `batch_size` of 8.
+
+### ResolvesRelativePathsAgainstTheConfigsOwnDirectory
+
+`load_train` of a `train.json` written under the system's temporary directory gives a model
+path of `model.json` and a checkpoint of `out/model.sushi`, both under that directory.
+
 ### LeavesAnAbsolutePathAlone
 
 `generic_string()` spells separators as '/', which JSON does not need to escape. The test
 therefore builds the document by concatenation and needs no second, test-only escaper that
 nobody would maintain.
 
+### EpochsDefaultsToOneAndMustBePositive
+
+A train document without `epochs` parses to 1 epoch and an empty checkpoint path. `epochs` 0
+raises an error holding "'epochs'" and "positive".
+
+### AnUnknownTopLevelTrainKeyIsAnError
+
+The key `epochz` raises an error holding "'epochz'" and "'epochs'".
+
+### AMissingTrainBlockNamesIt
+
+A train document without `data` raises an error holding "'data'".
+
+### ATypedBlockThatIsNotAnObjectIsAnError
+
+An `objective` given as a string raises an error holding "'objective'" and "a string".
+
+### AFutureTrainVersionIsAnError
+
+`sushiai_train` 2 raises an error holding "version 2" and "version 1".
+
+### ParsesAnEvalDocument
+
+`parse_data` of a `sushiai_data` 1 document gives the data type "rings", a `batch_size` of
+512 and a `seed` of 3735928575.
+
 ### AnEvalDocumentCarriesNoModelBlock
 
 The architecture is a separate file that inference is handed separately. Naming one in an eval
 document is an error; it is not silently preferred over the one on the command line.
+
+### LoadingAnAbsentFileNamesThePath
+
+`load_train("no/such/train.json")` raises an error holding that path.
 
 ## test_conv2d.cpp
 
@@ -2046,7 +4417,7 @@ The weight is not declared afterwards.
 `forward()` with a 5x5 window over a [2, 4, 4, 3] input throws with a message containing
 "Conv2d(3, 8)", "[4, 4, 3]" and "5x5".
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 The input is [2, 3, 3, 3] converted to NCHW. Every extent is 3, so the permuted shape passes
 every check but the one on the layout tag. The message contains "Conv2d" and "NHWC". The node
@@ -2059,6 +4430,3876 @@ The layer's result is reduced with `spatial_mean` and passed to `NN::CrossEntrop
 `Autograd::differentiate` returns two gradients, neither is `K_NO_VALUE`, and each has the shape
 of its parameter. The case checks that a gradient exists and has the right shape; it computes
 no number.
+
+## modules/core/optim/tests/test_cosine_schedule.cpp
+
+Suites: `Unit_CosineSchedule`.
+
+Tests `Optim::CosineSchedule::rate_at`, `Optim::validate_cosine_schedule` and the section
+reader and writer of `cosine_schedule_section.hpp`. The schedule most cases start from has the
+base rate 1, 10 warm-up updates, 110 updates in total and the final rate 0.1. Rates are compared
+within 1e-15.
+
+### TheWarmupIsLinear
+
+The rate at iterations 0, 1, 5 and 10 is 0, 0.1, 0.5 and 1.
+
+### TheDecayFollowsHalfACosine
+
+At iterations 35, 60 and 85 the rate is 0.1 + 0.9 * 0.5 * (1 + c), where c is the square root
+of 2 over 2, then 0, then minus the square root of 2 over 2. The middle value is 0.55.
+
+### TheRateStaysAtTheFinalOne
+
+The rate at iterations 110 and 1000000 is 0.1.
+
+### WithoutAWarmupTheFirstRateIsTheBaseRate
+
+With `warmup_iterations` 0 the rate at iteration 0 is 1 and the rate at iteration 1 is below 1.
+
+### ADecayOfNoLengthDividesByNothing
+
+With `total_iterations` equal to `warmup_iterations`, `validate_cosine_schedule` is ok, the rate
+at iteration 9 is 0.9 and the rate at iteration 10 is 0.1.
+
+### ANegativeIterationIsFatal
+
+`rate_at(-1)` stops the process with a report containing "iteration 0 or later".
+
+### TheCheckRefusesWhatRateAtCannotUse
+
+`validate_cosine_schedule` fails with `InvalidDescription` for a warm-up of -1 ("warm-up",
+"negative"), a total of 5 under a warm-up of 10 ("ends at iteration 5", "warm-up of 10"), a
+final rate of -0.1 ("final rate", "negative") and a final rate of 2 ("above the base rate").
+
+### ASectionRoundTripsEveryField
+
+A schedule with the base rate 0.0006 and the final rate 0.00006 goes through
+`write_cosine_schedule_section`, `Config::write_json`, `parse_json` and
+`read_cosine_schedule_section`. The section's `type` is "cosine" and the four fields read back
+equal to the ones written.
+
+### AnEmptySectionReadsAsTheDefaults
+
+`read_cosine_schedule_section` over `{}` returns a base rate of 0, a warm-up of 0, a total of 0
+and a final rate of 0.
+
+### TheReaderRefusesAndNamesTheKey
+
+The reader fails with `InvalidDescription` for the type `step` ("schedule 'type'", "'step'",
+"a cosine schedule states 'cosine'"), the key `steps` ("schedule states the key 'steps'",
+"'total_iterations'"), a `total_iterations` of 1.5 ("schedule 'total_iterations'", "whole
+number"), a final rate above the base rate ("schedule: ", "above the base rate") and an array
+in place of the section ("schedule must be an object").
+
+### TheWriterRefusesARateThatIsNotFinite
+
+`write_cosine_schedule_section` over a base rate of infinity fails with `InvalidDescription`
+and a message containing "schedule 'base_rate'" and "finite".
+
+## modules/vision/importers/tests/test_darknet_config.cpp
+
+Suites: `Unit_DarknetConfig`.
+
+Tests `parse_darknet_config`, which reads a config text into a `DarknetConfig` of one network
+section and a list of layer sections, each with its options and line numbers, and
+`load_darknet_config`. Every refusal of the parser has the code `InvalidDescription`.
+
+### ParsesEveryLexicalFormOfTheGrammar
+
+A text with `#` and `;` comment lines, a blank line, indented lines, tabs and spaces around
+`=`, and spaces inside comma lists parses to a "network" section on line 4 with four options
+and to three layers, "convolutional", "route" and "yolo". Each option has its key, its value
+and its line. A list value loses its inner spaces ("10,14,23,27"), an empty value stays empty,
+and a value keeps a second `=` ("a=b").
+
+### IgnoresCarriageReturnsAtLineEnds
+
+A text with CRLF line ends parses to the same keys and values, with "width" on line 2, the
+layer on line 3 and "filters" on line 4.
+
+### AcceptsOneKeyInTwoSections
+
+"width" in the network section and again in a layer section parses, and the layer's value is
+"8" on line 4.
+
+### RefusesAKeyBeforeAnySection
+
+A key on line 1 before any section fails with a message holding "test.cfg:1" and
+"key 'width'".
+
+### RefusesALineThatIsNeitherSectionNorOption
+
+A line without `=` fails with a message holding "test.cfg:2".
+
+### RefusesAnEmptyKey
+
+A line that starts with `=` fails with a message holding "test.cfg:2".
+
+### RefusesAKeyRepeatedWithinASection
+
+"width" twice in one section fails with a message holding "test.cfg:3", "key 'width'" and
+"on line 2".
+
+### RefusesAFirstSectionThatIsNotNetOrNetwork
+
+A text whose first section is `[convolutional]` fails with a message holding "test.cfg:1" and
+"[convolutional]".
+
+### RefusesAMalformedSectionLine
+
+A section line without its closing bracket fails with a message holding "test.cfg:1" and
+"']'". An empty section name and text after the closing bracket each fail on "test.cfg:1".
+
+### RefusesATextWithoutASection
+
+A text of one comment line fails with a message holding "test.cfg" and "[net]".
+
+### MissingFileGivesFileNotFound
+
+`load_darknet_config` of a path that does not exist fails with `FileNotFound` and names the
+path.
+
+## modules/vision/importers/tests/test_darknet_fold.cpp
+
+Suites: `Unit_DarknetFold`.
+
+Tests `fold_darknet_normalisation`, which folds the scales, rolling means and rolling
+variances of a `DarknetConvolution` into its weights and biases with the epsilon 0.00001.
+
+### OneFilterFoldMatchesTheFormulaInLongDouble
+
+For one filter of eight weights with the bias 0.75, the scale 1.5, the mean 0.25 and the
+variance 0.5, each folded weight equals the weight times 1.5 / sqrt(0.5 + epsilon), and the
+bias equals 0.75 - 1.5 * 0.25 / sqrt(0.5 + epsilon). Both are computed in long double and
+compared within 1e-6 relative plus 1e-9 absolute. After the fold the scales, means and
+variances are empty.
+
+### FoldedAndUnfoldedConvolutionsAgreeOnTheHost
+
+For three filters over a two-channel 5x5 input with values drawn from the seed 20261009, the
+folded convolution plus its bias and the unfolded convolution followed by the normalisation
+differ by at most 1e-5 at every output pixel.
+
+### FoldingTwiceStopsTheProcess
+
+A second fold of the same convolution stops the process with a message holding
+"not normalised".
+
+### NonPositiveVarianceStopsTheProcess
+
+A rolling variance of -1 stops the process with a message holding "positive variance".
+
+## modules/vision/importers/tests/test_darknet_import.cpp
+
+Suites: `Unit_DarknetImport`.
+
+Tests `import_darknet_model` and `import_darknet_files` in
+`modules/vision/importers/include/SushiAI/vision/importers/darknet_import.hpp`. The sample
+`.cfg` text describes a 32 by 32 network of three channels: a normalised convolution of 4
+filters, a plain convolution of 18 filters and one `[yolo]` head of one class with the mask
+0, 1, 2 over the anchors 4,8, 8,16 and 16,24. The cases parse it with `parse_darknet_config`
+and translate it with `translate_darknet_model`.
+
+### KeepsTheRowsAndTheOutputsOfTheTranslation
+
+Imported without weights, the model has the translation's input shape and the same type in
+every row. It has one output, named "head.0", at the node the translation's first output
+names.
+
+### StatesTheHeadsAsAnAnchorDetectionTask
+
+The task section has the type "anchor_detection" and reads through `read_anchor_task` as one
+class and one head on the output "head.0" with `HeadCoding::Logit` and the mask {0, 1, 2}.
+It has three anchors; the first has the width 4/32 and the third the height 24/32, within
+1e-6.
+
+### HoldsNoTensorWithoutWeights
+
+An import with a null weights pointer has an empty `weights` list.
+
+### NamesEveryTensorAsItsTargetDoes
+
+With weights of the lengths the translation's shapes state, the names of the imported tensors
+are the set of the non-empty names in the translation's targets, and there are seven tensors.
+
+### CarriesTheRecipeAndItsNotes
+
+The imported `training` value has the keys `objective`, `optimizer`, `schedule`, and the
+import carries five notes.
+
+### AnotherCountOfFilesIsRefused
+
+`import_darknet_files` fails with `InvalidDescription` for no file ("'darknet'", "0 files")
+and for three files (".cfg", "3 files").
+
+### AMissingCfgIsRefusedByName
+
+`import_darknet_files` of a `.cfg` path that does not exist fails with `FileNotFound` and the
+path's name.
+
+## modules/vision/importers/tests/test_darknet_model.cpp
+
+Suites: `Unit_DarknetModel`, `Unit_DarknetModelState`.
+
+Tests the translation of a config text into a `DarknetModel`: the rows of its model spec, the
+row each layer ends on, its heads, its anchor layout, the shape of each convolution and the
+state names its weights go to. Most cases translate a 24-layer text with two heads that the
+file holds, under `DarknetNormalisation::Separate` or `DarknetNormalisation::Folded`. The
+refusal cases use a small 32x32 network. `Unit_DarknetModelState` is an engine fixture.
+
+### SeparateFormHasTheCountedRowsAndSources
+
+The Separate form has 43 rows, the input shape [416, 416, 3] and the `row_of_layer` list the
+case states. Rows 0 to 2 are `conv2d`, `batchnorm2d` and `leaky_relu`, with a slope of 0.1, a
+`bn_epsilon` of 1e-5 and no convolution bias; row 33 has a bias. Row 34 is a `conv2d` that reads
+row 29, and row 38 is a `concat` of rows 37 and 18. Row 23 is a `maxpool2d` of kernel 2, stride 1
+and padding 0 with a trailing padding of 1 and 1, and row 3 has a trailing padding of 0 and 0.
+
+### FoldedFormHasNoNormalisationRow
+
+The Folded form has 32 rows, none of the type `batchnorm2d`, and its own `row_of_layer` list.
+Row 0 has a bias, row 25 reads row 21 and row 28 reads rows 27 and 13. There are 13 targets,
+and the first names "0.weight" and "0.bias" and leaves scale, mean and variance empty.
+
+### HeadsCarryTheirOutputsOptionsAndAnchors
+
+The model has two heads and two outputs, "head.0" on layer 16 and row 33 and "head.1" on layer
+23 and row 42, each with 80 classes, the Logit coding and a `scale_xy` of 1. The criterion is
+`SuppressionCriterion::IoU` with the exponent 0.6. The six anchors are their pixel sizes
+divided by 416, and the masks are {3, 4, 5} and {0, 1, 2}.
+
+### ShapesCountTheFloatsOfTheWeightsFile
+
+The Folded form lists 13 convolution shapes on the layers 0, 2, 4, 6, 8, 10, 12, 13, 14, 15,
+18, 21 and 22. A shape is normalised unless it has 255 filters. Summed over the shapes, the
+biases, normalisation vectors and weights come to 8858734 floats, and the twelfth convolution
+reads 384 channels.
+
+### SeparateFormBuildsAndItsTargetsAreStateEntries
+
+In the Separate form the first target names "0.weight", "1.bias", "1.weight", "1.running_mean"
+and "1.running_var", and there are 11 * 5 + 2 * 2 target names. The model builds, and every
+target names an entry of its state.
+
+### FoldedFormBuildsAndItsTargetsAreStateEntries
+
+In the Folded form there are 13 * 2 target names. The model builds, and every target names an
+entry of its state.
+
+### AnActivatedHeadReadsItsStretchAndItsSuppression
+
+A head with `new_coords=1`, `scale_x_y = 2.0`, `nms_kind=diounms` and `beta_nms=0.6` among its
+keys gives one head with the Activated coding, a `scale_xy` of 2 and one class. The criterion is
+`SuppressionCriterion::DistanceIoU` with the exponent 0.6. The model has two rows, the second a
+`sigmoid`, and the output is published from row 1.
+
+### OnlyDiounmsReadsBetaNMS
+
+With `nms_kind=greedynms` and `beta_nms=0.3` the criterion is `DistanceIoU` and the exponent
+stays 0.6. With `nms_kind=diounms` and `beta_nms=0.3` the exponent is 0.3.
+
+### TheLastHeadDecidesTheCriterion
+
+A text whose first head sets `nms_kind=diounms` and whose second head sets nothing has two
+heads, the criterion `IoU` and the exponent 0.6.
+
+### AnUnknownSectionIsRefusedNamingItsLine
+
+A `[reorg]` section fails with `Unsupported`, "line 11", "layer 1" and "[reorg]".
+
+### AnUnknownKeyIsRefusedNamingItsLine
+
+Three unknown keys fail with `Unsupported`: `groups` in a convolution ("line 7",
+"[convolutional]", "'groups'"), `label_smooth_eps` in a head ("line 16", "[yolo]",
+"'label_smooth_eps'") and `crop` in the first section ("line 5", "'crop'").
+
+### UntranslatedValuesAreRefusedNamingTheirLine
+
+Three values fail with `Unsupported`: `letter_box=1` ("line 5"), an upsample `scale=2`
+("line 11", "scale 2") and `activation=relu` ("line 6", "'relu'").
+
+### ValuesThatDoNotFitAreRefusedNamingTheirLine
+
+Five texts fail with `InvalidDescription`: `filters=many` ("line 6", "'filters'", "'many'"), a
+route to a later layer ("line 12", "names layer 1"), a head over 12 channels that needs 18
+("line 8", "reads 18 channels", "has 12"), a mask that names anchor 3 of three ("line 12",
+"names anchor 3"), and a text with no head ("no [yolo] section").
+
+## modules/vision/importers/tests/test_darknet_recipe.cpp
+
+Suites: `Unit_DarknetRecipe`.
+
+Tests `write_darknet_recipe` in
+`modules/vision/importers/include/SushiAI/vision/importers/darknet_recipe.hpp`. Each case
+parses `.cfg` text, reads it with `read_darknet_training` and writes the recipe. The sample
+`[net]` section states `batch=8`, `subdivisions=2`, `momentum=0.9`, `decay=0.0005`,
+`learning_rate=0.001`, `burn_in=100`, `max_batches=2000`, `policy=steps`, `steps=1600,1800`
+and `scales=.1,.1`. A `[yolo]` section states a mask, one class, `jitter=.3` and an
+`ignore_thresh`.
+
+### WritesTheSolverAsSGD
+
+The `optimizer` section has three keys: the type "sgd", a `momentum` of 0.9 and a
+`weight_decay` of 0.0005, each within 1e-12. It has no `learning_rate`.
+
+### WritesTheRateAsAStepSchedule
+
+The `schedule` section reads through `read_step_schedule_section` as a base rate of 0.001, 100
+warm-up iterations, the steps 1600 and 1800 and the scales 0.1 and 0.1.
+
+### WritesTheSharedHeadOptionsAsTheAnchorObjective
+
+With two heads of `ignore_thresh=.7`, the `objective` section has the type "anchor" and reads
+through `read_head_training_section` with an ignore threshold of 0.7 and
+`BoxGradient::DarknetCompatible`.
+
+### HoldsTheObjectiveTheOptimizerAndTheSchedule
+
+The recipe's `training` value has the keys `objective`, `optimizer`, `schedule`.
+
+### NotesEveryKeyWithoutAPlace
+
+The recipe has four notes. One holds "line 2", "batch=8", "[net]" and "batch_size"; one
+"line 3", "subdivisions=2" and "[net]"; one "line 8", "max_batches=2000" and "epochs"; one
+"line 15", "jitter=.3" and "[yolo]".
+
+### LeavesNoNoteWhenEveryKeyHasAPlace
+
+A `.cfg` of `learning_rate=0.01` and a head of `mask=0` and `classes=1` gives a recipe with no
+note.
+
+### HeadsThatDifferAreRefused
+
+Heads with `ignore_thresh` .7 and .5 fail with `InvalidDescription`, "head 0 (line 12)",
+"head 1 (line 17)", "'ignore_threshold'" and "one set".
+
+### AFileWithoutAHeadIsRefused
+
+The `[net]` section alone fails with `InvalidDescription`, "[yolo]" and "no objective".
+
+## modules/vision/importers/tests/test_darknet_route_groups.cpp
+
+Suites: `Unit_DarknetRouteGroups`.
+
+Tests how the translation of a config text turns a `[route]` section with `groups` and
+`group_id` into model rows. Each case starts from a network whose first convolution has 64
+filters and ends with a head, and reads the rows, their sources and the channels of the
+convolutions of the `DarknetModel`.
+
+### OneSourceGroupIsOneSliceRow
+
+A route of the layer before it with `groups=2` and `group_id=1` gives three rows: a `conv2d`, a
+`slice_channels` that reads row 0 with the offset 32 and the count 32, and a row that reads the
+slice. The second convolution reads 32 channels.
+
+### EverySourceIsSlicedBeforeTheJoin
+
+A grouped route of two layers gives six rows. Rows 2 and 3 are `slice_channels` rows over rows
+1 and 0, each with the offset 32 and the count 32. Row 4 is a `concat` of rows 2 and 3, and row
+5 reads it. The third convolution reads 64 channels.
+
+### UngroupedSourceAddsNoRow
+
+A route of one layer without groups gives two rows, the second a `conv2d` that reads row 0, and
+the second convolution reads 64 channels.
+
+### UnequalSplitsAndGroupsOutOfRangeAreRefused
+
+Four routes fail with `InvalidDescription`: `groups=3` over 64 channels ("line 12", "groups 3",
+"64 channels"), `group_id=2` with two groups ("line 11", "group_id 2"), `groups=0` ("line 11",
+"groups 0"), and a `group_id` of 1 without `groups` ("line 11", "group_id 1").
+
+## modules/vision/importers/tests/test_darknet_shortcut.cpp
+
+Suites: `Unit_DarknetShortcut`.
+
+Tests how the translation of a config text turns a `[shortcut]` section into a model row. Each
+case starts from an 8x8 three-channel network with two convolutions.
+
+### NegativeFromAddsTheLayerBeforeAndTheNamedLayer
+
+`from=-2` gives four rows. Row 2 has the type "add", no attribute key, and the sources 1 and 0.
+
+### AbsoluteFromAddsTheSameTwoRows
+
+`from=0` with `activation=linear` gives the same "add" row with the sources 1 and 0.
+
+### FromAboveTheShortcutIsRefusedNamingItsLine
+
+`from=2` fails with `InvalidDescription`, "line 18" and "only layers 0 to 1".
+
+### DifferentChannelCountsAreRefusedNamingItsLine
+
+A shortcut over convolutions of 4 and 5 filters fails with `InvalidDescription`, "line 18" and
+"share their shape".
+
+### NonLinearActivationIsRefusedNamingItsLine
+
+`activation=leaky` fails with `Unsupported`, "line 19" and "'leaky'".
+
+### WeightsTypeIsRefusedNamingItsLine
+
+`weights_type=per_feature` fails with `Unsupported`, "line 19" and "weights_type".
+
+### MissingFromIsRefusedNamingTheSection
+
+A shortcut without `from` fails with `InvalidDescription` and "no 'from'".
+
+### MoreThanOneFromIsRefused
+
+`from=-1,-2` fails with `InvalidDescription` and "names one layer".
+
+## modules/vision/importers/tests/test_darknet_tensors.cpp
+
+Suites: `Unit_DarknetTensors`.
+
+Tests `list_darknet_tensors` in
+`modules/vision/importers/include/SushiAI/vision/importers/darknet_tensors.hpp`. The weights
+are a plain convolution of 2 filters over 3 channels with a 2 by 2 kernel, whose weights are
+0 to 23, and a normalised convolution of 2 filters over 1 channel with a 1 by 1 kernel. The
+targets name `0.weight` and `0.bias` for the first, and `1.weight`, `2.bias`, `2.weight`,
+`2.running_mean` and `2.running_var` for the second.
+
+### ListsOneTensorPerNamedTarget
+
+Seven tensors are listed. Each is `Float32` and its payload has the byte count its record
+states.
+
+### WeightsMoveToKernelLast
+
+The tensor `0.weight` has the shape [2, 2, 2, 3]. Its 24 values open with 0, 4, 8, 1 and end
+with 23.
+
+### EveryVectorLandsUnderItsTarget
+
+`2.weight` has the shape [2] and holds the scales 2, 3. `2.bias` holds 1.5, -1.5,
+`2.running_mean` 0.25, 0.75 and `2.running_var` 4, 9. No tensor is named `0.running_mean`.
+
+### AVectorOfTheWrongLengthIsRefused
+
+With a third scale on the second convolution, the listing fails with `Incompatible`,
+"layer 1", "'2.weight'" and "3 values".
+
+### AnEntryNamedTwiceIsRefused
+
+With the second target's bias named `0.bias`, the listing fails with `Incompatible`,
+"layer 1", "'0.bias'" and "already fills".
+
+### AShapeThatIsNotPositiveIsRefused
+
+With 0 channels in the first shape, the listing fails with `InvalidDescription`, "layer 0"
+and "channels 0".
+
+### MismatchedCountsAreRefused
+
+With one target for two convolutions, the listing fails with `Incompatible`,
+"2 convolutions" and "the targets 1".
+
+## modules/vision/importers/tests/test_darknet_training.cpp
+
+Suites: `Unit_DarknetTraining`.
+
+Tests `read_darknet_training` over texts parsed with `parse_darknet_config`. A head's options
+are checked as seven values: box loss, objectness target, box weight, object weight,
+`max_delta`, match threshold and ignore threshold. Floats are compared to 1e-6 and doubles to
+1e-12.
+
+### ReadsTheV3HeadSettingsWhenTheTrainingKeysAreAbsent
+
+A head with only `ignore_thresh=0.7` and `truth_thresh=1` among the training keys reads as
+`BoxLoss::SquaredError`, `ObjectnessTarget::One`, a box weight of 0.75, an object weight of 1,
+a `max_delta` of 0, a match threshold of 1 and an ignore threshold of 0.7.
+
+### ReadsTheV4TinyHeadSettings
+
+With `iou_loss=ciou` and `iou_normalizer=0.07`, the head reads as `BoxLoss::CompleteIoU` with a
+box weight of 0.07. The other five values are as in the case above.
+
+### ReadsTheV4HeadSettings
+
+With `iou_thresh=0.213` and `max_delta=5` added, the head reads a match threshold of 0.213 and
+a `max_delta` of 5.
+
+### ReadsTheV7HeadSettings
+
+With `objectness_smooth=1`, `iou_normalizer=0.05`, `iou_thresh=0.2` and `max_delta=2`, the head
+reads `ObjectnessTarget::BestIoU`, a box weight of 0.05, a match threshold of 0.2 and a
+`max_delta` of 2. `cls_normalizer=0.5` is accepted.
+
+### KeepsTheSolverDefaultsWhenTheKeysAreAbsent
+
+With no solver key, the solver has a learning rate of 0.001, a momentum of 0.9, a decay of
+0.0005, a `burn_in` of 0, no steps and no scales, a batch of 1, 1 subdivision and a
+`max_batches` of 0.
+
+### ReadsEverySolverKeyTheFileSpells
+
+Batch 64, subdivisions 16, momentum 0.949, decay 0.0005, learning rate 0.00261, `burn_in` 1000,
+`max_batches` 500200, the steps 400000 and 450000 and the scales 0.1 and 0.1 are each read to
+the value the text states.
+
+### KeepsTheHeadsInFileOrderAndSkipsOtherSections
+
+A text with a convolution, a head, a route and a second head gives two heads, with the box
+weights 0.07 and 0.05 in that order.
+
+### ReadsMSEAndObjectnessSmoothZeroAsTheDefaults
+
+`iou_loss=mse` with `objectness_smooth=0` gives the seven values of a head without training
+keys.
+
+### SelectsTheDarknetCompatibleBoxGradientForEveryHead
+
+A head with `iou_loss=ciou` and a head with `iou_loss=mse` both read
+`BoxGradient::DarknetCompatible`. A default `HeadTrainingOptions` has `BoxGradient::Analytic`.
+
+### AcceptsTruthThreshOneAndLabelSmoothZero
+
+`truth_thresh=1.0` with `label_smooth_eps=0` reads as one head.
+
+### RefusesAPolicyOtherThanSteps
+
+`policy=exp` fails with `Unsupported`, "line 2" and "policy".
+
+### RefusesATruthThreshOtherThanOne
+
+`truth_thresh=0.9` fails with `Unsupported`, "line 3" and "truth_thresh".
+
+### RefusesANonZeroLabelSmooth
+
+`label_smooth_eps=0.1` fails with `Unsupported`, "line 3" and "label_smooth_eps".
+
+### RefusesAnIoULossOtherThanMSEAndCIoU
+
+`iou_loss=giou` fails with `Unsupported`, "line 3" and "iou_loss".
+
+### RefusesAClsNormalizerThatIsNotANumber
+
+`cls_normalizer=half` fails with `InvalidDescription`, "line 3" and "cls_normalizer".
+
+### RefusesAnObjectnessSmoothOtherThanZeroOrOne
+
+`objectness_smooth=2` fails with `InvalidDescription`, "line 3" and "objectness_smooth".
+
+### RefusesAHeadWhoseMatchThresholdIsZero
+
+`iou_thresh=0` fails with `InvalidDescription`, "line 2", the head section's line, and
+"match threshold".
+
+### RefusesAHeadWhoseIgnoreThresholdIsAboveOne
+
+`ignore_thresh=1.5` fails with `InvalidDescription`, "line 2" and "ignore threshold".
+
+### RefusesALearningRateThatIsNotANumber
+
+`learning_rate=abc` fails with `InvalidDescription`, "line 2", "learning_rate" and "abc".
+
+### RefusesANonFiniteLearningRate
+
+`learning_rate=nan` fails with `InvalidDescription`, "line 2" and "nan".
+
+### RefusesABatchBelowOne
+
+`batch=0` fails with `InvalidDescription` and a message holding "batch".
+
+### RefusesAnEmptyEntryInAList
+
+`steps=1,,2` fails with `InvalidDescription`, "line 2" and "steps".
+
+### RefusesStepsAndScalesOfDifferentLengths
+
+Two steps with one scale fail with `InvalidDescription`, "line 1", "'steps' holds 2" and
+"'scales' holds 1".
+
+## modules/vision/importers/tests/test_darknet_weights.cpp
+
+Suites: `Unit_DarknetWeights`.
+
+Tests `read_darknet_header` over byte streams built in memory and `read_darknet_weights` over
+files the cases write under the system's temporary directory. The sample file holds a 20-byte
+header and index-valued floats for two convolutions, a plain one on layer 0 and a normalised
+one on layer 2.
+
+### ReadsAVersionZeroTwoHeaderWithA64BitSeen
+
+A header of major 0, minor 2 and revision 5 reads an eight-byte seen count, and the stream
+stands at byte 20.
+
+### ReadsAVersionZeroOneHeaderWithA32BitSeen
+
+A header of major 0 and minor 1 reads a four-byte seen count, and the stream stands at byte
+16.
+
+### ReadsAMajorOneHeaderWithA64BitSeen
+
+A header of major 1 and minor 0 reads an eight-byte seen count, and the stream stands at byte
+20.
+
+### AcceptsAMajorAtTheLimitOfOneThousand
+
+A header of major 1000 is read.
+
+### RefusesAMajorAboveOneThousandAsUnsupported
+
+A major of 1001 fails with `Unsupported` and a message holding "1001".
+
+### RefusesAMinorAboveOneThousandAsUnsupported
+
+A minor of 1001 fails with `Unsupported` and a message holding "1001".
+
+### RefusesAHeaderThatEndsEarly
+
+A stream that ends two bytes into the revision fails with `InvalidFile` and a message holding
+"revision".
+
+### ReadsEveryVectorInFileOrder
+
+With floats 0 to 21 in the file, the plain convolution's biases start at 0 and its weights at
+2. The normalised one's biases start at 4, its scales at 7, its rolling means at 10, its
+rolling variances at 13 and its weights at 16. The header reads major 0 and minor 2.
+
+### KeepsTheBatchNormVectorsOnlyForNormalisedLayers
+
+The plain convolution has empty scales, means and variances and two weights. The normalised
+one has three of each vector and six weights.
+
+### DecodesEveryBitPatternAsItIs
+
+Biases of negative zero and the smallest subnormal, and weights of a NaN with payload 1 and of
+1.0, come back with the bits 0x80000000, 0x00000001, 0x7FC00001 and 0x3F800000.
+
+### RefusesOneFloatShortWithTheLayerAndBothByteCounts
+
+A file one float short fails with `InvalidFile`, "104 bytes" and
+"convolution layer 2 needs bytes up to 108".
+
+### RefusesOneFloatOverWithTheLayerAndBothByteCounts
+
+A file one float over fails with `InvalidFile`, "112 bytes", "108 bytes" and
+"4 bytes are left over after convolution layer 2".
+
+### RefusesBytesAfterAHeaderWithNoConvolution
+
+A file with one float after its header and an empty shape list fails with `InvalidFile`,
+"no convolution is listed" and "4 bytes are left over".
+
+### RefusesAShapeThatIsNotPositive
+
+A shape with zero filters fails with `InvalidDescription`, "convolution layer 0" and
+"filters 0".
+
+### RefusesAShapeWhoseCountOverflows
+
+A shape of 2^40 filters over 2^40 channels fails with `InvalidDescription`,
+"convolution layer 0" and "too large to read".
+
+### ReportsAMissingFileAsFileNotFound
+
+A path that does not exist fails with `FileNotFound` and "could not open".
+
+## modules/core/data/tests/test_dataset_registry.cpp
+
+Suites: `Unit_DatasetRegistry`.
+
+Tests `Data::DatasetRegistry` and `Data::register_datasets`. The file uses two rows: "rings",
+as `register_datasets` adds it, and "moons", a type no module registers.
+
+### AddKeepsInsertionOrder
+
+After `add` of the "rings" row and then the "moons" row, `rows()` has two entries, "rings"
+first and "moons" second.
+
+### FindReturnsNullForAnUnknownType
+
+`find("rings")` is null on an empty registry. After the "rings" row is added, `find("coco")` is
+null and `find("rings")` returns a row whose type is "rings".
+
+### ATypeAddedTwiceIsRefused
+
+A second `add` of the "rings" row fails with `InvalidDescription`, and the message holds
+"'rings'" and "already registered".
+
+### RegisterDatasetsAddsRingsOnly
+
+After `Data::register_datasets`, `rows()` has one entry of type "rings" and `find("mnist")` is
+null.
+
+## modules/vision/datasets/tests/test_datasets_cifar.cpp
+
+Suites: `Unit_DatasetsCifar`.
+
+Tests `read_cifar` in `modules/vision/datasets/include/SushiAI/vision/datasets/cifar.hpp` over
+batch files the cases write under the system's temporary directory. A record is its label
+bytes followed by three planes of 32 by 32 bytes, each plane filled with one level.
+
+### TheCIFAR10TrainingSplitListsItsFiveFilesInOrder
+
+With `data_batch_1.bin` to `data_batch_5.bin` each holding one record labelled with its batch
+number, the "train" split of CIFAR-10 has 10 classes, five files and five samples. Sample i
+names file i, the file is `data_batch_<i + 1>.bin` and the class is i + 1.
+
+### ASampleRefersToThePlanesAfterItsLabel
+
+A `test_batch.bin` of two records gives the classes 3 and 9. The second sample's stored pixels
+start at byte 3074, are `K_CIFAR_SIDE` square with three channels and are `PlaneLayout::Planar`.
+`read_stored_pixels` over them gives 3072 bytes whose sampled pixels hold 40, 50, 60.
+
+### CIFAR100TakesTheFineOrTheCoarseLabel
+
+A `train.bin` record with the label bytes 19 and 87 reads as class 87 of 100 under
+`CIFARVariant::CIFAR100Fine`, with its pixels at offset 2, and as class 19 of 20 under
+`CIFARVariant::CIFAR100Coarse`.
+
+### ALabelOutsideTheClassesNamesItsRecord
+
+A CIFAR-10 file whose second record has the label 10 fails with `InvalidFile`,
+"test_batch.bin", "record 2 of 2" and "label 10". A CIFAR-100 record with the coarse label 20
+fails with `InvalidFile`, "test.bin", "record 1 of 1" and "label 20".
+
+### AFileThatIsNotWholeRecordsIsRefused
+
+A record one byte short fails with `InvalidFile`, "test_batch.bin", "3072 bytes" and
+"3073 bytes". An empty file fails with `InvalidFile`, "test_batch.bin" and "0 bytes".
+
+### AnAbsentFileIsNotFound
+
+With only `data_batch_1.bin` present, the "train" split fails with `FileNotFound` and
+"data_batch_2.bin".
+
+### AnotherSplitIsRefused
+
+The split "val" fails with `InvalidDescription` and "'val'".
+
+## modules/vision/datasets/tests/test_datasets_coco_json.cpp
+
+Suites: `Unit_DatasetsCocoJson`.
+
+Tests `read_coco_json` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/coco_json.hpp` over files the cases
+write under the system's temporary directory. Unless a case says otherwise the annotation file
+is `annotations/instances_train.json` beside a folder `train`. It lists `b.jpg` with id 9 and
+`sub/a.jpg` with id 4, both 200 by 100 pixels, and the categories brush (90), person (1) and
+cat (17).
+
+### BoxesAndDenseClassesAreRead
+
+The class names come out as person, cat, brush, and the samples as `train/b.jpg` with no object
+and `train/sub/a.jpg`. Of that image's four annotations the crowd one and the one of width 0
+are left out; the other two have the classes 2 and 0 and no polygon. The box [10, 20, 50, 20]
+reads as the centre (35/200, 30/100) and the size (50/200, 20/100), and the sample has no class
+index.
+
+### TheFileAndTheFolderMayBeNamed
+
+With `annotation_file` "labels.json" and `image_folder` "pictures", the first sample's file is
+`pictures/b.jpg`.
+
+### PolygonsAreKeptWhenAskedFor
+
+By default an annotation with two polygon parts keeps no polygon. With
+`COCOSegmentation::Polygons` the image has one object, whose polygon is the part of four
+vertices, and its third vertex is (100/200, 50/100). The crowd annotation with a run-length
+mask is left out.
+
+### ARunLengthMaskIsRefusedWhenPolygonsAreAskedFor
+
+A file whose second annotation holds a run-length mask reads as two objects by default. With
+`COCOSegmentation::Polygons` it fails with `InvalidFile`, "instances_train.json",
+"read_coco_json" and "annotation 1 holds a run-length mask".
+
+### AMalformedPolygonIsRefused
+
+A polygon part of seven numbers fails with `InvalidFile`, "annotation 0",
+"'segmentation' part" and "at least 3 pairs".
+
+### AnUnknownImageOrCategoryNamesTheAnnotation
+
+An annotation of image 5 fails with `InvalidFile`, "instances_train.json", "read_coco_json"
+and "annotation 1 has the 'image_id' 5, which 'images' lacks". A crowd annotation of category
+2 fails with "annotation 0 has the 'category_id' 2, which 'categories' lacks".
+
+### AMalformedBoxNamesTheAnnotation
+
+A `bbox` of three numbers, and one whose fourth entry is a string, each fail with
+`InvalidFile` and "annotation 0 has no 'bbox' of 4 numbers". An `image_id` given as a string
+fails with "annotation 0 has no whole number 'image_id'".
+
+### TheImagesAndTheCategoriesAreChecked
+
+Each of these fails with `InvalidFile`: two categories of id 3
+("category 0 and category 2 share the id 3"), an image of width 0
+("image 1 is 2 by 0 pixels") and an image without `file_name`
+("image 0 has no string 'file_name'").
+
+### TheFileMustExistAndHoldItsThreeLists
+
+Without the folder `train` the read fails with `FileNotFound`, "train", "read_coco_json" and
+"no such image folder". Without the annotation file it fails with `FileNotFound`,
+"annotations/instances_train.json" and "no such file". A file cut after `"images": [` fails
+with `InvalidFile` and "not valid JSON", and a file without `categories` with
+"the file has no list 'categories'".
+
+### TheListsMayComeInAnyOrder
+
+One file states `images`, `categories` and `annotations` in that order. A second states an
+`info` object, then `annotations`, `categories` and `images`. With `COCOSegmentation::Polygons`
+both give the same class names, files, classes, box centre x, box height and polygon vertices.
+The second sample has the class 2 and a polygon of four vertices, and the first has no polygon.
+
+### AListStatedTwiceIsRefused
+
+A file that states `images` a second time fails with `InvalidFile`, "instances_train.json",
+"read_coco_json" and "states 'images' twice".
+
+## modules/vision/datasets/tests/test_datasets_collators.cpp
+
+Suites: `Unit_DatasetsCollators`.
+
+Tests `write_batch_inputs`, `ClassificationCollator` and `DetectionCollator` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/`. The fixture is an `EngineTest`. It
+holds two gray samples of one row and two columns, the first of level 51 from `first.png` and
+the second of level 255 from `crowded.png`, and allocates batches of two such images.
+
+### InputsAreBytesDividedBy255
+
+`write_batch_inputs` writes 0.2, 0.2, 1.0, 1.0, each within 1e-6.
+
+### AnImageOfAnotherSizeIsRefused
+
+With the second image 2 by 2, `write_batch_inputs` fails with `Incompatible`,
+"write_batch_inputs", "image 1" and "2 by 2".
+
+### ATensorOfAnotherImageCountIsRefused
+
+With one sample and a tensor for two, `write_batch_inputs` fails with `Incompatible`,
+"write_batch_inputs" and "holds 2 images".
+
+### ClassificationPublishesLabels
+
+`ClassificationCollator::make(0)` fails with `InvalidDescription`, "ClassificationCollator" and
+"0 classes". A collator of 7 classes reports the task `K_TASK_CLASSIFICATION` and one target:
+the role `K_ROLE_LABELS`, an empty sample shape, `Int32` and 7 classes.
+
+### ClassificationWritesTheClassOfEachSample
+
+With the class indices 6 and 0, `collate` writes the labels 6 and 0, and the third input value
+is 1.0.
+
+### ClassificationNamesTheFileOfASampleWithoutAClass
+
+With no class index on the second sample, `collate` fails with `InvalidDescription`,
+"crowded.png", "ClassificationCollator" and "no class index". With the class index 7 over 7
+classes it fails with "crowded.png", "class index 7" and "[0, 7)".
+
+### ABatchWithoutTheRoleIsRefused
+
+Over a batch allocated without targets, `collate` fails with `Incompatible`,
+"ClassificationCollator" and "no role 'labels'".
+
+### DetectionPublishesThreeRoles
+
+`DetectionCollator::make` fails with `InvalidDescription` for 0 classes ("0 classes") and for
+0 objects ("0 objects"). A collator of 3 classes and 4 objects reports the task
+`K_TASK_DETECTION` and three targets: `K_ROLE_BOXES` of shape [4, 4] and `Float32`,
+`K_ROLE_CLASSES` of shape [4], `Int32` and 3 classes, and `K_ROLE_VALID` of shape [4] and
+`Float32`.
+
+### DetectionWritesCornersAndPadsWithZero
+
+Every target slot is first filled with 9. With one object of class 2 and the box (0.25, 0.5,
+1.5, 1.0) on the second image and two slots per image, `collate` writes that box, the class 2
+and the valid flag 1 into the third slot and zero into every other slot.
+
+### DetectionNamesTheFileOfAnImageWithTooManyObjects
+
+Three objects on the second image with two slots fail with `InvalidDescription`,
+"crowded.png", "DetectionCollator", "3 objects" and "at most 2".
+
+### DetectionRefusesAClassOutsideTheSet
+
+An object of class 3 on the first image, over 3 classes, fails with `InvalidDescription`,
+"first.png", "object 0", "class 3" and "[0, 3)".
+
+## modules/vision/datasets/tests/test_datasets_csv.cpp
+
+Suites: `Unit_DatasetsCsv`.
+
+Tests `read_csv` in `modules/vision/datasets/include/SushiAI/vision/datasets/csv.hpp` over
+files the cases write under the system's temporary directory. Unless a case names another
+file, the reader takes `train.csv` with the default columns.
+
+### TheLastColumnIsTheTargetByDefault
+
+A file with the header `a,b,y` and two records gives one file, two samples and a class count
+of 0. The table has two features and one target, the columns a, b, y and the values 1, 2, 3,
+-0.5, 4, 10; `features(1)[1]` is 4 and `targets(1)[0]` is 10.
+
+### NamedColumnsAreTakenInTheOrderNamed
+
+Over `data/set.csv` with the header `id,x,y,z`, the features z, x and the targets y, z fail
+with `InvalidDescription`, "set.csv", "read_csv" and
+"the column 'z' is named as a feature and as a target". With the target y alone the columns
+are z, x, y and the values 3, 1, 2, 6, 4, 5.
+
+### QuotedFieldsAndCarriageReturnsAreRead
+
+The file opens with a byte order mark, ends its lines with CRLF and has an empty line. Its
+header holds a quoted name with a doubled quote and a comma, a quoted name with a line break,
+and ` y ` between blanks. With the first column as the feature, the columns are
+`the "x", one` and `y`, and the values are 1.5, 2, 3, 4.
+
+### ANonNumericCellNamesItsLineAndColumn
+
+The cell `five` fails with `InvalidFile`, "train.csv", "line 3", "column 2 ('b')", "read_csv"
+and "the cell 'five'". An empty target cell fails with "line 2", "column 3 ('y')" and
+"the cell ''". After a record whose quoted field spans lines 2 and 3, the cell `inf` fails
+with "line 4", "column 3 ('y')" and "the cell 'inf'".
+
+### ARecordOfAnotherFieldCountIsRefused
+
+A record of two fields on line 4, after an empty line, fails with `InvalidFile`, "train.csv",
+"line 4", "read_csv" and "the record has 2 fields; the header has 3".
+
+### MalformedQuotesAreRefused
+
+Each of these fails with `InvalidFile` and "line 2": a quote left open ("column 2",
+"the quoted field is not closed"), a letter after a closing quote ("column 1",
+"text follows the closing quote") and a quote at the end of an unquoted field ("column 2",
+"a quote stands inside a field").
+
+### AColumnTheHeaderLacksIsRefused
+
+Over the header `a,b,y`, the target z fails with `InvalidDescription`, "train.csv",
+"no target column 'z'" and "'a', 'b', 'y'". The feature c fails with `InvalidDescription` and
+"no feature column 'c'".
+
+### AHeaderMustNameItsColumnsOnceAndLeaveAFeature
+
+The header `a, b ,a` on line 2 fails with `InvalidFile`, "line 2", "column 3" and
+"the name 'a' is also the name of column 1". A file of the single column y fails with
+`InvalidDescription` and "no column is left as a feature".
+
+### AFileWithoutRecordsIsRefused
+
+With the split "val" and no file, the read fails with `FileNotFound`, "val.csv" and
+"read_csv". A `val.csv` of two empty lines fails with `InvalidFile` and
+"holds no header row", and one with a header alone with "holds no record below its header".
+
+## modules/vision/datasets/tests/test_datasets_fit_mask.cpp
+
+Suites: `Unit_DatasetsFitMask`, `Unit_DatasetsLoadSampleMask`.
+
+Tests `fit_mask` in `modules/vision/datasets/include/SushiAI/vision/datasets/fit_mask.hpp` and
+`load_sample_mask` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/load_sample_mask.hpp`. The
+`load_sample_mask` cases that read a file write it under the system's temporary directory.
+
+### AResizeRepeatsTheNearestClass
+
+A 2 by 2 mask of 0, 1, 2, 3 resized to 4 by 4 has one channel and holds each class in a 2 by 2
+block: the rows 0 0 1 1, 0 0 1 1, 2 2 3 3, 2 2 3 3.
+
+### AReductionTakesThePixelUnderEachCentre
+
+A 4 by 4 mask of the bytes 0 to 15 resized to 2 by 2 holds 5, 7, 13, 15.
+
+### ALetterboxPadsWithTheVoidByte
+
+A mask of 2 rows and 4 columns letterboxed to 4 by 4 keeps its two rows in the middle, with a
+row of `K_MASK_VOID` above and below.
+
+### ALetterboxThatReducesSamplesTheNearestPixel
+
+A mask of 4 rows and 8 columns holding the bytes 0 to 31, letterboxed to 4 by 4, has the rows
+9, 11, 13, 15 and 25, 27, 29, 31 between two rows of `K_MASK_VOID`.
+
+### AMaskMustMatchItsImage
+
+`fit_mask` fails with `Incompatible` and "fit_mask" for a mask of three channels
+("the mask has 3 channels") and for a 2 by 2 mask whose image is 2 by 4
+("the mask is 2 by 2 pixels; its image is 2 by 4"). A target size of 0 by 4 fails with
+`InvalidDescription`, "fit_mask" and "0 by 4 pixels".
+
+### TheMaskFileIsDecoded
+
+The sample names file 1 of the list as its mask, a raw image file of 2 rows and 3 columns.
+`load_sample_mask` gives an image of that size and one channel holding the bytes written: 0,
+3, 255, 1, 2, 0.
+
+### ASampleMustNameAMaskOfTheList
+
+Over a list of one file and one sample, `load_sample_mask` fails with `InvalidDescription`
+for sample 1 ("load_sample_mask", "sample 1 is outside a list of 1 samples"), for a sample
+without a mask ("sample 0 has no mask") and for the mask index 4
+("sample 0 names the mask file 4 of a list of 1 files").
+
+### AnAbsentMaskFileIsReported
+
+A mask file that does not exist fails with `FileNotFound` and "absent.png".
+
+## modules/vision/datasets/tests/test_datasets_fit_sample.cpp
+
+Suites: `Unit_DatasetsFitSample`.
+
+Tests `fit_sample` in `modules/vision/datasets/include/SushiAI/vision/datasets/fit_sample.hpp`.
+A box corner may differ from its expected value by 1e-4 pixels.
+
+### ResizeScalesTheLabelsWithEachAxis
+
+A gray image of 2 rows and 4 columns at level 100, resized to 4 by 4, gives 16 bytes of 100
+in one channel. The fitted sample keeps the file index 6 and the class index 3. Its one
+object keeps the class 1, and the box of centre (0.5, 0.5) and size (0.5, 0.5) becomes the
+corners (1, 1) and (3, 3).
+
+### LetterboxPadsAndMovesTheLabels
+
+The same shape at level 200, letterboxed to 4 by 4, has rows 1 and 2 at 200 and rows 0 and 3
+at 114. The sample has no class index, and the box of centre (0.5, 0.5), width 0.5 and height
+1.0 becomes the corners (1, 1) and (3, 3).
+
+### AnObjectWithoutAreaIsRemoved
+
+Of two objects, the one of class 2 with a width of 0 is removed and the one of class 5 is
+kept.
+
+### AnInputSizeOutsideTheBoundsIsRefused
+
+A target size of 0 by 4 fails with `InvalidDescription`, "fit_sample" and "0 by 4".
+
+### ASourceOfNoPixelsIsAFailure
+
+A default `ImageView` as the source fails with `InvalidFile` and "fit_sample".
+
+## modules/vision/datasets/tests/test_datasets_idx.cpp
+
+Suites: `Unit_DatasetsIdx`.
+
+Tests `read_idx` in `modules/vision/datasets/include/SushiAI/vision/datasets/idx.hpp` over IDX
+files the cases write under the system's temporary directory. The training split of the first
+two cases is three images of 2 rows and 3 columns holding the bytes 100 to 117, with the
+labels 4, 0 and 2.
+
+### ASampleHasItsLabelAndThePlaceOfItsPixels
+
+The list has one file, `train-images-idx3-ubyte`, no class names, a class count of 5 and three
+samples. Sample i names file 0, has the class of its label and no object, and its stored
+pixels start at byte 16 + 6i, are 2 by 3 with one channel and are `PlaneLayout::Interleaved`.
+
+### ASamplesPixelsReadBackFromTheImageFile
+
+`read_stored_pixels` over the third sample gives the bytes 112 to 117.
+
+### TheTestSplitReadsTheT10kFiles
+
+With the split "test", `t10k-images-idx3-ubyte` and `t10k-labels-idx1-ubyte` are read: one
+sample of class 7 and a class count of 8.
+
+### NamedFilesAreReadForAnySplit
+
+With the split "balanced" and the files `images.idx` and `labels.idx` named, two samples are
+read. The image file has four dimensions, the last being 3; the second sample has three
+channels and its pixels start at byte 23.
+
+### ASplitWithoutAFileNameIsRefused
+
+The split "validation" with no file named fails with `InvalidDescription` and "validation".
+
+### AnAbsentFileIsNotFound
+
+With the image file alone present, the read fails with `FileNotFound` and
+"train-labels-idx1-ubyte".
+
+### CountsThatDifferAreRefused
+
+Two images with three labels fail with `InvalidFile`, "train-images-idx3-ubyte", "2 images",
+"train-labels-idx1-ubyte" and "3 labels".
+
+### AnImageFileOfAnotherFormIsRefused
+
+An image file of two dimensions fails with `InvalidFile` and "2 dimensions", and one of
+element code 0x0C with `InvalidFile` and "code 12". One whose fourth dimension is 5 fails with
+`Unsupported` and "5 channels". Each message names "train-images-idx3-ubyte".
+
+### AnImageFileWithoutAnImageIsRefused
+
+An image file whose first extent is 0 fails with `InvalidFile`, "train-images-idx3-ubyte" and
+"no image".
+
+## modules/vision/datasets/tests/test_datasets_idx_file.cpp
+
+Suites: `Unit_DatasetsIdxFile`.
+
+Tests `idx_element_bytes`, `read_idx_header` and `read_idx_payload` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/idx_file.hpp` over files the cases
+write under the system's temporary directory.
+
+### ElementBytesFollowTheFormat
+
+`idx_element_bytes` is 1 for `UInt8` and `Int8`, 2 for `Int16`, 4 for `Int32` and `Float32`,
+and 8 for `Float64`.
+
+### AHeaderGivesTheElementTheExtentsAndThePayloadSize
+
+A file of element code 0x08 with the extents 2, 3, 4 and 24 payload bytes reads as `UInt8`,
+those extents, a header of 16 bytes and a payload of 24 bytes.
+
+### AnExtentIsReadMostSignificantByteFirst
+
+A file with the single extent 258 reads that extent as 258.
+
+### ThePayloadSizeCountsTheElementBytes
+
+A file of element code 0x0C with the extent 3 reads as `Int32` with a payload of 12 bytes.
+
+### ThePayloadIsEveryByteAfterTheHeader
+
+`read_idx_payload` over a file of five bytes gives 7, 0, 9, 3, 1.
+
+### AnAbsentFileIsNotFound
+
+`read_idx_header` of a path that does not exist fails with `FileNotFound` and "absent.idx".
+
+### AMalformedHeaderIsRefused
+
+`read_idx_header` fails with `InvalidFile` and the file's name for a file of three bytes
+("leading bytes"), a non-zero second byte ("two zero bytes"), the element code 10
+("element code 10"), a rank of 0 ("no dimension") and a second extent cut after one byte
+("dimension 1 of 2").
+
+### AFileOfAnotherSizeThanItsHeaderDeclaresIsRefused
+
+A file with the extents 2, 2 and three payload bytes fails with `InvalidFile`, "short.idx",
+"declares 4 bytes" and "holds 15 bytes". A file with the extent 2 and three payload bytes
+fails with "long.idx", "declares 2 bytes" and "holds 11 bytes".
+
+### ExtentsThatOverflowAreRefused
+
+A file of element code 0x0E with three extents of 0xFFFFFFFF fails with `InvalidFile`,
+"huge.idx" and "overflow".
+
+## modules/vision/datasets/tests/test_datasets_image_folder.cpp
+
+Suites: `Unit_DatasetsImageFolder`.
+
+Tests `read_image_folder` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/image_folder.hpp` and
+`has_image_extension` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/image_extensions.hpp`. The folder
+cases write one-byte files under the system's temporary directory.
+
+### ImageExtensionsIgnoreCase
+
+`has_image_extension` is true for `a.jpg`, `a.JPEG`, `dir/a.PNG` and `a.saim`, and false for
+`a.txt`, `a.jpg.bak` and `jpg`.
+
+### ClassesAreTheSortedFolderNames
+
+The folders zebra, ant and moth give the class names ant, moth, zebra and a class count of 3.
+Sample i of the three has the class i, no stored pixels and no object.
+
+### AClassListsItsImageFilesSortedAtAnyDepth
+
+The list holds four files in the order `cat/a.JPG`, `cat/b.png`, `cat/more/c.saim`,
+`dog/a.png`, and leaves `cat/notes.txt` out. The third sample has the class 0 and the fourth
+the class 1.
+
+### ASplitNamesAFolderOfTheRoot
+
+The split "val" gives the classes no and yes and two samples. The file `val/stray.png` and the
+folder `train` add nothing.
+
+### AFolderWithoutAnImageIsStillAClass
+
+With an empty folder `a` and one image in `b`, the class count is 2 and the one sample has the
+class 1.
+
+### AnAbsentSplitIsNotFound
+
+The split "train" in an empty root fails with `FileNotFound` and "train".
+
+### ASplitWithoutAClassOrAnImageIsRefused
+
+A split holding only a file fails with `InvalidFile`, "flat" and "no class folder". A split
+whose one class folder holds only a text file fails with `InvalidFile`, "text" and
+"no image file".
+
+## modules/vision/datasets/tests/test_datasets_load_sample_image.cpp
+
+Suites: `Unit_DatasetsLoadSampleImage`.
+
+Tests `load_sample_image` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/load_sample_image.hpp`. The cases
+that read a file write it under the system's temporary directory.
+
+### StoredPixelsAreReadFromTheirOffset
+
+Over a file of the bytes 0 to 9, a sample whose stored pixels are 2 by 2 with one channel at
+offset 2 loads as a 2 by 2 image of one channel holding 2, 3, 4, 5.
+
+### AnImageFileIsDecoded
+
+A sample without stored pixels, whose file is a raw RGB image of 2 rows and 3 columns written
+by `write_raw_image_file`, loads as an image of that size and three channels holding the bytes
+written.
+
+### ASampleOutsideTheListIsRefused
+
+Sample 3 of a list of one sample fails with `InvalidDescription`, "load_sample_image",
+"sample 3" and "1 samples".
+
+### AFileIndexOutsideTheListIsRefused
+
+A sample naming file 5 of a list of one file fails with `InvalidDescription`,
+"load_sample_image" and "file 5".
+
+### AnAbsentFileIsNamed
+
+An image file that does not exist fails with `FileNotFound` and "absent.saim".
+
+## modules/vision/datasets/tests/test_datasets_mask_png.cpp
+
+Suites: `Unit_DatasetsMaskPng`.
+
+Tests `read_mask_png` in `modules/vision/datasets/include/SushiAI/vision/datasets/mask_png.hpp`
+over one-byte files the cases write under the system's temporary directory. Unless a case says
+otherwise the options name four classes and the split "train", so the images are under
+`images/train` and the masks under `masks/train`.
+
+### EachImageRefersToTheMaskOfItsStem
+
+The list has a class count of 4, no class names, two samples and four files. The first sample
+is `images/train/a/c.jpeg` with the mask `masks/train/a/c.png`, and has no class index and no
+object. The second is `images/train/b.jpg` with `masks/train/b.png`. The files `notes.md` and
+`index.txt` are not listed.
+
+### TheFoldersMayBeNamedAndTheSplitLeftOut
+
+With an empty split, `image_folder` "leftImg8bit" and `mask_folder` "gtFine", the one sample
+is `leftImg8bit/a.png` with the mask `gtFine/a.png`.
+
+### AnImageWithoutAMaskIsRefused
+
+An image `b.jpg` without a mask fails with `FileNotFound`, "images/train/b.jpg",
+"read_mask_png", "has no mask" and "masks/train/b.png".
+
+### AMaskWithoutAnImageIsRefused
+
+A mask `z.png` without an image fails with `InvalidFile`, "masks/train/z.png", "read_mask_png"
+and "the mask has no image".
+
+### TwoImagesOfOneStemAreRefused
+
+The images `a.jpg` and `a.png` with one mask `a.png` fail with `InvalidFile`,
+"images/train/a.png", "shares the mask" and "masks/train/a.png".
+
+### TheOptionsAndTheFoldersAreChecked
+
+A class count of 0 fails with `InvalidDescription`, "read_mask_png" and
+"the class count is 0". An absent image folder fails with `FileNotFound`, "images/train" and
+"no such directory", and an absent mask folder with `FileNotFound`, "masks/train" and
+"no such directory". Two empty folders fail with `InvalidFile`, "images/train" and
+"holds no image".
+
+### TheSuffixesPairNamesThatDiffer
+
+With `image_suffix` "_leftImg8bit" and `mask_suffix` "_gtFine_labelIds" under the folders
+`leftImg8bit` and `gtFine`, the two images pair with their `_gtFine_labelIds.png` masks, and
+the list has two samples and four files. The mask `aachen_000000_gtFine_color.png` is not
+listed.
+
+### AnImageWithoutTheImageSuffixIsRefused
+
+With `image_suffix` "_left", the image `b.png` fails with `InvalidFile`, "images/train/b.png",
+"read_mask_png" and "does not end in '_left'".
+
+### AMaskOfTheSuffixWithoutAnImageIsRefused
+
+With `mask_suffix` "_ids", the mask `b_ids.png` without an image fails with `InvalidFile`,
+"masks/train/b_ids.png" and "the mask has no image".
+
+## modules/vision/registration/tests/test_datasets_mnist.cpp
+
+Suites: `Integration_VisionMnist`.
+
+Tests the "mnist" dataset row the vision module registers, through `Data::make_dataset`, and
+`Vision::Datasets::try_load_mnist`. The suite's fixture is an `EngineTest`, so every case
+needs an engine. It keeps the prefix `Integration_` although the file is in a unit test
+folder. The refusal cases point at a directory that does not exist. The one case that reads
+images reports itself skipped when the MNIST IDX files are absent.
+
+### TheDatasetRegistryListsMNIST
+
+`find("mnist")` returns a row. `make_dataset` of the type "coco" fails with
+`InvalidDescription` and a message that holds "'mnist'".
+
+### MNISTRefusesADirectoryWithoutTheFiles
+
+"mnist" over an absent directory fails with `FileNotFound`. The message holds "data", the
+directory, "MNIST train split" and the names of the four IDX files.
+
+### MNISTTestSplitLooksForTheT10kFiles
+
+With "split" set to "test" the failure holds "MNIST test split" and
+"t10k-images-idx3-ubyte, labels".
+
+### MNISTRequiresADirectory
+
+A section without "directory" throws an error naming "data", "has no" and "'directory'".
+
+### AnUnknownMNISTKeyIsRejectedByItsOwnFactory
+
+The key "batch_sizes" throws an error naming "data", "'batch_sizes'" and "'batch_size'".
+
+### MNISTRefusesASplitItDoesNotKnow
+
+The split "validation" fails with `InvalidDescription`, and the message holds "'split'",
+"'validation'", "'train'" and "'test'".
+
+### AnMNISTLayoutOtherThanFlatOrImageIsRefused
+
+The layout "tiled" fails with `InvalidDescription`, and the message holds "'layout'", "'tiled'",
+"'flat'" and "'image'".
+
+### AnImageLayoutYieldsRankFourBatches
+
+With `MNISTLayout::Image`, a batch size of 16 and 32 samples, the dataset's sample shape is
+[28, 28, 1]. It has one target, of the role `Data::K_ROLE_LABELS`, a scalar sample shape, the
+element type `Int32` and 10 classes. Batch 0 holds a rank-1 `Int32` label tensor of 16 entries
+and a [16, 28, 28, 1] input tensor.
+
+### MNISTFallsBackToSyntheticWhenTheFilesAreAbsent
+
+For a directory that does not exist, `mnist_available` is false, `try_load_mnist` fails with
+`FileNotFound` and names the directory, and `mnist_expected_paths` is not empty.
+
+## modules/language/datasets/tests/test_datasets_next_token_collator.cpp
+
+Suites: `Unit_LanguageDatasetsNextTokenCollator`.
+
+Tests `Language::Datasets::NextTokenCollator` in
+`modules/language/datasets/include/SushiAI/language/datasets/next_token_collator.hpp`. The
+fixture provides an engine and allocates a batch of an input tensor and an `Int32` labels
+tensor. Every collator has a window of three positions over a vocabulary of 50.
+
+### ItDescribesTheTask
+
+`task()` is `K_TASK_NEXT_TOKEN`, `window_length()` is 3, `tokens_per_window()` is 4 and
+`vocabulary_size()` is 50. `targets()` holds one description: the role `K_ROLE_LABELS`, the
+sample shape [3], the type `Int32` and 50 classes.
+
+### LabelsHoldTheNextTokenOfEachPosition
+
+`collate` over the ids 10, 11, 12, 13, 20, 21, 22, 23 writes the inputs 10, 11, 12, 20, 21, 22
+and the labels 11, 12, 13, 21, 22, 23 into a batch of two rows.
+
+### MakeRefusesExtentsOutOfBounds
+
+`NextTokenCollator::make` fails with `InvalidDescription` for a window of 0
+("NextTokenCollator", "window of 0 positions") and for a vocabulary of 0 ("vocabulary of 0
+tokens").
+
+### CollateRefusesWhatDoesNotFit
+
+`collate` into a batch of two rows fails with `Incompatible` for seven ids
+("NextTokenCollator", "7 ids", "windows of 4") and for twelve ids ("inputs", "6 elements",
+"writes 9"). It also fails for a batch whose inputs are `Float32` ("inputs", "int32") and for
+a batch without tensors ("one role 'labels'").
+
+## modules/vision/datasets/tests/test_datasets_pipelines.cpp
+
+Suites: `Unit_DatasetsPipelineTable`, `Unit_DatasetsFitPipeline`,
+`Unit_DatasetsAugmentPipeline`.
+
+Tests `pipeline_table` and `find_pipeline`, `FitPipeline` and `AugmentPipeline` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/`. The pipeline cases read four raw
+RGB images of the sizes 20 by 16, 16 by 20, 16 by 16 and 10 by 20, written under the system's
+temporary directory; sample i holds one object of class i. The training pipelines have a size
+of 16 and the seed 20261011.
+
+### ItListsNoneThenDefault
+
+`pipeline_table` has two rows named "none" and "default". `find_pipeline` returns each row for
+its name and null for "mixup".
+
+### ARowBuildsThePipelineOfItsName
+
+For a request of 16 by 16 and three channels, each row's `make` gives a pipeline whose `name`
+is the row's name.
+
+### DefaultRefusesAnInputItDoesNotMake
+
+The "default" row fails with `InvalidDescription` and "'default'" for a size of 4 by 6
+("square", "4 by 6") and for one channel ("3 channels", "has 1").
+
+### FitsEachSampleTheSameInEveryEpoch
+
+A `FitPipeline` that letterboxes to 8 by 8 is named "none". For the samples 3 and 0 it gives
+images of 8 by 8 and three channels with one object each, of the classes 3 and 0. Epoch 7
+gives the same image, mask, file, classes and boxes as epoch 0.
+
+### RefusesWhatItCannotFit
+
+`FitPipeline::make` with a size of 0 by 8 fails with `InvalidDescription`, "FitPipeline" and
+"0 by 8". `produce` with two sample indices and one fitted slot fails with
+`InvalidDescription`, "2 samples" and "1 fitted".
+
+### MakesSquareSamplesOfThreeChannels
+
+An `AugmentPipeline` with 1000 mosaic epochs is named "default". In epoch 0 each of the four
+samples is 16 by 16 with three channels and an empty mask, and every box lies within
+[0, 16] on both axes.
+
+### ASampleDependsOnItsIndexAndItsEpochAlone
+
+In epoch 2, each sample comes out the same when the four are produced twice, when they are
+produced in reverse order and when sample 2 is produced alone. In epoch 3 the image of at
+least one sample differs from its image in epoch 2.
+
+### PastTheMosaicEpochsASampleHoldsItsOwnObjects
+
+With 0 mosaic epochs, in the epochs 0, 1 and 2 every object of sample i has the class i.
+
+### AMaskTakesTheSizeOfItsSample
+
+Each sample is given a mask of its image's size that holds its index. In epoch 1 every
+produced mask is 16 by 16 with one channel, and each byte is below 4 or is `K_MASK_VOID`.
+
+### AnImageThatCannotBeReadIsTheFailure
+
+With the file of sample 1 replaced by a path that does not exist, `produce` fails with
+`FileNotFound` and "gone.saim".
+
+### RefusesWhatItCannotMake
+
+`AugmentPipeline::make` fails with `InvalidDescription` for a size of 0 ("AugmentPipeline",
+"a training size of 0") and for -1 mosaic epochs ("-1 epochs of mosaic"). `produce` fails
+with `InvalidDescription` for the epoch -1 ("epoch -1") and for an empty list
+("a list of 0 samples").
+
+## modules/vision/datasets/tests/test_datasets_polygon_mask.cpp
+
+Suites: `Unit_DatasetsPolygonMask`.
+
+Tests `paint_polygon_mask` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/polygon_mask.hpp` over masks of 4 by
+4 pixels. Each object is a rectangle given as a polygon and as its box.
+
+### APolygonPaintsThePixelsWhoseCentresItHolds
+
+A rectangle of class 2 from (1, 1) to (3, 3) over the background `K_MASK_VOID` gives a mask of
+one channel whose four middle pixels are 2 and whose other twelve are 255.
+
+### TheLaterOfTwoObjectsWinsAnOverlap
+
+A rectangle of class 0 from (0, 0) to (3, 2), then one of class 1 from (2, 0) to (4, 4), over
+the background 7 give the rows 0 0 1 1, 0 0 1 1, 7 7 1 1, 7 7 1 1.
+
+### NoObjectIsTheBackgroundEverywhere
+
+An empty label set over the background 3 gives sixteen bytes of 3.
+
+### RefusesAnObjectItCannotPaint
+
+An object with a box and no polygon fails with `InvalidDescription`, "paint_polygon_mask",
+"object 0" and "no polygon". An object of class 255 fails with `InvalidDescription`,
+"the class 255" and "0 to 254".
+
+## modules/language/datasets/tests/test_datasets_prompt_dataset.cpp
+
+Suites: `Unit_LanguageDatasetsPromptDataset`.
+
+Tests `Language::Datasets::PromptDataset` in
+`modules/language/datasets/include/SushiAI/language/datasets/prompt_dataset.hpp` and
+`make_prompt_dataset`, which builds one from a data block. The fixture provides an engine and
+reads the row and the stated prompt length of batch 0.
+
+### AShortPromptIsFollowedByZeros
+
+A dataset of the ids 3, 1, 4, 1, 5 over a window of 8 has a batch size of 1, one batch, the
+sample shape [8], the type `Int32`, the name `K_PROMPT_DATA_TYPE` and one target of the role
+`K_ROLE_PROMPT_LENGTH`. Its row is 3, 1, 4, 1, 5, 0, 0, 0 and its stated length is 5.
+
+### ALongPromptKeepsItsLastIDs
+
+A dataset of the ids 0 to 9 over a window of 4 has the row 6, 7, 8, 9 and the stated length 4.
+
+### MakeRefusesAPromptOrAWindowThatDoesNotFit
+
+`PromptDataset::make` fails with `InvalidDescription` for no id ("no id"), for the ids 1 and
+-2 ("-2") and for a window of 0 ("window of 0").
+
+### TheDataBlockEncodesItsText
+
+A vocabulary made of no merges is written to a file in a scratch directory. A block with the
+text "hi", a window of 4 and that file as `vocabulary` builds a dataset whose row is 'h', 'i',
+0, 0 and whose stated length is 2. `make_prompt_dataset` fails with `InvalidDescription` for a
+block without `text` ("the data block", "has no 'text'") and for a block with a `tokens` key
+("'tokens'").
+
+## modules/vision/datasets/tests/test_datasets_reader_dataset.cpp
+
+Suites: `Unit_DatasetsReaderDataset`.
+
+Tests `ReaderDataset` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/reader_dataset.hpp`. The fixture is an
+`EngineTest`. Its list stores gray samples of 2 by 2 pixels in one file `pixels.bin` of rising
+bytes, written under the system's temporary directory, so sample i opens with the byte 4i and
+has the class i modulo 2. The default options are batches of two such inputs under the name
+"tiny", with a classification collator over two classes.
+
+### ItDescribesItsBatches
+
+Over five samples the dataset reports a batch size of 2, the sample shape [2, 2, 1], two
+batches, the name "tiny" and one target of the role `K_ROLE_LABELS`.
+
+### ABatchHoldsItsSamplesInListOrder
+
+Over four samples, batch 1 holds the inputs (8 + i) / 255 for i from 0 to 7, each within 1e-6,
+and the labels 0 and 1.
+
+### ADetectionBatchLetterboxesImagesAndBoxes
+
+Two raw RGB files of 2 rows and 4 columns at level 255 are letterboxed to 4 by 4, with a
+detection collator of 3 classes and 2 slots. The first input value is 114 / 255 and value 12
+is 1.0. The second image's object fills slot 2: valid is 0, 1, 0 at the slots 0, 2 and 3, the
+class is 2 and the box is (1, 1, 3, 3) within 1e-4.
+
+### MakeRefusesOptionsOutsideTheirBounds
+
+`ReaderDataset::make` fails with `InvalidDescription` for a null collator ("ReaderDataset",
+"tiny", "no collator"), a size of 0 by 2 ("0 by 2"), five channels ("5 channels"), a batch
+size of 0 ("batch size of 0") and a batch size of 3 over two samples ("2 samples",
+"one batch of 3").
+
+### ABatchOutsideTheEpochStopsTheProcess
+
+Over two samples, `read(1, batch)` is fatal with "ReaderDataset", "1 batches" and "batch 1".
+
+### AReadReusesTheTensorsItFilledBefore
+
+After `read(0, batch)` and `read(1, batch)` into one batch, the inputs and the labels have the
+data pointers of the first read, and the first input value is 8 / 255.
+
+### AReadDoesNotWriteATensorSomethingElseHolds
+
+With a copy of the input tensor kept after `read(0, batch)`, `read(1, batch)` gives inputs at
+another data pointer. The kept tensor still opens with 0 and the batch opens with 8 / 255.
+
+### ItIsADatasetATrainerCanRead
+
+Through a `Data::Dataset` reference, `read(1, batch)` gives as many targets as `targets()`
+lists, the first with the same role, and inputs whose first extent is `batch_size()`.
+
+### AnImageOfAnotherChannelCountNamesItsFile
+
+With the options asking for three channels over the gray list, `read(0, batch)` fails with
+`Incompatible`, "pixels.bin", "ReaderDataset", "1 channels" and "reads 3".
+
+### AFileAbsentAtReadTimeIsNamed
+
+With the list's file replaced by a path that does not exist, `make` succeeds and
+`read(0, batch)` fails with `InvalidFile` and "gone.bin".
+
+### AShuffledEpochReadsEverySampleOnceInTheOrderOfTheSeed
+
+With `shuffle` on and the seed 42 over eight samples, the rows read across the four batches
+are the samples in the order `Data::EpochPermutation(42, 0, 8)` gives, and each of the eight
+is read once.
+
+### BeginEpochSelectsTheOrderOfTheEpoch
+
+After `Data::begin_epoch(dataset, 3)` the samples are read in the order of
+`EpochPermutation(42, 3, 8)`, which differs from the order of epoch 0. After
+`begin_epoch(dataset, 0)` they are read in the order of epoch 0.
+
+### WithoutShuffleEveryEpochKeepsTheOrderOfTheList
+
+Without `shuffle`, six samples are read as 0, 1, 2, 3, 4, 5, and again in that order after
+`begin_epoch(dataset, 5)`.
+
+### MakeRefusesANullPipeline
+
+The form of `make` that takes a pipeline fails for a null one with `InvalidDescription`,
+"ReaderDataset", "tiny" and "no pipeline".
+
+## modules/vision/datasets/tests/test_datasets_reader_section.cpp
+
+Suites: `Unit_DatasetsReaderTable`, `Unit_DatasetsTaskTable`, `Unit_DatasetsReaderSection`.
+
+Tests `reader_table` and `find_reader`, `task_table` and `find_task`, and
+`make_reader_dataset` in `modules/vision/datasets/include/SushiAI/vision/datasets/`. The
+`Unit_DatasetsReaderSection` fixture is an `EngineTest` that builds a dataset from a section
+called "data" whose `root` is a directory under the system's temporary directory. Its YOLO
+split is two white raw images of 2 rows and 4 columns under `images/train`, the second with
+one object of class 2 in `labels/train/b.txt`. Its folder split is one file under each of
+`train/cat` and `train/dog`.
+
+### ItListsTheEightReaders
+
+`reader_table` lists yolo_txt, image_folder, idx, cifar, coco_json, voc_xml, mask_png and csv
+in that order. Every row has a `read` function and is the row `find_reader` returns for its
+name, and `find_reader("tfrecord")` is null.
+
+### ARowListsTheKeysItReads
+
+The rows yolo_txt and cifar list no key. coco_json lists `annotations`, `images`, `polygons`;
+voc_xml lists `class_names`, `keep_difficult`; mask_png lists `images`, `masks`,
+`image_suffix`, `mask_suffix`; csv lists `file`, `features`, `targets`.
+
+### ARowReadsItsKeysOfTheSection
+
+The csv row, given `file`, the feature c and the targets a, b over a file with the header
+`a,b,c`, reads the values 3, 1, 2. It raises an error holding "data 'features'" and "array"
+when `features` is a string. The coco_json row raises one holding "data 'polygons'" and
+"boolean" when `polygons` is 3.
+
+### TheMaskPNGRowPassesTheClassCountAndTheFolders
+
+With `images` "pictures" and `masks` "labels" and no class count, the mask_png row fails with
+`InvalidDescription`, "read_mask_png" and "the class count is 0". With a class count of 5 it
+reads one sample and reports 5 classes.
+
+### TheVOCXMLRowPassesTheClassListAndTheFlag
+
+With `class_names` cat, dog over an annotation whose one object is a difficult dog, the
+voc_xml row reports 2 classes and no object. With `keep_difficult` true the sample has one
+object of class 1.
+
+### TheCIFARRowRefusesAnotherClassCount
+
+The cifar row with a class count of 7 fails with `InvalidDescription`, "7 classes",
+"CIFAR-10" and "coarse".
+
+### EachTaskStatesItsFitAndItsKeys
+
+Detection has `SampleFit::Letterbox` and the key `max_objects`. Classification has
+`SampleFit::Resize` and no key. Binary has `SampleFit::Resize` and the key `positive`.
+Segmentation has `SampleFit::Letterbox` and the keys `ignore_index`, `background`.
+`task_table` lists detection, classification, binary, multi_label, regression and
+segmentation in that order, and `find_task("pose")` is null.
+
+### ARowBuildsTheCollatorOfItsTask
+
+For a list of two named classes with a table of two features and one target, and a section
+with `max_objects` 5, every row has a `build` function and its `make_collator` gives a
+collator whose `task` is the row's name.
+
+### TheBinaryRowReadsThePositiveClass
+
+Over the classes cat, dog the binary row builds a collator for an empty section, for
+`positive` "cat" and for `positive` 0. It fails with `InvalidDescription` for `positive`
+"bird" ("data 'positive' is 'bird'", "'cat', 'dog'"), for `positive` 2
+("the positive class is 2") and for a class count of 3 ("data 'task' is 'binary'",
+"the samples have 3").
+
+### TheSegmentationRowReadsTheIgnoreIndex
+
+For three classes and a size of 4 by 4, `ignore_index` -1 builds a collator whose first target
+has the sample shape [4, 4]. `ignore_index` 1 fails with `InvalidDescription` and
+"the ignore index 1 is one of the 3", and 4294967296 with "data 'ignore_index' is 4294967296"
+and "32 bits".
+
+### ADetectionSectionBuildsLetterboxedBatches
+
+A detection section over the YOLO split with `input` [4, 4], `max_objects` 2 and `classes` 3
+gives a dataset named "yolo_txt" with a batch size of 2, one batch and the sample shape
+[4, 4, 3]. Its boxes target has the sample shape [2, 4] and its classes target 3 classes. In
+batch 0 the first input value is 114 / 255, the valid flags of the slots 0 and 2 are 0 and 1,
+and the class of slot 2 is 2.
+
+### AClassificationSectionTakesTheClassesOfTheList
+
+A classification section over the folder split with `input` [2, 3] and `channels` 1 gives the
+sample shape [2, 3, 1] and one target of the role `K_ROLE_LABELS` with 2 classes.
+
+### TheClassCountMayExceedTheListAndNotFallBelowIt
+
+Over the folder split, `classes` 5 gives a target of 5 classes. `classes` 1 fails with
+`InvalidDescription`, "data 'classes' is 1" and "name 2 classes".
+
+### AnUnknownReaderListsTheKnownOnes
+
+The reader "tfrecord" fails with `InvalidDescription`, "data 'reader'", "'tfrecord'" and the
+quoted name of each of the eight readers.
+
+### AnUnknownTaskListsTheKnownOnes
+
+The task "pose" fails with `InvalidDescription`, "data 'task'", "'pose'" and the quoted name
+of each of the six tasks.
+
+### AKeyTheTaskDoesNotReadIsRefused
+
+The key `batch_sizes` raises an error holding "data", "'batch_sizes'" and "'batch_size'". The
+key `max_objects` on a classification section raises one holding "data" and "'max_objects'".
+
+### ADetectionSectionNeedsMaxObjects
+
+A detection section without `max_objects` raises an error holding "data" and "'max_objects'".
+
+### ValuesOutsideTheirBoundsAreRefused
+
+The build fails with `InvalidDescription` for an `input` of three entries ("data 'input'",
+"3 entries", "[height, width]"), for `input` [4, 0] ("data 'input[1]' is 0") and for
+`channels` 0 ("data 'channels' is 0").
+
+### TheFailureOfTheReaderIsReturned
+
+A yolo_txt section over an empty root fails with `FileNotFound`, "train.txt" and
+"images/train".
+
+### ARegressionSectionReadsTheRowsOfACSVFile
+
+A regression section over a `train.csv` of three records with the target y and a batch size
+of 2 gives a dataset named "csv" with one batch, the sample shape [2] and one target of the
+role `K_ROLE_VALUES` and the sample shape [1]. Batch 0 holds the inputs 1, 2, 4, 5 and the
+values 3, 6.
+
+### ASegmentationSectionFitsTheMaskOfEachImage
+
+A segmentation section over one image of 2 rows and 4 columns and its mask, with `input`
+[4, 4], `classes` 3 and `ignore_index` -1, gives the sample shape [4, 4, 3] and one target of
+the role `K_ROLE_MASK`, the sample shape [4, 4] and 3 classes. In batch 0 the mask's two rows
+0, 1, 2, 0 and 1, 1, 2, 2 lie between two rows of -1.
+
+### AMaskOfAnotherSizeThanItsImageIsRefused
+
+With a 2 by 2 mask for an image of 2 rows and 4 columns, the build succeeds and `read(0,
+batch)` fails with `Incompatible`, "masks/train/a.png", "fit_mask" and
+"the mask is 2 by 2 pixels; its image is 2 by 4".
+
+### ABinarySectionWritesOneForThePositiveFolder
+
+A binary section over the folders cat and dog with `positive` "cat" has one target of
+`Float32`. Batch 0 holds the labels 1 and 0.
+
+### AMultiLabelSectionFlagsTheClassesOfTheObjects
+
+A multi_label section over the YOLO split with `classes` 3 has a target of the sample shape
+[3]. Batch 0 holds 0, 0, 0 for the first image and 0, 0, 1 for the second.
+
+### ATaskAndAReaderOfAnotherSampleKindAreRefused
+
+The task classification over the reader csv fails with `InvalidDescription`,
+"data 'task' is 'classification'", "reads images" and
+"the reader 'csv' lists rows of numbers". The task regression over image_folder fails with
+"data 'task' is 'regression'", "reads rows of numbers" and
+"the reader 'image_folder' lists none".
+
+### AKeyOfAnotherReaderIsRefused
+
+The key `features` on a yolo_txt detection section raises an error holding "data",
+"'features'" and "'max_objects'".
+
+### ACacheIsWrittenAndRead
+
+With `cache` naming a directory, the build writes two `.saim` files into it. After the folder
+`images` is removed, `read(0, batch)` succeeds and input value 12 is 1.0.
+
+### AShuffledSectionWithThePipelineReadsABatch
+
+A detection section with `input` [16, 16], `shuffle` true, `seed` 7 and `pipeline` "default"
+builds. After `begin_epoch(dataset, 1)`, `read(0, batch)` succeeds, the sample shape is
+[16, 16, 3] and the inputs hold 2 * 16 * 16 * 3 elements.
+
+### APipelineTheTableLacksIsRefused
+
+The pipeline "mixup" fails with `InvalidDescription`, "data 'pipeline' is 'mixup'", "'none'"
+and "'default'". The pipeline "default" with `input` [4, 6] fails with `InvalidDescription`,
+"square" and "4 by 6".
+
+### WorkersReadTheSameBatchesAhead
+
+With `workers` 2 and `prefetch` 2 the dataset is a `Data::ThreadedLoader`; without them it is
+not. Both have the same batch count, and every input element of every batch is equal between
+the two.
+
+### KeysThatDoNotApplyAreRefused
+
+The build fails with `InvalidDescription` for `prefetch` without workers ("data 'prefetch'",
+"data 'workers' is 0"), for `cache_side` without a cache ("data 'cache_side'",
+"data 'cache'") and for `shuffle` on a csv regression section ("data 'shuffle'",
+"'regression'", "rows of numbers").
+
+### ASegmentationSectionPaintsThePolygonsOfALabelFile
+
+A segmentation section over the reader yolo_txt, with a label file whose one polygon of class
+1 covers the top left quarter of a 4 by 4 image and with `background` 2, gives a mask in
+batch 0 whose top left 2 by 2 pixels are 1 and whose other pixels are 2.
+
+## modules/vision/datasets/tests/test_datasets_sample_cache.cpp
+
+Suites: `Unit_DatasetsSampleCache`.
+
+Tests `write_sample_cache`, `use_sample_cache` and `sample_cache_path` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/sample_cache.hpp`. The source images
+are raw image files the cases write under the system's temporary directory, and the cache is
+the folder `cache` beside them.
+
+### TheFirstPassWritesAndTheSecondReuses
+
+Over two RGB images of 2 by 3 and 4 by 2 pixels, the first `write_sample_cache` reports 2
+written, 0 reused and the byte count of the two raw image files. The second reports 0 written,
+2 reused and 0 bytes.
+
+### AListPointedAtTheCacheLoadsTheSamePixels
+
+After a write, `use_sample_cache` gives a list whose one file lies in the cache directory, has
+the extension `.saim` and a name that starts with "a-". `load_sample_image` over it gives the
+size, the three channels and every byte of the source image.
+
+### ALongestSideReducesOnlyWhatExceedsIt
+
+With `longest_side` 4, an image of 4 rows and 8 columns at level 200 loads from the cache as 2
+rows and 4 columns with a first byte of 200. A 2 by 2 image loads as 2 by 2.
+
+### AnImageThatChangedIsStale
+
+After the source is rewritten with another size, `use_sample_cache` fails with `FileNotFound`,
+"images/a.jpg", "sample cache" and "changed since". A second write reports 1 written and 0
+reused, and the image then loads from the cache with a width of 3 and a first byte of 2.
+
+### StoredPixelsAndMasksAreLeftAlone
+
+For a list of one sample with stored pixels and one sample with an image and a mask, the write
+reports 1 written. In the list `use_sample_cache` returns, the file of stored pixels and the
+mask keep their paths and the image's path differs.
+
+### ANameFollowsTheSourceAndTheOptions
+
+`sample_cache_path` returns the same path twice for one source and one set of options, and its
+file name is 23 characters long. With `longest_side` 320 the path differs. A source that does
+not exist fails with `FileNotFound` and "gone.jpg".
+
+### RefusesOptionsItCannotServe
+
+`write_sample_cache` fails with `InvalidDescription` for options without a directory
+("no directory"), for `longest_side` -1 ("a longest side of -1") and for `longest_side` 1 over
+a list whose sample has a mask ("a longest side of 1", "masks").
+
+## modules/vision/datasets/tests/test_datasets_stored_pixels.cpp
+
+Suites: `Unit_DatasetsStoredPixels`.
+
+Tests `StoredPixels` and `read_stored_pixels` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/stored_pixels.hpp`. Three cases read
+a file written under the system's temporary directory and the others read a string stream.
+
+### ByteCountIsTheProductOfTheExtents
+
+`byte_count` of 4 by 5 pixels with three channels is 60.
+
+### InterleavedBytesAreCopiedFromTheOffset
+
+Over a file of the bytes 0 to 19, interleaved pixels of 2 rows, 3 columns and two channels at
+offset 5 read as an image of that shape holding the bytes 5 to 16.
+
+### PlanarBytesAreInterleaved
+
+Planar pixels of 2 by 2 with three channels at offset 1, stored as the planes 1, 2, 3, 4, then
+11, 12, 13, 14, then 21, 22, 23, 24, read as 1, 11, 21, 2, 12, 22, 3, 13, 23, 4, 14, 24.
+
+### APlaneLongerThanOneChunkIsCopiedWhole
+
+Planar pixels of 100 by 100 with two channels read so that, at every 997th pixel, channel 0
+holds the byte of the first plane and channel 1 the byte of the second.
+
+### AFileThatEndsEarlyIsInvalid
+
+Twelve bytes asked at offset 4 of a file of ten fail with `InvalidFile`, "short.bin" and
+"6 of 12".
+
+### AFileThatCannotBeOpenedIsInvalid
+
+A path that does not exist fails with `InvalidFile` and "absent.bin".
+
+### ExtentsOutsideAnImageAreRefused
+
+A size of 0 by 2 fails with `InvalidDescription` and "0 by 2", and five channels with
+`InvalidDescription` and "5 channels".
+
+## modules/vision/datasets/tests/test_datasets_table_dataset.cpp
+
+Suites: `Unit_DatasetsTableDataset`.
+
+Tests `TableDataset` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/table_dataset.hpp`. The fixture is an
+`EngineTest`. Its list names the file `rows.csv` and holds rows of two features and one
+target, row i being 10i, 10i + 1 and 10i + 2. The default options are batches of two rows
+under the name "rows", with a `RegressionCollator` of two features and one target.
+
+### ItDescribesItsBatches
+
+Over five rows the dataset reports the name "rows", a batch size of 2, two batches, the sample
+shape [2] and one target of the role `K_ROLE_VALUES` and the sample shape [1].
+
+### ABatchHoldsItsRowsInListOrder
+
+Through a `Data::Dataset` reference, batch 1 holds the inputs 20, 21, 30, 31 and the values
+22, 32. A following `read(0, batch)` writes the same input tensor, whose first value is then 0.
+
+### MakeRefusesWhatItCannotBatch
+
+`TableDataset::make` fails with `InvalidDescription` for a null collator ("TableDataset",
+"'rows' has no collator"), a list without a table ("a table of 0 features"), a table one
+number short ("4 samples and 11 numbers", "a row holds 3"), a batch size of 0
+("a batch size of 0") and one row for batches of two ("1 samples", "one batch of 2").
+
+### ABatchOutsideTheEpochStopsTheProcess
+
+Over two rows, `read(1, batch)` is fatal with "TableDataset", "1 batches" and "batch 1".
+
+### TheFailureOfTheCollatorIsReturned
+
+With a collator of two features and two targets over the list of one target, `make` succeeds
+and `read(0, batch)` fails with `InvalidDescription`, "rows.csv", "RegressionCollator" and
+"2 features and 1 targets".
+
+## modules/vision/datasets/tests/test_datasets_task_collators.cpp
+
+Suites: `Unit_DatasetsTaskCollators`.
+
+Tests `BinaryCollator`, `MultiLabelCollator`, `RegressionCollator` and `SegmentationCollator`
+in `modules/vision/datasets/include/SushiAI/vision/datasets/`. The fixture is an `EngineTest`.
+It holds two gray samples of one row and two columns, from `first.png` and `second.png`, and
+allocates batches of two samples.
+
+### BinaryPublishesLabels
+
+`BinaryCollator::make` fails with `InvalidDescription` for the positive class 2
+("BinaryCollator", "the positive class is 2") and for -1 ("the positive class is -1"). A
+collator of the positive class 1 reports the task `K_TASK_BINARY` and one target: the role
+`K_ROLE_LABELS`, an empty sample shape, `Float32` and 0 classes.
+
+### BinaryWritesOneForThePositiveClass
+
+With the class indices 1 and 0, a collator of the positive class 1 writes the labels 1, 0 and
+a collator of the positive class 0 writes 0, 1.
+
+### BinaryNamesTheFileOfASampleItCannotLabel
+
+With no class index on the second sample, `collate` fails with `InvalidDescription`,
+"second.png", "BinaryCollator" and "no class index". With the class index 2 it fails with
+"second.png", "class index 2" and "[0, 2)".
+
+### MultiLabelWritesTheSetOfClassesPresent
+
+`MultiLabelCollator::make(0)` fails with `InvalidDescription`, "MultiLabelCollator" and
+"0 classes". A collator of 4 classes reports the task `K_TASK_MULTI_LABEL` and one target of
+the role `K_ROLE_LABELS`, the sample shape [4] and `Float32`. The first sample has objects of
+the classes 2, 0 and 2 and the class index 3; the second has neither. Over a target first
+filled with 9, `collate` writes 1, 0, 1, 1 for the first sample and four zeros for the second.
+
+### MultiLabelRefusesAClassOutsideTheSet
+
+An object of class 4 on the second sample, over 4 classes, fails with `InvalidDescription`,
+"second.png", "MultiLabelCollator", "the class 4" and "[0, 4)".
+
+### RegressionCopiesFeaturesAndTargets
+
+`RegressionCollator::make` fails with `InvalidDescription` for 0 features ("0 features") and
+for 0 targets ("0 targets"), each with "RegressionCollator". A collator of 3 features and 2
+targets reports the task `K_TASK_REGRESSION` and one target of the role `K_ROLE_VALUES`, the
+sample shape [2] and `Float32`. For samples with the features 1, 2, 3 and 4, 5, 6 and the
+targets 10, 20 and 40, 50, `collate` writes the inputs 1 to 6 and the values 10, 20, 40, 50.
+
+### RegressionRefusesWhatHoldsNoRow
+
+Over samples that hold images and no row, `collate` fails with `InvalidDescription`,
+"first.png", "RegressionCollator" and "0 features and 0 targets". Over inputs of the sample
+shape [2] it fails with `Incompatible`, "RegressionCollator" and "float32 of [2, 3]".
+
+### SegmentationPublishesTheMask
+
+`SegmentationCollator::make` fails with `InvalidDescription` for 0 classes
+("SegmentationCollator", "0 classes"), for 256 classes ("256 classes", "1 to 255"), for the
+ignore index 2 over 3 classes ("the ignore index 2 is one of the 3 classes") and for a size
+of 0 by 2 ("0 by 2 pixels"). A collator of 3 classes reports the task `K_TASK_SEGMENTATION`
+and one target of the role `K_ROLE_MASK`, the sample shape [1, 2], `Int32` and 3 classes.
+
+### SegmentationWritesClassesAndTheIgnoreIndex
+
+For the masks 2, `K_MASK_VOID` and 0, 1, `collate` writes 2, the ignore index, 0, 1, with the
+ignore index `K_DEFAULT_IGNORE_INDEX` and with -100.
+
+### SegmentationRefusesAByteThatIsNoClass
+
+A mask byte of 3 over 3 classes fails with `InvalidDescription`, "second.png",
+"SegmentationCollator", "holds 3 at row 0, column 1" and "below 3 and 255 names none".
+
+### SegmentationRefusesASampleWithoutAMask
+
+With no mask on the second sample, `collate` fails with `InvalidDescription`, "second.png",
+"SegmentationCollator" and "the sample's mask is 0 by 0".
+
+### SegmentationPaintsThePolygonsOfASample
+
+With `MaskOrigin::Polygons` and the ignore index -1, the first sample has a polygon of class 2
+over its second pixel and the second sample one of class 0 over its first pixel. `collate`
+writes -1, 2, 0, -1. With `background` 1 it writes 1, 2, 0, 1.
+
+### SegmentationRefusesAnObjectWithoutAPolygon
+
+With `MaskOrigin::Polygons`, an object with a box and no polygon on the second sample fails
+with `InvalidDescription`, "second.png", "paint_polygon_mask" and "no polygon".
+
+### SegmentationRefusesABackgroundItCannotWrite
+
+`SegmentationCollator::make` fails with `InvalidDescription` for `background` 1 without
+`MaskOrigin::Polygons` ("a background of 1", "masks come from files") and for `background` 3
+over 3 classes with it ("the background 3 is none of the 3 classes").
+
+## modules/language/datasets/tests/test_datasets_token_dataset.cpp
+
+Suites: `Unit_LanguageDatasetsTokenDataset`.
+
+Tests `Language::Datasets::TokenDataset` in
+`modules/language/datasets/include/SushiAI/language/datasets/token_dataset.hpp`. The fixture
+provides an engine and writes `rising.satk` to a scratch directory: the ids 0 to 19 over a
+vocabulary of 20, so each id equals its position. Unless a case says otherwise the dataset
+has a next-token collator of four positions, a batch size of 2 and the name "tiny".
+
+### ItDescribesItsBatches
+
+The dataset has a batch size of 2, the sample shape [4], the type `Int32`, two batches, the
+name "tiny" and a vocabulary size of 20. Its one target has the role `K_ROLE_LABELS`, the
+sample shape [4] and 20 classes.
+
+### ABatchHoldsItsWindowsAsInt32
+
+`read(1)` fills `Int32` inputs of the shape [2, 4] and one `Int32` target of eight elements.
+The inputs are the ids 8 to 15 and each label is its input plus 1.
+
+### EveryLabelIsTheTokenAfterItsInput
+
+With a stride of 3 the dataset has three batches. In every batch, row `r` of batch `b` starts
+at the id `(2b + r) * 3`: input `t` is that id plus `t`, label `t` is that id plus `t + 1`, and
+each label but the last equals the next input of its row.
+
+### MakeRefusesOptionsOutsideTheirBounds
+
+`TokenDataset::make` fails with `InvalidDescription` for a null collator ("TokenDataset",
+"tiny", "no collator"), a batch size of 0 ("batch size of 0"), a stride of 0 ("TokenDataset",
+"tiny", "stride of 0") and a batch size of 5 ("rising.satk", "4 windows of 5", "one batch of
+5"). It fails with `Incompatible` for a collator over 19 tokens ("rising.satk", "vocabulary of
+20", "one of 19") and with `FileNotFound` for a path that does not exist ("absent.satk").
+
+### AnIDOutsideTheVocabularyNamesItsFileOffset
+
+Byte 8 of the file is overwritten with 5, which makes its vocabulary size 5. The dataset is
+still made, and `read(0)` fails with `InvalidFile` and a message containing "rising.satk", "id
+5", "byte 44" and "[0, 5)".
+
+### AFileCutAfterMakeNamesWhereItEnds
+
+The file is resized to 64 bytes after the dataset is made. `read(0)` is ok and `read(1)` fails
+with `InvalidFile` and a message containing "rising.satk", "ends at byte 64" and "end at byte
+76".
+
+### ABatchOutsideTheEpochStopsTheProcess
+
+`read(2)` on a dataset of two batches stops the process with a report containing
+"TokenDataset", "2 batches" and "batch 2".
+
+### AReadReusesTheTensorsItFilledBefore
+
+After `read(0)` and `read(1)` into the same batch, the inputs and the labels have the data
+pointers they had after the first read, and the first input is 8.
+
+### AReadDoesNotWriteATensorSomethingElseHolds
+
+A copy of the inputs tensor is kept after `read(0)`. After `read(1)` the batch's inputs have
+another data pointer, the first id of the kept tensor is 0 and the first id of the batch is 8.
+
+### ItIsADatasetATrainerCanRead
+
+Read through a `Data::Dataset` reference, `read(1)` fills as many targets as `targets()`
+lists, the first target has the role the description states, and the first extent of the
+inputs equals `batch_size()`.
+
+## modules/language/datasets/tests/test_datasets_token_file.cpp
+
+Suites: `Unit_LanguageDatasetsTokenFile`.
+
+Tests `write_token_file`, `read_token_file_header` and `read_token_range` in
+`modules/language/datasets/include/SushiAI/language/datasets/token_file.hpp`. Most cases start
+from a hand-written file of 36 bytes: a header of 24 bytes (the magic "SATK", version 1, a
+vocabulary of 300, an id width of 4 and a count of 3) and the ids 1, 258 and 0. Files are
+written to a scratch directory.
+
+### TheWriterProducesTheDocumentedBytes
+
+`write_token_file` of the ids 1, 258 and 0 over 300 tokens writes exactly those 36 bytes.
+
+### TheHeaderAndARangeOfIDsSurviveTheFile
+
+A file of the ids 0 to 39999 over 40000 tokens has a header with a vocabulary size of 40000
+and a token count of 40000. `read_token_range` of five ids from 16382 returns 16382 to 16386,
+the range from 39995 ends at 39999, and an empty range at 40000 is ok.
+
+### TheWriterRefusesAnIDOutsideTheVocabulary
+
+`write_token_file` fails with `InvalidDescription` for the id 300 over 300 tokens
+("write_token_file", "id 300", "index 1", "[0, 300)"), for the id -2 ("id -2", "index 0") and
+for a vocabulary of 0 ("vocabulary of 0 tokens"). No file exists afterwards.
+
+### ATruncatedFileIsRefusedAtEveryLength
+
+For every length from 0 to 35 bytes, `read_token_file_header` over the file cut to that length
+fails with `InvalidFile` and a message containing "cut.satk", "read_token_file_header" and
+"ends at byte". A cut at 10 bytes names "ends at byte 10" and "header of 24 bytes"; a cut at
+30 names "ends at byte 30" and "declares 36 bytes".
+
+### BytesAfterTheDeclaredEndAreRefused
+
+With two bytes appended, `read_token_file_header` fails with `InvalidFile` and a message
+containing "long.satk", "2 bytes follow" and "byte 36".
+
+### AHeaderFieldOutOfBoundsNamesItsOffset
+
+`read_token_file_header` fails with `InvalidFile` for a first byte of 'X' ("'SATK'", "no token
+file"), a version of 2 ("byte 4", "format version 2", "versions 1 to 1"), a vocabulary of 0
+("byte 8", "vocabulary of 0 tokens"), an id width of 8 ("byte 12", "ids of 8 bytes") and a
+count whose last byte is 0x7F ("byte 16", "ids").
+
+### AnIDOutsideTheVocabularyNamesItsOffset
+
+With the vocabulary size lowered to 258, the header reads and `read_token_range` of three ids
+fails with `InvalidFile` ("above.satk", "read_token_range", "id 258", "byte 28", "[0, 258)"),
+while a range of the first id alone returns 1. In a file whose third id is the bytes FF FF FF
+FF, the range at id 2 fails with "id -1" and "byte 32".
+
+### ARangeOutsideTheFileAndAnAbsentFileAreRefused
+
+`read_token_range` of two ids from id 2 fails with `InvalidDescription` and a message
+containing "2 ids from id 2" and "file of 3". Over a path that does not exist,
+`read_token_file_header` fails with `FileNotFound` ("absent.satk") and `read_token_range` with
+`InvalidFile` ("absent.satk", "cannot be opened").
+
+## modules/language/datasets/tests/test_datasets_tokens_section.cpp
+
+Suites: `Unit_LanguageDatasetsTokensSection`.
+
+Tests `Language::Datasets::make_tokens_dataset` in
+`modules/language/datasets/include/SushiAI/language/datasets/tokens_section.hpp`, which builds
+a dataset from a `tokens` data block. The fixture provides an engine and writes a token file
+of the ids 0 to 39 over a vocabulary of 40.
+
+### TheKeysDescribeTheDataset
+
+A block with `window` 4, `stride` 5 and `batch_size` 2 builds a dataset with a batch size of
+2, the sample shape [4], the type `Int32` and four batches. Its `K_ROLE_LABELS` target has 40
+classes. In batch 1 the first input is 10 and the fifth is 15.
+
+### AnAbsentBatchSizeIsTheDefault
+
+A block with `window` 1 and `stride` 1 builds a dataset whose batch size equals
+`TokenDatasetOptions{}.batch_size`.
+
+### AKeyThatDoesNotFitIsRefused
+
+`make_tokens_dataset` fails with `InvalidDescription` for a block without `window` ("the data
+block", "has no 'window'"), a block without `file` ("the data block", "has no 'file'"), a
+`window` of "four" ("'window'", "whole number"), a `window` of 0 ("'window'", "positive") and
+a `shuffle` key ("the data block", "'shuffle'", "does not have").
+
+### AMissingFileFails
+
+A block whose `file` does not exist returns a status that is not ok. The case checks neither
+the code nor the message.
+
+## modules/vision/datasets/tests/test_datasets_voc_xml.cpp
+
+Suites: `Unit_DatasetsVocXml`.
+
+Tests `read_voc_xml` in `modules/vision/datasets/include/SushiAI/vision/datasets/voc_xml.hpp`
+over files the cases write under the system's temporary directory. Unless a case says
+otherwise the split is "train", listed in `ImageSets/Main/train.txt`. The sample annotation
+names `first.jpg`, a size of 200 by 100 and some objects, each with a name, a difficult flag
+and the box edges 11, 21, 60, 40.
+
+### TheListedAnnotationsAreReadWithSortedClasses
+
+The list file names second, an empty line, then first followed by " 1", with a CRLF on its
+first line. The class names come out as "cat & co", "dog", and the samples as
+`JPEGImages/second.jpg` with no object and `JPEGImages/first.jpg`. That sample has no class
+index and two objects of the classes 1 and 0; its first box has the centre (35/200, 30/100)
+and the size (50/200, 20/100). `Annotations/unlisted.xml` is not read.
+
+### AnEmptySplitReadsEveryAnnotation
+
+With an empty split the annotations `a.xml` and `b.xml` are read in that order, giving
+`JPEGImages/a.jpg` and `JPEGImages/first.jpg`. `Annotations/readme.txt` is not read.
+
+### ADifficultObjectIsDroppedUnlessKept
+
+Over a difficult dog and a cat, the default options give the class names cat and one object.
+`VOCDifficult::Kept` gives cat, dog and two objects.
+
+### AStatedClassListGivesTheIndices
+
+With `class_names` person, dog, cat the class count is 3 and a dog has the class 1. With
+person, cat the read fails with `InvalidFile`, "Annotations/first.xml", "line 4",
+"read_voc_xml" and "the class 'dog'". With dog, cat, dog it fails with `InvalidDescription`,
+"read_voc_xml", "names 'dog' twice" and "at 0 and at 2".
+
+### AMalformedAnnotationNamesItsFileAndLine
+
+An annotation that closes `annotation` inside an open `size` fails with `InvalidFile`,
+"Annotations/first.xml", "line 3", "parse_xml" and "closes '<size>'".
+
+### AMissingElementOrNumberIsRefused
+
+Each of these fails with `InvalidFile` and "first.xml": an annotation without `size`
+("line 1", "read_voc_xml", "'annotation' has no 'size'"), a root named `image` ("line 1",
+"the root element is 'image'"), a width of "wide" ("line 3", "'width' holds 'wide'"), an
+object without `bndbox` ("line 4", "'object' has no 'bndbox'") and a box whose maximum lies
+before its minimum ("line 7", "the box ends at (5, 2), before its start (9, 1)").
+
+### TheListAndItsStemsMustExist
+
+Without the list file the read fails with `FileNotFound`, "read_voc_xml", "the split 'train'"
+and "ImageSets/Main/train.txt". A stem on line 3 without an annotation fails with
+`FileNotFound`, "ImageSets/Main/train.txt", "line 3" and "Annotations/missing.xml". A list of
+one empty line fails with `InvalidFile` and "holds no annotation".
+
+## modules/language/datasets/tests/test_datasets_window_layout.cpp
+
+Suites: `Unit_LanguageDatasetsWindowLayout`.
+
+Tests `count_windows` and `first_token_of` over a `WindowLayout` in
+`modules/language/datasets/include/SushiAI/language/datasets/window_layout.hpp`. A layout is
+written here as {window, stride}.
+
+### WindowsBeginOneStrideApart
+
+`count_windows(10, {4, 3})` is 3, and `first_token_of` is 0, 3 and 6 for the windows 0, 1 and
+2.
+
+### OnlyWholeWindowsAreCounted
+
+`count_windows` is 2 for 8 ids over {4, 4}, 2 for 11 ids over {4, 4}, 1 for 4 ids over {4, 1}
+and 0 for 3 ids over {4, 1}.
+
+### ALayoutOutOfBoundsIsRefused
+
+`count_windows` fails with `InvalidDescription` for a window of 0 ("count_windows", "window of
+0 tokens"), a stride of 0 ("stride of 0 tokens") and a window of `K_MAX_WINDOW_TOKENS + 1`
+("window of").
+
+## modules/vision/datasets/tests/test_datasets_xml_element.cpp
+
+Suites: `Unit_DatasetsXmlElement`.
+
+Tests `parse_xml` and `XMLElement` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/xml_element.hpp` over strings.
+
+### ElementsTextAndLinesAreRead
+
+A root `a` on line 1 with the children `b`, `c` and an empty `b` reads with no text of its own
+and three children. The first `b` has the text "one" and the line 2, the `d` inside `c` has
+the text "two", and the last `b` has the line 4 and no text. `find_child` returns the first
+`b` for "b", the `c` for "c" and null for "e".
+
+### TheFiveEntitiesAreReplaced
+
+The text `a &amp; b &lt;c&gt; &quot;d&quot; &apos;e&apos;` reads as `a & b <c> "d" 'e'`.
+
+### TheDeclarationCommentsAndAttributesAreSkipped
+
+A document with a byte order mark, an XML declaration, comments before, inside and after the
+root, and attributes on the root and its child reads as the root `a` on line 3 with the text
+"t" and one child `b`.
+
+### AClosingTagOfAnotherNameIsRefused
+
+`</a>` on line 3 after `<b>` on line 2 fails with `InvalidFile`, "line 3", "parse_xml",
+"'</a>' closes '<b>'" and "line 2".
+
+### AnElementLeftOpenIsRefused
+
+Each of these fails with `InvalidFile`: an element `b` left open ("line 3",
+"the element 'b', opened on line 2, is not closed"), a comment left open ("line 2",
+"a comment is not closed") and a tag without its end ("line 2", "has no '>'").
+
+### AnUnknownEntityIsRefused
+
+`&nbsp;` on line 3 fails with `InvalidFile`, "line 3" and "'&' opens none of". `&#65;` fails
+with `InvalidFile` and "line 1".
+
+### MarkupOutsideTheSubsetIsRefused
+
+Each of these fails with `InvalidFile`: a CDATA section ("line 2", "CDATA"), a DOCTYPE
+("line 2", "declaration") and a processing instruction inside the root ("line 3",
+"processing instruction").
+
+### AMalformedAttributeIsRefused
+
+`k=v` without quotes fails with `InvalidFile`, "line 2", "attribute 'k'" and "not quoted".
+`k` without a value fails with `InvalidFile`, "line 1" and "attribute 'k' has no '='".
+
+### ADocumentNeedsExactlyOneRoot
+
+Each of these fails with `InvalidFile`: two empty lines ("line 3", "holds no element"), bare
+text ("line 1", "text stands where an element must open"), a second root ("line 2",
+"content follows the root element 'a'") and the name `1a` ("line 1",
+"a name must open with").
+
+### NestingBeyondTheDepthIsRefused
+
+`K_XML_MAX_DEPTH` + 1 elements opened one per line fail with `InvalidFile`, "line 65" and
+"more than 64 elements are open at once".
+
+## modules/vision/datasets/tests/test_datasets_yolo_txt.cpp
+
+Suites: `Unit_DatasetsYoloTxt`.
+
+Tests `read_yolo_txt` and `yolo_label_path` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/yolo_txt.hpp`. The reader cases write
+one-byte image files and label text files under the system's temporary directory and read
+with a class count of 3.
+
+### TheLabelPathSwapsTheLastImagesFolder
+
+`yolo_label_path` maps `data/images/train/a.jpg` to `data/labels/train/a.txt`,
+`images/x/images/a.png` to `images/x/labels/a.txt` and `images/a.b.jpeg` to `labels/a.b.txt`.
+
+### TheLabelPathKeepsAFolderThatIsNotImages
+
+It maps `data/train/a.jpg` to `data/train/a.txt`, `data/images` to `data/images.txt` and
+`a.jpg` to `a.txt`.
+
+### TheImageFolderIsListedWithItsLabels
+
+The split "train" lists `images/train/a.png`, `b.jpg` and `c.jpg` in that order and leaves
+`notes.md` out, with a class count of 3 and no class names. The first sample has no stored
+pixels, no class index and two objects of the classes 2 and 0; its first box is (0.5, 0.25,
+0.2, 0.1) and has no polygon. The second sample has one object of class 1 with a polygon of
+three vertices, the second being (0.9, 0.1).
+
+### AnImageWithoutALabelFileHasNoObject
+
+An image without a label file and an image with an empty one both have no object.
+
+### AnImageListIsReadInItsOwnOrder
+
+A `train.txt` naming `./images/all/z.jpg` with a CRLF, an empty line and `images/all/a.jpg`
+between blanks gives two samples in that order. The first has no object and the second one
+object of class 1. `unlisted.jpg` is not read.
+
+### AnImageListWinsOverAnImageFolder
+
+With `images/train` holding two images and `train.txt` naming one, the list has the one sample
+`images/train/b.jpg`.
+
+### AListedImageThatIsAbsentNamesItsLine
+
+A listed image that does not exist fails with `FileNotFound`, "train.txt", "line 3" and
+"gone.jpg".
+
+### ABadLabelFileNamesItsPathAndLine
+
+A label file whose second line holds "abc" as a coordinate fails with `InvalidFile`,
+"labels/train/b.txt", "line 2" and "abc".
+
+### AClassOutsideTheClassCountIsRefused
+
+A label of class 3 fails with `InvalidFile`, "labels/train/a.txt" and "line 1".
+
+### AClassCountBelowOneIsRefused
+
+A class count of 0 fails with `InvalidDescription` and "class count is 0".
+
+### ASplitWithNeitherFormIsNotFound
+
+A split with no list and no folder fails with `FileNotFound`, "train.txt" and "images/train".
+
+### ASplitWithoutAnImageIsRefused
+
+An image folder holding only `readme.txt` fails with `InvalidFile`, "'train'" and "no image".
+
+## modules/layers/train/tests/test_dense_losses.cpp
+
+Suites: `Unit_DenseLosses`, `Unit_DenseLossesDeathTest`.
+
+Tests the nodes `Train::emit_mean_of_elements`, `Train::emit_logistic_loss` and
+`Train::emit_squared_error` add to a graph. Each case reads the operations of the whole graph in
+emission order.
+
+### TheMeanIsOneColumnSummedAndScaled
+
+Over a [4, 3] input the mean is RESHAPE, SUM_ROWS, SCALE. The result has one element and the
+reshaped value has the shape [12, 1].
+
+### TheLogisticLossReadsTheLogitInItsStableForm
+
+Over [4, 3] logits and targets the graph is RELU, MUL, ABS, SCALE, SOFTPLUS, SUB, ADD, RESHAPE,
+SUM_ROWS, SCALE, and the loss is one float32 element. SOFTPLUS reads a SCALE whose operand is
+the ABS node, and ABS reads the logits.
+
+### TheSquaredErrorSquaresTheDifference
+
+Over [4, 2] outputs and targets the graph is SUB, MUL, RESHAPE, SUM_ROWS, SCALE and the loss
+has one element. MUL reads one value twice, and SUB reads the outputs and then the targets.
+
+### OperandsOfTwoShapesAreFatal
+
+`emit_squared_error` over a [4, 2] and a [4, 3] value stops the process with a report
+containing "[4, 2]" and "[4, 3]".
+
+## modules/layers/train/tests/test_dense_objectives.cpp
+
+Suites: `Unit_DenseObjectiveGraphs`, `Unit_DenseObjectives`.
+
+Tests `Train::BinaryCrossEntropyObjective`, `Train::MultiLabelObjective` and
+`Train::MeanSquaredErrorObjective`: the leaf and the role each declares, what `make` and the
+factories refuse, what `feed` writes and what `measure` reports. The graph cases trace a
+Linear, ReLU, Linear model of 6 features over a batch of 4 and need no device. The
+`Unit_DenseObjectives` fixture needs an engine, and its `bind_targets` helper binds a tensor of
+7s to the `targets` leaf before a feed.
+
+### BinaryDeclaresAColumnLeafAndRealLabels
+
+The objective is named "binary_cross_entropy" and its threshold is 0.5. In the built training
+graph the `targets` leaf has the shape [4, 1] and is `spec.targets`, and the loss has one
+element. The one required target has the role `K_ROLE_LABELS`, an empty sample shape, the type
+float32 and 0 classes.
+
+### MultiLabelDeclaresOneLabelPerClass
+
+`MultiLabelObjective::make(4, 3)` is named "multi_label" and reports 3 classes. The `targets`
+leaf has the shape [4, 3] and the loss has one element. The one required target has the role
+`K_ROLE_LABELS`, the sample shape [3] and the type float32.
+
+### MeanSquaredErrorDeclaresTheValuesRole
+
+`MeanSquaredErrorObjective::make(4, 2)` is named "mean_squared_error" and reports the width 2.
+The `targets` leaf has the shape [4, 2] and the loss has one element. The one required target
+has the role `K_ROLE_VALUES`, the sample shape [2] and the type float32.
+
+### MakeRefusesWhatNoLeafCanHold
+
+Six calls fail with `InvalidDescription`. `BinaryCrossEntropyObjective::make` refuses a batch of
+0 ("at least 1"), a threshold of 1 ("above 0 and below 1") and int32 ("float32", "int32").
+`MultiLabelObjective::make` refuses 0 classes and a threshold of 0, and
+`MeanSquaredErrorObjective::make` refuses a width of 0.
+
+### TheFactoriesReadTheOneOutput
+
+`make_binary_cross_entropy` over a [4, 1] output and `{"threshold": 0.9}` gives the threshold
+0.9 and the batch 4. `make_multi_label` over a [4, 5] output and `{}` gives 5 classes and the
+threshold 0.5. `make_mean_squared_error` over a [4, 2] output gives the width 2.
+
+### TheFactoriesRefuseAnotherOutputAndAStrayKey
+
+Each failure is `InvalidDescription` and names "objective". The binary factory refuses a [4, 2]
+output ("one logit per sample") and a model that publishes two outputs ("publishes 2"). The
+multi-label factory refuses a [4, 3, 5] output and the regression factory an [8, 2] output,
+both with "[4, columns]". The key `huber` is refused by the regression factory and the key
+`weights` by the multi-label factory, which also names `'threshold'`.
+
+### BinaryFeedCopiesLabelsOfZeroAndOne
+
+A batch whose labels are 1, 0.25, 0, 1 fails with `Incompatible`, "element 1" and "0 or 1",
+and the leaf still holds four 7s. A batch of 1, 0, 0, 1 feeds ok and the leaf holds those
+values.
+
+### MeanSquaredErrorFeedReadsTheValuesRole
+
+A batch that carries only the labels role fails with `InvalidDescription` and a message naming
+`'values'`. A batch with the values 1.5, -2, 0.25, 8 under `K_ROLE_VALUES` feeds ok and the
+leaf holds them.
+
+### BinaryMeasuresAccuracyPrecisionAndRecall
+
+Over five rows with the logits 2, 1, -1, -3, 4 and the labels 1, 0, 1, 0, 1, `measure` adds
+three metrics in the order accuracy, precision, recall, with the values 3/5, 2/3 and 2/3. An
+objective made with the threshold 0.95 reports the precision 1 and the recall 1/3.
+
+### MultiLabelMeasuresTheMeanF1OfTheClasses
+
+Over two rows of three classes `measure` adds one metric named "f1" that is a fraction and
+equals 1/3.
+
+### MeanSquaredErrorMeasuresTheMeanAbsoluteError
+
+Over the predictions 1, 2, 3, 4 and the values 1.5, 2, 2, 6, `measure` adds one metric named
+"mean_absolute_error" that is not a fraction and equals 3.5/4.
+
+### AMetricRefusesAnOutputOfAnotherCount
+
+A multi-label objective of 2 rows and 4 classes given a [2, 3] output fails with `Incompatible`
+and a message containing "the logits", "8 values" and "holds 6". No metric is added.
+
+## modules/layers/train/tests/test_dense_targets.cpp
+
+Suites: `Unit_DenseTargets`.
+
+Tests `Train::fill_dense_targets` and `Train::fill_binary_targets`. The fixture needs an engine.
+A leaf holds 7 in every element before a fill.
+
+### ValuesAreCopiedInOrderIntoEitherRealType
+
+Six float32 values of shape [2, 3] fill a float32 leaf and a float64 leaf of the same shape,
+and each leaf reads back the six values in order.
+
+### AColumnLeafTakesOneLabelPerRow
+
+`fill_binary_targets` writes the [4] labels 1, 0, 0, 1 into a [4, 1] leaf.
+
+### AnotherCountOrTypeIsRefusedAndTheLeafKept
+
+`fill_dense_targets` fails with `Incompatible` for six values into a leaf of four ("holds 6
+values", "targets hold 4"), for int32 values ("int32", "float32") and for an int32 leaf
+("targets are int32"). The float32 leaf still holds four 7s.
+
+### ALabelThatIsNotZeroOrOneIsRefused
+
+`fill_binary_targets` over the labels 1, 0, 0.5, 1 fails with `Incompatible` and a message
+containing "element 2", "0.5" and "0 or 1". The leaf still holds four 7s.
+
+## modules/layers/nn/tests/test_depthwise_conv2d.cpp
+
+Suites: `Unit_DepthwiseConv2d`.
+
+Tests `NN::DepthwiseConv2d`. Most cases use four channels, a 3x3 window and one pixel of
+padding.
+
+Two `static_assert` lines at the top of the file hold that `DepthwiseConv2d` is a `Module` and
+is not a `ModuleContainer`.
+
+### ForwardEmitsOneDepthwiseNodeAndNoBiasAdd
+
+After `forward` over a [2, 8, 8, 4] input the graph holds one `Ops::K_DEPTHWISE_CONV2D` node
+and no `Ops::K_BIAS_ADD` node.
+
+### TheEmittedNodeReadsTheInputAndTheWeight
+
+The depthwise node has two inputs: the value passed in, and a value of the shape [3, 3, 4]. Its
+one output is the value `forward` returned.
+
+### ForwardKeepsTheSpatialExtentsAndTagsNHWC
+
+A padded 3x3 window at stride 1 over [2, 8, 8, 4] yields [2, 8, 8, 4], tagged
+`TensorLayout::NHWC`.
+
+### StrideTwoHalvesAnEvenExtent
+
+At stride 2 a [2, 8, 6, 4] input yields [2, 4, 3, 4].
+
+### TheWeightOfAnAnisotropicWindowIsHeightWidthChannels
+
+With a window 2 high and 4 wide over three channels, the weight's shape after `forward` is
+[2, 4, 3].
+
+### TheParameterWalkNamesOnlyTheWeight
+
+The parameter walk is empty before `forward`. After it the walk yields "weight:[3, 3, 4]"
+alone, and `NN::parameter_elements` is 36.
+
+### TheWeightRecordsTheWeightRole
+
+After `forward`, `weight.role()` is `ParameterRole::Weight`.
+
+### TheWeightRecordsItsWindowAsBothFans
+
+After `forward` with a 3x3 window, `weight.fan_in()` and `weight.fan_out()` are both 9.
+
+### TheWeightAndTheResultTakeTheInputElementType
+
+Over a `Float64` input, the weight's element type and the result's element type are `Float64`.
+
+### OutputShapeAtStrideOneKeepsTheExtents
+
+`output_shape([8, 6, 4])` is [8, 6, 4] for a padded 3x3 window at stride 1.
+
+### OutputShapeAtStrideTwoHalvesTheExtents
+
+`output_shape([8, 6, 4])` is [4, 3, 4] for a padded 3x3 window at stride 2.
+
+### OutputShapeAgreesWithForwardAtStrideOneAndTwo
+
+For the sample [8, 6, 4] in a batch of 3, the traced shape equals `output_shape` with the batch
+extent in front, at stride 1 and at stride 2.
+
+### OutputShapeAgreesWithForwardOverAnOddExtent
+
+At stride 2, `output_shape([7, 9, 4])` is [4, 5, 4], and the traced shape of a batch of 2 is
+that shape with the batch extent in front.
+
+### SamePaddedBuildsAPaddedLayerOfTheGivenStride
+
+`same_padded(4, 4, 5, 2)` gives 4 channels, a 5x5 window, stride 2 on both axes, a top and left
+padding of 2, and dilation 1 on both axes.
+
+### SamePaddedRefusesUnequalChannelCounts
+
+`same_padded(4, 8, 3, 1)` throws an error naming "keeps its channel count".
+
+### ForwardRejectsAnInputThatIsNotRankFour
+
+`forward` over a [2, 16] input throws an error naming "rank-4".
+
+### ForwardRejectsAnNCHWInput
+
+`forward` over a value converted to NCHW throws an error naming "NHWC".
+
+### ForwardRejectsAChannelCountThatDiffersFromTheLayer
+
+A four-channel layer over a [2, 8, 8, 3] input throws an error naming "[H, W, 4]".
+
+### ForwardRejectsANonPositiveChannelCount
+
+A layer with `channels` 0 throws an error naming "positive channel count".
+
+### ForwardRejectsAWindowThatDoesNotFit
+
+An unpadded 5x5 window over a [2, 4, 4, 4] input throws `Error`.
+
+### OutputShapeRejectsAChannelCountThatDiffersFromTheLayer
+
+`output_shape([8, 8, 5])` on a four-channel layer throws an error naming "[H, W, 4]".
+
+### OutputShapeRejectsASampleOfTheWrongRank
+
+`output_shape([8, 8])` throws an error naming "[H, W, 4]".
+
+## modules/core/graph/tests/test_depthwise_ops.cpp
+
+Suites: `Unit_DepthwiseOps`.
+
+Tests the three depthwise emitters of `GraphBuilder`: `depthwise_conv2d`,
+`depthwise_conv2d_backward_input` and `depthwise_conv2d_backward_weight`. Most cases share one
+geometry, a 3x3 window with unit stride and one pixel of padding, over a [2, 5, 5, 3] input and
+[3, 3, 3] taps.
+
+### DepthwiseConv2dWritesItsIdentityOverInputAndTapsInOrder
+
+The result's producer is one `Ops::K_DEPTHWISE_CONV2D` node that reads the input and then the
+taps and writes that one value.
+
+### DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput
+
+The shared geometry yields [2, 5, 5, 3]. The same window with stride 2 on both axes yields
+[2, 3, 3, 3].
+
+### DepthwiseConv2dKeepsLayoutDTypeAndLifetime
+
+Over a `Float64` input and `Float64` taps the result is tagged NHWC, has the element type
+`Float64` and the lifetime `Activation`.
+
+### DepthwiseConv2dStoresItsGeometryInTheGeometrySlots
+
+For a 3x5 window with padding 1 on top and 2 on the left over a [2, 7, 9, 3] input, the node's
+first eight attribute values are 3, 5, 1, 1, 1, 1, 1 and 2.
+
+### DepthwiseConv2dRefusesARankFourWeight
+
+Taps of the shape [3, 3, 3, 1] make the emitter throw `Error`, and the node count does not
+change.
+
+### DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount
+
+Taps of the shapes [5, 3, 3], [3, 5, 3] and [3, 3, 4] each make the emitter throw `Error`
+against the 3x3 geometry and three channels, and the node count does not change.
+
+### DepthwiseConv2dRefusesAnNCHWInput
+
+An input converted to NCHW with `layout_convert` makes the emitter throw `Error`.
+
+### DepthwiseConv2dRefusesTapsOfAnotherDType
+
+A `Float32` input with `Float64` taps makes the emitter throw `Error`.
+
+### DepthwiseConv2dRefusesAWindowThatDoesNotFit
+
+A 3x3 window without padding over a [2, 2, 2, 3] input makes the emitter throw `Error`.
+
+### BackwardInputWritesItsIdentityOverGradientAndTapsInOrder
+
+The result's producer is one `Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT` node that reads the
+gradient and then the taps.
+
+### BackwardInputRecoversTheForwardInputShape
+
+From a [2, 3, 3, 3] gradient, stride 2 and the input shape [2, 5, 5, 3], the result has the
+shape [2, 5, 5, 3], the layout NHWC and the element type `Float32`.
+
+### BackwardInputRefusesAGradientOnAnotherGrid
+
+For the input shape [2, 5, 5, 3], gradients of the shapes [2, 4, 5, 3], [2, 5, 5, 4] and
+[2, 5, 3] each make the emitter throw `Error`, and the node count does not change.
+
+### BackwardWeightWritesItsIdentityOverGradientAndInputInOrder
+
+The result's producer is one `Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT` node that reads the
+gradient and then the forward input.
+
+### BackwardWeightYieldsTheTapShapeInTheOperandsDType
+
+Over `Float64` operands the result has the shape [3, 3, 3], the layout NHWC, the element type
+`Float64` and the lifetime `Activation`.
+
+### BackwardWeightRefusesMismatchedBatchChannelsOrDType
+
+Against a [2, 5, 5, 3] gradient, an input of another batch, of another channel count or of
+another element type makes the emitter throw `Error`, as does a rank-3 gradient. The node count
+does not change.
+
+## modules/vision/detect/tests/test_detect_anchor_clustering.cpp
+
+Suites: `Unit_DetectAnchorClustering`.
+
+Tests `SeededSequence` and `cluster_anchors`. The clustering cases use a ladder of six box
+sizes with 400 boxes per rung, 2400 boxes in all, each jittered by 2 %. A rung counts as
+recovered when an anchor lies within 5 % of it.
+
+### SequenceOfSeedZeroMatchesThePublishedNumbers
+
+The first eight values of `SeededSequence(0).next()` equal the eight published SplitMix64
+numbers the case lists, from 0xE220A8397B1DCDAF on.
+
+### UnitDrawIsTheUpperBitsOfTheNextNumber
+
+The first `next_unit()` of seed 0 has the bits of the upper 53 bits of 0xE220A8397B1DCDAF
+divided by 2^53, and lies in [0, 1).
+
+### LadderIsRecoveredWithinFivePercent
+
+With the default seed and a count of 6, every rung is recovered. The mean best IoU is above
+0.95 and not below its value before refinement, 2400 boxes are used and none rejected, and the
+iteration and sweep counts stay within the options' limits.
+
+### AnchorsAreInAscendingArea
+
+Each anchor's area is larger than the area of the anchor before it.
+
+### AnotherSeedStillRecoversTheLadder
+
+With the seed 0x1234 every rung is recovered and the mean best IoU is above 0.95.
+
+### OutliersLeaveEveryCentreWithinFivePercent
+
+With 24 extra boxes of 0.9 x 0.9, 1 % of the ladder, 2424 boxes are used, every rung is still
+recovered, and the mean best IoU is not below its value before refinement.
+
+### TwoRunsAreBitIdentical
+
+Two runs over the same boxes and options return anchors whose widths and heights have the same
+bits, the same bits in both mean IoU numbers, and equal iteration and sweep counts.
+
+### ZeroSweepsKeepTheFitBeforeRefinement
+
+With `max_refinement_sweeps` 0 the result reports zero sweeps, and its mean best IoU equals the
+value before refinement to 1e-9.
+
+### RefusesAnEmptyBoxList
+
+An empty box list fails with `Incompatible`.
+
+### RefusesFewerDistinctBoxesThanAnchors
+
+Two distinct sizes, each repeated ten times, with a count of 3 fail with `Incompatible`.
+
+### LeavesOutAZeroAndANaNSide
+
+Three sizes repeated five times, plus one box with a zero side and one with a NaN side, give
+2 rejected and 15 used boxes. The three anchors equal the three sizes to 1e-6 and the mean best
+IoU is 1 to 1e-9.
+
+### LeavesOutABoxAtTheSmallestSide
+
+With `min_side` 0.125, the boxes 0.125 x 0.5 and 0.5 x 0.125 are rejected and 0.25 x 0.5 is the
+one box used and the one anchor.
+
+### RefusesOptionsOutsideTheirRange
+
+A count of 0, a `max_iterations` of 0, a `max_refinement_sweeps` of -1, a `min_side` of -0.5
+and a NaN `min_side` each fail with `InvalidDescription`.
+
+## modules/vision/detect/tests/test_detect_anchor_cost.cpp
+
+Suites: `Unit_DetectAnchorCost`.
+
+Tests `measure_head_cost`
+over a head with two classes whose delta the file builds by hand. Its box part sums to 5.25 and
+its non-box part to 26, over a batch of 2. Every number is compared to 1e-12.
+
+### SquaredErrorSplitsBoxFromNonBoxAndDividesByBatch
+
+With the squared-error box loss and an objectness weight of 1, the total is 15.625, the non-box
+share 13, the box share 2.625 and the stored cost 31.25.
+
+### ObjectWeightScalesTheNonBoxShare
+
+With an objectness weight of 2 the non-box share is 26 and the box share -10.375. The total
+stays 15.625 and the stored cost 31.25.
+
+### CompleteIoUStoredAddsTheIoUTermAndWeightedNonBoxSum
+
+With the CompleteIoU box loss, a box weight of 0.75, an objectness weight of 2 and two
+assignments whose IoU sums to 1, the stored cost is 52.375. The total is 15.625, the non-box
+share 26 and the box share -10.375.
+
+### CompleteIoUWithoutAssignmentsOmitsTheIoUTerm
+
+A CompleteIoU head with no assignment and an objectness weight of 1 stores 26.
+
+### ZeroDeltaReportsZeroCost
+
+A delta of 28 zeros reports 0 in the total, the box share, the non-box share and the stored
+cost.
+
+## modules/vision/detect/tests/test_detect_anchor_count.cpp
+
+Suites: `Unit_DetectAnchorCount`.
+
+Tests `choose_anchor_count`, which clusters to one more anchor per head until the gain in mean
+best IoU falls below `min_gain`. The file uses three box sets: a ladder of six sizes with 400
+boxes per rung, one blob of 2000 boxes, and a set of two sizes.
+
+### LadderWithTwoHeadsChoosesThreePerHead
+
+The ladder with two heads gives three anchors per head and six anchors. There are four trials,
+for 1 to 4 per head. The gain of the second and of the third trial is at least `min_gain`, and
+the gain of the fourth is below it.
+
+### TrialsHoldTheFitOfEachCountClusteredDirectly
+
+Each trial's mean best IoU equals, to 1e-9, that of `cluster_anchors` called with the trial's
+count. The chosen clustering's mean equals `measure_mean_best_iou` over its anchors and the
+mean of the chosen trial.
+
+### BlobChoosesOnePerHead
+
+The blob with three heads gives one anchor per head and three anchors. There are two trials,
+and the gain of the second is below `min_gain`.
+
+### MaxPerHeadOfTwoStopsAtTwo
+
+With `max_per_head` 2 the ladder with two heads gives two per head, four anchors and two
+trials, and the clustering's mean equals the second trial's.
+
+### EqualBoundsMakeOneTrial
+
+With `min_per_head` and `max_per_head` both 2 and three heads, the choice is two per head, six
+anchors and one trial.
+
+### TwoSizesTakeTheSecondAnchorAtTheDefaultGain
+
+Two sizes with one head and `max_per_head` 2 give two per head. The first trial's mean is
+11.625 / 21 and the second's is 1, both to 1e-6.
+
+### TwoSizesKeepOneAnchorWhenTheGainIsBelowMinGain
+
+With `min_gain` 0.5 the same boxes give one anchor per head and one anchor whose mean is
+11.625 / 21. Both trials are returned, and the second's mean is 1.
+
+### IgnoresTheCountOfTheClusteringOptions
+
+With `clustering.count` set to 17, the two sizes still give two per head and two anchors.
+
+### RefusesAMinPerHeadAboveMaxPerHead
+
+`min_per_head` 3 with `max_per_head` 2 fails with `InvalidDescription`.
+
+### RefusesOptionsOutsideTheirRange
+
+A `min_per_head` of 0, a `min_gain` of -0.01, a NaN `min_gain` and a clustering
+`max_iterations` of 0 each fail with `InvalidDescription`.
+
+### RefusesAHeadCountOutsideItsRange
+
+A head count of 0, of -1 and of the largest `int64_t` each fail with `InvalidDescription`.
+
+### RefusesFewerDistinctBoxesThanTheFirstCount
+
+Two sizes with three heads fail with `Incompatible`.
+
+### RefusesAnEmptyBoxList
+
+An empty box list fails with `Incompatible`.
+
+## modules/vision/detect/tests/test_detect_anchor_decode.cpp
+
+Suites: `Unit_DetectAnchorDecode`.
+
+Tests the decoding of one anchor head, with `count_head_channels`, `count_head_rows` and
+`validate_head`. A head entry holds x, y, width, height, objectness and then the classes. A
+saturated logit in this file is 100 or -100, and decoded values are compared to 1e-6.
+
+### ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterScores
+
+A one-cell head of zero logits over a 0.25 x 0.5 anchor decodes to the centre (0.5, 0.5), the
+size (0.25, 0.5) and a score of 0.25 for each of two classes.
+
+### SaturatedLogitsReachTheCellEdgesAndTheScoreBounds
+
+With x at +100, y at -100 and width at -100, the box has x 1, y 0, width 0 and height 0.5. With
+objectness and the first class at +100 and the second class at -100, the scores are 1 and 0.
+
+### ZeroObjectnessLogitHalvesASaturatedClass
+
+A zero objectness logit with a saturated class logit gives the score 0.5.
+
+### ScaleTwoMovesASaturatedOffsetHalfACellPastTheEdge
+
+With `scale_xy` 2 on a grid of one cell, x at +100 decodes to 1.5 and y at -100 to -0.5.
+
+### ScaleTwoKeepsAZeroLogitAtTheCellCentre
+
+With `scale_xy` 2, zero logits decode to x 0.5 and y 0.5.
+
+### ActivatedSizeAtZeroHalfAndOneIsZeroTheAnchorAndFourAnchors
+
+Under the Activated coding with a 0.125 x 0.25 anchor, size inputs of 0, 0.5 and 1 decode to
+the widths 0, 0.125 and 0.5 and the heights 0, 0.25 and 1.
+
+### ActivatedOffsetsAndScoresTakeNoLogistic
+
+Under the Activated coding, x 0.25 and y 1 decode to 0.25 and 1. Objectness 0.5 with the
+classes 0.5 and 1 gives the scores 0.25 and 0.5.
+
+### ActivatedScaleTwoMapsZeroAndOnePastTheCellEdges
+
+Under the Activated coding with `scale_xy` 2, the offsets 0 and 1 decode to -0.5 and 1.5.
+
+### RowsRunCellByCellThenByAnchorSlotInEveryImage
+
+On a 2x3 grid with two slots and two images, decoded row `(row * 3 + col) * 2 + slot` holds the
+centre of that cell and the size of that slot's anchor. The head's slots are anchors 2 and 0 of
+the layout. Every score is 0.25 except row 11 of image 1, which the case saturated and which
+is 1.
+
+### OneLayoutGivesTheSameFractionalSizeOnTwoGrids
+
+One 0.3 x 0.45 anchor decodes to that size on a 13x13 grid and to the identical floats on a
+19x19 grid. The last cell's x is 12.5 / 13 on the first grid and 18.5 / 19 on the second.
+
+### CountsChannelsAndRowsFromTheHeadsOwnAnchors
+
+With 80 classes, a head of three anchors has 255 channels and a head of two has 170. A batch of
+4 on a 13x13 grid with three anchors has 507 rows, and on a 26x26 grid with two anchors 1352.
+
+### ValidatesAHeadTheLayoutHolds
+
+`validate_head` is ok for 80 classes, the Activated coding, `scale_xy` 2 and head 0 of a
+one-head layout.
+
+### RefusesAHeadIndexOutsideTheLayout
+
+Head index 1 and head index -1 of a one-head layout each fail with `InvalidDescription`.
+
+### RefusesAHeadWithoutClasses
+
+A class count of 0 fails with `InvalidDescription`.
+
+### RefusesAScaleThatIsNotFiniteAndPositive
+
+A `scale_xy` of 0 and a NaN `scale_xy` each fail with `InvalidDescription`.
+
+### RefusesAHeadWhoseLayoutDoesNotValidate
+
+A layout whose head names anchor 3 of one anchor fails with `InvalidDescription`.
+
+## modules/vision/detect/tests/test_detect_anchor_delta.cpp
+
+Suites: `Unit_DetectAnchorDelta`.
+
+Tests the delta of one anchor head with the Logit coding, and `validate_head_training`. The
+cases place truths in pixels of a 64-pixel network side and compare the whole delta with an
+array built by hand, to 1e-6.
+
+### DefaultTrainingOptionsValidate
+
+`validate_head_training` is ok for a default `HeadTrainingOptions`.
+
+### TrainingOptionsOutsideTheirRangeAreRefused
+
+Nine option sets each fail with `InvalidDescription`: a match threshold of 0 and of 1.5, an
+ignore threshold of -0.1, a class gate of 1.5, a box weight of -1 and of infinity, a NaN
+object weight, a `max_delta` of -2, and a `box_gradient` that is no enumerator.
+
+### OneTruthWritesTheCellAndSlotOfItsBestAnchor
+
+One truth of the size (0.5, 0.5) centred at (0.75, 0.25) on a 2x2 grid with three anchors is
+assigned to row 0, column 1, slot 1. That slot's box deltas are k times the differences in x, y,
+log width and log height, with k = (2 - 0.5 * 0.5) * 0.75. Its objectness delta is 0.5 and its
+class deltas are -0.5 and 0.5. Every other slot has an objectness delta of -0.5 and zeros
+elsewhere. The result counts one assignment, and `assigned_row` and `assigned_class` are 0 and
+1 at that slot and -1 at the others.
+
+### AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum
+
+A one-cell head of zero logits whose anchor is the truth's box gives one assignment and an IoU
+sum of 1 to 1e-6.
+
+### ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing
+
+A truth whose size is the anchor head 1 owns leaves head 0 with no assignment, an IoU sum of 0,
+`assigned_row` and `assigned_class` of -1 everywhere, and an objectness delta of -0.5 in each of
+its four slots.
+
+### AnOverlappingSlotIsIgnoredOnlyWithAClassAboveTheGate
+
+Two images hold a slot that overlaps the truth with an IoU of 0.81 and is not assigned. Where
+the class logit is -1.0, the objectness delta is exactly 0. Where it is -1.2, the objectness
+delta is -0.5.
+
+### AnOverlapBelowTheIgnoreThresholdIsNotIgnored
+
+With an ignore threshold of 0.9, the same overlap of 0.81 leaves the objectness delta at -0.5.
+
+### TwoTruthsInOneSlotUpdateOneClassOnly
+
+Two truths with the same box and the classes 0 and 2 land in one slot. The box deltas are
+twice those of one truth, the objectness delta is 0.5, and the class deltas are 0.5, -0.5 and
+0.5. The result counts two assignments.
+
+### AnEmptyTruthListGivesObjectnessDeltasAlone
+
+Over random logits in [-3, 3] with an object weight of 2 and no truth, each objectness entry
+holds 2 * (0 - objectness) and every other entry is 0. No slot is assigned.
+
+### APaddingRowAssignsNothing
+
+A truth row whose `valid` flag is 0 gives no assignment. The slot's objectness delta is -0.5
+and its class delta is exactly 0.
+
+## modules/vision/detect/tests/test_detect_anchor_delta_activated.cpp
+
+Suites: `Unit_DetectAnchorDeltaActivated`.
+
+Tests the delta of one anchor head whose entries arrive activated. The case holds two slots
+and two classes over a 64-pixel network side. Slot 0 is assigned the truth. Slot 1 overlaps the
+truth with an IoU of 0.8 and is not assigned. Both publish an objectness of 0.3.
+
+### AnIgnoredSlotIsPulledTowardItsBestIoU
+
+Slot 1's objectness delta is 0.8 - 0.3, to 1e-6, and its `assigned_row` is -1.
+
+### TheObjectWeightScalesAnIgnoredSlot
+
+With an object weight of 0.5, slot 1's objectness delta is 0.5 * (0.8 - 0.3).
+
+### TheTargetOneLeavesAnIgnoredSlotAlone
+
+With `ObjectnessTarget::One`, slot 1's objectness delta is exactly 0.
+
+### ASlotWithoutAGatedClassIsNotIgnored
+
+With both class entries of slot 1 at 0.2, its objectness delta is 0 - 0.3.
+
+### AnAssignedSlotKeepsADeltaThatIsNotZero
+
+Slot 0's `assigned_row` is 0 and its objectness delta is 0 - 0.3.
+
+### AnAssignedSlotWithAZeroDeltaIsPulledTowardOne
+
+With slot 0's objectness set to exactly 0, its objectness delta is 1.
+
+### TheTargetOnePullsAnAssignedSlotTowardOne
+
+With `ObjectnessTarget::One`, slot 0's objectness delta is 1 - 0.3.
+
+### TheBoxDeltaIsTheWeightedGradientWithNoSizeFactor
+
+With `scale_xy` 2 and a box written into slot 0, the four box deltas equal the gradient at the
+decoded box against the truth, weighted by 0.75, within 1e-5 absolute plus 1e-5 relative. The
+expected width entry is above 0.01 in magnitude. Slot 1's four box deltas are exactly 0.
+
+### TheClassDeltasReadTheEntriesAsProbabilities
+
+Slot 0's class deltas are 1 - 0.6 and 0 - 0.2. Slot 1's class deltas are exactly 0.
+
+## modules/vision/detect/tests/test_detect_anchor_delta_gradient.cpp
+
+Suites: `Unit_DetectAnchorDeltaGradient`.
+
+Tests the two forms of the box gradient a head's training options select. Each case decodes
+one slot to a chosen box against one truth on a 20-pixel network side and reads the four box
+deltas. Hand values are compared to 1e-5.
+
+### TheDefaultFormIsAnalytic
+
+With `box_gradient` taken from a default `HeadTrainingOptions`, a 0.2 square centred in a 0.4
+square gets a width delta and a height delta of 1.25.
+
+### TheCompatibleFormDoublesTheSizeSlopeOfTheOverlap
+
+For the same boxes the analytic form writes 1.25 into width and height and the compatible form
+writes 2.5. Both write 0 into x.
+
+### TheCompatibleFormFlipsTheEnclosingTermOfTheCentre
+
+For two disjoint equal squares the x delta is 0.18 / 0.2809 in the analytic form and
+0.88 / 0.2809 in the compatible form. Both width deltas are 0.7 * 0.25 / 0.2809, and the
+compatible form's y and height deltas are 0.
+
+### TheCompatibleFormSimplifiesTheAspectTerm
+
+For a 0.2 by 0.1 box centred in a 0.4 square, the case computes the aspect term and its
+trade-off in double and expects the width and height deltas of each form from them. The
+compatible form's are 1.25 and 2.5 moved by the trade-off times the slope. The analytic form's
+scale the overlap part by one minus the squared trade-off.
+
+### TheCompatibleFormReproducesTheDumpedDeltas
+
+For each of the twelve cells in `K_DUMPED_CELLS`, with a box weight of 0.05, a `max_delta` of 2,
+a match threshold of 0.2 and `ObjectnessTarget::BestIoU`, the compatible form's IoU sum equals
+the cell's IoU to 1e-6 and each box delta equals the cell's to 1e-4 relative.
+
+### TheAnalyticFormDepartsFromTheDumpedSizeDeltas
+
+For the first dumped cell, the analytic form's width and height deltas each differ from the
+cell's by more than 10 % of the cell's value.
+
+## modules/vision/detect/tests/test_detect_anchor_delta_iou.cpp
+
+Suites: `Unit_DetectAnchorDeltaIou`.
+
+Tests the delta of one anchor head when more than one anchor may take a truth and the box
+deltas come from the IoU gradient. Truths are given in pixels of a 64-pixel network side. A box
+delta is compared with a value the file computes in double, within 1e-5 absolute plus 1e-5
+relative.
+
+### TwoAnchorsAboveTheMatchThresholdAreBothAssigned
+
+With a match threshold of 0.5, the best slot and a second slot of the truth's cell both get the
+box deltas of their own decoded box against the truth, an objectness delta of 0.5 and a class
+delta of 1. The other ten slots get an objectness delta of -0.5 and no box delta. The result
+counts two assignments, and only the best slot records the truth in `assigned_row` and
+`assigned_class`.
+
+### AFurtherAssignmentAddsItsIoUToTheSum
+
+With zero logits in both assigned slots, the IoU sum is 1 + 0.2 / 0.29 to 1e-6.
+
+### AMatchThresholdOfOneAssignsTheBestAnchorAlone
+
+At the default threshold the best slot gets its box deltas, the second slot gets none and an
+objectness delta of -0.5, and the result counts one assignment.
+
+### AnAnchorBelowTheMatchThresholdIsNotAssigned
+
+With a match threshold of 0.75, above the second anchor's shape IoU of 0.2 / 0.29, the result
+counts one assignment and the second slot has no box delta.
+
+### AHeadWithoutTheBestAnchorStillTakesAMatchingTruth
+
+Head 1, which does not own the truth's best anchor, gets box deltas, an objectness delta of 0.5
+and a class delta of 1 at a match threshold of 0.5. The result counts one assignment, and
+`assigned_row` and `assigned_class` stay -1.
+
+### TwoPositiveClassDeltasHalveTheBoxDeltasOfTheSlot
+
+Two truths of different classes in one slot, at a match threshold of 0.5 and a box weight of
+0.07, leave the slot with the sum of the two box deltas divided by 2. Both class deltas are
+0.5, and the result counts two assignments.
+
+### AMatchThresholdOfOneDividesNothing
+
+At the default threshold the same slot holds the undivided sum of the two box deltas.
+
+### TheDivisionCoversSquaredErrorBoxes
+
+With `BoxLoss::SquaredError`, a match threshold of 0.5 and two truths that are the anchor at
+the cell centre, the width delta is 2 * k * (0 - 0.5) divided by 2, with
+k = (2 - 0.5 * 0.5) * 0.75, and the other three box deltas are 0.
+
+### ABoxDeltaBeyondTheBoundIsClipped
+
+With `max_delta` 0.5, each box delta whose magnitude exceeds 0.5 is 0.5 with its sign, and the
+others are unchanged. The case asserts that at least one component is clipped and at least one
+is not.
+
+### ANonFiniteBoxComponentAddsZero
+
+With a width logit of 200, which decodes to infinity, the width delta is exactly 0, all four
+box deltas are finite and the objectness delta is 0.5.
+
+## modules/vision/detect/tests/test_detect_anchor_fit.cpp
+
+Suites: `Unit_DetectAnchorFit`.
+
+Tests `measure_anchor_fit`, which measures how well the anchors of an `AnchorLayout` fit a list
+of box sizes. Every number is compared to 1e-9.
+
+### OneBoxPerAnchorGivesOneEverywhere
+
+One box at each of three anchors' sizes gives 3 boxes, a mean best IoU, a best possible recall
+and a tenth percentile of 1, an unowned share of 0 and a share of 1/3 per anchor.
+
+### HalfSizedBoxesGiveAQuarterAndAreRecalledAtAQuarter
+
+Boxes at half each anchor's sides give a mean best IoU and a tenth percentile of 0.25. The best
+possible recall is 1 with `recall_iou` 0.25 and 0 with `recall_iou` 0.3.
+
+### V4TinyMasksLeaveASixthOfTheBoxesUnowned
+
+For a six-anchor layout whose two heads list five of the anchors, 100 boxes at each anchor's
+size give 600 boxes, an unowned share of 1/6, a best possible recall of 5/6, a mean best IoU of
+1 and a share of 1/6 per anchor.
+
+### MasksOverEveryAnchorLeaveNoBoxUnowned
+
+With the heads listing all six anchors, the same boxes give an unowned share of 0 and a best
+possible recall of 1.
+
+### FourNumbersEqualTheBoxByBoxSums
+
+For four anchors, of which no head lists anchor 0, and twelve boxes, the case finds each box's
+best anchor with `shape_iou` and sums by hand. The mean best IoU, the recall at 0.5, the unowned
+share, the tenth percentile, which is the second smallest best IoU, and the four anchor shares
+equal those sums. The case also asserts that some boxes are unowned, some recalled and some
+neither.
+
+### TenthPercentileOfTenBoxesIsTheSmallest
+
+Nine boxes at the anchor's size and one at half its sides give a tenth percentile of 0.25 and a
+mean best IoU of 0.925.
+
+### EqualAnchorsGiveTheBoxToTheLowerIndex
+
+With two equal anchors, of which the one head lists anchor 1, one box at that size gives the
+shares 1 and 0, an unowned share of 1 and a best possible recall of 0.
+
+### RefusesAnEmptyBoxList
+
+An empty box list fails with `Incompatible`.
+
+### RefusesALayoutThatDoesNotValidate
+
+A layout whose head names an anchor past the list fails with `InvalidDescription`.
+
+### RefusesARecallIoUOutsideZeroToOne
+
+A `recall_iou` of -0.1, of 1.5 and of NaN each fail with `InvalidDescription`.
+
+## modules/vision/detect/tests/test_detect_anchor_head_assignment.cpp
+
+Suites: `Unit_DetectAnchorHeadAssignment`.
+
+Tests `assign_anchors_to_heads`, which gives each head, in the order of its stride, a run of
+anchor indices in ascending area and returns an `AnchorLayout`.
+
+### NineAnchorsOverThreeHeadsGiveThreeRunsOfThree
+
+Nine anchors over the strides 32, 16 and 8 give the masks {6, 7, 8}, {3, 4, 5} and {0, 1, 2}.
+
+### SixAnchorsOverTwoHeadsGiveTwoRunsOfThree
+
+Six anchors of rising area over the strides 32 and 16 give {3, 4, 5} and {0, 1, 2}.
+
+### ReproducesTheMasksOfFiveCfgs
+
+For five named cases the file holds, each an anchor list in pixels, an input side, the strides
+and the expected masks, the computed masks equal the expected ones.
+
+### DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor
+
+For six rising anchors over the strides 32 and 16, the first computed mask is {3, 4, 5}. The
+second is {0, 1, 2}, which is not {1, 2, 3}.
+
+### TheRemainderGoesToTheHeadOfSmallestStride
+
+Seven anchors over the strides 32 and 16 give {4, 5, 6} and {0, 1, 2, 3}. Over the strides 16
+and 32 they give {0, 1, 2, 3} and {4, 5, 6}.
+
+### ARemainderOfTwoGoesToTheTwoSmallestStrides
+
+Eleven anchors over the strides 16, 32 and 8 give {4, 5, 6, 7}, {8, 9, 10} and {0, 1, 2, 3}.
+
+### UnsortedAnchorsKeepTheirOrderAndAreNamedByArea
+
+Four anchors whose ascending area is 3, 1, 2, 0 give the masks {2, 0} and {3, 1} over the
+strides 32 and 16. The layout's anchors are the inputs in their given order, compared exactly.
+
+### AnchorsOfEqualAreaGoInIndexOrder
+
+Two anchors of one area over the strides 8 and 16 give {0} and {1}.
+
+### TheResultIsAValidLayout
+
+`validate_anchor_layout` is ok for the layout of a nine-anchor, three-head assignment.
+
+### PerHeadSetsTheCountOfEachHead
+
+With `per_head` {2, 4} over the strides 32 and 16, six anchors give {4, 5} and {0, 1, 2, 3}.
+
+### RefusesAPerHeadThatDoesNotSumToTheCount
+
+For six anchors, `per_head` {2, 3}, {3, 4} and two counts of the largest `int64_t` each fail
+with `Incompatible`.
+
+### RefusesAPerHeadOfAnotherLengthThanTheStrides
+
+For two strides, `per_head` {6} and {2, 2, 2} each fail with `Incompatible`.
+
+### RefusesAPerHeadWithAnEmptyHead
+
+`per_head` {6, 0} and {7, -1} each fail with `InvalidDescription`.
+
+### RefusesFewerAnchorsThanHeads
+
+Two anchors over three strides fail with `Incompatible`.
+
+### RefusesMissingAnchorsAndBadStrides
+
+No anchor, no stride, a stride of 0 and a stride of -8 each fail with `InvalidDescription`.
+
+### RefusesAnAnchorWithoutAFinitePositiveSide
+
+An anchor with a zero height and an anchor with a NaN width each fail with
+`InvalidDescription`.
+
+## modules/vision/detect/tests/test_detect_anchor_head_truth.cpp
+
+Suites: `Unit_DetectAnchorHeadTruth`.
+
+Tests `validate_head_truth` over a batch of one image with two truth rows, three classes and a
+64 by 64 network. The row under test is row 1, given by its pixel corners and its class. Every
+refusal has the code `InvalidDescription`.
+
+### AcceptsRowsWhoseCentreLiesInsideTheInput
+
+A row with the corners -8 and 8 on both axes, whose centre is exactly 0, and the class 2 is
+accepted.
+
+### RefusesACentreAtTheRightEdge
+
+A centre of exactly 1 along the columns is refused; the message holds "truth row 1 of image 0",
+"centre" and "(1, 0.5)".
+
+### RefusesACentreLeftOfTheInput
+
+A centre of -0.25 along the columns is refused, and the message holds "(-0.25, 0.5)".
+
+### RefusesACentreBelowTheInput
+
+A centre of 1.25 along the rows is refused, and the message holds "(0.5, 1.25)".
+
+### RefusesACentreAboveTheInput
+
+A centre of -0.25 along the rows is refused, and the message holds "(0.5, -0.25)".
+
+### RefusesACentreThatIsNotANumber
+
+A NaN corner is refused with a message holding "truth row 1 of image 0" and "centre".
+
+### RefusesAWidthThatIsNotPositive
+
+A row of zero width is refused, and the message holds "size 0 by 0.5".
+
+### RefusesAHeightThatIsNotPositive
+
+A row whose bottom lies above its top is refused, and the message holds "size 0.5 by -0.25".
+
+### RefusesAClassAtTheClassCount
+
+The class 3 with three classes is refused, and the message holds "class 3" and "3 classes".
+
+### RefusesANegativeClass
+
+The class -1 is refused, and the message holds "class -1".
+
+### LeavesAPaddingRowUnread
+
+A row with an out-of-range centre and class is accepted when its `valid` flag is 0.
+
+### RefusesArraysThatDoNotHoldTheirShape
+
+A batch count of 2 against a truth of one image is refused with "2 images" and "batch of 1". A
+truth one box value short is refused with "8 box values" and "7".
+
+### RefusesANetworkSideBelowOne
+
+A network size of 64 by 0 is refused with "network size" and "64 by 0".
+
+### TheDeltaRefusesATruthOutsideTheGrid
+
+`compute_head_delta` given the row with a centre of exactly 1 fails with the same message
+parts, and leaves `delta` and `assigned_row` of its result empty.
+
+## modules/vision/detect/tests/test_detect_anchor_layout.cpp
+
+Suites: `Unit_DetectAnchorLayout`.
+
+Tests `shape_iou` over two `AnchorSize` values and `validate_anchor_layout` over a layout of
+six anchors split between two heads.
+
+### ShapeIoUOfASizeWithItselfIsOne
+
+`shape_iou` of 0.3 x 0.7 with itself is 1 to 1e-6.
+
+### ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas
+
+`shape_iou` of 0.2 x 0.4 and 0.1 x 0.2 is 0.25 in either order.
+
+### ShapeIoUOfCrossedSizesCountsTheSharedRectangle
+
+`shape_iou` of 0.4 x 0.1 and 0.1 x 0.4 is 1/7.
+
+### ShapeIoUWithAZeroAreaIsZero
+
+`shape_iou` is exactly 0 when either size has a zero side, and for two default sizes.
+
+### AcceptsOneHeadPerGroupOfAnchors
+
+`validate_anchor_layout` is ok for the two-head layout.
+
+### AcceptsASharedAnchorAndAnAnchorNoHeadUses
+
+With the masks {3, 4, 5} and {1, 2, 3}, where anchor 3 is shared and anchor 0 unused, the
+layout is accepted.
+
+### RefusesAnIndexPastTheAnchors
+
+A mask entry of 6 with six anchors fails with `InvalidDescription`.
+
+### RefusesANegativeIndex
+
+A mask entry of -1 fails with `InvalidDescription`.
+
+### RefusesAnEmptyHead
+
+A head with an empty mask fails with `InvalidDescription`.
+
+### RefusesALayoutWithoutAnchorsOrWithoutHeads
+
+A layout with no anchor and a layout with no head each fail with `InvalidDescription`.
+
+### RefusesAnAnchorWithoutAFinitePositiveSide
+
+An anchor with a zero width, one with a NaN height and one with an infinite width each fail
+with `InvalidDescription`.
+
+## modules/vision/detect/tests/test_detect_anchor_plan.cpp
+
+Suites: `Unit_DetectAnchorPlan`.
+
+Tests `plan_anchors`, which chooses or takes a count per head, clusters the boxes, assigns the
+anchors to the heads by stride, measures the fit and derives the assignment thresholds. The
+file uses a ladder of six sizes with 400 boxes per rung, one blob of 2000 boxes and a set of
+two sizes.
+
+### LadderWithTwoStridesPlansTwoHeadsOfThreeAnchors
+
+The ladder under the strides 16 and 32 plans six anchors with the masks {0, 1, 2} and
+{3, 4, 5}. The fit counts every box, has a best possible recall of 1, an unowned share of 0 and
+a mean best IoU above 0.95. The thresholds equal `derive_assignment_thresholds` of the fit: an
+ignore threshold of 0.7 and a match threshold at the fit's tenth percentile. There are four
+trials, the last for 4 per head.
+
+### ChosenCountEqualsTheStepsMadeByHand
+
+The plan equals, to 1e-9, a plan the case builds from `choose_anchor_count`,
+`assign_anchors_to_heads`, `measure_anchor_fit` and `derive_assignment_thresholds` called in
+that order.
+
+### GivenCountTriesNoCount
+
+With `per_head` 3 the plan has no trial, and its layout is the one `cluster_anchors` to six
+anchors and `assign_anchors_to_heads` give. Each head has three anchors and the best possible
+recall is 1.
+
+### GivenCountIgnoresTheBoundsOfTheCountChoice
+
+With `per_head` 3, a plan made with a `min_per_head` of 0, a `max_per_head` of -1, a NaN
+`min_gain` and a clustering count of 17 is identical to one made with the default count
+options.
+
+### StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride
+
+Under the strides 32 and 16 the masks are {3, 4, 5} and {0, 1, 2}, and with the two masks
+swapped the plan is identical to the plan for 16 and 32. Under 16, 64 and 32 with two per head,
+the masks are {0, 1}, {4, 5} and {2, 3}.
+
+### TwoCallsGiveTheSamePlan
+
+Two calls with the seed 0x5EED and the same arguments return identical plans.
+
+### BlobPlansOneAnchorPerHead
+
+The blob under the strides 8, 16 and 32 plans the masks {0}, {1} and {2}, with two trials and a
+best possible recall of 1.
+
+### RefusesNoStrideAndAStrideOfZero
+
+An empty stride list and the strides 16 and 0 each fail with `InvalidDescription`, with a
+chosen count and with `per_head` 1.
+
+### RefusesOptionsOutsideTheirRange
+
+Six option sets each fail with `InvalidDescription`: a `per_head` of -1 and of the largest
+`int64_t`, a `min_per_head` of 0, a clustering `max_iterations` of 0 with and without a given
+`per_head`, and a `recall_iou` of 2.
+
+### RefusesBoxesThatDisagreeWithTheCount
+
+An empty box list, with a chosen and with a given count, fails with `Incompatible`. So do two
+sizes under three strides with a chosen count, and two sizes under two strides with two per
+head.
+
+## modules/vision/detect/tests/test_detect_anchor_review.cpp
+
+Suites: `Unit_DetectAnchorReview`.
+
+Tests `review_anchors`, which measures a current `AnchorLayout` on a box list, clusters a
+proposal with the same counts per head and returns `AnchorVerdict::Keep` or
+`AnchorVerdict::Propose`. The boxes are a ladder of six sizes with 400 boxes per rung, and the
+shifted ladder is the same one scaled by 0.75.
+
+### FittedLayoutIsKeptOnItsOwnBoxes
+
+A layout fitted to the ladder and reviewed on the ladder gets `Keep`. Its best possible recall
+is 1, and the proposal's mean best IoU equals the current one to 1e-12.
+
+### ShiftedBoxesGetAProposalWithBothFits
+
+Reviewed on the shifted ladder, the layout gets `Propose`. The reported current fit and
+proposed fit equal `measure_anchor_fit` called directly on each layout, and their mean best IoU
+and recall equal sums the case makes by hand to 1e-6. The proposal's gain in mean best IoU is
+above `min_gain`.
+
+### ProposalRecoversTheShiftedRungs
+
+The proposal has six anchors, and each lies within 5 % of the width and the height of its
+shifted rung.
+
+### ProposalKeepsTheCountsPerHead
+
+For a current layout with 2 and 4 anchors under the strides 32 and 16, the proposal has the
+same anchor count and the masks {4, 5} and {0, 1, 2, 3}.
+
+### ProposalIsTheClusteringAssignedToTheHeads
+
+With `clustering.count` set to 99 in the options, the proposal still equals the layout fitted
+directly to the shifted boxes with three anchors per head.
+
+### InputLayoutIsUnchanged
+
+After a review that returns `Propose`, the reviewed layout holds the anchors and masks it held
+before.
+
+### RecallAndGainEachDecideTheVerdict
+
+With `min_gain` 10 the shifted review has a current recall of 1 and returns `Keep`. With
+`recall_iou` raised to 0.6 as well, the current recall is 0, which equals the hand sum, and the
+verdict is `Propose`.
+
+### RefusesOptionsOutsideTheirRange
+
+A `min_gain` of -0.01 and of NaN, a `min_recall` of 1.5 and of -0.1, and a `recall_iou` of 2
+each fail with `InvalidDescription`.
+
+### RefusesALayoutWithoutHeads
+
+A layout with one anchor and no head fails with `InvalidDescription`.
+
+### RefusesBoxesStridesAndCountsThatDisagree
+
+Three sizes with a layout of masks {0} and {1, 2} under two strides are accepted. An empty box
+list, four copies of one box, one stride for two heads, and a layout whose masks {0, 1} and
+{1, 2} hold four slots for three anchors each fail with `Incompatible`.
+
+## modules/vision/detect/tests/test_detect_anchor_task.cpp
+
+Suites: `Unit_DetectAnchorTask`.
+
+Tests `read_anchor_task` and `write_anchor_task` in
+`modules/vision/detect/include/SushiAI/vision/detect/anchor/anchor_task.hpp`. A task is
+compared field by field, every float bit for bit. A section is compared by the JSON text
+`write_json` gives it. The refusal cases start from a valid section of three classes, four
+anchors, two heads of two anchors each and the criterion "iou", and replace one member.
+
+### AThreeHeadTaskRoundTripsThroughItsSection
+
+A task of 80 classes, nine anchors and three heads, with `DistanceIoU` and an exponent of
+0.6f, comes back unchanged after `write_anchor_task`, `write_json`, `parse_json` and
+`read_anchor_task`.
+
+### ATwoHeadTaskRoundTripsThroughItsSection
+
+A task of 3 classes, six anchors and two heads under the plain IoU criterion comes back
+unchanged after the same four steps.
+
+### AThreeHeadSectionRoundTripsThroughItsTask
+
+A section of three heads over nine anchors with the criterion "distance_iou" is written back
+with the same JSON text after `read_anchor_task` and `write_anchor_task`.
+
+### ATwoHeadSectionRoundTripsThroughItsTask
+
+A section of two heads over six anchors with the criterion "iou" is written back with the
+same JSON text.
+
+### ReadsEveryFieldOfASection
+
+The three-head section reads as 80 classes, its nine anchors, the masks {6, 7, 8}, {3, 4, 5},
+{0, 1, 2}, and the heads head_0 and head_1 with `Logit` and the scales 1.25 and 1.125 and
+head_2 with `Activated` and 2.0. The criterion is `DistanceIoU` with the exponent 0.5.
+
+### WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble
+
+The written section has the keys `type`, `classes`, `anchors`, `heads`, `suppression` in that
+order, the type `K_ANCHOR_TASK_TYPE` and 3 classes. A head has the keys `output`, `anchors`,
+`coding`, `scale_xy`. The second head's scale equals `double(1.05f)` and the third anchor's
+sides equal `double(0.09f)` and `double(0.14f)`.
+
+### ReadsAndWritesEachCodingString
+
+"logit" reads as `HeadCoding::Logit` and "activated" as `HeadCoding::Activated`, and each is
+written back as the same string.
+
+### ReadsAndWritesEachCriterionString
+
+"iou" reads as `SuppressionCriterion::IoU` and "distance_iou", with an exponent of 0.75, as
+`SuppressionCriterion::DistanceIoU`. Each is written back as the same string.
+
+### TheExponentBelongsToTheCriterionThatReadsIt
+
+A task under IoU with the exponent 0.25 writes a `suppression` object with the one key
+`criterion`, and that section reads back with `K_DEFAULT_DISTANCE_EXPONENT`. Under
+`DistanceIoU` the object has the keys `criterion`, `distance_exponent` and the exponent 0.25.
+
+### ReadsAWholeNumberAsAScale
+
+A `scale_xy` of 2 reads as 2.0f.
+
+### AcceptsAnAnchorTwoHeadsShare
+
+Heads with the anchors [1, 2] and [0, 1] read with those two masks.
+
+### RefusesASectionThatIsNotAnObject
+
+`read_anchor_task` fails with `InvalidDescription` and "task" for an array ("an array") and
+for a null value ("null").
+
+### RefusesAnotherTypeOrNone
+
+The read fails with `InvalidDescription` for the type "anchor_free_detection" ("'type'",
+"'anchor_free_detection'", "'anchor_detection'"), for the type 3 ("'type'",
+"a whole number") and for a section without a type ("task has no 'type'").
+
+### RefusesAnUnknownKeyAtEachLevel
+
+The read fails with `InvalidDescription` for the key `clases` in the section ("'clases'",
+"'classes'"), the key `scale` in a head ("'heads' entry 0", "'scale'", "'scale_xy'") and the
+key `threshold` in `suppression` ("'suppression'", "'threshold'").
+
+### RefusesASectionWithoutOneOfItsMembers
+
+A section with all five members reads. Without `classes`, `anchors`, `heads` or `suppression`
+it fails with `InvalidDescription` and "task has no" followed by the quoted key.
+
+### RefusesAClassCountBelowOneOrOfAnotherKind
+
+`classes` 0 fails with `InvalidDescription`, "'classes'", "at least 1" and "0". `classes` 3.5
+fails with "'classes'" and "a whole number".
+
+### RefusesAnAnchorThatIsNotAPairOfNumbers
+
+The read fails with `InvalidDescription` for `anchors` given as a number ("'anchors'",
+"an array"), an anchor of three values ("'anchors' entry 1", "[width, height]", "3 values"),
+an anchor given as a number ("'anchors' entry 2", "[width, height]") and a height given as a
+string ("'anchors' entry 0 height", "a string").
+
+### RefusesAnAnchorSideThatIsNotPositiveAndFinite
+
+The read fails with `InvalidDescription` for a width of 0.0 ("'anchors' entry 2",
+"above zero"), a height of -0.5 ("'anchors' entry 1", "above zero"), a width of 1e-60
+("'anchors' entry 0", "above zero"), a height of 1e60 ("'anchors' entry 3 height", "float32")
+and an empty list ("'anchors'", "no anchor").
+
+### RefusesNoHeadAndAHeadThatIsNotAnObject
+
+The read fails with `InvalidDescription` for an empty `heads` ("'heads'", "no head"), for
+`heads` given as an object ("'heads'", "an object") and for a second head given as the number
+7 ("'heads' entry 1", "a whole number").
+
+### RefusesAMaskIndexThatNamesNoAnchor
+
+Over four anchors the read fails with `InvalidDescription` for the index 4
+("'heads' entry 1 'anchors' entry 2", "anchor 4", "4 anchors"), the index -1
+("'heads' entry 0 'anchors' entry 0", "anchor -1"), the index 1.5
+("'heads' entry 0 'anchors' entry 1", "a whole number") and an empty mask
+("'heads' entry 0 'anchors'", "no anchor").
+
+### RefusesAHeadWithABadOutputCodingOrScale
+
+The read fails with `InvalidDescription` for an empty `output` ("'heads' entry 0 'output'",
+"empty string"), a head without `output` ("'heads' entry 0", "no 'output'"), the coding
+"linear" ("'heads' entry 1 'coding'", "'linear'", "'logit', 'activated'"), a `scale_xy` of 0.0
+("'heads' entry 0 'scale_xy'", "above zero") and a `scale_xy` given as a string
+("'heads' entry 0 'scale_xy'", "a string").
+
+### RefusesABadCriterionOrExponent
+
+The read fails with `InvalidDescription` for the criterion "giou"
+("'suppression' 'criterion'", "'giou'", "'iou', 'distance_iou'"), an exponent stated under
+"iou" ("'suppression' 'distance_exponent'", "'iou'", "does not read"), "distance_iou" without
+an exponent ("'suppression'", "no 'distance_exponent'") and `suppression` given as an array
+("'suppression'", "an array").
+
+### WriterRefusesAHeadOfAnotherClassCount
+
+A task of 3 classes whose second head has 4 fails in `write_anchor_task` with
+`InvalidDescription`, "'heads' entry 1", "4 classes", "'classes'" and "3".
+
+### WriterRefusesTheValuesTheReaderRefuses
+
+`write_anchor_task` fails with `InvalidDescription` for 0 classes ("'classes'",
+"at least 1"), an anchor height of NaN ("'anchors' entry 4", "above zero"), a mask index of 6
+over six anchors ("'heads' entry 0 'anchors' entry 1", "anchor 6", "6 anchors"), no head
+("'heads'", "no head"), one head for two masks ("'heads'", "1 heads", "2 masks"), an empty
+output ("'heads' entry 0 'output'", "empty string") and an infinite scale
+("'heads' entry 1 'scale_xy'", "finite").
+
+### WriterRefusesAnEnumeratorWithoutAString
+
+`write_anchor_task` fails with `InvalidDescription` for a `HeadCoding` of 7
+("'heads' entry 1 'coding'", "7", "'logit', 'activated'") and for a `SuppressionCriterion` of
+9 ("'suppression' 'criterion'", "9", "'iou', 'distance_iou'").
+
+### WriterRefusesAnExponentThatIsNotFiniteUnderDistanceIoU
+
+With an infinite exponent the task writes under IoU. Under `DistanceIoU` the write fails with
+`InvalidDescription`, "'suppression' 'distance_exponent'" and "finite".
+
+## modules/vision/detect/tests/test_detect_anchor_thresholds.cpp
+
+Suites: `Unit_DetectAnchorThresholds`.
+
+Tests `AssignmentThresholds` and `derive_assignment_thresholds`. Each fit in the file is given
+by its tenth percentile and its mean best IoU, and thresholds are compared to 1e-6.
+
+### DefaultsAreOneAndSevenTenths
+
+A default `AssignmentThresholds` has a match threshold of exactly 1 and an ignore threshold of
+exactly 0.7.
+
+### FitInsideBothRangesGivesItsOwnNumbers
+
+A tenth percentile of 0.35 and a mean of 0.62 give a match threshold of 0.35 and an ignore
+threshold of 0.62.
+
+### FourFitsFollowTheFormula
+
+For the fits (0.35, 0.62), (0.21, 0.51), (0.5, 0.69) and (0.25, 0.55), the match threshold is
+the tenth percentile and the ignore threshold is the mean.
+
+### MatchThresholdIsClampedAtBothEnds
+
+Tenth percentiles of 0.05, 0 and 0.2 give a match threshold of 0.2. Tenth percentiles of 1 and
+1.3 give 1.
+
+### IgnoreThresholdIsClampedAtBothEnds
+
+Means of 0.3, 0 and 0.5 give an ignore threshold of 0.5. Means of 0.7 and 0.95 give 0.7.
+
+### PerfectFitGivesOneAndSevenTenths
+
+A fit of 1 in both numbers gives a match threshold of 1 and an ignore threshold of 0.7.
+
+## modules/vision/detect/tests/test_detect_anchor_training_section.cpp
+
+Suites: `Unit_DetectAnchorTrainingSection`.
+
+Tests `read_head_training_section` and `write_head_training_section` in
+`modules/vision/detect/include/SushiAI/vision/detect/anchor/head_training_section.hpp`.
+Options are compared field by field, every float bit for bit. The full section states the
+type "anchor" and all nine option keys.
+
+### TheDefaultsRoundTripThroughTheirSection
+
+A default `HeadTrainingOptions` comes back unchanged after `write_head_training_section`,
+`write_json`, `parse_json` and `read_head_training_section`.
+
+### OptionsWithNoDefaultRoundTripThroughTheirSection
+
+Options with the thresholds 0.213f and 0.7f, `CompleteIoU`, `DarknetCompatible`, `BestIoU`,
+the weights 0.07f and 0.4f, a `max_delta` of 5.0f and a class gate of 0.3f come back unchanged
+after the same four steps.
+
+### AFullSectionRoundTripsThroughItsOptions
+
+The full section, read and written back, gives the same JSON text.
+
+### ReadsEveryFieldOfASection
+
+The full section reads as the thresholds 0.25 and 0.5, `BoxLoss::CompleteIoU`,
+`BoxGradient::DarknetCompatible`, `ObjectnessTarget::BestIoU`, a box weight of 0.0625, an
+object weight of 1.5, a `max_delta` of 5.0 and a class gate of 0.125.
+
+### AKeyLeftOutKeepsTheDefaultOfItsField
+
+An empty section and a section with the type alone both read as the default options. A
+section with `max_delta` 2.5 alone reads as the defaults with that one field changed.
+
+### WritesTheTypeEveryKeyInOrderAndAFloatAsItsDouble
+
+The written section has the keys `type`, `match_threshold`, `ignore_threshold`, `box_loss`,
+`box_gradient`, `objectness_target`, `box_weight`, `object_weight`, `max_delta`, `class_gate`
+in that order. Its type is `K_ANCHOR_OBJECTIVE_TYPE` and its `box_loss` "complete_iou". The
+match threshold equals `double(0.213f)` and the box weight `double(0.07f)`.
+
+### ReadsAndWritesEachEnumeratorString
+
+The writer gives "squared_error" and "complete_iou" for `BoxLoss`, "analytic" and
+"darknet_compatible" for `BoxGradient`, and "one" and "best_iou" for `ObjectnessTarget`. A
+section of "squared_error", "analytic" and "one" reads as `SquaredError`, `Analytic` and
+`One`.
+
+### ReadsAWholeNumberAsAWeight
+
+An `object_weight` of 2 reads as 2.0f.
+
+### RefusesASectionThatIsNotAnObject
+
+An array and a null value both fail with `InvalidDescription`, "objective" and "an object".
+
+### RefusesAnotherType
+
+The type "cross_entropy" fails with `InvalidDescription`, "objective 'type'",
+"'cross_entropy'" and "'anchor'". The type 3 fails with "objective 'type'" and "a string".
+
+### RefusesAnUnknownKey
+
+The key `iou_normalizer` fails with `InvalidDescription`, "objective", "'iou_normalizer'",
+"'type', 'match_threshold'" and "'class_gate'". The key `thresholds` fails with "objective"
+and "'thresholds'".
+
+### RefusesAValueOfAnotherKind
+
+The read fails with `InvalidDescription` for a `box_weight` given as a string
+("objective 'box_weight'", "a number"), an `ignore_threshold` given as an array
+("objective 'ignore_threshold'", "a number") and a `box_loss` of 1 ("objective 'box_loss'",
+"a string").
+
+### RefusesAStringNoEnumeratorHas
+
+The read fails with `InvalidDescription` for the `box_loss` "ciou" ("objective 'box_loss'",
+"'ciou'", "'squared_error', 'complete_iou'"), the `box_gradient` "exact"
+("objective 'box_gradient'", "'exact'", "'analytic', 'darknet_compatible'") and the
+`objectness_target` "iou" ("objective 'objectness_target'", "'iou'", "'one', 'best_iou'").
+
+### RefusesANumberFloat32CannotHold
+
+A `max_delta` of 1e39 fails with `InvalidDescription`, "objective 'max_delta'" and "float32".
+
+### RefusesTheValuesTheOptionsCheckRefuses
+
+The read fails with `InvalidDescription` and "objective" for a `match_threshold` of 0.0
+("match threshold", "(0, 1]"), an `ignore_threshold` of 1.5 ("ignore threshold", "1.5"), a
+`class_gate` of -0.25 ("class gate", "-0.25") and a `box_weight` of -1.0 ("box weight",
+"-1").
+
+### WriterRefusesTheValuesTheOptionsCheckRefuses
+
+`write_head_training_section` fails with `InvalidDescription` and "objective" for an object
+weight of NaN ("object weight"), an infinite `max_delta` ("max_delta") and a `BoxLoss` of 7
+("BoxLoss", "7").
 
 ## modules/vision/detect/tests/test_detect_anchors.cpp
 
@@ -2336,14 +8577,14 @@ count, and every index, box and score is 0.
 The crowded scene's one box is marked invalid. No anchor is foreground and every target score
 is 0, although the box contains all sixteen anchors.
 
-### KeepsTheTopkCandidatesWhenABoxHoldsMore
+### KeepsTheTopKCandidatesWhenABoxHoldsMore
 
 In the crowded scene every overlap is 1, so the metric is the class score. With `topk` 3 the
 foreground is anchors 2, 5 and 10, with target scores 0.3 / 0.9, 1 and 0.6 / 0.9 in class 1 and
 0 in class 0. Every target label is 1, the label of ground-truth row 0, on and off the
 foreground.
 
-### TheSecondTopkKeepsTheBestAnchorOfABox
+### TheSecondTopKKeepsTheBestAnchorOfABox
 
 With `topk` 3 and `topk2` 1 the crowded scene keeps anchor 5 alone, with target score 1.
 
@@ -2584,13 +8825,13 @@ The first detection takes `K_BOX_A`. The second overlaps `K_BOX_A` by 0.875 and 
 by 40 / 56, about 0.714. Its flags are ten zeros: a detection is matched to its box of largest
 IoU or to none.
 
-### DetectionTakesTheBoxOfLargestIou
+### DetectionTakesTheBoxOfLargestIoU
 
 The boxes are listed `K_BOX_LOOSE` then `K_BOX_A`, and one detection equals `K_BOX_NEAR`. Its
 flags are eight ones and two zeros, which is the IoU 0.875 it has with the box listed second. A
 matcher that took the first box passing 0.5 gives five ones.
 
-### DetectionWithNanBoxDoesNotMatch
+### DetectionWithNaNBoxDoesNotMatch
 
 A detection whose x1 is NaN has a NaN IoU with `K_BOX_A`, and its flags are ten zeros. The row
 is built by hand because `make_row` takes a box constant.
@@ -2749,6 +8990,60 @@ IoU of box n with box m: 1, 1 / 7, 0, then 1 / 4, 0, 0.
 
 Arrays of 8 and 4 values with an output of 2 throw with a message containing "got 8, 4 and 2".
 
+## modules/vision/detect/tests/test_detect_iou_gradient.cpp
+
+Suites: `Unit_DetectIouGradient`.
+
+Tests the box gradient declared in
+`modules/vision/detect/include/SushiAI/vision/detect/iou_gradient.hpp` in its two forms,
+`BoxGradient::Analytic` and `BoxGradient::DarknetCompatible`. A box is a centre and a size.
+The analytic form is compared with a central difference of step 1e-6, within 1e-6 relative
+plus 1e-7 absolute. Hand values are compared to 1e-5.
+
+### AnalyticMatchesTheDifferenceOnOverlappingBoxes
+
+The analytic gradient equals the central difference for two pairs of boxes that overlap
+without one holding the other.
+
+### AnalyticMatchesTheDifferenceOnDisjointBoxes
+
+The same holds for a pair apart along one axis and a pair apart along both.
+
+### AnalyticMatchesTheDifferenceOnNestedBoxes
+
+The same holds for a box inside its target and for a box around its target.
+
+### AnalyticMatchesTheDifferenceOnSeededPairs
+
+The same holds for 100 pairs drawn from a seeded sequence, with centres in [0.2, 0.8] and sides
+in [0.1, 0.5]. A pair that lies near a kink of the measure is drawn again and not counted.
+
+### DarknetCompatibleMatchesTheDumpedDeltas
+
+For each of the twelve cells in `K_DUMPED_CELLS`, the compatible gradient times the box weight
+0.05 equals each of the cell's deltas to 1e-4 relative.
+
+### DarknetCompatibleDoublesTheSizeSlopeOfTheOverlap
+
+For a 0.2 square centred in a 0.4 square, the analytic width and height components are 1.25
+and the compatible ones 2.5. Both x components are 0.
+
+### DarknetCompatibleFlipsTheEnclosingTermOfTheCentre
+
+For two disjoint equal squares, the x component is 0.18 / 0.2809 in the analytic form and
+0.88 / 0.2809 in the compatible form. Both width components are 0.7 * 0.25 / 0.2809, and the
+compatible y and height components are 0.
+
+### DarknetCompatibleSimplifiesTheAspectTerm
+
+For a 0.2 by 0.1 box centred in a 0.4 square, the case computes the aspect term and its
+trade-off in double, with `K_ASPECT_TRADE_OFF_EPS`, and expects the width and height components
+of each form from them.
+
+### BothFormsAreZeroForTwoBoxesAtOnePoint
+
+For two boxes of zero size at one point, every component of both forms is exactly 0.
+
 ## modules/vision/detect/tests/test_detect_postprocess.cpp
 
 Suites: `Unit_DetectTopK`, `Unit_DetectPostprocess`.
@@ -2791,7 +9086,7 @@ anchor's score in the row's class.
 
 ### make_nms_config
 
-`make_nms_config` returns an `NmsConfig` with the given confidence threshold, IoU threshold,
+`make_nms_config` returns an `NMSConfig` with the given confidence threshold, IoU threshold,
 label mode and class mode, and the default limits.
 
 ### suppress_one_image
@@ -2867,13 +9162,13 @@ above the last score are equal as a set. The case is skipped when `forward.sacp`
 
 ### NoReferenceScorePassesTheValidationConfidence
 
-With a default `NmsConfig` the one-to-many decode yields no row, which is
+With a default `NMSConfig` the one-to-many decode yields no row, which is
 `validation.row_count.one2many` of the manifest. The case is skipped when `forward.sacp` is
 absent.
 
 ### SuppressionDefaultsMatchTheValidator
 
-A default `NmsConfig` has confidence 0.001, IoU 0.7, `LabelMode::MultiLabel`,
+A default `NMSConfig` has confidence 0.001, IoU 0.7, `LabelMode::MultiLabel`,
 `ClassMode::ClassAware`, 300 detections, 30000 candidates and a class offset of 7680.
 
 ### SuppressesTheLowerOfTwoOverlappingBoxes
@@ -2886,7 +9181,7 @@ keeps the indices 0 and 2.
 Four boxes that do not overlap, with scores 0.1, 0.9, 0.5 and 0.5, are kept in the order
 1, 2, 3, 0.
 
-### KeepsABoxWhoseIouEqualsTheThreshold
+### KeepsABoxWhoseIoUEqualsTheThreshold
 
 Two boxes share 2 of 4 px, an IoU of exactly 0.5 in float32. At threshold 0.5 both are kept; at
 0.25 only the first is.
@@ -2938,6 +9233,98 @@ remains. Image 1 holds two boxes that are apart, and its rows are 0.6 then 0.3.
 Six scores where the shape `[1, 2, 2]` needs four throw with a message containing "[1, 2, 2]
 scores" and "8 and 6 values".
 
+## modules/vision/detect/tests/test_detect_suppression_criterion.cpp
+
+Suites: `Unit_DetectSuppressionCriterion`, `Unit_DetectSuppressionCriterionDeathTest`.
+
+Tests `Detect::measure_suppression`, the six-argument `Detect::suppress_overlaps`, and the
+criterion fields of `Detect::NMSConfig`. Boxes are corner pairs, and most cases measure against
+one 10 by 10 square. Measures are compared to 1e-6.
+
+### IoUOfOverlappingBoxesIsTheRatioOfAreas
+
+The square and a copy shifted by 1 along x have an IoU of 90 / 110.
+
+### IoUIsZeroForDisjointAndTouchingBoxes
+
+A box 10 units away and a box that shares only an edge with the square each have an IoU of
+exactly 0.
+
+### IoUOfTwoEmptyBoxesIsZeroNotNaN
+
+Two boxes of zero area at one point have an IoU that is not NaN and is exactly 0.
+
+### DistanceIoUSubtractsTheNormalisedCentreDistance
+
+For the square and a copy shifted down by 6, with the exponent 0.6, the measure is
+0.25 - (36 / 356)^0.6.
+
+### DistanceIoUOfDisjointBoxesIsNegative
+
+For the square and a box 20 units to its right, the measure is -(0.4^0.6).
+
+### ZeroExponentSubtractsOne
+
+With the exponent 0 the measure of the square and its shifted copy is 0.25 - 1.
+
+### DistanceIoUOfIdenticalBoxesIsOne
+
+The square measured against itself gives 1.
+
+### DistanceIoUOfCoincidentPointsIsTheIoU
+
+Two boxes of zero area at one point measure exactly 0, and the value is not NaN.
+
+### DistanceIoUIsSymmetric
+
+The measure of the square and a diagonally shifted box is the same in both orders.
+
+### DistanceIoUKeepsTheFartherOfTwoEqualIoUBoxes
+
+Of three boxes scored 0.9, 0.8 and 0.7, at a threshold of 0, the DistanceIoU criterion keeps
+rows 0 and 1. The IoU criterion keeps row 0 alone.
+
+### IoUCriterionKeepsABoxAtTheThreshold
+
+Two boxes with an IoU of exactly 0.5 are both kept at a threshold of 0.5. At a threshold of
+0.25 only the first is kept.
+
+### ZeroScoreRowsAreNeverKept
+
+Of three boxes that do not overlap, scored 0.9, 0 and 0.5, the rows 0 and 2 are kept.
+
+### EmptyInputKeepsNothing
+
+With no box and no score, a `kept` vector that held one entry comes back empty.
+
+### FourArgumentFormEqualsTheIoUCriterion
+
+For four boxes that do not overlap, scored 0.1, 0.9, 0.5 and 0.5, the four-argument
+`suppress_overlaps` keeps the rows 1, 2, 3, 0 in that order, and the six-argument form with the
+IoU criterion keeps the same.
+
+### SelectionAppliesTheConfiguredCriterion
+
+`select_nms_detections` with the DistanceIoU criterion, a confidence threshold of 0.1 and an
+IoU threshold of 0 over the three boxes of the equal-IoU case, given as centre and size,
+returns one image with two detections: the corners (0, 0, 10, 10) scored 0.9 and
+(0, 6, 10, 16) scored 0.8, both of class 0.
+
+### NMSConfigDefaultsToTheIoUCriterion
+
+A default `NMSConfig` has the criterion `SuppressionCriterion::IoU` and a `distance_exponent`
+of 0.6.
+
+### RejectsBoxesOfTheWrongSizeFatally
+
+Five box values with two scores stop the process with a message holding "a suppression needs"
+and "got 5 and 2 values".
+
+### RejectsAnUnknownCriterionFatally
+
+A criterion cast from 7 stops the process with a message holding "must be IoU or DistanceIoU"
+and "got 7".
+
 ## test_diagnostics.cpp
 
 Suites: `Unit_Diagnostics`.
@@ -2973,15 +9360,78 @@ against the tensor they were trying to build.
 A zero-element tensor is refused at the type that describes extents, which is why nothing
 further down ever has to handle one.
 
+### ShapeDimensionOutOfRangeNamesTheIndexAndTheRank
+
+On a [4, 3] shape, `dim(2)` raises an error holding "Dimension 2" and "rank-2 shape", and
+`dim(-3)` one holding "Dimension -3" and "rank-2 shape".
+
+### MatmulContractionMismatchNamesBothInnerExtents
+
+`matmul` of [4, 5] and [7, 3] raises an error holding "MATMUL contracts 5 against 7",
+"[4, 5]" and "[7, 3]".
+
 ### MatmulRejectsARank1OperandAndPrintsWhatItGot
 
 Rank 1 where rank 2 belongs is the commonest way a bias or a flattened sample reaches a gemm.
 The message has to show both shapes or the reader cannot tell which side was wrong.
 
+### MatmulNamesBothDtypesWhenTheyDisagree
+
+`matmul` of a float32 and a float64 operand raises an error holding
+"MATMUL needs operands of one element type", "float32" and "float64".
+
+### BiasAddNamesTheAxisThatDoesNotLineUp
+
+`bias_add` raises an error for a bias of 5 entries over [4, 3]
+("BIAS_ADD bias has 5 entries", "[4, 3]", "3 columns"), for a [1, 3] bias
+("BIAS_ADD needs a rank-1 bias", "[1, 3]") and for a rank-1 left operand
+("BIAS_ADD needs a rank-2 left operand", "[3]").
+
+### SumRowsAndLogSoftmaxRejectARank1Operand
+
+Over a [6] operand, `sum_rows` raises an error holding "SUM_ROWS needs a rank-2 operand" and
+"[6]", and `log_softmax` one holding "LOG_SOFTMAX needs a rank-2 operand" and "[6]".
+
+### ElementwiseOperationsNameBothShapesAndBothDtypes
+
+Over [4, 3] and [4, 2], `add` raises an error holding "ADD needs equally shaped operands" and
+both shapes, and `sub`, `mul` and `accumulate` raise the same sentence under their own
+operation names. `mul` of a float32 and a float64 operand raises
+"MUL needs operands of one element type" with "float32" and "float64".
+
+### NLLLossNamesTheShapeItCannotServe
+
+`nll_loss` raises an error for [4, 3] against [4, 5]
+("NLL_LOSS needs equally shaped operands", "[4, 3]", "[4, 5]") and for rank-1 operands
+("NLL_LOSS needs rank-2 operands", "[4]").
+
+### ActivationBackwardRefusesAnOperationThatIsNotOne
+
+`activation_backward` with the identity of RELU raises an error holding "sushiai.relu" and
+"is not an activation gradient".
+
 ### ASecondProducerNamesBothOperationsAndTheRule
 
 The second write is what would make a differentiated graph silently wrong, so the message has
 to say which two operations collided.
+
+### AnUnknownOperandNamesTheOperationThatAskedForIt
+
+`add_node` of a RELU that reads the value 9999 raises an error holding "sushiai.relu",
+"reads value 9999" and "does not exist". One that writes the value 9999 raises
+"writes value 9999" and "does not exist".
+
+### LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit
+
+`Linear{6, 4}` over [8, 5] raises an error holding "Linear(6, 4)", "[8, 5]" and
+"inner extent must be 6". `Linear{5, 4}` over a [5] input raises
+"Linear needs a rank-2 input" with "[5]", and `Linear{0, 4}` raises
+"Linear needs positive feature counts" with "in=0" and "out=4".
+
+### ANonScalarRootNamesTheValueAndItsShape
+
+Differentiating from a [4, 3] ReLU output raises an error holding
+"needs a scalar to differentiate" and "[4, 3]".
 
 ### AOneElementRootOfADifferentiableOperationIsSeeded
 
@@ -3014,16 +9464,178 @@ message has to say that and cannot name one.
 "sushiai.unknown" is what `name_of()` reports for a foreign identity, and the node index is
 what turns that into something findable.
 
-### LogSoftmaxOutsideTheFusedPairExplainsTheRestriction
-
-Naming the way out matters more than naming the failure. The caller has to be told to route
-through K_NLL_LOSS, and not merely that log-softmax said no.
-
 ### AGradientContributedToTheWrongShapeNamesBothShapes
 
 This error is reachable only from inside a backward rule, so the test provokes it the way a
 buggy rule would. It builds a graph by hand whose K_SUB claims a result of a different shape from
 its operands, so the rule contributes a [4, 3] gradient to a [2, 6] value.
+
+## modules/layers/nn/tests/test_dropout.cpp
+
+Suites: `Unit_Dropout`.
+
+Tests `NN::Dropout` in `modules/layers/nn/include/SushiAI/nn/dropout.hpp` and its factory
+`NN::make_dropout_node`. A `static_assert` at the top of the file holds that `Dropout` is a
+`ModalModule` and is neither a `Module` nor a `TraceModule`. The training traces state the
+seed 5.
+
+### TheTrainingFormEmitsOneDropoutNode
+
+A layer of rate 0.25 over a [2, 3, 4] input adds one DROPOUT node that reads the input. The
+node holds 0.25 in `K_DROPOUT_RATE_SLOT`, its seed is `dropout_site_seed(5, 0)`, and the result
+has the input's shape. The layer has no parameter and no buffer.
+
+### TheEvaluationFormReturnsItsInputAndEmitsNothing
+
+Under `Trace::evaluation` the layer returns its input, the trace is ok, and the node count and
+the value count do not change.
+
+### ARateOfZeroEmitsNothingInTraining
+
+A default `Dropout` under a training trace returns its input and adds no node. The next
+`claim_random_site()` of the trace returns 0.
+
+### EachSiteOfATraceGetsItsOwnSeed
+
+Two layers traced one after the other get the seeds `dropout_site_seed(5, 0)` and
+`dropout_site_seed(5, 1)`. A second graph traced the same way gets the same two seeds.
+
+### ATraceWithoutAStatedSeedHasSeedZero
+
+`Trace::training` without a seed and `Trace::evaluation` report the seed 0. `Trace::training`
+given 5 reports 5.
+
+### ARateOutsideItsIntervalFails
+
+For the rates 1, -0.1 and NaN, `trace_training` and `trace_evaluation` return their input and
+both traces fail with `InvalidDescription` and a message containing "rate in [0, 1)". The graph
+has a refusal.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([6, 4])` is [6, 4].
+
+### TheFactoryReadsTheRate
+
+`make_dropout_node` over one [6, 4] input and `{"rate": 0.1}` returns a `ModuleNode<Dropout>`
+whose layer has the rate 0.1 and whose one port has the shape [6, 4].
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+Four rows fail with `InvalidDescription` and a message naming "layer 3": no rate ("'rate'",
+"absent"), a rate of 1 ("'rate'", "[0, 1)"), a `seed` key ("'seed'") and two inputs ("reads
+one input", "given 2").
+
+## modules/core/autograd/tests/test_dropout_backward.cpp
+
+Suites: `Unit_DropoutBackward`.
+
+Tests the backward rule of DROPOUT. The graph cases apply `GraphBuilder::dropout` with the rate
+0.5 and the seed 11 to a [3, 4] value and take the `nll_loss` of the `log_softmax` of the
+result.
+
+### DropoutHasARule
+
+`Ops::K_DROPOUT` is differentiable, does not block the gradient and has a backward rule.
+`Autograd::K_RANDOM_RULES` has one row, for DROPOUT, and its rule is
+`Autograd::dropout_backward`.
+
+### TheInputGradientIsTheGradientTimesTheSavedMask
+
+With x as a parameter, the gradient of x is written by a MUL node of two inputs whose second
+input is the mask the forward node saved, and it has the shape [3, 4]. One node reads the mask
+and the graph holds one DROPOUT node.
+
+### AnInputThatNeedsNoGradientAddsNoNode
+
+With x as an input, the gradient is `K_NO_VALUE` and no node reads the saved mask.
+
+## modules/core/graph/tests/test_dropout_mask.cpp
+
+Suites: `Unit_DropoutMask`.
+
+Tests the functions of `modules/core/graph/include/SushiAI/graph/dropout_mask.hpp`:
+`splitmix64_at`, `dropout_site_seed`, `dropout_bits`, `dropout_keeps` and `fill_keep_mask`.
+Every case but the first two draws from the site seed 2026. A mask is compared as a string of
+'1' for a kept element and '0' for a dropped one.
+
+### TheSequenceOfSeedZeroIsThePublishedSplitMix64
+
+`splitmix64_at(0, i)` for i from 0 to 3 is 0xE220A8397B1DCDAF, 0x6E789E6AA1B965F4,
+0x06C45D188009454F and 0xF88BB8A8724C81EC.
+
+### EachSiteOfATraceHasItsOwnSeed
+
+`dropout_site_seed(0, 0)` and `dropout_site_seed(0, 1)` are the first two numbers of the case
+above. `dropout_site_seed(7, 0)` is 0x63CBE1E459320DD7 and `dropout_site_seed(7, 1)` is
+0x044C3CD7F43C661C.
+
+### TheBitsOfASeedARunAndAnElementAreGolden
+
+`dropout_bits` for elements 0 to 3 of runs 0 and 1 equals eight 64-bit constants written in the
+test.
+
+### TheMaskOfARunIsGolden
+
+At a keep of 0.5 the first 32 elements of run 0 are "11110000011001111110011111110000" and those
+of run 1 are "01110100100110000111111111000011".
+
+### TheFillAgreesWithTheElementwiseQuestion
+
+For 257 elements of run 5 at a keep of 0.7, each element of the filled mask is 1 exactly when
+`dropout_keeps` returns true for it.
+
+### AShorterFillIsAPrefixOfALongerOne
+
+A fill of 40 elements of run 2 at a keep of 0.9 equals the first 40 elements of a fill of 96.
+
+### TheSameInputsGiveTheSameMask
+
+Two fills of 4096 elements of run 9 at a keep of 0.8 are equal.
+
+### TwoRunsAndTwoSitesDrawDifferentMasks
+
+Runs 0 and 1 at a keep of 0.5 differ in 2033 of 4096 elements. The masks of the site seeds
+`dropout_site_seed(0, 0)` and `dropout_site_seed(0, 1)` are not equal.
+
+### TheKeptFractionIsTheKeepProbability
+
+Over 2^20 draws the kept fraction is within 0.002 of the keep: 0.9 and 0.5 in run 0, and 0.9 in
+run 3.
+
+### TheTwoEndsOfTheKeepRangeAreExact
+
+A keep of 1 keeps all 64 elements and a keep of 0 keeps none.
+
+## modules/core/graph/tests/test_dropout_ops.cpp
+
+Suites: `Unit_DropoutOps`.
+
+Tests `GraphBuilder::dropout`: the node it emits, the seed it stores, the operands it refuses
+and its row in the lowering table. The accepted cases pass the rate 0.25.
+
+### DropoutWritesItsValueAndTheMaskItSaves
+
+Over a [2, 3, 4] float64 input the call is ok and emits one DROPOUT node that reads the input
+and writes the output and then the saved mask. The node holds 0.25 in `K_DROPOUT_RATE_SLOT`.
+Both outputs have the shape [2, 3, 4], the type float64 and the lifetime `Activation`, and the
+graph has no refusal.
+
+### TheSiteSeedSurvivesItsAttributeSlots
+
+For the seeds 0xFEDCBA9876543210, 0 and all 64 bits set, `Graph::dropout_seed` of the emitted
+node's attributes returns the seed that was passed.
+
+### DropoutRefusesOperandsThatDoNotFit
+
+An int32 input fails with `InvalidDescription` and "half, float32 or float64 input". The rates
+0, 1 and -0.5 each fail with "rate in (0, 1)". After each the node count is unchanged and
+`has_refusal()` is true.
+
+### DropoutHasTheRowOfTheRandomTable
+
+`Graph::K_RANDOM_LOWERINGS` has one row, for DROPOUT. `find_lowering` returns
+`Graph::lower_dropout`, `lowering_row_count` is 1 and `is_unlowered` is false.
 
 ## modules/core/graph/tests/test_elementwise_ops.cpp
 
@@ -3077,7 +9689,7 @@ value and the lifetime ACTIVATION.
 
 Each two-operand emitter writes one node of its own identity whose inputs are `a` then `b`.
 
-### BinaryEmittersKeepShapeDtypeAndLayout
+### BinaryEmittersKeepShapeDTypeAndLayout
 
 With two FLOAT64 NCHW operands, the result of each two-operand emitter has the first operand's
 shape and is FLOAT64 and NCHW.
@@ -3092,7 +9704,7 @@ after the three calls.
 
 Each two-operand emitter throws for a FLOAT32 operand with a FLOAT64 one, in both orders.
 
-### LessEqualYieldsAMaskInTheOperandsOwnDtype
+### LessEqualYieldsAMaskInTheOperandsOwnDType
 
 The result of `less_equal` is FLOAT32 for FLOAT32 operands and FLOAT64 for FLOAT64 ones. The
 mask has no element type of its own, which is what lets `mul` and `select` read it beside a
@@ -3103,7 +9715,7 @@ value of the same type.
 Each single-operand emitter returns a value other than its operand, written by one node of its
 own identity that reads the operand.
 
-### UnaryEmittersKeepShapeDtypeAndLayout
+### UnaryEmittersKeepShapeDTypeAndLayout
 
 With a FLOAT64 NCHW operand, the result of each single-operand emitter has the operand's shape
 and is FLOAT64 and NCHW.
@@ -3113,7 +9725,7 @@ and is FLOAT64 and NCHW.
 `select(condition, a, b)` writes one K_SELECT node whose inputs are the condition, `a` and `b`,
 in that order.
 
-### SelectKeepsShapeDtypeAndLayout
+### SelectKeepsShapeDTypeAndLayout
 
 With three FLOAT64 NCHW operands the result has the shape, element type and layout of `a`.
 
@@ -3121,7 +9733,7 @@ With three FLOAT64 NCHW operands the result has the shape, element type and layo
 
 A [4, 1] condition over [4, 3] branches throws, and the node count is unchanged.
 
-### SelectRejectsAConditionOfAnotherDtype
+### SelectRejectsAConditionOfAnotherDType
 
 An INT64 condition over FLOAT32 branches throws.
 
@@ -3129,7 +9741,7 @@ An INT64 condition over FLOAT32 branches throws.
 
 A [4, 3] branch with a [4, 1] branch throws in both orders.
 
-### SelectRejectsBranchesOfUnequalDtype
+### SelectRejectsBranchesOfUnequalDType
 
 A FLOAT32 branch with a FLOAT64 branch throws in both orders.
 
@@ -3142,7 +9754,7 @@ of that identity whose inputs are `dy` then `x`, and the result is described lik
 
 A [4, 1] `dy` with a [4, 3] `x` throws for both gradients.
 
-### InputReadingGradientsRejectAGradientOfAnotherDtype
+### InputReadingGradientsRejectAGradientOfAnotherDType
 
 A FLOAT32 value with a FLOAT64 one throws for both gradients, in both orders.
 
@@ -3192,7 +9804,7 @@ holds 1e-7 within 1e-20, and the value is [4, 3], FLOAT64, NHWC and ACTIVATION. 
 `constant` throws for INT64 and for COMPLEX32, and the node count and the value count are
 unchanged.
 
-### ConstantLikeCopiesShapeDtypeAndLayoutWithoutReadingItsOperand
+### ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingItsOperand
 
 `constant_like(x, 0.5)` over a FLOAT64 NCHW value writes a K_CONSTANT node with no input whose
 result is described like `x`. The value it names is not an operand of the node.
@@ -3211,6 +9823,101 @@ no gradient.
 
 `zeros` and `zeros_like` each write a K_ZERO node with no input. K_ZERO and K_CONSTANT are two
 identities.
+
+## modules/layers/nn/tests/test_embedding.cpp
+
+Suites: `Unit_Embedding`, `Unit_EmbeddingDeathTest`.
+
+Tests `NN::Embedding` in `modules/layers/nn/include/SushiAI/nn/embedding.hpp` and its factory
+`NN::make_embedding_node`. Every layer has a table of 7 rows of length 3. A `static_assert`
+holds that `Embedding` is a `TraceModule` and is neither a `Module` nor a `ModalModule`.
+
+### ATraceDeclaresTheTableAndEmitsOneGather
+
+Over a [2, 5] int32 input the trace is ok and adds two nodes, one of them GATHER_ROWS. That node
+reads the weight and then the indices, and its result is a float32 value of shape [2, 5, 3].
+
+### TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation
+
+After a trace of a float64 layer the weight is declared with the shape [7, 3], the type float64
+and the role `ParameterRole::Embedding`. Its initialiser is `Normal` with the deviation
+`K_EMBEDDING_DEVIATION`, which is 0.02, and its fan-in and fan-out are both 3. The weight's
+value has the lifetime `Parameter` and requires a gradient, and the result is float64.
+
+### TheWalkYieldsTheTable
+
+`NN::walk_state` under the prefix `tokens` visits one name, `tokens.weight`, as a parameter of
+shape [7, 3], and visits no buffer.
+
+### TwoGraphsNameTheSameTable
+
+After traces of one layer into two graphs, `weight.state()` is the same `StateID` and is not
+`K_NO_STATE`, and `weight.id_in` returns a value in each graph.
+
+### AnInputThatIsNotInt32Fails
+
+A float32 input and an int64 input each fail with `InvalidDescription` and a message containing
+"Embedding(7, 3)", "int32 input of indices" and the type given. `forward` returns its input,
+the graph gains no value and no node, the weight stays undeclared and the graph has a refusal.
+
+### AnInputOfTheHighestRankFails
+
+A rank-6 int32 input fails with `InvalidDescription`, "rank 1 to 5" and
+"[1, 1, 1, 1, 1, 1]", and the weight stays undeclared.
+
+### ALayerDescribedWrongFails
+
+`num_embeddings` 0 and `embedding_dim` -1 each fail with "positive extents" and the field with
+its value. An int32 table fails with "half, float32 or float64 table" and "int32". The weights
+of the first and the third layer stay undeclared.
+
+### OutputShapeAppendsTheRowLength
+
+`output_shape` maps [5] to [5, 3], [4, 2] to [4, 2, 3] and [1, 1, 1, 1] to [1, 1, 1, 1, 3].
+
+### TheFactoryReadsTheTwoExtents
+
+`make_embedding_node` over one [5] input with `num_embeddings` 11 and `embedding_dim` 4 returns
+a `ModuleNode<Embedding>` whose layer holds 11, 4 and float32. The node reads one input and its
+one port has the shape [5, 4].
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+Five rows fail with `InvalidDescription` and a message naming "layer 3": a `padding` key, an
+absent `embedding_dim`, a `num_embeddings` of 0 ("positive"), two inputs ("reads one input",
+"given 2") and a rank-5 input ("[1, 1, 1, 1, 1]", "rank 1 to 4").
+
+### ATraceOverAValueTheGraphLacksIsFatal
+
+`forward` over value id 7 in a graph of one value stops the process with a report containing
+"Embedding(7, 3)", "value 7" and "holds 1 values".
+
+### OutputShapeOverARankFiveSampleIsFatal
+
+`output_shape([1, 1, 1, 1, 1])` stops the process with a report containing
+"Embedding::output_shape" and "at most 4".
+
+## modules/core/data/tests/test_epoch_permutation.cpp
+
+Suites: `Unit_EpochPermutation`.
+
+Tests `Data::EpochPermutation`. An order is read by calling `at` for every position from 0 to
+the count. The seed is 42 unless a case says otherwise.
+
+### EverySampleIsReadOnce
+
+For the counts 1, 2, 3, 7, 16, 17, 1000 and 4097 and the epochs 0, 1 and 5, every value `at`
+returns is below the count and no value is returned twice.
+
+### AnOrderIsAFunctionOfTheSeedAndTheEpoch
+
+Over 10 samples the order of seed 42, epoch 0 is 4, 9, 5, 2, 1, 3, 8, 7, 6, 0, and a second
+read gives the same. Epoch 1 gives 2, 5, 9, 1, 4, 3, 6, 7, 8, 0, and seed 7 at epoch 0 gives
+5, 4, 1, 2, 3, 9, 0, 6, 7, 8.
+
+### CountIsTheCountItWasBuiltOver
+
+`count()` of a permutation built over 17 samples is 17.
 
 ## modules/layers/nn/tests/test_flatten.cpp
 
@@ -3245,11 +9952,11 @@ For a [2, 7] input `forward()` returns the id it was given. The node count and t
 are unchanged, so a flatten placed after a layer that already yields feature vectors adds
 nothing to the step.
 
-### AnNhwcInputYieldsAnNhwcResult
+### AnNHWCInputYieldsAnNHWCResult
 
 The input is asserted to be NHWC first, and the flattened result is NHWC too.
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 The layout tag of a [2, 3, 4, 5] input is set to NCHW by hand, and `forward()` throws.
 
@@ -3344,6 +10051,12 @@ Both gemm+bias and gemm+bias+relu match this graph. Rooted at the bias_add, the 
 would win and the relu would be left outside for good, which is why the matcher walks roots in
 reverse.
 
+### TheCrossEntropyGradientsElementwiseTailBecomesOnePass
+
+With `scale(sub(exp(log_probs), targets), 0.25)` observed, `fuse` reports one
+`FusedForm::ExpSubScale`. The node that produces the scaled value reads `log_probs` and
+`targets` and has the attribute 0.25, and the two intermediate values have no producer.
+
 ### ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch
 
 (exp(a) - b) and (b - exp(a)) are different functions with the same shapes, so nothing
@@ -3355,7 +10068,7 @@ this test shows that the pass consults it.
 The `also` value is a second reader of the K_MATMUL's result. Fusing would mean recomputing the
 result for that reader, or losing it.
 
-### AnIntermediateTheCallerReadsByIdIsNotFusedAway
+### AnIntermediateTheCallerReadsByIDIsNotFusedAway
 
 The `observed` list names `biased`, which is the logits of a real classifier. The training loop
 reads it after every replay to score accuracy, and a fused form gives it no buffer to read.
@@ -3407,26 +10120,36 @@ This case mirrors VALUE_IS_OBSERVED. That rule exists because a fused form gives
 value no buffer to read. The K_GEMM_BIAS_GELU entry gives it one, so naming the pre-activation as
 observed must not refuse the fold.
 
-### TheGeluFoldStillObeysEveryOtherRefusal
+### TheGELUFoldStillObeysEveryOtherRefusal
 
 A spill licenses one interior value and no others. The K_MATMUL's result is not spilled, so a
 second reader of it refuses the whole chain as it does for every other entry. The fallback is
 nothing, because the same value blocks gemm+bias.
 
-### DisablingTheGeluFormFallsBackToTheShorterOne
+### DisablingTheGELUFormFallsBackToTheShorterOne
 
 The last two assertions check that the GELU left outside is not also reported as unfoldable.
 "Its gradient differentiates at its input" and "no catalog entry composes it" are both false for
 this graph, and either would send a reader to change the wrong thing. The reason asserted just
 before them, `FusionDecline::Disabled`, is the only one.
 
-### ARecoverableActivationNextToAFusedGemmIsFoldedNotReported
+### ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported
 
-This case mirrors DisablingTheGeluFormFallsBackToTheShorterOne, and it is the reason ReLU's
+This case mirrors DisablingTheGELUFormFallsBackToTheShorterOne, and it is the reason ReLU's
 backward rule reads the output. With the gradient reading the activation's own result, the
 pre-activation has one consumer and folds with no special case anywhere.
 
-### ValueIdsAndTheirDescriptionsSurviveTheRewrite
+### DisablingThePassLeavesTheGraphExactlyAsItWas
+
+With `enabled` false over a linear trace followed by a ReLU, the report is not enabled and
+lists nothing fused. The graph keeps its node count, its value count and its one MATMUL.
+
+### DisablingOneFormFallsBackToTheShorterOne
+
+With `FusedForm::GEMMBiasReLU` disabled, the report counts no `GEMMBiasReLU` and one
+`GEMMBias`, and holds a decline of `FusionDecline::Disabled`.
+
+### ValueIDsAndTheirDescriptionsSurviveTheRewrite
 
 Everything a caller holds across the pass (a StepSpec, a Parameter's own id, a gradient)
 depends on ids surviving. A pass that compacted ids would need a remap reaching into the
@@ -3438,6 +10161,11 @@ The memory planner's reachability closure and the lowering's single forward walk
 topological order. The fused node is emitted at the root's position while it reads operands
 from the chain's first node, and that is where a rewrite gets the order wrong.
 
+### TheReportNamesEverySubtreeItCollapsed
+
+After a default `fuse`, `to_string` holds "gemm+bias+relu" and "dropping value", and
+`nodes_after` equals the graph's node count.
+
 ### StateLeavesAndTheRefusalMarkSurviveTheRewrite
 
 The graph is a K_MATMUL, a K_BIAS_ADD whose bias is a buffer, and a K_RELU. The weight and the buffer
@@ -3446,6 +10174,386 @@ The report lists one fused form and the graph holds one K_GEMM_BIAS_RELU node, s
 rebuild the graph. Both `state_leaf` lookups and the whole `state_leaves()` table are what they
 were. The buffer keeps the lifetime `BUFFER` and no gradient, the weight still requires one,
 and `has_refusal()` is still true.
+
+## modules/core/autograd/tests/test_gather_backward.cpp
+
+Suites: `Unit_GatherBackward`.
+
+Tests the nodes `Autograd::differentiate` appends for GATHER_ROWS and SCATTER_ADD_ROWS. The
+table has 7 rows of length 3, the index is int32, and the loss is the `nll_loss` of the
+`log_softmax` of the rows against a `targets` input.
+
+### TheGatherAndTheScatterAddEachHaveARule
+
+`Ops::K_GATHER_ROWS` and `Ops::K_SCATTER_ADD_ROWS` are differentiable and
+`Autograd::has_backward_rule` is true for both.
+
+### TheScatteredRowsGradientIsOneGatherOverTheForwardIndex
+
+With [5, 3] rows as a parameter scattered into 7 rows, the graph holds one GATHER_ROWS node
+after differentiation. It reads a [7, 3] value and the forward index and writes the returned
+gradient, whose shape is [5, 3]. The graph still holds one SCATTER_ADD_ROWS node.
+
+### TheScatterIndexReceivesNoGradient
+
+Asked for the rows and the index of a scatter-add, `differentiate` returns a value for the rows
+and `K_NO_VALUE` for the index.
+
+### FrozenScatteredRowsAppendNoGather
+
+With the rows as an input and a `weight` parameter multiplied after the scatter-add,
+differentiating at the weight adds no GATHER_ROWS node.
+
+### TheTableGradientIsOneScatterAddOverTheForwardIndex
+
+With the table as a parameter gathered by a [5] index, the graph holds one SCATTER_ADD_ROWS
+node. It reads a [5, 3] value and the forward index and writes the returned gradient, a
+float32 value of shape [7, 3] with the lifetime `Gradient`.
+
+### TheIndexReceivesNoGradient
+
+Asked for the table and the index of a gather, `differentiate` returns a value for the table
+and `K_NO_VALUE` for the index, and the index does not require a gradient.
+
+### ARankTwoIndexScattersTheGradientOfTheGathersShape
+
+With a [2, 4] index and the gathered value reshaped to [8, 3], the one SCATTER_ADD_ROWS node
+reads a [2, 4, 3] value and the forward index, and the gradient has the shape [7, 3].
+
+### AFrozenTableAppendsNoScatterAdd
+
+With the table as a buffer and a `weight` parameter multiplied after the gather, the weight
+gets a gradient and the graph holds no SCATTER_ADD_ROWS node.
+
+### TwoGathersOfOneTableAccumulateTheirScatterAdds
+
+With two gathers of one table added together, the graph holds two SCATTER_ADD_ROWS nodes and
+the table's gradient is written by an ACCUMULATE node.
+
+## modules/core/graph/tests/test_gather_ops.cpp
+
+Suites: `Unit_GatherOps`.
+
+Tests `GraphBuilder::gather_rows` and `GraphBuilder::scatter_add_rows`: the node each emits,
+the result shape and the operands each refuses. The table has 7 rows of length 3. A refusal is
+`InvalidDescription`, leaves the node count unchanged and sets `has_refusal()`.
+
+### GatherRowsWritesItsIdentityOverTheTableAndTheIndex
+
+Over a [7, 3] table and a [5] int32 index the call is ok and the result is the one output of a
+GATHER_ROWS node that reads the table and then the index. The result has the shape [5, 3], the
+type float32 and the lifetime `Activation`.
+
+### GatherRowsAppendsTheRowLengthToAnIndexOfAnyRank
+
+Over a float64 table, a [2, 4] index gives a float64 [2, 4, 3] value and a [2, 1, 3, 1, 2]
+index gives a [2, 1, 3, 1, 2, 3] value.
+
+### GatherRowsRefusesATableThatIsNotRankTwo
+
+A [7] table is refused with "rank-2 [V, D] table" and a [7, 2, 3] table with "[7, 2, 3]".
+
+### GatherRowsRefusesAnIndexThatIsNotInt32
+
+A float32 index and an int64 index are each refused with "INT32 index".
+
+### GatherRowsRefusesATableThatIsNotFloating
+
+An int32 table is refused with "half, float32 or float64 table".
+
+### GatherRowsRefusesAnIndexWhoseResultWouldPassTheHighestRank
+
+An index of rank `K_MAX_RANK`, shaped [1, 1, 1, 1, 1, 1], is refused with "rank 1 to 5".
+
+### ScatterAddRowsWritesItsIdentityAndTheTableShape
+
+Over [2, 4, 3] float64 rows and a [2, 4] index, `scatter_add_rows` with 7 table rows is ok. The
+result is the one output of a SCATTER_ADD_ROWS node that reads the rows and then the index, and
+it has the shape [7, 3], the type float64 and the lifetime `Activation`.
+
+### ScatterAddRowsRefusesOperandsThatDoNotFit
+
+Five calls are refused: rank-1 rows ("rank 2 or more"), int32 rows ("half, float32 or float64
+rows"), a float32 index ("INT32 index"), a [4] index for five rows ("one index per row") and a
+row count of 0 ("a table of 0 rows").
+
+### AnInt32InputLeafRequiresNoGradient
+
+After `graph.finalise()` the int32 index has the lifetime `Input` and does not require a
+gradient, and the gathered value does.
+
+### TheCastPassLeavesAnInt32LeafAndItsGatherAsDeclared
+
+After `Graph::insert_casts` under a `MixedPrecisionPolicy`, the index is int32, the table and
+the gathered value are float32 and the `matmul` that reads the gathered value is `Half`. The
+gather still reads the table and the index. No reported cast has the index as its source or
+GATHER_ROWS as its op, and `find_dtype_mismatches` is empty.
+
+## modules/language/generation/tests/test_generation_greedy_sampler.cpp
+
+Suites: `Unit_GenerationGreedySampler`, `Unit_GenerationGreedySamplerDeathTest`.
+
+Tests `Language::Generation::GreedySampler` in
+`modules/language/generation/include/SushiAI/language/generation/greedy_sampler.hpp`. Every
+generator is seeded with 20261011.
+
+### ThePickIsTheLargestLogitAndTheFirstOfEquals
+
+`sample` returns 1 for the logits 0.5, 2, -1, returns 1 for 0.5, 2, 2, -1 and returns 0 for the
+single logit -3. `name()` is `K_GREEDY_SAMPLER`.
+
+### APickDrawsNothing
+
+After one `sample`, the generator compares equal to a second generator built from the same
+seed and never used.
+
+### NoLogitIsFatal
+
+`sample` over an empty span stops the process with a report containing "no logit". The case is
+in the suite `Unit_GenerationGreedySamplerDeathTest`.
+
+## modules/language/generation/tests/test_generation_nucleus_sampler.cpp
+
+Suites: `Unit_GenerationNucleusSampler`.
+
+Tests `Language::Generation::NucleusSampler` in
+`modules/language/generation/include/SushiAI/language/generation/nucleus_sampler.hpp`. The
+distribution cases count 20000 draws under the seed 20261011 over the logits ln 2, 0, 0, whose
+probabilities are 1/2, 1/4 and 1/4, and compare each share within 0.02.
+
+### TheFewestTokensThatReachTheMassAreDrawn
+
+With a mass of 0.6 and a temperature of 1, token 0 has a share of 2/3, token 1 a share of 1/3
+and token 2 is never drawn. `name()` is `K_NUCLEUS_SAMPLER`.
+
+### AMassTheFirstTokenReachesKeepsItAlone
+
+With a mass of 0.4, token 0 is drawn all 20000 times.
+
+### AMassOfOneKeepsEveryToken
+
+With a mass of 1, the shares are 1/2, 1/4 and 1/4.
+
+### ASeedFixesTheSequence
+
+A sampler of mass 0.9 and temperature 1.2 draws the same 64 tokens twice from the same seed
+over eight logits from 0 to 0.7.
+
+### MakeRefusesAMassOutsideItsRangeAndABadTemperature
+
+`NucleusSampler::make` fails with `InvalidDescription` for a mass of 0 ("'nucleus'", "above
+0"), a mass of 1.5 ("at most 1"), a mass that is not a number ("'nucleus'") and a temperature
+of -2 ("temperature").
+
+## modules/language/generation/tests/test_generation_position_feed.cpp
+
+Suites: `Unit_GenerationPositionFeed`.
+
+Tests `Language::Generation::Detail::make_position_feed`, which picks a `PositionFeed` from
+the leaves a step is fed. The fixture is `Support::FedStepTest` of
+`position_feed_test_support.hpp`; its `build_step(has_position, has_ring)` builds a step fed
+"feed_position", or "feed_slot" with "feed_cosine" and "feed_sine", or both, or neither.
+
+### AStepFedAPositionGetsTheTableFeed
+
+Over a step fed only a position, the feed lists one leaf, named `K_FEED_POSITION`, and
+`keeps_rows_on_slide()` is false.
+
+### AStepFedACacheSlotGetsTheRingFeed
+
+Over a step fed only the ring leaves, the feed lists three leaves, the first named
+`K_FEED_SLOT`, and `keeps_rows_on_slide()` is true.
+
+### LeavesWithoutARingPickTheTableFeed
+
+With `CachedStepLeaves` that name a position and a mask and no ring, a step fed a position
+gets a feed of one leaf.
+
+### AStepFedBothOrNeitherIsRefused
+
+`make_position_feed` fails with `InvalidDescription` over a step fed both ("CachedGenerator",
+"both", "'feed_position'", "'feed_slot'") and over a step fed neither ("neither",
+"'feed_position'", "'feed_slot'").
+
+## modules/language/generation/tests/test_generation_ring_position_feed.cpp
+
+Suites: `Unit_GenerationRingPositionFeed`.
+
+Tests `Language::Generation::Detail::RingPositionFeed`. The fixture is `Support::FedStepTest`;
+the feed is made over a window of four rows and three pairs, with an angle function that
+writes position + pair as each cosine and the negation of that as each sine.
+
+### TheFeedListsTheSlotThenTheAngles
+
+`feeds()` lists three leaves in the order `K_FEED_SLOT`, `K_FEED_COSINE`, `K_FEED_SINE`. The
+slot tensor is `Int32` with one element, the cosine tensor is `Float32` with three elements
+and the sine tensor has three elements.
+
+### PlaceWrapsTheSlotAndKeepsThePositionOfTheAngles
+
+`place(11)` writes the slot 3, the cosines 11, 12, 13 and the sines -11, -12, -13. `place(4)`
+writes the slot 0 and a first cosine of 4. `place(2)` writes the slot 2.
+
+### EveryRowStaysRightAfterASlide
+
+`keeps_rows_on_slide()` is true.
+
+### ARingThatDoesNotFitIsRefused
+
+Over a step fed both the position and the ring leaves, `RingPositionFeed::make` fails with
+`InvalidDescription` for a null angle function ("no function", "'feed_cosine'",
+"'feed_sine'"), for a sine leaf named "feed_tangent" ("'feed_tangent'"), for the cosine leaf
+named as the slot ("'feed_cosine'", "int32 leaf of [1, 1]") and for the position leaf named
+as the sine ("'feed_position'", "float32 leaf of [1, 3]").
+
+## modules/language/generation/tests/test_generation_sampler_section.cpp
+
+Suites: `Unit_GenerationSamplerSection`.
+
+Tests `Language::Generation::make_sampler` in
+`modules/language/generation/include/SushiAI/language/generation/sampler_section.hpp`, which
+builds a sampler from a section. Every call passes the context "the task section 'sampler'".
+
+### EachTypeBuildsItsSampler
+
+The sections `{"type": "greedy"}`, `{"type": "temperature", "temperature": 0.7}`, `{"type":
+"temperature"}`, `{"type": "top_k", "k": 40, "temperature": 2}` and `{"type": "nucleus", "p":
+0.9}` build samplers whose names are `K_GREEDY_SAMPLER`, `K_TEMPERATURE_SAMPLER` twice,
+`K_TOP_K_SAMPLER` and `K_NUCLEUS_SAMPLER`.
+
+### AnUnknownTypeAndAnAbsentKeyAreRefused
+
+`make_sampler` fails with `InvalidDescription` for the type "beam" ("'beam'", "'greedy',
+'temperature', 'top_k', 'nucleus'"), a `top_k` section without `k` ("'sampler'", "has no
+'k'"), a `nucleus` section without `p` ("has no 'p'"), a section without `type` ("has no
+'type'") and a string in place of the section ("an object").
+
+### AKeyTheTypeDoesNotReadIsRefused
+
+`make_sampler` fails with `InvalidDescription` for a `greedy` section with `temperature`
+("'temperature'", "does not have"), a `temperature` section with `k` ("'k'"), a `k` of 0
+("keep 0 tokens"), a `k` of "many" ("'k'", "whole number") and a `p` of 2 ("at most 1").
+
+## modules/language/generation/tests/test_generation_table_position_feed.cpp
+
+Suites: `Unit_GenerationTablePositionFeed`.
+
+Tests `Language::Generation::Detail::TablePositionFeed`. The fixture is
+`Support::FedStepTest`.
+
+### PlaceWritesThePositionIntoItsOneLeaf
+
+Over a step fed a position, `feeds()` lists one leaf named `K_FEED_POSITION` whose tensor is
+`Int32` with one element. `place(0)` writes 0 into it and `place(5)` writes 5.
+
+### NoRowStaysRightAfterASlide
+
+`keeps_rows_on_slide()` is false.
+
+### ALeafThatDoesNotFitIsRefused
+
+Over a step fed only the ring leaves, `TablePositionFeed::make` fails with
+`InvalidDescription` for the leaf "feed_position" ("'feed_position'") and for the leaf
+"feed_cosine" ("CachedGenerator", "'feed_cosine'", "int32 leaf of [1, 1]").
+
+## modules/language/generation/tests/test_generation_task.cpp
+
+Suites: `Unit_GenerationTask`.
+
+Tests `Language::Generation::read_generation_task` in
+`modules/language/generation/include/SushiAI/language/generation/generation_task.hpp`, the
+reader of the `next_token_generation` task section. Every call passes the context "the task
+section".
+
+### EveryKeyIsRead
+
+A section with `vocabulary` "vocab.savb", `window` 256, `tokens` 200, `seed` 7 and a `top_k`
+sampler reads back with those four values and a sampler whose name is `K_TOP_K_SAMPLER`.
+
+### TheOptionalKeysHaveDefaults
+
+A section with only `type`, `vocabulary` and `window` reads `tokens` as
+`K_DEFAULT_GENERATED_TOKENS`, `seed` as 0 and a sampler whose name is `K_GREEDY_SAMPLER`.
+
+### AKeyThatDoesNotFitIsRefused
+
+The reader fails with `InvalidDescription` for the type "anchor_detection"
+("'anchor_detection'", "'next_token_generation'"), a section without `vocabulary` ("the task
+section", "has no 'vocabulary'"), one without `window` ("has no 'window'"), a `window` of 0
+("'window'", "positive"), a `tokens` of 0 ("'tokens'", "positive"), a `seed` of -1 ("'seed'"),
+a `prompt` key ("the task section", "'prompt'", "does not have") and a sampler of the type
+"beam" ("the task section 'sampler'", "'beam'").
+
+### TheCacheIsReadAndDefaultsToTrue
+
+`K_DEFAULT_GENERATION_CACHE` is true. `cache` reads as true from a section without the key,
+false from `"cache": false` and true from `"cache": true`.
+
+### ACacheThatIsNoFlagIsRefused
+
+`"cache": 1` fails with `InvalidDescription` and a message containing "the task section",
+"'cache'" and "a boolean".
+
+## modules/language/generation/tests/test_generation_temperature_sampler.cpp
+
+Suites: `Unit_GenerationTemperatureSampler`.
+
+Tests `Language::Generation::TemperatureSampler` in
+`modules/language/generation/include/SushiAI/language/generation/temperature_sampler.hpp`.
+The distribution cases count 20000 draws under the seed 20261011 and compare each share
+within 0.02.
+
+### TheSharesAreTheSoftmax
+
+At a temperature of 1 over the logits 0, ln 2, 0, the shares are 1/4, 1/2 and 1/4. `name()`
+is `K_TEMPERATURE_SAMPLER`.
+
+### ALowerTemperatureSharpensTheShares
+
+At a temperature of 0.5 over the logits 0 and ln 2, the shares are 0.2 and 0.8.
+
+### ASeedFixesTheSequence
+
+Over eight logits from 0 to 0.7, two sequences of 64 draws from the same seed are equal, and
+the sequence from the seed plus 1 differs from them.
+
+### MakeRefusesATemperatureThatIsNotPositiveAndFinite
+
+`TemperatureSampler::make` fails with `InvalidDescription` for 0 ("'temperature'",
+"positive"), for -1 ("positive"), for infinity ("finite") and for a value that is not a number
+("finite").
+
+## modules/language/generation/tests/test_generation_top_k_sampler.cpp
+
+Suites: `Unit_GenerationTopKSampler`.
+
+Tests `Language::Generation::TopKSampler` in
+`modules/language/generation/include/SushiAI/language/generation/top_k_sampler.hpp`. The
+distribution cases count 20000 draws under the seed 20261011 and compare each share within
+0.02.
+
+### OnlyTheKLargestAreDrawnAndTheLowerIndexWinsATie
+
+With `k` 2 and a temperature of 1 over the logits 0, ln 2, 0, -5, token 0 has a share of 1/3,
+token 1 a share of 2/3, and tokens 2 and 3 are never drawn. `name()` is `K_TOP_K_SAMPLER`.
+
+### KeepingOneTokenIsTheGreedyPick
+
+With `k` 1 over the logits 0.3, 0.2, 0.9, 0.9, token 2 is drawn all 20000 times.
+
+### AKAboveTheRowKeepsEveryToken
+
+With `k` 50 over the logits 0 and ln 2, the shares are 1/3 and 2/3.
+
+### ASeedFixesTheSequence
+
+A sampler of `k` 4 and temperature 0.8 draws the same 64 tokens twice from the same seed over
+eight logits from 0 to 0.7.
+
+### MakeRefusesAKBelowOneAndABadTemperature
+
+`TopKSampler::make` fails with `InvalidDescription` for a `k` of 0 ("'top_k'", "keep 0
+tokens") and for a temperature of 0 ("'top_k'", "temperature").
 
 ## modules/layers/nn/tests/test_global_avg_pool.cpp
 
@@ -3465,7 +10573,7 @@ returns the result's shape.
 
 Three `static_assert` lines require `GlobalAvgPool` to be a `Module`, not to be a
 `ModuleContainer`, and to have a `forward()` that is callable on a const object and returns
-`Graph::ValueId`.
+`Graph::ValueID`.
 
 ### ForwardReducesTheSpatialAxes
 
@@ -3476,7 +10584,7 @@ A [4, 7, 5, 16] input traces to [4, 16].
 The trace adds exactly one node, a K_SPATIAL_MEAN with the input as its one operand and the
 result as its one output.
 
-### ForwardKeepsTheNhwcLayoutTag
+### ForwardKeepsTheNHWCLayoutTag
 
 The result of an NHWC input is tagged NHWC, and `finalise()` accepts the graph.
 
@@ -3509,7 +10617,7 @@ the traced shape is the batch extent followed by its one extent.
 
 `forward()` throws on a [7, 5, 16] input.
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 A [1, 4, 4, 3] input is converted to NCHW, and `forward()` throws on the converted value.
 
@@ -3527,13 +10635,43 @@ This file needs no device. The gradient checker is the instrument the integratio
 with, so this file calibrates it against closed-form functions whose right answer is known. One
 of them is a deliberately wrong gradient, which proves the check can fail.
 
+### AcceptsAnExactGradient
+
+`check_full_jacobian` of the cubic and its gradient at six coordinates passes with a largest
+relative error below 1e-7 and six probes.
+
 ### RejectsAGradientThatIsWrongByATenthOfAPercent
 
 This case is the reason for insisting on FLOAT64. A 1e-3 relative error is far above the noise
 floor of about 1e-9 in FLOAT64. It would sit inside the floor of about 2.4e-5 that an fp32
 difference quotient bottoms out at, and would pass unnoticed.
 
-### AReluFamilyFunctionNeedsToBeSampledOffTheKink
+### LeavesTheProbePointUnchanged
+
+The probe point holds the same values after `check_full_jacobian` and after
+`check_directional`.
+
+### DirectionalModeAgreesWithTheFullJacobian
+
+At eight coordinates both `check_full_jacobian` and `check_directional` with 12 directions
+pass, and the directional result reports 12 probes.
+
+### DirectionalModeCatchesAWrongGradientToo
+
+`check_directional` with 16 directions over `slightly_wrong_gradient` does not pass.
+
+### DirectionalModeIsReproducibleForAGivenSeed
+
+Two `check_directional` calls with the seed 12345 report the same largest relative error and
+the same worst index.
+
+### PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign
+
+`push_off_kinks` over 0.0, 1e-12, -1e-12, 5.0, -5.0 leaves the first non-zero, the second
+positive, the third negative and the last two unchanged. Every coordinate is then at least
+`kink_margin * min_step * 0.999` from zero.
+
+### AReLUFamilyFunctionNeedsToBeSampledOffTheKink
 
 `options.min_step` is large enough that the difference survives the cancellation of summing it
 against the O(1) terms. A step of 1e-4 keeps the pushed coordinates at 1e-3, where a central
@@ -3541,6 +10679,133 @@ difference of x^2 is still exact to 1e-9.
 
 The `unshifted` point straddles the kink. The quotient taken across it reports the average of
 the two one-sided derivatives, which no correct rule can match.
+
+### AnEmptyProbePointIsRejected
+
+`check_full_jacobian` over an empty point throws `Error`, and so does `check_directional` with
+0 directions.
+
+## modules/core/optim/tests/test_gradient_clip.cpp
+
+Suites: `Unit_GradientClip`.
+
+Tests the gradient clip of `Optim::Optimizer`: `enable_gradient_clip`, `set_clip_norm`, the
+`clip_norm` key of `Optim::make_optimizer` and the update a clipped step applies. The fixture
+needs an engine. Each slot has a float32 parameter of zeros and a stated gradient, and
+`make_sgd` returns an SGD of rate 1 with no momentum and no decay. A parameter is compared
+within 1e-6.
+
+### ANormAboveTheThresholdScalesTheUpdate
+
+With the gradient 3, 4, 0, 0 and a clip norm of 1, one step leaves the parameter at -0.6, -0.8,
+0, 0. `gradient_clip()` is not null and its `applied_scale()` is 0.2.
+
+### ANormBelowTheThresholdLeavesTheUpdate
+
+With the same gradient and a clip norm of 10, one step leaves the parameter at -3, -4, 0, 0 and
+`applied_scale()` is exactly 1.
+
+### TheNormIsTakenOverEverySlot
+
+With the gradients 3, 0 and 0, 4, 0 in two slots and a clip norm of 2.5, one step leaves the
+parameters at -1.5, 0 and 0, -2, 0. `gradient_count()` is 2.
+
+### AThresholdSetAtRunTimeIsTheNextUpdates
+
+With the gradient 3, 4 and a clip norm of 5, the first step leaves -3, -4. After
+`set_clip_norm(2.5)`, `max_norm()` is 2.5 and the second step leaves -4.5, -6.
+
+### TheMomentumKernelReadsTheFactor
+
+An SGD of rate 1 and momentum 0.5 with a clip norm of 1 leaves the parameter at -0.6, -0.8
+after its first step.
+
+### AdamWReadsTheSameFactor
+
+An AdamW of default options over the gradient 3, 4 with a clip norm of 1 reports an
+`applied_scale()` of 0.2 after one step.
+
+### AClipAddsItsTasksAndItsAbsenceAddsNone
+
+Over two slots, `record_into_step` returns 2 for an SGD without a clip, whose
+`gradient_clip()` is null, and 5 for one with a clip.
+
+### AClipRefusesWhatItCannotCompute
+
+`enable_gradient_clip` fails with `InvalidDescription` and "positive and finite" for the norms
+0 and -1, and `gradient_clip()` stays null. On an SGD made with `UpdateKernel::Separate` it
+fails with a message containing "UpdateKernel::Fused".
+
+### ANormSetWithoutAClipIsFatal
+
+`set_clip_norm(1.0)` on an optimizer without a clip stops the process with a report containing
+"no gradient clip". After a clip is enabled, `set_clip_norm(0.0)` stops it with "clip norm" and
+"positive and finite".
+
+### TheKeyClipNormEnablesTheClip
+
+For the types `sgd` and `adamw`, `make_optimizer` with `{"clip_norm": 0.5}` returns an
+optimizer whose clip has the `max_norm()` 0.5, and with `{}` one whose `gradient_clip()` is
+null. `{"clip_norm": 0}` fails with `InvalidDescription`, "optimizer 'clip_norm'" and "positive
+and finite".
+
+## modules/vision/training/tests/test_head_delta_loss.cpp
+
+Suites: `Unit_HeadDeltaLoss`.
+
+Tests the IR that `emit_head_delta_loss` of the vision training module emits over a head
+parameter and a delta input of the same shape, [2, 3, 3, 7] in this file, with the scale 0.25.
+
+### EmitsFourNodesEndingInAScaleOfOneElement
+
+The emitter adds `sushiai.mul`, `sushiai.reshape`, `sushiai.sum_rows` and `sushiai.scale`, in
+that order. MUL reads the delta and then the head, and each later node reads the one before it.
+The RESHAPE result has the shape [126, 1], the loss has the shape [1], and the SCALE node's
+attribute 0 is -0.25 to 1e-12.
+
+### TheResultHasTheElementTypeOfTheHead
+
+Over a `Float64` head and a `Float64` delta, the loss has the element type `Float64`.
+
+### TheResultIsARootAutogradDifferentiates
+
+`Autograd::differentiate` of the loss with respect to the head does not throw and returns one
+gradient of the head's shape. The delta's `requires_grad` is false.
+
+### ADeltaOfAnotherShapeThrowsNamingBothShapes
+
+A delta of the shape [2, 3, 3, 6] throws an error naming "MUL needs equally shaped operands",
+"[2, 3, 3, 6]" and "[2, 3, 3, 7]", and adds no node.
+
+### ADeltaOfAnotherElementTypeThrowsNamingBothTypes
+
+A `Float64` delta against a `Float32` head throws an error naming
+"MUL needs operands of one element type", "float32" and "float64", and adds no node.
+
+## modules/layers/nn/tests/test_host_table.cpp
+
+Suites: `Unit_HostTable`.
+
+Tests `NN::Trace::host_table` and the `NN::HostTableList` a trace collects into with
+`collect_tables`.
+
+### ATableIsALeafListedWithItsValues
+
+A [2, 3] float32 table of six values adds one node. Its leaf has that shape and type, the
+lifetime `Buffer` and no gradient, and `graph.state_leaves()` stays empty. The list holds one
+table with that leaf and the six values, and the trace is ok.
+
+### EveryDeclarationIsItsOwnLeaf
+
+Two float64 tables declared on a training trace return two different leaves, and the list
+holds them in the order they were declared.
+
+### ATableThatNoStepCanFillIsRefused
+
+`host_table` fails with `InvalidDescription` and a message naming `'angles'` three times: on a
+trace without `collect_tables` ("collect_tables"), for the type int32 ("float32 or a float64")
+and for two values under the shape [2, 3] ("6 elements", "2 values"). The graph gains no node
+and the list stays empty.
 
 ## modules/layers/nn/tests/test_identity.cpp
 
@@ -4821,6 +12086,64 @@ With ratio 1 and no padding a box keeps its four coordinates.
 In the tall plan the vertices (10, 20), (30, 40) and (-4, 210) move to (42, 10), (52, 20) and
 (35, 105). An object without a polygon still has none.
 
+## modules/vision/imaging/tests/test_imaging_mask_pipeline.cpp
+
+Suites: `Unit_ImagingAffineNearest`, `Unit_ImagingMaskPipeline`.
+
+Tests `apply_affine_nearest` in
+`modules/vision/imaging/include/SushiAI/vision/imaging/affine_nearest.hpp` and
+`TrainingMaskPipeline` in
+`modules/vision/imaging/include/SushiAI/vision/imaging/mask_pipeline.hpp`. Every plan scales by
+one factor, translates and has the border value 255. The pipeline cases take grey RGB images
+whose one box of the image's index covers the whole image, masks held in memory, and the seed
+20261011.
+
+### AnIdentityPlanCopiesTheSource
+
+A plan of scale 1 and no translation over a mask of 3 rows and 4 columns gives an image of
+that size and one channel holding the source's bytes.
+
+### ATranslationFillsWhatItUncoversWithTheBorderValue
+
+A translation of 2 columns and 1 row over a mask of 2 rows and 4 columns gives a first row of
+255. In the second row the first two columns are 255 and column x holds the source's row 0,
+column x - 2.
+
+### AScaleRepeatsPixelsAndBlendsNone
+
+The row 3, 50, 7, 120 warped at scale 2 into 8 columns is 3, 50, 50, 7, 7, 120, 120, 255.
+
+### EveryChannelOfAPixelMovesTogether
+
+An RGB row of the pixels (1, 2, 3) and (4, 5, 6) translated by one column is (255, 255, 255),
+(1, 2, 3).
+
+### RefusesWhatItCannotWarp
+
+`apply_affine_nearest` fails with `InvalidDescription` for an empty view ("holds no image"),
+for an output that is the source image ("share pixels") and for a matrix with a shear term of
+0.5 ("off-diagonal"). A plan whose source size is 3 by 3 over a 2 by 2 image fails with
+`Incompatible`, "3x3" and "2x2".
+
+### AFlippedSampleHasItsMaskMirrored
+
+With no mosaic, an identity warp and a flip probability of 1 over an 8 by 8 image, the trace
+of sample 0 is flipped and has no mosaic. `make_mask` over that trace gives an 8 by 8 mask
+whose pixel (y, x) holds the source mask's pixel (y, 7 - x).
+
+### AMosaicMaskFollowsTheBoxesOfItsSample
+
+Four images of four sizes have masks filled with their own index, and the training size is 32
+with the default settings. For each sample of the epochs 0, 1 and 2 the trace has the mosaic
+enabled and the mask is 32 by 32 with one channel. Every mask pixel at least 2 pixels inside a
+box of the sample holds that box's class, and at least one pixel is compared.
+
+### RefusesAMaskItCannotReplay
+
+`make_mask` fails with `Incompatible` for a mask of three channels ("3 channels") and for a
+mask of 8 rows and 4 columns under an 8 by 8 image ("8x4", "8x8"). When the mask source fails
+it returns that failure: `InvalidFile` and "mask 0 is unreadable".
+
 ## modules/vision/imaging/tests/test_imaging_mosaic.cpp
 
 Suites: `Unit_ImagingMosaic`.
@@ -5190,7 +12513,7 @@ vertices at `K_REPLAY_TOLERANCE`.
 ### expect_same_affine and expect_same_hsv
 
 `expect_same_affine` compares the sizes and the three drawn values of two `AffinePlan` objects.
-`expect_same_hsv` compares the three gains of two `HsvPlan` objects.
+`expect_same_hsv` compares the three gains of two `HSVPlan` objects.
 
 ### load_patch
 
@@ -5220,7 +12543,7 @@ and 99. With `close_mosaic` 0 it is false for epoch 99, and with 5 epochs and `c
 `make_sample_random(2026, 3, 17)` equals `Random(2026).derive(3).derive(17)`. Another seed,
 epoch or index gives another generator, and so do the epoch and the index swapped.
 
-### TrainingDrawsMosaicThenAffineThenHsvThenFlip
+### TrainingDrawsMosaicThenAffineThenHSVThenFlip
 
 The trace of sample 2 in epoch 5 equals a replay on `make_sample_random(41, 5, 2)`:
 `draw_mosaic`, then `plan_affine` from the 64 by 64 canvas to 32 by 32, then `plan_hsv`, then
@@ -5314,7 +12637,7 @@ source. A null partner source throws with "partner source is null".
 
 `make_sample` throws for index 5 of five images and for epochs -1 and 100 of 100.
 
-### TrainingExpandsAGreyImageToRgb
+### TrainingExpandsAGreyImageToRGB
 
 A one-channel image at level 77 under the still settings gives a 32 by 32 sample of three
 channels whose centre pixel is (77, 77, 77).
@@ -5355,7 +12678,7 @@ equals the source image.
 Sample 0 made again after sample 2 has the same image and labels as the first time, and sample
 2 has another image.
 
-### ValidationExpandsAGreyImageToRgb
+### ValidationExpandsAGreyImageToRGB
 
 A one-channel 8 by 16 image at level 61 gives a three-channel 32 by 32 sample with 61 in the
 content rows and 114 in the padding.
@@ -5669,18 +12992,18 @@ case lists all thirty bytes.
 
 `K_RAW_IMAGE_HEADER_BYTES` is 24 and the first four header bytes are "SAIM".
 
-### RgbImageRoundTripsThroughAStream
+### RGBImageRoundTripsThroughAStream
 
 A 5 by 7 RGB image written and read back has the header fields 5, 7, 3 and
-`ChannelOrder::Rgb`, `pixel_bytes()` of 105 and the same bytes.
+`ChannelOrder::RGB`, `pixel_bytes()` of 105 and the same bytes.
 
 ### GrayImageRoundTripsThroughAStream
 
 A 4 by 3 one-channel image round-trips with `ChannelOrder::Gray`.
 
-### BgrFileIsWrittenAsGivenAndReadAsRgb
+### BGRFileIsWrittenAsGivenAndReadAsRGB
 
-Written with `ChannelOrder::Bgr`, the pixel bytes 1 to 6 are stored as given. Read back they
+Written with `ChannelOrder::BGR`, the pixel bytes 1 to 6 are stored as given. Read back they
 are 3, 2, 1, 6, 5, 4: the reader swaps the first and third channel so the image is RGB.
 
 ### ReadReusesADestinationOfAnotherSize
@@ -5747,7 +13070,7 @@ A channel order of 3 throws with "channel order 3" and "unknown".
 
 Three channels with order 0 throw with "channel count 3" and "channel order 0".
 
-### HeaderRejectsOneChannelInAnRgbFile
+### HeaderRejectsOneChannelInAnRGBFile
 
 One channel with order 1 throws with "channel count 1" and "channel order 1".
 
@@ -5774,7 +13097,7 @@ A default view throws with "no pixels" and nothing is written.
 
 ### WriterRejectsAChannelCountThatDoesNotFitTheOrder
 
-One channel with `Rgb` or `Bgr` and three channels with `Gray` throw with the channel count,
+One channel with `RGB` or `BGR` and three channels with `Gray` throw with the channel count,
 and nothing is written.
 
 ### WriterRejectsASideAboveTheLimit
@@ -6061,6 +13384,178 @@ the image keeps its size and its bytes.
 A source view of 0 by 2 and one of five channels throw with "source size" and "source channel
 count".
 
+### NearestRepeatsEachPixelWhenEnlarged
+
+`resize_nearest` of the 2 by 2 image 1, 2, 3, 4 to 4 by 4 gives one channel with the rows
+1 1 2 2, 1 1 2 2, 3 3 4 4, 3 3 4 4.
+
+### NearestReadsThePixelUnderEachCentreWhenReduced
+
+The row 10, 11, 12, 13, 14 resized to two columns is 11, 13.
+
+### NearestKeepsClassIndicesUnblended
+
+The row 0, 255 resized to seven columns is 0, 0, 0, 255, 255, 255, 255.
+
+### NearestCopiesEveryChannelOfAPixel
+
+An RGB row of the pixels (1, 2, 3) and (4, 5, 6), resized to 2 by 2 into a destination that
+was 9 by 9 with one channel, gives a 2 by 2 image of three channels holding that row twice.
+
+### NearestRejectsABadSourceABadSizeAndAnAliasedDestination
+
+`resize_nearest` raises an error for an empty view ("resize_nearest", "source", "no pixels"),
+for a size of 0 by 2 ("Image::reset", "0x2") and for a destination that is the source image
+("resize_nearest", "destination holds the source's pixels"). The source still holds its four
+bytes of 9.
+
+## modules/layers/io/tests/test_imported_model_writer.cpp
+
+Suites: `Unit_ImportedModelWriter`.
+
+Tests `IO::compose_training_file` and `IO::write_imported_model`. The imported model of every
+case has one `linear` row over the input shape [4], a task of type `stub_task`, the float32
+tensors `0.weight` of shape [2, 4] and `0.bias` of shape [2], a recipe with an `objective` and
+an `optimizer` section, and one note. The cases that write files use a directory under the
+system's temporary folder and remove it before and after.
+
+### ComposesTheTrainingFileAroundTheRecipe
+
+The composed file has the keys `sushiai_train`, `model`, `weights`, `data`, `checkpoint`,
+`objective`, `optimizer`, in that order. `sushiai_train` is `Config::K_TRAIN_VERSION`, `model`
+is "model.json", `weights` is "weights.sushi", `checkpoint` is "trained.sushi" and the
+optimizer's `type` is "sgd".
+
+### LeavesTheDataBlockNull
+
+The composed file has a `data` key whose value is null.
+
+### StatesNoWeightsKeyWithoutTensors
+
+With no tensors the composed file has no `weights` key.
+
+### ARecipeThatStatesAWriterKeyIsRefused
+
+A recipe that states `model` fails with `InvalidDescription` and a message containing `'model'`
+and "training recipe".
+
+### ARecipeThatIsNoObjectIsRefused
+
+A recipe that is the integer 3 fails with `InvalidDescription` and "must be an object".
+
+### WritesTheThreeFiles
+
+`write_imported_model` with `ExistingFiles::Refuse` returns three paths, `model.json`,
+`weights.sushi` and `train.json` under the directory, and each is a regular file.
+
+### TheModelFileReadsBack
+
+`Config::load_model` over the written model file returns the input shape that was given, one
+layer of type `linear` and a task of type `stub_task`.
+
+### TheWeightFileHoldsEveryTensor
+
+`IO::CheckpointReader` over the written weight file counts two records. Each record has the
+name, the type and the shape of the tensor at its position, and its payload equals that
+tensor's bytes.
+
+### TheTrainingFileIsRefusedUntilItsDataIsFilled
+
+`Config::load_train` over the written training file raises an error containing `'data'`, "must
+be an object" and "null".
+
+### WritesNoWeightFileWithoutTensors
+
+With no tensors the write returns two paths and `weights.sushi` does not exist.
+
+### AnExistingFileIsRefusedAndLeftAlone
+
+With a `train.json` holding "kept" in the directory, the write under `ExistingFiles::Refuse`
+fails with `Incompatible`, "train.json" and "exists already". The file still holds "kept" and
+`model.json` does not exist.
+
+### ReplaceOverwritesAnExistingFile
+
+With a `train.json` holding "stale", the write under `ExistingFiles::Replace` is ok and the
+file contains "sushiai_train".
+
+### ATensorOfTheWrongSizeWritesNothing
+
+With one byte removed from the payload of `0.bias`, the write fails with `InvalidDescription`,
+`'0.bias'`, "7 bytes" and "needs 8", and `model.json` does not exist.
+
+### ATensorNamedTwiceIsRefused
+
+With both tensors named `0.weight`, the write fails with `InvalidDescription`, `'0.weight'` and
+"twice".
+
+## modules/layers/io/tests/test_importer_registry.cpp
+
+Suites: `Unit_ImporterRegistry`.
+
+Tests `IO::ImporterRegistry` and `IO::import_model`. The file registers two stub rows: `first`,
+whose importer returns a model with the number of files it was given as its one note, and
+`second`, whose importer fails with `InvalidFile` when given no file.
+
+### AddKeepsInsertionOrder
+
+After `add` of `first` and then `second`, `rows()` holds two rows in that order.
+
+### FindReturnsNullForAnUnknownFormat
+
+`find("first")` is null on an empty registry. After `first` is added, `find("onnx")` is null
+and `find("first")` returns the row whose format is "first".
+
+### AFormatAddedTwiceIsRefused
+
+A second `add` of `first` fails with `InvalidDescription` and a message containing `'first'`
+and "already registered".
+
+### ImportModelCallsTheRowOfTheFormat
+
+`import_model` for `first` with two files returns a model whose one note is "2".
+
+### ImportModelReturnsTheFailureOfTheRow
+
+`import_model` for `second` with no file fails with `InvalidFile` and "the stub reads no file".
+
+### AnUnknownFormatListsTheFormatsTheRegistryHolds
+
+`import_model` for `onnx` fails with `InvalidDescription` and a message containing `'onnx'` and
+"'first', 'second'".
+
+## modules/layers/train/tests/test_input_match.cpp
+
+Suites: `Unit_InputMatch`.
+
+Tests `Train::describe_input_leaf` and `Train::match_input`. The dataset is a local `Published`
+class named "published" that publishes the input it is built with, no role and no batch.
+
+### ALeafIsDescribedWithoutItsBatchAxis
+
+A [4, 16] int32 leaf is described as [16] int32, a [2, 8, 8, 3] float32 leaf as [8, 8, 3]
+float32 and a [4] float64 leaf as an empty shape and float64.
+
+### ALeafWithNoBatchAxisIsRefused
+
+A leaf of rank 0 fails with `InvalidDescription` and "no batch extent".
+
+### ADatasetThatPublishesTheInputIsAccepted
+
+`match_input` is ok for [16] int32 against a dataset that publishes [16] int32, and for [16]
+float32 against one that publishes [16] float32.
+
+### AnotherElementTypeIsRefusedWithBothTypes
+
+A float32 input against the int32 dataset fails with `Incompatible` and a message containing
+`'published'`, "as int32 [16] per sample" and "compiled for float32 [16] per sample". An int32
+input against the float32 dataset fails with the two types the other way round.
+
+### AnotherShapeIsRefusedWithBothShapes
+
+A [32] int32 input against the [16] int32 dataset fails with `Incompatible`, "as int32 [16] per
+sample" and "compiled for int32 [32] per sample".
+
 ## modules/core/graph/tests/test_ir.cpp
 
 Suites: `Unit_Ir`, `Unit_IR`.
@@ -6070,10 +13565,54 @@ Tests the IR's single-assignment and ordering rules and the builder's shape infe
 This file needs no device. The IR and its builder are host-lane, which is the point of keeping
 shape inference out of the lowering.
 
+### AddValueRecordsShapeDTypeAndLifetime
+
+`add_value` of a [2, 3] `Float64` parameter named "w" gives a graph of one value with that
+shape, element type, lifetime and debug name and no producer.
+
+### AddNodeClaimsItsOutputs
+
+After `add_node` of an ADD over two inputs, the output value's producer is that node and the
+node has two inputs.
+
 ### ASecondProducerForOneValueThrows
 
 Single assignment is the property that lets differentiation skip alias analysis entirely, so a
 double write is rejected and not tolerated.
+
+### ReferencingAnUnknownValueThrows
+
+`add_node` throws `Error` when it reads the value 99 and when it writes the value 99.
+
+### PropagateRequiresGradFlowsForwardThroughTheWholeChain
+
+Before `finalise`, the MATMUL of an input and a parameter and the ReLU after it do not
+require a gradient. After it the input still does not, and the parameter, the product and the
+ReLU do.
+
+### PropagateRequiresGradLeavesAFrozenBranchAlone
+
+After `finalise`, a ReLU of the input does not require a gradient and the MATMUL of the input
+and a parameter does.
+
+### BuilderInfersMatmulShapesForEveryTranspositionCase
+
+With [4, 3] or [3, 4] on the left and [3, 5] or [5, 3] on the right, `matmul` gives [4, 5]
+for each of the four combinations of the two transpose flags.
+
+### BuilderRejectsAContractionMismatch
+
+`matmul` of [4, 3] and [7, 5] throws `Error`.
+
+### BuilderChecksBiasAndLossShapes
+
+Over a [4, 5] value, `bias_add` with a [5] bias gives [4, 5] and with a [4] bias throws
+`Error`. `sum_rows` gives [5]. `nll_loss` with [4, 5] targets gives [1] and with [4, 6]
+targets throws `Error`.
+
+### BuilderRejectsMixedElementTypes
+
+`add` and `matmul` of a `Float32` and a `Float64` operand both throw `Error`.
 
 ### NodesAreEmittedInTopologicalOrder
 
@@ -6093,6 +13632,12 @@ was inserted and no producer was claimed.
 
 The final `EXPECT_NO_THROW` inserts the same node ahead of that reader and succeeds. That makes
 the rejection a statement about position and not about the node.
+
+### InsertNodeRejectsAnOperandProducedNoEarlierThanItself
+
+With one RELU node writing value 1, `insert_node` at 0 of a TANH that reads value 1 raises an
+error holding "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes" and "topological".
+The graph still has one node and the TANH's output has no producer.
 
 ### AttributesHoldAConvolutionsGeometryAndItsWindowGrid
 
@@ -6165,6 +13710,247 @@ The source keeps its identity.
 
 After a move construction the target peeks the source's identity and the source peeks
 `K_NO_STATE`. A move assignment over a holder that had drawn does the same.
+
+## modules/core/config/tests/test_json_events.cpp
+
+Suites: `Unit_JsonEvents`.
+
+Tests `Config::read_json_events`. Each case writes a file under the system's temporary
+directory and removes it at its end. A local `EventLog` implements `Config::JSONEvents`, keeps
+every event as one line of text and can return false at a chosen event.
+
+### EventsArriveInTheOrderOfTheText
+
+A document with an object, an array, two whole numbers, a real, a string, both booleans, a null
+and a nested object gives 16 events in the order of the text. Keys arrive as `key` events
+before their values.
+
+### AWholeNumberAboveInt64IsAReal
+
+In `[9223372036854775807, 18446744073709551615]` the first entry arrives as
+"whole 9223372036854775807" and the second as a real. The read gives four events.
+
+### ADocumentLongerThanTheBufferArrivesWhole
+
+An array of 40000 whole numbers, whose text is longer than twice
+`K_JSON_EVENT_BUFFER_BYTES`, gives 40002 events. The last number is "whole 39999" and the last
+event is the end of the array.
+
+### AHandlerThatStopsEndsTheReadWithSuccess
+
+A log that returns false at its fourth event receives four events from `{"a": [1, 2, 3]}`, and
+the read is ok.
+
+### TextThatIsNoJSONIsRefusedWithItsOffset
+
+Three files fail with `InvalidFile` and "not valid JSON": a document cut short, which also
+names the file and "at byte 12", a document with trailing text ("at byte 5") and an empty file
+("at byte").
+
+### AnAbsentFileIsRefusedByItsPath
+
+A path with no file fails with `FileNotFound` and a message containing the file name and "could
+not open".
+
+## modules/core/config/tests/test_json_writer.cpp
+
+Suites: `Unit_JsonWriter`.
+
+Tests `Config::write_json`. A depth of 0 writes the whole document on one line. The cases that
+read text back parse it with `Config::parse_json`, and a real is compared bit for bit.
+
+### WritesEveryKindOnOneLineInTheOrderOfTheKeys
+
+At depth 0 an object of nine keys is written on one line that ends with a line feed. The keys
+keep the order they were stated in, `zebra` before `apple`, an empty object is `{}` and an
+empty array is `[]`.
+
+### ExpandsTheFirstTwoLevelsAndKeepsDeeperOnesOnOneLine
+
+At the default depth the root object and the values one level below it are expanded with four
+spaces of indent per level. An array of numbers at the second level, each object inside
+`layers` and an empty array stay on one line. The whole text is compared.
+
+### EndsEveryLineWithALineFeedAndTheTextWithOne
+
+The text ends with one line feed, the character before it is not a line feed, and the text
+holds no carriage return.
+
+### WritesARootScalarAlone
+
+`Value::integer(-3)` is written as "-3" and a line feed.
+
+### SpellsNumbersInTheShortestFormThatReadsBack
+
+`[7, -3, 0, 0.001, 1e-3, 2.5, 1.0, 1e300]` is written as
+`[7, -3, 0, 0.001, 0.001, 2.5, 1.0, 1e+300]`.
+
+### AnIntegerReadsBackAsTheSameInteger
+
+Eight integers, among them 9007199254740993 and the largest and the smallest int64, each read
+back as `Kind::Int` with the same value.
+
+### ARealReadsBackAsTheSameBits
+
+Nineteen reals, among them -0.0, 0.1 + 0.2, 1e22, the largest and the lowest double, the
+smallest normal, the smallest denormal and epsilon, each read back as `Kind::Real` with the
+same bits.
+
+### EscapesQuotesBackslashesAndControlCharacters
+
+A string with a quote, a backslash, a solidus, the five short control escapes, the bytes 0x01,
+0x1F, 0x7F and a NUL is written with `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, `\t`, `\u0001`,
+`\u001f` and `\u0000`. The solidus and 0x7F are written as they are. The text reads back to the
+same string.
+
+### WritesUTF8AsItsOwnBytes
+
+A string holding U+011F, U+65E5 and U+1F363 is written between quotes as its own bytes and
+reads back to the same string.
+
+### EscapesAKeyAsItEscapesAString
+
+An object whose key holds quotes and a tab is written with `\"` and `\t` in the key, and its
+keys read back equal.
+
+### RefusesANumberThatIsNotFinite
+
+A NaN fails with `InvalidDescription` and "not a number". Plus and minus infinity each fail
+with "infinite".
+
+### RefusesAStringThatIsNotUTF8
+
+Six byte sequences fail with `InvalidDescription` and "UTF-8" as a string, and with "UTF-8" and
+"key 0" as the key of an object: 0xFF, a lone continuation byte, an overlong solidus, a
+three-byte form cut short, the surrogate U+D800 and U+110000.
+
+### RefusesAnObjectThatStatesAKeyTwice
+
+An object with the keys `rate`, `units`, `rate` fails with `InvalidDescription`, `'rate'` and
+"twice".
+
+### ARefusalNamesTheWayToTheValue
+
+A NaN under `rate` in entry 1 of the array under `layers` fails with a message containing
+"key 'layers'", "entry 1", "key 'rate'" and "not a number".
+
+## modules/layers/nn/tests/test_layer_norm.cpp
+
+Suites: `Unit_LayerNorm`, `Unit_LayerNormDeathTest`.
+
+Tests `NN::LayerNorm` in `modules/layers/nn/include/SushiAI/nn/layer_norm.hpp` and its factory
+`NN::make_layer_norm_node`. Every layer normalises over a last extent of 4. A `static_assert`
+holds that `LayerNorm` is a `TraceModule` and is neither a `Module` nor a `ModalModule`.
+
+### ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode
+
+Over a [2, 3, 4] input a training trace is ok and adds three nodes. The node that writes the
+result is LAYER_NORM, reads the input, the weight and the bias in that order and holds
+`K_LAYER_NORM_EPSILON` in attribute slot 0. The result is a float32 value of shape [2, 3, 4].
+
+### TheGainIsAScaleAndTheBiasABias
+
+After a trace over a [5, 4] float64 input, the weight and the bias are declared with the shape
+[4] and the type float64, with the roles `ParameterRole::Scale` and `ParameterRole::Bias`. A
+layer whose `epsilon` is 1e-3 puts 1e-3 in the node's attribute slot 0.
+
+### TheWalkYieldsTheGainThenTheBias
+
+`NN::walk_state` under the prefix `norm` visits `norm.weight` and then `norm.bias`.
+
+### AnInputThatDoesNotFitFails
+
+A [2, 5] input fails with `InvalidDescription`, "LayerNorm(4)", "[..., 4] input" and "[2, 5]".
+An int32 input fails with "half, float32 or float64 input" and "int32". `forward` returns its
+input, the graph gains no node, the weight stays undeclared and the graph has a refusal.
+
+### ALayerDescribedWrongFails
+
+A default layer, whose `dim` is 0, fails with "positive dim" and "got 0". An `epsilon` of 0
+fails with "LayerNorm(4)" and "positive epsilon", and that layer's weight stays undeclared.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([4])` is [4] and `output_shape([6, 4])` is [6, 4].
+
+### TheFactoryReadsTheWidthAndTheEpsilon
+
+`make_layer_norm_node` over one [6, 4] input and `{}` returns a `ModuleNode<LayerNorm>` whose
+layer has the `dim` 4 and the epsilon `K_LAYER_NORM_EPSILON`, and whose one port has the shape
+[6, 4]. With `{"ln_epsilon": 0.001}` the layer's epsilon is 0.001.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+Five rows fail with `InvalidDescription` and a message naming "layer 3": a `momentum` key, an
+`ln_epsilon` of -1 ("positive"), an `ln_epsilon` of "small" ("a number"), two inputs ("reads
+one input", "given 2") and a rank-6 input ("rank 1 to 5").
+
+### ATraceOverAValueTheGraphLacksIsFatal
+
+`forward` over value id 7 in a graph of one value stops the process with a report containing
+"LayerNorm(4)", "value 7" and "holds 1 values".
+
+## modules/core/autograd/tests/test_layer_norm_backward.cpp
+
+Suites: `Unit_LayerNormBackward`.
+
+Tests the nodes `Autograd::differentiate` appends for LAYER_NORM. The graph normalises a
+[5, 3] value with a [3] gain and a [3] bias at the epsilon 1e-5 and takes the `nll_loss` of
+the `log_softmax` of the result.
+
+### TheForwardHasARuleAndItsGradientHasNone
+
+`Ops::K_LAYER_NORM` is differentiable and has a backward rule. `Ops::K_LAYER_NORM_BACKWARD` is
+not differentiable and has none.
+
+### OneGradientNodeServesTheThreeOperands
+
+With x as a parameter, differentiating at x, the gain and the bias adds one
+LAYER_NORM_BACKWARD node of five inputs. Inputs 1 to 4 are x, the gain, the saved mean and the
+saved inverse deviation, and its outputs are the three returned gradients, of the shapes
+[5, 3], [3] and [3].
+
+### AnInputThatNeedsNoGradientReceivesNone
+
+With x as an input, the gradient of x is `K_NO_VALUE`, the gain has a gradient and the graph
+holds one LAYER_NORM_BACKWARD node.
+
+## modules/core/graph/tests/test_layer_norm_ops.cpp
+
+Suites: `Unit_LayerNormOps`.
+
+Tests `GraphBuilder::layer_norm` and `GraphBuilder::layer_norm_backward`. The leaves are a
+[2, 3, 4] input, a [4] gain and a [4] bias, and the epsilon is 1e-5. A refusal is
+`InvalidDescription`, leaves the node count unchanged and sets `has_refusal()`.
+
+### LayerNormWritesItsValueAndTheTwoRowStatistics
+
+Over float64 leaves the call is ok and emits one LAYER_NORM node that reads x, the gain and the
+bias and writes the output, the saved mean and the saved inverse deviation, with the epsilon in
+attribute slot 0. The output has the shape [2, 3, 4] and both saves the shape [6]. The output
+and the saved mean are float64, the output has the lifetime `Activation` and the graph has no
+refusal.
+
+### ARankOneInputIsOneRow
+
+Over a [4] input the output has the shape [4] and the saved mean the shape [1].
+
+### LayerNormRefusesOperandsThatDoNotFit
+
+Four calls are refused: an int32 input ("half, float32 or float64 input"), a [3] gain ("gamma
+as [4]"), a float64 bias under a float32 input ("beta as [4] of float32") and an epsilon of 0
+("epsilon must be positive").
+
+### LayerNormBackwardWritesTheThreeGradients
+
+`layer_norm_backward` is ok and emits one LAYER_NORM_BACKWARD node that reads dy, x, the gain,
+the saved mean and the saved inverse deviation and writes dx, dgamma and dbeta, of the shapes
+[2, 3, 4], [4] and [4].
+
+### LayerNormBackwardRefusesOperandsThatDoNotFit
+
+A [6, 4] gradient is refused with "operand of [2, 3, 4]" and a [4] saved mean with "operand of
+[6]".
 
 ## test_layer_registry.cpp
 
@@ -6342,7 +14128,7 @@ A `conv2d` without "filters", a `conv2d` without "kernel", each pool without "ke
 `linear` without "units" are refused. Each message contains the context and "has no" followed
 by the quoted key.
 
-### LeakyReluRejectsASlopeOutsideItsRange
+### LeakyReLURejectsASlopeOutsideItsRange
 
 Slopes of 0, 1 and -0.1 are refused when the layer is built, with a message containing the
 context and "slope".
@@ -6352,7 +14138,7 @@ context and "slope".
 A scale of 0 is refused when the layer is built, with a message containing the context,
 "Upsample2d" and "scale".
 
-### LeakyReluAndUpsampleReadTheirOptionalKey
+### LeakyReLUAndUpsampleReadTheirOptionalKey
 
 A `leaky_relu` built from an empty object has slope 0.01, and one built with `"slope": 0.25`
 has 0.25. An `upsample` built from an empty object maps [4, 4, 2] to [8, 8, 2], and one built
@@ -6391,7 +14177,7 @@ The stack's output goes into `NN::CrossEntropyLoss`, and the loss is differentia
 the six parameters the walk yields. Every gradient is a value other than `K_NO_VALUE` with the
 shape of its parameter. The case checks that the graph differentiates; it computes no number.
 
-### ASiluRowTracesOneSiluNode
+### ASiLURowTracesOneSiLUNode
 
 The layer of a `silu` row over [8, 8, 2], traced over [4, 8, 8, 2], adds one node. Its
 operation is `Ops::K_SILU` and the result keeps the shape [4, 8, 8, 2].
@@ -6466,6 +14252,31 @@ walks are compared through cannot become trivially equal by both paths going emp
 The gap is the whole reason the naming matches: indices track layer positions, not parameter
 positions. A stack that renumbered would produce "1.weight" for the second Linear and load
 nothing.
+
+### ReportsTheLastLayersOutputWidth
+
+The stack of `make_stack` has a size of 3, is not empty and reports 4 output features.
+
+### TracesTheLayersInOrder
+
+`forward` of that stack over a [4, 6] input gives a [4, 4] value.
+
+### RefusesToTraceWhenEmpty
+
+`forward` of an empty stack raises an error holding "no layers" and "identity".
+
+### RefusesAnOutputWidthWhenEmpty
+
+`output_features` of an empty stack raises an error holding "no layers".
+
+### RefusesANullLayer
+
+`push(nullptr)` raises an error holding "null layer" and "index 0".
+
+### ReportsAnOutOfRangeLayerIndex
+
+On a stack of three layers `layer(2)` does not throw, and `layer(3)` raises an error holding
+"layer 3" and "holds 3".
 
 ### TracingTwiceDoesNotDuplicateParameters
 
@@ -6546,10 +14357,14 @@ Tests that every value carries a tensor layout and that the rebuilding passes ke
 This file needs no device. The IR and its builder are host-lane, which is the point of keeping
 shape inference out of the lowering.
 
-### EveryValueIsNhwcUnlessSaidOtherwise
+### EveryValueIsNHWCUnlessSaidOtherwise
 
 CV-3 fixes one native layout. A value that never mentions layout is NHWC, so a graph built by
 code that predates this field is uniform by construction and not by accident.
+
+### FinaliseAcceptsAUniformGraph
+
+`finalise` does not throw on a graph of one MATMUL over a [2, 4] input and a [4, 3] parameter.
 
 ### FinaliseRejectsAMixedGraphAndNamesTheValue
 
@@ -6597,7 +14412,7 @@ passes for the wrong reason. A graph that is uniform because it was flattened ca
 from one that was uniform to begin with, so the proof has to be re-run against tags that
 survived.
 
-### TheThreeRulesThatEmitZerosCannotBeReachedWithAnNchwOperand
+### TheThreeRulesThatEmitZerosCannotBeReachedWithAnNCHWOperand
 
 The test checks why the zeros exposure is latent and not live, and does not leave that to a
 comment. It is the premise the `zeros_like()` change rests on, and it is a premise about other
@@ -6638,7 +14453,7 @@ Tests the LeakyReLU layer's trace, shape inference and slope range.
 
 This file needs no device. `NN::LeakyReLU` in `modules/layers/nn/include/SushiAI/nn/leaky_relu.hpp` holds a
 slope and no parameter, and the slope must lie strictly inside (0, 1). The section on
-`test_ops.cpp`, under LeakyReluDifferentiatesAtItsOutput, says why a slope of 0 or below is
+`test_ops.cpp`, under LeakyReLUDifferentiatesAtItsOutput, says why a slope of 0 or below is
 excluded: the gradient reads the layer's output, which is a substitution only for a positive
 slope.
 
@@ -6660,7 +14475,7 @@ so an exception of another type does not count as a rejection.
 
 A default-constructed layer has slope 0.01.
 
-### ForwardEmitsOneLeakyReluNodeCarryingTheSlope
+### ForwardEmitsOneLeakyReLUNodeCarryingTheSlope
 
 The trace of a layer with slope 0.2 adds exactly one node, a K_LEAKY_RELU with the input as its
 one operand and the result as its one output. Attribute slot 0 of the node holds 0.2.
@@ -6669,7 +14484,7 @@ one operand and the result as its one output. Attribute slot 0 of the node holds
 
 A [2, 4] input traces to a [2, 4] value of the input's element type.
 
-### ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch
+### ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch
 
 A [2, 8, 6, 3] input traces to a value of the same shape tagged NHWC.
 
@@ -6704,7 +14519,7 @@ A slope of -0.01 is rejected.
 
 A slope of 1.5 is rejected.
 
-### ForwardRejectsANanSlope
+### ForwardRejectsANaNSlope
 
 A NaN slope is rejected. NaN compares false against both bounds, so a check written as "throw
 when the slope is at or below 0 or at or above 1" lets it through.
@@ -6732,6 +14547,76 @@ After `forward()` throws for a slope of 1, the node count and the value count ar
 
 `parameter_count` is 0 before a trace. After one the walk visits nothing and
 `parameter_elements` is 0.
+
+## modules/layers/nn/tests/test_linked_rows.cpp
+
+Suites: `Unit_LinkedRows`, `Unit_LinkedRowsDeathTest`.
+
+Tests `NN::Detail::read_row_above`, `NN::LinkedNodeEntry` rows of `NN::NodeRegistry` and
+`NN::BuiltRows`. The file registers a linked type `follower` whose factory reads a row number
+under the key `names`, fails unless that row holds an embedding and returns an `Identity`
+node.
+
+### ARowReferenceTakesThreeForms
+
+With three rows above, `{"names": 0}` reads as row 0, `{"names": -1}` as row 2 and
+`{"names": {"node": 1}}` as row 1.
+
+### ARowReferenceThatDoesNotFitIsRefused
+
+Seven references fail with `InvalidDescription`: row 3 of three ("layer 3", "'names'", "row 3",
+"not above"), -2 ("row -2"), -1 with no row above ("0 rows are above"), a string ("row number",
+"string"), an object with a `port` key ("'port'"), an empty object ("'node'") and an absent key
+("'names'", "absent").
+
+### ALinkedTypeHasOneRowAmongAllKinds
+
+`find_linked("follower")` returns a row, `find_node("follower")` is null and `linked()` holds
+that one row. Adding a linked row named `concat` or `relu`, or a `NodeEntry` named `follower`,
+fails with `InvalidDescription`, the name and "already".
+
+### BuildModelHandsALinkedRowTheRowsAbove
+
+`NN::build_model` over an embedding row, a `layernorm` row and a `follower` row naming row 0
+returns a model of three nodes. `NN::find_embedding` returns a layer for node 0 and null for
+node 1. The same model with `"names": -1` fails with `InvalidDescription`, "layer 2
+'follower'", "row 1" and "no embedding".
+
+### ALinkedRowBuiltAloneSeesNoRow
+
+`NN::make_node` for `follower` with `{"names": 0}` fails with `InvalidDescription`, "layer 0
+'follower'" and "not above". For the unknown type `missing` it fails with a message containing
+`'missing'` and `'follower'`.
+
+### BuiltRowsCountsTheNodesOfItsGraph
+
+A `BuiltRows` over a `ModelGraph` of one node has the size 1 and `node(0)` is the graph's node
+0. A default `BuiltRows` has the size 0.
+
+### ARowOutsideTheViewIsFatal
+
+`node(0)` on a default `BuiltRows` stops the process with a report containing
+"BuiltRows::node" and "row 0".
+
+## modules/core/graph/tests/test_log_softmax_ops.cpp
+
+Suites: `Unit_LogSoftmaxOps`.
+
+Tests `GraphBuilder::log_softmax_backward`.
+
+### TheGradientWritesItsIdentityAndKeepsTheShape
+
+Over a [4, 3] float64 gradient and the `log_softmax` of a [4, 3] float64 input, the call is ok
+and emits one LOG_SOFTMAX_BACKWARD node that reads the gradient and then the log-probabilities.
+The result has the shape [4, 3], the type float64 and the lifetime `Activation`, and the graph
+has no refusal.
+
+### TheGradientRefusesOperandsThatDoNotFit
+
+Four calls fail with `InvalidDescription`: rank-3 operands ("rank-2 log-probabilities"), int32
+operands ("half, float32 or float64 log-probabilities"), a [4, 5] gradient ("[4, 5]") and a
+float64 gradient under float32 log-probabilities ("a gradient like them"). After each the node
+count is unchanged and `has_refusal()` is true.
 
 ## test_loss_roots.cpp
 
@@ -6833,12 +14718,12 @@ A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` appends K_EXP, K_SUB, 
 K_MATMUL, K_MATMUL, K_RELU_BACKWARD, K_SUM_ROWS, K_MATMUL. The graph holds no K_ZERO and no K_CONSTANT: the
 fused rule starts from the root's implicit gradient and needs no seed node.
 
-### AnUnfusedNllLossRootEmitsNoSeedNode
+### AnUnfusedNLLLossRootEmitsNoSeedNode
 
 K_NLL_LOSS over a K_RELU result appends K_SCALE then K_RELU_BACKWARD. The K_SCALE reads the targets
 alone, so no seed node precedes it.
 
-### AnNllLossRootAppliesTheSeedFactorInItsOwnRule
+### AnNLLLossRootAppliesTheSeedFactorInItsOwnRule
 
 With a seed factor, a K_LOG_SOFTMAX and K_NLL_LOSS pair appends K_EXP, K_SUB, K_SCALE, K_DYNAMIC_SCALE, and
 the result of the K_DYNAMIC_SCALE is the gradient of `x`.
@@ -6929,6 +14814,21 @@ The control matters as much as the case. A growth test that only ran N clean ste
 doubling would pass against an implementation that doubled after every step, so each growth
 assertion in this file is paired with the N-1 run that must not double.
 
+### TheScaleStartsWhereItWasAsked
+
+A state made with the initial scale 65536 reports that scale, its inverse 1 / 65536, no
+skipped last step and 0 skipped steps.
+
+### AnOverflowHalvesTheScaleAndSkipsTheStep
+
+From the initial scale 1024, `observe(true)` gives the scale 512. The last step counts as
+skipped, and the state reports 1 skipped step, 1 backoff and 0 growths.
+
+### TheScaleDoublesAfterExactlyTheGrowthInterval
+
+From the initial scale 1024 with a growth interval of 4, four clean steps give the scale
+2048, 1 growth and no skipped last step.
+
 ### OneStepShortOfTheIntervalTheScaleDoesNotMove
 
 This case is the control for TheScaleDoublesAfterExactlyTheGrowthInterval. Without it, "the
@@ -6940,6 +14840,11 @@ one.
 Three clean steps since the overflow is one short of the interval, so nothing has grown back.
 The scale is still the backed-off one.
 
+### GrowthStopsAtTheCeilingWithoutCountingAGrowth
+
+With an interval of 1, the initial scale 1024 and the maximum 2048, one clean step gives 2048.
+A second leaves the scale at 2048 and the growth count at 1.
+
 ### BackoffStopsAtTheFloorButStillSkipsTheStep
 
 At the floor the scale cannot go lower. The step is still garbage and must still be thrown
@@ -6950,6 +14855,12 @@ away, or an overflowed gradient reaches the weights the moment the backoff botto
 Every constant is a power of two so that scaling and unscaling change only the exponent field.
 A scale of 3 would work and would quietly make every gradient in the model carry a rounding
 error, so it is refused.
+
+### IncoherentBoundsAreRefused
+
+`LossScaleState::make` fails with `InvalidDescription` for an initial scale of 65536 above a
+maximum of 1024 ("outside the bounds") and for a growth interval of 0
+("growth interval must be positive").
 
 ### EveryReachableScaleHasAnExactReciprocal
 
@@ -6975,7 +14886,7 @@ Each entry of `Ops::K_ALL` has exactly one row, or it is listed in `K_UNLOWERED`
 
 ### TheUnloweredIdentitiesHaveNoRow
 
-`K_UNLOWERED` holds three identities, and none of them has a row.
+`K_UNLOWERED` holds four identities, and none of them has a row.
 
 ### NoOperationHasTwoRows
 
@@ -6988,8 +14899,8 @@ operation table's size.
 
 ### EachDomainTableHasItsRowCount
 
-The domain tables hold 17, 14, 3, 2, 4, 12, 4 and 6 rows, in the order elementwise, activation,
-linalg, loss, shape, spatial, norm and fused. The joined table holds 62.
+The domain tables hold 17, 14, 6, 3, 4, 15, 6 and 6 rows, in the order elementwise, activation,
+linalg, loss, shape, spatial, norm and fused. The joined table holds 71.
 
 ## modules/layers/nn/tests/test_max_pool2d.cpp
 
@@ -7022,7 +14933,7 @@ result's shape.
 
 A 2x2 stride-2 pool traces a [2, 8, 6, 3] input to [2, 4, 3, 3].
 
-### ForwardTagsItsResultNhwc
+### ForwardTagsItsResultNHWC
 
 The traced result is rank 4 and tagged NHWC.
 
@@ -7063,11 +14974,11 @@ shape agrees.
 
 `forward()` throws for a 5x5 window over a [2, 4, 4, 3] input.
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 A [2, 8, 8, 3] input is converted to NCHW, and `forward()` throws on the converted value.
 
-### ForwardNamesTheLayoutOfAnNchwInputNarrowerThanTheWindow
+### ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow
 
 A [1, 8, 8, 2] input converted to NCHW has 2 on the axis an NHWC reader takes for the height,
 which a 3x3 window does not fit. The message contains "NHWC", so the layout check runs before
@@ -7113,6 +15024,55 @@ A 5x2 window over [4, 8, 3] throws. The window fits the width, so the height che
 
 A 2x5 window over [8, 4, 3] throws. The window fits the height, so the width check refuses.
 
+### TrailingRowKeepsTheExtentOfAStrideOnePool
+
+A 2x2 pool of stride 1 over [13, 13, 4] reports [12, 12, 4]. With a trailing pad of 1 on both
+axes it reports [13, 13, 4], and a trace over a batch of 2 has that shape behind the batch.
+
+### TrailingPadAtStrideTwoGivesSevenFromThirteen
+
+A 2x2 pool of stride 2 with a trailing pad of 1 on both axes reports [7, 7, 4] over
+[13, 13, 4], and its trace over a batch of 1 is [1, 7, 7, 4].
+
+### TrailingPadGivesTwoHundredEightFromFourHundredSixteen
+
+The same pool reports [208, 208, 16] over [416, 416, 16].
+
+### TrailingPadAppliesToOneAxisOnly
+
+A 2x2 pool of stride 1 with `trailing_pad_h` 1 alone reports [3, 2, 2] over [3, 3, 2].
+
+### TrailingPadLetsAWindowFitAShortInput
+
+A 2x2 pool of stride 1 throws `Error` from `output_shape` over [1, 4, 3]. With a trailing pad
+of 1 on both axes it reports [1, 4, 3] and traces to [1, 1, 4, 3].
+
+### OutputShapeRejectsANegativeTrailingPad
+
+With `trailing_pad_w` -1, `output_shape` raises an error holding "MaxPool2d",
+"non-negative trailing padding" and "0,-1".
+
+### ForwardRejectsANegativeTrailingPad
+
+With `trailing_pad_h` -2, `forward` raises an error holding "MaxPool2d",
+"non-negative trailing padding" and "-2,0", and the graph's node count does not change.
+
+### OutputShapeRejectsATrailingPadThatOverflows
+
+With `trailing_pad_h` at the largest `int64_t`, `output_shape` raises an error holding
+"MaxPool2d" and "within 64 bits".
+
+### OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap
+
+A 2x2 pool with `trailing_pad_h` 2 raises from `output_shape` an error holding "MaxPool2d",
+"every window a tap inside the input" and "2,0".
+
+### ForwardRejectsATrailingPadThatLeavesAWindowNoTap
+
+A 2x2 pool of stride 2 with `trailing_pad_w` 3 raises from `forward` an error holding
+"MaxPool2d", "every window a tap inside the input" and "0,3", and the graph's node count does
+not change.
+
 ### TheParameterWalkVisitsNothing
 
 `parameter_count` is 0 before and after a trace.
@@ -7146,6 +15106,20 @@ The cases fall into six groups, in file order:
 - aliasing
 - mixed dtypes
 - knobs, refusals and malformed input
+
+### AnEmptyGraphAsksForNothing
+
+The plan of an empty graph has 0 values, no arena and 0 arena bytes.
+
+### ASingleActivationGetsOneArenaAndOffsetZero
+
+For one ReLU over an input, the plan has one arena of the `Activation` lifetime with one
+buffer and 128 bytes. The input is not packed. The ReLU's value is packed at offset 0 with
+128 bytes.
+
+### AGraphOfOnlyLeavesPacksNothing
+
+The plan of a graph of one input and one parameter has no arena and 0 arena bytes.
 
 ### AChainPingPongsBetweenTwoBuffers
 
@@ -7186,11 +15160,28 @@ work. A 20-byte float32 buffer at offset 0 leaves the next free byte at 20, whic
 number of float64 elements. The float64 buffer therefore has to start at 24, or its
 storage_offset would not be representable at all.
 
+### ReuseCanBeSwitchedOffAndSaysSo
+
+With `reuse` false over a chain of three ReLUs, the plan reports reuse disabled, a non-empty
+`reuse_note` and 384 arena bytes.
+
 ### TooManyNodesDeclinesOverlapRatherThanApproximatingIt
 
 The refusal is the point. A planner that quietly fell back to overlapping linear intervals
 would produce a plan that is wrong in the way TwoUnorderedBranchesNeverShareBytes describes, and
 would report a saving for it.
+
+### APinnedValueKeepsItsOwnAllocation
+
+With the first of two chained ReLU values pinned, that value is not packed and the second is.
+
+### PinningAValueThatDoesNotExistThrows
+
+`MemoryPlan::build` with the value 99 pinned throws `Error`.
+
+### ZeroAlignmentThrows
+
+`MemoryPlan::build` with an alignment of 0 throws `Error`.
 
 ### AGraphThatIsNotInTopologicalOrderThrows
 
@@ -7206,7 +15197,7 @@ and take the library's bit-for-bit replay guarantee with it.
 
 ### TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes
 
-`FusedForm::GemmBiasGelu` writes two values from one node: its result and the pre-activation
+`FusedForm::GEMMBiasGELU` writes two values from one node: its result and the pre-activation
 its epilogue spills. They have the same shape, they are born at the same instant, and the
 planner packs by liveness. "One died before the other was written" is the mistake available to
 it, and taking it would have the GELU computed from its own output with nothing to show for it.
@@ -7216,6 +15207,76 @@ use of the earlier buffer strictly reaches the later one's first write, and a no
 reach itself. The planner therefore refuses both directions and the two values conflict. That is
 an inference from an existing rule and not a rule of its own, so a future rewrite of
 `precedes()` could take it away silently.
+
+## modules/layers/train/tests/test_metrics.cpp
+
+Suites: `Unit_Metrics`.
+
+Tests `Train::Metrics`, `Train::describe_metric_value` and `Train::only_output`.
+
+### MetricsAreKeptInOrderAndFoundByName
+
+A new `Metrics` is empty. After `accuracy` 0.75 and `perplexity` 12.5 are added, `all()` holds
+them in that order, `find("perplexity")` has the value 12.5 and `find("recall")` is null.
+`value_or` returns 0.75 for `accuracy` and the fallback -1 for `recall`. After `clear()` the
+value is empty and `find("accuracy")` is null.
+
+### AnEmptyNameADuplicateAndAnOverflowAreRefused
+
+`add` fails with `InvalidDescription` for an empty name ("non-empty name") and for a second `a`
+("'a'", "twice"), and `a` keeps the value 1. After `K_METRIC_CAPACITY` metrics the next `add`
+fails with "at most 8" and `'i'`, and the size stays `K_METRIC_CAPACITY`.
+
+### AFractionPrintsAsAPercentage
+
+`describe_metric_value` gives "92.40%" for the fraction 0.9240 and "12.5" for the plain number
+12.5.
+
+### OnlyOutputReturnsTheOneTensor
+
+`only_output` over a view with one output returns the address of that output's tensor.
+
+### OnlyOutputRefusesAnyOtherCount
+
+`only_output` fails with `InvalidDescription` for no output ("published 0"), for two outputs
+("published 2") and for one output whose tensor is null ("'output'", "no tensor").
+
+## modules/layers/nn/tests/test_mish.cpp
+
+Suites: `Unit_Mish`.
+
+Tests `NN::Mish` in `modules/layers/nn/include/SushiAI/nn/mish.hpp`, which has no parameter and
+no attribute.
+
+Three `static_assert` lines at the top of the file hold that `Mish` is a `Module`, is not a
+`ModuleContainer`, and that `Mish::fields()` is an empty tuple.
+
+### ForwardEmitsSoftplusTanhThenMulReadingTheInput
+
+`forward` adds three nodes in the order SOFTPLUS, TANH, MUL. SOFTPLUS reads the input, TANH
+reads the SOFTPLUS result, and MUL reads the input and then the TANH result and writes the
+value `forward` returns.
+
+### ForwardKeepsTheShapeAndTypeOfAFeatureBatch
+
+Over a [2, 4] input the result has the shape [2, 4] and the input's element type.
+
+### ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch
+
+Over a [2, 8, 6, 3] input the result has that shape and the layout `TensorLayout::NHWC`.
+
+### ForwardCarriesTheLayoutOfItsInput
+
+Over a value converted to NCHW with `layout_convert`, the result is tagged NCHW and has the
+converted value's shape.
+
+### OutputShapeReturnsItsInput
+
+`output_shape([7])` is [7] and `output_shape([8, 6, 4])` is [8, 6, 4].
+
+### TheParameterWalkVisitsNothing
+
+After a trace, `NN::for_each_parameter` calls its visitor zero times.
 
 ## modules/layers/nn/tests/test_model_graph.cpp
 
@@ -7470,6 +15531,32 @@ The case is in the suite `Unit_ModelGraphDeathTest`. `add` given a `TwoPortNode`
 are both named "low" stops the process with a report containing "'pair'" and "two ports named
 'low'".
 
+### TraceIncrementalHandsEachLayerThePerSampleShapeItReads
+
+A model of the sample shape [5, 6] holds one `SliceProbe`. `trace_incremental` in a carrying
+trace over a [1, 1, 6] slice hands the probe the shape [5, 6] and adds one GELU node, and the
+output "y" has the shape [1, 1, 6].
+
+### TraceStillChecksThePerSampleShapeTheIncrementalWalkSkips
+
+`trace` of the same model over the [1, 1, 6] slice fails with `InvalidDescription`, "[5, 6]"
+and "[1, 1, 6]".
+
+### TraceIncrementalNamesTheNodeThatHasNoIncrementalForm
+
+With a `ReLU` named "act" after the probe, `trace_incremental` fails with `Unsupported`,
+"node 'act'" and "no incremental form".
+
+### TraceIncrementalNeedsACarryingTrace
+
+`trace_incremental` in an evaluation trace fails with `InvalidDescription` and
+"keeps nothing between runs", and adds no node.
+
+### ANestedGraphTracesItsIncrementalForm
+
+With the probe's graph added as one node of an outer graph, `trace_incremental` of the outer
+graph hands the probe [5, 6] and adds one GELU node.
+
 ## modules/layers/nn/tests/test_model_outputs.cpp
 
 Suites: `Unit_ModelOutputs`, `Unit_ModelOutputsDeathTest`.
@@ -7477,7 +15564,7 @@ Suites: `Unit_ModelOutputs`, `Unit_ModelOutputsDeathTest`.
 Tests ModelOutputs: publishing named values and reading them back.
 
 This file needs no device. `NN::ModelOutputs` in `modules/layers/nn/include/SushiAI/nn/model_outputs.hpp` is
-the set of named `ValueId`s one trace of a model publishes. `add()` returns a `Status`, and
+the set of named `ValueID`s one trace of a model publishes. `add()` returns a `Status`, and
 `at()` and `only()` return a `Result`.
 
 Three `static_assert` lines at the top of the file hold that `ModelOutputs` is final,
@@ -7546,6 +15633,123 @@ for.
 `only()` on a set of two fails with a message containing "exactly one", "has 2" and "boxes,
 scores".
 
+## modules/core/config/tests/test_model_writer.cpp
+
+Suites: `Unit_ModelWriter`.
+
+Tests `Config::write_model`. Three models are parsed from text in the file. The chain model has
+three rows and states neither `from` nor `outputs`. The full model has a `defaults` block, an
+attribute of every JSON kind, every form of a `from` entry and every form of an `outputs`
+entry. The task model has a `task` with a value of every JSON kind. A round trip parses the
+written text and compares the input shape and type, each layer's type, attributes and sources,
+the outputs and the task, with a real compared bit for bit. The two example cases locate the
+repository through `SA_TEST_FIXTURE_DIR` and report themselves skipped when it is not defined.
+
+### WritesTheInputElementTypeOnlyWhenItIsInt32
+
+The text of a float32 model does not contain "dtype". With `input_dtype` set to int32 the text
+contains `"dtype": "int32"` and reads back as int32. With float64 the write fails with
+`InvalidDescription` and "float64".
+
+### RoundTripsTheMNISTExample
+
+The model loaded from `applications/examples/mnist_cnn/model.json` round-trips.
+
+### RoundTripsTheYOLO26Example
+
+The model loaded from `applications/examples/yolo26/model.json` round-trips.
+
+### RoundTripsEveryAttributeKindAndEveryFormOfFromAndOutputs
+
+The full model round-trips.
+
+### WritesTheSameTextFromWhatItWrote
+
+The text written from the full model, parsed and written again, equals the first text.
+
+### LeavesOutTheFromAndTheOutputsTheParserFillsIn
+
+The chain model is written as `format_version`, `input` and three rows that hold a `type` and
+their attributes, with no `from` and no `outputs`. The whole text is compared.
+
+### WritesTypeThenFromThenTheAttributesAndTheOutputsLast
+
+A model whose rows state `type` after their attributes is written with `type` first, then
+`from`, then the attributes, and with `outputs` after `layers`. The whole text is compared.
+
+### WritesADefaultIntoEveryRowAndNoDefaultsBlock
+
+The text of the full model has no `defaults` key. Its first `conv` row carries `bn_epsilon`
+0.001 and `bn_momentum` 0.03 after its own keys, and the `leaky_relu` row carries `slope`
+0.001.
+
+### RoundTripsAPortOfTheModelInputAtRowZero
+
+The chain model whose row 0 reads the port `image` of `K_MODEL_INPUT` round-trips.
+
+### AnEmptyOutputsListReadsBackAsTheLastRowPublishedWhole
+
+With `outputs` cleared the text has no `outputs` key and reads back with one output: node 2,
+with an empty port and an empty name.
+
+### RefusesAModelWithoutLayers
+
+A model with no layers fails with `InvalidDescription` and "no layers".
+
+### RefusesAnInputShapeAModelFileCannotState
+
+An empty input shape fails with "input shape" and "no extents". A shape whose first extent is
+the largest int64 and whose second is 2 fails with "input shape" and "extent 1".
+
+### RefusesAttributesThatAreNotAnObject
+
+Null attributes on row 1 fail with `InvalidDescription`, "layer 1", `'relu'` and "null".
+
+### RefusesAnAttributeNamedAsARowKey
+
+An attribute named `type` on row 1 fails with "layer 1" and `'type'`. An attribute named `from`
+on row 2 fails with "layer 2" and `'from'`.
+
+### RefusesARowThatReadsNothingOrARowNotAboveIt
+
+Row 1 with no source fails with "layer 1" and "reads nothing". Row 1 reading row 1, row 0
+reading row 2 and row 2 reading row -2 each fail with the layer, the row and "not above".
+
+### RefusesAPortOfTheModelInputBelowRowZero
+
+Row 2 reading the port `image` of `K_MODEL_INPUT` fails with `InvalidDescription`, "layer 2",
+`'image'` and "row 0".
+
+### RefusesAnOutputAModelFileCannotState
+
+An output at row 3 of three fails with "output 0", "row 3" and "0 to 2". A second output at
+row -1 fails with "output 1" and "row -1". A named output without a port fails with "output
+0", `'predictions'` and "without a port".
+
+### ForwardsTheRefusalOfAnAttributeJSONCannotSpell
+
+An infinite `rate` on row 2 fails with `InvalidDescription` and a message containing "key
+'layers'", "entry 2", "key 'rate'" and "infinite".
+
+### RoundTripsATaskOfEveryValueKind
+
+The task model, whose `task` is an object, round-trips.
+
+### WritesTheTaskAfterTheOutputsWithItsKeysInOrder
+
+In the text of the task model the `outputs` key comes before the `task` key. The task reads
+back with the keys `type`, `classes`, `anchors`, `heads`, `suppression`, in that order.
+
+### LeavesOutANullTaskAndReadsItBackNull
+
+The chain model has a null task, its text has no `task` key, and the task reads back null.
+
+### RefusesATaskThatIsNotAnObjectWithAStringType
+
+Four tasks fail with `InvalidDescription` and "task": an array ("an array", "object"), an
+object without `type` ("no 'type'"), a `type` of 3 ("'type'", "a whole number") and a `type`
+of "" ("'type'", "empty string").
+
 ## modules/layers/nn/tests/test_module.cpp
 
 Suites: `Unit_Module`.
@@ -7565,11 +15769,26 @@ one graph, and the state walk over parameters, buffers and children.
 Parameters gain a shape and an id when `forward()` first runs, so the walk over an untraced
 model is legitimately empty and not full of blanks.
 
+### ALinearLayerNamesItsWeightAndBias
+
+After a trace, the walk of `Linear{4, 3}` lists `weight` [3, 4] and `bias` [3], and
+`parameter_elements` is 15.
+
+### ABiasFreeLayerSimplyHasNoBiasEntry
+
+The walk of `Linear{4, 3, false}` lists `weight` [3, 4] alone.
+
 ### SequentialNamesParametersByLayerIndex
 
 The naming follows PyTorch's convention: the index is the layer's position, so a parameterless
 activation leaves a gap and "2.weight" still names the third layer. A checkpoint diff against a
 reference stays a diff.
+
+### NestedContainersCompoundTheirIndices
+
+The walk of a `Sequential` holding a `Sequential` of a `Linear{4, 4}` and a `ReLU`, then a
+`Linear{4, 2}`, lists `0.0.weight` [4, 4], `0.0.bias` [4], `1.weight` [2, 4] and `1.bias`
+[2].
 
 ### TracingTwiceDoesNotDuplicateParameters
 
@@ -7587,6 +15806,20 @@ identical: if you edit one, edit the other.
 TheTutorialsCustomLayerTracesAndIsWalkable and TheTutorialIsRightThatMulWouldNotBroadcast also
 pin the two claims §6 makes about the sample: that bias_add is required and is not a stylistic
 choice, and that the two ways of getting `fields()` wrong fail differently.
+
+### ParametersAreDeclaredAsGradientRequiringLeaves
+
+After a trace of `Linear{4, 3}`, its weight and bias require a gradient, the weight has the
+`Parameter` lifetime, and the input does not require a gradient.
+
+### RolesAndFansAreRecordedForTheInitializer
+
+The weight of `Linear{4, 3}` has the role `Weight`, a fan-in of 4 and a fan-out of 3, and the
+bias has the role `Bias`.
+
+### LinearRejectsAnInputWhoseInnerExtentIsWrong
+
+`Linear{4, 3}` over a [2, 7] input throws `Error`.
 
 ### TheTutorialsCustomLayerTracesAndIsWalkable
 
@@ -7608,6 +15841,11 @@ The stub is deliberately not a LayerStack. This file tests the walk, and the wal
 `walk_parameters(prefix, ParameterVisitor)`. Anything that satisfies it is enumerated through
 it, whether or not it is one of the library's own types. Testing the walk against LayerStack
 would tie its test to a type that arrived two commits later.
+
+### AWalkableLeafIsEnumeratedByItsOwnWalk
+
+The walk of `WalkableStub` lists `weight` [2, 3] and `bias` [2], with a parameter count of 2
+and 8 elements.
 
 ### AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther
 
@@ -7663,7 +15901,7 @@ of its `output_shape([5])`.
 ### A parameter across graphs
 
 The cases from AParameterTracedIntoTwoGraphsHasALeafInEach to ARoleDeclareFillsByItsRole cover
-`NN::Parameter` in `modules/layers/nn/include/SushiAI/nn/module.hpp`. A parameter holds a `Graph::StateId` and
+`NN::Parameter` in `modules/layers/nn/include/SushiAI/nn/module.hpp`. A parameter holds a `Graph::StateID` and
 no graph. `declare()` adds a leaf to the graph of the builder it is given and binds the leaf to
 the state there, so one parameter has one leaf in each graph it was traced into. `id_in(graph)`
 returns that graph's leaf.
@@ -7712,14 +15950,14 @@ A parameter declared as a `SCALE` with a constant fill of 1.5 and fans of 4 is d
 second graph as a `WEIGHT` with a fan-scaled fill and fans of 9. Its fill, role and both fans
 are still the first ones, and it has a leaf in the second graph.
 
-### ACopiedLayerHasANewStateId
+### ACopiedLayerHasANewStateID
 
 A copy of a traced `Linear` has a weight whose state is `K_NO_STATE` and whose `id_in(graph)`
 is `K_NO_VALUE`, and `declared()` is true. Once the copy is traced, its weight has a leaf in the
 graph and a state that differs from the original's, and its weight and bias leaves differ from
 the original's.
 
-### AMovedLayerKeepsItsStateId
+### AMovedLayerKeepsItsStateID
 
 A `Linear` move-constructed from a traced one has the same weight state and the same weight
 leaf in the graph. Tracing it again adds two values, the two activations, and no parameter
@@ -7734,6 +15972,23 @@ constant fill of 0.0 for a `BIAS`.
 
 A `declare()` that states both keeps both: a `BIAS` with a constant fill of 1.5 and a fan-in
 of 4, and a `WEIGHT` with a fan-scaled fill. The bias's leaf requires a gradient.
+
+### ANormalFillKeepsItsDeviation
+
+`ParameterInit::normal(0.02)` has the kind `Normal`, the deviation 0.02 and the constant 0.
+`fan_scaled()` has the kind `FanScaled` and the deviation 0. `constant_value(1.5)` has the
+kind `Constant`, the constant 1.5 and the deviation 0.
+
+### AnEmbeddingRoleWithoutAFillIsFanScaled
+
+A parameter declared with the role `Embedding` and no fill reports that role and an init of
+the kind `FanScaled`.
+
+### ALinearDeclaresTheFillItStates
+
+After a trace, the weight of a default `Linear{3, 4}` has an init of the kind `FanScaled`.
+With `weight_init` set to `normal(0.02)` the weight's init is `Normal` with the deviation
+0.02, its role is still `Weight`, and the bias's init is `Constant`.
 
 ### ARoleDeclareFillsByItsRole
 
@@ -7842,7 +16097,7 @@ and "parameter 2.bias:[3]", and `buffer_count` is 0.
 
 Three `static_assert` lines hold that `Sequential<Linear, ReLU>` is a `Module`, that it stays
 one when nested in another `Sequential`, and that its `forward` over a `GraphBuilder` returns
-a `Graph::ValueId`. A nested model of `Linear{4, 8}`, `ReLU` and `Linear{8, 3}` traces to
+a `Graph::ValueID`. A nested model of `Linear{4, 8}`, `ReLU` and `Linear{8, 3}` traces to
 [2, 3] through the builder and walks as "0.0.weight:[8, 4]", "0.0.bias:[8]", "1.weight:[3, 8]"
 and "1.bias:[3]".
 
@@ -8090,30 +16345,17 @@ stops the process with a report containing "LayerNode" and "null layer".
 
 Suites: `Unit_NodeRegistry`.
 
-Tests the node registry, make_node, build_model and the YOLO26n model file.
+Tests `NN::NodeRegistry`, `NN::register_layers`, `NN::make_node` and `NN::build_model` over
+the rows `register_layers` adds. The file needs no device. `make_node` looks a type up among
+the registry's node rows and then among its layer rows, and wraps a layer in an
+`NN::LayerNode`. `build_model` turns a `Config::ModelSpec` into an `NN::ModelGraph`. Each
+returns a `Result`. `MinimalCase`, `TraceSummary`, `span_of`, `make_minimal` and
+`trace_summary` come from `tests/common/test_utils.hpp`.
 
-This file needs no device. `NN::K_NODE_REGISTRY` in `modules/layers/nn/include/SushiAI/nn/node_registry.hpp` is
-the table of node types a model file can name. `NN::make_node` builds the node of one row: it
-looks the type up in `K_NODE_REGISTRY` and then in `NN::K_LAYER_REGISTRY`, and wraps a layer of
-the second table in an `NN::LayerNode`. `NN::build_model` turns a `Config::ModelSpec` into an
-`NN::ModelGraph`. All three return a `Result`.
+### K_NORM
 
-The last six cases read `applications/examples/yolo26/model.json`, and three of them also read
-`tests/fixtures/yolo26/MANIFEST.json`. They locate the repository through
-`Test::fixture_directory()` and report themselves skipped when that directory is not defined
-for the binary.
-
-### OpList
-
-`OpList` is a vector of the operation of every node of a graph, in order.
-
-### Constants
-
-`K_YOLO_NORM` is `NormOptions{1e-3, 0.03}`. `K_BATCH` is 2, the batch size of every trace in
-the file. `K_YOLO_ROWS` is 24, the row count of the YOLO26n model file. `K_ATTENTION_ROW` is
-10, the row that names a type no table holds, and `K_ATTENTION_INNER_ROW` is 22, the row whose
-inner block no table holds. `K_TOLERANCE` is 1e-12, the absolute bound on a real number read
-from a file.
+`K_NORM` is `NormOptions{1e-3, 0.03}`, the epsilon and the momentum the defaults of
+`K_BRANCHING_MODEL` state.
 
 ### MinimalCase
 
@@ -8122,7 +16364,8 @@ row reads and the per-sample shape of the node's one port.
 
 ### K_MINIMAL_CASES
 
-`K_MINIMAL_CASES` has one `MinimalCase` per row of `K_NODE_REGISTRY`, in the table's order.
+`K_MINIMAL_CASES` has one `MinimalCase` per node row of `registered()`, in row order:
+batchnorm2d, concat, add, embedding, layernorm and dropout.
 
 ### LayerCase
 
@@ -8131,32 +16374,25 @@ the row reads.
 
 ### K_LAYER_CASES
 
-`K_LAYER_CASES` has one `LayerCase` per row of `NN::K_LAYER_REGISTRY`, in the table's order.
+`K_LAYER_CASES` has one `LayerCase` per layer row of `registered()`, in row order.
 
 ### K_INPUT_JOINING_MODEL
 
-`K_INPUT_JOINING_MODEL` is a version 2 model over [8, 8, 3] with three rows: a `conv` of 4
-filters, a `silu`, and a `concat` whose `from` is `["input", -1]`.
+`K_INPUT_JOINING_MODEL` is a version 2 model over [8, 8, 3] with three rows: a `conv2d` of 4
+filters and kernel 1, a `silu`, and a `concat` whose `from` is `["input", -1]`.
 
 ### K_BRANCHING_MODEL
 
 `K_BRANCHING_MODEL` is a version 2 model over [16, 16, 3] with a `defaults` block that gives
-every `conv` row `bn_epsilon` 0.001 and `bn_momentum` 0.03. Its five rows are a `conv` of 8
-filters, kernel 3 and stride 2; a `conv` of 16 filters with the same window; an `upsample` of
-scale 2; a `concat` whose `from` is `[-1, 0]`; and a `conv` of 8 filters and kernel 1.
+every `batchnorm2d` row `bn_epsilon` 0.001 and `bn_momentum` 0.03. Its seven rows are a
+`conv2d` of 8 filters, kernel 3 and stride 2; a `conv2d` of 16 filters with the same window;
+an `upsample` of scale 2; a `concat` whose `from` is `[-1, 0]`; a `conv2d` of 8 filters and
+kernel 1; a `batchnorm2d`; and a `silu`.
 
 ### TraceSummary
 
 `TraceSummary` holds the operation list of one traced graph, each published output as "name
-[extents]" and each piece of state as `record` writes it.
-
-### attributes_of
-
-`attributes_of` parses a string of JSON as the attributes of one row.
-
-### model_of
-
-`model_of` parses a string of JSON as a model file through `Config::parse_model`.
+[extents]" and each piece of state as "name [extents] parameter" or "name [extents] buffer".
 
 ### span_of
 
@@ -8167,91 +16403,48 @@ scale 2; a `concat` whose `from` is `[-1, 0]`; and a `conv` of 8 filters and ker
 `make_minimal` calls `NN::make_node` for a `MinimalCase` with given attributes and the context
 "layer 0 '<type>'".
 
-### record
-
-`record` writes one piece of state as "name [extents] parameter" or "name [extents] buffer".
-
-### state_records
-
-`state_records` returns one `record` per parameter and buffer that `ModelGraph::walk_state`
-yields under a prefix.
-
 ### trace_summary
 
-`trace_summary` traces a model under a training trace over a batch of `K_BATCH` samples and
-returns its `TraceSummary`.
+`trace_summary` traces a model under a training trace over a batch of 2 samples and returns
+its `TraceSummary`.
+
+### registered
+
+`registered` returns a registry that `register_layers` filled.
 
 ### build_branching_model_by_hand
 
 `build_branching_model_by_hand` builds the graph `K_BRANCHING_MODEL` describes through
-`ModelGraph::add`, with the nodes named "0" to "4", and publishes the last node through
+`ModelGraph::add`, with the nodes named "0" to "6", and publishes the last node through
 `output_ports`.
-
-### repository_root
-
-`repository_root` returns the directory two levels above `Test::fixture_directory()`, or an
-empty path when that directory is unknown.
-
-### yolo_model_path
-
-`yolo_model_path` returns `applications/examples/yolo26/model.json` under a root.
-
-### manifest_path
-
-`manifest_path` returns the `MANIFEST.json` of the YOLO26 fixture folder under a root.
-
-### manifest_file
-
-`manifest_file` returns the entry of the manifest's `files` array with a given name, and throws
-when there is none.
-
-### record_row
-
-`record_row` returns the row index of a manifest record named "model.<row>.<rest>".
-
-### manifest_records
-
-`manifest_records` lists the `weights.sacp` records of a range of rows in manifest order, as
-`record` writes them. A name that contains ".running_" is a buffer.
-
-### stand_in
-
-`stand_in` replaces the type and the attributes of one row of a `ModelSpec` and keeps its
-sources.
-
-### keep_first_rows
-
-`keep_first_rows` truncates a `ModelSpec` to its first rows and sets its outputs to the last
-kept row.
 
 ### named_output
 
 `named_output` returns an `OutputSpec` that publishes the port `NN::K_SINGLE_PORT_NAME` of a
 row under a name.
 
-### K_YOLO_ROW_SHAPES
+### RegisterLayersAddsTheRowsInOrder
 
-`K_YOLO_ROW_SHAPES` lists the per-sample shape of rows 0 to 21 of YOLO26n over a
-[640, 640, 3] input, from [320, 320, 16] for row 0 to [20, 20, 384] for row 21.
+`register_layers` gives the layer rows linear, gelu, relu, tanh, sigmoid, leaky_relu,
+unflatten, conv2d, maxpool2d, avgpool2d, global_avgpool, flatten, upsample, silu, mish and
+slice_channels, and the node rows batchnorm2d, concat, add, embedding, layernorm and dropout,
+each list in that order.
 
-### SA_FIND_REPOSITORY_OR_SKIP
+### ATypeAddedTwiceIsRefused
 
-`SA_FIND_REPOSITORY_OR_SKIP(root)` declares `root` as `repository_root()` and skips the test
-when it is empty.
+Adding a node row named "concat", and one named "relu", each fail with `InvalidDescription`,
+"the type '<name>'" and "already". The node and layer row counts do not change.
 
-### TheTypeStringsAreTheOnesModelFilesSpell
+### AnEmptyRegistryKnowsNoType
 
-The `type` fields of `K_NODE_REGISTRY` are "batchnorm2d", "concat", "conv", "bottleneck",
-"c3k", "c3k2" and "sppf", in that order.
-
-### NoTypeIsInBothTables
-
-No `type` of `K_NODE_REGISTRY` equals a `type` of `K_LAYER_REGISTRY`.
+`make_node` of "silu" over an empty registry fails with `InvalidDescription`, "layer 0",
+"the type 'silu'" and "does not have", and its message ends with
+"the node types are: ; the layer types are: ".
 
 ### EveryRowHasAMinimalCase
 
-`K_MINIMAL_CASES` has as many entries as `K_NODE_REGISTRY`, and entry `i` names the type of
-row `i`.
+`K_MINIMAL_CASES` has as many entries as `registered()` has node rows, and entry `i` names
+the type of row `i`.
 
 ### EachRowBuildsFromAMinimalObject
 
@@ -8270,13 +16463,14 @@ A `concat` row over [4, 4, 2] and [8, 4, 2] fails with a message containing "lay
 
 ### ANodeTypeBuildsItsOwnNode
 
-`make_node("conv", ...)` returns a `ModuleNode<Conv>` and not a `LayerNode`.
+`make_node("concat", ...)` over [4, 4, 2] and [4, 4, 3] returns an `NN::Concat` and not a
+`LayerNode`.
 
 ### ALayerTypeIsWrappedInALayerNode
 
 `make_node("upsample", ...)` with scale 2 over [4, 4, 2] returns a `LayerNode` with one port
 named `K_SINGLE_PORT_NAME` of shape [8, 8, 2]. The case then walks `K_LAYER_CASES`, which has
-one entry per row of `K_LAYER_REGISTRY` in order. Every type builds a `LayerNode`, and every
+one entry per layer row of the registry in order. Every type builds a `LayerNode`, and every
 type given `{"no_such_key": 1}` fails with "'no_such_key'", which shows the layer's own
 factory ran.
 
@@ -8292,19 +16486,39 @@ A `linear` row with no attribute fails with a message containing "layer 4 'linea
 The layer factories throw, and `make_node` returns each throw as an `InvalidDescription`
 failure.
 
+### AMaxPoolRowReadsItsTrailingPadding
+
+Over [13, 13, 2] with `kernel` 2 and `stride` 1, the maxpool2d row gives a port of
+[13, 13, 2] for `trailing_padding` 1, [13, 12, 2] for [1, 0] and [12, 12, 2] without the key.
+
+### AnAvgPoolRowRefusesTrailingPadding
+
+The avgpool2d row with `trailing_padding` fails with `InvalidDescription`,
+"layer 0 'avgpool2d'" and "'trailing_padding'".
+
+### AMaxPoolRowRefusesANegativeTrailingPadding
+
+The maxpool2d row with `trailing_padding` -1 fails with `InvalidDescription`,
+"layer 0 'maxpool2d'", "non-negative trailing padding" and "-1,-1".
+
+### ASliceChannelsRowReadsItsOffsetAndCount
+
+Over [4, 4, 64], the slice_channels row with `offset` 32 and `count` 32 gives a port of
+[4, 4, 32]. With `offset` 48 and `count` 32 it fails with `InvalidDescription`,
+"layer 0 'slice_channels'", "offset=48" and "count=32", and without `count` with "count".
+
 ### AnUnknownTypeListsBothTables
 
 `make_node("conv3d", ...)` fails with a message containing "layer 5 'conv3d'", "the type
 'conv3d'", "does not have", "node types" and "layer types". The message also contains every
-type of `K_NODE_REGISTRY` and of `K_LAYER_REGISTRY` in quotes.
+type of the registry's node rows and of its layer rows in quotes.
 
 ### AFileAndAHandBuiltGraphAgree
 
-`build_model` of `K_BRANCHING_MODEL` and `build_branching_model_by_hand` both hold five nodes.
-Their training traces have equal operation lists, equal outputs and equal state records. The
-one output is "output [2, 8, 8, 8]". The state holds 15 records, five for each of the three
-`conv` rows, from "model.0.conv.weight [8, 3, 3, 3] parameter" to "model.4.bn.running_var [8]
-buffer".
+`build_model` of `K_BRANCHING_MODEL` and `build_branching_model_by_hand` both hold seven
+nodes. Their training traces have equal operation lists, equal outputs and equal state
+records. The one output is "output [2, 8, 8, 8]". The state holds 7 records, from
+"model.0.weight [8, 3, 3, 3] parameter" to "model.5.running_var [8] buffer".
 
 ### ARowReadsItsSourcesInFileOrder
 
@@ -8323,7 +16537,7 @@ An output of row 1 with an empty name is published as "output [2, 4, 4, 16]".
 ### ASourceMayNameAPort
 
 A source that names the port `K_SINGLE_PORT_NAME` of the row above builds. A source that names
-"no_such_port" fails with "layer 1 'conv'" and "'no_such_port'".
+"no_such_port" fails with "layer 1 'conv2d'" and "'no_such_port'".
 
 ### ALaterRowMayReadTheModelInput
 
@@ -8337,13 +16551,13 @@ A source that is the model input and names a port fails with a message containin
 
 ### ARefusedRowNamesItsIndexAndType
 
-Row 4 with `filters` 0 fails with a message containing "layer 4 'conv'", "'filters'" and
-"positive".
+Row 4 with `filters` 0 fails with a message containing "layer 4 'conv2d'",
+"positive channel counts" and "out=0".
 
 ### ARowThatReadsARowNotAboveItIsRefused
 
 The specs here are changed after parsing, so they hold what the parser would have refused. A
-source of row 3 on row 1 fails with "layer 1 'conv'", "row 3" and "not above". A source of -2
+source of row 3 on row 1 fails with "layer 1 'conv2d'", "row 3" and "not above". A source of -2
 on row 2 fails with "layer 2 'upsample'" and "row -2". A row with no source fails with "layer 2
 'upsample'" and "no source".
 
@@ -8354,67 +16568,32 @@ as that of the model built from the parsed spec.
 
 ### AWrongOutputListIsRefused
 
-A spec with no layer fails with "no layers". An output of row 5 fails with "output 0", "row 5"
-and "rows 0 to 4". A named output with an empty port fails with "output 0", "'mixed'" and
+A spec with no layer fails with "no layers". An output of row 7 fails with "output 0", "row 7"
+and "rows 0 to 6". A named output with an empty port fails with "output 0", "'mixed'" and
 "without a port". An output of the port "no_such_port" fails with "output 0" and
 "'no_such_port'". Two outputs named "mixed" fail with "output 1" and "'mixed'".
 
-### TheYolo26FileHoldsItsTwentyFourRows
-
-`Config::load_model` of `applications/examples/yolo26/model.json` returns 24 rows over [640, 640, 3]. The
-types in order are conv, conv, c3k2, conv, c3k2, conv, c3k2, conv, c3k2, sppf, c2psa,
-upsample, concat, c3k2, upsample, concat, c3k2, conv, concat, c3k2, conv, concat, c3k2 and
-detect. Row 0 reads the model input. The four joins read rows 11 and 6, 14 and 4, 17 and 13,
-and 20 and 10, and row 23 reads rows 16, 19 and 22. Row 0 carries `bn_epsilon` 0.001 and row 9
-`bn_momentum` 0.03 from the defaults, and row 11, an `upsample`, has no `bn_epsilon`. The one
-output is row 23 with no port.
-
-### TheYolo26FileNamesEachMissingBlock
-
-`build_model` of the file fails at row 10 with a message containing "layer 10 'c2psa'", "the
-type 'c2psa'", "does not have", "'c3k2'" and "'upsample'". With a `silu` row standing in for
-row 10 it fails at row 22 with "layer 22 'c3k2'", "'inner'", "'bottleneck_psa'" and
-"bottleneck, c3k". With a `conv` row of 256 filters standing in for row 22 it fails at row 23
-with "layer 23 'detect'", "the type 'detect'" and "does not have".
-
-### Yolo26RowsTwoAndFourAddTheirBottlenecksInput
-
-Rows 2 and 4 of the file state `shortcut` true. The model built from rows 0 to 4 traces two K_ADD
-nodes, one for the bottleneck of each of the two `c3k2` rows.
-
-### Yolo26RowsZeroToNineMatchTheManifest
-
-The model built from rows 0 to 9 is traced, and its state records under "model" equal the 165
-records `manifest_records` reads from `MANIFEST.json` for rows 0 to 9: names, shapes, kinds
-and order. The one output is "output [2, 20, 20, 256]".
-
-### Yolo26RowsBuildToTheReferenceShapes
-
-With a `silu` row standing in for row 10, the model built from rows 0 to 21 has 22 nodes, and
-node `i` declares `K_YOLO_ROW_SHAPES[i]` on its one port.
-
-### Yolo26NeckTracesToTheReferenceLevels
-
-With the same stand-in, rows 16, 19 and 21 are published as "level0", "level1" and "joined".
-For levels 0 and 1 the traced shape is [2, height, width, channels] with the three numbers
-read from the `levels` array of the manifest's `forward.sacp` entry, and the level's `stride`
-times its height is 640. The third output is "joined [2, 20, 20, 384]". The state records
-equal the manifest's records for rows 0 to 9 followed by its 145 records for rows 11 to 21.
-
 ## modules/layers/train/tests/test_objective.cpp
 
-Suites: `Unit_Objective`.
+Suites: `Unit_Objective`, `Unit_ObjectiveScore`.
 
-Tests the objective seam: the leaves it declares, the loss it emits and the resulting IR.
+Tests the objective seam: the leaves it declares, the loss it emits, the resulting IR, and what
+`feed` and `measure` do with a batch.
 
-This file needs no device. Declaring leaves and emitting a loss are IR-to-IR, so the whole
-objective seam is testable without an Engine. Only `score()` needs a tensor, and the integration
-tier covers that through the trainer.
+The `Unit_Objective` cases need no device. Declaring leaves and emitting a loss are IR-to-IR,
+so that part of the seam is testable without an Engine. The `Unit_ObjectiveScore` fixture is
+an `EngineTest`, because `feed` and `measure` read tensors.
 
-The test that carries this file is BuildGraphAndBuildClassifierProduceTheSameIr. The objective
+The test that carries this file is BuildGraphAndBuildClassifierProduceTheSameIR. The objective
 seam's whole promise is that it changed no numbers. The way to check that is not "the loss still
 falls". It is that the two entry points emit the same graph, node for node, in the same order. A
 graph comparison fails on a reordering that a loss comparison would absorb.
+
+### BuildGraphAndBuildClassifierProduceTheSameIR
+
+`build_classifier` and `build_training_graph` with a `CrossEntropyObjective`, each over its
+own model of the same widths, give graphs with the same value count, node count and
+description, and specs with the same `inputs`, `targets`, `logits` and `loss` ids.
 
 ### TheTargetLeafIsDeclaredWhereItAlwaysWas
 
@@ -8423,14 +16602,62 @@ positions, so declaring it anywhere else renumbers the whole graph. Every regres
 pins a node count or a byte-for-byte result would then compare two different graphs while
 appearing to compare one.
 
+### CrossEntropyRequiresTheLabelsRole
+
+The training graph under `CrossEntropyObjective(4, 3)` requires one role: `K_ROLE_LABELS`
+with an empty sample shape, `Int32` and 3 classes.
+
+### LeavesKeepEveryRequiredRoleInOrder
+
+`ObjectiveLeaves` starts with no required role. After `require` of labels, boxes and labels
+again it lists the three in that order, the second with the sample shape [8, 4], and still
+has no leaf.
+
+### AccuracyIsReadFromTheLabelsRole
+
+`measure` over the fixture's logits and the labels 1, 0, 0 reports one metric, `accuracy`,
+with `is_fraction` set and the value 2/3.
+
+### ABatchWithoutTheLabelsRoleIsRefused
+
+`measure` over a batch without targets fails with `InvalidDescription` and "'labels'", and
+adds no metric.
+
+### AccuracyReadsOneOutput
+
+`measure` over a step with two outputs fails with `InvalidDescription`, "one model output"
+and "published 2".
+
+### FeedWritesTheOneHotRowsOfTheLabels
+
+`feed` of the labels 1, 0, 0 over 2 classes writes 0, 1, 1, 0, 1, 0 into the tensor bound to
+the `targets` leaf.
+
+### AnObjectiveFedByItsOwnStepRefusesABatch
+
+`feed` of the base class fails with `Unsupported`, "'step_fed'" and "fed by its own step".
+Its `measure` succeeds and adds no metric.
+
+### ALeafWithoutATensorIsNamed
+
+`find_leaf_tensor` fails with `InvalidDescription` for a leaf that was not declared
+("no leaf 'collocation'") and for a declared leaf the pool has no tensor for ("no tensor",
+"'targets'").
+
 ### TheObjectiveOwnsTheOutputShapeCheck
 
 What shape an output must be is the objective's question, since a detector's is not a
 classifier's. The message therefore comes from the objective and not from the graph builder.
 
+### LeavesRefuseADuplicateRoleAndNameAnAbsentOne
+
+Adding the leaf `targets` a second time raises an error holding "'targets'" and "twice".
+`at("collocation")` raises one holding "'collocation'" and "'targets'". `has` is true for
+`targets` and false for `collocation`, and the set holds one leaf.
+
 ### CrossEntropyReadsTheOnlyOutput
 
-The model of `Mlp` with 6, 8 and 3 units publishes one output, under the name
+The model of `MLP` with 6, 8 and 3 units publishes one output, under the name
 `NN::K_SINGLE_PORT_NAME`, which is "output". The case asserts that the outputs hold that one
 entry, that the loss node is an `NLL_LOSS` reading a `LOG_SOFTMAX`, and that the `LOG_SOFTMAX`
 reads the value published under that name.
@@ -8442,10 +16669,121 @@ The model of `Test::build_two_output_model`, from `tests/common/test_utils.hpp`,
 `build_training_graph` returns `StatusCode::InvalidDescription` and that the message names both
 outputs.
 
+### AnEmptyLeafSetSaysSoRatherThanListingNothing
+
+`at("targets")` on an empty leaf set raises an error holding "'targets'" and "(none)".
+
+### TheFactoryBuildsCrossEntropyOverTheContext
+
+`make_cross_entropy` for a batch of 4 and 3 classes gives an objective named "cross_entropy"
+whose `targets` leaf has the shape [4, 3].
+
 ### CrossEntropyTakesNoKeysAtAll
 
 Cross-entropy has no hyperparameters, so a key written onto it is an error and not a line whose
 author believed it did something.
+
+### CrossEntropyNeedsTheClassCountOfTheData
+
+`make_cross_entropy` for a context without a class count fails with `InvalidDescription`,
+"objective", "class count" and "0 classes".
+
+## modules/layers/train/tests/test_objective_context.cpp
+
+Suites: `Unit_ObjectiveContext`.
+
+Tests `Train::list_output_shapes` and `Train::find_output_shape`. No case needs an engine.
+
+### ListsEveryOutputWithItsExtentsInPublishedOrder
+
+For a `ModelOutputs` holding `coarse` of shape [2, 4, 4, 14] and `fine` of shape [2, 8, 8, 14],
+the list has two entries with those names and shapes, in that order.
+
+### AnEmptyOutputSetListsNothing
+
+An empty `ModelOutputs` over an empty graph gives an empty list.
+
+### AProbeTraceGivesTheShapesWithoutAnEngine
+
+For a `ModelGraph` of two `Linear` nodes, 6 to 5 and 5 to 3, that publishes both,
+`Train::build_probe_graph` over [4, 6] gives a graph whose listed outputs are `hidden` of shape
+[4, 5] and `logits` of shape [4, 3].
+
+### FindsAnOutputByItsName
+
+`find_output_shape` returns the entry named `fine` with its shape, and null for `medium`.
+
+## modules/layers/train/tests/test_objective_registry.cpp
+
+Suites: `Unit_ObjectiveRegistry`.
+
+Tests `Train::ObjectiveRegistry`, `Train::register_objectives` and `Train::make_objective`. The
+file's stand-in factory returns a `CrossEntropyObjective` when the context holds a task with a
+`type`, one output named `logits`, the input sample [6], a `weight` attribute and a registry
+that holds the row `stand_in`. Otherwise it fails with `Unsupported` and names the field.
+
+### TheLayersTierAddsItsFiveObjectives
+
+After `register_objectives` the registry holds five rows in the order `cross_entropy`,
+`binary_cross_entropy`, `multi_label`, `mean_squared_error`, `sum`. `find("cross_entropy")`
+returns a row and `find("anchor")` is null.
+
+### ATypeIsHeldOnce
+
+A second `add` of `stand_in` fails with `InvalidDescription`, `'stand_in'` and "already
+registered", and the registry holds one row.
+
+### TheFactoryReceivesTheContextAndItsRegistry
+
+`make_objective` for `stand_in` with the attribute `weight` returns an objective named
+"cross_entropy".
+
+### AnUnknownTypeListsWhatTheRegistryHolds
+
+`make_objective` for `yolo` fails with `InvalidDescription` and a message containing `'yolo'`,
+`'cross_entropy'` and `'stand_in'`.
+
+### TheFailureOfAFactoryIsReturned
+
+`make_objective` for `stand_in` with empty attributes and the label "the objective" fails with
+`Unsupported`, "the objective" and "other attributes".
+
+## modules/layers/train/tests/test_one_hot.cpp
+
+Suites: `Unit_OneHot`.
+
+Tests `Train::fill_one_hot`. The fixture needs an engine. The labels are an int32 tensor of one
+extent, and the rows hold 7 in every element before a fill.
+
+### EveryRowHoldsOneInItsLabelsColumn
+
+The labels 2, 0, 1, 2 fill a [4, 3] float32 tensor with 1 in each row's label column and 0
+elsewhere.
+
+### AFloat64LeafReceivesTheSameRows
+
+The same labels fill a [4, 3] float64 tensor with the same rows.
+
+### ASecondFillReplacesTheFirst
+
+After a fill with the labels 0, 0 and a second with 1, 0, a [2, 2] tensor holds 0, 1, 1, 0.
+
+### ALabelOutsideTheClassesIsRefusedAndNothingIsWritten
+
+Over three classes the labels 0, 3 fail with `Incompatible`, "row 1", "is 3" and "3 classes",
+and the labels -1, 0 fail with "row 0", "is -1" and "3 classes". The rows still hold six 7s.
+
+### AnotherLabelCountIsRefusedWithBothShapes
+
+Three labels for a [4, 3] tensor fail with `Incompatible`, "[3]" and "[4, 3]".
+
+### LabelsOfAnotherElementTypeAreRefused
+
+Float32 labels fail with `Incompatible`, "float32" and "int32".
+
+### RowsThatAreNotRealAreRefused
+
+An int32 [2, 3] tensor of rows fails with `Incompatible`, "int32", "float32" and "float64".
 
 ## modules/core/core/tests/test_ops.cpp
 
@@ -8457,6 +16795,10 @@ This file needs no device. The uniqueness proof already runs as a static_assert 
 `modules/core/core/include/SushiAI/core/ops.hpp`. These tests cover what that assert cannot: that the table is
 complete, and that the reverse lookup behaves.
 
+### EveryIdentityHashesDistinctly
+
+No two entries of `Ops::K_ALL` have the same `OpID` value.
+
 ### EveryNameCarriesTheLibraryPrefix
 
 The prefix keeps a SushiAI identity from colliding with SushiBLAS's own (blas.lvl3.gemm and
@@ -8465,6 +16807,14 @@ friends) in the profiler's report.
 The test calls `rfind(prefix, 0)` and not `starts_with()`, which is C++20. `rfind` searches
 backwards from position 0, so it can only match at position 0, which is the same question asked
 with the vocabulary C++17 has.
+
+### NameOfRoundTripsEveryIdentity
+
+`Ops::name_of` returns the name of every entry of `Ops::K_ALL` for its identity.
+
+### NameOfReportsUnknownForAForeignIdentity
+
+`Ops::name_of(OpID(0xDEADBEEF))` is "sushiai.unknown".
 
 ### TheTableContainsEveryDeclaredIdentity
 
@@ -8483,7 +16833,7 @@ CV-1 says convolution is K_IM2COL + K_MATMUL in the IR. A CONV2D identity would 
 spelling of the same thing, and the first person to add one will do it by analogy and not by
 reading the spec.
 
-### LeakyReluDifferentiatesAtItsOutput
+### LeakyReLUDifferentiatesAtItsOutput
 
 For alpha > 0, leaky_relu(x) > 0 exactly when x > 0. Reading the output in place of the input is
 therefore a bit-identical substitution, not an approximation, and it is the same argument the
@@ -8520,7 +16870,7 @@ foreign identity 0xDEADBEEF. These either pass a gradient or throw when one reac
 Marking one as a barrier would turn that throw into a gradient that is dropped without a
 message.
 
-### SiluDifferentiatesAtItsInput
+### SiLUDifferentiatesAtItsInput
 
 The `Ops::K_ACTIVATIONS` row of K_SILU names K_SILU_BACKWARD as its gradient and
 `GradientSource::Input` as its source, and `activation_survives_fusion(K_SILU)` is false.
@@ -8541,6 +16891,164 @@ table has rows.
 `Ops::name_of(K_BATCHNORM_FOLD)` is "sushiai.batchnorm_fold", and the row has `differentiable`
 false and `blocks_gradient` false. `test_backward.cpp` holds what differentiation does when a
 gradient reaches the node.
+
+## modules/core/optim/tests/test_parameter_decay.cpp
+
+Suites: `Unit_ParameterDecay`.
+
+Tests `ParameterSlot::decays` and the `decay_all` option of SGD and AdamW. The fixture needs an
+engine and makes two slots of three float32 elements, each starting at 2 with a zero gradient:
+`weight`, which decays, and `bias`, which does not. Both optimizers use the rate 0.5 and the
+weight decay 0.5, so a decayed parameter is 1.5 after one step. Values are compared within
+1e-6.
+
+### ASlotDecaysUnlessItSaysOtherwise
+
+A default `ParameterSlot` has `decays` true.
+
+### SGDDecaysOnlyTheSlotsThatTakeIt
+
+For the kernels `Fused` and `Separate`, one SGD step leaves the weight at 1.5 and the bias
+at 2.
+
+### AdamWDecaysOnlyTheSlotsThatTakeIt
+
+For the kernels `Fused` and `Separate`, one AdamW step leaves the weight at 1.5 and the bias
+at 2.
+
+### DecayAllDecaysEverySlot
+
+With `decay_all` true, one step of SGD and one step of AdamW each leave both parameters at 1.5.
+
+### TheKeyDecayAllReachesTheOptimizer
+
+For the types `sgd` and `adamw`, an optimizer from `make_optimizer` without the key `decay_all`
+leaves the weight at 1.5 and the bias at 2 after one step. With `"decay_all": true` it leaves
+both at 1.5.
+
+## modules/vision/training/tests/test_pixel_objectives.cpp
+
+Suites: `Unit_VisionTrainingPixelObjectives`.
+
+Tests `PixelCrossEntropyObjective` in
+`modules/vision/training/include/SushiAI/vision/training/pixel_cross_entropy_objective.hpp`
+and `DiceObjective` in
+`modules/vision/training/include/SushiAI/vision/training/dice_objective.hpp`, with their
+factories. The extents are a batch of 2, 4 by 4 pixels and 3 classes, so 32 pixels. The model
+of the graph cases is a 1 by 1 `Conv2d` from 5 channels to 3.
+
+### MakeKeepsItsExtentsAndRefusesNone
+
+`PixelCrossEntropyObjective::make` with the ignore index 7 gives an objective of 32 pixels, 3
+classes, the ignore index 7 and the name "pixel_cross_entropy". A height of 0 fails with
+`InvalidDescription`, "pixel_cross_entropy" and "at least 1". `DiceObjective::make` with 0
+classes fails with `InvalidDescription`, "dice" and "at least 1".
+
+### MakeRefusesAnIgnoreIndexThatIsAClass
+
+Over 3 classes the cross entropy fails with `InvalidDescription` for the ignore index 2
+("ignore index 2", "3 classes") and is made for 3 and for -1. The Dice objective fails for the
+ignore index 0 ("ignore index 0"). The cross entropy with `DType::Int32` fails with
+`InvalidDescription` and "float32".
+
+### MakeRefusesWhatInt32CannotIndex
+
+Both objectives are made for the extents 54, 512, 512, 150. For a batch of 55 both fail with
+`InvalidDescription`, "55 * 512 * 512 * 150" and "2147483647".
+
+### TheCrossEntropyDeclaresIndicesAndWeights
+
+`declare` adds two leaves: `targets` of shape [32] and `Int32`, and `weights` of shape [32, 1]
+and `Float32`. It requires one role, `K_ROLE_MASK`, with the sample shape [4, 4], `Int32` and
+0 classes.
+
+### TheDiceDeclaresTwoIndexLeavesAndNoOneHot
+
+`declare` adds five leaves and none named `one_hot`. `score_indices` and `class_indices` are
+[32] and `Int32`, `kept` is [32, 1], and `class_pixels` and `class_weights` are [3]. No leaf
+has more than 32 elements. The one required role is `K_ROLE_MASK`.
+
+### TheCrossEntropyGathersOneLogProbabilityPerPixel
+
+The training graph of the model under the cross entropy has a loss of one element and `Int32`
+targets. It holds no NLL_LOSS node, one LOG_SOFTMAX and one GATHER_ROWS. Both of its
+parameters have a gradient.
+
+### TheDiceLossIsDifferentiated
+
+The training graph under the Dice objective has a loss of one element and no targets value.
+It holds two GATHER_ROWS nodes and two SCATTER_ADD_ROWS nodes, and both of its parameters
+have a gradient.
+
+### TheFactoriesReadTheModelsOutput
+
+For a context that publishes one output of [2, 4, 4, 3], `make_pixel_cross_entropy_objective`
+with an empty section gives a `PixelCrossEntropyObjective` named "pixel_cross_entropy" with 32
+pixels and the ignore index 255. `make_dice_objective` with `ignore_index` 9 and a context of
+0 classes gives a `DiceObjective` with the ignore index 9.
+
+### TheFactoriesRefuseABadSection
+
+The factories fail with `InvalidDescription` for the key `weight` ("the objective block",
+"'weight'", "'ignore_index'"), for an `ignore_index` of 0.5 ("'ignore_index'",
+"whole number") and for an `ignore_index` of 1 over 3 classes ("ignore index 1").
+
+### TheFactoriesRefuseAModelThatDoesNotFit
+
+The factories fail with `InvalidDescription` for a model with two outputs
+("one [N, H, W, classes] output", "publishes 2"), an output of [2, 3] ("'output'", "[2, 3]"),
+an output of [2, 2, 2, 3] under a [4, 4, 5] input ("[2, 2, 2, 3]", "[4, 4, 5]",
+"input size") and data of 4 classes ("holds 4 classes", "scores 3").
+
+## modules/vision/training/tests/test_pixel_targets.cpp
+
+Suites: `Unit_VisionTrainingPixelTargets`.
+
+Tests `validate_pixel_labels` in
+`modules/vision/training/include/SushiAI/vision/training/pixel_labels.hpp`,
+`fill_pixel_targets` in
+`modules/vision/training/include/SushiAI/vision/training/pixel_targets.hpp` and
+`fill_dice_targets` in
+`modules/vision/training/include/SushiAI/vision/training/dice_targets.hpp`. The fixture is an
+`EngineTest`. The masks hold 6 pixels over 3 classes with the ignore index 255. Before a fill
+every index leaf holds -7 and every real leaf -7.0, and reals are compared within 1e-7.
+
+### TheLabelCheckNamesThePixelOutOfBounds
+
+`validate_pixel_labels` passes a mask of classes and 255. It fails with `Incompatible` for a
+3 at pixel 3 ("holds 3 at pixel 3", "below 3", "255"), a -1 at pixel 4
+("holds -1 at pixel 4"), an expected count of 7 ("6 pixels", "expects 7") and a `Float32` mask
+("mask is").
+
+### AKeptPixelIndexesItsClassAndSharesTheWeight
+
+For the mask 0, 2, 255, 1, 1, 255, `fill_pixel_targets` writes the indices 0, 5, 6, 10, 13, 15
+and the weights 0.25, 0.25, 0, 0.25, 0.25, 0.
+
+### AMaskWithNoKeptPixelGivesZeroWeights
+
+For a mask of six 255s, the indices are 0, 3, 6, 9, 12, 15 and the six weights are 0.
+
+### ARefusedPixelFillChangesNothing
+
+`fill_pixel_targets` fails with `Incompatible` for a mask with a 9 at pixel 4
+("holds 9 at pixel 4"), for a weights leaf of five elements ("6 pixel indices",
+"5 pixel weights") and for a `Float32` indices leaf ("pixel indices are"). Afterwards the
+indices still hold -7 and the weights -7.0.
+
+### TheDiceLeavesCountTheKeptPixelsOfEachClass
+
+For the mask 0, 2, 255, 0, 2, 0, `fill_dice_targets` writes `score_indices` 0, 5, 6, 9, 14,
+15, `class_indices` 0, 2, 0, 0, 2, 0, `kept` 1, 1, 0, 1, 1, 1, `class_pixels` 3, 0, 2 and
+`class_weights` 0.5, 0, 0.5.
+
+### ARefusedDiceFillChangesNothing
+
+`fill_dice_targets` fails with `Incompatible` for a mask with a 3 at pixel 4
+("holds 3 at pixel 4"), for a `class_weights` leaf of two elements ("'class_weights'",
+"2 elements") and for a `Float32` `class_indices` leaf ("'class_indices'", "int32").
+Afterwards `score_indices` and `class_indices` still hold -7, and `kept` and `class_pixels`
+-7.0.
 
 ## modules/core/autograd/tests/test_precision.cpp
 
@@ -8577,7 +17085,13 @@ The `Traced` graph is built by hand and not through NN::Sequential, so that the 
 every value it wants to assert about. It is also the smallest graph that still contains all four
 interesting shapes: a parameter read by both passes, a reduction, a loss, and a gradient buffer.
 
-### OnlyTheProductAndWhatAGemmFoldsIntoItNarrow
+### TheUniformPolicyAnswersTheGraphsOwnTypeToEverything
+
+For every entry of `Ops::K_ALL` and each of `Half`, `Float32` and `Float64`,
+`UniformPrecisionPolicy::choose` returns the type it was asked about. The policy's name is
+"fp32".
+
+### OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow
 
 The `narrows` list states the rule set as a table, so that adding an operation to the narrowing
 set is a visible edit in this test and not a silent behaviour change. Everything absent from it
@@ -8615,9 +17129,15 @@ The closing `EXPECT_EQ` on the two list sizes holds because every identity is ac
 `narrows` or by `stays`. A new operation cannot join the enum without someone deciding which
 list it belongs to.
 
-### GeluStaysWideEvenThoughACatalogEntryNowFoldsIt
+### TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecision
 
-Rule 5 used to rest on two arguments, and one of them is gone. `FusedForm::GemmBiasGelu`
+For DEPTHWISE_CONV2D and its two backward identities, `narrows_under_mixed_precision` is
+false and `MixedPrecisionPolicy::choose` returns `Float32` for `Float32` and `Float64` for
+`Float64`.
+
+### GELUStaysWideEvenThoughACatalogEntryNowFoldsIt
+
+Rule 5 used to rest on two arguments, and one of them is gone. `FusedForm::GEMMBiasGELU`
 folds GELU by spilling the pre-activation, so "nothing folds it, therefore nothing forces its
 precision" is no longer a reason for anything. The surviving argument is the arithmetic: the
 tanh approximation computes `x*x*x`, which overflows fp16 at |x| about 40.3. A unit test cannot
@@ -8646,11 +17166,25 @@ to something wider.
 The `to_single` policy narrows to fp32. That is a legal thing to ask for, and it is what an fp64
 model would use.
 
+### ANonFloatLowTypeIsRefusedAtConstruction
+
+`MixedPrecisionPolicy{DType::Int32}` and `MixedPrecisionPolicy{DType::Complex32}` throw
+`Error`, and `MixedPrecisionPolicy{DType::Half}` does not.
+
+### EveryChoiceCarriesAReasonSomebodyCanRead
+
+For every entry of `Ops::K_ALL`, the choice of `MixedPrecisionPolicy` over `Float32` has a
+non-empty `reason`.
+
 ### TheUniformPolicyInsertsNoCasts
 
 This is the control the mixed cases are read against. If it ever shows casts, the pass is
 inserting them unconditionally and every "the mixed policy inserted N casts" assertion in the
 later Unit_CastInsertion cases measures nothing.
+
+### NoPolicyMeansTheUniformPolicy
+
+`insert_casts` without options reports 0 casts and leaves the node count unchanged.
 
 ### EveryNodesOperandsAgreeWithTheTypeItComputesIn
 
@@ -8711,6 +17245,23 @@ w2 is read by the forward matmul and again by the backward one. Two conversions 
 kernels and two buffers for one number, and the reuse is safe because the IR is
 single-assignment.
 
+### ValueIDsSurviveThePass
+
+After `insert_casts` with a `MixedPrecisionPolicy`, the graph has more values than before,
+and every value that existed before keeps its shape and its lifetime under the same id.
+
+### RunningThePassTwiceAddsNothingTheSecondTime
+
+The first `insert_casts` reports at least one cast. A second run with the same options
+reports 0 and leaves the node count and the value count unchanged.
+
+### TheReportNamesEveryConversionAndItsDirection
+
+The report's policy is "mixed". Its count equals the number of CAST nodes, the difference
+between `nodes_after` and `nodes_before`, and the sum of `count_into(Half)` and
+`count_into(Float32)`, both of which are above 0. `retyped_values` is above 0, and
+`to_string` holds "mixed" and "casts inserted".
+
 ### AGraphThatIsNotInTopologicalOrderIsRefused
 
 `fuse()` and `MemoryPlan::build()` carry the same guard for the same reason. The pass emits a
@@ -8737,6 +17288,11 @@ real-float to real-float by design, so the whole build threw.
 
 The defect does not depend on the policy. `wanted` comes from `outputs[0]`, not from the
 policy's `choose()`, so the uniform policy reaches it too.
+
+### AMixedPolicyLeavesTheIndexBufferAloneToo
+
+`insert_casts` with a `MixedPrecisionPolicy` over the pooled trace does not throw. The pool's
+index value stays `Int64` and no CAST node reads or writes it.
 
 ### APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer
 
@@ -8833,6 +17389,64 @@ Two identical graphs are differentiated, one with a `Provenance` and one with nu
 gradient ids are equal, the node counts are equal, and every node has the same operation,
 inputs and outputs. Recording is therefore an observation of the transform and not a branch in
 it.
+
+## modules/core/optim/tests/test_rate_schedule.cpp
+
+Suites: `Unit_RateSchedule`.
+
+Tests `Optim::RateSchedule`, the variant of `StepSchedule` and `CosineSchedule`: its section
+reader and writer, `rate_at`, `base_rate_of`, `validate_rate_schedule` and
+`Optim::read_rate_schedule`. The step section has the base rate 0.5 and one step at 3 of scale
+0.5. The cosine section has the base rate 0.25, a warm-up of 2, a total of 10 and the final
+rate 0.125. A rate is compared with a tolerance of 0.
+
+### ASectionIsReadByTheTypeItStates
+
+The step section reads as a `StepSchedule` with the base rate 0.5. The cosine section reads as
+a `CosineSchedule` with `total_iterations` 10 and the final rate 0.125.
+
+### ASectionWithoutATypeIsAStepSchedule
+
+`{"base_rate": 0.5}` reads as a `StepSchedule`.
+
+### AnUnknownTypeIsRefusedWithTheTypesThereAre
+
+The type `linear` fails with `InvalidDescription`, "schedule 'type' is 'linear'", `'step'` and
+`'cosine'`. A `type` of 3 fails with "schedule 'type' must be a string", and the number 7 in
+place of the section with "schedule must be an object".
+
+### AKeyOfAnotherTypeIsRefused
+
+`steps` in a cosine section fails with "states the key 'steps'", and `final_rate` in a step
+section with "states the key 'final_rate'".
+
+### TheRateIsThatOfTheScheduleHeld
+
+`rate_at` of the step schedule is 0.5 at iteration 2 and 0.25 at iteration 3. `rate_at` of the
+cosine schedule is 0.125 at iterations 1 and 10. `base_rate_of` is 0.5 and 0.25.
+
+### AWrittenSectionStatesItsTypeAndReadsBack
+
+`write_rate_schedule_section` of the cosine schedule gives a section whose `type` is "cosine".
+It reads back as a `CosineSchedule` with `warmup_iterations` 2.
+
+### ARunReadsACosineScheduleUnderTheSameRules
+
+`read_rate_schedule` returns no schedule for a null section beside an optimizer that states
+`learning_rate`, and a `CosineSchedule` for the cosine section beside `{}`. The cosine section
+beside a `learning_rate` fails with `InvalidDescription` and "stated twice". A cosine section
+without a base rate fails with "'base_rate' must be stated and above zero".
+
+### ARunReadsAStepScheduleAsAStepSchedule
+
+`read_rate_schedule` of the step section beside `{}` returns a `StepSchedule` with the base
+rate 0.5.
+
+### AHeldScheduleIsCheckedByItsOwnValidation
+
+`validate_rate_schedule` fails with `InvalidDescription`, "2 steps" and "1 scales" for a held
+`StepSchedule` of two steps and one scale. It is ok for a held `CosineSchedule` with the base
+rate 0.5 and a total of 10.
 
 ## modules/core/eager/tests/test_region_signature.cpp
 
@@ -8962,7 +17576,7 @@ Shape and element type are the same in both, so the layout is the only input tha
 
 A shape of [4, 5] in place of [4, 3] leaves the operation list equal and makes the hash differ.
 
-### AChangedDtypeChangesTheHash
+### AChangedDTypeChangesTheHash
 
 FLOAT64 in place of FLOAT32 leaves the operation list equal and makes the hash differ.
 
@@ -9048,6 +17662,170 @@ The message contains "assigns 4 nodes" and "holds 5".
 
 The identity vector is cleared, so the id of `x` lies beyond its end. The message contains
 "External value 0" and "no identity". The call throws and does not read past the span.
+
+## modules/language/registration/tests/test_registration.cpp
+
+Suites: `Unit_LanguageRegistration`.
+
+Tests the three registration entry points of the language module, `Language::register_nodes`,
+`Language::register_datasets` and `Language::register_objectives`, and that model files using
+their rows build.
+
+### RegisterNodesAddsTheSixBlockRows
+
+`register_nodes` adds five node rows in the order "position_embedding",
+"causal_self_attention", "feed_forward", "transformer_block", "moe_feed_forward", and one linked
+row, "language_head". A second call fails with `InvalidDescription` and a message holding
+"'position_embedding'" and "already".
+
+### RegisterDatasetsAddsTokensAndPrompt
+
+After `register_datasets` the registry has two rows, and `find` returns a row for "tokens" and
+for "prompt".
+
+### RegisterObjectivesAddsNextTokenAndExpertBalance
+
+After `register_objectives` the registry has two rows, and `find` returns a row for "next_token"
+and for "expert_balance".
+
+### TheNextTokenRowBuildsBesideTheRowsOfTrain
+
+With the rows of `Train::register_objectives` and of the language module in one registry,
+`Train::make_objective` builds "next_token" over an output of the shape [2, 3, 5] and five
+classes, and the objective's name is "next_token". A second `Language::register_objectives`
+fails with "'next_token' is already registered".
+
+### ADecoderModelFileBuilds
+
+A model of an embedding, a position embedding, a transformer block and a language head tied to
+row 0 builds into four nodes, and `output_shape([8])` is [8, 32]. A model whose head is tied to
+row 1, the position embedding, fails with `InvalidDescription`; the message holds
+"layer 2 'language_head'", "'tie'", "row 1" and "no 'embedding' row".
+
+### ADecoderWithExpertsPublishesWhatTheBalanceRowReads
+
+A decoder with a four-expert transformer block and a two-expert `moe_feed_forward` row
+publishes five outputs. Traced over a [2, 8] `Int32` input, the logits have the shape
+[2, 8, 32], "balance2" has [1, 1] and "usage3" has [1, 2]. `Blocks::K_BALANCE_PORT` equals
+`Training::K_BALANCE_OUTPUT_PREFIX`, `Blocks::K_USAGE_PORT` equals
+`Training::K_USAGE_OUTPUT_PREFIX`, and a "sum" objective of a "next_token" term and an
+"expert_balance" term builds over the published shapes.
+
+## modules/vision/registration/tests/test_registration.cpp
+
+Suites: `Unit_VisionRegistration`, `Unit_VisionRegistrationData`.
+
+Tests the four registration entry points of the vision module and what builds from their rows.
+The YOLO26n cases read `applications/examples/yolo26/model.json` and
+`tests/fixtures/yolo26/MANIFEST.json` and report themselves skipped when the repository root is
+not found. `Unit_VisionRegistrationData` is an engine fixture.
+
+### RegisterNodesAddsTheEightBlocks
+
+`Vision::register_nodes` adds the node rows "conv", "bottleneck", "c3k", "c3k2", "sppf",
+"c2psa", "detect" and "segment_head", in that order, and no layer row.
+
+### RegisterDatasetsAddsMNISTAndReader
+
+`Vision::register_datasets` adds "mnist" and "reader", in that order. The "mnist" row has a
+factory, and the row of `Config::K_READER_DATA_TYPE` has `Vision::Datasets::make_reader_dataset`.
+
+### ARegistryWithoutTheBlocksRefusesConv
+
+`NN::build_model` over the rows of `NN::register_layers` alone fails for a model with a "conv"
+row. The code is `InvalidDescription`, and the message holds "layer 0 'conv'", "the type 'conv'"
+and "does not have".
+
+### EveryRowHasAMinimalCase
+
+The file's minimal cases, followed by its detect case and its segment head case, have the
+types of the registered node rows in the same order and the same count.
+
+### SegmentHeadBuildsOnePortAtTheUpsampledSize
+
+The "segment_head" row builds a node with one port of the shape its case expects.
+
+### DetectBuildsFourPortsPerLevel
+
+The "detect" row over its case's levels builds a node with four ports per level.
+
+### EachRowBuildsFromAMinimalObject
+
+Each of the other rows builds, from its case's attributes, a node with one port named
+`NN::K_SINGLE_PORT_NAME` and of the shape the case expects.
+
+### EachRowRejectsAnUnknownKey
+
+Each row given the key "no_such_key" fails with `InvalidDescription`, and the message holds
+"layer 0 '<type>'" and "'no_such_key'". The same holds for "detect".
+
+### TheYOLO26FileHoldsItsTwentyFourRows
+
+The model file parses to 24 rows of the types the case lists in order, from "conv" to
+"detect", with the input shape [640, 640, 3]. The four `concat` rows read rows 11 and 6, 14 and
+4, 17 and 13, and 20 and 10, and the detect row reads rows 16, 19 and 22. Row 0 has a
+`bn_epsilon` of 0.001, row 9 a `bn_momentum` of 0.03, and row 11 has no `bn_epsilon`. The one
+output is row 23 with an empty port.
+
+### TheYOLO26FileBuildsWhole
+
+The model file builds over the composed registry. Its trace publishes the detect row's twelve
+outputs in port order, and its state is the 594 records the manifest lists for rows 0 to 23,
+without the "model." prefix.
+
+### YOLO26RowsTwoAndFourAddTheirBottlenecksInput
+
+Rows 2 and 4 of the file have "shortcut" true, and the first five rows trace to exactly two ADD
+nodes.
+
+### YOLO26RowsZeroToNineMatchTheManifest
+
+Rows 0 to 9 build and yield the 165 records the manifest lists under model.0 to model.9, and
+the traced output is "output [2, 20, 20, 256]".
+
+### YOLO26RowsBuildToTheReferenceShapes
+
+With a `silu` row in place of row 10, the first 22 rows build, and each row's one port has the
+per-sample shape `K_YOLO_ROW_SHAPES` holds for it.
+
+### YOLO26NeckTracesToTheReferenceLevels
+
+With a `silu` row in place of row 10, rows 16 and 19 trace to the height, width and channel
+count the manifest records for feature levels 0 and 1, and each level's stride times its height
+is the input height. Row 21 traces to [2, 20, 20, 384]. The state is the manifest's records for
+rows 0 to 9 followed by its 145 records for rows 11 to 21.
+
+### RegistersTheAnchorAndThePixelObjectives
+
+After `Train::register_objectives`, `Vision::register_objectives` adds three rows: "anchor",
+"pixel_cross_entropy" and "dice". Row 0 stays "cross_entropy". A second call fails with
+`InvalidDescription`, "'anchor'" and "already registered".
+
+### TheAnchorRowReadsTheTaskOfTheModel
+
+`Train::make_objective` of "anchor" over an empty section fails with `InvalidDescription`, and
+the message holds "the objective block" and "'task'".
+
+### ThePixelRowsBuildOverOneLogitMap
+
+"pixel_cross_entropy" and "dice" each build an objective over one [2, 4, 4, 3] output with an
+`ignore_index` of 255, and the objective's name is the row's type.
+
+### RegistersTheDarknetImporter
+
+`Vision::register_importers` adds one row of the format "darknet". A second call fails with
+`InvalidDescription`, "'darknet'" and "already registered".
+
+### TheDarknetRowRefusesACallWithoutFiles
+
+`IO::import_model` of "darknet" with no file fails with `InvalidDescription`, and the message
+holds "'darknet'", ".cfg" and "0 files".
+
+### TheReaderRowBuildsADataSection
+
+`Data::make_dataset` of the reader type with the reader "coco_json", the task "detection" and
+an absent root fails with `InvalidDescription`. The message holds "the data block 'reader'",
+"'coco_json'" and "'yolo_txt'".
 
 ## modules/core/autograd/tests/test_rematerialise.cpp
 
@@ -9258,6 +18036,54 @@ report contains "Result::value() was called on a failure" and the failure's own 
 `Result<int>(Status())` and `Result<int&>(Status())` stop the process with "a Result was built
 from a success Status".
 
+## modules/layers/train/tests/test_role_match.cpp
+
+Suites: `Unit_RoleMatch`.
+
+Tests `Train::match_roles`. The dataset is a local `Published` class named "published" that
+publishes the roles it is built with and holds no batch. The cases use two roles: `labels`,
+one int32 per sample over a class count, and `boxes`, a float32 [n, 4] value per sample.
+
+### ADatasetThatPublishesEveryRoleIsAccepted
+
+A dataset that publishes `labels` over 4 classes and `boxes` of 8 matches a step that requires
+`boxes` of 8 and then `labels` over 4.
+
+### AStepThatReadsNoRoleAcceptsAnyDataset
+
+An empty list of required roles matches a dataset that publishes no role and one that
+publishes `labels`.
+
+### AMissingRoleIsNamedWithTheDatasetAndWhatItPublishes
+
+Requiring `boxes` of a dataset that publishes only `labels` fails with `InvalidDescription`
+and a message containing `'published'`, `'boxes'`, "float32 [8, 4] per sample" and "publishes
+'labels'". Requiring `labels` of a dataset that publishes nothing fails with "(none)".
+
+### AnotherShapeIsRefusedWithBothShapes
+
+`boxes` of 8 against a dataset that publishes `boxes` of 16 fails with `Incompatible`, "as
+float32 [16, 4] per sample" and "compiled for float32 [8, 4] per sample".
+
+### AnotherElementTypeIsRefusedWithBothTypes
+
+Int32 `labels` against float32 `labels` fails with `Incompatible`, "as 4 classes of float32 []
+per sample" and "compiled for 4 classes of int32 [] per sample".
+
+### AnotherClassCountIsRefusedWithBothCounts
+
+`labels` over 4 classes against `labels` over 5 fails with `Incompatible`, "as 5 classes of
+int32 [] per sample" and "compiled for 4 classes of int32 [] per sample".
+
+### ARequiredClassCountOfZeroAcceptsAnyCount
+
+`labels` required over 0 classes matches a dataset that publishes `labels` over 5.
+
+### TheFirstRoleThatDoesNotMatchIsReported
+
+Requiring `boxes` and then `labels` over 4 of a dataset that publishes `labels` over 5 fails
+with `InvalidDescription` and a message naming `'boxes'`.
+
 ## modules/core/autograd/tests/test_rule_table.cpp
 
 Suites: `Unit_RuleTable`.
@@ -9300,6 +18126,137 @@ and false for the `backward` one. `Autograd::K_ACTIVATION_RULES` has as many ent
 
 `Autograd::has_rule` is true for K_BATCHNORM2D and false for K_BATCHNORM_FOLD, `has_backward_rule`
 is false for K_BATCHNORM_FOLD, and `Autograd::K_NORM_RULES` has two entries.
+
+### LayerNormHasItsRuleAndItsGradientHasNone
+
+`has_rule` is true for LAYER_NORM. LAYER_NORM_BACKWARD is not differentiable and has no rule.
+
+### LogSoftmaxHasItsRuleAndItsGradientHasNone
+
+`K_LOSS_RULES` has two rows. LOG_SOFTMAX is differentiable and has a rule.
+LOG_SOFTMAX_BACKWARD is not differentiable and has none.
+
+### TheCausalMaskHasItsRule
+
+`K_LINALG_RULES` has six rows and `has_rule` is true for CAUSAL_MASK.
+
+### DropoutHasTheRuleOfTheRandomDomain
+
+`K_RANDOM_RULES` has one row. DROPOUT is differentiable and has a rule.
+
+### TheGatherAndTheScatterAddDifferentiateIntoEachOther
+
+GATHER_ROWS and SCATTER_ADD_ROWS are both differentiable and both have a rule.
+
+### TheDepthwiseForwardHasItsRuleAndItsGradientsHaveNone
+
+`K_SPATIAL_RULES` has nine rows and `has_rule` is true for DEPTHWISE_CONV2D. Its two backward
+identities are not differentiable and have no rule.
+
+## modules/layers/io/tests/test_run_progress.cpp
+
+Suites: `Unit_RunProgress`.
+
+Tests `IO::RunProgress` and `IO::check_run_seed` in
+`modules/layers/io/include/SushiAI/io/run_progress.hpp`.
+
+### ADefaultProgressIsTheStartOfARun
+
+A default `RunProgress` has the seed 0, 0 step runs, the epoch 0 and the batch 0.
+
+### TheRecordsHaveDistinctNames
+
+`K_RUN_SEED_STATE` is "run.seed", `K_RUN_STEP_RUNS_STATE` is "run.step_runs",
+`K_RUN_EPOCH_STATE` is "run.epoch" and `K_RUN_BATCH_STATE` is "run.batch".
+
+### AResumeUnderAnotherSeedIsRefusedWithBothSeeds
+
+For a progress saved under the seed 20261011, `check_run_seed` passes that seed. The seed 7
+fails with `Incompatible`, "'last.sushi'", "seed 20261011" and "seed 7". A default progress
+checked against 20261011 fails with `Incompatible`, "seed 0" and "seed 20261011".
+
+## modules/core/optim/tests/test_run_schedule.cpp
+
+Suites: `Unit_RunSchedule`.
+
+Tests `Optim::read_rate_schedule`, which takes the schedule section and the optimizer section
+of a training file. The schedule section of the cases is a step schedule with the base rate
+0.00261, a warm-up of 1000 and one step at 400000 of scale 0.1.
+
+### ANullSectionYieldsNoSchedule
+
+A null schedule section beside an optimizer that states `learning_rate` returns no schedule.
+
+### AScheduleIsReadWhenTheOptimizerStatesNoRate
+
+The schedule section beside `{"momentum": 0.9}` returns a `StepSchedule` with the base rate
+0.00261, a warm-up of 1000 and one step at 400000.
+
+### ARateStatedTwiceIsRefused
+
+The schedule section beside `{"learning_rate": 0.00261}` fails with `InvalidDescription` and a
+message containing "stated twice", `'learning_rate'` and `'base_rate'`.
+
+### AScheduleWithoutABaseRateIsRefused
+
+`{"type": "step"}` fails with `InvalidDescription`, `'base_rate'` and "above zero".
+
+### ABaseRateNotAboveZeroIsRefused
+
+The base rates 0 and -0.01 each fail with `InvalidDescription`, `'base_rate'` and "above zero".
+
+### WhatTheSectionReaderRefusesIsRefused
+
+A section with the key `gamma` fails with `InvalidDescription`, "schedule" and `'gamma'`. A
+string in place of the section fails with "schedule" and "object".
+
+## modules/core/optim/tests/test_run_state.cpp
+
+Suites: `Unit_OptimizerRunState`, `Unit_LossScaleStateRestore`.
+
+Tests `Optimizer::run_state`, `restore_scalars` and `check_state_owner`, and
+`Optim::LossScaleState::restore`. The `Unit_OptimizerRunState` fixture needs an engine and
+makes the slots `weight` and `bias`, each three float32 zeros with a gradient of ones.
+
+### SGDListsItsMomentumBuffersAndItsStepCount
+
+After one step of an SGD with momentum 0.9, `type_name()` is "sgd" and the run state lists the
+tensors `weight.momentum` and `bias.momentum`, the first of three elements. Its one scalar is
+`step_count`, a `uint64_t` of 1.
+
+### SGDWithoutMomentumListsNoTensor
+
+The run state of an SGD with momentum 0 has no tensor and one scalar whose value is 0.
+
+### AdamWListsBothMomentsOfEachSlot
+
+`type_name()` is "adamw" and the run state lists `weight.first_moment`, `weight.second_moment`,
+`bias.first_moment` and `bias.second_moment`, in that order. The first listed tensor has the
+data pointer of `first_moment(0)` and the fourth that of `second_moment(1)`.
+
+### TheStepCountIsRestored
+
+After `restore_scalars` with a step count of 41, `step_count()` is 41, and it is 42 after one
+step.
+
+### AnotherOwnerIsRefusedWithBothTypes
+
+On an SGD, `check_state_owner("sgd")` is ok and `check_state_owner("adamw")` fails with
+`Incompatible`, `'adamw'` and `'sgd'`.
+
+### AScalarThatDoesNotFitIsRefusedByName
+
+`restore_scalars` on an SGD fails with `Incompatible` four times: for no scalar ("does not
+hold", "'step_count'", "'sgd'"), for an added `loss_scale` ("'loss_scale'", "'sgd'", "does not
+keep"), for `step_count` given twice ("more than once") and for a `step_count` that is a real
+("a real number where a count is kept"). The step count stays 0.
+
+### TakesASavedScaleAndRefusesOneOutOfBounds
+
+`restore(4096.0, 1999)` is ok and sets the scale to 4096 and the count of good steps to 1999.
+One `observe(false)` then gives the scale 8192 and the count 0. `restore` fails with
+`Incompatible` for the scale 3000 ("power of two"), the scale 0.5 ("bounds") and a count of
+2000 ("growth interval"), and the scale stays 8192.
 
 ## modules/core/eager/tests/test_scope_partitioner.cpp
 
@@ -9361,9 +18318,9 @@ K_LEAF.
 then "loss". The input is declared before the first scope, so the trace opens with an unnamed
 segment that holds only a K_LEAF.
 
-### TwoReluGraph
+### TwoReLUGraph
 
-`TwoReluGraph` holds a graph built without differentiation: a parameter, a K_RELU in a segment
+`TwoReLUGraph` holds a graph built without differentiation: a parameter, a K_RELU in a segment
 "first" and a K_RELU of that in a segment "second". `build_two_relu_graph` fills it, seals the
 trace and sets `forward_node_count`, and leaves `origin` empty. A case then appends backward
 nodes and writes their origins by hand, which reaches arrangements `differentiate()` does not
@@ -9434,7 +18391,7 @@ weight's K_LEAF, is not used for it.
 
 ### ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrder
 
-Two K_ADD nodes are appended to a `TwoReluGraph` with the K_LEAF as their origin. One reads the
+Two K_ADD nodes are appended to a `TwoReLUGraph` with the K_LEAF as their origin. One reads the
 key 2 value first and the key 1 value second, the other the reverse, and both get key 2. A rule
 that took the key of the first or of the last operand would give one of them key 1.
 
@@ -9452,7 +18409,7 @@ names of the forward regions they mirror.
 
 ### AGraphWithNoBackwardNodeHasForwardRegionsOnly
 
-A `TwoReluGraph` with an empty `origin` gives its two K_RELU nodes keys 1 and 2 and optimizer
+A `TwoReLUGraph` with an empty `origin` gives its two K_RELU nodes keys 1 and 2 and optimizer
 key 4. The region list holds "first#0" and "second#0", both forward. The optimizer key is `2m`
 whether or not any backward node exists.
 
@@ -9476,7 +18433,7 @@ id that is not a forward node, is refused with "has origin" and "forward nodes".
 
 ### ABackwardNodeThatReadsAHigherKeyThrows
 
-Two K_RELU nodes are appended to a `TwoReluGraph`, the second reading the first, with origins in
+Two K_RELU nodes are appended to a `TwoReLUGraph`, the second reading the first, with origins in
 segments 1 and 2. The formula gives them keys 3 and 2, so the reader has the lower key. `assign`
 throws, and the message contains "has region key 2" and "whose key is 3". The partitioner
 therefore checks the ordering it produces and does not assume the provenance is consistent with
@@ -9594,14 +18551,16 @@ the depth stays 0.
 
 ## test_seam.cpp
 
-Suites: `Unit_Seam`.
+Suites: `Unit_Seam`, `Unit_SeamEngine`.
 
 Tests the seam in `modules/core/core/include/SushiAI/core/seam.hpp`, the one place where an exception of SushiBLAS
 or SushiRuntime, or of another standard type, becomes a `Status`. `guard` and `guard_value` run a
 call and return its Status or its value. `status_of_current_exception` chooses the code from the
 type of the exception and from the `SeamPhase` the call was in: `Record`, `Allocate` or `Execute`.
 
-The file needs no device. It builds each exception it maps by hand.
+The `Unit_Seam` cases need no device and build each exception they map by hand. The
+`Unit_SeamEngine` fixture is an `EngineTest`: its cases record work on an engine through
+`record_and_run`.
 
 ### GuardReturnsTheStatusOfACallThatDoesNotThrow
 
@@ -9662,6 +18621,252 @@ Any other standard exception maps to `DeviceFailed` and keeps its text.
 
 An exception that derives from no standard type maps to `DeviceFailed`.
 
+### RecordAndRunRunsWhatASuccessfulRecordingRecorded
+
+A recording that sets a tensor of ones to 2.0 and returns success leaves every element at
+2.0 after `record_and_run`.
+
+### RecordAndRunDiscardsWhatAFailedRecordingRecorded
+
+A recording that sets a tensor to 5.0 and then throws `std::invalid_argument` makes
+`record_and_run` fail with `InvalidDescription` and the exception's message. A following
+recording sets a second tensor to 2.0; that tensor holds 2.0 and the first still holds 1.0.
+
+### RecordAndRunDiscardsWhenTheRecordingReturnsAFailure
+
+A recording that sets a tensor to 5.0 and returns an `Unsupported` status makes
+`record_and_run` fail with that status and "no host path". After `run_recorded` the tensor
+still holds 1.0.
+
+## modules/core/config/tests/test_section_reader.cpp
+
+Suites: `Unit_SectionReader`.
+
+Tests `Config::SectionReader` and the free readers of
+`modules/core/config/include/SushiAI/config/section_reader.hpp`. The reader of every case is
+named "schedule" and the accepted keys are `type`, `base_rate` and `steps`.
+
+### NamesAMemberAnEntryAndAList
+
+`member_of("schedule", "steps")` is "schedule 'steps'", `entry_of` of that with 2 is "schedule
+'steps' entry 2", and `list_quoted` of the three keys is "'type', 'base_rate', 'steps'" and of
+an empty span "". `SectionReader::member("type")` is "schedule 'type'".
+
+### CheckObjectRefusesAnotherKind
+
+`check_object` is ok for `{}`. For a string it fails with `InvalidDescription` and "schedule
+must be an object, but it is a string".
+
+### CheckKeysNamesTheKeyAndListsWhatIsAccepted
+
+`check_keys` is ok for a section with `steps` and `type`. For a section with `gamma` it fails
+with "schedule states the key 'gamma', which it does not have; it accepts 'type', 'base_rate',
+'steps'".
+
+### CheckTypeAcceptsAnAbsentKeyAndRefusesAnotherType
+
+`check_type("type", "step", "a step schedule")` is ok when `type` is absent and when it is
+"step". For "cosine" it fails with "schedule 'type' is 'cosine'; a step schedule states
+'step'", and for 3 with "schedule 'type' must be a string, but it is a whole number".
+
+### FindReturnsTheMemberOrNamesTheAbsentKey
+
+Over `{"base_rate": 0.5}`, `has` is true for `base_rate` and false for `steps`. `find` returns
+a `Kind::Real` member for `base_rate` and fails for `steps` with "schedule has no 'steps'".
+
+### FindOfChecksTheKind
+
+Over `{"steps": 3}`, `find_of("steps", Kind::Int)` is ok. Asked for `Kind::Array` it fails with
+"schedule 'steps' must be an array, but it is a whole number", and for the absent `type` with
+"schedule has no 'type'".
+
+### TheNumberReadersCheckTheKind
+
+`read_real` returns 7.0 for the whole number 7 and 0.25 for the real 0.25, and `read_whole`
+returns 7 for 7. `read_real` of a string fails with "rate must be a number, but it is a
+string", and `read_whole` of 0.25 with "count must be a whole number, but it is a number".
+
+### ReadFloat32RefusesWhatFloat32CannotHold
+
+`read_float32` returns 0.5f for 0.5. For 1e39 it fails with `InvalidDescription`, "scale is"
+and "which float32 does not hold as a finite value", and for a string with "scale must be a
+number, but it is a string".
+
+### TheStringAndArrayReadersCheckTheKind
+
+`read_string` returns "step" for a string and `read_array` returns three entries for
+`[1, 2, 3]`. `read_string` of an array fails with "type must be a string, but it is an array",
+and `read_array` of a string with "steps must be an array, but it is a string".
+
+## modules/vision/segment/tests/test_segment_confusion_matrix.cpp
+
+Suites: `Unit_SegmentConfusionMatrix`.
+
+Tests `Vision::Segment::ConfusionMatrix` in
+`modules/vision/segment/include/SushiAI/vision/segment/confusion_matrix.hpp`. Every `add` call
+passes the ignore index 255.
+
+### ANewMatrixCountsNothing
+
+A matrix made for 3 classes reports 3 classes, 0 pixels and a count of 0 at (2, 1).
+
+### AddCountsByTruthAndPrediction
+
+For the predictions 0, 1, 1, 2, 2, 2 against the truth 0, 0, 1, 2, 1, 2, `count(truth,
+predicted)` is 1 at (0, 0), (0, 1), (1, 1) and (1, 2), 2 at (2, 2) and 0 at (1, 0).
+`truth_pixels(1)` is 2, `predicted_pixels(2)` is 3 and `pixel_count` is 6.
+
+### AnIgnoredPixelIsNotCounted
+
+Of three pixels, two have the truth 255, one of them with the prediction 7. The matrix counts
+one pixel, at (0, 0), and `predicted_pixels(1)` is 0.
+
+### CountsAccumulateOverBatches
+
+The same three pixels added twice give 2 at (0, 0), (0, 1) and (1, 1) and a pixel count of 6.
+
+### MergeAddsAndClearEmpties
+
+Two matrices each count the predictions 1, 1 against the truth 0, 1. After `first.merge(second)`
+and `second.clear()`, the first holds 2 at (0, 1) and at (1, 1) and the second counts 0 pixels.
+
+### MakeRefusesAClassCountOutsideItsBounds
+
+`ConfusionMatrix::make(0)` fails with `InvalidDescription`, "ConfusionMatrix" and "0 classes".
+`make(K_MAX_CONFUSION_CLASSES + 1)` fails with "4097 classes" and "4096".
+
+### AddRefusesWithoutCounting
+
+Over 2 classes, `add` fails with `Incompatible` for spans of two and three pixels
+("2 predicted", "3 true"), a truth of 2 at pixel 1 ("true class of pixel 1", "is 2",
+"below 2", "255") and a prediction of -1 at pixel 1 ("predicted class of pixel 1", "is -1").
+The pixel count stays 0 after the three calls.
+
+### MergeRefusesAnotherClassCount
+
+Merging a matrix of 3 classes into one of 2 fails with `Incompatible`, "2 classes" and "of 3".
+
+## modules/vision/segment/tests/test_segment_metrics.cpp
+
+Suites: `Unit_SegmentMetrics`.
+
+Tests `class_iou`, `class_occurs` and `mean_iou` in
+`modules/vision/segment/include/SushiAI/vision/segment/intersection_over_union.hpp`,
+`pixel_accuracy` in `modules/vision/segment/include/SushiAI/vision/segment/pixel_accuracy.hpp`
+and `argmax_classes` in
+`modules/vision/segment/include/SushiAI/vision/segment/argmax_classes.hpp`. Each ratio is
+compared within 1e-15, and the matrices count with the ignore index 255.
+
+### ClassIoUIsIntersectionOverUnion
+
+For the predictions 0, 1, 1, 2, 2, 2 against the truth 0, 0, 1, 2, 1, 2, `class_iou` is 1/2
+for class 0, 1/3 for class 1 and 2/3 for class 2, and `mean_iou` is the mean of the three.
+
+### TheMeanSkipsAClassThatDoesNotOccur
+
+For the predictions 0, 0, 1, 2 against the truth 0, 0, 1, 1, `class_occurs` is true for class
+0 and false for class 2, `class_iou` of class 2 is 0, and `mean_iou` is (1 + 1/2) / 2.
+
+### PixelAccuracyIsTheDiagonalOverTheCountedPixels
+
+For seven pixels, the last with the truth 255, `pixel_accuracy` is 4/6.
+
+### AnEmptyMatrixGivesZero
+
+A matrix whose one pixel was ignored gives 0 for `mean_iou` and for `pixel_accuracy`.
+
+### ArgmaxPicksTheLargestScoreAndTheLowestClassOnATie
+
+Over three pixels of three scores each, (0.1, 0.9, 0.0), (2.0, -1.0, 2.0) and
+(-3.0, -2.0, -1.0), `argmax_classes` writes 1, 0, 2.
+
+## modules/vision/segment/tests/test_segment_rasterise.cpp
+
+Suites: `Unit_SegmentRasterise`.
+
+Tests `fill_outline` in `modules/vision/segment/include/SushiAI/vision/segment/fill_outline.hpp`
+and `rasterise_outlines` in
+`modules/vision/segment/include/SushiAI/vision/segment/rasterise_outlines.hpp`. Every mask
+starts filled with the background byte 9.
+
+### ARectangleOnPixelEdgesFillsThePixelsItBounds
+
+On a mask of 4 rows and 5 columns, the rectangle from (1, 1) to (4, 3) filled with 1 sets the
+columns 1 to 3 of the rows 1 and 2 and leaves every other pixel 9.
+
+### APixelIsFilledWhenItsCentreIsInside
+
+On a mask of one row and three columns, a rectangle spanning x from 0.6 to 2.4 gives 9, 1, 9.
+
+### ACentreOnASharedEdgeBelongsToOneSide
+
+On a mask of one row and three columns, the rectangle from x = 0 to 1.5 filled with 1 gives
+1, 9, 9. The rectangle from x = 1.5 to 3 filled with 2 then gives 1, 2, 2.
+
+### ATriangleFillsTheCentresUnderItsSlope
+
+On a 4 by 4 mask, the triangle (0, 0), (4, 0), (0, 4) fills the first 3, 2, 1 and 0 columns of
+the rows 0 to 3.
+
+### EveryPartOfAnOutlineIsFilled
+
+On a mask of one row and five columns, an outline of the parts x from 0 to 1 and x from 3 to 5
+gives 1, 9, 9, 1, 1.
+
+### APartInsideAnotherCutsAHole
+
+On a 3 by 3 mask, an outline of the rectangle from (0, 0) to (3, 3) and the rectangle from
+(1, 1) to (2, 2) fills every pixel but the centre one.
+
+### AnOutlineIsClippedToTheMask
+
+On a 2 by 2 mask, the rectangle from (-5, -5) to (1, 50) fills column 0 of both rows.
+
+### AnOutlineWithoutAreaFillsNothing
+
+An outline of no part and an outline whose one part has two vertices both leave a 2 by 2 mask
+at 9.
+
+### FillRefusesABadMaskAndAVertexThatIsNotFinite
+
+`fill_outline` fails with `InvalidDescription` for an unsized mask ("fill_outline",
+"0 by 0"), for a mask of three channels ("3 channels") and for a second part whose second
+vertex has a NaN coordinate ("vertex 1 of part 1"). After that last failure the mask still
+holds 9 in every pixel.
+
+### TheLaterOutlineWinsAnOverlap
+
+`rasterise_outlines` of class 1 over x from 0 to 3 and class 2 over x from 2 to 4, at a size
+of one row and five columns, gives a mask of that size and one channel holding 1, 1, 2, 2, 9.
+
+### RasteriseRefusesABadSizeAndNamesTheOutline
+
+`rasterise_outlines` fails with `InvalidDescription` for a size of 0 by 4
+("rasterise_outlines", "0 by 4") and for a second outline with an infinite vertex
+("outline 1", "vertex 0 of part 0").
+
+## modules/vision/training/tests/test_segmentation_metrics.cpp
+
+Suites: `Unit_VisionTrainingSegmentationMetrics`.
+
+Tests `measure_segmentation` in
+`modules/vision/training/include/SushiAI/vision/training/segmentation_metrics.hpp`. The
+fixture is an `EngineTest`. A step holds one output of `Float32` logits of [1, 2, 2, 3] and a
+batch whose `mask` role is `Int32` of [1, 2, 2], with the ignore index 255.
+
+### TheMetricsEqualTheHandCount
+
+The logits pick the classes 0, 1, 0, 1 against the mask 0, 2, 255, 1. `measure_segmentation`
+reports two metrics: `mean_iou` 0.5 and `pixel_accuracy` 2/3, each within 1e-15. The
+`mean_iou` metric has `is_fraction` set.
+
+### AStepThatDoesNotFitIsRefused
+
+`measure_segmentation` fails with `InvalidDescription` for a step of two outputs
+("published 2") and for a batch without a mask ("'mask'"). It fails with `Incompatible` for a
+mask with a 3 at pixel 1 ("true class of pixel 1", "is 3") and for extents of 4 classes over
+logits of 3 ("the logits"). No metric is reported by the four calls.
+
 ## modules/core/core/tests/test_shape.cpp
 
 Suites: `Unit_Shape`.
@@ -9671,10 +18876,58 @@ Tests Shape's extents, indexing, validation, equality and hash.
 This file needs no device. Shape is host-lane vocabulary and must stay testable without a
 RuntimeContext, which is what keeps the unit tier fast.
 
+### DefaultIsAScalarWithOneElement
+
+A default `Shape` has rank 0 and one element, and prints as "[]".
+
+### ExtentsAreStoredOutermostFirst
+
+`Shape{64, 784}` has rank 2, `dim(0)` 64, `dim(1)` 784 and 64 * 784 elements, and prints as
+"[64, 784]".
+
+### NegativeIndicesCountFromTheInnermost
+
+On `Shape{2, 3, 4}`, `dim(-1)` is 4, `dim(-2)` is 3 and `dim(-3)` is 2.
+
+### OutOfRangeDimensionThrows
+
+On `Shape{2, 3}`, `dim(2)` and `dim(-3)` throw `Error`.
+
+### NonPositiveExtentIsRejectedAtConstruction
+
+`Shape({2, 0})` and `Shape({-1})` throw `Error`.
+
+### RankBeyondTheMaximumIsRejected
+
+A list of nine extents, more than `K_MAX_RANK`, throws `Error`.
+
+### BuildsFromExtentsKnownOnlyAtRunTime
+
+A `Shape` built from a span holding 64 and 784 equals `Shape{64, 784}` and prints as
+"[64, 784]".
+
+### BuildsTheScalarFromAnEmptyExtentSpan
+
+A `Shape` built from an empty span has rank 0 and one element.
+
+### RuntimeExtentsGetTheSameValidationAsAListDoes
+
+A span holding 4 and 0 throws `Error`, and so does a span of `K_MAX_RANK` + 1 ones.
+
+### EqualityComparesRankAndEveryExtent
+
+[4, 5] equals [4, 5] and differs from [5, 4], from [4, 5, 1], and [4] differs from the
+scalar.
+
 ### HashSeparatesShapesThatDifferOnlyByRank
 
 [4, 1] and [4] hold the same element count and the same leading extent. A hash that folded only
 the extents would collide them, and the tensor pool keys its constant operands on this hash.
+
+### WorksAsAnUnorderedMapKey
+
+An `unordered_map` keyed by `Shape`, written twice under [2, 2] and once under [4], holds two
+entries with the values 2 and 7.
 
 ## modules/layers/nn/tests/test_silu.cpp
 
@@ -9688,7 +18941,7 @@ attribute.
 Three `static_assert` lines at the top of the file hold that `SiLU` is a `Module`, is not a
 `ModuleContainer`, and that `SiLU::fields()` is an empty tuple.
 
-### ForwardEmitsOneSiluNodeReadingTheInput
+### ForwardEmitsOneSiLUNodeReadingTheInput
 
 `forward` adds one node. Its operation is `Ops::K_SILU`, its one input is the value passed in
 and its one output is the value returned.
@@ -9697,9 +18950,9 @@ and its one output is the value returned.
 
 Over a [2, 4] input the result has the shape [2, 4] and the input's element type.
 
-### ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch
+### ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch
 
-Over a [2, 8, 6, 3] input the result has that shape and the layout `TensorLayout::Nhwc`.
+Over a [2, 8, 6, 3] input the result has that shape and the layout `TensorLayout::NHWC`.
 
 ### ForwardCarriesTheLayoutOfItsInput
 
@@ -9720,7 +18973,7 @@ Suites: `Unit_SpatialShapes`.
 
 Tests the shapes the builder infers for spatial operations and the layouts it refuses.
 
-### Im2ColProducesTheColumnMatrixAGemmExpects
+### Im2ColProducesTheColumnMatrixAGEMMExpects
 
 [N,H,W,C] with a 3x3 stride-1 pad-1 window over 5x5 gives 5x5 windows per image. Each row is
 one window's kernel_h * kernel_w * C taps with channels innermost, so a sub-group reads a
@@ -9736,11 +18989,20 @@ input yields 2. Both numbers are wrong under the naive (H - K)/S + 1 that forget
 The oversized window produces a zero extent, which Shape refuses anyway. The message a caller
 gets should still name the geometry, not the Shape invariant it happened to trip.
 
+### Im2ColRejectsANonSpatialInput
+
+`im2col` over a [4, 8] input throws `Error`.
+
 ### Col2ImReturnsToTheImageItWasAskedFor
 
 col2im cannot derive its output extents. ConvGeometry carries pad_top and pad_left but no
 pad_bottom or pad_right, so an asymmetric padding would be silently mis-shaped. The caller
 states the image shape instead. It always has it, because it held the value im2col consumed.
+
+### Col2ImRejectsAColumnMatrixThatDoesNotMatchTheImage
+
+`col2im` of the column matrix of a [2, 5, 5, 3] image with a padded 3x3 window, asked for the
+image shape [2, 6, 6, 3], throws `Error`.
 
 ### Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward
 
@@ -9760,7 +19022,7 @@ symmetric padding and is not a substitute for it. Feeding it the exact cols/imag
 `col2im_with_extents` accepted in Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward must
 still throw, which proves the twin is needed.
 
-### Im2ColRejectsAnNchwInput
+### Im2ColRejectsAnNCHWInput
 
 im2col reads extents off axes 1, 2, 3 assuming NHWC. Handed an NCHW value it would read channels
 as height and produce a plausible but silently wrong shape, where it should throw.
@@ -9771,7 +19033,7 @@ The indices are a second result of the node, not a second output tensor the call
 The backward rule needs exactly the indices this forward produced, and a pair returned together
 cannot be mismatched the way two separate calls could.
 
-### MaxPoolHandlesYoloTinysAsymmetricThirteenToThirteen
+### MaxPoolHandlesYOLOTinysAsymmetricThirteenToThirteen
 
 YOLOv3-tiny's last pool is 2x2 stride 1 over 13x13, padded only on the bottom and right, staying
 13x13. ConvGeometry cannot express that padding, so the caller states the extents. This case
@@ -9782,15 +19044,65 @@ proves the explicit overload is needed.
 avgpool2d records no indices: its backward divides by a constant window area and needs nothing
 the forward recorded (CV-6).
 
-### MaxPoolRejectsAnNchwInput
+### UpsampleMultipliesTheSpatialExtentsOnly
+
+`upsample2d` of [2, 3, 5, 7] by 2 and 2 gives [2, 6, 10, 7].
+
+### UpsampleRejectsANonPositiveScale
+
+`upsample2d` with a height scale of 0 throws `Error`.
+
+### MaxPoolRejectsAnNCHWInput
 
 maxpool2d reads extents off axes 1, 2, 3 assuming NHWC. Handed an NCHW value it must throw and
 must not pool the channel axis.
+
+### AvgPoolRejectsAnNCHWInput
+
+`avgpool2d` over a value converted to NCHW throws `Error`.
+
+### UpsampleRejectsAnNCHWInput
+
+`upsample2d` over a value converted to NCHW throws `Error`.
 
 ### SpatialMeanReducesToNAndC
 
 The result is the [N,C] that the numeric Probe's loss needs, which is why every convolutional
 gradient test in this plan ends with this call.
+
+### SpatialMeanRejectsAnNCHWInput
+
+`spatial_mean` over a value converted to NCHW throws `Error`.
+
+### ConcatSumsTheChannelAxisAndNothingElse
+
+`concat_channels` of [2, 8, 8, 16] and [2, 8, 8, 32] gives [2, 8, 8, 48].
+
+### ConcatRejectsOperandsThatDisagreeOffTheChannelAxis
+
+`concat_channels` of [2, 8, 8, 16] and [2, 4, 8, 16] throws `Error`.
+
+### ConcatRejectsAnNCHWOperand
+
+`concat_channels` of two values converted to NCHW throws `Error`.
+
+### SliceTakesAChannelRangeAndRefusesToOverrun
+
+Over [2, 8, 8, 48], `slice_channels(x, 16, 32)` gives [2, 8, 8, 32] and
+`slice_channels(x, 32, 32)` throws `Error`.
+
+### SliceRejectsAnNCHWInput
+
+`slice_channels` over a value converted to NCHW throws `Error`.
+
+### ChannelAffineKeepsTheShapeAndChecksTheParameters
+
+`channel_affine` of [2, 8, 8, 16] with a [16] scale and a [16] shift gives [2, 8, 8, 16].
+With an [8] scale it throws `Error`.
+
+### ChannelAffineRejectsAnNCHWInput
+
+`channel_affine` over a value converted to NCHW throws `Error`.
 
 ### BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics
 
@@ -9803,7 +19115,7 @@ throws.
 A non-positive epsilon is a division by the standard deviation itself, which is exactly zero
 for a constant channel.
 
-### BatchNorm2dRejectsAnNchwInput
+### BatchNorm2dRejectsAnNCHWInput
 
 The layout check runs before any extent is read, so the operand that is wrong is the one the
 message names.
@@ -9827,6 +19139,11 @@ and value count are unchanged after all five.
 
 An epsilon of 0.0 and one of -1e-3 each throw with a message containing "batchnorm_fold",
 "epsilon" and "positive". An epsilon of 1e-3 does not throw.
+
+### SumChannelsFoldsEverythingButTheChannelAxis
+
+`sum_channels` of [2, 8, 8, 16] gives [16], and over the same value converted to NCHW it
+throws `Error`.
 
 ### ReshapeRefusesToChangeTheElementCount
 
@@ -9858,7 +19175,7 @@ both axes.
 
 `window` returns a unit-stride unpadded geometry with the given kernel height and width.
 
-### Conv2dReturnsAnNhwcValueWithOneChannelPerFilter
+### Conv2dReturnsAnNHWCValueWithOneChannelPerFilter
 
 A [2, 5, 5, 3] input, an [8, 3, 3, 3] weight and an [8] bias under a padded 3x3 window give a
 [2, 5, 5, 8] value tagged NHWC.
@@ -9922,7 +19239,7 @@ An [8, 27] weight throws. The weight enters `conv2d` as rank 4 and is flattened 
 
 A [5, 5, 3] input, which lacks the batch axis, throws.
 
-### Conv2dPointwiseRejectsAnNchwInput
+### Conv2dPointwiseRejectsAnNCHWInput
 
 A [2, 5, 5, 3] input is converted to NCHW and paired with an [8, 1, 1, 5] weight, whose
 input-channel extent matches the last axis of the converted shape. The pointwise path skips
@@ -10328,6 +19645,158 @@ member once: 2 tasks and one journal entry.
 `list.add(list)` stops the process with a report containing "StepRecorderList::add" and "itself".
 It is a death test in `Unit_StepRecorderDeathTest`, and the list stays empty.
 
+## modules/core/optim/tests/test_step_schedule.cpp
+
+Suites: `Unit_StepSchedule`.
+
+Tests `Optim::StepSchedule::rate_at` and `Optim::validate_step_schedule`. Every case starts from
+the base rate 0.001, and the warm-up cases use 1000 warm-up updates at the default power 4. A
+rate is compared with a value the test computes in double, within 1e-15 plus 1e-12 times the
+expected value.
+
+### ConstantPolicyKeepsBaseRate
+
+With no warm-up and no step, the rate at iterations 0, 1 and 1000000 is the base rate.
+
+### WarmupRisesAsPowerOfIterationFraction
+
+During the warm-up the rate is the base rate times (iteration / 1000) to the power 4. The case
+checks iterations 0, 1, 500 and 999, and the rate at 0 is 0.
+
+### WarmupEndsAtItsLengthWithTheBaseRate
+
+At iterations 1000 and 1001 the rate is the base rate.
+
+### WarmupPowerIsTheExponentOfTheRamp
+
+With `warmup_power` 1 the rate at iteration 250 is a quarter of the base rate. With
+`warmup_power` 2 the rate at iteration 500 is a quarter of the base rate.
+
+### StepAppliesAtItsListedIteration
+
+With steps at 400 and 450, each of scale 0.1, the rate is the base rate at 399, a tenth of it
+from 400 to 449 and a hundredth of it at 450 and 451.
+
+### WarmupReplacesThePolicyUntilItsLength
+
+With a step at 500 of scale 0.1 inside the warm-up, the rates at 500 and 999 are the plain
+warm-up values. At 1000 the rate is a tenth of the base rate.
+
+### StepAtFirstIterationPastWarmupApplies
+
+With a step at 1000 of scale 0.5, the rate at 999 is the warm-up value and the rate at 1000 is
+half the base rate.
+
+### ValidateAcceptsEmptyAndAscendingSchedules
+
+`validate_step_schedule` is ok for a default `StepSchedule` and for a warm-up schedule with
+steps at 400 and 450 and two scales.
+
+### ValidateRefusesDescendingSteps
+
+Steps listed as 450 then 400 fail with `InvalidDescription`.
+
+### ValidateRefusesRepeatedStep
+
+Steps listed as 400 and 400 fail with `InvalidDescription`.
+
+### ValidateRefusesScalesLongerThanSteps
+
+One step with two scales fails with `InvalidDescription`.
+
+### ValidateRefusesStepsLongerThanScales
+
+Two steps with one scale fail with `InvalidDescription`.
+
+### ValidateRefusesNegativeWarmup
+
+A `warmup_iterations` of -1 fails with `InvalidDescription`.
+
+### ValidateRefusesNegativeWarmupPower
+
+A `warmup_power` of -1 fails with `InvalidDescription`.
+
+## modules/core/optim/tests/test_step_schedule_section.cpp
+
+Suites: `Unit_StepScheduleSection`.
+
+Tests `Optim::read_step_schedule_section` and `Optim::write_step_schedule_section`. The full
+section states `type`, `base_rate`, `warmup_iterations`, `warmup_power`, `steps` and `scales`.
+A round trip writes a schedule to a section, the section to JSON text, parses the text and
+reads it, and compares every field exactly.
+
+### TheDefaultsRoundTripThroughTheirSection
+
+A default `StepSchedule` round-trips.
+
+### AWarmupAndTwoStepsRoundTripThroughTheirSection
+
+A schedule with the base rate 0.00261, a warm-up of 1000 at the power 2.5, steps at 400000 and
+450000 and the scales 0.1 and 0.3 round-trips.
+
+### AFullSectionRoundTripsThroughItsSchedule
+
+The full section, read to a schedule and written back, gives the same JSON text as the section
+itself.
+
+### ReadsEveryFieldOfASection
+
+The full section reads as the base rate 0.00261, a warm-up of 1000, the power 4, the steps
+400000 and 450000 and the scales 0.1 and 0.1.
+
+### AKeyLeftOutKeepsTheDefaultOfItsField
+
+`{}` and `{"type": "step"}` each read as a default `StepSchedule`. `{"base_rate": 0.01}` reads
+as a default schedule whose base rate is 0.01.
+
+### WritesTheTypeAndEveryKeyInOrder
+
+The written section has the keys `type`, `base_rate`, `warmup_iterations`, `warmup_power`,
+`steps`, `scales`, in that order. `type` is `K_STEP_SCHEDULE_TYPE`, `warmup_iterations` is 1000
+and the second step is 450000.
+
+### ReadsAWholeNumberAsARateAPowerAndAScale
+
+A section with `base_rate` 1, `warmup_power` 2 and the scale 3 reads as 1.0, 2.0 and 3.0.
+
+### RefusesASectionThatIsNotAnObject
+
+An array and a null value each fail with `InvalidDescription`, "schedule" and "an object".
+
+### RefusesAnotherType
+
+The type `cosine` fails with "schedule 'type'", `'cosine'` and `'step'`. A `type` of 1 fails
+with "schedule 'type'" and "a string".
+
+### RefusesAnUnknownKey
+
+The key `burn_in` fails with `InvalidDescription` and a message containing "schedule",
+`'burn_in'`, "'type', 'base_rate'" and `'scales'`.
+
+### RefusesAValueOfAnotherKind
+
+Five sections fail with `InvalidDescription`: a string `base_rate` ("schedule 'base_rate'", "a
+number"), a `warmup_iterations` of 1.5 ("a whole number"), a `steps` of 100 ("an array"), a
+step of 20.5 ("schedule 'steps' entry 1", "a whole number") and a scale of "half" ("schedule
+'scales' entry 0", "a number").
+
+### RefusesTheSchedulesTheScheduleCheckRefuses
+
+The reader fails with `InvalidDescription` and "schedule" for two steps without scales ("2
+steps", "0 scales"), for steps 200 then 100 ("strictly ascend"), for a warm-up of -1 ("-1",
+"negative") and for a warm-up power of -2 ("-2", "negative").
+
+### WriterRefusesANumberThatIsNotFinite
+
+The writer fails with `InvalidDescription` and "finite" for an infinite base rate ("schedule
+'base_rate'"), an infinite warm-up power ("schedule 'warmup_power'") and a NaN second scale
+("schedule 'scales' entry 1").
+
+### WriterRefusesTheSchedulesTheScheduleCheckRefuses
+
+The writer fails with `InvalidDescription` and "schedule" for two steps with one scale ("2
+steps", "1 scales") and for steps 450000 then 400000 ("strictly ascend").
+
 ## modules/layers/train/tests/test_steps.cpp
 
 Suites: `Unit_Steps`.
@@ -10365,7 +19834,7 @@ which this file brings in with a using-declaration. It builds a Linear named "bo
 [batch, classes]. Its `loss()` is the cross-entropy of the output it was given by name against
 that leaf. `score()` returns no metric, and `name()` returns "named_output".
 
-### ATrainingGraphOfAnMlpHasTheNodesBuildGraphGave
+### ATrainingGraphOfAnMLPHasTheNodesBuildGraphGave
 
 The training graph of the MLP under cross-entropy has 17 nodes. Their operations, in node order,
 equal `K_MLP_TRAINING_OPS`.
@@ -10375,6 +19844,16 @@ equal `K_MLP_TRAINING_OPS`.
 The training graph lists four parameters, in the order of the parameter walk, and each entry
 carries the walk's name. Each entry's value is the parameter's `id_in` in the built graph, and
 neither its value nor its gradient is `K_NO_VALUE`.
+
+### ATrainingGraphListsEveryParameterWithItsRole
+
+The training graph of the two-layer MLP lists four parameters with the roles `Weight`,
+`Bias`, `Weight`, `Bias`.
+
+### WeightDecayAppliesToWeightsOnly
+
+`takes_weight_decay` is true for `Weight` and false for `Bias`, `Scale` and `Embedding`. A
+default `ParameterBinding` has the role `Weight`.
 
 ### ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources
 
@@ -10395,7 +19874,7 @@ The probe graph of a `BatchNorm2d` over [4, 2, 2, 3] has one `BATCHNORM2D` node,
 The evaluation graph of the same layer has one `BATCHNORM_FOLD` node, two buffer leaves and no
 `BATCHNORM2D` node.
 
-### OneModelTracedThreeTimesKeepsOneStateIdPerParameter
+### OneModelTracedThreeTimesKeepsOneStateIDPerParameter
 
 After the training graph, the probe graph and the evaluation graph are built from one
 batch-norm classifier, its four parameters have the same state identities as after the training
@@ -10415,6 +19894,447 @@ with a message containing "BatchNorm2d(3)" and "more than one value per channel"
 
 `batch_shape(16, [28, 28, 1])` is [16, 28, 28, 1]. A batch of 0 returns
 `StatusCode::InvalidDescription`, with a message containing "batch" and "positive".
+
+### AnEvaluationGraphAndAProbeGraphFeedTheModelInputAlone
+
+The steps `build_probe_graph` and `build_evaluation_graph` trace list no fed leaf and no
+carried value.
+
+### ACarryingGraphFoldsTheStoredStatisticsAndUpdatesNoBuffer
+
+For a `BatchNorm2d`, `build_carrying_graph` gives the same operation names as
+`build_evaluation_graph`: no BATCHNORM2D node, two buffer leaves, no fed leaf and no carried
+value.
+
+### AnIncrementalGraphNamesTheNodeThatHasNoIncrementalForm
+
+`build_incremental_graph` of a model whose one node is a `Linear` named "dense" fails with
+`Unsupported`, "node 'dense'" and "no incremental form".
+
+## modules/layers/train/tests/test_sum_objective.cpp
+
+Suites: `Unit_SumObjective`.
+
+Tests `Train::SumObjective` and its factory `Train::make_sum_objective`, reached through the
+`sum` row of the registry. Most cases sum two `CrossEntropyObjective` terms over 4 rows of 3
+classes. Two local objectives stand in for the others: `StepFedObjective`, which keeps the
+base's `is_fed_by_batch`, and `ReportingObjective`, whose `measure` adds the two metrics it was
+made with.
+
+### MakeKeepsItsTermsInOrder
+
+A sum of the weights 1 and 0.5 holds two terms with those weights in order. The second term's
+objective is named "cross_entropy", the sum is named "sum" and is fed by the batch, and
+`leaf_prefix(1)` is "term1.".
+
+### MakeRefusesNoTermAndAWeightItCannotUse
+
+`make` fails with `InvalidDescription` for no term ("at least one term"), a second weight of 0
+("Term 1", "'cross_entropy'", "above zero"), a first weight of -0.5 ("Term 0"), a second weight
+of infinity ("Term 1", "finite") and a first weight of NaN ("Term 0").
+
+### MakeRefusesATermItsOwnStepFeeds
+
+`StepFedObjective` reports false for `is_fed_by_batch` and `CrossEntropyObjective` reports
+true. A sum whose second term is a `StepFedObjective` fails with `InvalidDescription`, "Term
+1", `'step_fed'` and "fed by its own step".
+
+### EachTermDeclaresItsLeavesUnderItsOwnPrefix
+
+`declare` adds two leaves, `term0.targets` and `term1.targets`, with different ids, and no leaf
+named `targets`. The second has the shape [4, 3]. Two targets are required and both have the
+role `K_ROLE_LABELS`.
+
+### TheLossAddsTheWeightedLossesInTheGraph
+
+For the weights 1 and 0.5 the loss has the shape [1] and the graph holds two NLL_LOSS nodes,
+one ADD and one SCALE whose factor is 0.5. The last node of the graph is the ADD and it writes
+the loss.
+
+### ATrainingGraphDifferentiatesTheSum
+
+`Train::build_training_graph` over one `Linear` layer and a sum of the weights 2 and 0.5 gives
+a loss of one element, `spec.targets` equal to `K_NO_VALUE` and both prefixed leaves. The two
+parameters each have a gradient.
+
+### MeasureKeepsTheFirstOfTwoMetricsOfOneName
+
+With a first term that reports `accuracy` 0.25 and `precision`, and a second that reports
+`recall` 0.75 and `accuracy` 1, `measure` gives three metrics in the order `accuracy`,
+`precision`, `recall`. The accuracy is 0.25 and the recall is 0.75.
+
+### TheFactoryBuildsEachTermThroughTheRegistry
+
+A `terms` list of two `cross_entropy` entries, the second with the weight 0.5, gives a
+`SumObjective` of two terms with the weights 1 and 0.5 whose first objective is named
+"cross_entropy".
+
+### ATermMayBeASum
+
+A `terms` list holding a `cross_entropy` entry and a `sum` entry with one `cross_entropy` term
+declares two leaves, `term0.targets` and `term1.term0.targets`.
+
+### TheFactoryRefusesASectionItCannotRead
+
+Nine sections fail with `InvalidDescription`: no `terms` ("the objective block", "'terms'"), a
+`gamma` key, `terms` as an object ("an array"), an empty list ("at least one term"), an entry
+that is a number ("'terms' entry 0", "an object"), an entry without `type`, a `weight` of
+"half" ("entry 0 'weight'", "a number"), the type `yolo` ("'yolo'", "'cross_entropy'",
+"'sum'") and a `smoothing` key in a term ("'terms' entry 0", "'smoothing'").
+
+### TheFactoryNeedsTheRegistryOfItsContext
+
+`make_sum_objective` called with a context that holds no registry fails with
+`InvalidDescription`, "the objective block" and "registry".
+
+## modules/core/data/tests/test_target.cpp
+
+Suites: `Unit_DataTargetLookup`, `Unit_DataTarget`.
+
+Tests `Data::find_target`, `Data::allocate_batch`, `Data::prepare_batch`,
+`Data::describe_input` and the labels `Data::SyntheticClassification` publishes. The
+`Unit_DataTarget` fixture needs an engine. The two roles of the cases are `labels`, one int32
+per sample over 5 classes, and `boxes`, a float32 [3, 4] value per sample.
+
+### ADescriptionIsFoundByItsRole
+
+`find_target` over the two descriptions returns the address of the first for `K_ROLE_LABELS`
+and of the second for `boxes`. It returns null for `mask` and for any role over an empty list.
+
+### ABatchTargetIsFoundByItsRole
+
+`find_target` over two `BatchTarget` values returns the address of each by its role and null
+for `mask`.
+
+### AllocateBatchYieldsOneTensorPerDescriptionInOrder
+
+`allocate_batch` for 8 samples of a float32 [6] input gives [8, 6] float32 inputs and two
+targets: `labels` as an int32 [8] tensor and `boxes` as a float32 [8, 3, 4] tensor.
+
+### AllocateBatchWithNoDescriptionYieldsTheInputsAlone
+
+With no description and a [4, 4, 1] sample, the inputs have rank 4 and the batch has no target.
+
+### AllocateBatchGivesTheInputItsStatedElementType
+
+For an int32 [7] input and 3 samples the inputs are an int32 [3, 7] tensor, and the `boxes`
+target is float32.
+
+### PrepareBatchKeepsABatchThatHoldsTheLayoutAlone
+
+A second `prepare_batch` with the same batch size, input and roles leaves the data pointer of
+the inputs unchanged and their type int32.
+
+### PrepareBatchReplacesAnInputOfAnotherElementType
+
+After `prepare_batch` with a float32 [7] input, a second call with an int32 [7] input leaves
+int32 inputs of rank 2 whose second extent is 7.
+
+### ADatasetStatesTheElementTypeOfItsInput
+
+`SyntheticClassification` reports float32 for `sample_dtype()`, and `describe_input` of it
+gives float32 and a sample shape of its feature count. `describe_input` of a
+`MaterialisedDataset` built over an int32 [7] input gives int32 and [7].
+
+### SyntheticClassificationPublishesItsLabelsInRotation
+
+A synthetic set of two batches of 4 samples, 5 features and 3 classes publishes one target:
+`K_ROLE_LABELS`, an empty sample shape, int32, 3 classes. Its sample shape is [5]. The labels
+of batch 0 are 0, 1, 2, 0 and those of batch 1 are 1, 2, 0, 1.
+
+## modules/language/text/tests/test_text_bpe_trainer.cpp
+
+Suites: `Unit_TextBpeTrainer`.
+
+Tests `Language::Text::train_bpe` in
+`modules/language/text/include/SushiAI/language/text/bpe_trainer.hpp`. Unless a case says
+otherwise the options state a vocabulary size and no special name, so the first merged token
+has the id 257. The generated corpora are drawn with the seed 20261011.
+
+### ItLearnsTheHandWorkedMergesOfATinyCorpus
+
+Training on "abababc" to a size of 300 learns two merges, (97, 98) then (257, 257). The
+vocabulary has 259 tokens and token 258 stands for "abab".
+
+### PairsOfOneCountMergeBySmallerLeftThenRightID
+
+Training on "ab ab cd cd" learns three merges in the order (32, 99), (97, 98), (257, 100).
+
+### NoMergeCrossesTheStartOfABlankRun
+
+Training on "a b a b a b" learns two merges, (32, 98) then (32, 97).
+
+### TheSameCorpusGivesTheSameVocabulary
+
+Two runs to a size of 400 over one corpus of 20000 bytes drawn from "abcdef", the blank and
+the newline learn at least one merge and the same merges in the same order.
+
+### ARunStoppedEarlyLearnsTheFirstMergesOfALongerRun
+
+Over a corpus of 4000 bytes drawn from "abc" and the blank, a run to a size of 270 learns at
+least one and at most 13 merges, and each equals the merge at the same index of a run to a
+size of 290.
+
+### ItStopsAtTheSizeAskedFor
+
+Training on "abababc" to a size of 258 learns one merge, (97, 98).
+
+### APairThatOccursOnceIsNotMerged
+
+Training on "abcdef" to a size of 300 gives a vocabulary of 257 tokens, and so does training
+on the empty text.
+
+### SpecialTokensPrecedeTheMergedTokens
+
+With the special name "<pad>", training on "abababc" learns two merges, the second of which
+is (258, 258), and token 259 stands for "abab".
+
+### ItRefusesASizeOutOfBounds
+
+`train_bpe` fails with `InvalidDescription` for a size of 256 ("train_bpe", "256 tokens", "257
+to"), a size of `K_MAX_VOCABULARY_SIZE + 1` ("train_bpe", "asked for") and an empty special
+name ("special token 1").
+
+## modules/language/text/tests/test_text_codec.cpp
+
+Suites: `Unit_TextCodec`.
+
+Tests `Language::Text::encode_text` and `Language::Text::decode_tokens` in
+`modules/language/text/include/SushiAI/language/text/codec.hpp`. A round trip encodes a text,
+checks that every id is in the vocabulary and is not a special token, and checks that the ids
+decode to the same bytes.
+
+### RandomBytesSurviveARoundTrip
+
+With a vocabulary of 400 tokens trained on 20000 drawn bytes, the round trip holds for 64
+texts of random bytes of up to 1999 bytes each, for the training corpus, for the empty text
+and for eight bytes that are not valid UTF-8.
+
+### ATextLongerThanOneChunkSurvivesARoundTrip
+
+The vocabulary has the merge (97, 97) and seven merges that each join the token before with
+itself. A text of 5000 'a' bytes makes the round trip and encodes to 21 ids: the first is 264,
+the twentieth is 263 and the last is 259.
+
+### MergesAreAppliedInTheOrderTheyWereLearned
+
+With the merges (97, 98) and (257, 257), "abababc" encodes to 258, 257, 99. With the merges
+(98, 99) and (97, 98), "abc ab" encodes to 97, 257, 32, 258.
+
+### ATrainedCorpusEncodesToItsTrainedTokens
+
+With the vocabulary trained on "ab ab cd cd" to a size of 300, that text encodes to 258, 32,
+258, 259, 259.
+
+### EncodeAppendsToTheIDsItIsGiven
+
+Encoding "A" into a vector that holds 7 leaves 7, 65.
+
+### ASpecialTokenDecodesToNoByte
+
+Decoding the ids 72, `K_END_OF_TEXT`, 105 into a string that holds ">" leaves ">Hi".
+
+### DecodeRefusesAnIDOutsideTheVocabulary
+
+Over a vocabulary of 257 tokens, `decode_tokens` fails with `InvalidDescription` for the ids
+72, 9999, 105 ("decode_tokens", "9999", "index 1", "[0, 257)") and for the id -3 ("-3", "index
+0").
+
+## modules/language/text/tests/test_text_stream_encoder.cpp
+
+Suites: `Unit_TextStreamEncoder`.
+
+Tests `Language::Text::encode_stream` in
+`modules/language/text/include/SushiAI/language/text/stream_encoder.hpp` against
+`encode_text`.
+
+### EveryPieceSizeGivesTheIDsOfTheWholeText
+
+The text is 40 repetitions of two lines with runs of blanks, a tab and a carriage return, then
+a word of 600 'x' bytes and " the end". With a vocabulary of 300 tokens trained on it,
+`encode_stream` gives the ids of `encode_text` for pieces of 1, 7, 64 and 1000 bytes and of
+`K_STREAM_PIECE_BYTES`.
+
+### AnEmptyStreamAppendsNothing
+
+`encode_stream` over an empty stream leaves a vector that holds 7 unchanged. Over a stream of
+"ab" it then leaves 7, 'a', 'b'.
+
+## modules/language/text/tests/test_text_vocabulary.cpp
+
+Suites: `Unit_TextVocabulary`.
+
+Tests `Language::Text::Vocabulary` in
+`modules/language/text/include/SushiAI/language/text/vocabulary.hpp`. A merge is written here
+as (left, right).
+
+### AVocabularyWithoutMergesHoldsTheBytesAndEndOfText
+
+A vocabulary made of no merges has 257 tokens and a `first_merged()` of 257. The ids 0 and 255
+are of the kind `Byte`, id 65 stands for "A" and id 255 for the byte 0xFF. `K_END_OF_TEXT` is
+of the kind `Special` and stands for no byte, and `find_special(K_END_OF_TEXT_NAME)` is 256.
+`contains` is true for 256 and false for 257 and -1.
+
+### MergedTokensTakeIDsInTheOrderOfTheirMerges
+
+With the merges (97, 98) and (257, 99) the vocabulary has 259 tokens, id 257 is of the kind
+`Merged` and stands for "ab", and id 258 stands for "abc". `find_merge` returns 257 for
+(97, 98) and 258 for (257, 99), and no value for (98, 97) and (-1, 97). `merges()` holds two
+merges, the second of which is (257, 99).
+
+### SpecialTokensFollowEndOfText
+
+With one merge and the special names "<pad>" and "<mask>" the vocabulary has 260 tokens.
+`find_special` returns 257 and 258 for the two names and no value for "<absent>".
+`first_merged()` is 259, id 259 stands for "ab", and `special_names()` holds three names, the
+first of which is `K_END_OF_TEXT_NAME`.
+
+### MakeRefusesAMergeOfATokenItMayNotJoin
+
+`Vocabulary::make` fails with `InvalidDescription` for the merge (97, 257) at index 0
+("Vocabulary", "merge 0", "97 and 257"), (259, 97) at index 1 ("merge 1", "259 and 97"),
+(`K_END_OF_TEXT`, 97) ("merge 0", "256 and 97") and (-1, 97) ("merge 0", "-1 and 97").
+
+### MakeRefusesAPairNamedTwice
+
+Two merges of (97, 98) fail with `InvalidDescription` and a message containing "merge 1", "97
+and 98" and "earlier merge".
+
+### MakeRefusesATokenAboveTheByteLimit
+
+Eight merges that each double the token before build a vocabulary whose id 264 stands for 256
+'a' bytes. A ninth such merge fails with `InvalidDescription` and a message containing "merge
+8", "512 bytes" and "at most 256".
+
+### MakeRefusesASpecialNameOutOfBounds
+
+`Vocabulary::make` fails with `InvalidDescription` for an empty name ("special token 1", "0
+bytes"), a name of 256 bytes ("256 bytes", "1 to 255"), "<pad>" given twice ("'<pad>'", "named
+twice"), `K_END_OF_TEXT_NAME` given as a name ("named twice") and 256 names ("257 special
+tokens", "at most 256").
+
+### AnIDOutsideTheVocabularyStopsTheProcess
+
+Over a vocabulary of 257 tokens, `bytes_of(257)` stops the process with a report containing
+"Vocabulary", "257" and "[0, 257)", and `kind_of(-1)` with "Vocabulary" and "-1".
+
+## modules/language/text/tests/test_text_vocabulary_file.cpp
+
+Suites: `Unit_TextVocabularyFile`.
+
+Tests `write_vocabulary_file`, `read_vocabulary_file` and `parse_vocabulary_file` in
+`modules/language/text/include/SushiAI/language/text/vocabulary_file.hpp`. Most cases start
+from a hand-written file of 49 bytes: a header of 24 bytes with the magic "SAVB" and version
+1, a special section of 17 bytes that holds the name "<end_of_text>", and the one merge
+(97, 98) in 8 bytes.
+
+### TheWriterProducesTheDocumentedBytes
+
+`write_vocabulary_file` of a vocabulary with the one merge (97, 98) writes exactly those 49
+bytes.
+
+### AVocabularySurvivesItsFile
+
+A vocabulary of three merges and the special names "<pad>" and "<mask>" is written and read
+back. The read vocabulary has the same size, the same special names and the same three
+merges, and its id 261 stands for " abc".
+
+### ATruncatedFileIsRefusedAtEveryLength
+
+For every length from 0 to 48 bytes, `parse_vocabulary_file` over that prefix fails with
+`InvalidFile` and a message containing "read_vocabulary_file" and "ends at byte". A prefix of
+10 bytes names "ends at byte 10" and "header of 24 bytes"; one of 30 names "ends at byte 30"
+and "declares 49 bytes".
+
+### BytesAfterTheDeclaredEndAreRefused
+
+With three bytes appended, the parse fails with `InvalidFile` and a message containing "3
+bytes follow" and "byte 49".
+
+### AnotherMagicOrVersionIsRefused
+
+The parse fails with `InvalidFile` for a first byte of 'X' ("'SAVB'", "no vocabulary file"),
+for a version of 2 ("byte 4", "format version 2", "versions 1 to 1") and for a version of 0
+("format version 0").
+
+### AHeaderCountOutOfBoundsNamesItsOffset
+
+The parse fails with `InvalidFile` for a byte-token count of 257 ("byte 8", "257 byte
+tokens"), a special-token count of 0 ("byte 12", "0 special tokens") and a merge count whose
+last byte is 0x7F ("byte 16", "merges").
+
+### ASpecialTokenPastItsSectionNamesItsOffset
+
+The parse fails with `InvalidFile` for a name length of 14 ("special token 0", "byte 28", "14
+bytes", "ends at byte 41"), a name length of 12 ("byte 28", "'<end_of_text'") and a name
+length of 0 ("byte 24", "0 bytes").
+
+### AMergeOfALaterTokenIsRefused
+
+With byte 42 set to 1 the merge reads as (353, 98) and the parse fails with
+`InvalidDescription` and a message containing "merge 0" and "353 and 98". With byte 44 set to
+0xFF the parse fails with `InvalidFile` and a message containing "merge 0" and "byte 41".
+
+### TheReaderNamesThePathOfAFileItRefuses
+
+`read_vocabulary_file` fails with `FileNotFound` for a path that does not exist ("absent.savb",
+"read_vocabulary_file") and with `InvalidFile` for a file cut to 45 bytes ("cut.savb", "ends
+at byte 45", "declares 49 bytes").
+
+## modules/core/data/tests/test_threaded_loader.cpp
+
+Suites: `Unit_ThreadedLoader`, `Unit_Epoch`.
+
+Tests `Data::ThreadedLoader` and `Data::begin_epoch`. The loader wraps a local
+`RecordingDataset` of 12 batches. Each batch it reads carries one target whose role is
+"<epoch>:<index>" and holds no tensor. A `Probe` records the threads that called `read`, how
+far ahead of the caller a read started and the epoch last begun. The cases start worker
+threads and need no engine.
+
+### HandsTheBatchesOverInIndexOrder
+
+With 3 workers and a prefetch of 4, reading indices 0 to 11 returns the batch named "0:<index>"
+each time. At least one and at most three threads called `read`, and the test's own thread is
+not among them.
+
+### ReadsNoFurtherAheadThanThePrefetchCount
+
+With 4 workers and a prefetch of 3, no read started more than 3 indices ahead of the index the
+test had asked for.
+
+### AFailedReadIsTheStatusOfItsIndexAlone
+
+With a dataset whose batch 5 fails, reading index 5 fails with `InvalidFile`, "batch 5" and
+"unreadable". Every other index from 0 to 11 returns its batch.
+
+### AnIndexOutOfOrderIsRead
+
+Reading the indices 7, 8, 2, 3, 11, 0 in that order returns the batch of each index.
+
+### BeginEpochReachesTheDatasetAndDropsWhatWasReadAhead
+
+After reads of indices 0 and 1, `Data::begin_epoch(*loader, 3)` sets the dataset's epoch to 3.
+Reading indices 0 to 11 then returns the batches named "3:<index>".
+
+### TheDestructorJoinsWithBatchesReadAhead
+
+A loader of 3 workers and a prefetch of 4 is destroyed after `begin_epoch` and before any read
+by the test. The case ends with `SUCCEED()` and asserts nothing else after the loader is made.
+
+### StatesWhatItsDatasetStates
+
+The loader reports the batch size 1, 12 batches, the name "recording", the sample type float32
+and no target.
+
+### MakeRefusesNoDatasetAndAnOptionBelowOne
+
+`ThreadedLoader::make` fails with `InvalidDescription` for a null dataset ("no dataset"), for 0
+workers ("0 threads") and for a prefetch of 0 ("0 batches ahead").
+
+### ADatasetThatIsNotEpochAwareIsLeftAlone
+
+`Data::begin_epoch` on a dataset that does not implement `EpochAware` returns, and the
+dataset's batch count is still 1.
 
 ## modules/layers/nn/tests/test_throwing_bridge.cpp
 
@@ -10617,7 +20537,7 @@ first message and does not contain "second". `graph.has_refusal()` is true.
 
 ### ValueOrFailReturnsAHeldValue
 
-`value_or_fail(Result<ValueId>(y), x)` returns y and leaves `status()` ok.
+`value_or_fail(Result<ValueID>(y), x)` returns y and leaves `status()` ok.
 
 ### ValueOrFailRecordsAFailureAndReturnsTheFallback
 
@@ -10691,6 +20611,50 @@ once and yields a [2, 3] value both times. Its parameter walk yields "0.weight" 
 and through the builder `forward` in another returns the same id, leaves the same value count
 and walks the same parameter names.
 
+### AnEvaluationTraceRefusesAFedLeafAndACarriedValue
+
+An evaluation trace is not carrying. `feed` fails with `InvalidDescription`, "'position'" and
+"carrying trace"; `carried_leaf` with "'kept'" and "carrying trace"; `carry` with
+"carrying trace". No node is added.
+
+### ATrainingTraceRefusesAFedLeaf
+
+A training trace is not carrying, and `feed` fails with `InvalidDescription` and
+"'position'".
+
+### ACarryingTraceIsAnEvaluationTraceThatRefusesABufferUpdate
+
+A carrying trace reports `is_carrying` and the mode `TraceMode::Evaluation`. `update` fails
+with `InvalidDescription` and "evaluation trace", and no carried value is recorded.
+
+### AFedLeafIsDeclaredOncePerName
+
+Two `feed` calls for "position" return the same value and add one node between them; `feed`
+for "mask" returns another. The value is an `Int32` input leaf. The fed list holds "position"
+then "mask", `find("mask")` returns the mask's value and `find("absent")` returns
+`K_NO_VALUE`.
+
+### AFedLeafDeclaredAgainAsAnotherLeafIsRefused
+
+After "mask" is fed as [1, 4] `Float32`, feeding it as [1, 5] fails with
+`InvalidDescription`, "'mask'", "[1, 4]" and "[1, 5]", and as `Float64` with "'mask'". The
+fed list still holds one leaf.
+
+### CarryRecordsTheLeafItsNextValueAndItsInitialValue
+
+`carried_leaf` declares an input leaf that is not in the fed list. After
+`carry(leaf, next, 0.5)` the carried list holds one entry with that leaf, that next value and
+the initial value 0.5, and `sources` holds the next value.
+
+### CarryRefusesANextValueOfAnotherShape
+
+`carry` of a [4, 3] leaf with a [3, 4] next value fails with `InvalidDescription`, "[4, 3]"
+and "[3, 4]", and records nothing.
+
+### CarryingAValueThatIsNoCarriedLeafIsFatal
+
+`carry` of a value that `carried_leaf` did not declare is fatal with "did not declare".
+
 ## modules/core/graph/tests/test_traced.cpp
 
 Suites: `Unit_Traced`.
@@ -10698,12 +20662,12 @@ Suites: `Unit_Traced`.
 Tests Traced and the refusal it carries through a chain of emitters.
 
 This file needs no device. `Graph::Traced` in `modules/core/graph/include/SushiAI/graph/traced.hpp` holds a
-`ValueId` or a failed `Status`. An emitter that returns one takes its operands as `Traced`
+`ValueID` or a failed `Status`. An emitter that returns one takes its operands as `Traced`
 too, so a call can be nested inside another and the first refusal travels to the outermost
 result.
 
 Six `static_assert` lines at the top of the file hold that a `Traced` is default-constructible
-and constructible from a `ValueId` and from a `Status` without throwing, that both conversions
+and constructible from a `ValueID` and from a `Status` without throwing, that both conversions
 are implicit, and that its size is two pointers.
 
 The cases up to BuildingFromASuccessStatusIsFatal use `StandInBuilder` and involve no graph.
@@ -10745,11 +20709,11 @@ limit, and otherwise declares one input of that extent.
 
 A default-constructed `Traced` has a value, an ok status and the id `Graph::K_NO_VALUE`.
 
-### HoldsAnIdWithASuccessStatus
+### HoldsAnIDWithASuccessStatus
 
-`Traced(ValueId{12})` has a value, is ok and returns 12.
+`Traced(ValueID{12})` has a value, is ok and returns 12.
 
-### HoldsAFailureAndTheAbsentId
+### HoldsAFailureAndTheAbsentID
 
 A `Traced` built from a failure has no value and reports the failure's code and message.
 
@@ -10763,9 +20727,9 @@ refusal and leave `live_failure_count()` where it was.
 A failed `Traced` that was moved from still reports its failure, as does the target. A
 `Traced` holding 4 that was move-assigned from still returns 4, as does the target.
 
-### AssignmentReplacesAFailureWithAnId
+### AssignmentReplacesAFailureWithAnID
 
-Assigning `ValueId{3}` to a failed `Traced` leaves a value and the id 3. Assigning a failure to
+Assigning `ValueID{3}` to a failed `Traced` leaves a value and the id 3. Assigning a failure to
 it afterwards leaves that failure.
 
 ### AnAbsentOperandPassesThroughAnEmitter
@@ -10782,13 +20746,13 @@ The log still shows one refusal and no emitted value.
 
 ### NestedCallsEmitWhenNothingIsRefused
 
-`emit_over(builder, emit_below(builder, ValueId{2}, 4))` yields the id 1 with two values
+`emit_over(builder, emit_below(builder, ValueID{2}, 4))` yields the id 1 with two values
 emitted and no refusal.
 
 ### TryForwardsATracedFailureAsAStatus
 
 `forward_traced` over a failed `Traced` returns the failure and leaves its flag false. Over
-`ValueId{1}` it succeeds and sets the flag.
+`ValueID{1}` it succeeds and sets the flag.
 
 ### ValueOnAFailureIsFatalAndPrintsTheFailure
 
@@ -10820,6 +20784,320 @@ status returns that failure and marks the graph.
 `observe(Result<int>(7))` returns a result holding 7 and leaves the graph unmarked. `observe`
 of a failed `Result<int>` returns the failure and marks the graph.
 
+## modules/core/config/tests/test_train_config.cpp
+
+Suites: `Unit_TrainConfig`.
+
+Tests `Config::parse_train`, `Config::check_start` and `Config::read_run_seed`. Most cases
+parse a file that states `sushiai_train`, `model`, `objective`, `data` and an `sgd` optimizer,
+followed by the members the case adds. The last four cases parse a file whose `data` block the
+case supplies.
+
+### AFileWithoutAScheduleHoldsTheNullValue
+
+Without a `schedule` member, `spec.schedule` is null, the optimizer type is "sgd" and `epochs`
+is 1.
+
+### TheScheduleIsCarriedAsTheFileStatesIt
+
+A `schedule` object with `type`, `base_rate` and a key named `unread_here` is kept as an object
+of three keys. Its `type` is "step", its `base_rate` is a real and it has `unread_here`.
+
+### AScheduleOfAnotherKindIsCarriedUnchecked
+
+A `schedule` that is the string "later" parses, and `spec.schedule` has the kind `String`.
+
+### AKeyBesideTheScheduleIsStillRefused
+
+A member named `schedules` raises an error naming `'schedules'`.
+
+### AFileWithoutWeightsHoldsAnEmptyPath
+
+Without a `weights` member, `spec.weights` is empty.
+
+### TheWeightsPathResolvesAgainstTheFile
+
+Parsed with the directory `runs`, `"weights": "start.sushi"` gives `runs/start.sushi` and the
+model path is `runs/model.json`.
+
+### WeightsThatAreNoStringAreRefused
+
+`"weights": 3` raises an error naming `'weights'`.
+
+### TheResumePathResolvesAgainstTheFile
+
+Without a `resume` member the path is empty. Parsed with the directory `runs`,
+`"resume": "last.sushi"` gives `runs/last.sushi` and leaves `weights` empty.
+
+### AResumeThatIsNoStringIsRefused
+
+`"resume": true` raises an error naming `'resume'`.
+
+### WeightsAndResumeTogetherAreRefused
+
+`check_start` is ok for a file with neither member, with `weights` alone and with `resume`
+alone. With both it fails with `InvalidDescription` and a message naming `'train.json'`,
+`'weights'` and `'resume'`.
+
+### TheSeedIsZeroUnlessTheFileStatesOne
+
+Without a `seed` member `spec.seed` is 0 and `read_run_seed` returns 0. With
+`"seed": 20261011` both are 20261011.
+
+### ASeedThatIsNoIntegerIsRefused
+
+The seeds "seven" and 0.5 each raise an error naming `'seed'`.
+
+### ANegativeSeedIsRefused
+
+A file with `"seed": -3` parses, and `read_run_seed` fails with `InvalidDescription` and a
+message containing `'train.json'`, `'seed'` and "-3".
+
+### ADataBlockWithAReaderTakesTheReaderType
+
+A `data` block with `reader`, `task` and `root` and no `type` gets the type
+`Config::K_READER_DATA_TYPE`. Its attributes keep all three keys and `reader` is "yolo_txt".
+
+### ATypedDataBlockKeepsItsType
+
+A `data` block with `"type": "mnist"` and `directory` gets the type "mnist". Its attributes
+hold `directory` and no `type`.
+
+### ATypeBesideAReaderStaysATypedBlock
+
+A `data` block with `"type": "mnist"` and `reader` gets the type "mnist" and its attributes
+still hold `reader`.
+
+### ADataBlockWithNeitherKeyIsRefused
+
+A `data` block with only `root` raises an error naming `'type'`.
+
+## modules/language/training/tests/test_training_expert_balance_objective.cpp
+
+Suites: `Unit_LanguageTrainingExpertBalanceObjective`,
+`Unit_LanguageTrainingExpertBalanceMetrics`.
+
+Tests `Language::Training::ExpertBalanceObjective` in
+`modules/language/training/include/SushiAI/language/training/expert_balance_objective.hpp` and
+its factory `make_expert_balance_objective`. The blocks the cases describe have four experts.
+The fixture of the metrics suite provides an engine and allocates `Float32` usage tensors of
+the shape [1, 4].
+
+### MakeKeepsItsOutputsAndRefusesNone
+
+An objective made of the balance "balance" and the usage "usage" of four experts returns that
+name from `balances()` and one usage of four experts from `usages()`. Its name is
+"expert_balance" and `is_fed_by_batch()` is true. `make` fails with `InvalidDescription` for no
+balance ("at least one balance output", "0 and 1"), no usage ("1 and 0"), an empty balance
+name ("no name") and a usage of 0 experts ("'usage' of 0").
+
+### ItDeclaresNoLeafAndReadsNoRole
+
+After `declare`, the leaves list no leaf and no required role, and the graph has no node.
+
+### TheLossIsTheMeanOfTheBalanceOutputs
+
+The model outputs "balance2" and "balance3" are [1, 1] values. The loss of an objective over
+"balance3" alone has the shape [1] and comes from a RESHAPE node that reads that output, with
+no SCALE node in the graph. The loss of an objective over both has the shape [1] and comes
+from a SCALE node whose attribute is 0.5 and whose input comes from an ADD node.
+
+### TheFactoryReadsTheOutputsByTheirNames
+
+Over a context that publishes "output", "balance2", "usage2", "balance3" and "usage3", the
+factory builds an `ExpertBalanceObjective` whose balances are "balance2" and "balance3" and
+whose usages are "usage2" and "usage3", the second of four experts.
+
+### TheFactoryRefusesWhatDoesNotFit
+
+The factory fails with `InvalidDescription` for a `weight` key ("objective states the key
+'weight'"), for a context that publishes only "output" ("begin with 'balance'", "'usage'", "0
+and 0", "among its 1") and for a "balance2" output of the shape [1, 2] ("'balance2'", "one
+element", "[1, 2]").
+
+### MeasureReportsTheSmallestAndLargestShare
+
+The step publishes "usage2" with four shares of 0.25 and "usage3" with the shares 0.125, 0.5,
+0.0625 and 0.3125. `measure` writes two metrics, "expert_usage_min" of 0.0625 and
+"expert_usage_max" of 0.5, each within 1e-7 and each marked as a fraction.
+
+### MeasureRefusesAUsageItCannotRead
+
+Over a step that publishes only "usage2" with four shares, `measure` fails with
+`InvalidDescription` for an objective that reads "usage9" ("'usage9'", "did not publish") and
+with `Incompatible` for one that expects eight experts in "usage2" ("the usage of the
+experts", "8 values", "holds 4"). No metric is written.
+
+## modules/language/training/tests/test_training_next_token_objective.cpp
+
+Suites: `Unit_LanguageTrainingNextTokenObjective`.
+
+Tests `Language::Training::NextTokenObjective` in
+`modules/language/training/include/SushiAI/language/training/next_token_objective.hpp` and its
+factory `make_next_token_objective`. Unless a case says otherwise the batch has two rows of
+three positions over a vocabulary of five, and the factory's context publishes one output
+"out" of the shape [2, 3, 5].
+
+### MakeKeepsItsExtentsAndRefusesNone
+
+`batch()`, `length()` and `vocabulary()` return 2, 3 and 5, and the name is "next_token".
+`make` fails with `InvalidDescription` and "at least 1" for a batch of 0 and for a vocabulary
+of 0.
+
+### MakeRefusesWhatInt32CannotIndex
+
+`make(64, 1024, 50257)` fails with `InvalidDescription` and a message containing "int32 index"
+and "64 * 1024 * 50257". `make(32, 256, 8192)` and `make(1, 1, 2147483647)` are ok, and
+`make(1, 2, 2147483647)` fails with "int32 index".
+
+### ItDeclaresAnIndexLeafAndReadsLabels
+
+`declare` adds one leaf, "targets", an `Int32` value of the shape [6]. It requires one role,
+`K_ROLE_LABELS`, with the sample shape [3], the type `Int32` and 0 classes.
+
+### TheLossGathersOneLogProbabilityPerPosition
+
+`Train::build_training_graph` over an `NN::Embedding` of five rows and five columns, with an
+`Int32` input of the shape [2, 3], gives a loss of one element and `Int32` targets. The graph
+holds no NLL_LOSS, one LOG_SOFTMAX, two GATHER_ROWS, two SCATTER_ADD_ROWS and one
+LOG_SOFTMAX_BACKWARD node. The one parameter has a gradient and the role `Embedding`.
+
+### TheFactoryReadsTheModelsOutput
+
+The objective the factory builds from an empty section declares a "targets" leaf of the shape
+[6] and has the name "next_token".
+
+### TheFactoryRefusesWhatDoesNotFit
+
+The factory fails with `InvalidDescription` for a `smoothing` key ("objective states the key
+'smoothing'"), a second published output ("one [N, T, V] output", "publishes 2"), an output of
+the shape [2, 5] ("[2, 3, V] logits", "'out'"), an input sample of [4, 4, 3] ("[T] token ids
+per sample") and a context of six classes ("6 token ids", "scores 5").
+
+### ABatchAloneFeedsTheObjective
+
+`is_fed_by_batch()` is true.
+
+### MeasureReportsThePerplexityOfTheLoss
+
+Over a step whose loss is ln 8, `measure` writes one metric, "perplexity", that is not a
+fraction and equals 8 within a relative 1e-12.
+
+### TheOutputKeyNamesTheLogitsAmongSeveral
+
+Over a context that also publishes "balance" of the shape [1, 1], the section `{"output":
+"out"}` builds an objective. Its loss over model outputs "balance" and "out" has one element,
+and the graph holds one LOG_SOFTMAX node.
+
+### TheFactoryRefusesAnOutputItCannotFind
+
+Over the same two outputs, the factory fails with `InvalidDescription` for an empty section
+("publishes 2", "name the logits with 'output'"), `"output": "logits"` ("the output 'logits'",
+"none of that name among its 2"), `"output": 3` ("'output' names a published output"),
+`"output": ""` ("'output'", "is empty") and `"output": "balance"` ("[2, 3, V] logits",
+"'balance'", "[1, 1]").
+
+## modules/language/training/tests/test_training_next_token_targets.cpp
+
+Suites: `Unit_LanguageTrainingNextTokenTargets`, `Unit_LanguageTrainingPerplexity`.
+
+Tests `Language::Training::fill_next_token_targets` in
+`modules/language/training/include/SushiAI/language/training/next_token_targets.hpp`, and
+`Language::Training::perplexity` and `Language::Training::next_token_metrics`. The fixture of
+the first suite provides an engine, `Int32` labels of the shape [2, 3] and a leaf of six
+elements that starts at -7 everywhere. The vocabulary has five tokens.
+
+### APositionIndexesItsLabelAmongEveryScore
+
+The labels 4, 0, 2, 1, 1, 3 fill the leaf with 4, 5, 12, 16, 21, 28.
+
+### ALabelOutsideTheVocabularyIsRefused
+
+`fill_next_token_targets` fails with `Incompatible` for a label of 5 at position 4 ("position
+4 is 5", "holds 5 tokens") and for a label of -1 at position 2 ("position 2 is -1"). Every
+element of the leaf is still -7.
+
+### AFillThatDoesNotFitIsRefused
+
+The fill fails with `Incompatible` for labels of the shape [2, 2] ("holds 4 labels", "expects
+6"), for `Float32` labels ("float32", "int32"), for a vocabulary of 2147483647 ("6 positions",
+"cannot be indexed") and for a vocabulary of 0 ("cannot be indexed").
+
+### ThePerplexityIsTheExponentialOfTheLoss
+
+`perplexity(0)` is exactly 1, `perplexity(ln 64)` is 64 within a relative 1e-12 and
+`perplexity(1e6)` is infinite. The case is in the suite `Unit_LanguageTrainingPerplexity`.
+
+### TheMetricsAreTheLossAndThePerplexity
+
+`next_token_metrics(ln 8)` returns "loss" with exactly ln 8 and "perplexity" with 8 within a
+relative 1e-12, neither marked as a fraction. The case is in the suite
+`Unit_LanguageTrainingPerplexity`.
+
+## modules/vision/training/tests/test_truth_from_roles.cpp
+
+Suites: `Unit_TruthRoles`, `Unit_TruthFromRoles`.
+
+Tests `describe_truth_roles` and `truth_from_roles` in
+`modules/vision/training/include/SushiAI/vision/training/truth_from_roles.hpp`. The
+`Unit_TruthFromRoles` fixture is an `EngineTest`. Its batch holds two images of three slots
+over 5 classes: the slots 0, 2 and 5 are in use with the classes 4, 2 and 1, and the padding
+slots hold zeros.
+
+### DescribesBoxesClassesAndValidOverTheSlots
+
+`describe_truth_roles(3, 5)` gives three roles: `K_ROLE_BOXES` of [3, `K_TRUTH_BOX_VALUES`],
+`Float32` and 0 classes; `K_ROLE_CLASSES` of [3], `Int32` and 5 classes; `K_ROLE_VALID` of
+[3], `Float32` and 0 classes.
+
+### DescribesAClassCountOfZero
+
+`describe_truth_roles(1, 0)` succeeds and its classes role states 0 classes.
+
+### RefusesNoSlotAndANegativeClassCount
+
+`describe_truth_roles` fails with `InvalidDescription` for 0 slots ("object slot", "got 0")
+and for -1 classes ("classes", "got -1").
+
+### CopiesTheCornersWidensTheClassesAndMakesTheFlagsBytes
+
+`truth_from_roles` gives a truth of batch 2 and 3 boxes per image whose `boxes` equal the
+corners written, whose `labels` are 4, 0, 2, 0, 0, 1 and whose `valid` bytes are 1, 0, 1, 0,
+0, 1.
+
+### FindsTheRolesInAnotherOrder
+
+With the first and third target of the batch swapped, the truth has the same boxes and valid
+bytes.
+
+### KeepsTheStorageOfATruthBetweenBatchesOfOneSize
+
+After a second `truth_from_roles` into the same truth, `boxes`, `labels` and `valid` have the
+data pointers of the first call, and the first label is the 3 written in between.
+
+### RefusesABatchThatLacksARole
+
+Without any one of the three roles the call fails with `InvalidDescription`, "no role '<role>'"
+and "it carries". A batch with no target fails with "no role 'boxes'" and "(none)".
+
+### RefusesARoleOfAnotherElementTypeOrRank
+
+The call fails with `Incompatible` for `Float32` classes ("'classes'", "int32",
+"float32 [2, 3]"), for `Int32` valid flags ("'valid'", "float32", "int32 [2, 3]") and for
+boxes of sample shape [12] ("'boxes'", "rank 3", "[2, 12]").
+
+### RefusesABoxOfAnotherWidthAndRolesOfOtherSlots
+
+The call fails with `Incompatible` for boxes of three values ("'boxes'", "[2, 3, 3]",
+"4 values"), for classes of four slots ("'classes'", "[2, 4]", "[2, 3, 4]") and for valid
+flags of two slots ("'valid'", "[2, 2]", "[2, 3, 4]").
+
+### RefusesAFlagThatIsNeitherZeroNorOneAndLeavesTheTruth
+
+After a first copy, a valid flag of 0.5 fails with `InvalidDescription`, "'valid'", "0.5" and
+"slot 1 of image 1", and the truth's first label stays 4 although the batch now holds 1. A
+flag of NaN fails with `InvalidDescription`, "'valid'" and "slot 1 of image 1".
+
 ## modules/layers/nn/tests/test_unflatten.cpp
 
 Suites: `Unit_Unflatten`.
@@ -10845,7 +21123,7 @@ Three `static_assert` lines require `Unflatten` to be a `Module`, not to be a
 
 `Unflatten{4, 5, 3}` traces a FLOAT64 [2, 60] input to a FLOAT64 [2, 4, 5, 3] value.
 
-### TagsTheResultNhwc
+### TagsTheResultNHWC
 
 The result is rank 4 and tagged NHWC, and `finalise()` accepts the graph.
 
@@ -10854,7 +21132,7 @@ The result is rank 4 and tagged NHWC, and `finalise()` accepts the graph.
 The trace adds exactly one node. The producer of the result is a K_RESHAPE whose one operand is
 the input.
 
-### OutputShapeAgreesWithTheTraceForAnRgbImage
+### OutputShapeAgreesWithTheTraceForAnRGBImage
 
 `output_shape()` of the input's per-sample shape equals the per-sample shape of the traced
 result, and `output_shape([60])` is [4, 5, 3].
@@ -10887,7 +21165,7 @@ A [3, 40] input to `Unflatten{4, 5, 3}` throws with a message containing "Unflat
 and "inner extent is 60". `reshape` would also reject the input, in a message that does not
 name the layer, so the case requires the layer's own.
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` throws.
 
@@ -10944,7 +21222,7 @@ A default layer traces a [2, 3, 5, 7] input to [2, 6, 10, 7].
 
 `Upsample2d{3}` traces a [1, 4, 2, 5] input to [1, 12, 6, 5].
 
-### TheResultIsTaggedNhwc
+### TheResultIsTaggedNHWC
 
 The traced result is rank 4 and tagged NHWC.
 
@@ -11004,7 +21282,7 @@ With `K_OVERFLOWING_SCALE`, `forward()` over a [1, 1, 5, 3] input throws with a 
 containing "Upsample2d" and "fit in 64 bits". The height is 1, so the width is the product
 that overflows.
 
-### ForwardRejectsAnNchwInput
+### ForwardRejectsAnNCHWInput
 
 A [1, 3, 2, 2] input is converted to NCHW, and `forward()` throws with a message containing
 "upsample2d" and "NHWC". The lower-case name is the builder's: `GraphBuilder::upsample2d`
@@ -11019,3 +21297,11 @@ After a trace the walk visits nothing and `parameter_count` is 0.
 Suites: `Unit_Version`.
 
 Tests that the runtime version agrees with the compile-time macros.
+
+### MatchesEncodedMacro
+
+`SUSHIAI_VERSION` equals `SUSHIAI_VERSION_ENCODE` of the major, minor and patch macros.
+
+### RuntimeStringMatchesCompileTimeMacro
+
+`version_string()` equals `SUSHIAI_VERSION_STRING`.

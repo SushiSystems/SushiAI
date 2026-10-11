@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -41,13 +42,13 @@ namespace SaTest = SushiAI::Test;
 using Graph::GraphBuilder;
 using Graph::MemoryPlan;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
     class Regression_StaticMemory : public SaTest::EngineTest {};
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 16;
@@ -97,7 +98,7 @@ namespace
     [[nodiscard]] Result<Outcome> train(SushiBLAS::Engine& engine, bool packed,
                                         Graph::FusionOptions fusion = {})
     {
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
                                               fusion));
@@ -117,9 +118,10 @@ namespace
                       Optim::AdamW::make(engine, slots, adam));
 
         Train::TrainerOptions options;
-        options.track_accuracy = false;
+        options.track_metrics = false;
+        const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
                                            options));
 
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
@@ -129,8 +131,10 @@ namespace
         for (int epoch = 0; epoch < 3; ++epoch)
             for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
+                Data::Batch dataset_batch;
+                SA_TRY(dataset->read(batch, dataset_batch));
                 SA_TRY_ASSIGN(const Train::StepMetrics metrics,
-                              trainer->run_step(dataset->batch(batch)));
+                              trainer->run_step(dataset_batch));
                 run.losses.push_back(metrics.loss);
             }
 
@@ -155,10 +159,10 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
     const auto live_allocations = [this]
     {
-        return static_cast<std::int32_t>(engine->get_context().live_usm_count());
+        return static_cast<std::int32_t>(engine->get_context().memory().live_count());
     };
 
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -175,25 +179,29 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
                             Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
 
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Train::Trainer> trainer,
-        Train::Trainer::make(*engine, built.graph, pool, built.spec, *optimizer, options));
+        Train::Trainer::make(*engine, built, pool, objective, *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options()));
 
-    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
-    engine->get_context().wait_all();
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_OK(trainer->run_step(dataset_batch));
+    engine->get_context().devices().wait_all();
 
     const std::int32_t baseline = live_allocations();
     const std::size_t bytes_baseline = pool.allocated_bytes();
 
     for (int step = 1; step <= 12; ++step)
     {
-        SA_EXPECT_OK(
-            trainer->run_step(dataset->batch(static_cast<std::size_t>(step) % K_BATCHES)));
-        engine->get_context().wait_all();
+        ASSERT_TRUE(SaTest::status_is_ok(
+            dataset->read(static_cast<std::size_t>(step) % K_BATCHES, dataset_batch)));
+        SA_EXPECT_OK(trainer->run_step(dataset_batch));
+        engine->get_context().devices().wait_all();
 
         EXPECT_EQ(live_allocations(), baseline)
             << "step " << step << " allocated " << (live_allocations() - baseline)
@@ -293,9 +301,9 @@ TEST_F(Regression_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{4, 3}, "x");
-    const ValueId zeros = builder.zeros(Shape{4, 3});
-    const ValueId sum = builder.add(zeros, x);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID zeros = builder.zeros(Shape{4, 3});
+    const ValueID sum = builder.add(zeros, x);
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.adopt(MemoryPlan::build(graph)));

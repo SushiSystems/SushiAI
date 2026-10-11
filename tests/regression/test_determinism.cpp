@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -45,7 +46,7 @@ namespace
 {
     class Regression_Determinism : public ::testing::Test {};
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
@@ -91,7 +92,7 @@ namespace
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -120,9 +121,10 @@ namespace
         }
 
         Train::TrainerOptions options;
-        options.track_accuracy = false;
+        options.track_metrics = false;
+        const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
                                            options));
 
         RunResult result;
@@ -130,8 +132,10 @@ namespace
         {
             for (std::size_t batch = 0; batch < dataset->batch_count(); ++batch)
             {
+                Data::Batch dataset_batch;
+                SA_TRY(dataset->read(batch, dataset_batch));
                 SA_TRY_ASSIGN(const Train::StepMetrics metrics,
-                              trainer->run_step(dataset->batch(batch)));
+                              trainer->run_step(dataset_batch));
                 result.losses.push_back(metrics.loss);
             }
         }
@@ -207,7 +211,7 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-        Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+        MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -251,15 +255,23 @@ TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 
     for (std::size_t b = 0; b < first->batch_count(); ++b)
     {
-        const std::vector<unsigned char> a = SaTest::read_tensor_bytes(first->batch(b).inputs);
-        const std::vector<unsigned char> c = SaTest::read_tensor_bytes(second->batch(b).inputs);
+        Data::Batch first_batch;
+        ASSERT_TRUE(SaTest::status_is_ok(first->read(b, first_batch)));
+        const std::vector<unsigned char> a = SaTest::read_tensor_bytes(first_batch.inputs);
+        Data::Batch second_batch;
+        ASSERT_TRUE(SaTest::status_is_ok(second->read(b, second_batch)));
+        const std::vector<unsigned char> c = SaTest::read_tensor_bytes(second_batch.inputs);
         EXPECT_EQ(SaTest::first_difference(a, c), a.size()) << "inputs of batch " << b;
 
-        const std::vector<unsigned char> t = SaTest::read_tensor_bytes(first->batch(b).targets);
-        const std::vector<unsigned char> u = SaTest::read_tensor_bytes(second->batch(b).targets);
-        EXPECT_EQ(SaTest::first_difference(t, u), t.size()) << "targets of batch " << b;
+        ASSERT_EQ(first_batch.targets.size(), 1u);
+        ASSERT_EQ(second_batch.targets.size(), 1u);
+        EXPECT_EQ(first_batch.targets.front().role, second_batch.targets.front().role);
 
-        EXPECT_EQ(first->batch(b).labels, second->batch(b).labels) << "labels of batch " << b;
+        const std::vector<unsigned char> t =
+            SaTest::read_tensor_bytes(first_batch.targets.front().values);
+        const std::vector<unsigned char> u =
+            SaTest::read_tensor_bytes(second_batch.targets.front().values);
+        EXPECT_EQ(SaTest::first_difference(t, u), t.size()) << "labels of batch " << b;
     }
 }
 
@@ -271,7 +283,7 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
 
-    Mlp model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
+    MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
 
@@ -290,13 +302,16 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
                             Optim::SGD::make(engine, slots, frozen));
 
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(engine, built, pool, objective,
                                                  *optimizer, options));
 
     // A zero learning rate keeps the parameters fixed; see tests/regression/README.md.
-    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_OK(trainer->run_step(dataset_batch));
 
     std::vector<std::vector<unsigned char>> reference;
     for (const Optim::ParameterSlot& slot : slots)
@@ -304,7 +319,7 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
 
     for (int replay = 1; replay < 6; ++replay)
     {
-        SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
+        SA_EXPECT_OK(trainer->run_step(dataset_batch));
 
         for (std::size_t i = 0; i < slots.size(); ++i)
         {

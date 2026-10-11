@@ -45,7 +45,7 @@ int main()
 
     sb::BLASOps(engine).axpy(2.0f, x, y);
     engine.execute();
-    ctx.wait_all();
+    ctx.devices().wait_all();
 
     std::printf("OK: SushiAI %s ran an op through SushiBLAS %s against an installed package\n",
                 SushiAI::version_string(), SUSHIBLAS_VERSION_STRING);

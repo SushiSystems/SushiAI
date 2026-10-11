@@ -34,8 +34,11 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -44,22 +47,22 @@ using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
     class Integration_Training : public SaTest::EngineTest {};
 
     /** @brief The model every test here trains, so a failure names one variable. */
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
-    Mlp make_model(int64_t features, int64_t hidden, int64_t classes)
+    MLP make_model(int64_t features, int64_t hidden, int64_t classes)
     {
-        return Mlp(NN::Linear{features, hidden}, NN::ReLU{}, NN::Linear{hidden, classes});
+        return MLP(NN::Linear{features, hidden}, NN::ReLU{}, NN::Linear{hidden, classes});
     }
 
     /** @brief A model with a batch normalisation over 12 features read as 2 x 2 positions. */
-    using NormMlp = NN::Sequential<NN::Unflatten, NN::BatchNorm2d, NN::Flatten, NN::Linear>;
+    using NormMLP = NN::Sequential<NN::Unflatten, NN::BatchNorm2d, NN::Flatten, NN::Linear>;
 
     /** @brief Samples per step of the normalised model. */
     constexpr int64_t K_NORM_BATCH = 8;
@@ -86,9 +89,9 @@ namespace
     constexpr double K_MOVED = 1e-7;
 
     /** @brief Builds the normalised model over K_NORM_FEATURES and K_NORM_CLASSES. */
-    NormMlp make_norm_model()
+    NormMLP make_norm_model()
     {
-        return NormMlp(NN::Unflatten{2, 2, K_NORM_CHANNELS},
+        return NormMLP(NN::Unflatten{2, 2, K_NORM_CHANNELS},
                        NN::BatchNorm2d(K_NORM_CHANNELS, NN::NormOptions{}), NN::Flatten{},
                        NN::Linear{K_NORM_FEATURES, K_NORM_CLASSES});
     }
@@ -145,7 +148,7 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     const int64_t features = 6;
     const int64_t classes = 5;
 
-    Mlp model = make_model(features, 12, classes);
+    MLP model = make_model(features, 12, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -158,9 +161,10 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -171,8 +175,10 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options));
 
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                            trainer->run_step(dataset->batch(0)));
+                            trainer->run_step(dataset_batch));
     EXPECT_NEAR(metrics.loss, std::log(static_cast<double>(classes)), 1e-5);
 }
 
@@ -183,7 +189,7 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     const int64_t features = 8;
     const int64_t classes = 4;
 
-    Mlp model = make_model(features, 16, classes);
+    MLP model = make_model(features, 16, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -195,8 +201,9 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer));
 
     Data::SyntheticOptions data_options;
@@ -229,7 +236,7 @@ TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
     const int64_t features = 6;
     const int64_t classes = 3;
 
-    Mlp model = make_model(features, 8, classes);
+    MLP model = make_model(features, 8, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -241,8 +248,9 @@ TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer));
 
     Data::SyntheticOptions data_options;
@@ -253,24 +261,30 @@ TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options));
 
-    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_OK(trainer->run_step(dataset_batch));
     const std::size_t tensors_after_first = pool.tensor_count();
     const std::size_t bytes_after_first = pool.allocated_bytes();
 
     for (int i = 0; i < 12; ++i)
-        SA_EXPECT_OK(trainer->run_step(dataset->batch(static_cast<std::size_t>(i % 4))));
+    {
+        ASSERT_TRUE(SaTest::status_is_ok(
+            dataset->read(static_cast<std::size_t>(i % 4), dataset_batch)));
+        SA_EXPECT_OK(trainer->run_step(dataset_batch));
+    }
 
     EXPECT_EQ(pool.tensor_count(), tensors_after_first);
     EXPECT_EQ(pool.allocated_bytes(), bytes_after_first);
 }
 
-TEST_F(Integration_Training, SgdDrivesTheLossDownOnASeparableProblem)
+TEST_F(Integration_Training, SGDDrivesTheLossDownOnASeparableProblem)
 {
     const int64_t batch = 16;
     const int64_t features = 8;
     const int64_t classes = 4;
 
-    Mlp model = make_model(features, 24, classes);
+    MLP model = make_model(features, 24, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -288,8 +302,9 @@ TEST_F(Integration_Training, SgdDrivesTheLossDownOnASeparableProblem)
 
     Train::TrainerOptions options;
     options.epochs = 30;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -304,7 +319,8 @@ TEST_F(Integration_Training, SgdDrivesTheLossDownOnASeparableProblem)
 
     EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(classes)), 1e-4);
     EXPECT_LT(report.last_loss, report.first_loss * 0.25) << report.to_string();
-    EXPECT_GT(report.last_accuracy, 0.9) << report.to_string();
+    ASSERT_NE(report.last_metrics.find("accuracy"), nullptr);
+    EXPECT_GT(report.last_metrics.find("accuracy")->value, 0.9) << report.to_string();
     EXPECT_EQ(report.compile_count, 1u);
 }
 
@@ -314,7 +330,7 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
     const int64_t features = 8;
     const int64_t classes = 4;
 
-    Mlp model = make_model(features, 24, classes);
+    MLP model = make_model(features, 24, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -331,8 +347,9 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
 
     Train::TrainerOptions options;
     options.epochs = 30;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -346,7 +363,8 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
 
     EXPECT_LT(report.last_loss, report.first_loss * 0.25) << report.to_string();
-    EXPECT_GT(report.last_accuracy, 0.9) << report.to_string();
+    ASSERT_NE(report.last_metrics.find("accuracy"), nullptr);
+    EXPECT_GT(report.last_metrics.find("accuracy")->value, 0.9) << report.to_string();
     EXPECT_EQ(report.compile_count, 1u);
 }
 
@@ -378,9 +396,10 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
                             Optim::AdamW::make(*engine, slots, adam));
 
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -392,7 +411,9 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
                             Data::SyntheticClassification::make(*engine, data_options));
 
     const std::vector<double> before = SaTest::read_tensor(slots[0].parameter);
-    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_OK(trainer->run_step(dataset_batch));
     const std::vector<double> after = SaTest::read_tensor(slots[0].parameter);
     const std::vector<double> gradient = SaTest::read_tensor(slots[0].gradient);
 
@@ -413,7 +434,7 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
     EXPECT_GT(checked, 0u) << "no coordinate had a large enough gradient to check";
 }
 
-TEST_F(Integration_Training, SgdWithoutMomentumIsExactlyMinusLearningRateTimesTheGradient)
+TEST_F(Integration_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTheGradient)
 {
     const int64_t batch = 8;
     const int64_t features = 4;
@@ -438,9 +459,10 @@ TEST_F(Integration_Training, SgdWithoutMomentumIsExactlyMinusLearningRateTimesTh
                             Optim::SGD::make(*engine, slots, sgd));
 
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -452,7 +474,9 @@ TEST_F(Integration_Training, SgdWithoutMomentumIsExactlyMinusLearningRateTimesTh
                             Data::SyntheticClassification::make(*engine, data_options));
 
     const std::vector<double> before = SaTest::read_tensor(slots[0].parameter);
-    SA_EXPECT_OK(trainer->run_step(dataset->batch(0)));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_EXPECT_OK(trainer->run_step(dataset_batch));
     const std::vector<double> after = SaTest::read_tensor(slots[0].parameter);
     const std::vector<double> gradient = SaTest::read_tensor(slots[0].gradient);
 
@@ -467,7 +491,7 @@ TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherT
     const int64_t features = 4;
     const int64_t classes = 3;
 
-    Mlp model = make_model(features, 8, classes);
+    MLP model = make_model(features, 8, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -483,8 +507,9 @@ TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherT
     Train::TrainerOptions options;
     options.epochs = 1;
     options.profile = true;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -545,16 +570,27 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
 
     for (std::size_t b = 0; b < first->batch_count(); ++b)
     {
-        const std::vector<double> a = SaTest::read_tensor(first->batch(b).inputs);
-        const std::vector<double> c = SaTest::read_tensor(second->batch(b).inputs);
+        Data::Batch first_batch;
+        ASSERT_TRUE(SaTest::status_is_ok(first->read(b, first_batch)));
+        const std::vector<double> a = SaTest::read_tensor(first_batch.inputs);
+        Data::Batch second_batch;
+        ASSERT_TRUE(SaTest::status_is_ok(second->read(b, second_batch)));
+        const std::vector<double> c = SaTest::read_tensor(second_batch.inputs);
 
         ASSERT_EQ(a.size(), c.size());
         for (std::size_t i = 0; i < a.size(); ++i)
             EXPECT_DOUBLE_EQ(a[i], c[i]) << "batch " << b << " element " << i;
 
         // Round-robin labels balance every batch; see tests/integration/README.md.
+        const Data::BatchTarget* labels =
+            Data::find_target(first_batch.targets, Data::K_ROLE_LABELS);
+        ASSERT_NE(labels, nullptr);
+        ASSERT_EQ(labels->values.dtype, DType::Int32);
+        ASSERT_EQ(labels->values.num_elements, 8);
+
         std::vector<int> histogram(4, 0);
-        for (int32_t label : first->batch(b).labels) ++histogram[static_cast<std::size_t>(label)];
+        for (int64_t r = 0; r < labels->values.num_elements; ++r)
+            ++histogram[static_cast<std::size_t>(labels->values.data_as<int32_t>()[r])];
         for (int count : histogram) EXPECT_EQ(count, 2);
     }
 }
@@ -562,7 +598,7 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
 TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays)
 {
     // Each step applies the host form of the update to the batch mean of that step.
-    NormMlp model = make_norm_model();
+    NormMLP model = make_norm_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_NORM_BATCH, K_NORM_FEATURES,
                                                     K_NORM_CLASSES));
@@ -576,8 +612,9 @@ TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSay
                             Train::bind_buffer_updates(built.updates, state, pool));
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, Train::TrainerOptions{},
                                                  std::move(updates)));
 
@@ -590,20 +627,25 @@ TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSay
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options));
 
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     const std::vector<double> means_first =
-        channel_means(SaTest::read_tensor(dataset->batch(0).inputs));
+        channel_means(SaTest::read_tensor(dataset_batch.inputs));
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, dataset_batch)));
     const std::vector<double> means_second =
-        channel_means(SaTest::read_tensor(dataset->batch(1).inputs));
+        channel_means(SaTest::read_tensor(dataset_batch.inputs));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* running,
                             state.tensor(running_mean_name(state)));
 
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics first,
-                            trainer->run_step(dataset->batch(0)));
+                            trainer->run_step(dataset_batch));
     const std::vector<double> after_first = SaTest::read_tensor(*running);
 
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics second,
-                            trainer->run_step(dataset->batch(1)));
+                            trainer->run_step(dataset_batch));
     const std::vector<double> after_second = SaTest::read_tensor(*running);
 
     EXPECT_GT(first.loss, 0.0);
@@ -629,7 +671,7 @@ TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSay
 
 TEST_F(Integration_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm)
 {
-    NormMlp model = make_norm_model();
+    NormMLP model = make_norm_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_NORM_BATCH, K_NORM_FEATURES,
                                                     K_NORM_CLASSES));
@@ -646,8 +688,9 @@ TEST_F(Integration_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchN
 
     Train::TrainerOptions options;
     options.optimizer_placement = Train::OptimizerPlacement::PerStep;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options, std::move(updates)));
 
     Data::SyntheticOptions data_options;
@@ -663,8 +706,10 @@ TEST_F(Integration_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchN
     for (const Optim::ParameterSlot& slot : slots)
         before.push_back(SaTest::read_tensor(slot.parameter));
 
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                            trainer->run_step(dataset->batch(0)));
+                            trainer->run_step(dataset_batch));
     EXPECT_GT(metrics.loss, 0.0);
     EXPECT_FALSE(trainer->optimizer_is_in_plan());
     EXPECT_EQ(trainer->step_count(), 1u);
@@ -694,7 +739,7 @@ TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
     const int64_t features = 6;
     const int64_t classes = 5;
 
-    Mlp model = make_model(features, 12, classes);
+    MLP model = make_model(features, 12, classes);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, batch, features, classes));
 
@@ -706,8 +751,9 @@ TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer));
 
     Data::SyntheticOptions data_options;
@@ -719,6 +765,32 @@ TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong,
                             Data::SyntheticClassification::make(*engine, data_options));
 
-    SA_EXPECT_FAILURE(trainer->run_step(wrong->batch(0)), StatusCode::Incompatible, "[4, 6]",
+    Data::Batch wrong_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(wrong->read(0, wrong_batch)));
+    SA_EXPECT_FAILURE(trainer->run_step(wrong_batch), StatusCode::Incompatible, "[4, 6]",
                       "[8, 6]");
+}
+
+/** @brief Tests that bind_parameters marks the weights as decaying and the biases as not. */
+TEST_F(Integration_Training, BoundSlotsDecayByTheRoleOfTheirParameter)
+{
+    const int64_t batch = 4;
+    const int64_t features = 6;
+    const int64_t classes = 3;
+
+    MLP model = make_model(features, 8, classes);
+    SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
+                            Train::build_classifier(model, batch, features, classes));
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
+    TensorPool pool(*engine);
+    SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
+                            Train::bind_parameters(built, state, pool));
+
+    ASSERT_EQ(slots.size(), 4u);
+    EXPECT_EQ(slots[0].name, "0.weight");
+    EXPECT_TRUE(slots[0].decays);
+    EXPECT_EQ(slots[1].name, "0.bias");
+    EXPECT_FALSE(slots[1].decays);
+    EXPECT_TRUE(slots[2].decays);
+    EXPECT_FALSE(slots[3].decays);
 }

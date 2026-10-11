@@ -70,7 +70,7 @@ namespace SushiAI
                 void flush()
                 {
                     engine->execute();
-                    TestEnvironment::context().wait_all();
+                    TestEnvironment::context().devices().wait_all();
                 }
 
                 /** @brief Holds the Engine the test records on. */
@@ -316,7 +316,7 @@ namespace SushiAI
 
             Graph::Graph graph;
             const Graph::GraphBuilder builder(graph);
-            const Graph::ValueId x = builder.input(
+            const Graph::ValueID x = builder.input(
                 Shape(SushiRuntime::span<const int64_t>(extents.data(), extents.size())), "x");
             NN::BufferUpdateList updates;
 

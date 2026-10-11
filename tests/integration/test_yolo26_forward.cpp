@@ -95,7 +95,7 @@ namespace
     using BoxDecode = void (*)(SushiRuntime::span<const float>, SushiRuntime::span<const float>,
                                SushiRuntime::span<float>);
 
-    /** @brief Names a load of weights.sacp into the state of one model. */
+    /** @brief Names a load of weights.sushi into the state of one model. */
     using WeightLoad = Status (*)(NN::ModelState&);
 
     /** @brief Names what an observed row of the model file is to the model. */
@@ -134,13 +134,13 @@ namespace
     /** @brief Holds the column of a detection row that carries its score. */
     constexpr std::size_t K_SCORE_COLUMN = 4;
 
-    /** @brief Holds the record prefix of weights.sacp that a ModelState name lacks. */
+    /** @brief Holds the record prefix of weights.sushi that a ModelState name lacks. */
     constexpr std::string_view K_MODEL_PREFIX = "model.";
 
     /** @brief Holds the extents of "image" in input.sacp, batch first. */
     const Shape K_INPUT_SHAPE{1, 640, 640, 3};
 
-    /** @brief Holds the rule that turns a record name of weights.sacp into a state name. */
+    /** @brief Holds the rule that turns a record name of weights.sushi into a state name. */
     constexpr IO::RenameRule K_WEIGHT_RULES[] = {{K_MODEL_PREFIX, std::string_view()}};
 
     /** @brief Lists the rows the forward pass publishes beside the head, as MANIFEST.json has. */
@@ -206,11 +206,11 @@ namespace
         return Result<NN::NodeRegistry>(std::move(registry));
     }
 
-    /** @brief Returns the path of weights.sacp in the fixture directory. */
+    /** @brief Returns the path of weights.sushi in the fixture directory. */
     std::filesystem::path weights_path()
     {
         return std::filesystem::path(SaTest::fixture_directory()) /
-               SaTest::K_YOLO26_FIXTURE_FOLDER / "weights.sacp";
+               SaTest::K_YOLO26_FIXTURE_FOLDER / "weights.sushi";
     }
 
     /** @brief Loads the YOLO26n model file as it is written. */
@@ -263,14 +263,14 @@ namespace
         return Result<NN::ModelGraph>(std::move(model));
     }
 
-    /** @brief Loads weights.sacp into @p state, which every record must match exactly once. */
+    /** @brief Loads weights.sushi into @p state, which every record must match exactly once. */
     Status import_every_weight(NN::ModelState& state)
     {
         return IO::import_weights(weights_path(), state, K_WEIGHT_RULES);
     }
 
     /**
-     * @brief Loads the records of weights.sacp that rename to an entry of @p state and skips
+     * @brief Loads the records of weights.sushi that rename to an entry of @p state and skips
      *        the others.
      * @return FileNotFound for an unreadable file; Incompatible for a record that repeats or
      *         differs from its entry in dtype or shape, and for an entry left unsupplied.
@@ -503,7 +503,7 @@ namespace
  */
 #define SA_RUN_FORWARD_OR_SKIP(ours, reference)                                        \
     SA_OPEN_REFERENCE_OR_SKIP(reference, "forward.sacp");                              \
-    SA_OPEN_REFERENCE_OR_SKIP(reference##_weights, "weights.sacp");                    \
+    SA_OPEN_REFERENCE_OR_SKIP(reference##_weights, "weights.sushi");                    \
     SA_OPEN_REFERENCE_OR_SKIP(reference##_input, "input.sacp");                        \
     SA_READ_REFERENCE_OR_FAIL(reference##_image, reference##_input, "image");          \
     SA_ASSERT_OK_AND_ASSIGN(const ForwardOutputs* const ours,                          \
@@ -532,10 +532,10 @@ TEST_F(Integration_Yolo26Forward, TheInnerRowsMatchTheReferenceRows)
  * @brief Tests that row 10 built alone, with its own weights and the reference's row 9 as its
  *        input, computes the reference's row 10, which pins c2psa apart from the rows above it.
  */
-TEST_F(Integration_Yolo26Forward, C2psaAloneMapsTheReferenceRow9ToRow10)
+TEST_F(Integration_Yolo26Forward, C2PSAAloneMapsTheReferenceRow9ToRow10)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
-    SA_OPEN_REFERENCE_OR_SKIP(weights, "weights.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(weights, "weights.sushi");
     SA_READ_REFERENCE_OR_FAIL(input, forward, record_of(K_C2PSA_ROW - 1));
     ASSERT_EQ(input.shape.rank(), 4);
 

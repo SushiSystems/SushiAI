@@ -35,6 +35,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
+#include <common/classifier_objective.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
 
@@ -45,7 +48,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -54,7 +57,7 @@ namespace
     /** @brief Names the suite of the cases that expect the process to stop. */
     using Integration_ResilienceDeathTest = Integration_Resilience;
 
-    using Mlp = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
+    using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     /**
      * @class Runner
@@ -120,27 +123,30 @@ namespace
     class NoBatches final : public Data::Dataset
     {
         public:
-            NoBatches(int64_t batch, int64_t features, int64_t classes) noexcept
-                : batch_(batch), features_(features), classes_(classes) {}
+            NoBatches(int64_t batch, int64_t features, int64_t classes)
+                : batch_(batch), features_(features),
+                  targets_{Data::TargetDescription{std::string(Data::K_ROLE_LABELS), Shape{},
+                                                   DType::Int32, classes}} {}
 
             int64_t batch_size() const noexcept override { return batch_; }
-            int64_t input_dim() const noexcept override { return features_; }
             Shape sample_shape() const override { return Shape{features_}; }
-            int64_t num_classes() const noexcept override { return classes_; }
+            const std::vector<Data::TargetDescription>& targets() const noexcept override
+            {
+                return targets_;
+            }
             std::size_t batch_count() const noexcept override { return 0; }
             std::string_view name() const noexcept override { return "no-batches"; }
 
-            const Data::Batch& batch(std::size_t index) const override
+            [[nodiscard]] Status read(std::size_t index, Data::Batch&) const override
             {
-                SA_THROW_IF(true, "Batch {} is out of range; the dataset has 0", index);
-                return never_;
+                SA_FATAL_IF(true, "Batch {} is out of range; the dataset has 0", index);
+                return Status();
             }
 
         private:
             int64_t batch_ = 0;
             int64_t features_ = 0;
-            int64_t classes_ = 0;
-            Data::Batch never_{};
+            std::vector<Data::TargetDescription> targets_;
     };
 
     /** @brief Every element of @p values is finite. */
@@ -160,7 +166,7 @@ namespace
     /** @brief A ready-to-train MLP with its state, its pool and its parameter slots. */
     struct Fixture
     {
-        Mlp model;
+        MLP model;
         Train::TrainingGraph built;
         std::unique_ptr<NN::ModelState> state;
         std::unique_ptr<TensorPool> pool;
@@ -171,7 +177,7 @@ namespace
     [[nodiscard]] Result<Fixture> make_fixture(SushiBLAS::Engine& engine, int64_t batch,
                                                int64_t features, int64_t hidden, int64_t classes)
     {
-        Fixture fixture{Mlp(NN::Linear{features, hidden}, NN::ReLU{},
+        Fixture fixture{MLP(NN::Linear{features, hidden}, NN::ReLU{},
                             NN::Linear{hidden, classes}), {}, nullptr, nullptr, {}};
 
         SA_TRY_ASSIGN(fixture.built,
@@ -225,7 +231,7 @@ TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrong
                       StatusCode::InvalidDescription, "0.bias", "float32", "float64");
 }
 
-TEST_F(Integration_Resilience, AnOptimizerRefusesADtypeItCannotServeAndExplainsWhy)
+TEST_F(Integration_Resilience, AnOptimizerRefusesADTypeItCannotServeAndExplainsWhy)
 {
     // The half refusal must say why in its message; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor complex_parameter,
@@ -336,15 +342,18 @@ TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledS
     SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, fixture.slots, Optim::SGDOptions{}));
+    const auto objective = SaTest::classifier_objective(fixture.built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
-                                                 fixture.built.spec, *optimizer));
+                            Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                                                 objective, *optimizer));
 
     // A wrong-sized batch can only be reported; see tests/integration/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong,
                             Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
 
-    SA_EXPECT_FAILURE(trainer->run_step(wrong->batch(0)), StatusCode::Incompatible,
+    Data::Batch wrong_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(wrong->read(0, wrong_batch)));
+    SA_EXPECT_FAILURE(trainer->run_step(wrong_batch), StatusCode::Incompatible,
                       "[4, 6]", "[8, 6]");
 }
 
@@ -353,9 +362,10 @@ TEST_F(Integration_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
     SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, fixture.slots, Optim::SGDOptions{}));
+    const auto objective = SaTest::classifier_objective(fixture.built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
-                                                 fixture.built.spec, *optimizer));
+                            Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                                                 objective, *optimizer));
 
     const NoBatches empty(8, 6, 4);
     SA_EXPECT_FAILURE(trainer->fit(empty), StatusCode::InvalidDescription,
@@ -427,23 +437,28 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
                             Optim::SGD::make(*engine, slots, sgd));
 
     Train::TrainerOptions options;
-    options.track_accuracy = false;
+    options.track_metrics = false;
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(
                                 *engine, data_for(batch, 2, features, classes)));
 
-    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics first, trainer->run_step(dataset->batch(0)));
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics first, trainer->run_step(dataset_batch));
     EXPECT_NEAR(first.loss, std::log(static_cast<double>(classes)), 1e-5);
 
     for (int step = 0; step < 8; ++step)
     {
+        ASSERT_TRUE(SaTest::status_is_ok(
+            dataset->read(static_cast<std::size_t>(step % 2), dataset_batch)));
         SA_ASSERT_OK_AND_ASSIGN(
             const Train::StepMetrics metrics,
-            trainer->run_step(dataset->batch(static_cast<std::size_t>(step % 2))));
+            trainer->run_step(dataset_batch));
         ASSERT_TRUE(std::isfinite(metrics.loss)) << "at step " << step;
     }
 
@@ -473,19 +488,22 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
+    const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built.graph, pool, built.spec,
+                            Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(
                                 *engine, data_for(batch, 1, features, classes)));
 
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                            trainer->run_step(dataset->batch(0)));
+                            trainer->run_step(dataset_batch));
 
     EXPECT_NEAR(metrics.loss, 0.0, 1e-4);
-    EXPECT_DOUBLE_EQ(metrics.accuracy, 1.0);
+    EXPECT_DOUBLE_EQ(metrics.metrics.value_or("accuracy", 0.0), 1.0);
     EXPECT_TRUE(all_finite(SaTest::read_tensor(slots[0].parameter), "weight"));
 
     const std::vector<double> gradient = SaTest::read_tensor(slots[0].gradient);
@@ -502,9 +520,9 @@ TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{n, n}, "x");
-        const ValueId w = builder.input(Shape{n, n}, "w");
-        const ValueId y = builder.matmul(x, w, false, true);
+        const ValueID x = builder.input(Shape{n, n}, "x");
+        const ValueID w = builder.input(Shape{n, n}, "w");
+        const ValueID y = builder.matmul(x, w, false, true);
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
@@ -554,11 +572,12 @@ TEST_F(Integration_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastI
                                 Optim::SGD::make(*engine, fixture.slots, sgd));
 
         Train::TrainerOptions options;
-        options.track_accuracy = false;
+        options.track_metrics = false;
+        const auto objective = SaTest::classifier_objective(fixture.built);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Train::Trainer> trainer,
-            Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
-                                 fixture.built.spec, *optimizer, options));
+            Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                                 objective, *optimizer, options));
 
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Data::SyntheticClassification> dataset,
@@ -566,8 +585,10 @@ TEST_F(Integration_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastI
 
         for (std::size_t step = 0; step < 4; ++step)
         {
+            Data::Batch dataset_batch;
+            ASSERT_TRUE(SaTest::status_is_ok(dataset->read(step % 2, dataset_batch)));
             SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
-                                    trainer->run_step(dataset->batch(step % 2)));
+                                    trainer->run_step(dataset_batch));
             ASSERT_TRUE(std::isfinite(metrics.loss)) << "n=" << n << " step " << step;
         }
 
@@ -598,8 +619,8 @@ namespace
         Graph::Graph graph;
         const GraphBuilder builder(graph);
 
-        const ValueId x = builder.input(Shape{rows, columns}, "logits");
-        const ValueId y = builder.log_softmax(x);
+        const ValueID x = builder.input(Shape{rows, columns}, "logits");
+        const ValueID y = builder.log_softmax(x);
 
         SA_TRY_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(engine, graph));
         SaTest::write_tensor(run->pool.tensor(x), logits);
@@ -680,9 +701,9 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId logits = builder.input(Shape{rows, columns}, "logits");
-    const ValueId targets = builder.input(Shape{rows, columns}, "targets");
-    const ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    const ValueID logits = builder.input(Shape{rows, columns}, "logits");
+    const ValueID targets = builder.input(Shape{rows, columns}, "targets");
+    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
@@ -750,7 +771,7 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
     // The context counts its live USM allocations; see tests/integration/README.md.
     const auto live_allocations = [this]()
     {
-        return static_cast<std::int32_t>(engine->get_context().live_usm_count());
+        return static_cast<std::int32_t>(engine->get_context().memory().live_count());
     };
 
     std::int32_t baseline = 0;
@@ -765,11 +786,12 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
                 Optim::AdamW::make(*engine, fixture.slots, Optim::AdamWOptions{}));
 
             Train::TrainerOptions options;
-            options.track_accuracy = false;
+            options.track_metrics = false;
+            const auto objective = SaTest::classifier_objective(fixture.built);
             SA_ASSERT_OK_AND_ASSIGN(
                 const std::unique_ptr<Train::Trainer> trainer,
-                Train::Trainer::make(*engine, fixture.built.graph, *fixture.pool,
-                                     fixture.built.spec, *optimizer, options));
+                Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                                     objective, *optimizer, options));
 
             SA_ASSERT_OK_AND_ASSIGN(
                 const std::unique_ptr<Data::SyntheticClassification> dataset,
@@ -781,7 +803,7 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
                 << "the same model allocated a different amount on iteration " << iteration;
         }
 
-        engine->get_context().wait_all();
+        engine->get_context().devices().wait_all();
 
         if (iteration == 0) baseline = live_allocations();
         else
@@ -792,15 +814,15 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
     }
 }
 
-TEST_F(Integration_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIrOperationAndSaysSo)
+TEST_F(Integration_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIROperationAndSaysSo)
 {
     // BATCHNORM_UPDATE_STATS has no lowering; see tests/integration/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId running = builder.parameter(Shape{4}, "running_mean");
-    const ValueId batch = builder.input(Shape{4}, "batch_mean");
-    const ValueId out = builder.like(running, "updated_running_mean");
+    const ValueID running = builder.parameter(Shape{4}, "running_mean");
+    const ValueID batch = builder.input(Shape{4}, "batch_mean");
+    const ValueID out = builder.like(running, "updated_running_mean");
     graph.add_node(Ops::K_BATCHNORM_UPDATE_STATS.id, {running, batch}, {out});
     graph.finalise();
 

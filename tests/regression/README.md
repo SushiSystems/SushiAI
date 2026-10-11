@@ -368,12 +368,12 @@ So the fused graph is not tested against a tolerance. It is tested against the u
 replaced, byte for byte, from identical state.
 
 The tests fall into four groups, in file order. The first claims that fusing changes no number:
-AReluMlpTrainsIdenticallyFusedAndUnfused, ATanhMlpTrainsIdenticallyFusedAndUnfused and
-ASigmoidMlpTrainsIdenticallyFusedAndUnfused. The second is the five GELU tests, from
-AGeluMlpTrainsIdenticallyFusedAndUnfused to DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt,
+AReLUMLPTrainsIdenticallyFusedAndUnfused, ATanhMLPTrainsIdenticallyFusedAndUnfused and
+ASigmoidMLPTrainsIdenticallyFusedAndUnfused. The second is the five GELU tests, from
+AGELUMLPTrainsIdenticallyFusedAndUnfused to DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt,
 which the section on the spilled activation describes. The third counts what fusion cost:
-TheFusedStepIssuesTenFewerKernelsPerStep, AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias,
-WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt and
+TheFusedStepIssuesTenFewerKernelsPerStep, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias,
+WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt and
 DisablingOneCatalogEntryLeavesTheRestAlone. The fourth covers the dynamic selector, from
 ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove to EveryChoiceCarriesAReasonSomebodyCanRead.
 
@@ -392,7 +392,7 @@ If a comparison fails, the response is to find which expression moved, not to wi
 
 GELU's gradient differentiates at its input, so the epilogue that folds GELU has to write that
 input to an auxiliary buffer on its way past. cuBLASLt calls this GELU_AUX_BIAS; here it is
-FusedForm::GemmBiasGelu. Every way of getting it wrong is silent, and worse than the other
+FusedForm::GEMMBiasGELU. Every way of getting it wrong is silent, and worse than the other
 activations: a forward pass that matches perfectly while the gradients are taken at the wrong point
 still converges, to a different place.
 
@@ -401,8 +401,8 @@ reaches byte-identical parameters after 24 optimizer steps. That is a statement 
 gradients, since nothing else moves a weight. It is taken three ways, against three different
 fillings of the same buffer:
 
-- AGeluMlpTrainsIdenticallyFusedAndUnfused compares against the graph with no fusion pass at all.
-- DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt compares against the same graph with only
+- AGELUMLPTrainsIdenticallyFusedAndUnfused compares against the graph with no fusion pass at all.
+- DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt compares against the same graph with only
   this catalog row switched off, so the difference is the entry and nothing else.
 - ASelectorRefusalStillFillsTheSpillAndMovesNoBit compares against a selector that declines the
   fused arm, so the aux buffer is filled by a separate copy in the lowering and not from inside
@@ -424,19 +424,19 @@ The one device on the test machine is an OpenCL CPU with no dedicated scratchpad
 doubles. A selector rule that can only be exercised on hardware nobody owns is a rule nobody has
 run, so the declining branches are driven from a described device.
 
-### AReluMlpTrainsIdenticallyFusedAndUnfused
+### AReLUMLPTrainsIdenticallyFusedAndUnfused
 
 This is the demo's own model. Both linear layers fuse, the first with its ReLU and the second
 without one, and so does the cross-entropy gradient's elementwise tail. One run therefore covers
 three separate collapses that reach the same arithmetic.
 
-### ATanhMlpTrainsIdenticallyFusedAndUnfused
+### ATanhMLPTrainsIdenticallyFusedAndUnfused
 
 tanh's gradient reads its own output, so the pre-activation is dead and the whole layer folds. The
 tanh epilogue is a different template instantiation from ReLU's, which is why it has its own
 comparison.
 
-### AGeluMlpTrainsIdenticallyFusedAndUnfused
+### AGELUMLPTrainsIdenticallyFusedAndUnfused
 
 This test runs the GELU hazard end to end, and its claim is about the gradients and not the forward
 pass. A K_GEMM_BIAS_GELU that computed the right activation and spilled nothing would match the
@@ -450,7 +450,7 @@ activation to fold, and the fused cross-entropy gradient tail.
 The test also asserts that the loss fell. Without that assertion, "identical" could describe two
 runs broken in the same way.
 
-### TheGeluFoldIsReportedAsAFoldAndNotAsARefusal
+### TheGELUFoldIsReportedAsAFoldAndNotAsARefusal
 
 The test asserts that the spilled value is the one the backward rule reads. It checks this on the
 IR and not through a loss, because "the gradient is taken at the right tensor" has no numerical
@@ -482,7 +482,7 @@ not by the epilogue.
 That is a different code path to the same buffer, and the gradients have to come out identical.
 Deleting either write makes this comparison fail.
 
-### DisablingTheGeluFormTrainsToTheSamePlaceAsFoldingIt
+### DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt
 
 This is the A/B comparison the catalog entry was written against: the same model with the catalog
 row on and off. With the row off, the K_GELU is an ordinary IR node and the pre-activation is an
@@ -508,7 +508,7 @@ the dependency edges execute_gemm could not declare for a bias its functor deref
 meant two extra nodes. SushiBLAS's seam now takes the epilogue's own access set, so
 `operations_per_step` is the whole plan again and the two counts cannot drift apart.
 
-### AFusedGemmIsOrderedAgainstTheTaskThatWritesItsBias
+### AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias
 
 The fused spelling carries a hazard the unfused one does not. The epilogue dereferences the bias
 from inside the GEMM kernel, and the optimizer rewrites that same bias inside the same compiled
@@ -525,7 +525,7 @@ The bias-writing task in the test stands in for the optimizer's update: a task i
 that writes the bias the epilogue reads. It is recorded first, so an edge can only run from it to
 the GEMM.
 
-### WhateverReadsTheSpillIsOrderedBehindTheGemmThatFillsIt
+### WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt
 
 This test covers the other half of the epilogue's access set, the half only the spilling arm has.
 `.reads(bias)` orders the GEMM behind whoever writes the bias; `.writes(aux)` orders whoever reads
@@ -728,7 +728,7 @@ regression tier.
 - A device-resident scale that someone moved into Attributes would recompile the step on every
   backoff, converge identically, and cost the compile-once guarantee the architecture is built on.
 
-The tests fall into five groups, in file order. AnFp16OverflowIsDetectedAndBacksTheScaleOff and
+The tests fall into five groups, in file order. AnFP16OverflowIsDetectedAndBacksTheScaleOff and
 TheSameScaleInFloat32OverflowsNothing cover the overflow itself.
 ASkippedStepLeavesTheParametersAndMomentsBitIdentical and
 ACleanStepUnderTheSameScalerStillMovesEverything cover what a skipped step must leave behind.
@@ -751,7 +751,7 @@ a simulation of it.
 The logit gradient is about 1/K_BATCH, so a scale of 2^20 puts it at roughly 65536 in fp32, just past
 binary16's largest finite 65504. The backward matmul that sums over the batch takes it further. The
 scale was chosen to be recoverable as well as overflowing. The run in
-AnFp16OverflowIsDetectedAndBacksTheScaleOff has to reach a clean scale within its step budget,
+AnFP16OverflowIsDetectedAndBacksTheScaleOff has to reach a clean scale within its step budget,
 because "the backoff never helped" and "the backoff was never given enough steps" are the same
 observation and only one of them is a defect.
 
@@ -761,7 +761,7 @@ The helper sets the scaler on the optimizer before it constructs the trainer, wh
 update into the plan. The screens have to be recorded ahead of the updates, and the optimizer owns
 that ordering only once it knows about the scaler.
 
-### AnFp16OverflowIsDetectedAndBacksTheScaleOff
+### AnFP16OverflowIsDetectedAndBacksTheScaleOff
 
 This is the end-to-end case. A scale chosen to overflow binary16 produces infinities in the fp32
 gradient buffers, count_nonfinite sees them, and the state machine backs the scale off until the
@@ -780,7 +780,7 @@ and no comparison against a threshold would catch a NaN.
 
 ### TheSameScaleInFloat32OverflowsNothing
 
-This test is the control for AnFp16OverflowIsDetectedAndBacksTheScaleOff. Without it, "steps were
+This test is the control for AnFP16OverflowIsDetectedAndBacksTheScaleOff. Without it, "steps were
 skipped" says nothing about fp16: an implementation that skipped every step would pass that test.
 The same scale under the fp32 policy is nowhere near float32's range, so nothing may overflow and
 nothing may be thrown away.
@@ -865,7 +865,7 @@ The helper reads the parameter dtypes after the run and not before. Fusion and t
 rewrite nodes, and a master weight that survived the passes could still have been swapped for a
 narrow copy by the optimizer wiring.
 
-### TheFp32PolicyIsIndistinguishableFromNoPolicyAtAll
+### TheFP32PolicyIsIndistinguishableFromNoPolicyAtAll
 
 This test is the control, in the strongest form available: zero casts, the same recorded operation
 count, and the same losses to the bit. If the pass ever starts inserting a conversion
@@ -895,14 +895,14 @@ change of seed or schedule. Passing it says the deviation is under 2e-2 and noth
 The test first asserts that both runs learned. Two runs that both diverged would agree and the
 agreement would mean nothing.
 
-### AGeluLayerIsNotFoldedUnderANarrowingPolicy
+### AGELULayerIsNotFoldedUnderANarrowingPolicy
 
 graph/precision.hpp's rules 2 and 5 meet in this test, and it asserts that they meet consistently.
 
 Rule 2 says a fused epilogue runs inside the GEMM's kernel in the GEMM's element type, so an
 activation the catalog folds has to compute in the GEMM's type or fusion would change the numbers.
 Rule 5 says GELU stays wide: the tanh approximation computes `x*x*x`, which overflows fp16 at |x|
-about 40.3. Since FusedForm::GemmBiasGelu exists, the two rules would contradict each other if
+about 40.3. Since FusedForm::GEMMBiasGELU exists, the two rules would contradict each other if
 nothing kept them apart.
 
 The pass order keeps them apart, and it does so by structure. The cast pass runs before fusion, so

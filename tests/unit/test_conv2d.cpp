@@ -82,7 +82,7 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
 
-        const Graph::ValueId x = builder.input(with_batch(batch, sample), "x");
+        const Graph::ValueID x = builder.input(with_batch(batch, sample), "x");
         return graph.value(layer.forward(builder, x)).shape;
     }
 
@@ -115,11 +115,11 @@ TEST(Unit_Conv2d, ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 28, 28, 8}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that a FLOAT64 input gives FLOAT64 parameters and a FLOAT64 result. */
@@ -129,8 +129,8 @@ TEST(Unit_Conv2d, TheParametersAndTheResultTakeTheInputElementType)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
     EXPECT_EQ(layer.bias.dtype(), DType::Float64);
@@ -144,7 +144,7 @@ TEST(Unit_Conv2d, TheParameterWalkNamesTheWeightAndTheBias)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
     EXPECT_TRUE(walk(layer).empty());
     (void)layer.forward(builder, x);
 
@@ -161,7 +161,7 @@ TEST(Unit_Conv2d, TheWeightOfAnAnisotropicWindowIsOutHeightWidthIn)
     Conv2d layer = make_conv(3, 5, 1);
     layer.geometry.kernel_h = 2;
     layer.geometry.kernel_w = 4;
-    const Graph::ValueId x = builder.input(Shape{2, 6, 9, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 9, 3}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.shape(), (Shape{5, 2, 4, 3}));
@@ -174,7 +174,7 @@ TEST(Unit_Conv2d, ALayerWithABiasTracesOneBiasAdd)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
@@ -188,8 +188,8 @@ TEST(Unit_Conv2d, ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd)
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     layer.use_bias = false;
-    const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 1]"}));
     EXPECT_FALSE(layer.bias.declared());
@@ -206,7 +206,7 @@ TEST(Unit_Conv2d, TheWeightAndTheBiasRecordTheirFans)
     Conv2d layer = make_conv(4, 6, 3, 1, 1);
     layer.geometry.kernel_w = 5;
     layer.geometry.pad_left = 2;
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.fan_in(), 3 * 5 * 4);
@@ -222,7 +222,7 @@ TEST(Unit_Conv2d, TheParametersRecordTheirRoles)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
@@ -236,11 +236,11 @@ TEST(Unit_Conv2d, TracingTwiceDoesNotDuplicateParameters)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{4, 28, 28, 1}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
 
     (void)layer.forward(builder, x);
-    const Graph::ValueId first_weight = layer.weight.id_in(graph);
-    const Graph::ValueId first_bias = layer.bias.id_in(graph);
+    const Graph::ValueID first_weight = layer.weight.id_in(graph);
+    const Graph::ValueID first_bias = layer.bias.id_in(graph);
 
     (void)layer.forward(builder, x);
 
@@ -345,7 +345,7 @@ TEST(Unit_Conv2d, SamePaddedTracesNoBias)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = Conv2d::same_padded(2, 8, 3, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 2]"}));
@@ -361,7 +361,7 @@ TEST(Unit_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
     layer.bias_init = -4.5;
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
     (void)layer.forward(builder, x);
 
     // -4.5 is exact in binary, so the stored value compares equal with no tolerance.
@@ -377,7 +377,7 @@ TEST(Unit_Conv2d, TheDefaultBiasInitIsTheConstantZero)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
@@ -392,7 +392,7 @@ TEST(Unit_Conv2d, BiasInitLeavesTheWeightFanScaled)
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
     layer.bias_init = 1.25;
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::FanScaled);
@@ -473,7 +473,7 @@ TEST(Unit_Conv2d, ForwardRejectsAWrongChannelCount)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(3, 8, 3);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d(3, 8)", "[8, 8, 4]", "[H, W, 3]");
     EXPECT_FALSE(layer.weight.declared());
@@ -486,7 +486,7 @@ TEST(Unit_Conv2d, ForwardRejectsAnInputThatIsNotRankFour)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(3, 8, 3);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d(3, 8)", "rank-4", "[2, 3]");
     EXPECT_FALSE(layer.weight.declared());
@@ -499,7 +499,7 @@ TEST(Unit_Conv2d, ForwardRejectsNonPositiveChannelCounts)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(3, 0, 3);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d", "in=3", "out=0");
 }
@@ -511,20 +511,20 @@ TEST(Unit_Conv2d, ForwardRejectsAWindowThatDoesNotFit)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(3, 8, 5);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d(3, 8)", "[4, 4, 3]", "5x5");
 }
 
 /** @brief Tests that forward() refuses an NCHW input before it declares a value or a node. */
-TEST(Unit_Conv2d, ForwardRejectsAnNchwInput)
+TEST(Unit_Conv2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(3, 8, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 3, 3, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{2, 3, 3, 3}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
@@ -544,15 +544,15 @@ TEST(Unit_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
     const Graph::GraphBuilder builder(graph);
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{4, 6, 6, 2}, "x");
-    const Graph::ValueId targets = builder.input(Shape{4, 3}, "targets");
+    const Graph::ValueID x = builder.input(Shape{4, 6, 6, 2}, "x");
+    const Graph::ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const Graph::ValueId logits = builder.spatial_mean(layer.forward(builder, x));
-    const Graph::ValueId loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    const Graph::ValueID logits = builder.spatial_mean(layer.forward(builder, x));
+    const Graph::ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
 
-    const std::vector<Graph::ValueId> wrt = {layer.weight.id_in(graph), layer.bias.id_in(graph)};
-    const std::vector<Graph::ValueId> grads = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const Graph::ValueId>(wrt.data(), wrt.size()));
+    const std::vector<Graph::ValueID> wrt = {layer.weight.id_in(graph), layer.bias.id_in(graph)};
+    const std::vector<Graph::ValueID> grads = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size()));
 
     ASSERT_EQ(grads.size(), 2u);
     for (std::size_t i = 0; i < grads.size(); ++i)

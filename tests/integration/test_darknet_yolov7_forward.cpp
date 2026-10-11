@@ -52,7 +52,7 @@ namespace
         parity.slots = 3;
         parity.suppression = 0.45f;
         parity.coding = SushiAI::Vision::Detect::Anchor::HeadCoding::Activated;
-        parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::DistanceIou;
+        parity.criterion = SushiAI::Vision::Detect::SuppressionCriterion::DistanceIoU;
         parity.distance_exponent = 0.6f;
         parity.bounds.head_absolute = 1e-3;
         parity.bounds.head_relative = 1e-4;
@@ -88,7 +88,7 @@ TEST_F(Integration_DarknetYolov7Forward, TheFoldedHeadsMatchTheDumpedHeads)
  *
  * The stretch doubles a difference of the head on x and y. The head bound is applied unchanged.
  */
-TEST_F(Integration_DarknetYolov7Forward, TheHostYoloOutputsMatchTheDumpedLayers)
+TEST_F(Integration_DarknetYolov7Forward, TheHostYOLOOutputsMatchTheDumpedLayers)
 {
     SaTest::check_yolo_outputs(*engine, parity);
 }
