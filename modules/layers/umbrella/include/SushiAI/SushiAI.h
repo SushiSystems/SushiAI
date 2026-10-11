@@ -33,6 +33,8 @@
 #include <SushiAI/config/registry.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/config/json_writer.hpp>
+#include <SushiAI/config/model_writer.hpp>
 
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/ops.hpp>
@@ -65,7 +67,10 @@
 #include <SushiAI/graph/lowering/spatial.hpp>
 #include <SushiAI/graph/lowering/norm.hpp>
 #include <SushiAI/graph/lowering/fused.hpp>
+#include <SushiAI/graph/lowering/random.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
+#include <SushiAI/graph/replay_prelude.hpp>
+#include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
@@ -81,6 +86,7 @@
 #include <SushiAI/autograd/rules/linalg.hpp>
 #include <SushiAI/autograd/rules/activation.hpp>
 #include <SushiAI/autograd/rules/loss.hpp>
+#include <SushiAI/autograd/rules/random.hpp>
 #include <SushiAI/autograd/rules/shape.hpp>
 #include <SushiAI/autograd/rules/spatial.hpp>
 #include <SushiAI/autograd/rules/norm.hpp>
@@ -94,6 +100,10 @@
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/avg_pool2d.hpp>
 #include <SushiAI/nn/global_avg_pool.hpp>
+#include <SushiAI/nn/dropout.hpp>
+#include <SushiAI/nn/built_rows.hpp>
+#include <SushiAI/nn/embedding.hpp>
+#include <SushiAI/nn/layer_norm.hpp>
 #include <SushiAI/nn/flatten.hpp>
 #include <SushiAI/nn/leaky_relu.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
@@ -116,6 +126,7 @@
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/node_attributes.hpp>
 #include <SushiAI/nn/silu.hpp>
+#include <SushiAI/nn/host_table.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 
@@ -127,8 +138,11 @@
 #include <SushiAI/optim/optimizer_registry.hpp>
 
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 
 #include <SushiAI/eager/segment.hpp>
 #include <SushiAI/eager/scope_trace.hpp>
@@ -141,8 +155,13 @@
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
 #include <SushiAI/io/checkpoint.hpp>
+#include <SushiAI/io/imported_model.hpp>
+#include <SushiAI/io/importer_registry.hpp>
+#include <SushiAI/io/imported_model_writer.hpp>
 
 #include <SushiAI/train/objective.hpp>
+#include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/objective_registry.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
@@ -150,7 +169,43 @@
 #include <SushiAI/train/training_step.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
+#include <SushiAI/train/input_match.hpp>
+#include <SushiAI/train/one_hot.hpp>
+#include <SushiAI/train/parameter_groups.hpp>
+#include <SushiAI/train/batch_role.hpp>
+#include <SushiAI/train/binary_confusion.hpp>
+#include <SushiAI/train/binary_cross_entropy_objective.hpp>
+#include <SushiAI/train/decision_threshold.hpp>
+#include <SushiAI/train/dense_losses.hpp>
+#include <SushiAI/train/dense_targets.hpp>
+#include <SushiAI/train/host_values.hpp>
+#include <SushiAI/train/mean_squared_error_objective.hpp>
+#include <SushiAI/train/metrics.hpp>
+#include <SushiAI/train/multi_label_objective.hpp>
+#include <SushiAI/train/step_view.hpp>
+#include <SushiAI/train/role_match.hpp>
 
 #include <SushiAI/nn/add.hpp>
 #include <SushiAI/nn/channel_slice.hpp>
 #include <SushiAI/nn/mish.hpp>
+#include <SushiAI/optim/step_schedule.hpp>
+#include <SushiAI/optim/step_schedule_section.hpp>
+#include <SushiAI/optim/run_schedule.hpp>
+#include <SushiAI/optim/apply_step_schedule.hpp>
+#include <SushiAI/optim/cosine_schedule.hpp>
+#include <SushiAI/optim/cosine_schedule_section.hpp>
+#include <SushiAI/optim/gradient_clip.hpp>
+#include <SushiAI/optim/rate_schedule.hpp>
+#include <SushiAI/optim/rate_schedule_section.hpp>
+
+#include <SushiAI/config/section_reader.hpp>
+#include <SushiAI/train/sum_objective.hpp>
+
+#include <SushiAI/data/epoch.hpp>
+#include <SushiAI/data/epoch_permutation.hpp>
+#include <SushiAI/data/threaded_loader.hpp>
+
+#include <SushiAI/config/json_events.hpp>
+#include <SushiAI/io/run_progress.hpp>
+#include <SushiAI/io/run_checkpoint.hpp>
+#include <SushiAI/optim/run_state.hpp>

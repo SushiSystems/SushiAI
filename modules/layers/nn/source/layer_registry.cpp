@@ -42,8 +42,11 @@
 #include <SushiAI/nn/channel_slice.hpp>
 #include <SushiAI/nn/concat.hpp>
 #include <SushiAI/nn/conv2d.hpp>
+#include <SushiAI/nn/dropout.hpp>
+#include <SushiAI/nn/embedding.hpp>
 #include <SushiAI/nn/flatten.hpp>
 #include <SushiAI/nn/global_avg_pool.hpp>
+#include <SushiAI/nn/layer_norm.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/leaky_relu.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
@@ -502,6 +505,9 @@ namespace SushiAI
             SA_TRY(registry.add(NodeEntry{"batchnorm2d", &make_batch_norm2d_node}));
             SA_TRY(registry.add(NodeEntry{"concat", &make_concat_node}));
             SA_TRY(registry.add(NodeEntry{"add", &make_add_node}));
+            SA_TRY(registry.add(NodeEntry{"embedding", &make_embedding_node}));
+            SA_TRY(registry.add(NodeEntry{"layernorm", &make_layer_norm_node}));
+            SA_TRY(registry.add(NodeEntry{"dropout", &make_dropout_node}));
 
             return Status();
         }

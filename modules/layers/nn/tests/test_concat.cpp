@@ -57,7 +57,7 @@ namespace
     }
 
     /** @brief Views @p ids as the inputs of one forward call. */
-    NN::ValueSpan span_of(const std::vector<Graph::ValueId>& ids)
+    NN::ValueSpan span_of(const std::vector<Graph::ValueID>& ids)
     {
         return NN::ValueSpan(ids.data(), ids.size());
     }
@@ -121,19 +121,19 @@ TEST(Unit_Concat, ForwardEmitsOneConcatChannelsReadingEveryInputInOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId b = builder.input(Shape{2, 8, 6, 5}, "b");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID b = builder.input(Shape{2, 8, 6, 5}, "b");
     const std::size_t nodes_before = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node,
                             create_over({Shape{8, 6, 5}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({b, a}), outputs));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& emitted = graph.nodes().back();
     EXPECT_EQ(emitted.op, Ops::K_CONCAT_CHANNELS.id);
-    EXPECT_EQ(emitted.inputs, (std::vector<Graph::ValueId>{b, a}));
+    EXPECT_EQ(emitted.inputs, (std::vector<Graph::ValueID>{b, a}));
     ASSERT_EQ(outputs.size(), 1u);
     ASSERT_EQ(emitted.outputs.size(), 1u);
     EXPECT_EQ(emitted.outputs.front(), outputs[0]);
@@ -144,12 +144,12 @@ TEST(Unit_Concat, ForwardResultIsThePortShapeWithABatchAxis)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId b = builder.input(Shape{2, 8, 6, 5}, "b");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID b = builder.input(Shape{2, 8, 6, 5}, "b");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 5}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({a, b}), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -162,12 +162,12 @@ TEST(Unit_Concat, ForwardRejectsAnInputCountItWasNotBuiltOver)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
     const std::size_t nodes_before = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({a}), outputs),
                       StatusCode::InvalidDescription, "input count is 2", "given is 1");
@@ -192,13 +192,13 @@ TEST(Unit_Concat, ForwardReturnsTheFailureOfValuesThatDoNotJoin)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId shorter = builder.input(Shape{2, 4, 6, 3}, "shorter");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID shorter = builder.input(Shape{2, 4, 6, 3}, "shorter");
     const std::size_t nodes_before = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     const Status joined =
         node->forward(Trace::evaluation(builder), span_of({a, shorter}), outputs);
@@ -244,10 +244,10 @@ TEST(Unit_Concat, TheStateWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node, create_over({Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({a}), outputs));
 
     std::size_t visits = 0;

@@ -64,7 +64,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{batch, features}, "inputs");
+        const Graph::ValueID x = builder.input(Shape{batch, features}, "inputs");
         model.forward(builder, x);
 
         std::vector<std::string> names;
@@ -145,8 +145,8 @@ TEST(Unit_LayerStack, TracesTheLayersInOrder)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
-    const Graph::ValueId y = stack.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
+    const Graph::ValueID y = stack.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 4}));
 }
@@ -156,7 +156,7 @@ TEST(Unit_LayerStack, RefusesToTraceWhenEmpty)
     LayerStack stack;
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
 
     SA_EXPECT_ERROR((void)stack.forward(builder, x), "no layers", "identity");
 }
@@ -187,7 +187,7 @@ TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "inputs");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
 
     (void)stack.forward(builder, x);
     EXPECT_EQ(NN::parameter_count(stack), 4u);

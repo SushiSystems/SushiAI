@@ -48,7 +48,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{batch, height, width, channels}, "x");
+        const Graph::ValueID x = builder.input(Shape{batch, height, width, channels}, "x");
 
         const GlobalAvgPool layer{};
         return graph.value(layer.forward(builder, x)).shape;
@@ -63,8 +63,8 @@ TEST(Unit_GlobalAvgPool, SatisfiesTheModuleTrait)
                   "GlobalAvgPool is a leaf and must not look like a container");
     static_assert(std::is_same<decltype(std::declval<const GlobalAvgPool&>().forward(
                                    std::declval<const Graph::GraphBuilder&>(),
-                                   std::declval<Graph::ValueId>())),
-                               Graph::ValueId>::value,
+                                   std::declval<Graph::ValueID>())),
+                               Graph::ValueID>::value,
                   "GlobalAvgPool declares no parameter, so forward() must be const");
     SUCCEED();
 }
@@ -74,10 +74,10 @@ TEST(Unit_GlobalAvgPool, ForwardReducesTheSpatialAxes)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 7, 5, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 7, 5, 16}, "x");
 
     const GlobalAvgPool layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 16}));
 }
@@ -87,11 +87,11 @@ TEST(Unit_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3, 3, 8}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3, 3, 8}, "x");
 
     const GlobalAvgPool layer{};
     const std::size_t nodes_before = graph.nodes().size();
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.nodes().size(), nodes_before + 1);
     const Graph::Node& node = graph.nodes().back();
@@ -103,17 +103,17 @@ TEST(Unit_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
 }
 
 /** @brief Tests that the traced result keeps the NHWC layout tag of the rank-4 input it reads. */
-TEST(Unit_GlobalAvgPool, ForwardKeepsTheNhwcLayoutTag)
+TEST(Unit_GlobalAvgPool, ForwardKeepsTheNHWCLayoutTag)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 3}, "x");
-    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::Nhwc);
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 3}, "x");
+    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::NHWC);
 
     const GlobalAvgPool layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
     EXPECT_NO_THROW(graph.finalise());
 }
 
@@ -168,7 +168,7 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAFeatureMatrix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 16}, "x");
 
     const GlobalAvgPool layer{};
 
@@ -180,7 +180,7 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{7, 5, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{7, 5, 16}, "x");
 
     const GlobalAvgPool layer{};
 
@@ -188,12 +188,12 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
 }
 
 /** @brief Tests that forward() rejects a rank-4 input tagged NCHW. */
-TEST(Unit_GlobalAvgPool, ForwardRejectsAnNchwInput)
+TEST(Unit_GlobalAvgPool, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 4, 4, 3}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{1, 4, 4, 3}, "x");
+    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     const GlobalAvgPool layer{};
 
@@ -205,7 +205,7 @@ TEST(Unit_GlobalAvgPool, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3, 3, 8}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3, 3, 8}, "x");
 
     GlobalAvgPool layer{};
     EXPECT_EQ(NN::parameter_count(layer), 0u);

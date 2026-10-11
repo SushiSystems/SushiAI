@@ -7,7 +7,7 @@ types, the two state types `Parameter` and `Buffer`, the
 registries a model file selects through.
 
 The module depends on `core` (`Shape`, `Status`, `Result`, `Error`), on `graph` (the IR, the
-builder and `Graph::StateId`) and on `config` (`Config::Value`, `Config::ModelSpec`). `init.hpp`
+builder and `Graph::StateID`) and on `config` (`Config::Value`, `Config::ModelSpec`). `init.hpp`
 and `model_state.hpp` also take a `SushiBLAS::Engine`; they are the only headers here that do.
 
 Two designs are the source of most headers. `MG` below is
@@ -37,9 +37,11 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `module_list.hpp` | `ModuleList<T>` |
 | `model_state.hpp` | `StateKind`, `StateEntry`, `ModelState` |
 | `trace.hpp` | `TraceMode`, `BufferUpdate`, `BufferUpdateSink`, `BufferUpdateList`, `discard_updates`, `Trace`, `TraceModule`, `ModalModule`, `Traceable`, `trace_layer` |
+| `host_table.hpp` | `HostTable`, `HostTableSink`, `HostTableList` |
 | `layers.hpp` | `Linear`, `ReLU`, `GELU`, `Tanh`, `Sigmoid`, `Sequential` |
 | `leaky_relu.hpp` | `LeakyReLU` |
 | `silu.hpp` | `SiLU` |
+| `mish.hpp` | `Mish` |
 | `identity.hpp` | `Identity` |
 | `unflatten.hpp` | `Unflatten` |
 | `flatten.hpp` | `Flatten` |
@@ -49,16 +51,22 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `avg_pool2d.hpp` | `AvgPool2d` |
 | `global_avg_pool.hpp` | `GlobalAvgPool` |
 | `upsample2d.hpp` | `Upsample2d` |
+| `channel_slice.hpp` | `ChannelSlice` |
 | `batch_norm2d.hpp` | `NormOptions`, `BatchNorm2d`, `make_batch_norm2d_node`, `updated_statistic` |
+| `embedding.hpp` | `Embedding`, `make_embedding_node`, `find_embedding` |
+| `layer_norm.hpp` | `K_LAYER_NORM_EPSILON`, `LayerNorm`, `make_layer_norm_node` |
+| `dropout.hpp` | `Dropout`, `make_dropout_node` |
 | `loss.hpp` | `CrossEntropyLoss` |
 | `init.hpp` | `Nonlinearity`, `calculate_gain`, `InitFamily`, `InitPolicy`, `constant`, `kaiming_normal`, `kaiming_uniform`, `xavier_normal`, `xavier_uniform`, `zeros`, `initialize` |
 | `layer.hpp` | `Layer`, `LayerAdapter<L>` |
 | `layer_stack.hpp` | `LayerStack` |
 | `layer_registry.hpp` | `LayerFactory`, `LayerEntry`, the fourteen `make_*` factories, `K_LAYER_REGISTRY`, `build_layer_stack` |
-| `node.hpp` | `Node`, `Port`, `ValueSpan`, `ShapeSpan`, `K_SINGLE_PORT_NAME`, `NodeFactory`, `NodeEntry` |
+| `node.hpp` | `Node`, `Port`, `ValueSpan`, `ShapeSpan`, `K_SINGLE_PORT_NAME`, `NodeFactory`, `NodeEntry`, `LinkedNodeFactory`, `LinkedNodeEntry` |
+| `built_rows.hpp` | `BuiltRows` |
 | `module_node.hpp` | `ModuleNode<L>` |
 | `layer_node.hpp` | `LayerNode` |
 | `concat.hpp` | `Concat`, `make_concat_node` |
+| `add.hpp` | `Add`, `make_add_node` |
 | `throwing_bridge.hpp` | `Detail::bridge_throwing` |
 | `model_outputs.hpp` | `ModelOutputs` |
 | `model_graph.hpp` | `NodeRef`, `ModelGraph` |
@@ -68,12 +76,15 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 
 ### module.hpp
 
-A `Parameter` holds a learnable tensor's description and a `Graph::StateId`, and no graph.
+A `Parameter` holds a learnable tensor's description and a `Graph::StateID`, and no graph.
 `declare()` adds a leaf to the graph of the builder it is given unless that graph already
 holds this parameter, so one parameter has one leaf in every graph it is traced into. A copy
 is new state and draws its own identity. A move carries the identity away. `ParameterRole`
-selects the fill: fan-scaled for `Weight`, zero for `Bias`, one for `Scale`. A second
-`declare()` form takes a `ParameterInit` as well. `state()` returns the identity, or
+selects the fill: fan-scaled for `Weight` and for `Embedding`, zero for `Bias`, one for
+`Scale`. A second `declare()` form takes a `ParameterInit` as well: `fan_scaled()`,
+`constant_value(value)` or `normal(deviation)`, a zero-mean normal of one stated deviation
+that the fans do not scale. The role is also what `Train::takes_weight_decay` reads, so
+`Embedding` marks a table that weight decay leaves alone. `state()` returns the identity, or
 `K_NO_STATE` when none was drawn. `id_in(graph)` returns the parameter's leaf in `graph`, or
 `Graph::K_NO_VALUE` when that graph holds none.
 
@@ -123,10 +134,10 @@ Source: PLAN unit U14, task T14.1.
 
 ### trace.hpp
 
-A `Trace` carries what a layer needs to trace itself: the builder, the mode and the sink of
-buffer updates. It refers to its builder and its sink and owns neither. It comes from one of
-two factories, `Trace::training(builder, updates)` and `Trace::evaluation(builder)`, and cannot
-be copied or moved. A layer that refuses its input calls `fail()` and returns its input; the
+A `Trace` carries what a layer needs to trace itself: the builder, the mode and its sinks. It
+refers to its builder and its sinks and owns none of them. It comes from one of three
+factories, `Trace::training(builder, updates)`, `Trace::evaluation(builder)` and
+`Trace::carrying(builder, fed, carried)`, and cannot be copied or moved. A layer that refuses its input calls `fail()` and returns its input; the
 caller reads `status()` afterwards, and `fail()` marks the graph refused.
 
 A `BufferUpdate` describes
@@ -135,18 +146,54 @@ each update to its `BufferUpdateSink`. `BufferUpdateList` collects them in order
 `discard_updates()` returns the sink that drops them. `update()` under an evaluation trace
 returns a failure.
 
-A layer has one of three forms. A `Module` has `forward(const GraphBuilder&, ValueId)`. A
-`TraceModule` has `forward(const Trace&, ValueId)`. A `ModalModule` has `trace_training` and
+`Trace::training` takes a seed as an optional third argument; `seed()` returns it, and 0 for
+every other trace. `claim_random_site()` returns 0, 1, 2 and so on in call order, so a layer
+that draws at each run of the step can tell its site from the others of the trace.
+
+A layer has one of three forms. A `Module` has `forward(const GraphBuilder&, ValueID)`. A
+`TraceModule` has `forward(const Trace&, ValueID)`. A `ModalModule` has `trace_training` and
 `trace_evaluation` and no `forward`. `trace_layer` calls whichever form a layer has, and a type
 that is both a `TraceModule` and a `Module` is traced as a `TraceModule`.
 
-Source: MG 2.3. PLAN unit U6.
+A carrying trace is an evaluation trace for a step that keeps values between its runs. Its
+mode is `Evaluation`, so a `ModalModule` traces its evaluation form and `update()` fails as it
+does under `Trace::evaluation`. It adds two requests, and both fail with `InvalidDescription`
+in the other two forms:
+
+| Call | Declares | Reaches |
+| --- | --- | --- |
+| `feed(name, shape, dtype)` | An input leaf the caller of the step fills on every run. A second call with the same name returns the same leaf, and one with another shape or type is refused | `FedLeafSink`, as a `FedLeaf` of the name and the leaf |
+| `carried_leaf(shape, debug_name, dtype)` | An input leaf the step itself rewrites | Nothing yet |
+| `carry(leaf, next, initial_value)` | That `leaf` holds `next` after each run, and `initial_value` before the first one | `CarriedValueSink`, as a `CarriedValue` |
+
+`FedLeafList` and `CarriedValueList` collect them in order. A carried value is a leaf of the
+graph and no `Buffer`, so it is no entry of a `ModelState` and no checkpoint holds it. The
+name given to `feed` and to `carried_leaf` must outlive the graph, as a debug name does.
+
+A layer may have a fourth entry beside its form:
+`forward_incremental(const Trace&, ValueID x, const Shape& sample)`. It traces the newest
+slice of what `forward` reads whole, and `sample` is the per-sample shape of the whole value.
+`IncrementalModule<T>` holds for such a layer and `trace_layer_incremental` calls it.
+`Embedding` and `LayerNorm` have the entry and forward it to `forward`, since a row reads no
+other row.
+
+`Trace::host_table(shape, debug_name, dtype, values)` declares a leaf whose numbers the host
+computed during the trace, float32 or float64, one value per element. It works in every form
+of trace once `collect_tables(sink)` has named a `HostTableSink`, and fails with
+`InvalidDescription` before that. The leaf is a `Lifetime::Buffer` value bound to no state:
+it is no `Parameter` and no `Buffer`, so no `ModelState`, optimizer or checkpoint holds it.
+The step built from the trace writes the values once. Two declarations are two leaves, even
+under one debug name. `RotaryEmbedding` of `language/blocks` declares its cosines and sines
+this way. `tests/test_host_table.cpp` covers the declaration and its refusals.
+
+Source: MG 2.3. PLAN unit U6. The carrying form: `docs/design/LANGUAGE.md`, phase 5.
 
 ## Layers
 
 ### layers.hpp
 
-`Linear` is the affine map Y = X * W^T + b. `ReLU`, `GELU`, `Tanh` and `Sigmoid` are
+`Linear` is the affine map Y = X * W^T + b. Its `weight_init` is the fill of the weight,
+fan-scaled unless a model states another. `ReLU`, `GELU`, `Tanh` and `Sigmoid` are
 elementwise activations with no parameter. `Sequential` applies its layers in order and names
 each child's state by its index. It has a builder `forward` only when every layer is a
 `Module`, and a trace `forward` that traces each child through `trace_layer`.
@@ -167,6 +214,14 @@ Source: CV section 3, with the name `leaky_relu` from CV section 2, decision 9.
 `SiLU` applies x * sigmoid(x), elementwise, over an input of any rank. It has no parameter.
 
 Source: MG 2.10. PLAN unit U8.
+
+### mish.hpp
+
+`Mish` applies x * tanh(softplus(x)), elementwise, over an input of any rank. It has no
+parameter. `forward` emits SOFTPLUS, TANH and MUL, and the result has the shape and the layout
+of the input.
+
+Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`, section 2.1.
 
 ### identity.hpp
 
@@ -236,6 +291,15 @@ applies to both axes and must be at least 1.
 
 Source: CV section 3.
 
+### channel_slice.hpp
+
+`ChannelSlice` keeps the channels [`offset`, `offset + count`) of an NHWC image through one
+K_SLICE_CHANNELS and has no parameter. `offset` must be at least 0 and below the input's channel
+count, and `count` must be at least 1 and must not run past it. `output_shape` maps [H, W, C] to
+[H, W, `count`].
+
+Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`, section 2.1.
+
 ### batch_norm2d.hpp
 
 `BatchNorm2d` normalises an NHWC activation per channel and is a `ModalModule`.
@@ -251,6 +315,73 @@ keys `bn_epsilon` and `bn_momentum`.
 
 Source: MG 2.7. PLAN unit U7.
 
+### embedding.hpp
+
+`Embedding` maps each INT32 index of its input to a row of a learned `[num_embeddings,
+embedding_dim]` table and is a `TraceModule`. `forward` traces one K_GATHER_ROWS over the table
+and the input, so an input of `[N, T]` gives `[N, T, embedding_dim]`. The table is the
+parameter `weight`, of role `Embedding`, drawn from a normal of deviation
+`K_EMBEDDING_DEVIATION`, 0.02, unless `weight_init` states another fill; `dtype` names its
+element type, FLOAT32 by default, since the input cannot. The layer refuses an input that is
+not INT32 or whose rank leaves no axis for the row. It does not read the indices: one outside
+`[0, num_embeddings)` is not caught.
+
+`make_embedding_node` builds the node of an `embedding` row. The row reads one per-sample shape
+of rank 1 to 4 and takes two required keys, both whole numbers above zero:
+
+| Key | Holds |
+| --- | --- |
+| `num_embeddings` | The row count of the table |
+| `embedding_dim` | The length of one row, which becomes the last extent of the result |
+
+Source: `docs/design/LANGUAGE.md`, phase 1.
+
+### layer_norm.hpp
+
+`LayerNorm` normalises each `[dim]` row of a `[..., dim]` value by the row's own mean and
+variance and is a `TraceModule`. `forward` traces one K_LAYER_NORM, which is the same node under
+a training and an evaluation trace, since the layer has no running statistic. The gain is the
+`Scale` parameter `weight`, which starts at one, and `bias` starts at zero; both take the
+input's element type. `epsilon` is `K_LAYER_NORM_EPSILON`, 1e-5, unless stated. The layer
+refuses an input whose last extent is not `dim` or that is not a real float.
+
+`make_layer_norm_node` builds the node of a `layernorm` row. The row reads one per-sample shape
+of rank 1 to 5, takes `dim` from its last extent, and has one optional key:
+
+| Key | Holds |
+| --- | --- |
+| `ln_epsilon` | The constant added to a row's variance, a positive number; 1e-5 when absent |
+
+Source: `docs/design/LANGUAGE.md`, phase 2.
+
+### dropout.hpp
+
+`Dropout` holds a drop `rate` in `[0, 1)` and is a `ModalModule` with no state. Its training
+form emits one `K_DROPOUT` node over its input: each element is zeroed with probability `rate`
+and scaled by `1 / (1 - rate)` otherwise, with a new mask at each run of the compiled step. Its
+evaluation form returns its input and emits no node, and so does the training form at a rate
+of 0. A rate outside the interval fails the trace.
+
+Each emitted node is one random site. The layer asks the trace for the site's order with
+`Trace::claim_random_site()` and gives the node the seed
+`Graph::dropout_site_seed(trace.seed(), order)`, so two sites of one model draw different masks
+and a model traced twice with one seed draws the same ones. `Trace::training` takes the seed as
+its third argument, 0 when absent; `Train::GraphOptions::seed` carries it there. The mask has
+the element type of the operand: the host draws FLOAT32 ones and zeros and a converting copy
+carries them into a HALF or FLOAT64 graph. A step that is compiled again starts at run 0. A run
+resumed from a checkpoint compiles its step again and then restores the run count with
+`Graph::CompiledStep::restore_run_count`, so under the seed of the saved run it draws the masks
+that run would have drawn next.
+
+`make_dropout_node` builds the node of a `dropout` row. The row reads one per-sample shape of
+any rank and has one required key:
+
+| Key | Holds |
+| --- | --- |
+| `rate` | The probability of dropping an element, a number in `[0, 1)` |
+
+Source: `docs/design/LANGUAGE.md`, the layers that go to `nn`.
+
 ## Loss and initialisation
 
 ### loss.hpp
@@ -264,7 +395,8 @@ Source: neither spec. The header predates both.
 
 `initialize` records the initial fill of every entry of a `ModelState` on a `SushiBLAS::Engine`,
 buffers included, and then runs the recording. An entry whose `ParameterInit` is a constant takes
-`constant`. The last fan-scaled entry is zeroed with `zeros` when `zero_final_layer` holds. Every
+`constant`, and one whose kind is `Normal` takes `normal`, which refuses a deviation that is
+not positive and finite. Neither is the final layer, whatever its position. The last fan-scaled entry is zeroed with `zeros` when `zero_final_layer` holds. Every
 other fan-scaled entry takes `kaiming_normal`, `kaiming_uniform`, `xavier_normal` or
 `xavier_uniform`, as `family` and `uniform` select, with the gain `calculate_gain` gives for
 `nonlinearity`. The random stream is seeded with `seed`, so one seed gives one set of values.
@@ -313,20 +445,49 @@ shape, and a node with one result names its port `K_SINGLE_PORT_NAME`, "output".
 `NodeFactory` builds one node from the per-sample shapes of a row's sources, the row's
 attributes and a context string.
 
+`forward_incremental` is the second entry of a node: its incremental form, traced in a
+carrying trace over the newest slice of each input. The base returns `Unsupported`, "the node
+has no incremental form", and `ModelGraph::trace_incremental` puts the node's name in front.
+A node overrides it when it has such a form.
+
+A `LinkedNodeFactory` takes a fourth argument, the `BuiltRows` above the row, for a row that
+names another row: a head that scores with the table of an embedding row is one. It is a
+second factory type beside `NodeFactory`, held in a `LinkedNodeEntry`, and not a new argument
+of `NodeFactory`, because the vision blocks call a `NodeEntry::make` with three arguments.
+
+### built_rows.hpp
+
+`BuiltRows` views the nodes of the rows above the one being built. `build_model` names node
+`i` of its graph after row `i`, so the view is the graph: `size()` is the index of the row
+being built and `node(i)` is the node of row `i`. A default view holds no row, which is what
+`make_node` passes when it builds a node outside a model. A node it returns is owned by the
+`ModelGraph` through a `std::unique_ptr`, so its address holds when the graph moves.
+
+`Detail::read_row_above` in `node_attributes.hpp` reads a reference to such a row from a
+row's attributes: a row number, `-1` for the row before, or an object with `node`. It refuses
+a row that is not above, the string `input` and an object with `port`, since a row reference
+names a node and not a value.
+
+`find_embedding` in `embedding.hpp` returns the `Embedding` a node built by
+`make_embedding_node` holds, or null for any other node.
+
 Source: MG 2.4. PLAN unit U8.
 
 ### module_node.hpp
 
 `ModuleNode<L>` presents a `Traceable` layer that has `output_shape(const Shape&)` as a
 one-in one-out node. `create` reads the port's shape from the layer, and `forward` traces the
-layer in the form `trace_layer` picks.
+layer in the form `trace_layer` picks. `forward_incremental` calls the layer's own
+`forward_incremental` with the per-sample shape `create` was given, and returns the base's
+`Unsupported` for a layer that has none.
 
 Source: MG 2.4. PLAN unit U8.
 
 ### layer_node.hpp
 
 `LayerNode` presents a run-time `Layer` as a one-in one-out node. It owns the layer, traces
-it through the trace's builder and walks its parameters; it has no buffer.
+it through the trace's builder and walks its parameters; it has no buffer. It keeps the
+base's `forward_incremental`, so a row of `K_LAYER_REGISTRY` has no incremental form.
 
 Source: MG 2.4. PLAN unit U8.
 
@@ -337,6 +498,14 @@ K_CONCAT_CHANNELS and holds no state. `Concat::create` refuses an empty list, an
 not rank 3, and two inputs that disagree on H or W. `make_concat_node` takes no key.
 
 Source: MG 2.5 and MG 2.10. PLAN unit U8.
+
+### add.hpp
+
+`Add` sums its two [H, W, C] inputs elementwise into one [H, W, C] result through one K_ADD and
+holds no state. `Add::create` refuses an input count other than two, an input that is not
+rank 3, and two inputs of different shapes. `make_add_node` takes no key.
+
+Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`, section 2.1.
 
 ### throwing_bridge.hpp
 
@@ -369,6 +538,13 @@ a node. `trace` traces every node in the order added and returns a `ModelOutputs
 `forward` returns the single published output. `walk_state` names each node's state under the
 node's name. `ModelGraph` is itself a `TraceModule`.
 
+`trace_incremental` walks the nodes in the same order through `Node::forward_incremental`
+and needs a carrying trace. It compares no port with its declared per-sample shape, because a
+slice has the shape its node gives it; `trace` checks every port as before. The first node
+without an incremental form fails the walk as `Unsupported` under "node '<name>'".
+`forward_incremental` returns the single published output of that walk, so a nested graph is
+a node that has the form.
+
 Source: MG 2.5. PLAN unit U10.
 
 ### node_registry.hpp
@@ -379,6 +555,13 @@ and `sppf`. `make_node` builds a node of a type from that table, or else from a 
 row wrapped in a `LayerNode`; a type in neither table fails with a message that lists both.
 `build_model` builds the `ModelGraph` a `Config::ModelSpec` describes and names each row by
 its index. An empty outputs list publishes every port of the last row.
+
+A `NodeRegistry` holds a third kind of row, the linked node rows, added with
+`add(const LinkedNodeEntry&)` and read with `find_linked` and `linked()`. A type has one row
+among the three kinds. `make_node` looks a type up among the node rows, then the linked node
+rows, then the layer rows, and hands a linked factory the `BuiltRows` it was given;
+`build_model` passes the rows above each row. The message for an unknown type lists the
+linked types after the node types.
 
 Source: MG 2.4 for the table and `make_node`, MG 2.5 and MG 3.5 for `build_model`, and MG 2.6
 for the file it reads. PLAN unit U12.

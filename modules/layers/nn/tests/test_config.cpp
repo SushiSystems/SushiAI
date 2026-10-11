@@ -164,7 +164,7 @@ TEST(Unit_Config, AtOrFallsBackWithoutThrowing)
     EXPECT_TRUE(not_an_object.at_or("use_bias", fallback).as_bool("use_bias"));
 }
 
-TEST(Unit_Config, MalformedJsonNamesTheOriginAndTheComplaint)
+TEST(Unit_Config, MalformedJSONNamesTheOriginAndTheComplaint)
 {
     SA_EXPECT_ERROR((void)parse_json("{ not json", "train.json"),
                     "train.json", "not valid JSON");
@@ -230,7 +230,7 @@ TEST(Unit_Config, AConfiguredStackTracesToTheDeclaredOutputWidth)
 
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
-    const SushiAI::Graph::ValueId x = builder.input(SushiAI::Shape{4, 6}, "inputs");
+    const SushiAI::Graph::ValueID x = builder.input(SushiAI::Shape{4, 6}, "inputs");
 
     EXPECT_EQ(graph.value(stack.forward(builder, x)).shape, (SushiAI::Shape{4, 4}));
 }
@@ -468,6 +468,40 @@ TEST(Unit_Config, AnEmptyOrNonPositiveInputShapeIsAnError)
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 2, "input": {"features": 6}, "layers": [{"type": "relu"}]
     })"), "'features'", "'shape'");
+}
+
+/** @brief Tests that a file without "dtype" has a float32 input and that "int32" is read. */
+TEST(Unit_Config, TheInputElementTypeIsFloat32UnlessTheFileStatesInt32)
+{
+    const SushiAI::Config::ModelSpec floating = model_from(R"({
+        "format_version": 2, "input": {"shape": [8]}, "layers": [{"type": "relu"}]
+    })");
+    const SushiAI::Config::ModelSpec stated = model_from(R"({
+        "format_version": 2, "input": {"shape": [8], "dtype": "float32"},
+        "layers": [{"type": "relu"}]
+    })");
+    const SushiAI::Config::ModelSpec indices = model_from(R"({
+        "format_version": 2, "input": {"shape": [8], "dtype": "int32"},
+        "layers": [{"type": "relu"}]
+    })");
+
+    EXPECT_EQ(floating.input_dtype, SushiAI::DType::Float32);
+    EXPECT_EQ(stated.input_dtype, SushiAI::DType::Float32);
+    EXPECT_EQ(indices.input_dtype, SushiAI::DType::Int32);
+}
+
+/** @brief Tests that an input element type the reader does not list, or no string, is refused. */
+TEST(Unit_Config, AnInputElementTypeOutsideTheListIsAnError)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "format_version": 2, "input": {"shape": [8], "dtype": "int64"},
+        "layers": [{"type": "relu"}]
+    })"), "'input' 'dtype'", "'int64'", "'float32', 'int32'");
+
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "format_version": 2, "input": {"shape": [8], "dtype": 32},
+        "layers": [{"type": "relu"}]
+    })"), "'input' 'dtype'");
 }
 
 /** @brief Tests that an input shape above the rank limit or the element limit is refused. */
@@ -708,6 +742,54 @@ TEST(Unit_Config, AMalformedOutputIsAnError)
         "'outputs' entry 0 'name'", "empty string");
 }
 
+/** @brief Tests that a file without a task parses to a null task. */
+TEST(Unit_Config, AModelWithoutATaskHoldsANullTask)
+{
+    EXPECT_TRUE(current_model_from(R"([{"type": "relu"}])").task.is_null());
+    EXPECT_TRUE(model_from(K_FIRST_VERSION_MODEL).task.is_null());
+}
+
+/** @brief Tests that a task is kept as the file states it, with keys this module does not read. */
+TEST(Unit_Config, ATaskIsKeptWholeWithItsKeysInFileOrder)
+{
+    const ModelSpec model = current_model_from(
+        R"([{"type": "relu"}])",
+        R"(, "task": {"classes": 80, "type": "anchor_detection", "heads": [{"output": "a"}]})");
+
+    ASSERT_EQ(model.task.kind(), Kind::Object);
+    EXPECT_EQ(model.task.keys(), (std::vector<std::string>{"classes", "type", "heads"}));
+    EXPECT_EQ(model.task.at("type", "task").as_string("type"), "anchor_detection");
+    EXPECT_EQ(model.task.at("classes", "task").as_int("classes"), 80);
+    EXPECT_EQ(model.task.at("heads", "task").as_array("heads").size(), 1u);
+}
+
+/** @brief Tests that a task that is not an object with a string type fails with the key named. */
+TEST(Unit_Config, AMalformedTaskIsAnError)
+{
+    SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])", R"(, "task": [])"),
+                    "'model.json's 'task'", "an array");
+
+    SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])", R"(, "task": null)"),
+                    "'model.json's 'task'", "null");
+
+    SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])",
+                                             R"(, "task": {"classes": 80})"),
+                    "'model.json's 'task'", "no 'type'", "'classes'");
+
+    SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])",
+                                             R"(, "task": {"type": 3})"),
+                    "'task' 'type'", "a whole number");
+}
+
+/** @brief Tests that a version 1 document that states a task is refused. */
+TEST(Unit_Config, AVersionOneDocumentRefusesATask)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6}, "layers": [{"type": "gelu"}],
+        "task": {"type": "anchor_detection"}
+    })"), "'task'", "'layers'");
+}
+
 namespace
 {
     /** @brief Parses @p text as a train document, resolving paths against ".". */
@@ -723,7 +805,7 @@ namespace
         "data": {"type": "rings", "batch_size": 8, "batches": 2, "classes": 4},
         "optimizer": {"type": "adamw", "learning_rate": 0.003},
         "epochs": 3,
-        "checkpoint": "out/model.ckpt"
+        "checkpoint": "out/model.sushi"
     })";
 
     /**
@@ -789,7 +871,7 @@ TEST(Unit_Config, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
     const SushiAI::Config::TrainSpec spec = SushiAI::Config::load_train(config);
 
     EXPECT_EQ(spec.model_path, directory.path() / "model.json");
-    EXPECT_EQ(spec.checkpoint, directory.path() / "out" / "model.ckpt");
+    EXPECT_EQ(spec.checkpoint, directory.path() / "out" / "model.sushi");
 }
 
 TEST(Unit_Config, LeavesAnAbsolutePathAlone)

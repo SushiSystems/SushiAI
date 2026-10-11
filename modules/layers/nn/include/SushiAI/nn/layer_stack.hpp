@@ -77,7 +77,7 @@ namespace SushiAI
                  * @throws Error If the stack is empty, which would otherwise
                  *         make the model the identity function.
                  */
-                Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x);
+                Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x);
 
                 /**
                  * @brief Applies visitor to every declared parameter with index prefix.

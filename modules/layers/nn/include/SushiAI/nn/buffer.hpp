@@ -144,30 +144,30 @@ namespace SushiAI
                  * @return The leaf of this buffer in builder.graph().
                  * @pre define() has been called; an undefined buffer is fatal.
                  */
-                Graph::ValueId read(const Graph::GraphBuilder& builder, std::string_view debug_name)
+                Graph::ValueID read(const Graph::GraphBuilder& builder, std::string_view debug_name)
                 {
                     SA_FATAL_IF(!defined_,
                                 "Buffer '{}' is read before define() has fixed its shape",
                                 debug_name);
 
                     Graph::Graph& graph = builder.graph();
-                    const Graph::ValueId held = graph.state_leaf(identity_.peek());
+                    const Graph::ValueID held = graph.state_leaf(identity_.peek());
                     if (held != Graph::K_NO_VALUE)
                         return held;
 
-                    const Graph::ValueId leaf = builder.buffer(shape_, debug_name, dtype_);
+                    const Graph::ValueID leaf = builder.buffer(shape_, debug_name, dtype_);
                     graph.bind_state_leaf(identity_.peek(), leaf);
                     return leaf;
                 }
 
                 /** @brief Returns the leaf of this buffer in @p graph, or NO_VALUE when none. */
-                [[nodiscard]] Graph::ValueId id_in(const Graph::Graph& graph) const noexcept
+                [[nodiscard]] Graph::ValueID id_in(const Graph::Graph& graph) const noexcept
                 {
                     return graph.state_leaf(identity_.peek());
                 }
 
                 /** @brief Returns this buffer's identity, or K_NO_STATE before define(). */
-                [[nodiscard]] Graph::StateId state() const noexcept
+                [[nodiscard]] Graph::StateID state() const noexcept
                 {
                     return identity_.peek();
                 }

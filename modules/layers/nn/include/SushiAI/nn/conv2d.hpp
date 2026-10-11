@@ -88,7 +88,7 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value that the window fits.
              * @return The [N, out_h, out_w, out_channels] result's id.
              */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x);
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x);
 
             /**
              * @brief Computes the per-sample shape forward() produces.

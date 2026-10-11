@@ -47,7 +47,7 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
 
-        const Graph::ValueId x = builder.input(batched, "x");
+        const Graph::ValueID x = builder.input(batched, "x");
         return graph.value(Flatten{}.forward(builder, x)).shape;
     }
 } // namespace
@@ -65,11 +65,11 @@ TEST(Unit_Flatten, ARank4InputTracesToOneReshape)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{2, 4, 5, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 5, 3}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     const Flatten layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 60}));
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
@@ -94,12 +94,12 @@ TEST(Unit_Flatten, ARank2InputPassesThroughWithNoNode)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{2, 7}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 7}, "x");
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
     const Flatten layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(y, x);
     EXPECT_EQ(graph.node_count(), nodes_before);
@@ -107,27 +107,27 @@ TEST(Unit_Flatten, ARank2InputPassesThroughWithNoNode)
 }
 
 /** @brief Tests that flattening an NHWC rank-4 input does not stamp the result with another tag. */
-TEST(Unit_Flatten, AnNhwcInputYieldsAnNhwcResult)
+TEST(Unit_Flatten, AnNHWCInputYieldsAnNHWCResult)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{2, 4, 5, 3}, "x");
-    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::Nhwc);
+    const Graph::ValueID x = builder.input(Shape{2, 4, 5, 3}, "x");
+    ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::NHWC);
 
-    const Graph::ValueId y = Flatten{}.forward(builder, x);
+    const Graph::ValueID y = Flatten{}.forward(builder, x);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that forward() throws on an input tagged NCHW. */
-TEST(Unit_Flatten, ForwardRejectsAnNchwInput)
+TEST(Unit_Flatten, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{2, 3, 4, 5}, "x");
-    graph.value(x).layout = Graph::TensorLayout::Nchw;
+    const Graph::ValueID x = builder.input(Shape{2, 3, 4, 5}, "x");
+    graph.value(x).layout = Graph::TensorLayout::NCHW;
 
     EXPECT_THROW((void)Flatten{}.forward(builder, x), Error);
 }
@@ -156,7 +156,7 @@ TEST(Unit_Flatten, ForwardRejectsARank1Input)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
-    const Graph::ValueId x = builder.input(Shape{6}, "x");
+    const Graph::ValueID x = builder.input(Shape{6}, "x");
     const Flatten layer{};
 
     EXPECT_THROW((void)layer.forward(builder, x), Error);
@@ -179,7 +179,7 @@ TEST(Unit_Flatten, TheParameterWalkVisitsNothing)
     Flatten layer{};
     EXPECT_EQ(NN::parameter_count(layer), 0u);
 
-    const Graph::ValueId x = builder.input(Shape{2, 4, 5, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 5, 3}, "x");
     (void)layer.forward(builder, x);
 
     std::size_t visits = 0;

@@ -50,7 +50,7 @@ namespace SushiAI
              * @brief Traces the activation over an input of any rank.
              * @return The result's id, shaped and laid out like @p x.
              */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const;
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.

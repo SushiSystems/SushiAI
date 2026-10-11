@@ -82,6 +82,9 @@ namespace
         {"batchnorm2d", "{}", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"concat", "{}", {Shape{4, 4, 2}, Shape{4, 4, 3}}, Shape{4, 4, 5}},
         {"add", "{}", {Shape{4, 4, 3}, Shape{4, 4, 3}}, Shape{4, 4, 3}},
+        {"embedding", R"({"num_embeddings": 7, "embedding_dim": 3})", {Shape{5}}, Shape{5, 3}},
+        {"layernorm", "{}", {Shape{5, 3}}, Shape{5, 3}},
+        {"dropout", R"({"rate": 0.1})", {Shape{5, 3}}, Shape{5, 3}},
     };
 
     /** @brief Describes one layer row's minimal object and the shape it reads. */
@@ -193,7 +196,10 @@ namespace
 
 } // namespace
 
-/** @brief Tests that register_layers adds the 16 layer types, then batchnorm2d, concat and add. */
+/**
+ * @brief Tests that register_layers adds the 16 layer types, then batchnorm2d, concat, add,
+ *        embedding, layernorm and dropout.
+ */
 TEST(Unit_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
 {
     const std::vector<std::string_view> expected_layers = {
@@ -201,7 +207,8 @@ TEST(Unit_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
         "unflatten", "conv2d",   "maxpool2d", "avgpool2d", "global_avgpool",
         "flatten",   "upsample", "silu",      "mish",      "slice_channels",
     };
-    const std::vector<std::string_view> expected_nodes = {"batchnorm2d", "concat", "add"};
+    const std::vector<std::string_view> expected_nodes = {"batchnorm2d", "concat",    "add",
+                                                         "embedding",   "layernorm", "dropout"};
 
     NN::NodeRegistry registry;
     SA_EXPECT_OK(NN::register_layers(registry));

@@ -69,7 +69,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+        const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
         const LeakyReLU layer{slope};
         return Test::capture_error([&]() { (void)layer.forward(builder, x); }).threw_error;
@@ -83,15 +83,15 @@ TEST(Unit_LeakyReLU, TheDefaultSlopeIsOneHundredth)
 }
 
 /** @brief Tests that tracing emits one LEAKY_RELU node reading the input with the slope. */
-TEST(Unit_LeakyReLU, ForwardEmitsOneLeakyReluNodeCarryingTheSlope)
+TEST(Unit_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     const LeakyReLU layer{0.2};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.nodes().back();
@@ -108,27 +108,27 @@ TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     const LeakyReLU layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
     EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
 }
 
 /** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch)
+TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
 
     const LeakyReLU layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 6, 3}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
@@ -136,13 +136,13 @@ TEST(Unit_LeakyReLU, ForwardCarriesTheLayoutOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     const LeakyReLU layer{};
-    const Graph::ValueId y = layer.forward(builder, nchw);
+    const Graph::ValueID y = layer.forward(builder, nchw);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nchw);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NCHW);
     EXPECT_EQ(graph.value(y).shape, graph.value(nchw).shape);
 }
 
@@ -151,10 +151,10 @@ TEST(Unit_LeakyReLU, OutputShapeAgreesWithForwardForAFeatureVector)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{5, 7}, "x");
+    const Graph::ValueID x = builder.input(Shape{5, 7}, "x");
 
     const LeakyReLU layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     const Shape inferred = layer.output_shape(Shape{7});
     EXPECT_EQ(inferred, (Shape{7}));
@@ -166,10 +166,10 @@ TEST(Unit_LeakyReLU, OutputShapeAgreesWithForwardForAnImage)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{3, 8, 6, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{3, 8, 6, 4}, "x");
 
     const LeakyReLU layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     const Shape inferred = layer.output_shape(Shape{8, 6, 4});
     EXPECT_EQ(inferred, (Shape{8, 6, 4}));
@@ -201,7 +201,7 @@ TEST(Unit_LeakyReLU, ForwardRejectsASlopeAboveOne)
 }
 
 /** @brief Tests that a NaN slope is rejected. */
-TEST(Unit_LeakyReLU, ForwardRejectsANanSlope)
+TEST(Unit_LeakyReLU, ForwardRejectsANaNSlope)
 {
     EXPECT_TRUE(is_slope_rejected(std::numeric_limits<double>::quiet_NaN()));
 }
@@ -228,7 +228,7 @@ TEST(Unit_LeakyReLU, ForwardNamesTheLayerAndTheSlopeItRefuses)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     const LeakyReLU layer{1.5};
 
@@ -240,7 +240,7 @@ TEST(Unit_LeakyReLU, ARejectedSlopeEmitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const std::size_t values_before = graph.value_count();
     const std::size_t nodes_before = graph.node_count();
 
@@ -256,7 +256,7 @@ TEST(Unit_LeakyReLU, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     LeakyReLU layer{};
     EXPECT_EQ(NN::parameter_count(layer), 0u);

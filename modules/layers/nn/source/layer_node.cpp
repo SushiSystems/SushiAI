@@ -62,10 +62,10 @@ namespace SushiAI
         }
 
         Status LayerNode::forward(const Trace& trace, ValueSpan inputs,
-                                  std::vector<Graph::ValueId>& outputs)
+                                  std::vector<Graph::ValueID>& outputs)
         {
             SA_TRY(Detail::require_input_count(inputs, K_INPUT_COUNT));
-            SA_TRY_ASSIGN(const Graph::ValueId traced,
+            SA_TRY_ASSIGN(const Graph::ValueID traced,
                           Detail::bridge_throwing([this, &trace, &inputs]()
             {
                 return layer_->forward(trace.builder(), inputs[0]);

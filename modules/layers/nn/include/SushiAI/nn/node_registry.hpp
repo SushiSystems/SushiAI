@@ -35,6 +35,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
+#include <SushiAI/nn/built_rows.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/node.hpp>
@@ -43,7 +44,7 @@ namespace SushiAI
 {
     namespace NN
     {
-        /** @brief Holds the node rows and the layer rows a model file may name, by type. */
+        /** @brief Holds the node, linked node and layer rows a model file may name, by type. */
         class NodeRegistry final
         {
             public:
@@ -63,8 +64,20 @@ namespace SushiAI
                  */
                 [[nodiscard]] Status add(const LayerEntry& row);
 
+                /**
+                 * @brief Appends a linked node row, whose factory reads the rows above its own.
+                 * @param row Its type text must outlive the registry; an empty type or a null
+                 *            factory is fatal.
+                 * @return InvalidDescription when a row of any kind holds the type.
+                 */
+                [[nodiscard]] Status add(const LinkedNodeEntry& row);
+
                 /** @brief Returns the node row of @p type, or null when none holds it. */
                 [[nodiscard]] const NodeEntry* find_node(std::string_view type) const noexcept;
+
+                /** @brief Returns the linked node row of @p type, or null when none holds it. */
+                [[nodiscard]] const LinkedNodeEntry* find_linked(
+                    std::string_view type) const noexcept;
 
                 /** @brief Returns the layer row of @p type, or null when none holds it. */
                 [[nodiscard]] const LayerEntry* find_layer(std::string_view type) const noexcept;
@@ -76,6 +89,12 @@ namespace SushiAI
                 [[nodiscard]] SushiRuntime::span<const NodeEntry> nodes() const noexcept;
 
                 /**
+                 * @brief Returns the linked node rows in the order they were added.
+                 * @return A view the next add() invalidates.
+                 */
+                [[nodiscard]] SushiRuntime::span<const LinkedNodeEntry> linked() const noexcept;
+
+                /**
                  * @brief Returns the layer rows in the order they were added.
                  * @return A view the next add() invalidates.
                  */
@@ -85,15 +104,18 @@ namespace SushiAI
                 /** @brief Holds the node rows in insertion order. */
                 std::vector<NodeEntry> nodes_;
 
+                /** @brief Holds the linked node rows in insertion order. */
+                std::vector<LinkedNodeEntry> linked_;
+
                 /** @brief Holds the layer rows in insertion order. */
                 std::vector<LayerEntry> layers_;
         };
 
         /**
-         * @brief Builds a node of @p type: a node row of @p registry, else a layer row
-         *        wrapped in a LayerNode.
+         * @brief Builds a node of @p type: a node row of @p registry, else a linked node row,
+         *        else a layer row wrapped in a LayerNode.
          * @param inputs The shapes of the row's sources; a layer row reads one.
-         * @param context What to call the row in a diagnostic, e.g. "layer 3 'concat'".
+         * @param above The rows a linked node row may name; the default views none.
          * @return The node, or InvalidDescription when the factory refuses the row or
          *         @p registry holds no @p type; the second message lists every row.
          */
@@ -101,7 +123,8 @@ namespace SushiAI
                                                               std::string_view type,
                                                               ShapeSpan inputs,
                                                               const Config::Value& attributes,
-                                                              std::string_view context);
+                                                              std::string_view context,
+                                                              const BuiltRows& above = {});
 
         /**
          * @brief Builds the graph @p model describes, naming each row by its index.

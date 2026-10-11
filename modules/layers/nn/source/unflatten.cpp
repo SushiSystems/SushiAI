@@ -55,8 +55,8 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueId Unflatten::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueId x) const
+        Graph::ValueID Unflatten::forward(const Graph::GraphBuilder& builder,
+                                          Graph::ValueID x) const
         {
             require_positive_extents(*this);
             const int64_t elements = count_sample_elements(*this);
@@ -68,7 +68,7 @@ namespace SushiAI
             SA_THROW_IF(input.shape[1] != elements,
                         "Unflatten({}, {}, {}) needs an input whose inner extent is {}; got {}",
                         height, width, channels, elements, input.shape.to_string());
-            SA_THROW_IF(input.layout != Graph::TensorLayout::Nhwc,
+            SA_THROW_IF(input.layout != Graph::TensorLayout::NHWC,
                         "Unflatten needs an NHWC input; got {} tagged NCHW. Cross with "
                         "layout_convert first (CV-3).",
                         input.shape.to_string());

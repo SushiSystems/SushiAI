@@ -52,7 +52,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(batched_input, "x");
+        const Graph::ValueID x = builder.input(batched_input, "x");
         const Shape traced = graph.value(layer.forward(builder, x)).shape;
         return Shape{traced[1], traced[2], traced[3]};
     }
@@ -68,8 +68,8 @@ TEST(Unit_Upsample2d, TheDefaultScaleDoublesHeightAndWidth)
     const Graph::GraphBuilder builder(graph);
 
     const Upsample2d layer{};
-    const Graph::ValueId x = builder.input(Shape{2, 3, 5, 7}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 3, 5, 7}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 6, 10, 7}));
 }
@@ -81,24 +81,24 @@ TEST(Unit_Upsample2d, TheScaleFieldSetsTheFactorOnBothSpatialAxes)
     const Graph::GraphBuilder builder(graph);
 
     const Upsample2d layer{3};
-    const Graph::ValueId x = builder.input(Shape{1, 4, 2, 5}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{1, 4, 2, 5}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 12, 6, 5}));
 }
 
 /** @brief Tests that the traced result carries the NHWC layout tag. */
-TEST(Unit_Upsample2d, TheResultIsTaggedNhwc)
+TEST(Unit_Upsample2d, TheResultIsTaggedNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     const Upsample2d layer{};
-    const Graph::ValueId x = builder.input(Shape{2, 3, 5, 7}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 3, 5, 7}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that forward emits one UPSAMPLE2D node that reads x with scale on both axes. */
@@ -108,14 +108,14 @@ TEST(Unit_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
     const Graph::GraphBuilder builder(graph);
 
     const Upsample2d layer{3};
-    const Graph::ValueId x = builder.input(Shape{1, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
     const std::size_t nodes_before = graph.node_count();
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
     EXPECT_EQ(node.op, Ops::K_UPSAMPLE2D.id);
-    EXPECT_EQ(node.inputs, (std::vector<Graph::ValueId>{x}));
+    EXPECT_EQ(node.inputs, (std::vector<Graph::ValueID>{x}));
     EXPECT_DOUBLE_EQ(node.attributes.get(0), 3.0);
     EXPECT_DOUBLE_EQ(node.attributes.get(1), 3.0);
 }
@@ -202,14 +202,14 @@ TEST(Unit_Upsample2d, ForwardRejectsAScaledWidthThatOverflows)
 }
 
 /** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
-TEST(Unit_Upsample2d, ForwardRejectsAnNchwInput)
+TEST(Unit_Upsample2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     const Upsample2d layer{};
-    const Graph::ValueId x = builder.input(Shape{1, 3, 2, 2}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{1, 3, 2, 2}, "x");
+    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x_nchw), "upsample2d", "NHWC");
 }
@@ -221,7 +221,7 @@ TEST(Unit_Upsample2d, TheParameterWalkVisitsNothing)
     const Graph::GraphBuilder builder(graph);
 
     Upsample2d layer{};
-    const Graph::ValueId x = builder.input(Shape{1, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
     (void)layer.forward(builder, x);
 
     std::size_t visited = 0;

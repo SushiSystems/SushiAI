@@ -35,7 +35,7 @@
 #include <common/test_status.hpp>
 
 using SushiAI::StatusCode;
-using SushiAI::Graph::ValueId;
+using SushiAI::Graph::ValueID;
 using SushiAI::NN::ModelOutputs;
 
 static_assert(std::is_final<ModelOutputs>::value, "ModelOutputs is not a base class");
@@ -48,8 +48,8 @@ namespace
     ModelOutputs boxes_and_scores()
     {
         ModelOutputs outputs;
-        SA_EXPECT_OK(outputs.add("boxes", ValueId{4}));
-        SA_EXPECT_OK(outputs.add("scores", ValueId{9}));
+        SA_EXPECT_OK(outputs.add("boxes", ValueID{4}));
+        SA_EXPECT_OK(outputs.add("scores", ValueID{9}));
         return outputs;
     }
 
@@ -75,14 +75,14 @@ TEST(Unit_ModelOutputs, StartsEmpty)
 TEST(Unit_ModelOutputs, AllKeepsTheOrderOfAdd)
 {
     ModelOutputs outputs;
-    SA_EXPECT_OK(outputs.add("scores", ValueId{9}));
-    SA_EXPECT_OK(outputs.add("boxes", ValueId{4}));
-    SA_EXPECT_OK(outputs.add("features", ValueId{0}));
+    SA_EXPECT_OK(outputs.add("scores", ValueID{9}));
+    SA_EXPECT_OK(outputs.add("boxes", ValueID{4}));
+    SA_EXPECT_OK(outputs.add("features", ValueID{0}));
 
     ASSERT_EQ(outputs.all().size(), 3u);
-    EXPECT_EQ(outputs.all()[0], ModelOutputs::Entry("scores", ValueId{9}));
-    EXPECT_EQ(outputs.all()[1], ModelOutputs::Entry("boxes", ValueId{4}));
-    EXPECT_EQ(outputs.all()[2], ModelOutputs::Entry("features", ValueId{0}));
+    EXPECT_EQ(outputs.all()[0], ModelOutputs::Entry("scores", ValueID{9}));
+    EXPECT_EQ(outputs.all()[1], ModelOutputs::Entry("boxes", ValueID{4}));
+    EXPECT_EQ(outputs.all()[2], ModelOutputs::Entry("features", ValueID{0}));
 }
 
 /** @brief Tests that add refuses a name the set already holds and keeps the first value. */
@@ -90,12 +90,12 @@ TEST(Unit_ModelOutputs, AddRejectsADuplicateName)
 {
     ModelOutputs outputs = boxes_and_scores();
 
-    SA_EXPECT_FAILURE(outputs.add("boxes", ValueId{7}), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(outputs.add("boxes", ValueID{7}), StatusCode::InvalidDescription,
                       "'boxes'", "boxes, scores");
 
     ASSERT_EQ(outputs.all().size(), 2u);
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId boxes, outputs.at("boxes"));
-    EXPECT_EQ(boxes, ValueId{4});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID boxes, outputs.at("boxes"));
+    EXPECT_EQ(boxes, ValueID{4});
 }
 
 /** @brief Tests that add refuses an empty name and leaves the set unchanged. */
@@ -103,7 +103,7 @@ TEST(Unit_ModelOutputs, AddRejectsAnEmptyName)
 {
     ModelOutputs outputs;
 
-    SA_EXPECT_FAILURE(outputs.add("", ValueId{1}), StatusCode::InvalidDescription, "needs a name");
+    SA_EXPECT_FAILURE(outputs.add("", ValueID{1}), StatusCode::InvalidDescription, "needs a name");
 
     EXPECT_TRUE(outputs.all().empty());
 }
@@ -119,10 +119,10 @@ TEST(Unit_ModelOutputs, AtReturnsTheNamedValue)
 {
     const ModelOutputs outputs = boxes_and_scores();
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId boxes, outputs.at("boxes"));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId scores, outputs.at("scores"));
-    EXPECT_EQ(boxes, ValueId{4});
-    EXPECT_EQ(scores, ValueId{9});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID boxes, outputs.at("boxes"));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID scores, outputs.at("scores"));
+    EXPECT_EQ(boxes, ValueID{4});
+    EXPECT_EQ(scores, ValueID{9});
 }
 
 /** @brief Tests that at matches a whole name and not a prefix of one. */
@@ -155,10 +155,10 @@ TEST(Unit_ModelOutputs, AtOnAnEmptySetSaysNone)
 TEST(Unit_ModelOutputs, OnlyReturnsTheSingleValue)
 {
     ModelOutputs outputs;
-    SA_EXPECT_OK(outputs.add("logits", ValueId{12}));
+    SA_EXPECT_OK(outputs.add("logits", ValueID{12}));
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueId logits, outputs.only());
-    EXPECT_EQ(logits, ValueId{12});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, outputs.only());
+    EXPECT_EQ(logits, ValueID{12});
 }
 
 /** @brief Tests that only fails on a set that holds no output. */

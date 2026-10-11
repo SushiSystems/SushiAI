@@ -45,8 +45,8 @@ namespace SushiAI
                 case Nonlinearity::Linear:    return 1.0;
                 case Nonlinearity::Sigmoid:   return 1.0;
                 case Nonlinearity::Tanh:      return 5.0 / 3.0;
-                case Nonlinearity::Relu:      return std::sqrt(2.0);
-                case Nonlinearity::LeakyRelu:
+                case Nonlinearity::ReLU:      return std::sqrt(2.0);
+                case Nonlinearity::LeakyReLU:
                     return std::sqrt(2.0 / (1.0 + negative_slope * negative_slope));
             }
             return 1.0;
@@ -58,6 +58,22 @@ namespace SushiAI
             {
                 SushiBLAS::RandomOps random(engine);
                 random.constant(tensor, value);
+                return Status();
+            });
+        }
+
+        Status normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor, double deviation)
+        {
+            // The comparison is false for a NaN, which is refused with the other values.
+            SA_FAIL_IF(!(deviation > 0.0) || !std::isfinite(deviation),
+                       StatusCode::InvalidDescription,
+                       "A normal initialisation needs a positive, finite deviation; got {}",
+                       deviation);
+
+            return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
+            {
+                SushiBLAS::RandomOps random(engine);
+                random.normal(tensor, 0.0, deviation);
                 return Status();
             });
         }
@@ -139,9 +155,12 @@ namespace SushiAI
                                      const InitPolicy& policy,
                                      bool is_final_layer)
             {
-                // A constant fill named by init is tested before the final-layer zeroing.
+                // A fill that init states is tested before the final-layer zeroing.
                 if (init.kind == ParameterInit::Kind::Constant)
                     return constant(engine, tensor, init.constant);
+
+                if (init.kind == ParameterInit::Kind::Normal)
+                    return normal(engine, tensor, init.deviation);
 
                 if (is_final_layer)
                     return zeros(engine, tensor);

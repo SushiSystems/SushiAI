@@ -79,10 +79,10 @@ namespace SushiAI
         }
 
         Status Add::forward(const Trace& trace, ValueSpan inputs,
-                            std::vector<Graph::ValueId>& outputs)
+                            std::vector<Graph::ValueID>& outputs)
         {
             SA_TRY(Detail::require_input_count(inputs, K_OPERAND_COUNT));
-            SA_TRY_ASSIGN(const Graph::ValueId sum, Detail::bridge_throwing([&trace, &inputs]()
+            SA_TRY_ASSIGN(const Graph::ValueID sum, Detail::bridge_throwing([&trace, &inputs]()
             {
                 return trace.builder().add(inputs[0], inputs[1]);
             }));

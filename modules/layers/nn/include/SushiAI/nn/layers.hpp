@@ -64,6 +64,9 @@ namespace SushiAI
             /** @brief The [out_features] bias; undeclared when use_bias is false. */
             Parameter bias{};
 
+            /** @brief The fill of the weight; fan-scaled unless a model states another. */
+            ParameterInit weight_init = ParameterInit::fan_scaled();
+
             /** @brief This layer's parameters, for the generic walk. */
             static constexpr auto fields()
             {
@@ -80,7 +83,7 @@ namespace SushiAI
              * @return The [N, out_features] result's id.
              * @throws Error If @p x's inner extent is not in_features.
              */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x);
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x);
 
             /**
              * @brief Returns the per-sample shape forward() produces, [out_features].
@@ -99,7 +102,7 @@ namespace SushiAI
             static constexpr auto fields() { return std::tuple<>{}; }
 
             /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
             {
                 return builder.relu(x);
             }
@@ -121,7 +124,7 @@ namespace SushiAI
             static constexpr auto fields() { return std::tuple<>{}; }
 
             /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
             {
                 return builder.gelu(x);
             }
@@ -143,7 +146,7 @@ namespace SushiAI
             static constexpr auto fields() { return std::tuple<>{}; }
 
             /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
             {
                 return builder.tanh(x);
             }
@@ -165,7 +168,7 @@ namespace SushiAI
             static constexpr auto fields() { return std::tuple<>{}; }
 
             /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
             {
                 return builder.sigmoid(x);
             }
@@ -201,11 +204,11 @@ namespace SushiAI
                 static_assert((Traceable<Ls> && ...),
                               "Every type in a Sequential needs a static fields() listing its "
                               "state and one of three forms: "
-                              "forward(const Graph::GraphBuilder&, Graph::ValueId), "
-                              "forward(const Trace&, Graph::ValueId), or the pair "
+                              "forward(const Graph::GraphBuilder&, Graph::ValueID), "
+                              "forward(const Trace&, Graph::ValueID), or the pair "
                               "trace_training and trace_evaluation over "
-                              "(const Trace&, Graph::ValueId), each returning exactly "
-                              "Graph::ValueId. Check the layer named in the instantiation "
+                              "(const Trace&, Graph::ValueID), each returning exactly "
+                              "Graph::ValueID. Check the layer named in the instantiation "
                               "below, not this line.");
 
                 /**
@@ -226,7 +229,7 @@ namespace SushiAI
                  */
                 template<bool Enabled = true,
                          std::enable_if_t<Enabled && (Module<Ls> && ...), int> = 0>
-                Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
+                Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
                 {
                     std::apply([&](auto&... layer) { ((x = layer.forward(builder, x)), ...); },
                                layers_);
@@ -239,7 +242,7 @@ namespace SushiAI
                  * @param x The input value.
                  * @return The last layer's result.
                  */
-                Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+                Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
                 {
                     std::apply([&](auto&... layer)
                     {
@@ -286,9 +289,9 @@ namespace SushiAI
             private:
                 /** @brief Traces one child and throws the failure it recorded on @p trace. */
                 template<typename L>
-                static Graph::ValueId trace_child(L& layer, const Trace& trace, Graph::ValueId x)
+                static Graph::ValueID trace_child(L& layer, const Trace& trace, Graph::ValueID x)
                 {
-                    const Graph::ValueId traced = trace_layer(layer, trace, x);
+                    const Graph::ValueID traced = trace_layer(layer, trace, x);
                     SA_THROW_IF(!trace.status().is_ok(), "{}", trace.status().message());
                     return traced;
                 }

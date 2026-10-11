@@ -59,6 +59,8 @@ namespace SushiAI
             Bias,
             /** @brief A per-channel scale, such as a normalisation's gamma; starts at one. */
             Scale,
+            /** @brief A table read by row index, such as a token embedding. */
+            Embedding,
         };
 
         /** @brief Describes how one parameter is filled before training. */
@@ -69,24 +71,37 @@ namespace SushiAI
             {
                 FanScaled, /**< @brief Fills at random, scaled by the parameter's fans. */
                 Constant,  /**< @brief Sets every element to one stated value. */
+                Normal,    /**< @brief Draws from a zero-mean normal of one stated deviation. */
             };
 
             /** @brief Selects the fill. */
             Kind kind = Kind::FanScaled;
 
-            /** @brief Holds the value of a Constant fill; unread for FanScaled. */
+            /** @brief Holds the value of a Constant fill; unread for the other kinds. */
             double constant = 0.0;
+
+            /** @brief Holds the standard deviation of a Normal fill; unread for the others. */
+            double deviation = 0.0;
 
             /** @brief Returns the fan-scaled random fill. */
             [[nodiscard]] static constexpr ParameterInit fan_scaled() noexcept
             {
-                return ParameterInit{Kind::FanScaled, 0.0};
+                return ParameterInit{Kind::FanScaled, 0.0, 0.0};
             }
 
             /** @brief Returns the fill that sets every element to @p value. */
             [[nodiscard]] static constexpr ParameterInit constant_value(double value) noexcept
             {
-                return ParameterInit{Kind::Constant, value};
+                return ParameterInit{Kind::Constant, value, 0.0};
+            }
+
+            /**
+             * @brief Returns the fill drawn from N(0, deviation^2), whatever the fans are.
+             * @param deviation Positive and finite; NN::initialize() refuses any other value.
+             */
+            [[nodiscard]] static constexpr ParameterInit normal(double deviation) noexcept
+            {
+                return ParameterInit{Kind::Normal, 0.0, deviation};
             }
         };
 
@@ -132,7 +147,7 @@ namespace SushiAI
                  * @return This parameter's leaf in builder.graph().
                  * @pre A parameter declared before is given the same shape and dtype.
                  */
-                Graph::ValueId declare(const Graph::GraphBuilder& builder,
+                Graph::ValueID declare(const Graph::GraphBuilder& builder,
                                        Shape shape,
                                        ParameterRole role,
                                        int64_t fan_in,
@@ -152,7 +167,7 @@ namespace SushiAI
                  * @return This parameter's leaf in builder.graph().
                  * @pre A parameter declared before is given the same shape and dtype.
                  */
-                Graph::ValueId declare(const Graph::GraphBuilder& builder,
+                Graph::ValueID declare(const Graph::GraphBuilder& builder,
                                        Shape shape,
                                        ParameterRole role,
                                        ParameterInit init,
@@ -169,13 +184,13 @@ namespace SushiAI
                 bool declared() const noexcept { return described_; }
 
                 /** @brief Returns this parameter's leaf in @p graph, or NO_VALUE when none. */
-                [[nodiscard]] Graph::ValueId id_in(const Graph::Graph& graph) const noexcept
+                [[nodiscard]] Graph::ValueID id_in(const Graph::Graph& graph) const noexcept
                 {
                     return graph.state_leaf(identity_.peek());
                 }
 
                 /** @brief Returns this parameter's identity, or K_NO_STATE when none was drawn. */
-                [[nodiscard]] Graph::StateId state() const noexcept { return identity_.peek(); }
+                [[nodiscard]] Graph::StateID state() const noexcept { return identity_.peek(); }
 
                 /** @brief The parameter's extents. */
                 const Shape& shape() const noexcept { return shape_; }
@@ -197,7 +212,7 @@ namespace SushiAI
 
             private:
                 /** @brief Keeps the first description and declares one leaf per graph. */
-                Graph::ValueId declare_described(const Graph::GraphBuilder& builder,
+                Graph::ValueID declare_described(const Graph::GraphBuilder& builder,
                                                  Shape shape,
                                                  ParameterInit init,
                                                  ParameterRole role,
@@ -226,11 +241,11 @@ namespace SushiAI
                     }
 
                     Graph::Graph& graph = builder.graph();
-                    const Graph::ValueId held = graph.state_leaf(identity_.peek());
+                    const Graph::ValueID held = graph.state_leaf(identity_.peek());
                     if (held != Graph::K_NO_VALUE)
                         return held;
 
-                    const Graph::ValueId leaf = builder.parameter(shape_, debug_name, dtype_);
+                    const Graph::ValueID leaf = builder.parameter(shape_, debug_name, dtype_);
                     graph.bind_state_leaf(identity_.get(), leaf);
                     return leaf;
                 }
@@ -400,8 +415,8 @@ namespace SushiAI
                 std::enable_if_t<std::is_same<
                     decltype(std::declval<T&>().forward(
                         std::declval<const Graph::GraphBuilder&>(),
-                        std::declval<Graph::ValueId>())),
-                    Graph::ValueId>::value>>>
+                        std::declval<Graph::ValueID>())),
+                    Graph::ValueID>::value>>>
                 : std::true_type {};
 
             /**

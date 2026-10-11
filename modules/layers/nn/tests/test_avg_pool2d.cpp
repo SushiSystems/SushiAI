@@ -58,7 +58,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{2, sample[0], sample[1], sample[2]}, "x");
+        const Graph::ValueID x = builder.input(Shape{2, sample[0], sample[1], sample[2]}, "x");
         return graph.value(layer.forward(builder, x)).shape;
     }
 
@@ -80,17 +80,17 @@ TEST(Unit_AvgPool2d, SatisfiesTheModuleTrait)
 }
 
 /** @brief Tests that forward() yields the pooled [N, out_h, out_w, C] value tagged NHWC. */
-TEST(Unit_AvgPool2d, ForwardTracesThePooledShapeInNhwc)
+TEST(Unit_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 3}, "x");
 
     const AvgPool2d layer{window(3, 3, 3, 3)};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 2, 2, 3}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that output_shape() equals the traced per-sample shape for a square window. */
@@ -181,7 +181,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsARankTwoInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8}, "x");
 
     const AvgPool2d layer{window(2, 2, 2, 2)};
 
@@ -189,12 +189,12 @@ TEST(Unit_AvgPool2d, ForwardRejectsARankTwoInput)
 }
 
 /** @brief Tests that forward() throws for a rank-4 input in NCHW layout. */
-TEST(Unit_AvgPool2d, ForwardRejectsAnNchwInput)
+TEST(Unit_AvgPool2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 6, 6, 3}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{1, 6, 6, 3}, "x");
+    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     const AvgPool2d layer{window(3, 3, 3, 3)};
 
@@ -202,12 +202,12 @@ TEST(Unit_AvgPool2d, ForwardRejectsAnNchwInput)
 }
 
 /** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
-TEST(Unit_AvgPool2d, ForwardNamesTheLayoutOfAnNchwInputNarrowerThanTheWindow)
+TEST(Unit_AvgPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 8, 8, 2}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{1, 8, 8, 2}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     const AvgPool2d layer{window(3, 3, 1, 1)};
 
@@ -219,7 +219,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsAZeroStride)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
 
     const AvgPool2d layer{window(2, 2, 0, 0)};
 
@@ -231,7 +231,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsANegativePadding)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
 
     AvgPool2d layer{window(2, 2, 2, 2)};
     layer.geometry.pad_top = -1;
@@ -244,7 +244,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsAWindowLargerThanTheImage)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
 
     const AvgPool2d layer{window(5, 5, 1, 1)};
 
@@ -256,7 +256,7 @@ TEST(Unit_AvgPool2d, ATracedLayerHasNoParameter)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 3}, "x");
 
     AvgPool2d layer{window(3, 3, 3, 3)};
     (void)layer.forward(builder, x);

@@ -41,7 +41,7 @@ namespace SushiAI
             layers_.push_back(std::move(layer));
         }
 
-        Graph::ValueId LayerStack::forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
+        Graph::ValueID LayerStack::forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
         {
             SA_THROW_IF(layers_.empty(),
                         "this LayerStack holds no layers, so it would trace as the "

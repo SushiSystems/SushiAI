@@ -48,7 +48,7 @@ namespace SushiAI
         {
             public:
                 /** @brief Pairs one output's name with its value in the graph. */
-                using Entry = std::pair<std::string, Graph::ValueId>;
+                using Entry = std::pair<std::string, Graph::ValueID>;
 
                 /**
                  * @brief Appends @p id under @p name.
@@ -57,19 +57,19 @@ namespace SushiAI
                  * @return InvalidDescription for an empty or a duplicate name; the set is
                  *         unchanged on failure.
                  */
-                [[nodiscard]] Status add(std::string name, Graph::ValueId id);
+                [[nodiscard]] Status add(std::string name, Graph::ValueID id);
 
                 /**
                  * @brief Returns the value published under @p name.
                  * @return InvalidDescription listing the names that exist when @p name is absent.
                  */
-                [[nodiscard]] Result<Graph::ValueId> at(std::string_view name) const noexcept;
+                [[nodiscard]] Result<Graph::ValueID> at(std::string_view name) const noexcept;
 
                 /**
                  * @brief Returns the value of a set that holds exactly one.
                  * @return InvalidDescription stating the count and the names otherwise.
                  */
-                [[nodiscard]] Result<Graph::ValueId> only() const noexcept;
+                [[nodiscard]] Result<Graph::ValueID> only() const noexcept;
 
                 /** @brief Returns every output in the order it was added. */
                 [[nodiscard]] const std::vector<Entry>& all() const noexcept;

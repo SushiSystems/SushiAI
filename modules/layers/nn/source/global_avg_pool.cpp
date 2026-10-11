@@ -33,8 +33,8 @@ namespace SushiAI
 {
     namespace NN
     {
-        Graph::ValueId GlobalAvgPool::forward(const Graph::GraphBuilder& builder,
-                                              Graph::ValueId x) const
+        Graph::ValueID GlobalAvgPool::forward(const Graph::GraphBuilder& builder,
+                                              Graph::ValueID x) const
         {
             const Shape& image = builder.graph().value(x).shape;
             SA_THROW_IF(image.rank() != 4,

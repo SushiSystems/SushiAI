@@ -105,7 +105,7 @@ namespace
         std::size_t count = 0;
         for (std::size_t id = 0; id < graph.value_count(); ++id)
         {
-            if (graph.value(static_cast<Graph::ValueId>(id)).lifetime == Graph::Lifetime::Buffer)
+            if (graph.value(static_cast<Graph::ValueID>(id)).lifetime == Graph::Lifetime::Buffer)
                 ++count;
         }
 
@@ -212,7 +212,7 @@ namespace
 
     /** @brief Traces the training form, expects the input back, returns what was recorded. */
     Status refused_training(BatchNorm2d& layer, const Graph::GraphBuilder& builder,
-                            BufferUpdateList& list, Graph::ValueId x)
+                            BufferUpdateList& list, Graph::ValueID x)
     {
         const Trace trace = Trace::training(builder, list);
         EXPECT_EQ(layer.trace_training(trace, x), x);
@@ -221,7 +221,7 @@ namespace
 
     /** @brief Traces the evaluation form, expects the input back, returns what was recorded. */
     Status refused_evaluation(BatchNorm2d& layer, const Graph::GraphBuilder& builder,
-                              Graph::ValueId x)
+                              Graph::ValueID x)
     {
         const Trace trace = Trace::evaluation(builder);
         EXPECT_EQ(layer.trace_evaluation(trace, x), x);
@@ -245,7 +245,7 @@ namespace
         const Graph::GraphBuilder builder(graph);
         BatchNorm2d layer(3, NormOptions{});
         static_cast<void>(builder.input(Shape{2, 2, 2, 3}, "x"));
-        static_cast<void>(layer.trace_evaluation(Trace::evaluation(builder), Graph::ValueId{7}));
+        static_cast<void>(layer.trace_evaluation(Trace::evaluation(builder), Graph::ValueID{7}));
     }
 
 } // namespace
@@ -262,12 +262,12 @@ TEST(Unit_BatchNorm2d, ATrainingTraceEmitsOneBatchNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x");
     BatchNorm2d layer(3, NormOptions{1e-3, 0.03});
     BufferUpdateList list;
     const std::size_t nodes_before = graph.node_count();
 
-    const Graph::ValueId y = layer.trace_training(Trace::training(builder, list), x);
+    const Graph::ValueID y = layer.trace_training(Trace::training(builder, list), x);
 
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 0u);
@@ -294,7 +294,7 @@ TEST(Unit_BatchNorm2d, ATrainingTraceReadsNoBuffer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x");
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
 
@@ -313,7 +313,7 @@ TEST(Unit_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x");
     BatchNorm2d layer(3, NormOptions{1e-3, 0.03});
     BufferUpdateList list;
 
@@ -369,11 +369,11 @@ TEST(Unit_BatchNorm2d, AnEvaluationTraceFoldsTheRunningStatistics)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
     BatchNorm2d layer(3, NormOptions{1e-3, 0.03});
     const std::size_t nodes_before = graph.node_count();
 
-    const Graph::ValueId y = layer.trace_evaluation(Trace::evaluation(builder), x);
+    const Graph::ValueID y = layer.trace_evaluation(Trace::evaluation(builder), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
@@ -420,8 +420,8 @@ TEST(Unit_BatchNorm2d, BothFormsNameTheSameState)
     static_cast<void>(layer.trace_training(Trace::training(training_builder, list),
                                            training_builder.input(Shape{2, 2, 2, 3}, "x")));
     ASSERT_EQ(list.updates().size(), 2u);
-    const Graph::StateId gamma = layer.weight.state();
-    const Graph::StateId beta = layer.bias.state();
+    const Graph::StateID gamma = layer.weight.state();
+    const Graph::StateID beta = layer.bias.state();
 
     Graph::Graph evaluation_graph;
     const Graph::GraphBuilder evaluation_builder(evaluation_graph);
@@ -484,7 +484,7 @@ TEST(Unit_BatchNorm2d, TrainingOverOneValuePerChannelFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 1, 1, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 1, 1, 3}, "x");
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -505,7 +505,7 @@ TEST(Unit_BatchNorm2d, AnIntegerInputFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x", DType::Int32);
+    const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x", DType::Int32);
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -528,10 +528,10 @@ TEST(Unit_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 1, 1, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 1, 1, 3}, "x");
     BatchNorm2d layer(3, NormOptions{});
 
-    const Graph::ValueId y = layer.trace_evaluation(Trace::evaluation(builder), x);
+    const Graph::ValueID y = layer.trace_evaluation(Trace::evaluation(builder), x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 1, 1, 3}));
 }
@@ -541,8 +541,8 @@ TEST(Unit_BatchNorm2d, AnInputThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId wide = builder.input(Shape{2, 2, 2, 4}, "wide");
-    const Graph::ValueId flat = builder.input(Shape{2, 3}, "flat");
+    const Graph::ValueID wide = builder.input(Shape{2, 2, 2, 4}, "wide");
+    const Graph::ValueID flat = builder.input(Shape{2, 3}, "flat");
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -561,12 +561,12 @@ TEST(Unit_BatchNorm2d, AnInputThatDoesNotFitFails)
 }
 
 /** @brief Tests that both forms refuse an NCHW input before they declare a value. */
-TEST(Unit_BatchNorm2d, AnNchwInputFails)
+TEST(Unit_BatchNorm2d, AnNCHWInputFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{3, 3, 3, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{3, 3, 3, 3}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -584,7 +584,7 @@ TEST(Unit_BatchNorm2d, ALayerDescribedWrongFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 2, 2, 3}, "x");
     const std::size_t before = graph.value_count();
 
     BatchNorm2d unset;
@@ -615,7 +615,7 @@ TEST(Unit_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
 
     Graph::Graph second;
     const Graph::GraphBuilder second_builder(second);
-    const Graph::ValueId wide =
+    const Graph::ValueID wide =
         second_builder.input(Shape{2, 2, 2, 3}, "x", DType::Float64);
 
     SA_EXPECT_FAILURE(refused_evaluation(layer, second_builder, wide),

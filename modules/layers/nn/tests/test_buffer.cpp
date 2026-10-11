@@ -104,7 +104,7 @@ TEST(Unit_Buffer, DefineDrawsTheIdentity)
     SA_EXPECT_OK(first.define(Shape{8}, 0.0));
     SA_EXPECT_OK(second.define(Shape{8}, 0.0));
 
-    const Graph::StateId drawn = first.state();
+    const Graph::StateID drawn = first.state();
     EXPECT_NE(drawn, Graph::K_NO_STATE);
     EXPECT_NE(second.state(), Graph::K_NO_STATE);
     EXPECT_NE(second.state(), drawn);
@@ -122,7 +122,7 @@ TEST(Unit_Buffer, ReadDeclaresABufferLeaf)
 
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
-    const Graph::ValueId leaf = buffer.read(builder, "running_var");
+    const Graph::ValueID leaf = buffer.read(builder, "running_var");
 
     EXPECT_EQ(graph.value_count(), 1u);
     EXPECT_EQ(graph.value(leaf).lifetime, Graph::Lifetime::Buffer);
@@ -141,7 +141,7 @@ TEST(Unit_Buffer, ASecondReadInOneGraphReturnsTheFirstLeaf)
 
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
-    const Graph::ValueId first_leaf = buffer.read(builder, "running_mean");
+    const Graph::ValueID first_leaf = buffer.read(builder, "running_mean");
     const std::size_t values_after_first = graph.value_count();
 
     EXPECT_EQ(buffer.read(builder, "running_mean"), first_leaf);
@@ -149,7 +149,7 @@ TEST(Unit_Buffer, ASecondReadInOneGraphReturnsTheFirstLeaf)
     EXPECT_EQ(graph.state_leaves().size(), 1u);
 }
 
-/** @brief Tests that one buffer read in two graphs has its own leaf in each, under one StateId. */
+/** @brief Tests that one buffer read in two graphs has its own leaf in each, under one StateID. */
 TEST(Unit_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
 {
     Graph::Graph first;
@@ -162,9 +162,9 @@ TEST(Unit_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
 
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
-    const Graph::ValueId first_leaf = buffer.read(first_builder, "running_mean");
-    const Graph::StateId state_after_first = buffer.state();
-    const Graph::ValueId second_leaf = buffer.read(second_builder, "running_mean");
+    const Graph::ValueID first_leaf = buffer.read(first_builder, "running_mean");
+    const Graph::StateID state_after_first = buffer.state();
+    const Graph::ValueID second_leaf = buffer.read(second_builder, "running_mean");
 
     EXPECT_EQ(first_leaf, 1u);
     EXPECT_EQ(second_leaf, 0u);
@@ -175,14 +175,14 @@ TEST(Unit_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
 }
 
 /** @brief Tests that a copied buffer keeps the description and is new state with its own leaf. */
-TEST(Unit_Buffer, ACopiedBufferHasANewStateId)
+TEST(Unit_Buffer, ACopiedBufferHasANewStateID)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     Buffer original;
     SA_EXPECT_OK(original.define(Shape{8}, 1.0));
-    const Graph::ValueId original_leaf = original.read(builder, "running_var");
+    const Graph::ValueID original_leaf = original.read(builder, "running_var");
 
     Buffer copy = original;
     EXPECT_TRUE(copy.declared());
@@ -192,23 +192,23 @@ TEST(Unit_Buffer, ACopiedBufferHasANewStateId)
     EXPECT_NE(copy.state(), original.state());
     EXPECT_EQ(copy.id_in(graph), Graph::K_NO_VALUE);
 
-    const Graph::ValueId copy_leaf = copy.read(builder, "running_var");
+    const Graph::ValueID copy_leaf = copy.read(builder, "running_var");
 
     EXPECT_NE(copy_leaf, original_leaf);
     EXPECT_NE(copy.state(), original.state());
     EXPECT_EQ(original.id_in(graph), original_leaf);
 }
 
-/** @brief Tests that a moved buffer keeps its StateId and the leaf it has in a graph. */
-TEST(Unit_Buffer, AMovedBufferKeepsItsStateId)
+/** @brief Tests that a moved buffer keeps its StateID and the leaf it has in a graph. */
+TEST(Unit_Buffer, AMovedBufferKeepsItsStateID)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     Buffer original;
     SA_EXPECT_OK(original.define(Shape{8}, 1.0));
-    const Graph::ValueId leaf = original.read(builder, "running_var");
-    const Graph::StateId state = original.state();
+    const Graph::ValueID leaf = original.read(builder, "running_var");
+    const Graph::StateID state = original.state();
     const std::size_t values_after_read = graph.value_count();
 
     Buffer moved = std::move(original);
@@ -238,13 +238,13 @@ TEST(Unit_Buffer, AMovedFromBufferIsUndefined)
 }
 
 /** @brief Tests that a copy assignment gives the target a new identity and the description. */
-TEST(Unit_Buffer, ACopyAssignedBufferHasANewStateId)
+TEST(Unit_Buffer, ACopyAssignedBufferHasANewStateID)
 {
     Buffer original;
     Buffer target;
     SA_EXPECT_OK(original.define(Shape{8}, 1.0, DType::Float64));
     SA_EXPECT_OK(target.define(Shape{2}, 0.0));
-    const Graph::StateId replaced = target.state();
+    const Graph::StateID replaced = target.state();
 
     target = original;
 

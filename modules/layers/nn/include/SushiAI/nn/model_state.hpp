@@ -68,7 +68,7 @@ namespace SushiAI
             StateKind kind = StateKind::Parameter;
 
             /** @brief The identity every graph of the model binds the tensor under. */
-            Graph::StateId state = Graph::K_NO_STATE;
+            Graph::StateID state = Graph::K_NO_STATE;
 
             /** @brief The extents of the tensor. */
             Shape shape;
@@ -166,7 +166,7 @@ namespace SushiAI
                  * @brief Returns the tensor of the entry with identity @p state.
                  * @return The tensor this state owns, or InvalidDescription for an unknown state.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor*> tensor(Graph::StateId state);
+                [[nodiscard]] Result<SushiBLAS::Tensor*> tensor(Graph::StateID state);
 
             private:
                 /** @brief Starts empty; only the factories and moves build a state. */
@@ -182,7 +182,7 @@ namespace SushiAI
                 std::unordered_map<std::string, std::size_t> by_name_;
 
                 /** @brief Maps each entry identity to its position in entries_. */
-                std::unordered_map<Graph::StateId, std::size_t> by_state_;
+                std::unordered_map<Graph::StateID, std::size_t> by_state_;
 
                 /**
                  * @brief Fills by_name_ and by_state_ from @p entries, refusing a repetition.

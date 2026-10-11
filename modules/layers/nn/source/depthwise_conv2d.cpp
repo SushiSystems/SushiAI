@@ -75,8 +75,8 @@ namespace SushiAI
             return layer;
         }
 
-        Graph::ValueId DepthwiseConv2d::forward(const Graph::GraphBuilder& builder,
-                                                Graph::ValueId x)
+        Graph::ValueID DepthwiseConv2d::forward(const Graph::GraphBuilder& builder,
+                                                Graph::ValueID x)
         {
             // The shape and the type are held by value; declaring a parameter grows their table.
             const Shape image = builder.graph().value(x).shape;
@@ -85,7 +85,7 @@ namespace SushiAI
             SA_THROW_IF(image.rank() != 4,
                         "DepthwiseConv2d({}) needs a rank-4 [N, H, W, {}] input; got {}",
                         channels, channels, image.to_string());
-            SA_THROW_IF(builder.graph().value(x).layout != Graph::TensorLayout::Nhwc,
+            SA_THROW_IF(builder.graph().value(x).layout != Graph::TensorLayout::NHWC,
                         "DepthwiseConv2d needs an NHWC input; got {}. Cross with layout_convert "
                         "first.",
                         image.to_string());
@@ -93,7 +93,7 @@ namespace SushiAI
 
             // Each channel reads and writes only its own taps, so both fans are the window.
             const int64_t window = geometry.kernel_h * geometry.kernel_w;
-            const Graph::ValueId w = weight.declare(
+            const Graph::ValueID w = weight.declare(
                 builder, Shape{geometry.kernel_h, geometry.kernel_w, channels},
                 ParameterRole::Weight, window, window, "weight", dtype);
 

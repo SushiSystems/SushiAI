@@ -88,7 +88,7 @@ namespace SushiAI
             return layer;
         }
 
-        Graph::ValueId Conv2d::forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
+        Graph::ValueID Conv2d::forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
         {
             // The shape and the type are held by value; declaring a parameter grows their table.
             const Shape image = builder.graph().value(x).shape;
@@ -97,7 +97,7 @@ namespace SushiAI
             SA_THROW_IF(image.rank() != 4,
                         "Conv2d({}, {}) needs a rank-4 [N, H, W, {}] input; got {}",
                         in_channels, out_channels, in_channels, image.to_string());
-            SA_THROW_IF(builder.graph().value(x).layout != Graph::TensorLayout::Nhwc,
+            SA_THROW_IF(builder.graph().value(x).layout != Graph::TensorLayout::NHWC,
                         "Conv2d needs an NHWC input; got {} tagged NCHW. Cross with "
                         "layout_convert first (CV-3).",
                         image.to_string());
@@ -107,11 +107,11 @@ namespace SushiAI
             const int64_t fan_in = window * in_channels;
             const int64_t fan_out = window * out_channels;
 
-            const Graph::ValueId w = weight.declare(
+            const Graph::ValueID w = weight.declare(
                 builder, Shape{out_channels, geometry.kernel_h, geometry.kernel_w, in_channels},
                 ParameterRole::Weight, fan_in, fan_out, "weight", dtype);
 
-            Graph::ValueId b = Graph::K_NO_VALUE;
+            Graph::ValueID b = Graph::K_NO_VALUE;
             if (use_bias)
             {
                 b = bias.declare(builder, Shape{out_channels}, ParameterRole::Bias,

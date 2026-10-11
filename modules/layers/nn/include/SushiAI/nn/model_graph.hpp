@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -193,14 +194,34 @@ namespace SushiAI
                  *         declared per-sample shape, a node refuses its inputs, or no output
                  *         is published. Nodes traced before the failure stay in the graph.
                  */
-                [[nodiscard]] Result<ModelOutputs> trace(const Trace& trace, Graph::ValueId input);
+                [[nodiscard]] Result<ModelOutputs> trace(const Trace& trace, Graph::ValueID input);
 
                 /**
                  * @brief Traces the graph and returns its single published output.
                  * @return The output's id, or @p input after trace.fail() when trace() fails
                  *         or the graph does not publish exactly one output.
                  */
-                Graph::ValueId forward(const Trace& trace, Graph::ValueId input);
+                Graph::ValueID forward(const Trace& trace, Graph::ValueID input);
+
+                /**
+                 * @brief Traces the incremental form of every node in the order added; no
+                 *        per-sample shape is checked, as a slice has the shape its node gives it.
+                 * @param trace A carrying trace.
+                 * @param input The newest slice of the model input; another graph's id is fatal.
+                 * @return The published outputs, Unsupported naming the first node that has no
+                 *         incremental form, or the failure of a node.
+                 */
+                [[nodiscard]] Result<ModelOutputs> trace_incremental(const Trace& trace,
+                                                                     Graph::ValueID input);
+
+                /**
+                 * @brief Traces the incremental form and returns its single published output.
+                 * @param sample Not read; the graph was started over its own input shape.
+                 * @return The output's id, or @p input after trace.fail() when
+                 *         trace_incremental() fails or one output is not what is published.
+                 */
+                Graph::ValueID forward_incremental(const Trace& trace, Graph::ValueID input,
+                                                   const Shape& sample);
 
                 /**
                  * @brief Returns the per-sample shape forward() produces.
@@ -250,6 +271,26 @@ namespace SushiAI
 
                 /** @brief Pairs a published output's name with the port it reads. */
                 using Output = std::pair<std::string, NodeRef>;
+
+                /** @brief Names the entry of Node that one walk of the nodes calls. */
+                using NodeForm = Status (Node::*)(const Trace&, ValueSpan,
+                                                  std::vector<Graph::ValueID>&);
+
+                /** @brief States whether a walk compares each port with its declared shape. */
+                enum class PortCheck : std::uint8_t
+                {
+                    PerSample, /**< A port is its declared shape behind one batch axis. */
+                    None,      /**< A port has the shape its node gives it. */
+                };
+
+                /**
+                 * @brief Calls @p form on every node in the order added and publishes.
+                 * @pre @p input is a value of trace.builder().graph().
+                 * @return The published outputs, or the failure of a node or of a port check.
+                 */
+                [[nodiscard]] Result<ModelOutputs> trace_nodes(const Trace& trace,
+                                                               Graph::ValueID input,
+                                                               NodeForm form, PortCheck check);
 
                 /**
                  * @brief Checks that @p ref is the input or a port of a node this graph holds.

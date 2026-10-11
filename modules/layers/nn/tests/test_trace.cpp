@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -75,14 +76,14 @@ namespace
         }
 
         /** @brief Emits one ReLU and counts the call. */
-        Graph::ValueId trace_training(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x)
         {
             ++training_calls;
             return trace.builder().relu(x);
         }
 
         /** @brief Emits nothing, returns its input and counts the call. */
-        Graph::ValueId trace_evaluation(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_evaluation(const Trace&, Graph::ValueID x)
         {
             ++evaluation_calls;
             return x;
@@ -102,7 +103,7 @@ namespace
         }
 
         /** @brief Traces the child in the form the trace's mode names. */
-        Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
             return NN::trace_layer(inner, trace, x);
         }
@@ -118,7 +119,7 @@ namespace
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId forward(Trace, Graph::ValueId x)
+        Graph::ValueID forward(Trace, Graph::ValueID x)
         {
             return x;
         }
@@ -134,7 +135,7 @@ namespace
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId trace_training(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_training(const Trace&, Graph::ValueID x)
         {
             return x;
         }
@@ -150,19 +151,19 @@ namespace
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId forward(const Graph::GraphBuilder&, Graph::ValueId x)
+        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
         {
             return x;
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId trace_training(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_training(const Trace&, Graph::ValueID x)
         {
             return x;
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId trace_evaluation(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_evaluation(const Trace&, Graph::ValueID x)
         {
             return x;
         }
@@ -184,14 +185,14 @@ namespace
         }
 
         /** @brief Returns its input and counts the call. */
-        Graph::ValueId forward(const Graph::GraphBuilder&, Graph::ValueId x)
+        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
         {
             ++builder_calls;
             return x;
         }
 
         /** @brief Returns its input and counts the call. */
-        Graph::ValueId forward(const Trace&, Graph::ValueId x)
+        Graph::ValueID forward(const Trace&, Graph::ValueID x)
         {
             ++trace_calls;
             return x;
@@ -202,13 +203,13 @@ namespace
     struct FieldlessStub
     {
         /** @brief Returns its input. */
-        Graph::ValueId trace_training(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_training(const Trace&, Graph::ValueID x)
         {
             return x;
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId trace_evaluation(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_evaluation(const Trace&, Graph::ValueID x)
         {
             return x;
         }
@@ -224,7 +225,7 @@ namespace
         }
 
         /** @brief Records an InvalidDescription that names the stub and emits nothing. */
-        Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
             trace.fail(Status::from_message(StatusCode::InvalidDescription, []()
             {
@@ -257,7 +258,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+        const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
 
         Buffer buffer;
         BufferUpdateList list;
@@ -266,7 +267,7 @@ namespace
     }
 
     /** @brief Requests an update that reads @p source of a one-value graph, for a death test. */
-    void update_from(Graph::ValueId source)
+    void update_from(Graph::ValueID source)
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
@@ -373,7 +374,7 @@ TEST(Unit_Trace, UpdateUnderAnEvaluationTraceFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     Buffer buffer = defined_buffer();
 
     const Trace trace = Trace::evaluation(builder);
@@ -396,8 +397,8 @@ TEST(Unit_Trace, EachUpdateAddsOneUpdateAndOneSource)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
-    const Graph::ValueId y = builder.relu(x);
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID y = builder.relu(x);
     Buffer mean = defined_buffer();
     Buffer variance = defined_buffer();
     ASSERT_NE(mean.state(), variance.state());
@@ -431,7 +432,7 @@ TEST(Unit_Trace, AnUpdateAddsNothingToTheGraph)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     Buffer buffer = defined_buffer();
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -447,7 +448,7 @@ TEST(Unit_Trace, ARecordedTargetSurvivesAMoveOfItsBuffer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     Buffer buffer = defined_buffer();
     BufferUpdateList list;
 
@@ -467,7 +468,7 @@ TEST(Unit_Trace, TheDiscardingSinkAcceptsAnUpdateAndIsOneObject)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     Buffer buffer = defined_buffer();
     const std::size_t before = graph.value_count();
 
@@ -490,7 +491,7 @@ TEST(Unit_Trace, AnUpdateOfABufferThatWasNeverReadIsRecorded)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     Buffer buffer = defined_buffer();
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -536,11 +537,11 @@ TEST(Unit_Trace, ValueOrFailReturnsAHeldValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
-    const Graph::ValueId y = builder.relu(x);
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID y = builder.relu(x);
     const Trace trace = Trace::evaluation(builder);
 
-    EXPECT_EQ(trace.value_or_fail(Result<Graph::ValueId>(y), x), y);
+    EXPECT_EQ(trace.value_or_fail(Result<Graph::ValueID>(y), x), y);
     SA_EXPECT_OK(trace.status());
 }
 
@@ -549,10 +550,10 @@ TEST(Unit_Trace, ValueOrFailRecordsAFailureAndReturnsTheFallback)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     const Trace trace = Trace::evaluation(builder);
 
-    const Result<Graph::ValueId> refused(failure_saying("the layer does not fit"));
+    const Result<Graph::ValueID> refused(failure_saying("the layer does not fit"));
 
     EXPECT_EQ(trace.value_or_fail(refused, x), x);
     SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "does not fit");
@@ -573,7 +574,7 @@ TEST(Unit_Trace, SequentialThrowsTheFailureAChildRecorded)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     Sequential model{RefusingStub{}, ModalStub{}};
     const Trace trace = Trace::evaluation(builder);
 
@@ -599,7 +600,7 @@ TEST(Unit_TraceDeathTest, AnUpdateWithoutASourceIsFatal)
 /** @brief Tests that an update whose source the graph does not hold stops the process. */
 TEST(Unit_TraceDeathTest, AnUpdateFromAValueOutsideTheGraphIsFatal)
 {
-    SA_EXPECT_FATAL(update_from(Graph::ValueId{7}), "reads value 7", "holds 1 values");
+    SA_EXPECT_FATAL(update_from(Graph::ValueID{7}), "reads value 7", "holds 1 values");
 }
 
 /** @brief Tests that trace_layer calls the training form alone under a training trace. */
@@ -607,10 +608,10 @@ TEST(Unit_Trace, TraceLayerCallsTheTrainingFormInTrainingMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     ModalStub stub;
 
-    const Graph::ValueId y =
+    const Graph::ValueID y =
         NN::trace_layer(stub, Trace::training(builder, NN::discard_updates()), x);
 
     EXPECT_EQ(stub.training_calls, 1);
@@ -623,10 +624,10 @@ TEST(Unit_Trace, TraceLayerCallsTheEvaluationFormInEvaluationMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     ModalStub stub;
 
-    const Graph::ValueId y = NN::trace_layer(stub, Trace::evaluation(builder), x);
+    const Graph::ValueID y = NN::trace_layer(stub, Trace::evaluation(builder), x);
 
     EXPECT_EQ(stub.training_calls, 0);
     EXPECT_EQ(stub.evaluation_calls, 1);
@@ -639,13 +640,13 @@ TEST(Unit_Trace, TraceLayerTracesAModuleThroughTheBuilder)
     Graph::Graph traced_graph;
     const Graph::GraphBuilder traced_builder(traced_graph);
     Linear traced{4, 3};
-    const Graph::ValueId traced_out = NN::trace_layer(
+    const Graph::ValueID traced_out = NN::trace_layer(
         traced, Trace::evaluation(traced_builder), traced_builder.input(Shape{2, 4}, "x"));
 
     Graph::Graph built_graph;
     const Graph::GraphBuilder built_builder(built_graph);
     Linear built{4, 3};
-    const Graph::ValueId built_out =
+    const Graph::ValueID built_out =
         built.forward(built_builder, built_builder.input(Shape{2, 4}, "x"));
 
     EXPECT_EQ(traced_out, built_out);
@@ -658,7 +659,7 @@ TEST(Unit_Trace, TraceLayerPassesTheTraceToATraceModule)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     CompositeStub composite;
 
     static_cast<void>(NN::trace_layer(composite, Trace::evaluation(builder), x));
@@ -676,10 +677,10 @@ TEST(Unit_Trace, TraceLayerPrefersTheTraceForwardOverTheBuilderForward)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
     BothForwardsStub stub;
 
-    const Graph::ValueId y = NN::trace_layer(stub, Trace::evaluation(builder), x);
+    const Graph::ValueID y = NN::trace_layer(stub, Trace::evaluation(builder), x);
 
     EXPECT_EQ(stub.trace_calls, 1);
     EXPECT_EQ(stub.builder_calls, 0);
@@ -691,7 +692,7 @@ TEST(Unit_Trace, ANestedSequentialTracesItsModalChildInTheTracesMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     Sequential outer{Sequential{Linear{4, 3}, ModalStub{}}, ReLU{}};
 
     static_cast<void>(outer.forward(Trace::evaluation(builder), x));
@@ -708,15 +709,15 @@ TEST(Unit_Trace, SequentialTracesAModalChildInTheTracesMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     Sequential model{Linear{4, 3}, ModalStub{}};
 
-    const Graph::ValueId evaluated = model.forward(Trace::evaluation(builder), x);
+    const Graph::ValueID evaluated = model.forward(Trace::evaluation(builder), x);
     EXPECT_EQ(model.layer<1>().evaluation_calls, 1);
     EXPECT_EQ(model.layer<1>().training_calls, 0);
     EXPECT_EQ(graph.value(evaluated).shape, (Shape{2, 3}));
 
-    const Graph::ValueId trained =
+    const Graph::ValueID trained =
         model.forward(Trace::training(builder, NN::discard_updates()), x);
     EXPECT_EQ(model.layer<1>().evaluation_calls, 1);
     EXPECT_EQ(model.layer<1>().training_calls, 1);
@@ -730,16 +731,172 @@ TEST(Unit_Trace, SequentialOfModulesTracesTheSameThroughBothForwards)
     Graph::Graph traced_graph;
     const Graph::GraphBuilder traced_builder(traced_graph);
     Sequential traced{Linear{4, 8}, ReLU{}, Linear{8, 3}};
-    const Graph::ValueId traced_out = traced.forward(
+    const Graph::ValueID traced_out = traced.forward(
         Trace::evaluation(traced_builder), traced_builder.input(Shape{2, 4}, "x"));
 
     Graph::Graph built_graph;
     const Graph::GraphBuilder built_builder(built_graph);
     Sequential built{Linear{4, 8}, ReLU{}, Linear{8, 3}};
-    const Graph::ValueId built_out =
+    const Graph::ValueID built_out =
         built.forward(built_builder, built_builder.input(Shape{2, 4}, "x"));
 
     EXPECT_EQ(traced_out, built_out);
     EXPECT_EQ(traced_graph.value_count(), built_graph.value_count());
     EXPECT_EQ(parameter_names(traced), parameter_names(built));
+}
+
+/** @brief Tests that an evaluation trace is not a carrying one and refuses both declarations. */
+TEST(Unit_Trace, AnEvaluationTraceRefusesAFedLeafAndACarriedValue)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
+    const std::size_t nodes = graph.node_count();
+
+    const Trace trace = Trace::evaluation(builder);
+
+    EXPECT_FALSE(trace.is_carrying());
+    SA_EXPECT_FAILURE(trace.feed("position", Shape{1, 1}, DType::Int32),
+                      StatusCode::InvalidDescription, "'position'", "carrying trace");
+    SA_EXPECT_FAILURE(trace.carried_leaf(Shape{2, 3}, "kept", DType::Float32),
+                      StatusCode::InvalidDescription, "'kept'", "carrying trace");
+    SA_EXPECT_FAILURE(trace.carry(x, x), StatusCode::InvalidDescription, "carrying trace");
+    EXPECT_EQ(graph.node_count(), nodes);
+}
+
+/** @brief Tests that a training trace refuses a fed leaf, as its step feeds the model input. */
+TEST(Unit_Trace, ATrainingTraceRefusesAFedLeaf)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    BufferUpdateList updates;
+
+    const Trace trace = Trace::training(builder, updates);
+
+    EXPECT_FALSE(trace.is_carrying());
+    SA_EXPECT_FAILURE(trace.feed("position", Shape{1, 1}, DType::Int32),
+                      StatusCode::InvalidDescription, "'position'");
+}
+
+/** @brief Tests that a carrying trace is in Evaluation mode and refuses a buffer update. */
+TEST(Unit_Trace, ACarryingTraceIsAnEvaluationTraceThatRefusesABufferUpdate)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
+    Buffer buffer = defined_buffer();
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+
+    const Trace trace = Trace::carrying(builder, fed, carried);
+
+    EXPECT_TRUE(trace.is_carrying());
+    EXPECT_EQ(trace.mode(), TraceMode::Evaluation);
+    SA_EXPECT_FAILURE(trace.update(buffer, x, 0.1, 1.0), StatusCode::InvalidDescription,
+                      "evaluation trace");
+    EXPECT_TRUE(carried.values().empty());
+}
+
+/** @brief Tests that a name declares one input leaf however often a layer asks for it. */
+TEST(Unit_Trace, AFedLeafIsDeclaredOncePerName)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = Trace::carrying(builder, fed, carried);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID first,
+                            trace.feed("position", Shape{1, 1}, DType::Int32));
+    const std::size_t nodes = graph.node_count();
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID again,
+                            trace.feed("position", Shape{1, 1}, DType::Int32));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID mask,
+                            trace.feed("mask", Shape{1, 4}, DType::Float32));
+
+    EXPECT_EQ(first, again);
+    EXPECT_NE(first, mask);
+    EXPECT_EQ(graph.node_count(), nodes + 1u);
+    EXPECT_EQ(graph.value(first).lifetime, Graph::Lifetime::Input);
+    EXPECT_EQ(graph.value(first).dtype, DType::Int32);
+    ASSERT_EQ(fed.leaves().size(), 2u);
+    EXPECT_EQ(fed.leaves()[0].name, "position");
+    EXPECT_EQ(fed.leaves()[0].value, first);
+    EXPECT_EQ(fed.leaves()[1].name, "mask");
+    EXPECT_EQ(fed.find("mask"), mask);
+    EXPECT_EQ(fed.find("absent"), Graph::K_NO_VALUE);
+}
+
+/** @brief Tests that a name declared again with another shape or type is refused. */
+TEST(Unit_Trace, AFedLeafDeclaredAgainAsAnotherLeafIsRefused)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = Trace::carrying(builder, fed, carried);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID first,
+                            trace.feed("mask", Shape{1, 4}, DType::Float32));
+    static_cast<void>(first);
+
+    SA_EXPECT_FAILURE(trace.feed("mask", Shape{1, 5}, DType::Float32),
+                      StatusCode::InvalidDescription, "'mask'", "[1, 4]", "[1, 5]");
+    SA_EXPECT_FAILURE(trace.feed("mask", Shape{1, 4}, DType::Float64),
+                      StatusCode::InvalidDescription, "'mask'");
+    EXPECT_EQ(fed.leaves().size(), 1u);
+}
+
+/** @brief Tests that carry records the leaf, the value it takes and its initial value. */
+TEST(Unit_Trace, CarryRecordsTheLeafItsNextValueAndItsInitialValue)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = Trace::carrying(builder, fed, carried);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID leaf,
+                            trace.carried_leaf(Shape{4, 3}, "kept", DType::Float32));
+    const Graph::ValueID next = builder.scale(leaf, 2.0);
+    SA_EXPECT_OK(trace.carry(leaf, next, 0.5));
+
+    EXPECT_EQ(graph.value(leaf).lifetime, Graph::Lifetime::Input);
+    EXPECT_TRUE(fed.leaves().empty());
+    ASSERT_EQ(carried.values().size(), 1u);
+    EXPECT_EQ(carried.values()[0].leaf, leaf);
+    EXPECT_EQ(carried.values()[0].next, next);
+    EXPECT_NEAR(carried.values()[0].initial_value, 0.5, K_EXACT_TOLERANCE);
+    ASSERT_EQ(carried.sources().size(), 1u);
+    EXPECT_EQ(carried.sources()[0], next);
+}
+
+/** @brief Tests that a next value of another shape than its leaf is refused and not recorded. */
+TEST(Unit_Trace, CarryRefusesANextValueOfAnotherShape)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = Trace::carrying(builder, fed, carried);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID leaf,
+                            trace.carried_leaf(Shape{4, 3}, "kept", DType::Float32));
+    const Graph::ValueID other = builder.reshape(leaf, Shape{3, 4});
+
+    SA_EXPECT_FAILURE(trace.carry(leaf, other), StatusCode::InvalidDescription, "[4, 3]",
+                      "[3, 4]");
+    EXPECT_TRUE(carried.values().empty());
+}
+
+/** @brief Tests that a leaf carried_leaf() did not declare stops the process. */
+TEST(Unit_TraceDeathTest, CarryingAValueThatIsNoCarriedLeafIsFatal)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    const Trace trace = Trace::carrying(builder, fed, carried);
+    const Graph::ValueID x = builder.input(Shape{4, 3}, "x");
+    const Graph::ValueID computed = builder.scale(x, 2.0);
+
+    SA_EXPECT_FATAL(static_cast<void>(trace.carry(computed, computed)), "did not declare");
 }

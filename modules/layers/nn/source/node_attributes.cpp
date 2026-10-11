@@ -53,6 +53,15 @@ namespace SushiAI
                     return false;
                 }
 
+                /** @brief Holds the row reference that means the row before. */
+                constexpr int64_t K_PREVIOUS_ROW = -1;
+
+                /** @brief Names the key of the object form of a row reference. */
+                constexpr std::string_view K_ROW_NODE_KEY = "node";
+
+                /** @brief Lists every key the object form of a row reference accepts. */
+                constexpr std::string_view K_ROW_KEYS[] = {K_ROW_NODE_KEY};
+
                 /** @brief Returns the value under @p key once it is known to be a whole number. */
                 [[nodiscard]] Result<int64_t> checked_positive_int(const Config::Value& value,
                                                                    std::string_view key,
@@ -163,6 +172,64 @@ namespace SushiAI
                            Config::kind_name(value.kind()));
 
                 return value.as_bool(key);
+            }
+
+            Result<std::size_t> read_row_above(const Config::Value& attributes,
+                                               std::string_view key, std::string_view context,
+                                               std::size_t rows_above)
+            {
+                SA_FAIL_IF(!attributes.has(key), StatusCode::InvalidDescription,
+                           "{} needs the key '{}', which is absent", context, key);
+
+                const Config::Value& stated = attributes.at(key, context);
+                const bool is_object = stated.kind() == Config::Kind::Object;
+                if (is_object)
+                    SA_TRY(reject_unknown_keys(stated, KeySpan(K_ROW_KEYS), context));
+
+                SA_FAIL_IF(is_object && !stated.has(K_ROW_NODE_KEY),
+                           StatusCode::InvalidDescription,
+                           "{} '{}' is an object without '{}', the row it names", context, key,
+                           K_ROW_NODE_KEY);
+
+                const Config::Value& number =
+                    is_object ? stated.at(K_ROW_NODE_KEY, context) : stated;
+                SA_FAIL_IF(number.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
+                           "{} '{}' must be a row number, {} or an object carrying '{}', but "
+                           "it is {}",
+                           context, key, K_PREVIOUS_ROW, K_ROW_NODE_KEY,
+                           Config::kind_name(number.kind()));
+
+                const int64_t above = static_cast<int64_t>(rows_above);
+                const int64_t named = number.as_int(key);
+                const int64_t row = named == K_PREVIOUS_ROW ? above - 1 : named;
+                SA_FAIL_IF(row < 0 || row >= above, StatusCode::InvalidDescription,
+                           "{} '{}' names row {}, which is not above it; {} rows are above, "
+                           "and {} names the one before",
+                           context, key, named, above, K_PREVIOUS_ROW);
+
+                return static_cast<std::size_t>(row);
+            }
+
+            Result<double> read_real(const Config::Value& attributes, std::string_view key,
+                                     std::string_view context)
+            {
+                SA_FAIL_IF(!attributes.has(key), StatusCode::InvalidDescription,
+                           "{} needs the key '{}', which is absent", context, key);
+
+                return read_real_or(attributes, key, context, 0.0);
+            }
+
+            Result<double> read_layer_norm_epsilon(const Config::Value& attributes,
+                                                   std::string_view context)
+            {
+                SA_TRY_ASSIGN(const double epsilon,
+                              read_real_or(attributes, K_LAYER_NORM_EPSILON_KEY, context,
+                                           NN::K_LAYER_NORM_EPSILON));
+                SA_FAIL_IF(!(epsilon > 0.0), StatusCode::InvalidDescription,
+                           "{} '{}' must be positive, but it is {}", context,
+                           K_LAYER_NORM_EPSILON_KEY, epsilon);
+
+                return epsilon;
             }
 
             Result<NN::NormOptions> read_norm_options(const Config::Value& attributes,

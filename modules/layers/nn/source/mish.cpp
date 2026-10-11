@@ -31,10 +31,10 @@ namespace SushiAI
 {
     namespace NN
     {
-        Graph::ValueId Mish::forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
+        Graph::ValueID Mish::forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
         {
-            const Graph::ValueId softplus_x = builder.softplus(x);
-            const Graph::ValueId tanh_softplus_x = builder.tanh(softplus_x);
+            const Graph::ValueID softplus_x = builder.softplus(x);
+            const Graph::ValueID tanh_softplus_x = builder.tanh(softplus_x);
             return builder.mul(x, tanh_softplus_x);
         }
 
