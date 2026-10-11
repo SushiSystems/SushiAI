@@ -60,10 +60,10 @@ namespace SushiAI
         namespace
         {
             /** @brief Views @p values as the span the passes read. */
-            SushiRuntime::span<const Graph::ValueId> view_of(
-                const std::vector<Graph::ValueId>& values) noexcept
+            SushiRuntime::span<const Graph::ValueID> view_of(
+                const std::vector<Graph::ValueID>& values) noexcept
             {
-                return SushiRuntime::span<const Graph::ValueId>(values.data(), values.size());
+                return SushiRuntime::span<const Graph::ValueID>(values.data(), values.size());
             }
 
             /**
@@ -72,7 +72,7 @@ namespace SushiAI
              * @return The failure of a pass, or OutOfMemory when @p observed cannot grow.
              */
             [[nodiscard]] Status run_passes(Graph::Graph& graph,
-                                            std::vector<Graph::ValueId>& observed,
+                                            std::vector<Graph::ValueID>& observed,
                                             const GraphOptions& options,
                                             Graph::CastReport& casts,
                                             Graph::FusionReport& fusion)
@@ -106,7 +106,7 @@ namespace SushiAI
 
             /** @brief Appends the id of every entry of @p outputs to @p observed. */
             void append_outputs(const NN::ModelOutputs& outputs,
-                                std::vector<Graph::ValueId>& observed)
+                                std::vector<Graph::ValueID>& observed)
             {
                 for (const NN::ModelOutputs::Entry& entry : outputs.all())
                     observed.push_back(entry.second);
@@ -132,22 +132,47 @@ namespace SushiAI
         }
 
         Status retain(const NN::BufferUpdateList& updates,
-                      std::vector<Graph::ValueId>& observed,
-                      std::vector<Graph::ValueId>& pinned)
+                      std::vector<Graph::ValueID>& observed,
+                      std::vector<Graph::ValueID>& pinned)
         {
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                             [&]() -> Status
             {
-                const SushiRuntime::span<const Graph::ValueId> sources = updates.sources();
+                const SushiRuntime::span<const Graph::ValueID> sources = updates.sources();
                 observed.insert(observed.end(), sources.begin(), sources.end());
                 pinned.insert(pinned.end(), sources.begin(), sources.end());
                 return Status();
             });
         }
 
+        Status fill_host_tables(const NN::HostTableList& tables, Graph::TensorPool& pool)
+        {
+            for (const NN::HostTable& table : tables.tables())
+            {
+                SushiBLAS::Tensor& leaf = pool.tensor(table.leaf);
+                const bool is_single = leaf.dtype == DType::Float32;
+                SA_FAIL_IF((!is_single && leaf.dtype != DType::Float64) ||
+                               static_cast<std::size_t>(leaf.num_elements) != table.values.size(),
+                           StatusCode::Incompatible,
+                           "the leaf of a host table holds {} {} elements, but the table holds "
+                           "{} values for a float32 or a float64 leaf",
+                           leaf.num_elements, dtype_name(leaf.dtype), table.values.size());
+
+                for (std::size_t at = 0; at < table.values.size(); ++at)
+                {
+                    if (is_single)
+                        leaf.data_as<float>()[at] = static_cast<float>(table.values[at]);
+                    else
+                        leaf.data_as<double>()[at] = table.values[at];
+                }
+            }
+
+            return Status();
+        }
+
         namespace Detail
         {
-            Result<Graph::ValueId> declare_input(const Graph::GraphBuilder& builder,
+            Result<Graph::ValueID> declare_input(const Graph::GraphBuilder& builder,
                                                  const Shape& batch_shape, DType dtype)
             {
                 return NN::Detail::bridge_throwing([&builder, &batch_shape, dtype]()
@@ -156,7 +181,7 @@ namespace SushiAI
                 });
             }
 
-            Result<NN::ModelOutputs> single_output(Graph::ValueId id)
+            Result<NN::ModelOutputs> single_output(Graph::ValueID id)
             {
                 NN::ModelOutputs outputs;
                 SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
@@ -218,7 +243,7 @@ namespace SushiAI
                                parameter.name);
                 }
 
-                std::vector<Graph::ValueId> wrt;
+                std::vector<Graph::ValueID> wrt;
                 SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                                 [&built, &wrt]() -> Status
                 {
@@ -237,7 +262,7 @@ namespace SushiAI
                     }));
                 }
 
-                SA_TRY_ASSIGN(const std::vector<Graph::ValueId> gradients,
+                SA_TRY_ASSIGN(const std::vector<Graph::ValueID> gradients,
                               NN::Detail::bridge_throwing([&built, &wrt]()
                 {
                     return Autograd::differentiate(built.graph, built.spec.loss, view_of(wrt),
@@ -247,7 +272,7 @@ namespace SushiAI
                 for (std::size_t i = 0; i < built.parameters.size(); ++i)
                     built.parameters[i].gradient = gradients[i];
 
-                std::vector<Graph::ValueId> observed;
+                std::vector<Graph::ValueID> observed;
                 SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                                 [&built, &observed]() -> Status
                 {
@@ -271,12 +296,23 @@ namespace SushiAI
 
             Status finish_traced_step(TracedStep& step, const GraphOptions& options)
             {
-                std::vector<Graph::ValueId> observed;
+                std::vector<Graph::ValueID> observed;
                 SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                                 [&step, &observed]() -> Status
                 {
                     observed.push_back(step.input);
                     append_outputs(step.outputs, observed);
+
+                    // A fed leaf is written by id, and a carried pair is read by id after the run.
+                    for (const NN::FedLeaf& leaf : step.fed.leaves())
+                        observed.push_back(leaf.value);
+
+                    for (const NN::CarriedValue& carried : step.carried.values())
+                    {
+                        observed.push_back(carried.leaf);
+                        observed.push_back(carried.next);
+                    }
+
                     return Status();
                 }));
 
