@@ -34,7 +34,7 @@
 #include <utility>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/observability/run_report.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
@@ -89,7 +89,7 @@ namespace SushiAI
             /** @brief Asks the objective for its metrics after every step, a host read each. */
             bool track_metrics = true;
 
-            /** @brief Collect the runtime's per-node timings; needs a profiling RuntimeContext. */
+            /** @brief Sums the runtime's per-node timings; needs a runtime built with profiling. */
             bool profile = false;
 
             /** @brief Whether to fold the optimizer's update into the compiled step. */
@@ -148,8 +148,12 @@ namespace SushiAI
             /** @brief Wall-clock time spent inside fit(). */
             double duration_ms = 0.0;
 
-            /** @brief Per-node timings; empty unless the runtime has profiling on. */
-            std::vector<SushiRuntime::Observability::NodeTiming> node_timings;
+            /** @brief Names the per-node timing rows of a SushiRuntime run report. */
+            using NodeTimings = decltype(SushiRuntime::RunReport::node_timings);
+
+            /** @brief Per-node timings summed over the steps; empty unless the runtime profiles. */
+            NodeTimings node_timings;
+
 
             /** @brief A multi-line human-readable summary. */
             std::string to_string() const;

@@ -38,6 +38,7 @@
 #include <variant>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
@@ -135,8 +136,8 @@ namespace
         SA_TRY(sa::Config::check_start(spec, argv[1]));
         const sa::Config::ModelSpec model_spec = sa::Config::load_model(spec.model_path);
 
-        sr::Execution::RuntimeContext context;
-        sb::Engine engine(context);
+        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+        sb::Engine engine(runtime);
 
         // Everything below is picked by string, not by type; see applications/programs/README.md.
 

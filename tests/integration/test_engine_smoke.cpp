@@ -36,21 +36,21 @@ namespace sb = SushiBLAS;
 // SushiAI links and runs one SushiBLAS op end to end; see tests/integration/README.md.
 TEST(Integration_EngineSmoke, AXPYThroughSushiBLAS)
 {
-    sr::Execution::RuntimeContext ctx;
-    sb::Engine engine(ctx);
+    sr::Runtime runtime = sr::Runtime::create().value();
+    sb::Engine engine(runtime);
 
     const int64_t n = 4;
     auto x = engine.create_tensor({n});
     auto y = engine.create_tensor({n});
 
     std::vector<float> ones(static_cast<size_t>(n), 1.0f);
-    auto& q = ctx.devices().queue(0);
+    sycl::queue& q = runtime.advanced().queue(sr::DeviceIndex{0});
     q.memcpy(x.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
     q.memcpy(y.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
 
     sb::BLASOps(engine).axpy(2.0f, x, y);
-    engine.execute();
-    ctx.devices().wait_all();
+    engine.execute().value();
+    runtime.wait().value();
 
     std::vector<float> result(static_cast<size_t>(n));
     q.memcpy(result.data(), y.data_as<float>(), result.size() * sizeof(float)).wait();

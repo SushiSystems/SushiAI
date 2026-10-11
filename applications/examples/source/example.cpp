@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
@@ -46,8 +47,8 @@ namespace
     /** @brief Runs the example and returns its status. */
     [[nodiscard]] sa::Status run([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
     {
-        sr::Execution::RuntimeContext context;
-        sb::Engine engine(context);
+        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+        sb::Engine engine(runtime);
 
         const int64_t batch = 32;
 

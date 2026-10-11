@@ -39,6 +39,7 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
@@ -778,8 +779,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             return sa::Status();
         }
 
-        sr::Execution::RuntimeContext context;
-        sb::Engine engine(context);
+        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+        sb::Engine engine(runtime);
 
         SA_TRY_ASSIGN(const DataChoice data, load_dataset(engine, settings));
         const sa::Data::Dataset& dataset = *data.dataset;

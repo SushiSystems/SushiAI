@@ -32,7 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiRuntime/graph/task_graph.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <common/test_environment.hpp>
 #include <common/test_status.hpp>
@@ -101,20 +101,21 @@ namespace
         return {"a." + call, "b." + call, "c." + call};
     }
 
-    /** @brief Gives each test a task graph and a recorder over it, on the shared context. */
+    /** @brief Gives each test a graph and a recorder over it, on the shared runtime. */
     class Unit_StepRecorder : public ::testing::Test
     {
         protected:
             /** @brief Builds the graph, its scratch pool and the recorder the tests use. */
             Unit_StepRecorder()
-                : scratch_(SushiAI::Test::TestEnvironment::context()),
-                  recorder_(graph_, scratch_)
+                : graph_(SushiAI::Test::TestEnvironment::runtime().graph()),
+                  scratch_(SushiAI::Test::TestEnvironment::runtime()),
+                  recorder_(graph_.recorder(), scratch_)
             {
 
             }
 
-            /// @brief Task graph the recorder writes to; no test compiles it.
-            SushiRuntime::Graph::TaskGraph graph_;
+            /// @brief Graph the recorder writes to; no test runs it.
+            SushiRuntime::Graph graph_;
 
             /// @brief Scratch pool the recorder leases from.
             SushiBLAS::ScratchPool scratch_;

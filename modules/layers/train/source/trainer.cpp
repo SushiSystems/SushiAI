@@ -180,13 +180,13 @@ namespace SushiAI
 
             if (node_timings.empty())
             {
-                text += "per-node timing: none recorded (build the RuntimeContext with "
-                        "RuntimeSettings::profiling to collect it)\n";
+                text += "per-node timing: none recorded (create the Runtime with "
+                        "RuntimeConfig::profiling to collect it)\n";
                 return text;
             }
 
             text += "per-node timing:\n";
-            for (const SushiRuntime::Observability::NodeTiming& timing : node_timings)
+            for (const NodeTimings::value_type& timing : node_timings)
             {
                 text += SushiBLAS::Core::format(
                     "  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
@@ -369,6 +369,39 @@ namespace SushiAI
             return result;
         }
 
+        namespace
+        {
+            /**
+             * @brief Adds the timing rows of one step to the totals of a run.
+             * @param totals Empty, or the rows of earlier steps of the same compiled step.
+             * @param step Rows of one run of that step, in plan order.
+             * @return Success, or OutOfMemory when the first rows could not be copied.
+             */
+            [[nodiscard]] Status add_node_timings(RunReport::NodeTimings& totals,
+                                                  const RunReport::NodeTimings& step)
+            {
+                // A run that compiled the step again reports other rows; the totals start over.
+                if (totals.size() != step.size())
+                {
+                    return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                    {
+                        totals = step;
+                        return Status();
+                    });
+                }
+
+                for (std::size_t row = 0; row < step.size(); ++row)
+                {
+                    totals[row].invocations += step[row].invocations;
+                    totals[row].device_ms += step[row].device_ms;
+                    totals[row].host_ms += step[row].host_ms;
+                }
+
+                return Status();
+            }
+
+        } // namespace
+
         Result<RunReport> Trainer::fit(const Data::Dataset& dataset)
         {
             SA_FAIL_IF(dataset.batch_count() == 0, StatusCode::InvalidDescription,
@@ -378,12 +411,6 @@ namespace SushiAI
                        dataset.batch_size(), rows_);
             SA_TRY(match_input(input_, dataset));
             SA_TRY(match_roles(binding_.leaves.required(), dataset));
-
-            SushiRuntime::Execution::IExecutionEngine& execution =
-                engine_->get_context().get_execution_engine();
-
-            if (options_.profile)
-                execution.reset_profiling(step_->step().plan());
 
             RunReport report;
             report.operations_per_step = step_->step().operation_count();
@@ -409,6 +436,10 @@ namespace SushiAI
                     report.last_loss = metrics.loss;
                     report.last_metrics = metrics.metrics;
                     ++report.steps;
+
+                    if (options_.profile)
+                        SA_TRY(add_node_timings(report.node_timings,
+                                                step_->step().last_report().node_timings));
                 }
             }
 
@@ -416,14 +447,8 @@ namespace SushiAI
             report.duration_ms =
                 std::chrono::duration<double, std::milli>(finished - started).count();
 
-            if (options_.profile)
-            {
-                SushiRuntime::Observability::RunReport runtime_report;
-                execution.collect_profiling(step_->step().plan(), runtime_report);
-                report.node_timings = std::move(runtime_report.node_timings);
-            }
-
-            report.compile_count = step_->step().compile_count();
+            report.compile_count
+ = step_->step().compile_count();
             return report;
         }
 

@@ -93,7 +93,7 @@ namespace
     template<typename Make>
     void drive(Make make, UpdateKernel kernel, std::vector<unsigned char>& bytes)
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                                 allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -204,7 +204,7 @@ namespace
      */
     void train(Train::OptimizerPlacement placement, UpdateKernel kernel, TrainedRun& run)
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -401,7 +401,7 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
 
     const auto count = [](UpdateKernel kernel, auto make, std::size_t& tasks)
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         std::vector<Optim::ParameterSlot> slots;
         std::vector<SushiBLAS::Tensor> owned;
@@ -428,9 +428,9 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
         // The recorded tasks must be drained; see tests/regression/README.md.
         optimizer->before_replay();
         SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded,
-                                optimizer->record_into_step(engine.get_recorder()));
-        engine.execute();
-        engine.get_context().devices().wait_all();
+                                optimizer->record_into_step(engine.recorder()));
+        engine.execute().value();
+        engine.runtime().wait().value();
 
         tasks = recorded;
     };
@@ -462,7 +462,7 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
  */
 TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -497,7 +497,7 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
  */
 TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -536,7 +536,7 @@ TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThe
 TEST_F(Regression_FusedOptimizerDeathTest,
        TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
