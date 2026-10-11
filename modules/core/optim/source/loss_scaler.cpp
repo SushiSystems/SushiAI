@@ -118,6 +118,23 @@ namespace SushiAI
 
         }
 
+        Status LossScaleState::restore(double scale, std::uint64_t good_steps)
+        {
+            SA_FAIL_IF(!is_power_of_two(scale) || scale < options_.minimum ||
+                           scale > options_.maximum,
+                       StatusCode::Incompatible,
+                       "a loss scale of {} is no power of two within the bounds [{}, {}] of "
+                       "this loss scaler", scale, options_.minimum, options_.maximum);
+            SA_FAIL_IF(good_steps >= options_.growth_interval, StatusCode::Incompatible,
+                       "{} clean steps since the loss scale last moved is not below the growth "
+                       "interval of {}", good_steps, options_.growth_interval);
+
+            scale_ = scale;
+            good_ = good_steps;
+            skipped_ = false;
+            return Status();
+        }
+
         void LossScaleState::observe(bool overflow) noexcept
         {
             skipped_ = overflow;
@@ -230,6 +247,11 @@ namespace SushiAI
         void LossScaler::before_replay()
         {
             factor_.data_as<float>()[0] = static_cast<float>(state_.scale());
+        }
+
+        Status LossScaler::restore(double scale, std::uint64_t good_steps)
+        {
+            return state_.restore(scale, good_steps);
         }
 
         void LossScaler::after_replay()

@@ -43,7 +43,7 @@ namespace SushiAI
         namespace
         {
             /** @brief Returns whether @p node is a LEAF, which no region holds. */
-            bool is_leaf(const Graph::Graph& graph, Graph::NodeId node)
+            bool is_leaf(const Graph::Graph& graph, Graph::NodeID node)
             {
                 return graph.node(node).op == Ops::K_LEAF.id;
             }
@@ -141,14 +141,14 @@ namespace SushiAI
              * @param region_of_node Keys of every node below @p node.
              * @return K_NO_REGION when every operand is a leaf or has no producer.
              */
-            RegionKey highest_operand_key(const Graph::Graph& graph, Graph::NodeId node,
+            RegionKey highest_operand_key(const Graph::Graph& graph, Graph::NodeID node,
                                           const std::vector<RegionKey>& region_of_node)
             {
                 RegionKey highest = K_NO_REGION;
 
-                for (Graph::ValueId operand : graph.node(node).inputs)
+                for (Graph::ValueID operand : graph.node(node).inputs)
                 {
-                    const Graph::NodeId producer = graph.value(operand).producer;
+                    const Graph::NodeID producer = graph.value(operand).producer;
                     if (producer != Graph::K_NO_NODE)
                         highest = std::max(highest, region_of_node[producer]);
                 }
@@ -162,8 +162,8 @@ namespace SushiAI
              * @param region_of_node Keys of every node below @p node.
              * @see modules/core/eager/README.md
              */
-            RegionKey backward_key(const Graph::Graph& graph, Graph::NodeId node,
-                                   Graph::NodeId origin,
+            RegionKey backward_key(const Graph::Graph& graph, Graph::NodeID node,
+                                   Graph::NodeID origin,
                                    const std::vector<RegionKey>& segment_of_node,
                                    const std::vector<RegionKey>& region_of_node,
                                    RegionKey segment_count)
@@ -192,11 +192,11 @@ namespace SushiAI
             {
                 for (std::size_t i = 0; i < graph.node_count(); ++i)
                 {
-                    const Graph::NodeId node = static_cast<Graph::NodeId>(i);
+                    const Graph::NodeID node = static_cast<Graph::NodeID>(i);
 
-                    for (Graph::ValueId operand : graph.node(node).inputs)
+                    for (Graph::ValueID operand : graph.node(node).inputs)
                     {
-                        const Graph::NodeId producer = graph.value(operand).producer;
+                        const Graph::NodeID producer = graph.value(operand).producer;
                         if (producer == Graph::K_NO_NODE)
                             continue;
 
@@ -275,7 +275,7 @@ namespace SushiAI
             // Node order is topological, so every operand's producer already has its key.
             for (std::size_t i = 0; i < graph.node_count(); ++i)
             {
-                const Graph::NodeId node = static_cast<Graph::NodeId>(i);
+                const Graph::NodeID node = static_cast<Graph::NodeID>(i);
                 if (is_leaf(graph, node))
                     continue;
 

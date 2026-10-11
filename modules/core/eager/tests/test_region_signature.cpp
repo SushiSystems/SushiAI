@@ -59,7 +59,7 @@ using Eager::RegionKey;
 using Eager::RegionSignature;
 using Graph::GraphBuilder;
 using Graph::K_NO_VALUE;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -112,12 +112,12 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(recipe.shape, "x", recipe.dtype);
-        const ValueId rectified = builder.relu(x);
-        const ValueId squashed = builder.tanh(x);
-        const ValueId left = recipe.swaps_operands ? squashed : rectified;
-        const ValueId right = recipe.swaps_operands ? rectified : squashed;
-        const ValueId combined =
+        const ValueID x = builder.parameter(recipe.shape, "x", recipe.dtype);
+        const ValueID rectified = builder.relu(x);
+        const ValueID squashed = builder.tanh(x);
+        const ValueID left = recipe.swaps_operands ? squashed : rectified;
+        const ValueID right = recipe.swaps_operands ? rectified : squashed;
+        const ValueID combined =
             recipe.subtracts ? builder.sub(left, right) : builder.add(left, right);
         (void)builder.scale(combined, recipe.alpha);
 
@@ -139,12 +139,12 @@ namespace
     }
 
     /** @brief Returns the first node of @p graph that runs @p op, or NO_NODE. */
-    [[nodiscard]] Graph::NodeId node_of(const Graph::Graph& graph, OpID op)
+    [[nodiscard]] Graph::NodeID node_of(const Graph::Graph& graph, OpID op)
     {
         const std::vector<Graph::Node>& nodes = graph.nodes();
         for (std::size_t id = 0; id < nodes.size(); ++id)
             if (nodes[id].op == op)
-                return static_cast<Graph::NodeId>(id);
+                return static_cast<Graph::NodeID>(id);
         return Graph::K_NO_NODE;
     }
 
@@ -184,9 +184,9 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
-        const ValueId rectified = builder.relu(x);
-        const ValueId read = recipe.reads_leaf ? x : rectified;
+        const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
+        const ValueID rectified = builder.relu(x);
+        const ValueID read = recipe.reads_leaf ? x : rectified;
         (void)builder.scale(read, 2.0);
 
         std::vector<Eager::RegionInfo> regions;
@@ -227,13 +227,13 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
-        const ValueId outside = builder.relu(x);
-        const ValueId inside = builder.relu(x);
-        const ValueId probed =
+        const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
+        const ValueID outside = builder.relu(x);
+        const ValueID inside = builder.relu(x);
+        const ValueID probed =
             traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation);
 
-        std::vector<ValueId> read;
+        std::vector<ValueID> read;
         switch (operands)
         {
             case ProbeOperands::InsideThenOutside:
@@ -266,8 +266,8 @@ namespace
         Traced traced;
         const GraphBuilder builder(traced.graph);
 
-        const ValueId x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
-        const std::vector<ValueId> results = {
+        const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
+        const std::vector<ValueID> results = {
             traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation),
             traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation)};
         (void)traced.graph.add_node(Ops::K_RELU.id, {x}, results);
@@ -280,7 +280,7 @@ namespace
     }
 
     /** @brief Records @p identity for @p value of @p traced and returns @p value. */
-    ValueId with_identity(Traced& traced, ValueId value, std::uint64_t identity)
+    ValueID with_identity(Traced& traced, ValueID value, std::uint64_t identity)
     {
         traced.identity.resize(traced.graph.value_count(), 0);
         traced.identity[value] = identity;
@@ -333,8 +333,8 @@ namespace
             // What a later scope reads from "stem" is the result of its last node in both traces.
             const std::size_t from_end = --unvisited[keys[id]];
             const Eager::RegionInfo& region = *info_of(traced.partition, keys[id]);
-            const std::vector<ValueId>& results =
-                traced.graph.node(static_cast<Graph::NodeId>(id)).outputs;
+            const std::vector<ValueID>& results =
+                traced.graph.node(static_cast<Graph::NodeID>(id)).outputs;
 
             for (std::size_t result = 0; result < results.size(); ++result)
                 traced.identity[results[result]] = role_identity(region, from_end, result);
@@ -352,13 +352,13 @@ namespace
         {
             const GraphBuilder builder(traced.graph);
             Eager::ScopeTrace trace(traced.graph);
-            std::vector<ValueId> parameters;
+            std::vector<ValueID> parameters;
 
-            const ValueId x = with_identity(traced, builder.input(Shape{4, 6}, "x"), 1);
-            const ValueId targets =
+            const ValueID x = with_identity(traced, builder.input(Shape{4, 6}, "x"), 1);
+            const ValueID targets =
                 with_identity(traced, builder.input(Shape{4, 3}, "targets"), 2);
 
-            ValueId activation = x;
+            ValueID activation = x;
             {
                 const Eager::Scope scope(trace, "stem");
                 parameters.push_back(
@@ -380,12 +380,12 @@ namespace
                 activation = builder.relu(builder.matmul(activation, parameters.back()));
             }
 
-            ValueId loss = K_NO_VALUE;
+            ValueID loss = K_NO_VALUE;
             {
                 const Eager::Scope scope(trace, "head");
                 parameters.push_back(
                     with_identity(traced, builder.parameter(Shape{4, 3}, "head_weight"), 30));
-                const ValueId logits = builder.matmul(activation, parameters.back());
+                const ValueID logits = builder.matmul(activation, parameters.back());
                 loss = builder.nll_loss(builder.log_softmax(logits), targets);
             }
 
@@ -394,7 +394,7 @@ namespace
             Autograd::Provenance provenance;
             (void)Autograd::differentiate(
                 traced.graph, loss,
-                SushiRuntime::span<const ValueId>(parameters.data(), parameters.size()),
+                SushiRuntime::span<const ValueID>(parameters.data(), parameters.size()),
                 K_NO_VALUE, &provenance);
 
             traced.partition = Eager::ScopePartitioner{}.assign(
@@ -417,7 +417,7 @@ namespace
         Traced traced;
 
         /** @brief Holds the last result of the "stem" scope, which "body" reads. */
-        ValueId stem_output = K_NO_VALUE;
+        ValueID stem_output = K_NO_VALUE;
     };
 }
 
@@ -466,9 +466,9 @@ TEST(Unit_RegionSignature, AChangedLayoutChangesTheHash)
 {
     const Traced base = build(Recipe{});
     Traced changed = build(Recipe{});
-    const ValueId rectified =
+    const ValueID rectified =
         changed.graph.node(node_of(changed.graph, Ops::K_RELU.id)).outputs.front();
-    changed.graph.value(rectified).layout = Graph::TensorLayout::Nchw;
+    changed.graph.value(rectified).layout = Graph::TensorLayout::NCHW;
 
     const RegionSignature before = signature_of(base, K_BODY);
     const RegionSignature after = signature_of(changed, K_BODY);
@@ -491,7 +491,7 @@ TEST(Unit_RegionSignature, AChangedShapeChangesTheHash)
 }
 
 /** @brief Tests that another element type gives another hash over the same operations. */
-TEST(Unit_RegionSignature, AChangedDtypeChangesTheHash)
+TEST(Unit_RegionSignature, AChangedDTypeChangesTheHash)
 {
     Recipe changed;
     changed.dtype = DType::Float64;

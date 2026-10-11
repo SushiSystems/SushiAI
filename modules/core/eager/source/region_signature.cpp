@@ -56,7 +56,7 @@ namespace SushiAI
             };
 
             /** @brief Accumulates a 64-bit FNV-1a hash over the values fed to it. */
-            class Fnv1a final
+            class FNV1a final
             {
                 public:
                     /** @brief Feeds the eight bytes of @p word, lowest byte first. */
@@ -100,13 +100,13 @@ namespace SushiAI
                      * @brief Gives @p node the next position of the region.
                      * @pre The nodes of the region are appended in node order, each once.
                      */
-                    void append(Graph::NodeId node)
+                    void append(Graph::NodeID node)
                     {
                         position_.emplace(node, static_cast<std::uint32_t>(position_.size()));
                     }
 
                     /** @brief Returns the position of @p node, or null when it was not appended. */
-                    [[nodiscard]] const std::uint32_t* find(Graph::NodeId node) const
+                    [[nodiscard]] const std::uint32_t* find(Graph::NodeID node) const
                     {
                         const auto it = position_.find(node);
                         return it != position_.end() ? &it->second : nullptr;
@@ -114,7 +114,7 @@ namespace SushiAI
 
                 private:
                     /// @brief Position of each appended node among the region's nodes, by node id.
-                    std::unordered_map<Graph::NodeId, std::uint32_t> position_;
+                    std::unordered_map<Graph::NodeID, std::uint32_t> position_;
             };
 
             /** @brief Reports whether @p partition lists region @p key. */
@@ -134,14 +134,14 @@ namespace SushiAI
 
             /** @brief Returns the index of @p value among the results of @p producer. */
             [[nodiscard]] std::size_t result_index(const Graph::Node& producer,
-                                                   Graph::ValueId value) noexcept
+                                                   Graph::ValueID value) noexcept
             {
                 const auto it = std::find(producer.outputs.begin(), producer.outputs.end(), value);
                 return static_cast<std::size_t>(it - producer.outputs.begin());
             }
 
             /** @brief Feeds the operation, the attributes and every result of @p node. */
-            void hash_node(Fnv1a& hasher, const Graph::Graph& graph, const Graph::Node& node)
+            void hash_node(FNV1a& hasher, const Graph::Graph& graph, const Graph::Node& node)
             {
                 hasher.add_word(node.op.value);
 
@@ -149,7 +149,7 @@ namespace SushiAI
                     hasher.add_real(attribute);
 
                 hasher.add_word(node.outputs.size());
-                for (Graph::ValueId output : node.outputs)
+                for (Graph::ValueID output : node.outputs)
                 {
                     const Graph::Value& result = graph.value(output);
                     const std::int32_t rank = result.shape.rank();
@@ -170,13 +170,13 @@ namespace SushiAI
              *        writes @p operand, or when a LEAF does.
              * @see modules/core/eager/README.md
              */
-            void hash_operand(Fnv1a& hasher,
+            void hash_operand(FNV1a& hasher,
                               const Graph::Graph& graph,
                               const RegionLayout& layout,
                               SushiRuntime::span<const std::uint64_t> external_identity,
-                              Graph::ValueId operand)
+                              Graph::ValueID operand)
             {
-                const Graph::NodeId producer_id = graph.value(operand).producer;
+                const Graph::NodeID producer_id = graph.value(operand).producer;
                 const bool computed = producer_id != Graph::K_NO_NODE
                                       && graph.node(producer_id).op != Ops::K_LEAF.id;
                 const std::uint32_t* position = computed ? layout.find(producer_id) : nullptr;
@@ -211,7 +211,7 @@ namespace SushiAI
 
             RegionSignature signature;
             RegionLayout layout;
-            Fnv1a hasher;
+            FNV1a hasher;
 
             const std::vector<Graph::Node>& nodes = graph.nodes();
             for (std::size_t id = 0; id < nodes.size(); ++id)
@@ -224,11 +224,11 @@ namespace SushiAI
                 hash_node(hasher, graph, node);
 
                 hasher.add_word(node.inputs.size());
-                for (Graph::ValueId operand : node.inputs)
+                for (Graph::ValueID operand : node.inputs)
                     hash_operand(hasher, graph, layout, external_identity, operand);
 
                 // A node reads only results of earlier nodes, so it is recorded after its operands.
-                layout.append(static_cast<Graph::NodeId>(id));
+                layout.append(static_cast<Graph::NodeID>(id));
             }
 
             signature.hash = hasher.digest();

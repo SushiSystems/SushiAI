@@ -40,14 +40,22 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Names the key that decays every slot, whatever its role. */
+            constexpr std::string_view K_DECAY_ALL_KEY = "decay_all";
+
+            /** @brief Names the key that clips the gradients to a global norm; absent, none. */
+            constexpr std::string_view K_CLIP_NORM_KEY = "clip_norm";
+
             /** @brief Every key an "adamw" optimizer accepts. */
             constexpr std::string_view K_ADAMW_KEYS[] = {
                 "learning_rate", "beta1", "beta2", "eps", "weight_decay",
+                K_DECAY_ALL_KEY, K_CLIP_NORM_KEY,
             };
 
             /** @brief Every key an "sgd" optimizer accepts. */
             constexpr std::string_view K_SGD_KEYS[] = {
                 "learning_rate", "momentum", "dampening", "weight_decay", "nesterov",
+                K_DECAY_ALL_KEY, K_CLIP_NORM_KEY,
             };
 
             /** @brief Wraps a literal key list as a span, for reject_unknown_keys. */
@@ -88,6 +96,23 @@ namespace SushiAI
                 return attributes.at_or(key, spelled)
                                  .as_bool(prefix + " '" + std::string(key) + "'");
             }
+
+            /**
+             * @brief Enables the clip of @p optimizer when @p attributes state "clip_norm".
+             * @param prefix What to call this optimizer in a diagnostic.
+             * @return Success, also when the key is absent and nothing is enabled, or the
+             *         refusal of Optimizer::enable_gradient_clip named as the key's.
+             */
+            Status apply_clip_norm(Optimizer& optimizer, const Config::Value& attributes,
+                                   const std::string& prefix)
+            {
+                if (!attributes.has(K_CLIP_NORM_KEY))
+                    return Status();
+
+                const std::string where = prefix + " '" + std::string(K_CLIP_NORM_KEY) + "'";
+                const double max_norm = attributes.at(K_CLIP_NORM_KEY, where).as_real(where);
+                return SA_ANNOTATE(optimizer.enable_gradient_clip(max_norm), "{}", where);
+            }
         }
 
         Result<std::unique_ptr<Optimizer>> make_adamw(SushiBLAS::Engine& engine,
@@ -106,6 +131,8 @@ namespace SushiAI
             options.eps = read_real(attributes, "eps", prefix, options.eps);
             options.weight_decay = read_real(attributes, "weight_decay", prefix,
                                              options.weight_decay);
+            options.decay_all = read_bool(attributes, K_DECAY_ALL_KEY, prefix,
+                                          options.decay_all);
 
             SA_FAIL_IF(options.learning_rate <= 0.0, StatusCode::InvalidDescription,
                        "{} 'learning_rate' must be positive, but it is {}",
@@ -113,6 +140,7 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(std::unique_ptr<AdamW> made,
                           AdamW::make(engine, std::move(parameters), options));
+            SA_TRY(apply_clip_norm(*made, attributes, prefix));
             std::unique_ptr<Optimizer> base = std::move(made);
             return std::move(base);
         }
@@ -133,6 +161,8 @@ namespace SushiAI
             options.weight_decay = read_real(attributes, "weight_decay", prefix,
                                              options.weight_decay);
             options.nesterov = read_bool(attributes, "nesterov", prefix, options.nesterov);
+            options.decay_all = read_bool(attributes, K_DECAY_ALL_KEY, prefix,
+                                          options.decay_all);
 
             SA_FAIL_IF(options.learning_rate <= 0.0, StatusCode::InvalidDescription,
                        "{} 'learning_rate' must be positive, but it is {}",
@@ -140,6 +170,7 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(std::unique_ptr<SGD> made,
                           SGD::make(engine, std::move(parameters), options));
+            SA_TRY(apply_clip_norm(*made, attributes, prefix));
             std::unique_ptr<Optimizer> base = std::move(made);
             return std::move(base);
         }

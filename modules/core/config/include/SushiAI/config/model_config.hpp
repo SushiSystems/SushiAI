@@ -94,11 +94,22 @@ namespace SushiAI
             /** @brief Holds the shape of one sample entering the model, batch axis left out. */
             Shape input_shape;
 
+            /** @brief Names the element type of the input: float32, or int32 for indices. */
+            DType input_dtype = DType::Float32;
+
             /** @brief The layers, in application order. */
             std::vector<LayerSpec> layers;
 
             /** @brief Lists what the model publishes; never empty after a parse. */
             std::vector<OutputSpec> outputs;
+
+            /**
+             * @brief Holds the "task" object of the file, null when the file has none.
+             *
+             * This module reads its "type" and nothing else; the domain that owns the type
+             * reads the rest.
+             */
+            Value task;
         };
 
         /**

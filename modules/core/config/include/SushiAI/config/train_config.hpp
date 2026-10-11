@@ -33,6 +33,8 @@
 #include <string_view>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/common.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiAI
 {
@@ -44,16 +46,23 @@ namespace SushiAI
         /** @brief The standalone data-file version this build reads. */
         inline constexpr std::int64_t K_DATA_VERSION = 1;
 
+        /** @brief Names the key and the type of a data block that states a reader, not a type. */
+        inline constexpr std::string_view K_READER_DATA_TYPE = "reader";
+
         /**
          * @struct DataSpec
          * @brief Where a run's batches come from.
          */
         struct DataSpec
         {
-            /** @brief The type a @c Data::DatasetRegistry row is found by, e.g. "rings". */
+            /**
+             * @brief The type a @c Data::DatasetRegistry row is found by, e.g. "rings".
+             *
+             * A block that spells "reader" and no "type" holds @ref K_READER_DATA_TYPE.
+             */
             std::string type;
 
-            /** @brief Every other key; the dataset's own factory validates them. */
+            /** @brief Every other key, and "reader" too; the dataset's factory validates them. */
             Value attributes;
         };
 
@@ -66,7 +75,7 @@ namespace SushiAI
             /** @brief The architecture file, resolved against this file's directory. */
             std::filesystem::path model_path;
 
-            /** @brief The @c Train::K_OBJECTIVE_REGISTRY key, e.g. "cross_entropy". */
+            /** @brief The type a @c Train::ObjectiveRegistry row is found by, e.g. "anchor". */
             std::string objective_type;
 
             /** @brief The objective's own keys. */
@@ -81,8 +90,24 @@ namespace SushiAI
             /** @brief The optimizer's own keys. */
             Value optimizer_attributes;
 
+            /**
+             * @brief Holds the "schedule" object of the file, null when the file has none.
+             *
+             * This module reads none of it; @c Optim::read_rate_schedule does.
+             */
+            Value schedule;
+
             /** @brief How many passes over the dataset; at least one. */
             std::int64_t epochs = 1;
+
+            /** @brief The "seed" as the file states it, 0 when absent; read_run_seed() checks it. */
+            std::int64_t seed = 0;
+
+            /** @brief The weight file the run starts from; empty means initialise the model. */
+            std::filesystem::path weights;
+
+            /** @brief The checkpoint whose model state and run state the run goes on from. */
+            std::filesystem::path resume;
 
             /** @brief Where to write the checkpoint; empty means do not write one. */
             std::filesystem::path checkpoint;
@@ -106,6 +131,21 @@ namespace SushiAI
          * @throws Error If the file cannot be read or parsed.
          */
         TrainSpec load_train(const std::filesystem::path& path);
+
+        /**
+         * @brief Checks that a run states at most one file to start from.
+         * @param origin What to call the document in a diagnostic, usually a path.
+         * @return InvalidDescription when @p spec states both "weights" and "resume".
+         */
+        [[nodiscard]] Status check_start(const TrainSpec& spec, std::string_view origin);
+
+        /**
+         * @brief Returns the seed of the random sites of a run, as a training graph takes it.
+         * @param origin What to call the document in a diagnostic, usually a path.
+         * @return The seed, or InvalidDescription when @p spec states a negative one.
+         */
+        [[nodiscard]] Result<std::uint64_t> read_run_seed(const TrainSpec& spec,
+                                                          std::string_view origin);
 
         /**
          * @brief Turns a parsed data document into a @ref DataSpec.

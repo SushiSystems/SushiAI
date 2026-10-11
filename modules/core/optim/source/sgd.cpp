@@ -79,6 +79,139 @@ namespace SushiAI
 
             static_assert(Ops::K_SGD_UPDATE.name == std::string_view(K_TASK_NAME),
                           "the fused update's task name must be the string its OpID hashes");
+
+            /**
+             * @brief Applies one element's SGD update without momentum.
+             * @param staged The gradient with the loss scale, and the clip when there is one,
+             *               already taken out.
+             * @param decays Whether the coupled decay applies to this parameter.
+             */
+            template<typename T>
+            void apply_plain(T& theta, T staged, const float* s, bool decays)
+            {
+                const T decay = static_cast<T>(s[K_WEIGHT_DECAY]);
+                if (decays && decay != static_cast<T>(0)) staged = staged + decay * theta;
+
+                theta = theta + static_cast<T>(s[K_NEG_LEARNING_RATE]) * staged;
+            }
+
+            /**
+             * @brief Applies one element's SGD update through its momentum buffer @p b.
+             * @param staged The gradient with the loss scale, and the clip when there is one,
+             *               already taken out.
+             * @param decays Whether the coupled decay applies to this parameter.
+             */
+            template<typename T>
+            void apply_momentum(T& theta, T staged, T& b, const float* s, bool decays)
+            {
+                const T decay = static_cast<T>(s[K_WEIGHT_DECAY]);
+                if (decays && decay != static_cast<T>(0)) staged = staged + decay * theta;
+
+                const T momentum = static_cast<T>(s[K_MOMENTUM]);
+
+                // Assign staged gradient directly on first step to omit dampening.
+                if (static_cast<T>(s[K_FIRST_STEP]) != static_cast<T>(0))
+                    b = staged;
+                else
+                    b = b * momentum + static_cast<T>(s[K_RETAINED]) * staged;
+
+                if (static_cast<T>(s[K_NESTEROV]) != static_cast<T>(0))
+                    staged = staged + momentum * b;
+                else
+                    staged = b;
+
+                theta = theta + static_cast<T>(s[K_NEG_LEARNING_RATE]) * staged;
+            }
+
+            /**
+             * @brief Records the fused update of one parameter that has no momentum buffer.
+             * @param gate The loss scaler's counts, or null; a nonzero count skips the update.
+             * @param clip The clip's one-element factor, or null for no clip and no read.
+             */
+            void record_plain_kernel(SushiBLAS::TaskRecorder& recorder, ParameterSlot& slot,
+                                     const float* s, const std::int64_t* gate, std::size_t i,
+                                     const SushiBLAS::Tensor* clip, bool decays)
+            {
+                std::array<SushiBLAS::Tensor*, 2> operands{&slot.parameter, &slot.gradient};
+
+                if (clip == nullptr)
+                {
+                    SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
+                        K_TASK_NAME, Ops::K_SGD_UPDATE.id,
+                        [s, gate, i, decays](auto& theta, auto& g)
+                        {
+                            using T = std::decay_t<decltype(theta)>;
+
+                            if (gate != nullptr && gate[i] != 0) return;
+
+                            // The unscaled gradient stays in a register; the buffer is kept.
+                            const T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
+                            apply_plain<T>(theta, staged, s, decays);
+                        });
+                    return;
+                }
+
+                SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
+                    K_TASK_NAME, Ops::K_SGD_UPDATE.id,
+                    SushiBLAS::Dispatch::bind_reads(
+                        [s, gate, i, decays](auto& theta, auto& g, auto clip_factor)
+                        {
+                            using T = std::decay_t<decltype(theta)>;
+
+                            if (gate != nullptr && gate[i] != 0) return;
+
+                            const T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE])
+                                           * clip_factor[0];
+                            apply_plain<T>(theta, staged, s, decays);
+                        },
+                        SushiBLAS::Dispatch::read_as_element(*clip)));
+            }
+
+            /**
+             * @brief Records the fused update of one parameter through its momentum @p buffer.
+             * @param gate The loss scaler's counts, or null; a nonzero count skips the update.
+             * @param clip The clip's one-element factor, or null for no clip and no read.
+             */
+            void record_momentum_kernel(SushiBLAS::TaskRecorder& recorder, ParameterSlot& slot,
+                                        SushiBLAS::Tensor& buffer, const float* s,
+                                        const std::int64_t* gate, std::size_t i,
+                                        const SushiBLAS::Tensor* clip, bool decays)
+            {
+                std::array<SushiBLAS::Tensor*, 3> operands{
+                    &slot.parameter, &slot.gradient, &buffer,
+                };
+
+                if (clip == nullptr)
+                {
+                    SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
+                        K_TASK_NAME, Ops::K_SGD_UPDATE.id,
+                        [s, gate, i, decays](auto& theta, auto& g, auto& b)
+                        {
+                            using T = std::decay_t<decltype(theta)>;
+
+                            if (gate != nullptr && gate[i] != 0) return;
+
+                            const T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
+                            apply_momentum<T>(theta, staged, b, s, decays);
+                        });
+                    return;
+                }
+
+                SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
+                    K_TASK_NAME, Ops::K_SGD_UPDATE.id,
+                    SushiBLAS::Dispatch::bind_reads(
+                        [s, gate, i, decays](auto& theta, auto& g, auto& b, auto clip_factor)
+                        {
+                            using T = std::decay_t<decltype(theta)>;
+
+                            if (gate != nullptr && gate[i] != 0) return;
+
+                            const T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE])
+                                           * clip_factor[0];
+                            apply_momentum<T>(theta, staged, b, s, decays);
+                        },
+                        SushiBLAS::Dispatch::read_as_element(*clip)));
+            }
         }
 
         Result<std::unique_ptr<SGD>> SGD::make(SushiBLAS::Engine& engine,
@@ -141,6 +274,21 @@ namespace SushiAI
         {
         }
 
+        void SGD::append_state_tensors(std::vector<StateTensor>& tensors)
+        {
+            if (!has_momentum_)
+                return;
+
+            const std::vector<ParameterSlot>& parameters = slots();
+            tensors.reserve(tensors.size() + parameters.size());
+            for (std::size_t i = 0; i < parameters.size(); ++i)
+            {
+                tensors.push_back(
+                    StateTensor{parameters[i].name + std::string(K_MOMENTUM_ROLE),
+                                state_[i].buffer});
+            }
+        }
+
         void SGD::write_step_scalars()
         {
             // Validate momentum buffer configuration is structural at initialization.
@@ -182,67 +330,19 @@ namespace SushiAI
             // Retrieve gradient gate pointer for branching on overflowed steps.
             const std::int64_t* const gate = gradient_gate();
 
+            // Null without a clip, and then no update declares a read of the factor.
+            const SushiBLAS::Tensor* const clip = clip_scale();
+
             for (std::size_t i = 0; i < slots().size(); ++i)
             {
                 ParameterSlot& slot = slots()[i];
-                State& state = state_[i];
+                const bool decays = options_.decay_all || slot.decays;
 
-                if (!has_momentum_)
-                {
-                    std::array<SushiBLAS::Tensor*, 2> operands{&slot.parameter, &slot.gradient};
-
-                    SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
-                        K_TASK_NAME, Ops::K_SGD_UPDATE.id,
-                        [s, gate, i](auto& theta, auto& g)
-                        {
-                            using T = std::decay_t<decltype(theta)>;
-
-                            // Skip parameter update if gradient gate signaled overflow.
-                            if (gate != nullptr && gate[i] != 0) return;
-
-                            // Compute unscaled gradient into register to preserve gradient buffer.
-                            T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
-
-                            const T decay = static_cast<T>(s[K_WEIGHT_DECAY]);
-                            if (decay != static_cast<T>(0)) staged = staged + decay * theta;
-
-                            theta = theta + static_cast<T>(s[K_NEG_LEARNING_RATE]) * staged;
-                        });
-                    continue;
-                }
-
-                std::array<SushiBLAS::Tensor*, 3> operands{
-                    &slot.parameter, &slot.gradient, &state.buffer,
-                };
-
-                SushiBLAS::Dispatch::execute_zip_inplace(recorder, operands,
-                    K_TASK_NAME, Ops::K_SGD_UPDATE.id,
-                    [s, gate, i](auto& theta, auto& g, auto& b)
-                    {
-                        using T = std::decay_t<decltype(theta)>;
-
-                        if (gate != nullptr && gate[i] != 0) return;
-
-                        T staged = g * static_cast<T>(s[K_INVERSE_LOSS_SCALE]);
-
-                        const T decay = static_cast<T>(s[K_WEIGHT_DECAY]);
-                        if (decay != static_cast<T>(0)) staged = staged + decay * theta;
-
-                        const T momentum = static_cast<T>(s[K_MOMENTUM]);
-
-                        // Assign staged gradient directly on first step to omit dampening.
-                        if (static_cast<T>(s[K_FIRST_STEP]) != static_cast<T>(0))
-                            b = staged;
-                        else
-                            b = b * momentum + static_cast<T>(s[K_RETAINED]) * staged;
-
-                        if (static_cast<T>(s[K_NESTEROV]) != static_cast<T>(0))
-                            staged = staged + momentum * b;
-                        else
-                            staged = b;
-
-                        theta = theta + static_cast<T>(s[K_NEG_LEARNING_RATE]) * staged;
-                    });
+                if (has_momentum_)
+                    record_momentum_kernel(recorder, slot, state_[i].buffer, s, gate, i, clip,
+                                           decays);
+                else
+                    record_plain_kernel(recorder, slot, s, gate, i, clip, decays);
             }
 
             return slots().size();
@@ -273,7 +373,7 @@ namespace SushiAI
                 blas.copy(slot.gradient, state.staged);
                 ++recorded;
 
-                if (decay != 0.0f)
+                if (decay != 0.0f && (options_.decay_all || slot.decays))
                 {
                     blas.axpy(decay, slot.parameter, state.staged);
                     ++recorded;

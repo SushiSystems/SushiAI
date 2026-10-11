@@ -32,7 +32,7 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiAI
 {
@@ -259,18 +259,39 @@ namespace SushiAI
         inline constexpr OpName K_LEAKY_RELU_BACKWARD = op("sushiai.leaky_relu_backward");
 
         /** @brief Row-wise log-softmax, computed max-shifted for stability. */
-        inline constexpr OpName K_LOG_SOFTMAX = op("sushiai.log_softmax");
+        inline constexpr OpName K_LOG_SOFTMAX = differentiable_op("sushiai.log_softmax");
+        /** @brief Gradient of LOG_SOFTMAX; second operand is the forward output. */
+        inline constexpr OpName K_LOG_SOFTMAX_BACKWARD = op("sushiai.log_softmax_backward");
         /** @brief Mean negative log-likelihood against integer-valued targets. */
         inline constexpr OpName K_NLL_LOSS = differentiable_op("sushiai.nll_loss");
 
         /** @brief Sums a matrix along its rows, yielding one value per column. */
         inline constexpr OpName K_SUM_ROWS = differentiable_op("sushiai.sum_rows");
 
+        /** @brief Copies the rows of a [V, D] table that an INT32 index names: [...] -> [..., D]. */
+        inline constexpr OpName K_GATHER_ROWS = differentiable_op("sushiai.gather_rows");
+        /** @brief Sums [..., D] rows into the rows of a zero [V, D] that an INT32 index names. */
+        inline constexpr OpName K_SCATTER_ADD_ROWS =
+            differentiable_op("sushiai.scatter_add_rows");
+
+        /** @brief Replaces the entries above the diagonal of [..., T, T] by attribute slot 0. */
+        inline constexpr OpName K_CAUSAL_MASK = differentiable_op("sushiai.causal_mask");
+
+        /** @brief Normalises each [D] row of [..., D] by its own mean and variance. */
+        inline constexpr OpName K_LAYER_NORM = differentiable_op("sushiai.layer_norm");
+        /** @brief Layer normalisation's gradient, for input, gamma and beta. */
+        inline constexpr OpName K_LAYER_NORM_BACKWARD = op("sushiai.layer_norm_backward");
+
+        /** @brief Multiplies by a mask of 0 or 1/(1 - rate) that is drawn anew at each replay. */
+        inline constexpr OpName K_DROPOUT = differentiable_op("sushiai.dropout");
+
         // Optimizer updates are tracked in tasks for collision avoidance and profiling.
         /** @brief One parameter's whole AdamW update, fused into one kernel. */
         inline constexpr OpName K_ADAMW_UPDATE = op("sushiai.optim.adamw");
         /** @brief One parameter's whole SGD update, fused into one kernel. */
         inline constexpr OpName K_SGD_UPDATE = op("sushiai.optim.sgd");
+        /** @brief Folds the gradient norms of a step into the one factor its updates read. */
+        inline constexpr OpName K_CLIP_SCALE = op("sushiai.optim.clip_scale");
 
         // Fused operation identities represent compiled kernel compositions.
         /** @brief GEMM with a bias broadcast folded into its store. */
@@ -311,9 +332,10 @@ namespace SushiAI
             K_RELU, K_GELU, K_SIGMOID, K_TANH, K_LEAKY_RELU, K_SILU, K_SOFTPLUS,
             K_RELU_BACKWARD, K_GELU_BACKWARD, K_SIGMOID_BACKWARD, K_TANH_BACKWARD,
             K_LEAKY_RELU_BACKWARD, K_SILU_BACKWARD, K_SOFTPLUS_BACKWARD,
-            K_LOG_SOFTMAX, K_NLL_LOSS,
-            K_SUM_ROWS,
-            K_ADAMW_UPDATE, K_SGD_UPDATE,
+            K_LOG_SOFTMAX, K_LOG_SOFTMAX_BACKWARD, K_NLL_LOSS,
+            K_SUM_ROWS, K_GATHER_ROWS, K_SCATTER_ADD_ROWS,
+            K_CAUSAL_MASK, K_LAYER_NORM, K_LAYER_NORM_BACKWARD, K_DROPOUT,
+            K_ADAMW_UPDATE, K_SGD_UPDATE, K_CLIP_SCALE,
             K_GEMM_BIAS, K_GEMM_BIAS_RELU, K_GEMM_BIAS_SIGMOID, K_GEMM_BIAS_TANH, K_GEMM_BIAS_GELU,
             K_EXP_SUB_SCALE,
             K_RESHAPE, K_LAYOUT_CONVERT, K_STOP_GRADIENT,

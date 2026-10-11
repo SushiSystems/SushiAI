@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/result.hpp>
@@ -39,6 +40,9 @@ namespace SushiAI
 {
     namespace Optim
     {
+        /** @brief Names an SGD in a training file and in the run state of a checkpoint. */
+        inline constexpr std::string_view K_SGD_TYPE = "sgd";
+
         /**
          * @struct SGDOptions
          * @brief SGD's hyperparameters, with PyTorch's defaults where they have one.
@@ -56,6 +60,9 @@ namespace SushiAI
 
             /** @brief Coupled L2 penalty, added to the gradient. */
             double weight_decay = 0.0;
+
+            /** @brief Decays every slot, also one whose ParameterSlot::decays is false. */
+            bool decay_all = false;
 
             /** @brief Use Nesterov's look-ahead; requires momentum > 0 and dampening == 0. */
             bool nesterov = false;
@@ -90,13 +97,34 @@ namespace SushiAI
                     return options_.kernel == UpdateKernel::Fused;
                 }
 
+                /** @brief Returns @ref K_SGD_TYPE. */
+                [[nodiscard]] std::string_view type_name() const noexcept override
+                {
+                    return K_SGD_TYPE;
+                }
+
                 /** @brief The hyperparameters in force. */
                 const SGDOptions& options() const noexcept { return options_; }
 
                 /** @brief Mutable access, for a learning-rate schedule. */
                 SGDOptions& options() noexcept { return options_; }
 
+                /** @brief Returns the step size the next update applies. */
+                [[nodiscard]] double learning_rate() const noexcept override
+                {
+                    return options_.learning_rate;
+                }
+
             protected:
+                /** @brief Stores @p rate as the step size of the options. */
+                void store_learning_rate(double rate) noexcept override
+                {
+                    options_.learning_rate = rate;
+                }
+
+                /** @brief Appends "<parameter>.momentum" per slot; nothing without momentum. */
+                void append_state_tensors(std::vector<StateTensor>& tensors) override;
+
                 /**
                  * @brief Records the update for every parameter onto @p recorder.
                  * @param recorder The recorder the update tasks are added to.

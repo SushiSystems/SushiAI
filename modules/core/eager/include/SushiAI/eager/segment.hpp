@@ -45,8 +45,8 @@ namespace SushiAI
         {
             std::string name;             /**< Scope path, "outer/inner"; empty outside any scope. */
             std::uint32_t occurrence = 0; /**< Index among the trace's segments of this name. */
-            Graph::NodeId begin = 0;      /**< First node of the run. */
-            Graph::NodeId end = 0;        /**< One past the last node of the run. */
+            Graph::NodeID begin = 0;      /**< First node of the run. */
+            Graph::NodeID end = 0;        /**< One past the last node of the run. */
         };
 
     } // namespace Eager

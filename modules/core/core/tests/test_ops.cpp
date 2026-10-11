@@ -93,6 +93,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.sum_rows"),
         std::string_view("sushiai.optim.adamw"),
         std::string_view("sushiai.optim.sgd"),
+        std::string_view("sushiai.optim.clip_scale"),
         std::string_view("sushiai.fused.gemm_bias"),
         std::string_view("sushiai.fused.gemm_bias_relu"),
         std::string_view("sushiai.fused.gemm_bias_sigmoid"),
@@ -136,6 +137,13 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
         std::string_view("sushiai.stop_gradient"),
         std::string_view("sushiai.constant"),
         std::string_view("sushiai.batchnorm_fold"),
+        std::string_view("sushiai.gather_rows"),
+        std::string_view("sushiai.scatter_add_rows"),
+        std::string_view("sushiai.causal_mask"),
+        std::string_view("sushiai.layer_norm"),
+        std::string_view("sushiai.layer_norm_backward"),
+        std::string_view("sushiai.dropout"),
+        std::string_view("sushiai.log_softmax_backward"),
     };
 
     EXPECT_EQ(Ops::K_ALL.size(), expected.size());
@@ -179,7 +187,7 @@ TEST(Unit_Ops, ThereIsNoConv2dIdentity)
     EXPECT_EQ(Ops::name_of(Ops::op("sushiai.conv2d").id), "sushiai.unknown");
 }
 
-TEST(Unit_Ops, LeakyReluDifferentiatesAtItsOutput)
+TEST(Unit_Ops, LeakyReLUDifferentiatesAtItsOutput)
 {
     // For alpha > 0 the output's sign equals the input's; see tests/unit/README.md.
     const Ops::Activation* entry = Ops::activation_of(Ops::K_LEAKY_RELU.id);
@@ -248,6 +256,7 @@ TEST(Unit_Ops, NoGradientBarrierIsFlaggedDifferentiable)
 TEST(Unit_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
 {
     for (const Ops::OpName& entry : {Ops::K_LEAF, Ops::K_CAST, Ops::K_DYNAMIC_SCALE, Ops::K_LOG_SOFTMAX,
+                                     Ops::K_LOG_SOFTMAX_BACKWARD,
                                      Ops::K_RELU_BACKWARD, Ops::K_SILU_BACKWARD,
                                      Ops::K_SOFTPLUS_BACKWARD, Ops::K_MAXPOOL2D_BACKWARD,
                                      Ops::K_BATCHNORM2D_BACKWARD, Ops::K_BATCHNORM_UPDATE_STATS,
@@ -259,7 +268,7 @@ TEST(Unit_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
 }
 
 /** @brief Tests that SILU's table row differentiates at the forward input and does not fold. */
-TEST(Unit_Ops, SiluDifferentiatesAtItsInput)
+TEST(Unit_Ops, SiLUDifferentiatesAtItsInput)
 {
     const Ops::Activation* entry = Ops::activation_of(Ops::K_SILU.id);
     ASSERT_NE(entry, nullptr);

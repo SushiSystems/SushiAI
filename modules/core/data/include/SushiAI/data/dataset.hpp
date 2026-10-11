@@ -38,6 +38,8 @@
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/data/input.hpp>
+#include <SushiAI/data/target.hpp>
 
 namespace SushiAI
 {
@@ -45,30 +47,23 @@ namespace SushiAI
     {
         /**
          * @struct Batch
-         * @brief One minibatch, resident on the device.
+         * @brief Holds one minibatch: the inputs and the targets, each under its role.
          */
         struct Batch
         {
-            /** @brief An [N, sample...] tensor, where sample is Dataset::sample_shape(). */
+            /** @brief An [N, sample...] tensor shaped and typed as describe_input() states. */
             SushiBLAS::Tensor inputs;
 
-            /** @brief An [N, C] one-hot target matrix. */
-            SushiBLAS::Tensor targets;
-
-            /**
-             * @brief The class index per sample, on the host.
-             *
-             * Kept host-side because accuracy is a metric, not training maths:
-             * scoring it needs a per-row argmax, SushiBLAS's argmax is
-             * whole-tensor, and adding a device reduction for a diagnostic
-             * would be the wrong trade.
-             */
-            std::vector<int32_t> labels;
+            /** @brief Holds one target per role, in the order of Dataset::targets(). */
+            std::vector<BatchTarget> targets;
         };
 
         /**
          * @class Dataset
          * @brief The seam every training loop reads through.
+         *
+         * read() changes nothing in the dataset, so several threads may call it at once when
+         * each passes its own Batch. No thread may read into a Batch another one is using.
          */
         class Dataset
         {
@@ -78,29 +73,37 @@ namespace SushiAI
                 /** @brief Samples per batch. */
                 virtual int64_t batch_size() const noexcept = 0;
 
-                /** @brief Features per sample. */
-                virtual int64_t input_dim() const noexcept = 0;
-
                 /** @brief Returns the shape of one sample, batch axis left out. */
                 virtual Shape sample_shape() const = 0;
 
-                /** @brief How many classes the targets span. */
-                virtual int64_t num_classes() const noexcept = 0;
+                /** @brief Returns the element type of the inputs; float32 unless overridden. */
+                virtual DType sample_dtype() const noexcept { return DType::Float32; }
+
+                /** @brief Returns the roles every batch carries, each with its description. */
+                virtual const std::vector<TargetDescription>& targets() const noexcept = 0;
 
                 /** @brief How many batches an epoch holds. */
                 virtual std::size_t batch_count() const noexcept = 0;
 
                 /**
-                 * @brief One batch.
-                 * @param index Which batch, in [0, batch_count()).
-                 * @return The batch; owned by the dataset.
-                 * @pre @p index is in range; one that is not stops the process.
+                 * @brief Makes @p batch hold batch @p index.
+                 * @param batch Anything; passed again it lets a dataset reuse its tensors,
+                 *              which may share the dataset's storage and are not to be written.
+                 * @return Success, or why it could not, with the contents of @p batch unspecified.
+                 * @pre @p index is in [0, batch_count()); one that is not stops the process.
+                 * @see modules/core/data/README.md, section "Reading a batch".
                  */
-                virtual const Batch& batch(std::size_t index) const = 0;
+                [[nodiscard]] virtual Status read(std::size_t index, Batch& batch) const = 0;
 
                 /** @brief A short name for a run report. */
                 virtual std::string_view name() const noexcept = 0;
         };
+
+        /** @brief Returns the per-sample shape and the element type of the inputs of a dataset. */
+        [[nodiscard]] inline InputDescription describe_input(const Dataset& dataset)
+        {
+            return InputDescription{dataset.sample_shape(), dataset.sample_dtype()};
+        }
 
         /**
          * @struct SyntheticOptions
@@ -155,23 +158,29 @@ namespace SushiAI
                     SyntheticOptions options = {});
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
-                int64_t input_dim() const noexcept override { return options_.features; }
                 Shape sample_shape() const override { return Shape{options_.features}; }
-                int64_t num_classes() const noexcept override { return options_.classes; }
+                const std::vector<TargetDescription>& targets() const noexcept override
+                {
+                    return targets_;
+                }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
-                const Batch& batch(std::size_t index) const override;
+                [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
                 std::string_view name() const noexcept override
                 {
                     return "synthetic-classification";
                 }
 
             private:
-                /** @brief Holds @p batches, which were generated from @p options. */
+                /** @brief Holds @p batches, generated from @p options under @p targets. */
                 SyntheticClassification(SyntheticOptions options,
+                                        std::vector<TargetDescription> targets,
                                         std::vector<Batch> batches) noexcept;
 
                 /** @brief Holds the shape the batches were generated from. */
                 SyntheticOptions options_;
+
+                /** @brief Holds the description of the labels role. */
+                std::vector<TargetDescription> targets_;
 
                 /** @brief Holds every batch of the epoch, in order. */
                 std::vector<Batch> batches_;
@@ -227,22 +236,28 @@ namespace SushiAI
                     RingsOptions options = {});
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
-                int64_t input_dim() const noexcept override
+                Shape sample_shape() const override
                 {
-                    return 2 + options_.distractor_features;
+                    return Shape{2 + options_.distractor_features};
                 }
-                Shape sample_shape() const override { return Shape{input_dim()}; }
-                int64_t num_classes() const noexcept override { return options_.classes; }
+                const std::vector<TargetDescription>& targets() const noexcept override
+                {
+                    return targets_;
+                }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
-                const Batch& batch(std::size_t index) const override;
+                [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
                 std::string_view name() const noexcept override { return "rings"; }
 
             private:
-                /** @brief Holds @p batches, which were generated from @p options. */
-                Rings(RingsOptions options, std::vector<Batch> batches) noexcept;
+                /** @brief Holds @p batches, generated from @p options under @p targets. */
+                Rings(RingsOptions options, std::vector<TargetDescription> targets,
+                      std::vector<Batch> batches) noexcept;
 
                 /** @brief Holds the shape the batches were generated from. */
                 RingsOptions options_;
+
+                /** @brief Holds the description of the labels role. */
+                std::vector<TargetDescription> targets_;
 
                 /** @brief Holds every batch of the epoch, in order. */
                 std::vector<Batch> batches_;
