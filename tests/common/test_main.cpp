@@ -28,7 +28,7 @@
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/logging/logger.hpp>
+#include <SushiRuntime/api/runtime/logging.hpp>
 #include "test_environment.hpp"
 
 /** @brief Runs every registered test under the shared TestEnvironment. */
