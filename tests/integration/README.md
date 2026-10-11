@@ -2692,10 +2692,10 @@ divide that only happened to be safe on step one would fail there.
 
 ### BuildingAndDestroyingTrainersReachesASteadyState
 
-Every `SushiBLAS::Storage` allocates through the runtime, which records each allocation.
-`SushiRuntime::Runtime` shows no count of its live allocations, so the case cannot read whether
-the last iteration leaked a buffer. It asserts that the pool allocates the same bytes on every
-iteration and then reports itself skipped.
+Every `SushiBLAS::Storage` allocates through the runtime, which records each allocation, so
+`runtime.advanced().live_allocation_count()` is the number of live allocations. Whether the last
+iteration leaked a buffer is then a number the test can read, where otherwise somebody would have
+to watch Task Manager. One leaked Storage moves the count by exactly one.
 
 The baseline is taken after the first iteration and not before it. A one-time lazy cache
 inside the runtime is tolerated; a per-iteration leak is not.

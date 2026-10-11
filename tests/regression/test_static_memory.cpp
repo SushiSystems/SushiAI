@@ -157,6 +157,11 @@ namespace
  */
 TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
+    const auto live_allocations = [this]
+    {
+        return engine->runtime().advanced().live_allocation_count();
+    };
+
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
@@ -188,6 +193,7 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
     SA_EXPECT_OK(trainer->run_step(dataset_batch));
     engine->runtime().wait().value();
 
+    const std::size_t baseline = live_allocations();
     const std::size_t bytes_baseline = pool.allocated_bytes();
 
     for (int step = 1; step <= 12; ++step)
@@ -197,14 +203,11 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
         SA_EXPECT_OK(trainer->run_step(dataset_batch));
         engine->runtime().wait().value();
 
-        EXPECT_EQ(pool.allocated_bytes(), bytes_baseline)
-            << "step " << step << " grew the pool; a compiled step must replay into the "
-            << "memory it already has";
+        EXPECT_EQ(live_allocations(), baseline)
+            << "step " << step << " changed the number of live buffers; a compiled step "
+            << "must replay into the memory it already has";
+        EXPECT_EQ(pool.allocated_bytes(), bytes_baseline);
     }
-
-    GTEST_SKIP() << "A step after the first must allocate no buffer, and "
-                    "SushiRuntime::Runtime shows no count of live allocations, so only the "
-                    "pool's bytes are asserted.";
 }
 
 /**
