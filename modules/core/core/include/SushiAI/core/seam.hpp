@@ -92,16 +92,15 @@ namespace SushiAI
         [[nodiscard]] Result<SushiRuntime::Runtime> create_runtime(
             const SushiRuntime::RuntimeConfig& config = {}) noexcept;
 
-        /** @brief Runs the tasks recorded on @p engine and waits until they have finished. */
+        /** @brief Runs the tasks recorded on @p engine and returns when they have finished. */
 
         [[nodiscard]] Status run_recorded(SushiBLAS::Engine& engine) noexcept;
 
         /**
-         * @brief Runs one step of @p graph on @p runtime and waits until it has finished.
-         * @param runtime The runtime @p graph came from.
+         * @brief Runs one step of @p graph and returns when it has finished.
          * @param report Refilled by the run; its previous contents are lost.
          */
-        [[nodiscard]] Status run_step(SushiRuntime::Runtime& runtime, SushiRuntime::Graph& graph,
+        [[nodiscard]] Status run_step(SushiRuntime::Graph& graph,
                                       SushiRuntime::RunReport& report) noexcept;
 
 

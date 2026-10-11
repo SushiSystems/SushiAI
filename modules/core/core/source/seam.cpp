@@ -76,16 +76,6 @@ namespace SushiAI
                 return failure_of(untyped_code(phase), error.what());
             }
 
-            /** @brief Waits until every device queue of @p runtime is idle. */
-            [[nodiscard]] Status wait_for_devices(const SushiRuntime::Runtime& runtime)
-            {
-                const SushiRuntime::Result<void> waited = runtime.wait();
-                if (!waited)
-                    return status_of_error(waited.error(), SeamPhase::Execute);
-
-                return Status();
-            }
-
         } // namespace
 
         Status status_of_error(const SushiRuntime::Error& error, SeamPhase phase) noexcept
@@ -178,12 +168,11 @@ namespace SushiAI
                 if (!ran)
                     return status_of_error(ran.error(), SeamPhase::Execute);
 
-                return wait_for_devices(engine.runtime());
+                return Status();
             });
         }
 
-        Status run_step(SushiRuntime::Runtime& runtime, SushiRuntime::Graph& graph,
-                        SushiRuntime::RunReport& report) noexcept
+        Status run_step(SushiRuntime::Graph& graph, SushiRuntime::RunReport& report) noexcept
         {
             return guard(SeamPhase::Execute, [&]()
             {
@@ -191,7 +180,7 @@ namespace SushiAI
                 if (!ran)
                     return status_of_error(ran.error(), SeamPhase::Execute);
 
-                return wait_for_devices(runtime);
+                return Status();
             });
         }
 

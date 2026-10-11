@@ -161,9 +161,6 @@ namespace SushiAI
                  */
                 [[nodiscard]] Status add_replay_hooks(std::vector<ReplayPrelude> preludes);
 
-                /// @brief The engine whose runtime runs the graph.
-                SushiBLAS::Engine* engine_;
-
                 /// @brief The recorder of the trailing work, or null; not owned.
                 StepRecorder* trailing_;
 

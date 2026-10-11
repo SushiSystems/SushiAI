@@ -39,7 +39,7 @@ namespace SushiAI
     namespace Graph
     {
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing)
-            : engine_(&engine), trailing_(trailing), graph_(engine.runtime().graph()),
+            : trailing_(trailing), graph_(engine.runtime().graph()),
               recorder_(graph_.recorder(), engine.scratch_pool(), engine.mode())
         {
 
@@ -155,7 +155,7 @@ namespace SushiAI
             if (empty_)
                 return Status();
 
-            SA_TRY(SushiAI::Detail::run_step(engine_->runtime(), graph_, report_));
+            SA_TRY(SushiAI::Detail::run_step(graph_, report_));
             ++run_count_;
 
             if (trailing_)
