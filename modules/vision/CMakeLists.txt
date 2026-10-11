@@ -8,7 +8,9 @@
 # A module is added by its folder and one line here.
 
 add_subdirectory(imaging)
+add_subdirectory(codecs)
 add_subdirectory(detect)
+add_subdirectory(segment)
 add_subdirectory(importers)
 add_subdirectory(training)
 add_subdirectory(blocks)

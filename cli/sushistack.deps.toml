@@ -8,7 +8,8 @@
 # table below declares both dependencies and `hub` folds their requirements
 # into SushiAI's readiness picture.
 #
-# One port beyond that, declared below: the config layer's JSON parser.
+# Three ports beyond that, declared below: the config layer's JSON parser and
+# the two image decoders of modules/vision/codecs.
 #
 # It is declared HERE rather than in a vcpkg.json manifest, and that is a
 # decision rather than an omission. A manifest beside the top-level
@@ -35,3 +36,15 @@ description   = "Header-only JSON parser. Read by modules/core/config/source/*.c
 required      = true
 linux_apt     = ["nlohmann-json3-dev"]
 windows_vcpkg = ["nlohmann-json"]
+
+[libjpeg-turbo]
+description   = "JPEG decoder. Read by modules/vision/codecs/source/*.cpp alone, to turn the bytes of a JPEG file into an Imaging::Image; its headers appear in no public header, so it links PRIVATE to the sushiai_vision library."
+required      = true
+linux_apt     = ["libturbojpeg0-dev"]
+windows_vcpkg = ["libjpeg-turbo"]
+
+[libpng]
+description   = "PNG decoder, with zlib beneath it. Read by modules/vision/codecs/source/*.cpp alone, for PNG images and segmentation masks; its headers appear in no public header, so it links PRIVATE to the sushiai_vision library."
+required      = true
+linux_apt     = ["libpng-dev"]
+windows_vcpkg = ["libpng"]

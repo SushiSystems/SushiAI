@@ -26,6 +26,14 @@ if(SA_BUILD_VISION)
         DEPENDS sushiai)
 endif()
 
+if(SA_BUILD_LANGUAGE)
+    add_subdirectory(language)
+
+    sushiai_add_library(NAME sushiai_language EXPORT_NAME language
+        UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/language/umbrella/include/SushiAI/language/language.h"
+        DEPENDS sushiai)
+endif()
+
 install(EXPORT SushiAITargets
     FILE SushiAITargets.cmake
     NAMESPACE SushiAI::
