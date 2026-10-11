@@ -4,8 +4,8 @@ A model file is a JSON document that describes an architecture: the shape of one
 the layers, which values each layer reads and which values the model publishes. The `Config`
 module owns the format. `modules/core/config/include/SushiAI/config/model_config.hpp` declares
 the reader and the `ModelSpec` it produces, and `modules/core/config/source/model_config.cpp`
-holds the schema. Nothing in SushiAI
-writes a model file; a person or an export script does.
+holds the schema. `write_model` in `model_writer.hpp` writes a `ModelSpec` back as the text of a
+model file, for the import step of `docs/design/MODEL_IMPORT.md`; a person writes the others.
 
 The current version is 2.
 
@@ -45,6 +45,7 @@ by that layer's factory.
 | `layers` | Yes | A list of at least one layer object, called rows below |
 | `defaults` | No | A map from a layer type to keys its rows receive |
 | `outputs` | No | A list of at least one output entry |
+| `task` | No | An object with a string `type`; the rest belongs to that task type |
 
 ### `input.shape`
 
@@ -99,6 +100,36 @@ Each entry names a row with `node`, an absolute row index.
 `name` without `port` is an error, and so is a `port` or a `name` that is an empty string. A file
 without `outputs` publishes every port of its last row.
 
+### `task`
+
+`input` may state `"dtype"`: `"float32"`, which is the default, or `"int32"` for a model whose
+first row is an `embedding`. A `language_head` row may state `"tie"` with a row reference in
+the forms above; it then shares the table of that `embedding` row and needs no `vocabulary`.
+
+`task` says what the published outputs mean, for a model whose rows alone do not: a detector's
+anchors, the coding of its heads and its suppression. It is an object, and `type` names the
+task as a string. A `task` that is not an object, has no `type`, or has a `type` of another
+kind is an error. A `type` no domain knows is refused by the domain that reads the section.
+
+```json
+"task": {
+    "type": "anchor_detection",
+    "classes": 80,
+    "anchors": [[0.024, 0.031], [0.055, 0.072], [0.089, 0.061]],
+    "heads": [
+        { "output": "head_0", "anchors": [0, 1, 2], "coding": "logit", "scale_xy": 1.05 }
+    ],
+    "suppression": { "criterion": "iou" }
+}
+```
+
+The reader checks `type` and nothing else. It stores the object in `ModelSpec::task`, keys in
+file order, and the domain that owns the type reads the other keys. `ModelSpec::task` of a file
+without the key is null. `anchor_detection` belongs to `modules/vision/detect`, whose
+`README.md` lists its keys under `anchor/anchor_task.hpp`.
+
+A version 1 file may not carry `task`.
+
 ## Building a model
 
 Two functions build a parsed file. Both take the `ModelSpec` the reader returns.
@@ -122,7 +153,7 @@ A `type` is looked up in two tables, and no type is in both.
 
 | Table | Types | A row reads |
 | --- | --- | --- |
-| `NN::K_NODE_REGISTRY` | `batchnorm2d`, `concat`, `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf` | One value; `concat` reads one or more |
+| `NN::K_NODE_REGISTRY` | `batchnorm2d`, `concat`, `embedding`, `layernorm`, `dropout`, `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf` | One value; `concat` reads one or more |
 | `NN::K_LAYER_REGISTRY` | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu` | One value |
 
 `build_model` reads both tables. `build_layer_stack` reads `K_LAYER_REGISTRY` only, so a chain of
@@ -138,6 +169,11 @@ A `ModelSpec` filled in code is checked as a parsed one is. Both builders treat 
 | --- | --- | --- | --- |
 | 1 | `sushiai_model` | Before 0.1.0, untagged | The first format: `input.features` and a chain of `layers` |
 | 2 | `format_version` | Unreleased | `input.shape` replaces `input.features`; adds `from`, `defaults` and `outputs`; the version key becomes `format_version` |
+
+`task` joined version 2 after its other keys, and the version number did not change, because
+version 2 is in no release. A file without `task` reads as it did. A build from before the key
+refuses a file that carries it: the reader refuses every top-level key it does not know, so
+that build reports `task` as an unknown key.
 
 ## Reading an older or a newer file
 

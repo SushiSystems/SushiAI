@@ -50,9 +50,12 @@ several checkouts at once. Run `sa config` to see what the CLI resolved.
 |---------|----------------|
 | `sa build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
 | `sa docs` | Build the Doxygen API reference into `build/docs/api-site/html/` |
+| `sa docs bundle` | Pack the published manual pages and the API reference into one archive |
 | `sa demo mlp` | Train an MLP end to end and report the compile count |
 | `sushiai train` | Train a model described by a JSON configuration |
 | `sushiai inference` | Evaluate a trained checkpoint over a dataset |
+| `sushiai import` | Write a model of another framework as a model, a weight and a training file |
+| `sushiai tokenize` | Learn a byte-pair vocabulary from a corpus, or encode a corpus with one |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
 | `sa setup` | Provision the dependencies and write the tool paths |
@@ -261,7 +264,7 @@ Two launches saved against the fallback and ten against the unfused graph, at
 pre-activation the unfused `BIAS_ADD` would have written anyway, kept instead of
 eliminated. The identical final loss across all three is the point of the
 exercise: the spill is what makes the gradients agree, and
-`Regression_Fusion.AGeluMlpTrainsIdenticallyFusedAndUnfused` pins it as a
+`Regression_Fusion.AGELUMLPTrainsIdenticallyFusedAndUnfused` pins it as a
 byte-for-byte parameter comparison rather than as six printed decimals.
 
 Under `--precision mixed` the GELU layer is **not** folded — the fusion line
@@ -326,7 +329,7 @@ Two deliberate choices:
 ```bash
 sushiai train      examples/heavy_mlp/train.json
 sushiai inference  examples/heavy_mlp/model.json \
-                   examples/heavy_mlp/heavy_mlp.ckpt \
+                   examples/heavy_mlp/heavy_mlp.sushi \
                    examples/heavy_mlp/eval.json
 ```
 
@@ -334,7 +337,7 @@ sushiai inference  examples/heavy_mlp/model.json \
 these work under either name; they are spelled `sushiai` here because that is
 how the design document names them.
 
-[`examples/mnist_cnn/`](../../examples/mnist_cnn/README.md) holds a second set of the three
+[`examples/mnist_cnn/`](../../applications/examples/mnist_cnn/README.md) holds a second set of the three
 files, for a convolutional network on MNIST. Its README says where the IDX files go.
 
 ### What the two commands are for
@@ -376,7 +379,7 @@ a factory function in the library.
                  "classes": 4, "seed": 3735928559 },
   "optimizer": { "type": "adamw", "learning_rate": 3e-3, "weight_decay": 0.01 },
   "epochs": 50,
-  "checkpoint": "heavy_mlp.ckpt"
+  "checkpoint": "heavy_mlp.sushi"
 }
 ```
 
@@ -395,9 +398,74 @@ closes a way of being silently wrong:
 - **Relative paths resolve against the configuration file's own directory**,
   not your working directory — so `sushiai train examples/heavy_mlp/train.json`
   works from the repository root and a configuration directory can be moved
-  without editing what is inside it. This holds for `model` and `checkpoint`.
+  without editing what is inside it. This holds for `model`, `weights` and
+  `checkpoint`.
   The `data` block is passed to its factory as written, so the `directory` of
   an `mnist` dataset resolves against the working directory of the process.
+
+### Starting weights, a schedule and data from files
+
+Five optional parts of `train.json`:
+
+| Key | Holds |
+| --- | --- |
+| `weights` | A `.sushi` file loaded by name before training, in place of the initialiser. A name, shape or element type that differs is an error |
+| `resume` | A `.sushi` checkpoint a run of the same model, optimizer and `seed` wrote. It loads the model state as `weights` does and the run state with it: the optimizer's step count and its momentum buffers or moments, and where the run stood. A file states `weights` or `resume`; both is an error |
+| `seed` | An integer of 0 or above, 0 when absent. It seeds the random sites of the training graph, which today are the dropout layers. The `seed` of a `data` block is a different key: it seeds the data |
+| `schedule` | `{ "type": "step", "base_rate": ..., "warmup_iterations": ..., "warmup_power": ..., "steps": [...], "scales": [...] }`. A file with a schedule states its rate there: `learning_rate` in `optimizer` is then an error |
+| `data` with `reader` | A dataset read from files, in place of `type` |
+
+A `data` block with `reader`:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `reader` | required | `yolo_txt`, `image_folder`, `idx` or `cifar` |
+| `task` | required | `detection` or `classification` |
+| `root` | required | The dataset's directory, resolved against the working directory |
+| `split` | `"train"` | As the reader takes it |
+| `batch_size` | 16 | |
+| `input` | required | `[height, width]` of the network input |
+| `channels` | 3 | |
+| `classes` | The count the samples name | `yolo_txt` requires it |
+| `max_objects` | required for `detection` | The object slots of one image; an image with more is an error |
+| `cache`, `cache_side` | none, 0 | A directory of raw images written on the first pass and read afterwards; `cache_side` bounds the longest side |
+| `shuffle`, `seed` | false, 0 | A sample order drawn anew at each epoch from the seed |
+| `pipeline` | `"none"` | `"default"` runs mosaic, the affine warp, flips and colour on each sample |
+| `workers`, `prefetch` | 0, the worker count | Threads that read batches ahead, and how many batches they hold |
+
+`applications/examples/yolov7_tiny/` holds a training file that uses all three.
+
+### Resuming a run
+
+`sushiai train` writes run state into every checkpoint, so the file `checkpoint` names is
+also the file a later run can state as `resume`:
+
+```json
+"resume": "heavy_mlp.sushi",
+"checkpoint": "heavy_mlp.sushi"
+```
+
+The resumed run goes on at the iteration the saved one stopped at. A `schedule` reads that
+count, so warm-up is not repeated and a step that was passed stays passed; AdamW keeps its
+moments and SGD its momentum.
+
+It also goes on at the epoch index the saved one stopped at. A dataset with `shuffle` draws
+the order of an epoch from its own seed and the epoch index, so the resumed run reads the
+orders the saved run would have read next, and a dropout layer draws the masks it would have
+drawn next. A run of 20 epochs, saved and resumed for 30 more, trains on the same batches
+under the same masks as one run of 50. `epochs` counts the epochs of this run, not of both.
+
+The `seed` has to be the one the saved run stated. A checkpoint written under `"seed": 7`
+and resumed under `"seed": 8`, or under no `seed`, is refused with both numbers.
+
+The optimizer has to be the one that wrote the file. A checkpoint of `sgd` resumed under
+`adamw` is refused with both names, and so is SGD with momentum resumed from a run without
+it, with the name of the record that is missing. A weight file with no run state, such as
+the `weights.sushi` of `sushiai import` or a checkpoint written before version 2 of the
+format, is refused as `resume` and says to state it as `weights`. So is a checkpoint whose
+run state holds no `run.seed` record, which a build from before the seed existed wrote.
+
+`sushiai inference` and `weights` read the same file and leave the run state unread.
 
 ### Layer types
 
@@ -463,11 +531,72 @@ printing the library's own diagnostic — which names the file, the key and what
 was found. Both print a `compiles: 1` line; two CTest cases pin it, the same
 way `sa demo mlp`'s is pinned.
 
+## `sushiai import` — a model of another framework
+
+```bash
+sushiai import darknet yolov7-tiny.cfg yolov7-tiny.weights --output models/yolov7_tiny
+```
+
+| Argument | Meaning |
+| --- | --- |
+| `<format>` | The importer to read with. `darknet` is the one a build with the vision domain has; a format with no importer is refused with the formats that have one |
+| `<files...>` | The files of the other framework, in the order the format states them. `darknet` takes a `.cfg` and optionally a `.weights` |
+| `--output`, `-o` | The directory that receives the files; it is created when absent |
+| `--force` | Replace a file that is already there. Without it an existing file stops the import before anything is written |
+
+It writes three files into the directory:
+
+| File | Holds |
+| --- | --- |
+| `model.json` | The architecture, with its task section |
+| `weights.sushi` | The weights, when the foreign files held any |
+| `train.json` | `model`, `weights`, `"data": null`, `"checkpoint": "trained.sushi"` and the training recipe the foreign files state |
+
+The run prints the format, each input file, the size of the model and the tensor count,
+one `wrote <file>` line per file, and then a list of notes. A note names each value of the
+foreign files that none of the three files holds; for Darknet these are `batch`,
+`subdivisions`, `max_batches` and the augmentation keys.
+
+`train.json` is not ready to run. No foreign file names a dataset, so the import writes
+`"data": null`, and `sushiai train` refuses the file until you fill the block. Without a
+`.weights` file there is no `weights` key and a run initialises the model.
+
+The command creates no engine and needs no device.
+
+## `sushiai tokenize` — a vocabulary and a token file
+
+```bash
+sushiai tokenize train  corpus.txt --vocabulary-size 4096 --output vocab.savb
+sushiai tokenize encode corpus.txt --vocabulary vocab.savb --output corpus.satk
+```
+
+The command exists in a build with the language domain.
+
+| Argument | Verb | Meaning |
+| --- | --- | --- |
+| `<corpus>` | both | A text file; its bytes are read as they are. Exactly one |
+| `--vocabulary-size <N>` | `train` | The tokens of the learned vocabulary, bytes and end-of-text included |
+| `--vocabulary <file>` | `encode` | The vocabulary file `tokenize train` wrote |
+| `--output <file>` | both | The file written |
+| `--force` | both | Replace an output file that is already there. Without it an existing file stops the run before anything is read |
+
+`train` learns a byte-pair vocabulary and prints the corpus with its size in bytes, the
+token count with how many of the tokens are merges, and `wrote <file>`. `encode` prints the
+corpus, the vocabulary with its token count, the number of tokens written, and
+`wrote <file>`. The token file is what a `tokens` data block of a training file names.
+
+`train` holds the whole corpus in memory. `encode` reads it a mebibyte at a time and holds
+the ids, four bytes a token, until it writes them.
+
+A verb other than `train` and `encode`, a missing corpus or output, a second corpus and a
+flag with no value are each refused with the usage line.
+
 ## `sa clean` and `sa docs`
 
 ```bash
 sa clean       # remove the build/ tree
 sa docs        # build the Doxygen API reference
+sa docs bundle --release 1.2.3   # pack the documentation bundle
 ```
 
 `sa clean` removes the generated API reference too, because it lives under
@@ -497,6 +626,17 @@ Doxygen itself is an external tool, not vendored — install it or point
 `doxygen_exe` in `cli/config.local.toml` at an existing binary; the command
 prints the right install line if it cannot find one. `sa setup` installs one
 with the rest of the shared tools.
+
+`sa docs bundle --release X.Y.Z` writes `docs-bundle-X.Y.Z.tar.gz` and its
+`.sha256` file to `build/docs/bundle/`; `--out` names another folder. The
+archive is what `docs.sushisystems.io` reads. `docs/publish.toml` lists the
+sections of `docs/` that go into it and the pages that stay out. Because that
+file sets `api = true`, the command runs the same Doxygen build as `sa docs`
+and adds the XML from `build/docs/api-site/xml/`. It stops, naming the page
+and the line, when a published page has no level-one heading, has no link from
+`docs/README.md`, or links to a file that does not exist. Without `--release`
+it exits 2. The release is three integers: `v1.2.3` and `1.2.3-rc1` are
+refused.
 
 ## `sa config` and `sa env` — diagnostics
 

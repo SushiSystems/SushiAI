@@ -143,12 +143,14 @@ adam.learning_rate = 3e-3;
 SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
               sa::Optim::AdamW::make(engine, std::move(parameters), adam));
 
-// 5. Trainer::make lowers and compiles. That is the only compile.
+// 5. The objective build_classifier traced; it feeds and measures every step.
+const sa::Train::CrossEntropyObjective objective(batch, classes, sa::DType::Float32);
+
+// 6. Trainer::make lowers and compiles. That is the only compile.
 sa::Train::TrainerOptions options;
 options.epochs = 8;
 SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
-              sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
-                                       options));
+              sa::Train::Trainer::make(engine, built, pool, objective, *optimizer, options));
 
 SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*dataset));
 std::cout << report.to_string();
@@ -239,10 +241,10 @@ struct MyOffset
         return std::tuple{ sa::NN::field("offset", &MyOffset::offset) };
     }
 
-    sa::Graph::ValueId forward(const sa::Graph::GraphBuilder& builder,
-                               sa::Graph::ValueId x)
+    sa::Graph::ValueID forward(const sa::Graph::GraphBuilder& builder,
+                               sa::Graph::ValueID x)
     {
-        const sa::Graph::ValueId b = offset.declare(
+        const sa::Graph::ValueID b = offset.declare(
             builder, sa::Shape{width}, sa::NN::ParameterRole::Bias,
             width, width, "offset");
         return builder.bias_add(x, b);

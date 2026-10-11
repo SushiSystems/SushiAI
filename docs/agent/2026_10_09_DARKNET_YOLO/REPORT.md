@@ -1551,3 +1551,31 @@ Open:
 - T07, the step schedule, can now be written from section 16.
 - The training units (T03, T04, T10 to T16) are not written. The training-mode `[yolo]` deltas of `yolov4`, `yolov7` and `yolov7-tiny` from before the fourth pass were computed on defective heads; the plain-path directories hold their replacements.
 - REPORT section 11 does not say what the gradient returns when the enclosing box has no diagonal.
+
+## 31. Implementation: training, written and not yet built
+
+Written on 2026-10-09 and 2026-10-10 by workflow `wf_424939ca-ab4` and three single dispatches; the workflow's units ran on the models PLAN section 4 names for them. Nothing in this section has been compiled or run: each file passed `clang++ -fsyntax-only` alone, and the layering, contract, documentation and comment checkers are clean. The build stopped twice outside SushiAI, first in SushiRuntime's working tree while it was being moved to modules, then in SushiBLAS, which still calls the members SushiRuntime marked deprecated.
+
+```
+dispatch: workflow wf_424939ca-ab4, units T03, T04, T07, T10 to T15 and their review — passed, rung 1
+dispatch: the box gradient option and its tests — opus low, passed, rung 1
+dispatch: compute_head_delta returns a status — opus low, passed, rung 1
+dispatch: the one-batch overfit check — opus low, 22 turns, passed, rung 1
+```
+
+What was written:
+
+- `Optim::StepSchedule` and `validate_step_schedule`: the rate of section 16 at an iteration, with the warm-up power and the step scales.
+- The delta of a head whose box loss is an IoU form, and of a head in the activated coding. `HeadTrainingOptions::box_gradient` chooses between `BoxGradient::Analytic`, the derivative of the stated loss and the default of the library, and `BoxGradient::DarknetCompatible`, the three departures of section 11, which `read_darknet_training` selects so that an imported model trains as its file was trained.
+- `compute_head_delta` returns a `Status`. A truth box whose centre lies outside the input, or whose width or height is not positive, is `InvalidDescription`; Darknet writes out of bounds on the first and the library does not reproduce that.
+- `HeadTrainingOptions::class_weight` is removed: the key it carried has no effect in Darknet (section 17), and an option that does nothing is not offered.
+- Six suites, `tests/integration/test_darknet_<model>_training.cpp`, over `tests/vision_support/darknet_training.hpp`. Each compares the settings read from the cfg, the delta of a dumped head, the delta of a two-image head, the heads under batch statistics, the deltas of the step, the updates of the head convolutions and of the first convolution, and the rolling statistics after one step. The last three are the comparison T16 asked for, on all six models.
+- The one-batch overfit check of PLAN 4.7, one test per suite: 200 steps on the batch of the step run, at the fixed rate of that run's dump with no momentum and no decay, and the last summed cost under a tenth of the first.
+
+Open:
+
+- Whether 200 plain steps at the dumped rate bring the cost under a tenth is unmeasured, and so is the time 200 two-pass steps of the three full-size models take.
+- The first build decides every bound of the six suites. A bound that fails is reported with the measured difference, not widened.
+- `Optim::SGD` decays every slot, and Darknet decays the weights only. The update comparison is expected to show it on the biases and the batch norm scales; the fix is parameter groups in `core/optim`, a public interface and so the owner's decision.
+- SushiAI's own calls into SushiRuntime were moved to the v0.4.0 spellings in fifteen files. Each passes `-fsyntax-only` against SushiRuntime `281c2fa` with the deprecation errors of SushiBLAS's headers demoted to warnings; none has been built.
+

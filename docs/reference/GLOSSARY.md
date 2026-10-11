@@ -13,7 +13,7 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | Value | One single-assignment, tensor-shaped result in the IR (`Graph::Value`) |
 | Op identity | The name an operation carries, such as `sushiai.log_softmax`; all of them are declared in `core/ops.hpp` |
 | Lifetime | The class a value belongs to: `Parameter`, `Gradient`, `OptimizerState`, `Input`, `Buffer`, `Activation` or `Scratch` (`Graph::Lifetime`, `graph/ir.hpp`). Only values of one class share an arena |
-| Layout | Where the channel axis sits. `Nhwc` is the native layout; `Nchw` appears at a boundary only (`Graph::TensorLayout`) |
+| Layout | Where the channel axis sits. `NHWC` is the native layout; `NCHW` appears at a boundary only (`Graph::TensorLayout`) |
 | Backward rule | A function that writes the IR for one operation's gradient. Autograd is an IR-to-IR transform (`autograd/backward.hpp`, `modules/core/autograd/source/rules/`) |
 | Gradient barrier | An operation declared with `gradient_barrier_op`: its result lets no gradient reach its operands, so it has no backward rule (`core/ops.hpp`) |
 | gradcheck | The finite-difference check of a backward rule, run in FLOAT64 (`autograd/gradcheck.hpp`) |
@@ -54,7 +54,7 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | Objective leaves | The graph values an objective declared, by role (`Train::ObjectiveLeaves`) |
 | Layer | The run-time interface of one layer of a model read from a file. Its `output_shape()` is the virtual; it replaces the former `ILayer` (`NN::Layer`, `nn/layer.hpp`) |
 | Layer stack | A sequential list of layers chosen at run time; it enumerates parameters as `Sequential` does (`NN::LayerStack`) |
-| SACP | The first four bytes of every checkpoint file, ASCII "SACP", and the name of the format; version 1 (`io/checkpoint_format.hpp`) |
+| SACP | The first four bytes of every checkpoint file, ASCII "SACP", and the name of the format; version 2, which adds the run-state section, and version 1 still reads (`io/checkpoint_format.hpp`) |
 
 ## Failures and construction
 
