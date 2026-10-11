@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-12 — train: Breaking change: Made Trainer::fit sum the node timings of each step's run report and built the programs and the tests on a SushiRuntime::Runtime (`trainer.hpp`, `create_runtime`, `test_environment.hpp`).
 - 2026-10-12 — graph: Breaking change: Made CompiledStep replay a SushiRuntime graph its first run compiles, so compile_count() starts at 0; removed plan(), compile_graph and run_plan (`compiled_step.hpp`, `seam.hpp`, `status_of_error`).
 - 2026-10-11 — cli: Capped the memory sa test and sa run may commit at half of the machine by default (`memory_limit.py`, `--memory-limit`, `SA_MEMORY_LIMIT_GB`).
 - 2026-10-11 — graph: Fixed SCALE, NLL_LOSS and EXP_SUB_SCALE applying their factor as a float in a float64 graph (`lowering/elementwise.cpp`, `lowering/loss.cpp`, `lowering/fused.cpp`).

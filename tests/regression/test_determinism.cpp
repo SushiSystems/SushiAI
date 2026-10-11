@@ -90,7 +90,7 @@ namespace
      */
     [[nodiscard]] Result<RunResult> train_once(int64_t epochs, bool use_adam)
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -209,7 +209,7 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 
     const auto initialise = []() -> Result<Weights>
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -243,8 +243,8 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
  */
 TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 {
-    SushiBLAS::Engine first_engine(SaTest::TestEnvironment::context());
-    SushiBLAS::Engine second_engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine first_engine(SaTest::TestEnvironment::runtime());
+    SushiBLAS::Engine second_engine(SaTest::TestEnvironment::runtime());
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> first,
                             Data::SyntheticClassification::make(first_engine, data_options()));
@@ -281,7 +281,7 @@ TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
  */
 TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,

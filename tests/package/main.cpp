@@ -36,16 +36,16 @@ namespace sb = SushiBLAS;
 /** @brief Runs one axpy through the installed package and prints a confirmation. */
 int main()
 {
-    sr::Execution::RuntimeContext ctx;
-    sb::Engine engine(ctx);
+    sr::Runtime runtime = sr::Runtime::create().value();
+    sb::Engine engine(runtime);
 
     constexpr int64_t K_N = 64;
     auto x = engine.create_tensor({K_N});
     auto y = engine.create_tensor({K_N});
 
     sb::BLASOps(engine).axpy(2.0f, x, y);
-    engine.execute();
-    ctx.devices().wait_all();
+    engine.execute().value();
+    runtime.wait().value();
 
     std::printf("OK: SushiAI %s ran an op through SushiBLAS %s against an installed package\n",
                 SushiAI::version_string(), SUSHIBLAS_VERSION_STRING);

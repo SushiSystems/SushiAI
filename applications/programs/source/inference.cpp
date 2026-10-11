@@ -38,6 +38,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiBLAS/SushiBLAS.h>
@@ -172,8 +173,8 @@ namespace
         const sa::Config::ModelSpec model_spec = sa::Config::load_model(model_path);
         const sa::Config::DataSpec data_spec = sa::Config::load_data(data_path);
 
-        sr::Execution::RuntimeContext context;
-        sb::Engine engine(context);
+        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+        sb::Engine engine(runtime);
 
         SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
 

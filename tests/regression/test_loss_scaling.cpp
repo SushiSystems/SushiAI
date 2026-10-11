@@ -196,7 +196,7 @@ namespace
  */
 TEST_F(Regression_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
@@ -233,7 +233,7 @@ TEST_F(Regression_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
  */
 TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
@@ -255,7 +255,7 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
  */
 TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -325,7 +325,7 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
  */
 TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -371,7 +371,7 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
 
     const auto drive = [](bool scaled) -> Result<Bytes>
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         SA_TRY_ASSIGN(SushiBLAS::Tensor parameter,
                       allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -434,7 +434,7 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
  */
 TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     LossScaleOptions options;
     options.initial = 1024.0;
@@ -456,7 +456,7 @@ TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
  */
 TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
@@ -476,7 +476,7 @@ TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
  */
 TEST_F(Regression_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
 {
-    SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));

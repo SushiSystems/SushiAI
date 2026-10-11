@@ -6,7 +6,7 @@ the per-test fixture and the assertion helpers.
 | File | Holds |
 | --- | --- |
 | `test_main.cpp` | The test binary's `main()` |
-| `test_environment.hpp` | `TestEnvironment`, owner of the shared `RuntimeContext` |
+| `test_environment.hpp` | `TestEnvironment`, owner of the shared `SushiRuntime::Runtime` |
 | `test_utils.hpp` | `EngineTest`, the tensor read and write helpers, `HostNoise` |
 | `test_status.hpp` | `SA_EXPECT_OK`, `SA_EXPECT_FAILURE`, `SA_ASSERT_OK_AND_ASSIGN`, `SA_EXPECT_FATAL` and the functions under them |
 | `test_throws.hpp` | `SA_EXPECT_ERROR` and the functions under it |
@@ -15,7 +15,7 @@ the per-test fixture and the assertion helpers.
 ## Running the suite
 
 `sushiai_tests` holds 1803 cases. `sa run sushiai_tests` runs all of them in one process, so
-the `RuntimeContext` that `TestEnvironment` owns is built once. `sa test` runs the same binary
+the `Runtime` that `TestEnvironment` owns is created once. `sa test` runs the same binary
 through CTest, which starts it once for each case it discovered, and assigns each case the label
 of its suite prefix: `Unit_`, `Integration_` or `Regression_`.
 
@@ -27,16 +27,17 @@ The sections below hold the reasoning that the source files cite.
 
 ## test_environment.hpp
 
-A `RuntimeContext` starts a worker pool, probes the topology and builds SYCL queues. Doing
+`Runtime::create()` starts a worker pool, probes the topology and builds SYCL queues. Doing
 that per test would dominate the suite's runtime, and it would repeatedly tear down and
 restart the thread pool while other work is settling. The suite therefore keeps one
-process-global context in a GTest `Environment` and gives each test a fresh `Engine`, so no
-test inherits another's task graph or RNG offset. SushiBLAS's own suite, in its
+process-global runtime in a GTest `Environment` and gives each test a fresh `Engine`, so no
+test inherits another's graph or RNG offset. `SetUp()` fails the run when the runtime
+cannot be created. SushiBLAS's own suite, in its
 `tests/common/test_environment.hpp`, uses the same split.
 
 ## test_main.cpp
 
-The custom `main()` exists so the `RuntimeContext` is built once for the whole binary and
+The custom `main()` exists so the `Runtime` is created once for the whole binary and
 not once per test. `tests/CMakeLists.txt` does not link `GTest::gtest_main`. Linking both
 would be a duplicate-symbol error at link time, which is the good failure mode.
 

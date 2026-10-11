@@ -50,14 +50,14 @@ namespace SushiAI
 {
     namespace Test
     {
-        /** @brief Provides a fresh Engine per test, over the shared RuntimeContext. */
+        /** @brief Provides a fresh Engine per test, on the shared Runtime. */
         class EngineTest : public ::testing::Test
         {
             protected:
-                /** @brief Builds the test's Engine over the shared context. */
+                /** @brief Builds the test's Engine on the shared runtime. */
                 void SetUp() override
                 {
-                    engine = std::make_unique<SushiBLAS::Engine>(TestEnvironment::context());
+                    engine = std::make_unique<SushiBLAS::Engine>(TestEnvironment::runtime());
                 }
 
                 /** @brief Destroys the test's Engine. */
@@ -69,8 +69,8 @@ namespace SushiAI
                 /** @brief Flushes anything recorded and waits for the device. */
                 void flush()
                 {
-                    engine->execute();
-                    TestEnvironment::context().devices().wait_all();
+                    engine->execute().value();
+                    TestEnvironment::runtime().wait().value();
                 }
 
                 /** @brief Holds the Engine the test records on. */

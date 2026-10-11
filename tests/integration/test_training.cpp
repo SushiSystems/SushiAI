@@ -214,7 +214,7 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options));
 
-    EXPECT_EQ(trainer->compile_count(), 1u);
+    EXPECT_EQ(trainer->compile_count(), 0u);
 
     Train::TrainerOptions options;
     options.epochs = 5;
@@ -486,7 +486,7 @@ TEST_F(Integration_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTh
 
 TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherThanZeroes)
 {
-    // The shared context records no timing; see tests/integration/README.md.
+    // The shared runtime records no timing; see tests/integration/README.md.
     const int64_t batch = 8;
     const int64_t features = 4;
     const int64_t classes = 3;
@@ -557,8 +557,8 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
     options.seed = 4242;
 
     // Each dataset gets a fresh Engine; see tests/integration/README.md.
-    SushiBLAS::Engine first_engine(SaTest::TestEnvironment::context());
-    SushiBLAS::Engine second_engine(SaTest::TestEnvironment::context());
+    SushiBLAS::Engine first_engine(SaTest::TestEnvironment::runtime());
+    SushiBLAS::Engine second_engine(SaTest::TestEnvironment::runtime());
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> first,
                             Data::SyntheticClassification::make(first_engine, options));

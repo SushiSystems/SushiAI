@@ -21,47 +21,52 @@
 
 /**
  * @file test_environment.hpp
- * @brief Declares the GTest environment that owns the one RuntimeContext a test binary shares.
+ * @brief Declares the GTest environment that owns the one Runtime a test binary shares.
  * @author Mustafa Garip
  * @see tests/common/README.md, "test_environment.hpp".
  */
 
 #pragma once
 
-#include <memory>
+#include <optional>
+#include <utility>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/execution/runtime_context.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiAI
 {
     namespace Test
     {
-        /** @brief Owns the process-global RuntimeContext for the whole binary. */
+        /** @brief Owns the process-global Runtime for the whole binary. */
         class TestEnvironment : public ::testing::Environment
         {
             public:
-                /** @brief Builds the runtime context before the first test. */
+                /** @brief Creates the runtime before the first test. */
                 void SetUp() override
                 {
-                    context_ = std::make_unique<SushiRuntime::Execution::RuntimeContext>();
+                    SushiRuntime::Result<SushiRuntime::Runtime> created =
+                        SushiRuntime::Runtime::create();
+                    ASSERT_TRUE(created.has_value()) << created.error().message;
+                    runtime_.emplace(std::move(*created));
                 }
 
-                /** @brief Tears the runtime context down after the last test. */
+                /** @brief Destroys the runtime after the last test. */
                 void TearDown() override
                 {
-                    context_.reset();
+                    runtime_.reset();
                 }
 
-                /** @brief Returns the shared context, valid for the whole run. */
-                static SushiRuntime::Execution::RuntimeContext& context()
+                /** @brief Returns the shared runtime, valid for the whole run. */
+                static SushiRuntime::Runtime& runtime()
                 {
-                    return *context_;
+                    return *runtime_;
                 }
 
             private:
-                /** @brief Holds the context between SetUp() and TearDown(). */
-                static inline std::unique_ptr<SushiRuntime::Execution::RuntimeContext> context_;
+                /** @brief Holds the runtime between SetUp() and TearDown(). */
+                static inline std::optional<SushiRuntime::Runtime> runtime_;
+
         };
 
     } // namespace Test

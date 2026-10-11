@@ -80,7 +80,7 @@ namespace
      */
     [[nodiscard]] Result<std::vector<double>> recorded_trajectory()
     {
-        SushiBLAS::Engine engine(SaTest::TestEnvironment::context());
+        SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,

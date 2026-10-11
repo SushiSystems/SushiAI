@@ -74,13 +74,12 @@ arranged around. Both halves of it fail without a symptom:
 
 - A trainer that recompiles per step still converges. It pays graph analysis every step, and
   nothing in the output says so.
-- A replay that never dispatched still reports complete. CompiledStep exists because calling
-  rearm() before capture_base_state() leaves the completion sentinel armed at in-degree zero, so
-  run() returns having done nothing. The loss stops moving, which reads like a bad learning rate.
+- A replay that never dispatched still reports complete. A plan whose per-run state is not
+  restored before a replay has its completion sentinel ready at once, so run() returns having
+  done nothing. The loss stops moving, which reads like a bad learning rate.
 
-Nothing upstream can catch either. sushiruntime has no test that replays a raw CompiledGraph, and
-sushiblas cannot see a training step at all. So both claims are pinned here, in the shape the
-trainer and `sa demo mlp` use.
+SushiRuntime restores that state inside `Graph::run()`, and sushiblas cannot see a training step
+at all. So both claims are pinned here, in the shape the trainer and `sa demo mlp` use.
 
 Each test in this file spells out its own setup and shares none of it through a fixture struct.
 Trainer holds raw pointers into the pool and the optimizer, so the construction order (create the
@@ -96,28 +95,23 @@ see a recompile hidden inside fit().
 
 ### EveryReplayDispatchesRatherThanReportingCompleteImmediately
 
-This test looks at the CompiledStep defect from the outside. An unarmed plan's run() returns
-successfully having dispatched nothing, so the parameters never move and the loss goes flat. The
-defect shows from the second replay onward, because the first replay runs off the state that
-compile captured.
+This test looks at a replay that dispatches nothing from the outside. Such a run() returns
+successfully, so the parameters never move and the loss goes flat. It shows from the second
+replay onward when the first replay still runs off the state the compilation left.
 
 ### TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline
 
-This test catches the rearm/capture inversion at the first run, where
+This test catches a run that dispatches nothing at the first run, where
 EveryReplayDispatchesRatherThanReportingCompleteImmediately catches it only at the second replay.
 
 That other test reads the defect off a loss that stops changing, so it needs two replays to see
-it. But the inversion breaks the first run too. With an empty base state, rearm() writes the
-completion sentinel's in-degree as zero, the sentinel is ready before anything is dispatched, and
-execute() returns success having run no kernel. The only thing that distinguishes that from a step
-that ran is the contents of the output buffer.
+it. A first run over a plan with an empty baseline fails the same way: the completion sentinel is
+ready before anything is dispatched, and the run returns success having run no kernel. The only
+thing that distinguishes that from a step that ran is the contents of the output buffer.
 
 So the test first poisons the buffer with a value the graph cannot produce, and it asserts that the
-poison is gone. A run that dispatched nothing leaves the poison where it was.
-
-The test was verified by deleting the capture_base_state() call from the compile path in
-`modules/core/graph/source/compiled_step.cpp`. It then
-fails on the first assertion and reports the poison still in place.
+poison is gone. A run that dispatched nothing leaves the poison where it was. The step reports
+`compile_count()` 0 before that first run and 1 after the four runs.
 
 The replay loop repeats the check three times. Each pass poisons the output again, changes the
 input, and requires the output to track the new input and not the old answer or the poison.
@@ -253,7 +247,8 @@ the comparison is not a response.
 ### The second half: folding the update into the compiled plan
 
 Fusing makes the update replay-invariant, and replay-invariance is what lets the update be recorded
-into the same TaskGraph as the forward and backward passes. That is a separate change with its own
+into the same graph as the forward and backward passes. That is a separate change with its own
+
 silent failure mode. A dependency edge the runtime does not see would let the update race the
 backward pass that produces its gradients, and a race that usually resolves the right way looks
 like training. So the folded and unfolded placements are compared byte for byte too, and
@@ -515,9 +510,10 @@ from inside the GEMM kernel, and the optimizer rewrites that same bias inside th
 plan. SushiBLAS cannot see into the functor, so this library has to make the declaration:
 `gemm_epilogue(f).reads(bias)` in `record_fused_gemm`.
 
-The test asserts on `in_degree` and never on a loss. With no edge the two tasks may still come out
+The edge is what the test is for, and a loss cannot stand in for it. With no edge the two tasks may still come out
 in the right order on any given run, so a falling loss proves nothing about ordering, and this
-failure mode survives an otherwise green suite. The node count is asserted for a related reason:
+failure mode survives an otherwise green suite. `SushiRuntime::Graph` shows no dependency of a
+recorded node, so the case asserts the node count and then reports itself skipped. The node count is asserted for a related reason:
 the plan used to hold three nodes, the third being a host-side ordering node that ran nothing and
 existed only to carry this edge.
 
@@ -531,8 +527,8 @@ This test covers the other half of the epilogue's access set, the half only the 
 `.reads(bias)` orders the GEMM behind whoever writes the bias; `.writes(aux)` orders whoever reads
 the spill behind the GEMM. Without the second declaration, the backward pass that differentiates at
 the pre-activation races the kernel that produced it. A race that usually resolves the right way
-cannot be told apart from training, which is why this test also asserts on `in_degree` and never
-on a loss.
+cannot be told apart from training, so a loss cannot stand in for the edge here either. The case
+asserts the node count and then reports itself skipped, for the same reason.
 
 The test emits a reader of the pre-activation after the K_GELU, the way the differentiation pass
 emits gelu_backward.
@@ -927,9 +923,9 @@ Suites: `Regression_StaticMemory`.
 The file tests four guarantees of the static memory planner whose failure would be silent: the loop
 still converges, the run still reports success, and nobody notices.
 
-1. A training loop allocates nothing after the first step. The test counts this. Every Storage
-   allocates through the runtime context, so `RuntimeContext::live_usm_count()` is the
-   live-allocation count, and one extra buffer moves it by exactly one.
+1. A training loop allocates nothing after the first step. `SushiRuntime::Runtime` shows no
+   count of its live allocations, so the test asserts the bytes the pool holds after each of
+   twelve steps and then reports itself skipped.
 2. Packing shrinks the footprint. A pass that quietly stopped packing would leave every other test
    in the suite green. The footprint is measured on the unfused graph, because fusion reaches the
    same bytes by a different route: it deletes the intermediates where packing overlaps them. A
