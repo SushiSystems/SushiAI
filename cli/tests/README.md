@@ -38,7 +38,7 @@ printed contract. A demo nobody runs stops being true, and this one's output is 
 
 The tests skip, and do not fail, when `sa` is not installed or the tree has not been built,
 since neither is true in a clean checkout. The C++ suite pins the same claim where it always
-runs: the `Integration_Demo.MlpRunsAndReportsOneCompile` entry in `tests/CMakeLists.txt`.
+runs: the `Integration_Demo.MLPRunsAndReportsOneCompile` entry in `tests/CMakeLists.txt`.
 
 `REPO_ROOT` is two parents above the file: `cli/tests/test_demo.py`, `cli/tests`, `cli`,
 then the repository root.
@@ -82,6 +82,29 @@ The file mirrors `sushiblas/cli/tests/test_suites.py`, for the same reason
 In `test_toolchain_args_exclude_the_prefix_path_and_the_source_siblings` the configuration
 is a stand-in for a fully populated Windows config. Every optional host tool is set, so the
 assertion sees the largest flag list the helper can emit.
+
+## test_import.py
+
+These tests shell out to the installed CLI, as `test_train.py` does, and skip when the CLI is
+not on PATH or `sushiai_import` is not in the build tree. They write a `.cfg` of 36 lines into
+pytest's temporary folder and import it without weights, so they need no reference data and
+no engine.
+
+The last step of the chain is the one a person meets: `sushiai train` on the written
+`train.json` has to stop at the `data` key. `test_train_refuses_the_imported_file_until_its_data_is_filled`
+pins that the message names the key; the wording belongs to `Config::parse_train`.
+
+## test_tokenize.py
+
+These tests shell out to the installed CLI, as `test_import.py` does, and skip when the CLI is
+not on PATH or `sushiai_tokenize` is not in the build tree. They write a corpus of 1150 bytes
+into pytest's temporary folder and ask for a vocabulary of 260 tokens, which is the 256 bytes,
+end-of-text and three merges, so a run takes no engine and no reference data.
+
+`test_tokenize_encode_writes_one_id_per_token_it_reports` reads the token count from the
+report and checks the size of the file against it: 24 bytes of header and four bytes per id,
+the layout `modules/language/datasets/README.md` states. The byte layout itself is pinned by
+the unit tests of that module.
 
 ## test_train.py
 

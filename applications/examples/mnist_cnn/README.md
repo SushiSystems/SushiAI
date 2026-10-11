@@ -37,13 +37,13 @@ to keep the files elsewhere.
 sa build
 sa train      applications/examples/mnist_cnn/train.json
 sa inference  applications/examples/mnist_cnn/model.json \
-              applications/examples/mnist_cnn/mnist_cnn.ckpt \
+              applications/examples/mnist_cnn/mnist_cnn.sushi \
               applications/examples/mnist_cnn/eval.json
 ```
 
 `sa` and `sushiai` are the same program, so both commands also run under the `sushiai` name.
 
-The checkpoint is written beside `train.json`, because `"checkpoint": "mnist_cnn.ckpt"` is a
+The checkpoint is written beside `train.json`, because `"checkpoint": "mnist_cnn.sushi"` is a
 relative path.
 
 ## What the commands print

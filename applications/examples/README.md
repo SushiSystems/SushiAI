@@ -7,6 +7,8 @@ Two programs and two configuration folders.
 | `example.cpp` | A teaching file: one training run, read top to bottom |
 | `demo_mlp.cpp` | The program behind `sa demo mlp` |
 | [`heavy_mlp/`](heavy_mlp/README.md) | Three JSON files for `sushiai train` and `sushiai inference`: a deep MLP on the rings dataset |
+| [`yolov7_tiny/`](yolov7_tiny/README.md) | A training file for a detector over a YOLO-layout folder; it waits on `sushiai import darknet` for its model and weights |
+| [`tiny_decoder/`](tiny_decoder/README.md) | A decoder of 10.5 million parameters over a tokenised corpus, with its model, training and generation files |
 | [`mnist_cnn/`](mnist_cnn/README.md) | Three JSON files for the same two commands: a convolutional network on MNIST |
 
 The sections below hold the reasoning that the source files cite.
@@ -64,7 +66,7 @@ one that runs.
 `ActivationKind` has two entries where the library has more activations, because these two
 are the two kinds. ReLU's gradient reads its own output, so it folds into the GEMM epilogue
 with nothing else written. GELU's gradient reads its input, so it folds only because
-`FusedForm::GemmBiasGelu` spills that input to a second buffer.
+`FusedForm::GEMMBiasGELU` spills that input to a second buffer.
 
 Running both from one binary turns the cost of that spill into a measurement. The fusion
 report, `ops per step` and the `Buffers` line are printed for whichever activation was asked

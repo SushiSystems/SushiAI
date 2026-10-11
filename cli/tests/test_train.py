@@ -24,7 +24,7 @@ _COMPILE_ONCE = re.compile(r"compiles\s*:\s*1\b")
 
 # tests/CMakeLists.txt generates this file into the build tree; see cli/tests/README.md.
 _TRAIN_CONFIG = REPO_ROOT / "build" / "tests" / "fixtures" / "tiny_train.json"
-_CHECKPOINT = REPO_ROOT / "build" / "tests" / "fixtures" / "tiny.ckpt"
+_CHECKPOINT = REPO_ROOT / "build" / "tests" / "fixtures" / "tiny.sushi"
 _MODEL_CONFIG = REPO_ROOT / "tests" / "fixtures" / "tiny_model.json"
 _EVAL_CONFIG = REPO_ROOT / "tests" / "fixtures" / "tiny_eval.json"
 

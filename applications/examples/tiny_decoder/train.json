@@ -1,0 +1,10 @@
+{
+  "sushiai_train": 1,
+  "model": "model.json",
+  "objective": { "type": "next_token" },
+  "data":      { "type": "tokens", "file": "data/tiny_decoder/corpus.satk",
+                 "window": 256, "stride": 256, "batch_size": 32 },
+  "optimizer": { "type": "adamw", "learning_rate": 3e-4, "weight_decay": 0.1 },
+  "epochs": 1,
+  "checkpoint": "tiny_decoder.sushi"
+}

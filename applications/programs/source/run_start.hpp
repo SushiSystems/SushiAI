@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* domains_none.cpp                                                       */
+/* run_start.hpp                                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,23 +20,39 @@
 /**************************************************************************/
 
 /**
- * @file domains_none.cpp
- * @brief Adds no domain rows, for a build that links no domain.
+ * @file run_start.hpp
+ * @brief Declares where the model state and the run state of `sushiai train` start from.
  * @author Mustafa Garip
  */
 
-#include "domains.hpp"
+#pragma once
 
+#include <string>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/config/train_config.hpp>
 #include <SushiAI/core/status.hpp>
+#include <SushiAI/io/run_progress.hpp>
+#include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/optim/optimizer.hpp>
 
 namespace SushiAI
 {
     namespace Apps
     {
-        Status register_domains(NN::NodeRegistry&, Data::DatasetRegistry&)
-        {
-            return Status();
-        }
+        /** @brief Returns what the header prints for where the model state comes from. */
+        [[nodiscard]] std::string describe_start(const Config::TrainSpec& spec);
+
+        /**
+         * @brief Gives the model state, and on a resume the run state, its starting values.
+         * @param spec "resume" loads both from one checkpoint, "weights" the model state
+         *             alone, and neither runs the initialisers of the model.
+         * @param start Takes the seed of @p spec and, on a resume, where the saved run stood.
+         * @return Incompatible for a checkpoint of another seed, or the failure of a load.
+         * @pre Config::check_start(spec) has returned success.
+         */
+        [[nodiscard]] Status start_state(const Config::TrainSpec& spec, SushiBLAS::Engine& engine,
+                                         NN::ModelState& state, Optim::Optimizer& optimizer,
+                                         IO::RunProgress* start = nullptr);
 
     } // namespace Apps
 } // namespace SushiAI

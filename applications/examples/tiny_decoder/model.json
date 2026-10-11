@@ -1,0 +1,22 @@
+{
+  "format_version": 2,
+  "input": { "shape": [256], "dtype": "int32" },
+  "layers": [
+    { "type": "embedding", "num_embeddings": 4096, "embedding_dim": 384 },
+    { "type": "position_embedding" },
+    { "type": "transformer_block", "heads": 6 },
+    { "type": "transformer_block", "heads": 6 },
+    { "type": "transformer_block", "heads": 6 },
+    { "type": "transformer_block", "heads": 6 },
+    { "type": "transformer_block", "heads": 6 },
+    { "type": "language_head", "tie": 0 }
+  ],
+  "task": {
+    "type": "next_token_generation",
+    "vocabulary": "vocab.savb",
+    "window": 256,
+    "tokens": 200,
+    "seed": 1,
+    "sampler": { "type": "top_k", "k": 40, "temperature": 0.8 }
+  }
+}

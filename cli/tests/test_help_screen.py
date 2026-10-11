@@ -19,13 +19,13 @@ from sushiai.cli import app
 
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean", "docs"],
-    "Models": ["train", "inference", "demo"],
+    "Models": ["train", "inference", "import", "tokenize", "demo"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
 
 # Commands whose --help is forwarded to the program they run once that program is built.
-K_FORWARDING = {"train", "inference"}
-K_FORWARDING_LINES = [("train",), ("inference",), ("demo", "mlp")]
+K_FORWARDING = {"train", "inference", "import", "tokenize"}
+K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("demo", "mlp")]
 
 K_EXAMPLES = {
     "build": "sa build --type debug",
@@ -129,7 +129,7 @@ def test_a_forwarding_command_draws_its_own_page_while_its_program_is_not_built(
 
 @pytest.mark.parametrize("name", sorted(K_FORWARDING))
 def test_a_forwarding_command_names_the_program_the_user_typed(name, tmp_path, monkeypatch):
-    """The page of train and inference says `sa`, as every other page does."""
+    """The page of a forwarding command says `sa`, as every other page does."""
     monkeypatch.chdir(tmp_path)
     assert f"sushiai {name}" not in CliRunner().invoke(app, [name, "--help"]).output
 

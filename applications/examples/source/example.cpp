@@ -33,6 +33,8 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 
@@ -49,7 +51,7 @@ namespace
 
         const int64_t batch = 32;
 
-        sa::Vision::Datasets::MnistOptions mnist;
+        sa::Vision::Datasets::MNISTOptions mnist;
         mnist.batch_size = batch;
         mnist.max_samples = 2048;
 
@@ -82,8 +84,14 @@ namespace
             return loaded.status();
         }
 
-        const int64_t features = dataset->input_dim();
-        const int64_t classes = dataset->num_classes();
+        const sa::Data::TargetDescription* const labels =
+            sa::Data::find_target(dataset->targets(), sa::Data::K_ROLE_LABELS);
+        SA_FAIL_IF(labels == nullptr, sa::StatusCode::InvalidDescription,
+                   "the '{}' data publishes no '{}' role", dataset->name(),
+                   sa::Data::K_ROLE_LABELS);
+
+        const int64_t features = dataset->sample_shape().num_elements();
+        const int64_t classes = labels->classes;
 
         // A parameter is discoverable because the aggregate declares it.
         sa::NN::Sequential model{
@@ -110,8 +118,11 @@ namespace
         // Trainer::make performs the only compile of the run.
         sa::Train::TrainerOptions options;
         options.epochs = 8;
+
+        // The objective build_classifier traced; it feeds and measures every step.
+        const sa::Train::CrossEntropyObjective objective(batch, classes);
         SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
-                      sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                      sa::Train::Trainer::make(engine, built, pool, objective, *optimizer,
                                                options));
 
         std::cout << "SushiAI  : " << SushiAI::version_string()

@@ -24,8 +24,8 @@ from sushiai import console as console_module
 from sushiai.services import project
 
 K_VISIBLE_COMMANDS = [
-    "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "inference",
-    "link", "run", "setup", "test", "train", "unlink",
+    "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "import",
+    "inference", "link", "run", "setup", "test", "train", "unlink",
 ]
 K_BROKEN_TOML = "tool = [\n"
 K_GIT = (

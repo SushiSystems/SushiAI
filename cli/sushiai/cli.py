@@ -35,6 +35,8 @@ K_DIAGNOSTICS = "Diagnostics"
 K_HELP_FLAG = "--help"
 K_TRAIN_TARGET = "sushiai_train"
 K_INFERENCE_TARGET = "sushiai_inference"
+K_IMPORT_TARGET = "sushiai_import"
+K_TOKENIZE_TARGET = "sushiai_tokenize"
 K_API_XML = "build/docs/api-site/xml"
 K_FORWARDING = {
     "allow_extra_args": True,
@@ -226,14 +228,14 @@ def train(ctx: typer.Context) -> None:
 @app.command(
     "inference",
     rich_help_panel=K_MODELS,
-    epilog="sa inference applications/examples/heavy_mlp/model.json model.ckpt "
+    epilog="sa inference applications/examples/heavy_mlp/model.json model.sushi "
            "applications/examples/heavy_mlp/eval.json",
     context_settings=K_FORWARDING,
 )
 def inference(ctx: typer.Context) -> None:
     """Evaluate a trained checkpoint over a dataset.
 
-    Usage: sa inference <model.json> <model.ckpt> <eval.json>. The data is a
+    Usage: sa inference <model.json> <model.sushi> <eval.json>. The data is a
     positional argument because the architecture file carries no data block.
     Arguments are forwarded verbatim to the program, --help included once it
     is built.
@@ -241,6 +243,45 @@ def inference(ctx: typer.Context) -> None:
     _show_page_while_unbuilt(ctx, K_INFERENCE_TARGET)
     raise typer.Exit(
         project_svc.run_app(K_INFERENCE_TARGET, "SushiAI Inference", list(ctx.args)))
+
+
+@app.command(
+    "import",
+    rich_help_panel=K_MODELS,
+    epilog="sa import darknet yolov7-tiny.cfg yolov7-tiny.weights --output models/yolov7_tiny",
+    context_settings=K_FORWARDING,
+)
+def import_model(ctx: typer.Context) -> None:
+    """Write a model of another framework as a model, a weight and a training file.
+
+    Usage: sa import <format> <files...> --output <directory> [--force]. The
+    format names an importer; darknet takes a .cfg and optionally a .weights.
+    Arguments are forwarded verbatim to the program, --help included once it
+    is built.
+    """
+    _show_page_while_unbuilt(ctx, K_IMPORT_TARGET)
+    raise typer.Exit(project_svc.run_app(K_IMPORT_TARGET, "SushiAI Import", list(ctx.args)))
+
+
+@app.command(
+    "tokenize",
+    rich_help_panel=K_MODELS,
+    epilog="sa tokenize train corpus.txt --vocabulary-size 4096 --output vocab.savb\n"
+           "sa tokenize encode corpus.txt --vocabulary vocab.savb --output corpus.satk",
+    context_settings=K_FORWARDING,
+)
+def tokenize(ctx: typer.Context) -> None:
+    """Learn a byte-pair vocabulary from a corpus, or encode a corpus with one.
+
+    Usage: sa tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>,
+    or sa tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>.
+    A file that is there already stops the run unless --force is given.
+    Arguments are forwarded verbatim to the program, --help included once it
+    is built.
+    """
+    _show_page_while_unbuilt(ctx, K_TOKENIZE_TARGET)
+    raise typer.Exit(
+        project_svc.run_app(K_TOKENIZE_TARGET, "SushiAI Tokenize", list(ctx.args)))
 
 
 register_diagnostic_commands(app, DIAGNOSTICS, program=PROFILE.program, panel=K_DIAGNOSTICS)

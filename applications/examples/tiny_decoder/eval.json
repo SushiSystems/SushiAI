@@ -1,0 +1,5 @@
+{
+  "sushiai_data": 1,
+  "data": { "type": "prompt", "text": "Once upon a time",
+            "vocabulary": "applications/examples/tiny_decoder/vocab.savb", "window": 256 }
+}
