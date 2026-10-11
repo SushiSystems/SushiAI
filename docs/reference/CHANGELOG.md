@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-11 — cli: Capped the memory sa test and sa run may commit at half of the machine by default (`memory_limit.py`, `--memory-limit`, `SA_MEMORY_LIMIT_GB`).
+- 2026-10-11 — graph: Fixed SCALE, NLL_LOSS and EXP_SUB_SCALE applying their factor as a float in a float64 graph (`lowering/elementwise.cpp`, `lowering/loss.cpp`, `lowering/fused.cpp`).
+- 2026-10-11 — autograd: Made NLL_LOSS differentiable inside a larger expression, so a sum of objectives holds a cross-entropy (`rules/loss.cpp`).
+- 2026-10-11 — vision: Fixed the anchor task naming a mask index of a later head by the layout and not by its key (`anchor_task.cpp`).
+- 2026-10-11 — build: Made the imported targets a module finds visible to the directory that links its library (`SushiAIModule.cmake`, `sushiai_promote_imported`).
 - 2026-10-11 — programs: Made sushiai train seed its graphs and resume at the saved run count, epoch and batch, refusing another seed (`train.cpp`, `run_start.cpp`, `trainer_run.cpp`, `PreparedRun`).
 - 2026-10-11 — io: Added four progress records to the run state of a version 2 checkpoint; run state without them no longer resumes (`run_progress.hpp`, `RunProgress`, `check_run_seed`).
 - 2026-10-11 — vision: Added a first epoch and a first batch to the anchor loop and a run count to its step (`anchor_training_loop.hpp`, `AnchorLoopOptions`, `AnchorTrainingStep::restore_run_count`).

@@ -213,6 +213,18 @@ records the measured reason (SushiAI exports out-of-line functions whose
 parameter type is `SushiRuntime::span`, so the C++17/C++20 spelling difference
 reaches the mangled name); see also [INTEGRATION.md](INTEGRATION.md) §3.
 
+## The memory ceiling of `sa test` and `sa run`
+
+Both commands cap the memory that the programs they start may commit. The ceiling is
+`--memory-limit GB`, else the variable `SA_MEMORY_LIMIT_GB`, else half of the machine's
+physical memory, and `--memory-limit 0` applies none. The command prints the ceiling in
+force. A test that reaches it fails with `out_of_memory` and the size it asked for. The
+ceiling is enforced on Windows only.
+
+```
+sa run sushiai_vision_tests --memory-limit 6 -- --gtest_filter=Integration_Darknet*
+```
+
 ## `sa run`
 
 Runs a built executable. With no target it runs the configured default

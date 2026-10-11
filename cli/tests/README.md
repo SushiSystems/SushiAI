@@ -68,6 +68,15 @@ question, and the fusion report answers it: ReLU folds as `gemm+bias+relu` and G
 `gemm+bias+gelu`. The second form exists only because its epilogue spills the pre-activation
 its gradient reads.
 
+## test_memory_limit.py
+
+The cases pin the order the ceiling is resolved in (the flag, the variable, half of the
+machine), that 0 and a machine of unknown size give none, and both refusals. They call
+`resolve_limit_bytes` with values of their own, so none of them caps the test process.
+That a ceiling stops a real program is seen by running one: `sa run sushiai_vision_tests`
+over the full YOLOv3 training case ends in `out_of_memory` at 7.6 GB on the machine of
+15 GB.
+
 ## test_suites.py
 
 `sa test` maps every suite to a `ctest -L` regex through `_SUITE_LABEL_REGEX`, with two
