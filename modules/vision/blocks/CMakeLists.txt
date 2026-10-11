@@ -16,6 +16,7 @@ sushiai_add_module(NAME blocks TIER vision
         source/conv_norm.cpp
         source/detect_head.cpp
         source/psa_block.cpp
+        source/segment_head.cpp
         source/sppf.cpp
     PUBLIC_DEPENDS core graph nn
     PRIVATE_DEPENDS config
@@ -28,4 +29,5 @@ sushiai_add_module(NAME blocks TIER vision
         tests/test_block_conv_norm.cpp
         tests/test_block_detect_head.cpp
         tests/test_block_psa_block.cpp
+        tests/test_block_segment_head.cpp
         tests/test_block_sppf.cpp)

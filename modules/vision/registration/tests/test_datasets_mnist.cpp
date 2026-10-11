@@ -33,6 +33,8 @@
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiAI/vision/registration.hpp>
 #include <common/model_text.hpp>
@@ -41,8 +43,8 @@
 #include <common/test_utils.hpp>
 
 using namespace SushiAI;
-using Vision::Datasets::MnistLayout;
-using Vision::Datasets::MnistOptions;
+using Vision::Datasets::MNISTLayout;
+using Vision::Datasets::MNISTOptions;
 
 namespace SaTest = SushiAI::Test;
 
@@ -66,7 +68,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the dataset registry carries a row named "mnist". */
-TEST_F(Integration_VisionMnist, TheDatasetRegistryListsMnist)
+TEST_F(Integration_VisionMnist, TheDatasetRegistryListsMNIST)
 {
     EXPECT_NE(datasets.find("mnist"), nullptr);
 
@@ -76,7 +78,7 @@ TEST_F(Integration_VisionMnist, TheDatasetRegistryListsMnist)
 }
 
 /** @brief Tests that "mnist" fails, naming the directory and its files, when they are absent. */
-TEST_F(Integration_VisionMnist, MnistRefusesADirectoryWithoutTheFiles)
+TEST_F(Integration_VisionMnist, MNISTRefusesADirectoryWithoutTheFiles)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(datasets, *engine, "mnist",
@@ -88,7 +90,7 @@ TEST_F(Integration_VisionMnist, MnistRefusesADirectoryWithoutTheFiles)
 }
 
 /** @brief Tests that the "test" split of "mnist" looks for the t10k file pair. */
-TEST_F(Integration_VisionMnist, MnistTestSplitLooksForTheT10kFiles)
+TEST_F(Integration_VisionMnist, MNISTTestSplitLooksForTheT10kFiles)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(
@@ -100,7 +102,7 @@ TEST_F(Integration_VisionMnist, MnistTestSplitLooksForTheT10kFiles)
 }
 
 /** @brief Tests that "mnist" throws when the required "directory" key is absent. */
-TEST_F(Integration_VisionMnist, MnistRequiresADirectory)
+TEST_F(Integration_VisionMnist, MNISTRequiresADirectory)
 {
     SA_EXPECT_ERROR(
         (void)Data::make_dataset(datasets, *engine, "mnist",
@@ -109,7 +111,7 @@ TEST_F(Integration_VisionMnist, MnistRequiresADirectory)
 }
 
 /** @brief Tests that "mnist" rejects a key it does not know before it looks for any file. */
-TEST_F(Integration_VisionMnist, AnUnknownMnistKeyIsRejectedByItsOwnFactory)
+TEST_F(Integration_VisionMnist, AnUnknownMNISTKeyIsRejectedByItsOwnFactory)
 {
     SA_EXPECT_ERROR(
         (void)Data::make_dataset(
@@ -120,7 +122,7 @@ TEST_F(Integration_VisionMnist, AnUnknownMnistKeyIsRejectedByItsOwnFactory)
 }
 
 /** @brief Tests that "mnist" rejects a split other than "train" or "test". */
-TEST_F(Integration_VisionMnist, MnistRefusesASplitItDoesNotKnow)
+TEST_F(Integration_VisionMnist, MNISTRefusesASplitItDoesNotKnow)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(
@@ -131,7 +133,7 @@ TEST_F(Integration_VisionMnist, MnistRefusesASplitItDoesNotKnow)
 }
 
 /** @brief Tests that "mnist" refuses a layout other than "flat" or "image" before any file. */
-TEST_F(Integration_VisionMnist, AnMnistLayoutOtherThanFlatOrImageIsRefused)
+TEST_F(Integration_VisionMnist, AnMNISTLayoutOtherThanFlatOrImageIsRefused)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(
@@ -144,8 +146,8 @@ TEST_F(Integration_VisionMnist, AnMnistLayoutOtherThanFlatOrImageIsRefused)
 /** @brief Tests that the "image" layout yields [N, rows, cols, 1] batches from the IDX files. */
 TEST_F(Integration_VisionMnist, AnImageLayoutYieldsRankFourBatches)
 {
-    MnistOptions options;
-    options.layout = MnistLayout::Image;
+    MNISTOptions options;
+    options.layout = MNISTLayout::Image;
     options.batch_size = 16;
     options.max_samples = 32;
     if (!Vision::Datasets::mnist_available(options))
@@ -155,9 +157,24 @@ TEST_F(Integration_VisionMnist, AnImageLayoutYieldsRankFourBatches)
                             Vision::Datasets::try_load_mnist(*engine, options));
 
     EXPECT_EQ(dataset->sample_shape(), (Shape{28, 28, 1}));
-    EXPECT_EQ(dataset->input_dim(), 784);
+    EXPECT_EQ(dataset->sample_shape().num_elements(), 784);
 
-    const SushiBLAS::Tensor& inputs = dataset->batch(0).inputs;
+    ASSERT_EQ(dataset->targets().size(), 1u);
+    EXPECT_EQ(dataset->targets().front().role, Data::K_ROLE_LABELS);
+    EXPECT_EQ(dataset->targets().front().sample_shape, Shape{});
+    EXPECT_EQ(dataset->targets().front().dtype, DType::Int32);
+    EXPECT_EQ(dataset->targets().front().classes, 10);
+
+    Data::Batch dataset_batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
+    const Data::BatchTarget* labels =
+        Data::find_target(dataset_batch.targets, Data::K_ROLE_LABELS);
+    ASSERT_NE(labels, nullptr);
+    ASSERT_EQ(labels->values.rank, 1);
+    EXPECT_EQ(labels->values.shape[0], 16);
+    EXPECT_EQ(labels->values.dtype, DType::Int32);
+
+    const SushiBLAS::Tensor& inputs = dataset_batch.inputs;
     ASSERT_EQ(inputs.rank, 4);
     EXPECT_EQ(inputs.shape[0], 16);
     EXPECT_EQ(inputs.shape[1], 28);
@@ -166,9 +183,9 @@ TEST_F(Integration_VisionMnist, AnImageLayoutYieldsRankFourBatches)
 }
 
 /** @brief Tests that an absent directory is unavailable, refused and named. */
-TEST_F(Integration_VisionMnist, MnistFallsBackToSyntheticWhenTheFilesAreAbsent)
+TEST_F(Integration_VisionMnist, MNISTFallsBackToSyntheticWhenTheFilesAreAbsent)
 {
-    MnistOptions options;
+    MNISTOptions options;
     options.directory = "this-directory-does-not-exist";
 
     EXPECT_FALSE(Vision::Datasets::mnist_available(options));

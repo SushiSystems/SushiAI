@@ -56,7 +56,7 @@ namespace SushiAI
             }
 
             /**
-             * @brief Returns the stored cost of a CompleteIou head.
+             * @brief Returns the stored cost of a CompleteIoU head.
              * @return box_weight times the mean of 1 - IoU over the assignments, 0 without
              *         one, plus object_weight times the non-box sum.
              */
@@ -87,7 +87,7 @@ namespace SushiAI
             /** @brief Lists every box loss with the function of its stored cost. */
             constexpr StoredCostRow K_STORED_COST_ROWS[] = {
                 {BoxLoss::SquaredError, &stored_squared_error},
-                {BoxLoss::CompleteIou, &stored_complete_iou},
+                {BoxLoss::CompleteIoU, &stored_complete_iou},
             };
 
             /** @brief Sums the squared entries of every slot, split into box and non-box. */

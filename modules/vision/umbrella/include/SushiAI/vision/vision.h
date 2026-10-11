@@ -77,7 +77,45 @@
 #include <SushiAI/vision/blocks/psa_block.hpp>
 #include <SushiAI/vision/blocks/sppf.hpp>
 
+#include <SushiAI/vision/datasets/batch_inputs.hpp>
+#include <SushiAI/vision/datasets/binary_collator.hpp>
+#include <SushiAI/vision/datasets/cifar.hpp>
+#include <SushiAI/vision/datasets/classification_collator.hpp>
+#include <SushiAI/vision/datasets/coco_json.hpp>
+#include <SushiAI/vision/datasets/collator.hpp>
+#include <SushiAI/vision/datasets/csv.hpp>
+#include <SushiAI/vision/datasets/detection_collator.hpp>
+#include <SushiAI/vision/datasets/fit_mask.hpp>
+#include <SushiAI/vision/datasets/fit_sample.hpp>
+#include <SushiAI/vision/datasets/fitted_sample.hpp>
+#include <SushiAI/vision/datasets/idx.hpp>
+#include <SushiAI/vision/datasets/idx_file.hpp>
+#include <SushiAI/vision/datasets/image_extensions.hpp>
+#include <SushiAI/vision/datasets/image_folder.hpp>
+#include <SushiAI/vision/datasets/load_sample_image.hpp>
+#include <SushiAI/vision/datasets/load_sample_mask.hpp>
+#include <SushiAI/vision/datasets/mask_png.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
+#include <SushiAI/vision/datasets/multi_label_collator.hpp>
+#include <SushiAI/vision/datasets/reader_dataset.hpp>
+#include <SushiAI/vision/datasets/reader_section.hpp>
+#include <SushiAI/vision/datasets/reader_table.hpp>
+#include <SushiAI/vision/datasets/regression_collator.hpp>
+#include <SushiAI/vision/datasets/sample.hpp>
+#include <SushiAI/vision/datasets/segmentation_collator.hpp>
+#include <SushiAI/vision/datasets/stored_pixels.hpp>
+#include <SushiAI/vision/datasets/table_dataset.hpp>
+#include <SushiAI/vision/datasets/task_table.hpp>
+#include <SushiAI/vision/datasets/value_table.hpp>
+#include <SushiAI/vision/datasets/voc_xml.hpp>
+#include <SushiAI/vision/datasets/xml_element.hpp>
+#include <SushiAI/vision/datasets/yolo_txt.hpp>
+
+#include <SushiAI/vision/codecs/decode_image.hpp>
+#include <SushiAI/vision/codecs/decode_options.hpp>
+#include <SushiAI/vision/codecs/image_format.hpp>
+#include <SushiAI/vision/codecs/jpeg_decoder.hpp>
+#include <SushiAI/vision/codecs/png_decoder.hpp>
 
 #include <SushiAI/vision/registration.hpp>
 
@@ -87,6 +125,8 @@
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_review.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_task.hpp>
+#include <SushiAI/vision/detect/anchor/head_training_section.hpp>
 #include <SushiAI/vision/detect/anchor/assignment_thresholds.hpp>
 #include <SushiAI/vision/detect/anchor/head_assignment.hpp>
 #include <SushiAI/vision/detect/anchor/head_cost.hpp>
@@ -98,13 +138,46 @@
 
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_fold.hpp>
+#include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
+#include <SushiAI/vision/importers/darknet_recipe.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>
+#include <SushiAI/vision/importers/darknet_tensors.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
+#include <SushiAI/vision/training/truth_from_roles.hpp>
+#include <SushiAI/vision/training/anchor_objective_factory.hpp>
+#include <SushiAI/vision/training/anchor_training_loop.hpp>
 #include <SushiAI/vision/training/head_delta_loss.hpp>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_plan.hpp>
+#include <SushiAI/vision/detect/anchor/head_truth.hpp>
+
+#include <SushiAI/vision/blocks/segment_head.hpp>
+#include <SushiAI/vision/segment/argmax_classes.hpp>
+#include <SushiAI/vision/segment/confusion_matrix.hpp>
+#include <SushiAI/vision/segment/fill_outline.hpp>
+#include <SushiAI/vision/segment/ignore_index.hpp>
+#include <SushiAI/vision/segment/intersection_over_union.hpp>
+#include <SushiAI/vision/segment/pixel_accuracy.hpp>
+#include <SushiAI/vision/segment/rasterise_outlines.hpp>
+#include <SushiAI/vision/training/dice_objective.hpp>
+#include <SushiAI/vision/training/dice_targets.hpp>
+#include <SushiAI/vision/training/pixel_cross_entropy_objective.hpp>
+#include <SushiAI/vision/training/pixel_extents.hpp>
+#include <SushiAI/vision/training/pixel_labels.hpp>
+#include <SushiAI/vision/training/pixel_losses.hpp>
+#include <SushiAI/vision/training/pixel_targets.hpp>
+#include <SushiAI/vision/training/segmentation_metrics.hpp>
+
+#include <SushiAI/vision/datasets/augment_pipeline.hpp>
+#include <SushiAI/vision/datasets/fit_pipeline.hpp>
+#include <SushiAI/vision/datasets/pipeline_table.hpp>
+#include <SushiAI/vision/datasets/polygon_mask.hpp>
+#include <SushiAI/vision/datasets/sample_cache.hpp>
+#include <SushiAI/vision/datasets/sample_pipeline.hpp>
+#include <SushiAI/vision/imaging/affine_nearest.hpp>
+#include <SushiAI/vision/imaging/mask_pipeline.hpp>

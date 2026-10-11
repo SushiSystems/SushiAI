@@ -12,7 +12,8 @@ and the validation metric. Every unit is a function or a small class over `Sushi
 with the shape written in its comment. Nothing here reaches an engine, SYCL or `graph/lowering`,
 so every unit is tested without a device.
 
-The module depends on `core` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`). Nothing depends on
+The module depends on `core` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`) and on `config`
+(`Config::Value`, which `anchor/anchor_task.hpp` reads and writes). Nothing depends on
 it yet. It adds no IR operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of
 `docs/agent/2026_10_07_YOLO26/SPEC.md`; the rulings that put label assignment on the host and ask
 for both validation heads are in `docs/design/PROGRAMME.md`.
@@ -30,6 +31,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `box_format.hpp` | `xyxy_to_xywh`, `xywh_to_xyxy` |
 | `free/box_coding.hpp` | `decode_xyxy`, `decode_xywh`, `encode_distances`, `scale_boxes` |
 | `iou.hpp` | `intersection_over_union`, `complete_iou`, the elementwise forms, `pairwise_iou` |
+| `iou_gradient.hpp` | `K_ASPECT_TRADE_OFF_EPS`, `BoxGradient`, `complete_iou_gradient` |
 | `top_k.hpp` | `select_top_k` |
 | `ground_truth.hpp` | `GroundTruthRows`, `GroundTruthBatch`, `pad_ground_truth` |
 | `free/assigner_config.hpp` | `AssignerConfig` and the two branch presets |
@@ -40,12 +42,16 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `prediction_shape.hpp` | `PredictionShape` |
 | `detections_topk.hpp` | `count_top_detections`, `select_top_detections`, `keep_confident_detections` |
 | `suppression_criterion.hpp` | `K_DEFAULT_DISTANCE_EXPONENT`, `SuppressionCriterion`, `measure_suppression` |
-| `detections_nms.hpp` | `LabelMode`, `ClassMode`, `NmsConfig`, `suppress_overlaps`, `select_nms_detections` |
+| `detections_nms.hpp` | `LabelMode`, `ClassMode`, `NMSConfig`, `suppress_overlaps`, `select_nms_detections` |
 | `average_precision.hpp` | `K_IOU_THRESHOLDS`, `ClassMetrics`, `MetricsSummary`, `match_detections`, `integrate_precision`, `AveragePrecision` |
 | `anchor/anchor_size.hpp` | `AnchorSize`, `shape_iou` |
 | `anchor/anchor_layout.hpp` | `AnchorLayout`, `validate_anchor_layout` |
 | `anchor/head_options.hpp` | `HeadCoding`, `HeadOptions`, `HeadShape`, `NetworkSize`, the entry constants, `validate_head`, `count_head_channels`, `count_head_rows` |
 | `anchor/head_decode.hpp` | `decode_head` |
+| `anchor/head_training_options.hpp` | `BoxLoss`, `ObjectnessTarget`, `HeadTrainingOptions`, `validate_head_training` |
+| `anchor/head_truth.hpp` | `validate_head_truth` |
+| `anchor/head_delta.hpp` | `HeadDelta`, `compute_head_delta` |
+| `anchor/head_cost.hpp` | `HeadCost`, `measure_head_cost` |
 | `anchor/anchor_clustering.hpp` | `ClusteringOptions`, `AnchorClustering`, `cluster_anchors` |
 | `anchor/anchor_count.hpp` | `CountOptions`, `CountTrial`, `AnchorCountChoice`, `choose_anchor_count` |
 | `anchor/head_assignment.hpp` | `assign_anchors_to_heads` |
@@ -53,6 +59,8 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `anchor/assignment_thresholds.hpp` | `AssignmentThresholds`, `derive_assignment_thresholds` |
 | `anchor/anchor_review.hpp` | `AnchorVerdict`, `ReviewOptions`, `AnchorReview`, `review_anchors` |
 | `anchor/anchor_plan.hpp` | `AnchorPlanOptions`, `AnchorPlan`, `plan_anchors` |
+| `anchor/anchor_task.hpp` | `K_ANCHOR_TASK_TYPE`, `AnchorTaskHead`, `AnchorTask`, `read_anchor_task`, `write_anchor_task` |
+| `anchor/head_training_section.hpp` | `K_ANCHOR_OBJECTIVE_TYPE`, `read_head_training_section`, `write_head_training_section` |
 
 ## free/anchors.hpp
 
@@ -206,6 +214,23 @@ U/utils/metrics.py:105  return inter / (wh1[..., 0] * wh1[..., 1] + wh2[..., 0] 
 
 No unit of this module calls it yet. The suppression uses its own formula (see
 `detections_nms.hpp`).
+
+## iou_gradient.hpp
+
+### BoxGradient, complete_iou_gradient
+
+`complete_iou_gradient(box, target, form, gradient)` writes the gradient of the complete IoU of
+two `x_centre y_centre width height` boxes at `box`. `gradient` receives four components in the
+order of `box`, and the measure rises along them. All four are 0 when both boxes are one point.
+Each span must hold four values.
+
+`BoxGradient` names the form. `Analytic` is the derivative of the measure. `DarknetCompatible`
+is the gradient section 11 of `docs/agent/2026_10_09_DARKNET_YOLO/REPORT.md` states.
+`K_ASPECT_TRADE_OFF_EPS` is 1e-6, the term that keeps the trade-off of the aspect penalty
+finite.
+
+`test_detect_iou_gradient.cpp` compares the analytic form with a central difference of step
+1e-6, within 1e-6 relative plus 1e-7 absolute, on fixed pairs and on 100 seeded pairs.
 
 ## top_k.hpp
 
@@ -517,12 +542,12 @@ compares with its threshold, for two x1 y1 x2 y2 boxes:
 ```
 IoU         = intersection / union, and 0 when the intersection or the union is 0
 Iou:          IoU
-DistanceIou:  IoU - (d / c)^distance_exponent, and IoU when c is 0
+DistanceIoU:  IoU - (d / c)^distance_exponent, and IoU when c is 0
 ```
 
 `d` is the squared distance of the two centres and `c` the squared diagonal of the smallest box
 that encloses both. The IoU carries no eps, unlike `intersection_over_union` of `iou.hpp`, so
-this file computes its own. `DistanceIou` of two boxes that do not overlap is negative, so it
+this file computes its own. `DistanceIoU` of two boxes that do not overlap is negative, so it
 never exceeds a threshold of 0 or more. `K_DEFAULT_DISTANCE_EXPONENT` is 0.6.
 `distance_exponent` is not checked; with an exponent of 0 the term is 1 for every pair. The
 behaviour is section 4.5 of `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`.
@@ -536,7 +561,7 @@ class above the threshold, `BestClass` only its highest (`U/utils/nms.py:117-123
 is its `agnostic` flag: `ClassAware` suppresses within a class, `ClassAgnostic` across classes
 (`U/utils/nms.py:146`). Each replaces a boolean parameter.
 
-### NmsConfig
+### NMSConfig
 
 The defaults are what the validator passes, not the defaults of `non_max_suppression`:
 
@@ -549,8 +574,8 @@ The defaults are what the validator passes, not the defaults of `non_max_suppres
 | `max_detections` | 300 | `U/cfg/default.yaml:57` |
 | `max_candidates` | 30000 | `U/utils/nms.py:23` |
 | `class_offset` | 7680 | `U/utils/nms.py:24` |
-| `criterion` | `Iou` | the reference has one criterion |
-| `distance_exponent` | 0.6 | read by `DistanceIou` only |
+| `criterion` | `IoU` | the reference has one criterion |
+| `distance_exponent` | 0.6 | read by `DistanceIoU` only |
 
 The function's own defaults are 0.25, 0.45 and best class only (`U/utils/nms.py:15-19`).
 
@@ -597,7 +622,7 @@ IoU equal to the threshold survives. A pair whose IoU is not a number is dropped
 reference. Equal scores are visited by ascending index; the reference's `argsort` leaves that
 order unspecified.
 
-The four-argument form is the six-argument form under `SuppressionCriterion::Iou`. The
+The four-argument form is the six-argument form under `SuppressionCriterion::IoU`. The
 six-argument form takes the criterion and its exponent and walks the same order: a kept box
 removes every later box whose `measure_suppression` against it exceeds the threshold. A row whose
 score is 0 is never kept and removes nothing; the reference keeps such a row.
@@ -860,7 +885,9 @@ threshold and clamps nothing: with `scale_xy` above 1 a centre can leave its cel
 
 The arithmetic is float32 in the order written above. The two codings are two rule types with
 the same pair of static functions, and the cell loop is a template over the rule, so the coding
-is chosen once per call and not per entry. The call allocates nothing.
+is chosen once per call and not per entry. The call allocates nothing. The rules and the decode
+of one slot's box are defined once, in the private `source/anchor/slot_decode.hpp`, and the
+training delta reads a slot through the same definitions.
 
 `decode_head` stops the process when `validate_head` fails on its arguments, when an extent of
 the shape is below 1, and when a span does not hold exactly the values its shape gives.
@@ -868,6 +895,108 @@ the shape is below 1, and when a span does not hold exactly the values its shape
 `test_detect_anchor_decode.cpp` pins each formula with inputs at zero or at saturation, to 1e-6
 absolute. A logit of 100 is the saturated input: its float32 logistic is exactly 1, and that of
 -100 exactly 0. No test compares with a reference tensor.
+
+## Training an anchor head
+
+### HeadTrainingOptions, compute_head_delta
+
+`anchor/head_training_options.hpp` holds the thresholds, the box loss, the objectness target and
+the weights. `compute_head_delta` in `anchor/head_delta.hpp` reads a head's
+`[B, H, W, A * (5 + C)]` output and the truths and writes a delta of the same shape; training
+descends along `-delta`. The steps are those of SPEC 4.6. `X, Y, O, P_c` are a slot's offsets,
+objectness and class probabilities as `decode_head` reads them, so under `Activated` they are
+the published entries themselves.
+
+Step 1, every slot. `best` is the largest IoU of the slot's decoded box with a truth of the
+image. The slot is ignored when `best > ignore_threshold` and some `P_c > class_gate`.
+
+```
+dO = object_weight * (0 - O)
+ignored, One:      dO = 0
+ignored, BestIoU:  dO = max(dO, object_weight * (best - O))
+```
+
+Step 2, every truth. The slot of the truth's best anchor is assigned at the truth's cell when
+the head owns that anchor, and below a `match_threshold` of 1 so is every other slot of the head
+whose anchor's `shape_iou` with the truth exceeds the threshold. For an assigned slot:
+
+```
+One:      dO = object_weight * (1 - O)
+BestIoU:  dO = object_weight * (1 - O) only where dO is still 0
+dP_c = (c == label ? 1 : 0) - P_c
+```
+
+When the delta of the truth's class is already non-zero, that class alone is rewritten. Step 3
+runs below a `match_threshold` of 1: a slot with a non-zero `dO` divides its four box deltas by
+its count of positive class deltas.
+
+The box delta of an assigned slot adds to what the entries hold. One row per box loss and coding
+supplies it:
+
+| Box loss | Coding | Box delta |
+| --- | --- | --- |
+| `SquaredError` | `Logit` | `k * (target - entry)` per entry, `k = (2 - tw * th) * box_weight` |
+| `CompleteIoU` | `Logit` | the gradient `g` of complete IoU at the decoded box: `g_x`, `g_y`, `g_w * exp(t[w])`, `g_h * exp(t[h])`, each times `box_weight` |
+| `CompleteIoU` | `Activated` | `g_x`, `g_y`, `g_w`, `g_h`, each times `box_weight` |
+
+`g` is `complete_iou_gradient` in the form `HeadTrainingOptions::box_gradient` names. The default
+is `BoxGradient::Analytic`, the derivative of the measure. `BoxGradient::DarknetCompatible` is the
+gradient of REPORT section 11, which the cfg importer sets on every head it reads. The field has
+no effect under `SquaredError`.
+
+A `CompleteIoU` component that is not finite adds 0, and with `max_delta` above 0 each is
+clipped to `[-max_delta, max_delta]`. No row exists for `SquaredError` under `Activated`,
+because the SPEC states no target for it, and `compute_head_delta` stops the process on that
+pair. Under `Activated` the delta is at the output of the logistic layer before the head; the
+slope of that logistic belongs to that layer's backward pass.
+
+The options hold no class weight. REPORT section 17 has Darknet's `cls_normalizer` act only
+together with per-class counters, which this library does not have.
+
+`assigned_row` and `assigned_class` record the truth of a slot's best anchor alone;
+`assignments` and `iou_sum` count every assigned slot.
+
+`validate_head_truth` in `anchor/head_truth.hpp` checks the truth a head is trained against. A
+row counts when its `valid` flag is set; the list of an image ends at `max_boxes`, and no value
+of a row ends it. It returns `InvalidDescription` naming the image, the row and the value for a
+class outside the head's classes, a centre outside [0, 1) on either axis, and a width or height
+that is not positive.
+
+`compute_head_delta` returns a `Status`. A truth comes from a dataset, so the delta returns what
+`validate_head_truth` says about it and leaves `result` untouched. The caller's own arguments
+are preconditions and stop the process: options that fail `validate_head` or
+`validate_head_training`, an extent or a network side below 1, a coding, objectness target or
+box loss without a row, and a head span whose length is not the shape's. Those are checked
+before the truth, so a refused truth never hides one of them.
+
+`test_detect_anchor_delta.cpp`, `test_detect_anchor_delta_iou.cpp` and
+`test_detect_anchor_delta_activated.cpp` compute each expected value in double in the test, the
+box gradient by a central difference that `tests/anchor_delta_support.hpp` defines once. An
+objectness or class delta is held to 1e-6 absolute, a box delta to 1e-5 absolute plus 1e-5
+relative. `test_detect_anchor_delta_gradient.cpp` runs both gradient forms through the delta of
+one slot and holds the compatible form to the twelve dumped deltas of REPORT section 11 at 1e-4
+relative. `test_detect_anchor_head_truth.cpp` covers each refusal of a truth row.
+
+### HeadCost, measure_head_cost
+
+`measure_head_cost` in `anchor/head_cost.hpp` reads a `HeadDelta` with the head's shape, options
+and training options and returns the cost the head reports for one batch. No gradient is taken
+of it. `B` is the batch size:
+
+```
+total   = sum of every squared delta entry / B
+non_box = object_weight * sum of the squared non-box entries / B
+box     = total - non_box
+stored, SquaredError:  sum of every squared delta entry
+stored, CompleteIoU:   box_weight * mean of (1 - IoU) over the assignments
+                       + object_weight * sum of the squared non-box entries
+```
+
+The IoU term of `stored` is 0 when the head has no assignment, and no batch size divides
+`stored`. The delta must hold `batch * height * width * slots * (5 + C)` values for some slot
+count, and the batch, the grid and the class count must be positive.
+
+`test_detect_anchor_cost.cpp` holds the four numbers to 1e-12 for a delta built by hand.
 
 ## Automatic anchoring
 
@@ -926,6 +1055,119 @@ bit on one build: the only random source is the seeded sequence of `cluster_anch
 the file. Six rungs under strides 16 and 32 give two heads of three anchors, a recall of 1 and
 four trials. The test compares a plan with the four steps called one by one to 1e-9, and two
 plans of the same arguments with a tolerance of 0.
+
+## anchor/anchor_task.hpp
+
+### AnchorTask, read_anchor_task, write_anchor_task
+
+`AnchorTask` holds what decoding the heads of an anchor-box model needs: the class count, the
+`AnchorLayout`, per head of the layout the name of the model output it reads and its
+`HeadOptions`, and the suppression criterion with its exponent. It holds nothing about
+training. The two functions convert it to and from the `task` object of a model file
+(`docs/guides/MODEL_FILE.md`), whose `type` is `K_ANCHOR_TASK_TYPE`, `anchor_detection`:
+
+| Key | Holds | Field |
+| --- | --- | --- |
+| `type` | `"anchor_detection"` | none |
+| `classes` | A whole number of at least 1 | `num_classes`, and `options.num_classes` of every head |
+| `anchors` | A list of `[width, height]`, fractions of the input, finite and above zero | `layout.anchors` |
+| `heads` | A list of at least one head object, in the layout's head order | `heads`, `layout.head_anchors` |
+| `heads[k].output` | The published name of the output head `k` reads | `heads[k].output` |
+| `heads[k].anchors` | Indices into `anchors`, at least one; entry `a` is slot `a` | `layout.head_anchors[k]` |
+| `heads[k].coding` | `"logit"` or `"activated"` | `heads[k].options.coding` |
+| `heads[k].scale_xy` | A number, finite and above zero | `heads[k].options.scale_xy` |
+| `suppression.criterion` | `"iou"` or `"distance_iou"` | `criterion` |
+| `suppression.distance_exponent` | A finite number, under `distance_iou` only | `distance_exponent` |
+
+Every key is required, except that `distance_exponent` is required under `distance_iou` and
+refused under `iou`, which does not read it. A key outside the table is refused. Two heads may
+share an anchor and an anchor may belong to no head, as `validate_anchor_layout` allows. Each
+enumeration has one table of enumerator and string in `anchor_task.cpp`, which both functions
+look up.
+
+Both functions run the same check of the task's values and then `validate_head` on every head.
+Each refusal is `InvalidDescription` and names the key and the entry, as in
+`task 'heads' entry 1 'anchors' entry 2 names anchor 9; the task has 6 anchors`. The writer
+also refuses a head whose class count is not the task's, a head count that is not the layout's,
+and an enumerator outside its table.
+
+A float is written as the double of equal value, and the reader narrows a number to float32,
+so `read_anchor_task(write_anchor_task(task))` returns every float bit for bit. One field is
+outside that: under `IoU` the exponent is not written, and it reads back as
+`K_DEFAULT_DISTANCE_EXPONENT`. `write_anchor_task(read_anchor_task(section))` returns the
+section it read when the section's numbers are reals that float32 holds exactly and its keys
+are in the order of the table; a whole number where the table says number is read and written
+back as a real. A number float32 cannot hold as a finite value is refused, and one that narrows
+to zero fails the check for a value above zero.
+
+`test_detect_anchor_task.cpp` round-trips three heads over nine anchors and two heads over six
+in both directions with a tolerance of zero, reads and writes each string of both
+enumerations, and has a case for each refusal.
+
+## anchor/head_training_section.hpp
+
+### read_head_training_section, write_head_training_section
+
+The two functions convert a `HeadTrainingOptions` to and from the `objective` object of a
+training file, whose `type` is `K_ANCHOR_OBJECTIVE_TYPE`, `anchor`
+(`docs/design/MODEL_IMPORT.md`). The section holds the training-only values of an anchor model;
+what decoding needs is in the task section above. Each key is the name of the field it states,
+and the two thresholds are stated beside the others, not under a `thresholds` object:
+
+| Key | Holds | Field |
+| --- | --- | --- |
+| `type` | `"anchor"` | none |
+| `match_threshold` | A number in (0, 1] | `thresholds.match_threshold` |
+| `ignore_threshold` | A number in [0, 1] | `thresholds.ignore_threshold` |
+| `box_loss` | `"squared_error"` or `"complete_iou"` | `box_loss` |
+| `box_gradient` | `"analytic"` or `"darknet_compatible"` | `box_gradient` |
+| `objectness_target` | `"one"` or `"best_iou"` | `objectness_target` |
+| `box_weight` | A finite number, 0 or more | `box_weight` |
+| `object_weight` | A finite number, 0 or more | `object_weight` |
+| `max_delta` | A finite number, 0 or more; 0 sets no bound | `max_delta` |
+| `class_gate` | A number in [0, 1] | `class_gate` |
+
+```json
+"objective": {
+    "type": "anchor",
+    "match_threshold": 0.213,
+    "ignore_threshold": 0.7,
+    "box_loss": "complete_iou",
+    "box_gradient": "darknet_compatible",
+    "objectness_target": "best_iou",
+    "box_weight": 0.07,
+    "object_weight": 1.0,
+    "max_delta": 5.0,
+    "class_gate": 0.25
+}
+```
+
+The reader gives a key left out the default of its field, so `{ "type": "anchor" }` reads as
+`HeadTrainingOptions{}`. It accepts the object with `type` or with `type` taken out, as
+`Config::TrainSpec` hands a typed block to its factory; a `type` that is stated must be
+`"anchor"`. A key outside the table is refused with the keys the section accepts. The writer
+states `type` and every key, in the order of the table, `box_gradient` included under a box
+loss that does not read it.
+
+One section holds one `HeadTrainingOptions`, which every head of the model then trains under.
+Options that differ from head to head have no form in the section.
+
+Both functions run `validate_head_training`. Every refusal is `InvalidDescription` and starts
+with `objective`; a wrong kind, a string no enumerator has and a number float32 cannot hold as
+a finite value name the key, as in
+`objective 'box_loss' is 'ciou'; it is one of 'squared_error', 'complete_iou'`. A refusal of
+`validate_head_training` keeps that function's message behind the prefix `objective: `, which
+names the field in words (`the match threshold`), not the key.
+
+A float is written as the double of equal value and the reader narrows a number to float32, so
+`read(write(options))` returns every float bit for bit. `write(read(section))` returns the
+section it read when the section states every key in the order of the table and its numbers
+are reals float32 holds exactly. One table in `head_training_section.cpp` holds each key with
+its reader and its writer, and each enumeration has one table of enumerator and string.
+
+`test_detect_anchor_training_section.cpp` round-trips the defaults and a set of options with no
+default left, with a tolerance of zero, reads and writes each string of the three
+enumerations, and has a case for each refusal.
 
 ## Reference tensors the assigner tests read
 

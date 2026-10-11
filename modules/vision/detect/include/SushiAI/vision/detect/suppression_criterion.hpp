@@ -45,14 +45,14 @@ namespace SushiAI
          */
         enum class SuppressionCriterion : std::uint8_t
         {
-            Iou,         /**< The intersection over union of the two boxes. */
-            DistanceIou, /**< The IoU minus the distance term, see measure_suppression. */
+            IoU,         /**< The intersection over union of the two boxes. */
+            DistanceIoU, /**< The IoU minus the distance term, see measure_suppression. */
         };
 
         /**
          * @brief Returns the suppression measure of two x1 y1 x2 y2 boxes under @p criterion.
-         * @param distance_exponent Read by DistanceIou only.
-         * @return The IoU, 0 when the intersection or the union is 0. DistanceIou subtracts
+         * @param distance_exponent Read by DistanceIoU only.
+         * @return The IoU, 0 when the intersection or the union is 0. DistanceIoU subtracts
          *         `(d / c)^distance_exponent`: `d` the squared distance of the centres, `c` the
          *         squared diagonal of the smallest enclosing box; nothing when `c` is 0.
          */

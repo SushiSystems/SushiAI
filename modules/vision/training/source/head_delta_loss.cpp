@@ -33,16 +33,16 @@
 
 namespace SushiAI::Vision::Training
 {
-    Graph::ValueId emit_head_delta_loss(const Graph::GraphBuilder& builder, Graph::ValueId head,
-                                        Graph::ValueId delta, double scale)
+    Graph::ValueID emit_head_delta_loss(const Graph::GraphBuilder& builder, Graph::ValueID head,
+                                        Graph::ValueID delta, double scale)
     {
-        const Graph::ValueId product = builder.mul(delta, head);
+        const Graph::ValueID product = builder.mul(delta, head);
 
         // By value: the emissions below can reallocate the graph's value vector.
         const std::int64_t elements = builder.graph().value(product).shape.num_elements();
 
-        const Graph::ValueId column = builder.reshape(product, Shape{elements, 1});
-        const Graph::ValueId sum = builder.sum_rows(column);
+        const Graph::ValueID column = builder.reshape(product, Shape{elements, 1});
+        const Graph::ValueID sum = builder.sum_rows(column);
 
         return builder.scale(sum, -scale);
     }

@@ -158,7 +158,7 @@ namespace SushiAI::Vision::Training
                    "anchor step is given",
                    role);
 
-        const Graph::ValueId leaf_id = built.leaves.at(role);
+        const Graph::ValueID leaf_id = built.leaves.at(role);
         SA_FAIL_IF(!training_pool.is_bound(leaf_id), StatusCode::InvalidDescription,
                    "The leaf '{}' has no tensor in the training pool; call "
                    "Train::bind_parameters() on that pool first",
@@ -232,11 +232,11 @@ namespace SushiAI::Vision::Training
                 const std::size_t elements = static_cast<std::size_t>(output.num_elements);
                 Detect::Anchor::HeadDelta& delta = deltas_[head];
 
-                Detect::Anchor::compute_head_delta(
+                SA_TRY(Detect::Anchor::compute_head_delta(
                     SushiRuntime::span<const float>(output.data_as<float>(), elements),
                     described.shape, described.options, objective_.layout(),
                     static_cast<std::int64_t>(head), described.training, truth,
-                    objective_.network(), delta);
+                    objective_.network(), delta));
 
                 SA_FATAL_IF(delta.delta.size() != elements,
                             "the delta of head '{}' holds {} values for a head of {}",
@@ -275,6 +275,27 @@ namespace SushiAI::Vision::Training
     const Train::TrainingStep& AnchorTrainingStep::training() const noexcept
     {
         return *training_;
+    }
+
+    std::size_t AnchorTrainingStep::run_count() const noexcept
+    {
+        return training_->step().run_count();
+    }
+
+    Status AnchorTrainingStep::restore_run_count(std::size_t count)
+    {
+        SA_TRY(evaluation_->restore_run_count(count));
+        return training_->step().restore_run_count(count);
+    }
+
+    const AnchorObjective& AnchorTrainingStep::objective() const noexcept
+    {
+        return objective_;
+    }
+
+    Optim::Optimizer& AnchorTrainingStep::optimizer() noexcept
+    {
+        return training_->optimizer();
     }
 
 } // namespace SushiAI::Vision::Training

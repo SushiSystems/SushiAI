@@ -76,7 +76,7 @@ namespace SushiAI
             const float* a = box1.data();
             const float* b = box2.data();
             const float overlap = plain_iou(a, b);
-            if (criterion == SuppressionCriterion::Iou)
+            if (criterion == SuppressionCriterion::IoU)
                 return overlap;
             return overlap - distance_term(a, b, distance_exponent);
         }

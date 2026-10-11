@@ -29,7 +29,6 @@
 #pragma once
 
 #include <cstddef>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -91,13 +90,9 @@ namespace SushiAI::Vision::Training
              * @return The id of the [1] root; its value carries no meaning.
              * @throws Error If @p outputs lacks a head, or a head differs from its leaf.
              */
-            Graph::ValueId loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                                 const NN::ModelOutputs& outputs,
                                 const Train::ObjectiveLeaves& leaves) const override;
-
-            /** @brief Returns no metric: one output tensor cannot give the cost of every head. */
-            std::optional<Train::Metric> score(const Data::Batch& batch,
-                                               const SushiBLAS::Tensor& output) const override;
 
             /** @brief Returns "anchor_delta". */
             std::string_view name() const noexcept override;

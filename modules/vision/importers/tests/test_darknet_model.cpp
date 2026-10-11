@@ -300,7 +300,7 @@ TEST(Unit_DarknetModel, HeadsCarryTheirOutputsOptionsAndAnchors)
         EXPECT_EQ(model.spec.outputs[k].port, "output");
         EXPECT_EQ(model.spec.outputs[k].name, names[k]);
     }
-    EXPECT_EQ(model.criterion, SuppressionCriterion::Iou);
+    EXPECT_EQ(model.criterion, SuppressionCriterion::IoU);
     EXPECT_EQ(model.distance_exponent, 0.6f);
 
     const float pixels[6][2] = {{10, 14}, {23, 27}, {37, 58}, {81, 82}, {135, 169}, {344, 319}};
@@ -367,7 +367,7 @@ TEST_F(Unit_DarknetModelState, FoldedFormBuildsAndItsTargetsAreStateEntries)
     expect_builds_and_targets_exist(*engine, model);
 }
 
-/** @brief Tests that a head with the keys of YOLOv7 is Activated, stretched and DistanceIou. */
+/** @brief Tests that a head with the keys of YOLOv7 is Activated, stretched and DistanceIoU. */
 TEST(Unit_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
 {
     const std::string text = std::string(K_SMALL_NETWORK)
@@ -384,7 +384,7 @@ TEST(Unit_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
     EXPECT_EQ(model.heads[0].options.coding, HeadCoding::Activated);
     EXPECT_EQ(model.heads[0].options.scale_xy, 2.0f);
     EXPECT_EQ(model.heads[0].options.num_classes, 1);
-    EXPECT_EQ(model.criterion, SuppressionCriterion::DistanceIou);
+    EXPECT_EQ(model.criterion, SuppressionCriterion::DistanceIoU);
     EXPECT_EQ(model.distance_exponent, 0.6f);
 
     // Layer 0 is a plain convolution and a sigmoid row, and the head publishes the sigmoid.
@@ -394,7 +394,7 @@ TEST(Unit_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
 }
 
 /** @brief Tests that diounms takes its exponent from beta_nms and greedynms never does. */
-TEST(Unit_DarknetModel, OnlyDiounmsReadsBetaNms)
+TEST(Unit_DarknetModel, OnlyDiounmsReadsBetaNMS)
 {
     const std::string head = std::string(K_SMALL_NETWORK).append(K_SMALL_HEAD);
 
@@ -402,14 +402,14 @@ TEST(Unit_DarknetModel, OnlyDiounmsReadsBetaNms)
         const DarknetModel greedy,
         translate_darknet_text(head + "nms_kind=greedynms\nbeta_nms=0.3\n",
                                DarknetNormalisation::Separate));
-    EXPECT_EQ(greedy.criterion, SuppressionCriterion::DistanceIou);
+    EXPECT_EQ(greedy.criterion, SuppressionCriterion::DistanceIoU);
     EXPECT_EQ(greedy.distance_exponent, 0.6f);
 
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel distance,
         translate_darknet_text(head + "nms_kind=diounms\nbeta_nms=0.3\n",
                                DarknetNormalisation::Separate));
-    EXPECT_EQ(distance.criterion, SuppressionCriterion::DistanceIou);
+    EXPECT_EQ(distance.criterion, SuppressionCriterion::DistanceIoU);
     EXPECT_EQ(distance.distance_exponent, 0.3f);
 }
 
@@ -425,7 +425,7 @@ TEST(Unit_DarknetModel, TheLastHeadDecidesTheCriterion)
                             translate_darknet_text(text, DarknetNormalisation::Separate));
 
     ASSERT_EQ(model.heads.size(), 2u);
-    EXPECT_EQ(model.criterion, SuppressionCriterion::Iou);
+    EXPECT_EQ(model.criterion, SuppressionCriterion::IoU);
     EXPECT_EQ(model.distance_exponent, 0.6f);
 }
 

@@ -585,7 +585,7 @@ TEST(Unit_DetectAssigner, APaddingRowAssignsNothing)
 }
 
 /** @brief Tests that a box holding sixteen candidates keeps the topk with the largest metric. */
-TEST(Unit_DetectAssigner, KeepsTheTopkCandidatesWhenABoxHoldsMore)
+TEST(Unit_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
 {
     const Scene scene = make_crowded_scene();
     TaskAlignedAssigner assigner(make_hand_config(3, 3));
@@ -604,7 +604,7 @@ TEST(Unit_DetectAssigner, KeepsTheTopkCandidatesWhenABoxHoldsMore)
 }
 
 /** @brief Tests that a second top-k of one leaves a box its single best anchor. */
-TEST(Unit_DetectAssigner, TheSecondTopkKeepsTheBestAnchorOfABox)
+TEST(Unit_DetectAssigner, TheSecondTopKKeepsTheBestAnchorOfABox)
 {
     const Scene scene = make_crowded_scene();
     TaskAlignedAssigner assigner(make_hand_config(3, 1));

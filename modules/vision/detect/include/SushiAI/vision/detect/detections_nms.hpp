@@ -65,7 +65,7 @@ namespace SushiAI
          * @brief Holds the settings of the suppression, at the values the validator passes.
          * @see modules/vision/detect/README.md
          */
-        struct NmsConfig
+        struct NMSConfig
         {
             float confidence_threshold = K_VALIDATION_CONFIDENCE; /**< A score must exceed it. */
             float iou_threshold = 0.7f;                           /**< Larger measures suppress. */
@@ -74,8 +74,8 @@ namespace SushiAI
             std::int64_t max_detections = K_MAX_DETECTIONS;       /**< Limit on rows per image. */
             std::int64_t max_candidates = 30000;                  /**< Limit on boxes in NMS. */
             float class_offset = 7680.0f;                         /**< Shift between classes. */
-            SuppressionCriterion criterion = SuppressionCriterion::Iou; /**< The measure. */
-            float distance_exponent = K_DEFAULT_DISTANCE_EXPONENT;      /**< DistanceIou only. */
+            SuppressionCriterion criterion = SuppressionCriterion::IoU; /**< The measure. */
+            float distance_exponent = K_DEFAULT_DISTANCE_EXPONENT;      /**< DistanceIoU only. */
         };
 
         /**
@@ -114,7 +114,7 @@ namespace SushiAI
         void select_nms_detections(SushiRuntime::span<const float> boxes,
                                    SushiRuntime::span<const float> scores,
                                    const PredictionShape& shape,
-                                   const NmsConfig& config,
+                                   const NMSConfig& config,
                                    std::vector<std::vector<float>>& detections);
 
     } // namespace Vision::Detect

@@ -89,7 +89,7 @@ namespace SushiAI
                  *         of the width the node was built over; @p outputs is unchanged then.
                  */
                 [[nodiscard]] Status forward(const NN::Trace& trace, NN::ValueSpan inputs,
-                                             std::vector<Graph::ValueId>& outputs) override;
+                                             std::vector<Graph::ValueID>& outputs) override;
 
                 /**
                  * @brief Walks "cv2", "cv3", "one2one_cv2" and "one2one_cv3", each by level.

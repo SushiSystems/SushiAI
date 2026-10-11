@@ -41,20 +41,20 @@
 namespace SushiAI::Vision::Datasets
 {
     /**
-     * @enum MnistLayout
+     * @enum MNISTLayout
      * @brief How one MNIST sample is shaped in a batch.
      */
-    enum class MnistLayout : std::uint8_t
+    enum class MNISTLayout : std::uint8_t
     {
         Flat,  /**< The pixels as one row: [784] for MNIST. */
         Image, /**< The pixels as one channel image: [28, 28, 1] for MNIST. */
     };
 
     /**
-     * @struct MnistOptions
+     * @struct MNISTOptions
      * @brief Where the IDX files are and how much of them to use.
      */
-    struct MnistOptions
+    struct MNISTOptions
     {
         /** @brief The directory holding the four standard IDX files. */
         std::filesystem::path directory = "data/mnist";
@@ -69,7 +69,7 @@ namespace SushiAI::Vision::Datasets
         bool test_split = false;
 
         /** @brief The shape of one sample; Flat unless an image is wanted. */
-        MnistLayout layout = MnistLayout::Flat;
+        MNISTLayout layout = MNISTLayout::Flat;
     };
 
     /**
@@ -77,14 +77,14 @@ namespace SushiAI::Vision::Datasets
      * @param options Where to look and which split.
      * @return True when both the image and label files exist.
      */
-    bool mnist_available(const MnistOptions& options);
+    bool mnist_available(const MNISTOptions& options);
 
     /**
      * @brief The path pair @c mnist_available checks, for a diagnostic message.
      * @param options Where to look and which split.
      * @return "images: <path>, labels: <path>".
      */
-    std::string mnist_expected_paths(const MnistOptions& options);
+    std::string mnist_expected_paths(const MNISTOptions& options);
 
     /**
      * @brief Loads MNIST from IDX files.
@@ -96,7 +96,7 @@ namespace SushiAI::Vision::Datasets
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> try_load_mnist(
         SushiBLAS::Engine& engine,
-        const MnistOptions& options = {});
+        const MNISTOptions& options = {});
 
     /**
      * @brief Builds the MNIST dataset from configuration attributes.

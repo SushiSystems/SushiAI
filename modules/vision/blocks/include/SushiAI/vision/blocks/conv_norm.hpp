@@ -92,7 +92,7 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The activated [N, out_h, out_w, out_channels] value's id.
              */
-            Graph::ValueId forward(const NN::Trace& trace, Graph::ValueId x)
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x)
             {
                 x = NN::trace_layer(conv, trace, x);
                 x = NN::trace_layer(bn, trace, x);

@@ -138,15 +138,15 @@ TEST(Unit_DetectAnchorCost, ObjectWeightScalesTheNonBoxShare)
 }
 
 /**
- * @brief Tests the stored cost of a CompleteIou head: the IoU term plus the weighted non-box sum.
+ * @brief Tests the stored cost of a CompleteIoU head: the IoU term plus the weighted non-box sum.
  *
  * Two assignments with an IoU sum of 1 have a mean 1 - IoU of 0.5, so the IoU term is
  * 0.75 * 0.5 = 0.375; the non-box term is 2 * 26 = 52; the stored cost is 52.375, undivided.
  */
-TEST(Unit_DetectAnchorCost, CompleteIouStoredAddsTheIouTermAndWeightedNonBoxSum)
+TEST(Unit_DetectAnchorCost, CompleteIoUStoredAddsTheIoUTermAndWeightedNonBoxSum)
 {
     HeadTrainingOptions training;
-    training.box_loss = BoxLoss::CompleteIou;
+    training.box_loss = BoxLoss::CompleteIoU;
     training.box_weight = 0.75f;
     training.object_weight = 2.0f;
 
@@ -159,11 +159,11 @@ TEST(Unit_DetectAnchorCost, CompleteIouStoredAddsTheIouTermAndWeightedNonBoxSum)
     EXPECT_NEAR(cost.box, -10.375, K_TOLERANCE);
 }
 
-/** @brief Tests that a CompleteIou head without an assignment stores the non-box sum of 26. */
-TEST(Unit_DetectAnchorCost, CompleteIouWithoutAssignmentsOmitsTheIouTerm)
+/** @brief Tests that a CompleteIoU head without an assignment stores the non-box sum of 26. */
+TEST(Unit_DetectAnchorCost, CompleteIoUWithoutAssignmentsOmitsTheIoUTerm)
 {
     HeadTrainingOptions training;
-    training.box_loss = BoxLoss::CompleteIou;
+    training.box_loss = BoxLoss::CompleteIoU;
     training.box_weight = 0.75f;
     training.object_weight = 1.0f;
 

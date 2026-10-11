@@ -112,7 +112,7 @@ namespace SushiAI::Vision::Imaging
         AffineSettings affine{};
 
         /** @brief Holds the colour jitter settings. */
-        HsvSettings hsv{};
+        HSVSettings hsv{};
 
         /** @brief Holds the horizontal flip settings. */
         FlipSettings flip{};
@@ -131,7 +131,7 @@ namespace SushiAI::Vision::Imaging
         AffinePlan affine{};
 
         /** @brief Holds the colour jitter plan. */
-        HsvPlan hsv{};
+        HSVPlan hsv{};
 
         /** @brief Holds the flip plan. */
         FlipPlan flip{};

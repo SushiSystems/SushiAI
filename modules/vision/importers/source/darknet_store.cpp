@@ -43,6 +43,8 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 
+#include "darknet_weight_layout.hpp"
+
 namespace SushiAI
 {
     namespace Vision::Importers
@@ -71,35 +73,6 @@ namespace SushiAI
                 /** @brief Holds the layer, read for the weights' permutation only. */
                 DarknetConvolutionShape shape;
             };
-
-            /**
-             * @brief Copies convolution weights into a tensor, moved to [out, kh, kw, in].
-             * @param source The weights as the file orders them, [out, in, kh, kw].
-             * @param shape The layer whose filters, channels and kernel side give the layout.
-             * @param destination The first element of a tensor holding the same number of values.
-             */
-            void copy_weights(const std::vector<float>& source,
-                              const DarknetConvolutionShape& shape, float* destination)
-            {
-                const auto filters = static_cast<std::size_t>(shape.filters);
-                const auto channels = static_cast<std::size_t>(shape.channels);
-                const auto size = static_cast<std::size_t>(shape.size);
-                for (std::size_t o = 0; o < filters; ++o)
-                {
-                    for (std::size_t i = 0; i < channels; ++i)
-                    {
-                        for (std::size_t y = 0; y < size; ++y)
-                        {
-                            for (std::size_t x = 0; x < size; ++x)
-                            {
-                                const std::size_t from = ((o * channels + i) * size + y) * size + x;
-                                const std::size_t to = ((o * size + y) * size + x) * channels + i;
-                                destination[to] = source[from];
-                            }
-                        }
-                    }
-                }
-            }
 
             /**
              * @brief Holds the writes a store has validated, and applies them only when all pass.
@@ -156,7 +129,8 @@ namespace SushiAI
                         {
                             float* destination = transfer.tensor->data_as<float>();
                             if (transfer.kind == CopyKind::Weights)
-                                copy_weights(*transfer.source, transfer.shape, destination);
+                                Detail::copy_kernel_last(*transfer.source, transfer.shape,
+                                                         destination);
                             else
                                 std::copy(transfer.source->begin(), transfer.source->end(),
                                           destination);

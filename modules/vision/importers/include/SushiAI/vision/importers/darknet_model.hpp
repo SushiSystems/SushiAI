@@ -86,9 +86,9 @@ namespace SushiAI
             std::vector<DarknetHead> heads;
 
             /** @brief Holds the suppression measure the last [yolo] section names. */
-            Detect::SuppressionCriterion criterion = Detect::SuppressionCriterion::Iou;
+            Detect::SuppressionCriterion criterion = Detect::SuppressionCriterion::IoU;
 
-            /** @brief Holds the exponent of the distance term, read by DistanceIou only. */
+            /** @brief Holds the exponent of the distance term, read by DistanceIoU only. */
             float distance_exponent = Detect::K_DEFAULT_DISTANCE_EXPONENT;
 
             /** @brief Holds one shape per convolutional section, in file order. */

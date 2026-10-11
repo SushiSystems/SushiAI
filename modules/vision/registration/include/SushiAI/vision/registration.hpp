@@ -21,7 +21,7 @@
 
 /**
  * @file registration.hpp
- * @brief Declares register_nodes and register_datasets, which fill the registries with vision rows.
+ * @brief Declares the functions that fill the registries with the rows of vision.
  * @author Mustafa Garip
  */
 
@@ -42,23 +42,51 @@ namespace SushiAI
         /** @brief The registry of dataset rows; declared in dataset_registry.hpp. */
         class DatasetRegistry;
     } // namespace Data
+
+    namespace Train
+    {
+        /** @brief The registry of objective rows; declared in objective_registry.hpp. */
+        class ObjectiveRegistry;
+    } // namespace Train
+
+    namespace IO
+    {
+        /** @brief The registry of importer rows; declared in importer_registry.hpp. */
+        class ImporterRegistry;
+    } // namespace IO
 } // namespace SushiAI
 
 namespace SushiAI::Vision
 {
     /**
      * @brief Adds the block node types to @p registry, in the order conv, bottleneck, c3k,
-     *        c3k2, sppf, c2psa and detect.
-     * @param registry The registry that receives the seven rows.
+     *        c3k2, sppf, c2psa, detect and segment_head.
+     * @param registry The registry that receives the eight rows.
      * @return Success, or the first failure of NodeRegistry::add().
      */
     [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry);
 
     /**
-     * @brief Adds the "mnist" dataset row to @p registry.
-     * @param registry The registry that receives the row.
+     * @brief Adds the "mnist" and "reader" dataset rows to @p registry, in that order.
+     * @param registry The registry that receives the rows; "reader" builds the section
+     *        Datasets::make_reader_dataset reads.
      * @return Success, or the first failure of DatasetRegistry::add().
      */
     [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry);
+
+    /**
+     * @brief Adds the "anchor", "pixel_cross_entropy" and "dice" objective rows to
+     *        @p registry, in that order.
+     * @param registry The registry that receives the three rows.
+     * @return Success, or the first failure of ObjectiveRegistry::add().
+     */
+    [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry);
+
+    /**
+     * @brief Adds the "darknet" importer row to @p registry.
+     * @param registry The registry that receives the row.
+     * @return Success, or the first failure of ImporterRegistry::add().
+     */
+    [[nodiscard]] Status register_importers(IO::ImporterRegistry& registry);
 
 } // namespace SushiAI::Vision

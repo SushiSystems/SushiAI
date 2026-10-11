@@ -161,11 +161,11 @@ TEST(Unit_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     Bottleneck block(16, 16, 8, true, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_TRUE(block.adds_input);
     EXPECT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 2u);
@@ -186,11 +186,11 @@ TEST(Unit_BlockBottleneck, NoShortcutTracesNoAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     Bottleneck block(16, 16, 8, false, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_FALSE(block.adds_input);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
@@ -203,11 +203,11 @@ TEST(Unit_BlockBottleneck, AShortcutOverUnequalWidthsTracesNoAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     Bottleneck block(16, 24, 8, true, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     EXPECT_FALSE(block.adds_input);
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
@@ -222,12 +222,12 @@ TEST(Unit_BlockBottleneck, StateMatchesManifestRow2Inner)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     Bottleneck block(16, 16, 8, true, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 493.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 493.
     const std::vector<std::string> expected = {
         record("model.2.m.0.cv1.conv.weight", Shape{8, 3, 3, 16}, StateKind::Parameter),
         record("model.2.m.0.cv1.bn.weight", Shape{8}, StateKind::Parameter),
@@ -249,7 +249,7 @@ TEST(Unit_BlockBottleneck, EachKernelSetsItsOwnConvolution)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     Bottleneck block(16, 16, 8, false, K_YOLO_NORM, 1, 3);
     static_cast<void>(block.forward(Trace::evaluation(builder), x));
 
@@ -274,9 +274,9 @@ TEST(Unit_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -303,8 +303,8 @@ TEST(Unit_BlockBottleneck, TheFactoryReadsTheShortcut)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     EXPECT_EQ(count_nodes(graph, Ops::K_ADD.id), 0u);
@@ -350,9 +350,9 @@ TEST(Unit_BlockBottleneck, TheFactoryHandsTheNormOptionsToBothNorms)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 16}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 2u);

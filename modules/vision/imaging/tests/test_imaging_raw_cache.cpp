@@ -43,7 +43,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
-    /** @brief Holds the channel_order word of an Rgb file. */
+    /** @brief Holds the channel_order word of an RGB file. */
     constexpr std::uint32_t K_RGB = 1u;
 
     /** @brief Appends a value to a byte string as four little-endian bytes. */
@@ -159,7 +159,7 @@ TEST(Unit_ImagingRawCache, WriterEmitsTheDocumentedBytes)
     for (std::size_t i = 0; i < 6; ++i)
         image.data()[i] = pixels[i];
 
-    const std::string bytes = written_bytes(image, ChannelOrder::Rgb);
+    const std::string bytes = written_bytes(image, ChannelOrder::RGB);
 
     const std::string expected = {
         'S', 'A', 'I', 'M', 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0,
@@ -174,10 +174,10 @@ TEST(Unit_ImagingRawCache, HeaderSizeAndMagicMatchTheDocumentedLayout)
     EXPECT_EQ(layout_bytes(1, 1, 3, K_RGB).substr(0, 4), "SAIM");
 }
 
-TEST(Unit_ImagingRawCache, RgbImageRoundTripsThroughAStream)
+TEST(Unit_ImagingRawCache, RGBImageRoundTripsThroughAStream)
 {
     const Image image = make_image(ImageSize{5, 7}, 3);
-    std::istringstream in(written_bytes(image, ChannelOrder::Rgb), std::ios::binary);
+    std::istringstream in(written_bytes(image, ChannelOrder::RGB), std::ios::binary);
 
     const RawImageHeader header = read_raw_image_header(in);
     Image read;
@@ -186,7 +186,7 @@ TEST(Unit_ImagingRawCache, RgbImageRoundTripsThroughAStream)
     EXPECT_EQ(header.size.height, 5);
     EXPECT_EQ(header.size.width, 7);
     EXPECT_EQ(header.channels, 3);
-    EXPECT_EQ(header.order, ChannelOrder::Rgb);
+    EXPECT_EQ(header.order, ChannelOrder::RGB);
     EXPECT_EQ(header.pixel_bytes(), 105u);
     EXPECT_EQ(read.height(), 5);
     EXPECT_EQ(read.width(), 7);
@@ -208,28 +208,28 @@ TEST(Unit_ImagingRawCache, GrayImageRoundTripsThroughAStream)
     EXPECT_EQ(bytes_of(read), bytes_of(image));
 }
 
-TEST(Unit_ImagingRawCache, BgrFileIsWrittenAsGivenAndReadAsRgb)
+TEST(Unit_ImagingRawCache, BGRFileIsWrittenAsGivenAndReadAsRGB)
 {
     Image image(ImageSize{1, 2}, 3);
     const std::uint8_t pixels[6] = {1, 2, 3, 4, 5, 6};
     for (std::size_t i = 0; i < 6; ++i)
         image.data()[i] = pixels[i];
 
-    const std::string bytes = written_bytes(image, ChannelOrder::Bgr);
+    const std::string bytes = written_bytes(image, ChannelOrder::BGR);
     std::istringstream in(bytes, std::ios::binary);
     const RawImageHeader header = read_raw_image_header(in);
     Image read;
     read_raw_image_pixels(in, header, read);
 
     EXPECT_EQ(bytes.substr(K_RAW_IMAGE_HEADER_BYTES), std::string({1, 2, 3, 4, 5, 6}));
-    EXPECT_EQ(header.order, ChannelOrder::Bgr);
+    EXPECT_EQ(header.order, ChannelOrder::BGR);
     EXPECT_EQ(bytes_of(read), (std::vector<std::uint8_t>{3, 2, 1, 6, 5, 4}));
 }
 
 TEST(Unit_ImagingRawCache, ReadReusesADestinationOfAnotherSize)
 {
     const Image image = make_image(ImageSize{2, 2}, 3);
-    std::istringstream in(written_bytes(image, ChannelOrder::Rgb), std::ios::binary);
+    std::istringstream in(written_bytes(image, ChannelOrder::RGB), std::ios::binary);
     Image read = make_image(ImageSize{9, 9}, 1);
 
     const RawImageHeader header = read_raw_image_header(in);
@@ -343,7 +343,7 @@ TEST(Unit_ImagingRawCache, HeaderRejectsThreeChannelsInAGrayFile)
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "channel count 3", "channel order 0");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsOneChannelInAnRgbFile)
+TEST(Unit_ImagingRawCache, HeaderRejectsOneChannelInAnRGBFile)
 {
     std::istringstream in(layout_bytes(4, 4, 1, K_RGB));
 
@@ -366,7 +366,7 @@ TEST(Unit_ImagingRawCache, HeaderRejectsZeroChannels)
 
 TEST(Unit_ImagingRawCache, PixelsRejectAStreamThatEndsEarly)
 {
-    const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::Rgb);
+    const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
     std::istringstream in(bytes.substr(0, bytes.size() - 1), std::ios::binary);
     const RawImageHeader header = read_raw_image_header(in);
     Image read;
@@ -390,7 +390,7 @@ TEST(Unit_ImagingRawCache, WriterRejectsAnEmptyView)
 {
     std::ostringstream out(std::ios::binary);
 
-    SA_EXPECT_ERROR(write_raw_image(out, ImageView(), ChannelOrder::Rgb), "no pixels");
+    SA_EXPECT_ERROR(write_raw_image(out, ImageView(), ChannelOrder::RGB), "no pixels");
     EXPECT_TRUE(out.str().empty());
 }
 
@@ -400,8 +400,8 @@ TEST(Unit_ImagingRawCache, WriterRejectsAChannelCountThatDoesNotFitTheOrder)
     const Image color = make_image(ImageSize{2, 2}, 3);
     std::ostringstream out(std::ios::binary);
 
-    SA_EXPECT_ERROR(write_raw_image(out, gray.view(), ChannelOrder::Rgb), "channel count 1");
-    SA_EXPECT_ERROR(write_raw_image(out, gray.view(), ChannelOrder::Bgr), "channel count 1");
+    SA_EXPECT_ERROR(write_raw_image(out, gray.view(), ChannelOrder::RGB), "channel count 1");
+    SA_EXPECT_ERROR(write_raw_image(out, gray.view(), ChannelOrder::BGR), "channel count 1");
     SA_EXPECT_ERROR(write_raw_image(out, color.view(), ChannelOrder::Gray), "channel count 3");
     EXPECT_TRUE(out.str().empty());
 }
@@ -412,7 +412,7 @@ TEST(Unit_ImagingRawCache, WriterRejectsASideAboveTheLimit)
     const ImageView view(pixel, ImageSize{1, K_MAX_IMAGE_SIDE + 1}, 3);
     std::ostringstream out(std::ios::binary);
 
-    SA_EXPECT_ERROR(write_raw_image(out, view, ChannelOrder::Rgb), "width 16385");
+    SA_EXPECT_ERROR(write_raw_image(out, view, ChannelOrder::RGB), "width 16385");
     EXPECT_TRUE(out.str().empty());
 }
 
@@ -422,7 +422,7 @@ TEST(Unit_ImagingRawCache, WriterReportsAFailedStream)
     std::ostringstream out(std::ios::binary);
     out.setstate(std::ios::badbit);
 
-    SA_EXPECT_ERROR(write_raw_image(out, image.view(), ChannelOrder::Rgb), "stream failed");
+    SA_EXPECT_ERROR(write_raw_image(out, image.view(), ChannelOrder::RGB), "stream failed");
 }
 
 TEST(Unit_ImagingRawCache, ImageRoundTripsThroughAFile)
@@ -431,7 +431,7 @@ TEST(Unit_ImagingRawCache, ImageRoundTripsThroughAFile)
     const std::filesystem::path path = directory.file("image.saim");
     const Image image = make_image(ImageSize{6, 4}, 3);
 
-    write_raw_image_file(path, image.view(), ChannelOrder::Rgb);
+    write_raw_image_file(path, image.view(), ChannelOrder::RGB);
     Image read;
     read_raw_image_file(path, read);
 
@@ -448,8 +448,8 @@ TEST(Unit_ImagingRawCache, FileWriterReplacesALongerFile)
     const std::filesystem::path path = directory.file("image.saim");
     const Image small = make_image(ImageSize{1, 1}, 3);
 
-    write_raw_image_file(path, make_image(ImageSize{8, 8}, 3).view(), ChannelOrder::Rgb);
-    write_raw_image_file(path, small.view(), ChannelOrder::Rgb);
+    write_raw_image_file(path, make_image(ImageSize{8, 8}, 3).view(), ChannelOrder::RGB);
+    write_raw_image_file(path, small.view(), ChannelOrder::RGB);
     Image read;
     read_raw_image_file(path, read);
 
@@ -463,7 +463,7 @@ TEST(Unit_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
     const std::filesystem::path path = directory.write("image.saim", "kept");
     const Image gray = make_image(ImageSize{2, 2}, 1);
 
-    SA_EXPECT_ERROR(write_raw_image_file(path, gray.view(), ChannelOrder::Rgb), "channel count");
+    SA_EXPECT_ERROR(write_raw_image_file(path, gray.view(), ChannelOrder::RGB), "channel count");
     EXPECT_EQ(std::filesystem::file_size(path), 4u);
 }
 
@@ -473,7 +473,7 @@ TEST(Unit_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
     const std::filesystem::path path = directory.file("absent") / "image.saim";
     const Image image = make_image(ImageSize{2, 2}, 3);
 
-    SA_EXPECT_ERROR(write_raw_image_file(path, image.view(), ChannelOrder::Rgb), "cannot open");
+    SA_EXPECT_ERROR(write_raw_image_file(path, image.view(), ChannelOrder::RGB), "cannot open");
 }
 
 TEST(Unit_ImagingRawCache, FileReaderRejectsAMissingFile)
@@ -500,7 +500,7 @@ TEST(Unit_ImagingRawCache, FileReaderRejectsATruncatedHeader)
 TEST(Unit_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_short_pixels");
-    const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::Rgb);
+    const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
     const std::filesystem::path path =
         directory.write("image.saim", bytes.substr(0, bytes.size() - 1));
     Image destination(ImageSize{1, 1}, 1);
@@ -512,7 +512,7 @@ TEST(Unit_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDes
 TEST(Unit_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_trailing");
-    const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::Rgb);
+    const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
     const std::filesystem::path path = directory.write("image.saim", bytes + std::string(1, '\0'));
     Image destination(ImageSize{1, 1}, 1);
 

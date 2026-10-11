@@ -71,21 +71,22 @@ namespace SushiAI
                        "the object weight of an anchor head must be finite and not negative; "
                        "got {}",
                        options.object_weight);
-            SA_FAIL_IF(!is_finite_magnitude(options.class_weight), StatusCode::InvalidDescription,
-                       "the class weight of an anchor head must be finite and not negative; "
-                       "got {}",
-                       options.class_weight);
             SA_FAIL_IF(!is_finite_magnitude(options.max_delta), StatusCode::InvalidDescription,
                        "max_delta of an anchor head must be finite and not negative; got {}",
                        options.max_delta);
 
             SA_FAIL_IF(options.box_loss != BoxLoss::SquaredError &&
-                           options.box_loss != BoxLoss::CompleteIou,
+                           options.box_loss != BoxLoss::CompleteIoU,
                        StatusCode::InvalidDescription,
                        "the box loss of an anchor head is outside BoxLoss; got {}",
                        static_cast<int>(options.box_loss));
+            SA_FAIL_IF(options.box_gradient != BoxGradient::Analytic &&
+                           options.box_gradient != BoxGradient::DarknetCompatible,
+                       StatusCode::InvalidDescription,
+                       "the box gradient of an anchor head is outside BoxGradient; got {}",
+                       static_cast<int>(options.box_gradient));
             SA_FAIL_IF(options.objectness_target != ObjectnessTarget::One &&
-                           options.objectness_target != ObjectnessTarget::BestIou,
+                           options.objectness_target != ObjectnessTarget::BestIoU,
                        StatusCode::InvalidDescription,
                        "the objectness target of an anchor head is outside ObjectnessTarget; "
                        "got {}",

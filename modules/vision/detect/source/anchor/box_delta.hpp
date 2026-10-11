@@ -28,6 +28,7 @@
 #pragma once
 
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
+#include <SushiAI/vision/detect/iou_gradient.hpp>
 
 /** @brief Holds the units of the anchor part that no caller names. */
 namespace SushiAI::Vision::Detect::Anchor::Detail
@@ -55,6 +56,8 @@ namespace SushiAI::Vision::Detect::Anchor::Detail
         float target_y = 0.0f;      /**< The truth's centre within the cell, along rows. */
         float box_weight = 0.0f;    /**< Factor of the box deltas. */
         float max_delta = 0.0f;     /**< Bound of a delta's magnitude; 0 sets none. */
+        /// @brief Holds the form of the gradient an IoU box delta descends along.
+        BoxGradient gradient = BoxGradient::Analytic;
     };
 
     /**
@@ -69,5 +72,21 @@ namespace SushiAI::Vision::Detect::Anchor::Detail
      * @param delta The slot's x, y, width and height deltas, in that order.
      */
     void add_squared_error_box_delta(const BoxDeltaTerms& terms, float* delta) noexcept;
+
+    /**
+     * @brief Adds the complete IoU delta of the Logit coding, weighted and bounded.
+     * @param terms A predicted box and a truth; the gradient is taken in the form they name.
+     * @param delta The slot's x, y, width and height deltas, in that order. A component that
+     *              is not finite adds 0; one beyond the bound adds the bound.
+     */
+    void add_complete_iou_box_delta(const BoxDeltaTerms& terms, float* delta) noexcept;
+
+    /**
+     * @brief Adds the complete IoU delta of the Activated coding, weighted and bounded.
+     * @param terms A predicted box and a truth; the gradient is taken in the form they name.
+     * @param delta The slot's x, y, width and height deltas, in that order. A component that
+     *              is not finite adds 0; one beyond the bound adds the bound.
+     */
+    void add_activated_complete_iou_box_delta(const BoxDeltaTerms& terms, float* delta) noexcept;
 
 } // namespace SushiAI::Vision::Detect::Anchor::Detail

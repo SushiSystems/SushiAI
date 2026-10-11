@@ -33,6 +33,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
@@ -57,16 +58,16 @@ namespace SushiAI
         /**
          * @brief Computes the delta of a head's `[B, H, W, A * (5 + C)]` output against truths.
          * @param network Size the truth's pixel corners are divided by; both sides positive.
-         * @param result Receives the delta and the assignment; what it held is discarded.
-         * @pre validate_head and validate_head_training succeed; @p head and @p truth hold their
-         *      shapes; a valid label names a class. Squared-error boxes, the Logit coding, the
-         *      target One, a match threshold of 1 and a class weight of 1; anything else is fatal.
+         * @param result Receives the delta and the assignment; a failure leaves it untouched.
+         * @return Success, or the failure of validate_head_truth on @p truth.
+         * @pre validate_head and validate_head_training succeed; @p head holds its shape; the
+         *      box loss has a delta under the head's coding. Breaking one of these is fatal.
          */
-        void compute_head_delta(SushiRuntime::span<const float> head, const HeadShape& shape,
-                                const HeadOptions& options, const AnchorLayout& layout,
-                                std::int64_t head_index, const HeadTrainingOptions& training,
-                                const Detect::GroundTruthBatch& truth, NetworkSize network,
-                                HeadDelta& result);
+        [[nodiscard]] Status compute_head_delta(
+            SushiRuntime::span<const float> head, const HeadShape& shape,
+            const HeadOptions& options, const AnchorLayout& layout, std::int64_t head_index,
+            const HeadTrainingOptions& training, const Detect::GroundTruthBatch& truth,
+            NetworkSize network, HeadDelta& result);
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

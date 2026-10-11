@@ -2,20 +2,31 @@
 
 ## Owns
 
-The two functions that fill the registries with vision rows. `register_nodes` adds the seven block
-node types, conv, bottleneck, c3k, c3k2, sppf, c2psa and detect, to an `NN::NodeRegistry`, in that
-order. `register_datasets`
-adds the mnist row to a `Data::DatasetRegistry`. Each returns a `Status`: success, or the first
-failure of the registry's `add()`. The header forward-declares both registries; their
-declarations live in `node_registry.hpp` and `dataset_registry.hpp`.
+The four functions that fill the registries with vision rows. `register_nodes` adds the eight block
+node types, conv, bottleneck, c3k, c3k2, sppf, c2psa, detect and segment_head, to an
+`NN::NodeRegistry`, in that order. `register_datasets`
+adds the mnist row and the reader row to a `Data::DatasetRegistry`; the reader row's factory is
+`Datasets::make_reader_dataset`, and its type is `Config::K_READER_DATA_TYPE`, which a data block
+with `reader` and no `type` is given. `register_objectives` adds three rows to a
+`Train::ObjectiveRegistry`, in this order: `anchor`, whose factory is
+`Training::make_anchor_objective`; `pixel_cross_entropy`, whose factory is
+`Training::make_pixel_cross_entropy_objective`; and `dice`, whose factory is
+`Training::make_dice_objective`.
+`register_importers` adds the `darknet` row, whose function is
+`Importers::import_darknet_files`, to an `IO::ImporterRegistry`. Each returns a `Status`:
+success, or the first failure of the registry's `add()`. The header forward-declares the four
+registries; their declarations live in `node_registry.hpp`, `dataset_registry.hpp`,
+`objective_registry.hpp` and `importer_registry.hpp`.
 
 ## Depends on
 
-- `core`, `data` and `nn` (`PUBLIC_DEPENDS`).
-- `vision/blocks` and `vision/datasets` (`PRIVATE_DEPENDS`).
+- `core`, `data`, `nn` and `train` (`PUBLIC_DEPENDS`).
+- `vision/blocks`, `vision/datasets`, `vision/detect` and `vision/training` (`PRIVATE_DEPENDS`).
+- `config`, through `data`, for `Config::K_READER_DATA_TYPE` of `train_config.hpp`.
+- `io` and `vision/importers`, for the importer row. `CMakeLists.txt` does not list them yet.
 
 ## Public entry points
 
 | Header | Declares |
 | --- | --- |
-| `<SushiAI/vision/registration.hpp>` | `register_nodes`, `register_datasets` |
+| `<SushiAI/vision/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives`, `register_importers` |

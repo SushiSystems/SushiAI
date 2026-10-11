@@ -123,30 +123,24 @@ namespace SushiAI::Vision::Training
         }
     }
 
-    Graph::ValueId AnchorObjective::loss(const Graph::GraphBuilder& builder, const Graph::Graph&,
+    Graph::ValueID AnchorObjective::loss(const Graph::GraphBuilder& builder, const Graph::Graph&,
                                          const NN::ModelOutputs& outputs,
                                          const Train::ObjectiveLeaves& leaves) const
     {
         const double scale = 1.0 / static_cast<double>(heads_.front().shape.batch);
-        Graph::ValueId total = Graph::K_NO_VALUE;
+        Graph::ValueID total = Graph::K_NO_VALUE;
 
         for (std::size_t index = 0; index < heads_.size(); ++index)
         {
-            const Result<Graph::ValueId> head = outputs.at(heads_[index].output);
+            const Result<Graph::ValueID> head = outputs.at(heads_[index].output);
             SA_THROW_IF(!head.has_value(), "{}", head.status().message());
 
-            const Graph::ValueId term = emit_head_delta_loss(
+            const Graph::ValueID term = emit_head_delta_loss(
                 builder, head.value(), leaves.at(leaf_role(index)), scale);
             total = index == 0 ? term : builder.add(total, term);
         }
 
         return total;
-    }
-
-    std::optional<Train::Metric> AnchorObjective::score(const Data::Batch&,
-                                                        const SushiBLAS::Tensor&) const
-    {
-        return std::nullopt;
     }
 
     std::string_view AnchorObjective::name() const noexcept

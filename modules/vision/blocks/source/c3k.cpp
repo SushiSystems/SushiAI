@@ -69,16 +69,16 @@ namespace SushiAI
                 m.push_back(Bottleneck(hidden, hidden, hidden, shortcut, norm));
         }
 
-        Graph::ValueId C3k::forward(const NN::Trace& trace, Graph::ValueId x)
+        Graph::ValueID C3k::forward(const NN::Trace& trace, Graph::ValueID x)
         {
-            Graph::ValueId chained = NN::trace_layer(cv1, trace, x);
+            Graph::ValueID chained = NN::trace_layer(cv1, trace, x);
             for (Bottleneck& block : m)
                 chained = NN::trace_layer(block, trace, chained);
 
-            const Graph::ValueId parts[] = {chained, NN::trace_layer(cv2, trace, x)};
+            const Graph::ValueID parts[] = {chained, NN::trace_layer(cv2, trace, x)};
             return NN::trace_layer(cv3, trace,
                                    trace.builder().concat_channels(
-                                       SushiRuntime::span<const Graph::ValueId>(parts)));
+                                       SushiRuntime::span<const Graph::ValueID>(parts)));
         }
 
         Shape C3k::output_shape(const Shape& input) const

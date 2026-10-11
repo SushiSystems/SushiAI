@@ -302,7 +302,7 @@ TEST(Unit_DetectAnchorClustering, RefusesFewerDistinctBoxesThanAnchors)
 }
 
 /** @brief Tests that a zero side and a NaN side are left out and counted. */
-TEST(Unit_DetectAnchorClustering, LeavesOutAZeroAndANanSide)
+TEST(Unit_DetectAnchorClustering, LeavesOutAZeroAndANaNSide)
 {
     const AnchorSize kept[3] = {{0.0625f, 0.125f}, {0.25f, 0.25f}, {0.5f, 0.75f}};
     std::vector<AnchorSize> boxes;

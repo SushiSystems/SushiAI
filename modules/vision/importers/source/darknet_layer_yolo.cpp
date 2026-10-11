@@ -183,7 +183,7 @@ namespace SushiAI
                                             Detect::K_DEFAULT_DISTANCE_EXPONENT));
 
                     const DarknetOption* kind = find_option(section, "nms_kind");
-                    model.criterion = SuppressionCriterion::Iou;
+                    model.criterion = SuppressionCriterion::IoU;
                     model.distance_exponent = Detect::K_DEFAULT_DISTANCE_EXPONENT;
                     if (kind == nullptr)
                         return Status();
@@ -194,7 +194,7 @@ namespace SushiAI
                                kind->line, kind->value);
 
                     // greedynms keeps the constant exponent; only diounms reads beta_nms.
-                    model.criterion = SuppressionCriterion::DistanceIou;
+                    model.criterion = SuppressionCriterion::DistanceIoU;
                     if (kind->value == "diounms")
                         model.distance_exponent = static_cast<float>(beta);
 

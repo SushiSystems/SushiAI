@@ -157,15 +157,15 @@ TEST(Unit_BlockConvNorm, OutputShapeOfAPointwiseBlockKeepsTheExtents)
  * @brief Tests that a training trace emits one convolution, one BATCHNORM2D and one SILU, in
  *        that order, and no bias.
  */
-TEST(Unit_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSilu)
+TEST(Unit_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSiLU)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     Conv block(3, 16, 3, 2, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     ASSERT_EQ(count_nodes(graph, Ops::K_MATMUL.id), 1u);
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
@@ -184,7 +184,7 @@ TEST(Unit_BlockConvNorm, ATrainingTraceCarriesTheNormOptions)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     Conv block(3, 16, 3, 2, K_YOLO_NORM);
     BufferUpdateList list;
 
@@ -205,10 +205,10 @@ TEST(Unit_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     Conv block(3, 16, 3, 2, K_YOLO_NORM);
 
-    const Graph::ValueId y = block.forward(Trace::evaluation(builder), x);
+    const Graph::ValueID y = block.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 0u);
     EXPECT_EQ(count_nodes(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
@@ -222,11 +222,11 @@ TEST(Unit_BlockConvNorm, ConvLinearEmitsNoActivation)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     ConvLinear block(3, 16, 1, 1, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
     EXPECT_EQ(count_nodes(graph, Ops::K_SILU.id), 0u);
@@ -241,12 +241,12 @@ TEST(Unit_BlockConvNorm, StateMatchesManifestRow0)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     Conv block(3, 16, 3, 2, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 169.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 169.
     const std::vector<std::string> expected = {
         record("model.0.conv.weight", Shape{16, 3, 3, 3}, StateKind::Parameter),
         record("model.0.bn.weight", Shape{16}, StateKind::Parameter),
@@ -262,15 +262,15 @@ TEST(Unit_BlockConvNorm, StateMatchesManifestRow0)
  * @brief Tests that a DWConv traces one DEPTHWISE_CONV2D, one BATCHNORM2D and one SILU, in that
  *        order, with no MATMUL, and keeps the shape at stride 1.
  */
-TEST(Unit_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSilu)
+TEST(Unit_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 16}, "x");
     DWConv block(16, 16, 3, 1, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     ASSERT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
@@ -292,11 +292,11 @@ TEST(Unit_BlockConvNorm, DWConvLinearEmitsNoActivation)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 16}, "x");
     DWConvLinear block(16, 16, 3, 1, K_YOLO_NORM);
     BufferUpdateList list;
 
-    const Graph::ValueId y = block.forward(Trace::training(builder, list), x);
+    const Graph::ValueID y = block.forward(Trace::training(builder, list), x);
 
     ASSERT_EQ(count_nodes(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
     ASSERT_EQ(count_nodes(graph, Ops::K_BATCHNORM2D.id), 1u);
@@ -322,12 +322,12 @@ TEST(Unit_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 128}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 128}, "x");
     DWConvLinear block(128, 128, 3, 1, K_YOLO_NORM);
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sacp tensors, from line 3166.
+    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 3166.
     const std::string prefix = "model.10.m.0.attn.pe";
     const std::vector<std::string> expected = {
         record(prefix + ".conv.weight", Shape{3, 3, 128}, StateKind::Parameter),
@@ -374,9 +374,9 @@ TEST(Unit_BlockConvNorm, TheFactoryBuildsRow0)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 640, 640, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 640, 640, 3}, "x");
     BufferUpdateList list;
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::training(builder, list), NN::ValueSpan(&x, 1), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -405,8 +405,8 @@ TEST(Unit_BlockConvNorm, TheFactoryDefaultsKernelAndStrideToOne)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 10, 3}, "x");
-    std::vector<Graph::ValueId> outputs;
+    const Graph::ValueID x = builder.input(Shape{2, 6, 10, 3}, "x");
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
 
     const std::vector<std::string> state = walk(*node, "");

@@ -43,12 +43,12 @@ namespace SushiAI
 
         }
 
-        Graph::ValueId PSABlock::forward(const NN::Trace& trace, Graph::ValueId x)
+        Graph::ValueID PSABlock::forward(const NN::Trace& trace, Graph::ValueID x)
         {
             const Graph::GraphBuilder& builder = trace.builder();
-            const Graph::ValueId attended = NN::trace_layer(attn, trace, x);
-            const Graph::ValueId mixed = builder.add(x, attended);
-            const Graph::ValueId fed = NN::trace_layer(ffn, trace, mixed);
+            const Graph::ValueID attended = NN::trace_layer(attn, trace, x);
+            const Graph::ValueID mixed = builder.add(x, attended);
+            const Graph::ValueID fed = NN::trace_layer(ffn, trace, mixed);
 
             return builder.add(mixed, fed);
         }

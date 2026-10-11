@@ -103,12 +103,12 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The [N, H, W, out_channels] result's id.
              */
-            Graph::ValueId forward(const NN::Trace& trace, Graph::ValueId x)
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x)
             {
                 const Graph::GraphBuilder& builder = trace.builder();
-                const Graph::ValueId stem = NN::trace_layer(cv1, trace, x);
+                const Graph::ValueID stem = NN::trace_layer(cv1, trace, x);
 
-                std::vector<Graph::ValueId> parts;
+                std::vector<Graph::ValueID> parts;
                 parts.reserve(2 + m.size());
                 parts.push_back(builder.slice_channels(stem, 0, hidden));
                 parts.push_back(builder.slice_channels(stem, hidden, hidden));
@@ -117,7 +117,7 @@ namespace SushiAI
 
                 return NN::trace_layer(cv2, trace,
                                        builder.concat_channels(
-                                           SushiRuntime::span<const Graph::ValueId>(
+                                           SushiRuntime::span<const Graph::ValueID>(
                                                parts.data(), parts.size())));
             }
 

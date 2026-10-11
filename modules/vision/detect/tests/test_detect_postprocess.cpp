@@ -43,7 +43,7 @@ namespace
 {
     using SushiAI::Vision::Detect::ClassMode;
     using SushiAI::Vision::Detect::LabelMode;
-    using SushiAI::Vision::Detect::NmsConfig;
+    using SushiAI::Vision::Detect::NMSConfig;
     using SushiAI::Vision::Detect::PredictionShape;
     using SushiAI::Test::equal_reference;
     using SushiAI::Test::near_reference;
@@ -93,9 +93,9 @@ namespace
     }
 
     /** @brief Returns a suppression config with one threshold pair and the reference's limits. */
-    NmsConfig make_nms_config(float confidence, float iou, LabelMode labels, ClassMode classes)
+    NMSConfig make_nms_config(float confidence, float iou, LabelMode labels, ClassMode classes)
     {
-        NmsConfig config;
+        NMSConfig config;
         config.confidence_threshold = confidence;
         config.iou_threshold = iou;
         config.label_mode = labels;
@@ -106,7 +106,7 @@ namespace
     /** @brief Returns the suppression path's detections of one image of `[A, 4]` boxes. */
     std::vector<float> suppress_one_image(const std::vector<float>& boxes,
                                           const std::vector<float>& scores, std::int64_t classes,
-                                          const NmsConfig& config)
+                                          const NMSConfig& config)
     {
         const PredictionShape shape{1, static_cast<std::int64_t>(boxes.size() / 4), classes};
         std::vector<std::vector<float>> detections;
@@ -307,7 +307,7 @@ TEST(Unit_DetectPostprocess, SuppressionReproducesTheReferenceRows)
     SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2many.suppressed.detections");
 
     const std::vector<float> reference = reference_tensor.floats();
-    NmsConfig config;
+    NMSConfig config;
     config.confidence_threshold = K_SUPPRESSION_CONFIDENCE;
     std::vector<std::vector<float>> detections;
     SushiAI::Vision::Detect::select_nms_detections(
@@ -341,7 +341,7 @@ TEST(Unit_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
 
     std::vector<std::vector<float>> detections;
     SushiAI::Vision::Detect::select_nms_detections(
-        box_tensor.floats(), score_tensor.floats(), PredictionShape{1, 8400, 80}, NmsConfig{},
+        box_tensor.floats(), score_tensor.floats(), PredictionShape{1, 8400, 80}, NMSConfig{},
         detections);
 
     // 0 is "validation.row_count.one2many" of forward.sacp in MANIFEST.json.
@@ -352,7 +352,7 @@ TEST(Unit_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
 /** @brief Tests that the suppression settings default to what the reference validator passes. */
 TEST(Unit_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
 {
-    const NmsConfig config;
+    const NMSConfig config;
 
     EXPECT_NEAR(config.confidence_threshold, 0.001f, K_EXACT);
     EXPECT_NEAR(config.iou_threshold, 0.7f, K_EXACT);
@@ -389,7 +389,7 @@ TEST(Unit_DetectPostprocess, ListsSurvivorsByDescendingScore)
 }
 
 /** @brief Tests that an IoU equal to the threshold survives and one above it does not. */
-TEST(Unit_DetectPostprocess, KeepsABoxWhoseIouEqualsTheThreshold)
+TEST(Unit_DetectPostprocess, KeepsABoxWhoseIoUEqualsTheThreshold)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 2.0f, 1.0f};
     const std::vector<float> scores{0.9f, 0.8f};
@@ -474,7 +474,7 @@ TEST(Unit_DetectPostprocess, LimitsDetectionsToTheHighestScores)
     const std::vector<float> boxes{5.0f,  5.0f,  10.0f, 10.0f, 25.0f, 25.0f,
                                    10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.5f, 0.9f, 0.7f};
-    NmsConfig config = make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware);
+    NMSConfig config = make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware);
     config.max_detections = 2;
     const std::vector<float> detections = suppress_one_image(boxes, scores, 1, config);
 
@@ -489,7 +489,7 @@ TEST(Unit_DetectPostprocess, LimitsCandidatesBeforeSuppression)
     const std::vector<float> boxes{5.0f,  5.0f,  10.0f, 10.0f, 25.0f, 25.0f,
                                    10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.5f, 0.9f, 0.7f};
-    NmsConfig config = make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware);
+    NMSConfig config = make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware);
     config.max_candidates = 1;
     const std::vector<float> detections = suppress_one_image(boxes, scores, 1, config);
 
@@ -549,6 +549,6 @@ TEST(Unit_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
     std::vector<std::vector<float>> detections;
     SA_EXPECT_ERROR(
         SushiAI::Vision::Detect::select_nms_detections(
-            boxes, scores, PredictionShape{1, 2, 2}, NmsConfig{}, detections),
+            boxes, scores, PredictionShape{1, 2, 2}, NMSConfig{}, detections),
         "[1, 2, 2] scores", "8 and 6 values");
 }

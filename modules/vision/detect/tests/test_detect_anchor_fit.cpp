@@ -286,7 +286,7 @@ TEST(Unit_DetectAnchorFit, RefusesALayoutThatDoesNotValidate)
 }
 
 /** @brief Tests that a recall_iou below 0, above 1 or not a number is InvalidDescription. */
-TEST(Unit_DetectAnchorFit, RefusesARecallIouOutsideZeroToOne)
+TEST(Unit_DetectAnchorFit, RefusesARecallIoUOutsideZeroToOne)
 {
     const AnchorLayout layout = make_separated_layout();
     const std::vector<AnchorSize> boxes = {{0.5f, 0.5f}};
