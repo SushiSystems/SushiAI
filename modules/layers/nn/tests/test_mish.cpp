@@ -50,11 +50,11 @@ TEST(Unit_Mish, ForwardEmitsSoftplusTanhThenMulReadingTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     const Mish layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.node_count(), nodes_before + 3);
     const std::vector<Graph::Node>& nodes = graph.nodes();
@@ -85,27 +85,27 @@ TEST(Unit_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     const Mish layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
     EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
 }
 
 /** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Unit_Mish, ForwardKeepsTheShapeAndNhwcTagOfAnImageBatch)
+TEST(Unit_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
 
     const Mish layer{};
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 6, 3}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
@@ -113,13 +113,13 @@ TEST(Unit_Mish, ForwardCarriesTheLayoutOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     const Mish layer{};
-    const Graph::ValueId y = layer.forward(builder, nchw);
+    const Graph::ValueID y = layer.forward(builder, nchw);
 
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nchw);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NCHW);
     EXPECT_EQ(graph.value(y).shape, graph.value(nchw).shape);
 }
 
@@ -137,7 +137,7 @@ TEST(Unit_Mish, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     Mish layer{};
     (void)layer.forward(builder, x);

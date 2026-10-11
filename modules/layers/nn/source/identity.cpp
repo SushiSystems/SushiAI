@@ -31,7 +31,7 @@ namespace SushiAI
 {
     namespace NN
     {
-        Graph::ValueId Identity::forward(const Graph::GraphBuilder&, Graph::ValueId x) const
+        Graph::ValueID Identity::forward(const Graph::GraphBuilder&, Graph::ValueID x) const
         {
             return x;
         }

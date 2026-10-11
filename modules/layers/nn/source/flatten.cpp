@@ -34,13 +34,13 @@ namespace SushiAI
 {
     namespace NN
     {
-        Graph::ValueId Flatten::forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const
+        Graph::ValueID Flatten::forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
         {
             const Graph::Value& input = builder.graph().value(x);
             SA_THROW_IF(input.shape.rank() < 2,
                         "Flatten needs an input of rank 2 or more, [N, d1, ..., dk]; got {}",
                         input.shape.to_string());
-            SA_THROW_IF(input.layout != Graph::TensorLayout::Nhwc,
+            SA_THROW_IF(input.layout != Graph::TensorLayout::NHWC,
                         "Flatten needs an NHWC input; got {} tagged NCHW. Cross with "
                         "layout_convert first (CV-3).",
                         input.shape.to_string());

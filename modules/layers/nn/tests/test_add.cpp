@@ -57,7 +57,7 @@ namespace
     }
 
     /** @brief Views @p ids as the inputs of one forward call. */
-    NN::ValueSpan span_of(const std::vector<Graph::ValueId>& ids)
+    NN::ValueSpan span_of(const std::vector<Graph::ValueID>& ids)
     {
         return NN::ValueSpan(ids.data(), ids.size());
     }
@@ -144,19 +144,19 @@ TEST(Unit_Add, ForwardEmitsOneAddReadingBothInputsInOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId b = builder.input(Shape{2, 8, 6, 3}, "b");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID b = builder.input(Shape{2, 8, 6, 3}, "b");
     const std::size_t nodes_before = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({b, a}), outputs));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& emitted = graph.nodes().back();
     EXPECT_EQ(emitted.op, Ops::K_ADD.id);
-    EXPECT_EQ(emitted.inputs, (std::vector<Graph::ValueId>{b, a}));
+    EXPECT_EQ(emitted.inputs, (std::vector<Graph::ValueID>{b, a}));
     ASSERT_EQ(outputs.size(), 1u);
     ASSERT_EQ(emitted.outputs.size(), 1u);
     EXPECT_EQ(emitted.outputs.front(), outputs[0]);
@@ -167,12 +167,12 @@ TEST(Unit_Add, ForwardResultIsThePortShapeWithABatchAxis)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId b = builder.input(Shape{2, 8, 6, 3}, "b");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID b = builder.input(Shape{2, 8, 6, 3}, "b");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({a, b}), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -185,12 +185,12 @@ TEST(Unit_Add, ForwardRejectsAnInputCountItWasNotBuiltOver)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
     const std::size_t nodes_before = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({a}), outputs),
                       StatusCode::InvalidDescription, "input count is 2", "given is 1");
@@ -203,13 +203,13 @@ TEST(Unit_Add, ForwardReturnsTheFailureOfValuesThatDoNotAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId wider = builder.input(Shape{2, 8, 6, 5}, "wider");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID wider = builder.input(Shape{2, 8, 6, 5}, "wider");
     const std::size_t nodes_before = graph.node_count();
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     const Status summed = node->forward(Trace::evaluation(builder), span_of({a, wider}), outputs);
 
@@ -254,12 +254,12 @@ TEST(Unit_Add, TheStateWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId a = builder.input(Shape{2, 8, 6, 3}, "a");
-    const Graph::ValueId b = builder.input(Shape{2, 8, 6, 3}, "b");
+    const Graph::ValueID a = builder.input(Shape{2, 8, 6, 3}, "a");
+    const Graph::ValueID b = builder.input(Shape{2, 8, 6, 3}, "b");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({a, b}), outputs));
 
     std::size_t visits = 0;

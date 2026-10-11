@@ -57,7 +57,7 @@ namespace SushiAI
                  *         accepts; @p outputs is unchanged then.
                  */
                 [[nodiscard]] Status forward(const Trace& trace, ValueSpan inputs,
-                                             std::vector<Graph::ValueId>& outputs) override;
+                                             std::vector<Graph::ValueID>& outputs) override;
 
                 /** @brief Returns one, the number of values a layer reads. */
                 [[nodiscard]] std::size_t input_count() const noexcept override;

@@ -76,7 +76,7 @@ namespace
         }
 
         /** @brief Defines the buffer as [4] zeros and returns its input. */
-        Graph::ValueId forward(const Graph::GraphBuilder&, Graph::ValueId x)
+        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
         {
             const Status defined = running.define(Shape{4}, 0.0);
             static_cast<void>(defined);
@@ -103,7 +103,7 @@ namespace
         }
 
         /** @brief Traces the child. */
-        Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
+        Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
         {
             return inner.forward(builder, x);
         }
@@ -125,14 +125,14 @@ namespace
         }
 
         /** @brief Returns its input and counts the call. */
-        Graph::ValueId trace_training(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_training(const Trace&, Graph::ValueID x)
         {
             ++training_calls;
             return x;
         }
 
         /** @brief Returns its input and counts the call. */
-        Graph::ValueId trace_evaluation(const Trace&, Graph::ValueId x)
+        Graph::ValueID trace_evaluation(const Trace&, Graph::ValueID x)
         {
             ++evaluation_calls;
             return x;
@@ -158,7 +158,7 @@ namespace
         }
 
         /** @brief Returns its input and records the mode of @p trace. */
-        Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
             modes.push_back(trace.mode());
             return x;
@@ -181,7 +181,7 @@ namespace
         }
 
         /** @brief Returns its input. */
-        Graph::ValueId forward(const Graph::GraphBuilder&, Graph::ValueId x)
+        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
         {
             return x;
         }
@@ -197,7 +197,7 @@ namespace
         }
 
         /** @brief Records an InvalidDescription that names the stub and emits nothing. */
-        Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
             trace.fail(Status::from_message(StatusCode::InvalidDescription, []()
             {
@@ -223,7 +223,7 @@ namespace
         }
 
         /** @brief Records the cause, then throws as a later emitter would on a fallback value. */
-        Graph::ValueId forward(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
             trace.fail(Status::from_message(StatusCode::OutOfMemory, []()
             {
@@ -251,7 +251,7 @@ namespace
     }
 
     /** @brief Views @p ids as the inputs of one forward call. */
-    NN::ValueSpan span_of(const std::vector<Graph::ValueId>& ids)
+    NN::ValueSpan span_of(const std::vector<Graph::ValueID>& ids)
     {
         return NN::ValueSpan(ids.data(), ids.size());
     }
@@ -336,10 +336,10 @@ TEST(Unit_Node, ModuleNodeForwardReturnsTheFailureOfALayerThatThrows)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId narrow = builder.input(Shape{2, 5}, "narrow");
+    const Graph::ValueID narrow = builder.input(Shape{2, 5}, "narrow");
 
     const std::unique_ptr<ModuleNode<Linear>> node = node_of(Linear{6, 8}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({narrow}), outputs),
                       StatusCode::InvalidDescription, "Linear(6, 8)", "[2, 5]");
@@ -351,10 +351,10 @@ TEST(Unit_Node, ModuleNodeForwardReturnsTheFailureALayerRecorded)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
 
     const std::unique_ptr<ModuleNode<RefusingStub>> node = node_of(RefusingStub{}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({x}), outputs),
                       StatusCode::InvalidDescription, "RefusingStub refuses");
@@ -366,11 +366,11 @@ TEST(Unit_Node, ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
 
     const std::unique_ptr<ModuleNode<RefusingThenThrowingStub>> node =
         node_of(RefusingThenThrowingStub{}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({x}), outputs),
                       StatusCode::OutOfMemory, "the stub's recorded cause");
@@ -382,11 +382,11 @@ TEST(Unit_Node, ModuleNodeForwardAppendsTheLayersResult)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
     const Trace trace = Trace::evaluation(builder);
 
     const std::unique_ptr<ModuleNode<Linear>> node = node_of(Linear{6, 8}, Shape{6});
-    std::vector<Graph::ValueId> outputs{x};
+    std::vector<Graph::ValueID> outputs{x};
     SA_EXPECT_OK(node->forward(trace, span_of({x}), outputs));
 
     ASSERT_EQ(outputs.size(), 2u);
@@ -399,10 +399,10 @@ TEST(Unit_Node, ModuleNodeTracesAModalLayerInTheModeOfTheTrace)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
 
     const std::unique_ptr<ModuleNode<ModalStub>> node = node_of(ModalStub{}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_OK(node->forward(Trace::training(builder, NN::discard_updates()), span_of({x}),
                               outputs));
@@ -419,10 +419,10 @@ TEST(Unit_Node, ModuleNodeHandsTheTraceToATraceModule)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
 
     const std::unique_ptr<ModuleNode<TraceStub>> node = node_of(TraceStub{}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_OK(node->forward(Trace::training(builder, NN::discard_updates()), span_of({x}),
                               outputs));
@@ -430,7 +430,7 @@ TEST(Unit_Node, ModuleNodeHandsTheTraceToATraceModule)
 
     EXPECT_EQ(node->layer().modes, (std::vector<NN::TraceMode>{NN::TraceMode::Training,
                                                               NN::TraceMode::Evaluation}));
-    EXPECT_EQ(outputs, (std::vector<Graph::ValueId>{x, x}));
+    EXPECT_EQ(outputs, (std::vector<Graph::ValueID>{x, x}));
 }
 
 /** @brief Tests that a ModuleNode walks the layer's parameters under the given prefix. */
@@ -438,10 +438,10 @@ TEST(Unit_Node, ModuleNodeWalksTheLayersParametersUnderThePrefix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
 
     const std::unique_ptr<ModuleNode<Linear>> node = node_of(Linear{6, 8}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({x}), outputs));
 
     EXPECT_EQ(state_names(*node, "stem"), (std::vector<std::string>{"stem.weight", "stem.bias"}));
@@ -452,10 +452,10 @@ TEST(Unit_Node, ModuleNodeWalksABufferOfTheLayer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     const std::unique_ptr<ModuleNode<BufferedStub>> node = node_of(BufferedStub{}, Shape{4});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node->forward(Trace::evaluation(builder), span_of({x}), outputs));
 
     EXPECT_EQ(state_names(*node, "bn"), (std::vector<std::string>{"bn.running"}));
@@ -466,11 +466,11 @@ TEST(Unit_Node, ModuleNodeRejectsTwoInputs)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     const std::unique_ptr<ModuleNode<Linear>> node = node_of(Linear{6, 8}, Shape{6});
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({x, x}), outputs),
                       StatusCode::InvalidDescription, "input count is 1", "given is 2");
@@ -497,10 +497,10 @@ TEST(Unit_Node, LayerNodeForwardAppendsAValueShapedLikeItsPort)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 2}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 2}, "x");
 
     LayerNode node(make_test_conv2d(Shape{8, 8, 2}));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node.forward(Trace::evaluation(builder), span_of({x}), outputs));
 
     ASSERT_EQ(outputs.size(), 1u);
@@ -512,10 +512,10 @@ TEST(Unit_Node, LayerNodeForwardReturnsTheFailureOfALayerThatThrows)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId narrow = builder.input(Shape{2, 5}, "narrow");
+    const Graph::ValueID narrow = builder.input(Shape{2, 5}, "narrow");
 
     LayerNode node(std::make_unique<LayerAdapter<Linear>>(Linear{6, 8}, 8));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node.forward(Trace::evaluation(builder), span_of({narrow}), outputs),
                       StatusCode::InvalidDescription, "Linear(6, 8)", "[2, 5]");
@@ -527,10 +527,10 @@ TEST(Unit_Node, LayerNodeWalksTheLayersParametersUnderThePrefix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
 
     LayerNode node(std::make_unique<LayerAdapter<Linear>>(Linear{6, 8}, 8));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(node.forward(Trace::evaluation(builder), span_of({x}), outputs));
 
     EXPECT_EQ(state_names(node, "0"), (std::vector<std::string>{"0.weight", "0.bias"}));
@@ -541,11 +541,11 @@ TEST(Unit_Node, LayerNodeRejectsTwoInputs)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     LayerNode node(std::make_unique<LayerAdapter<Linear>>(Linear{6, 8}, 8));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node.forward(Trace::evaluation(builder), span_of({x, x}), outputs),
                       StatusCode::InvalidDescription, "input count is 1", "given is 2");
@@ -560,7 +560,7 @@ TEST(Unit_Node, LayerNodeRejectsNoInput)
     const Graph::GraphBuilder builder(graph);
 
     LayerNode node(std::make_unique<LayerAdapter<Linear>>(Linear{6, 8}, 8));
-    std::vector<Graph::ValueId> outputs;
+    std::vector<Graph::ValueID> outputs;
 
     SA_EXPECT_FAILURE(node.forward(Trace::evaluation(builder), span_of({}), outputs),
                       StatusCode::InvalidDescription, "input count is 1", "given is 0");

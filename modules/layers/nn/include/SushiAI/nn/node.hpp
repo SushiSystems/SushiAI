@@ -47,11 +47,12 @@ namespace SushiAI
 
     namespace NN
     {
+        class BuiltRows;
         class StateVisitor;
         class Trace;
 
         /** @brief Views the values a node reads, in the order its sources were named. */
-        using ValueSpan = SushiRuntime::span<const Graph::ValueId>;
+        using ValueSpan = SushiRuntime::span<const Graph::ValueID>;
 
         /** @brief Views the per-sample shapes a node is built over, one per input. */
         using ShapeSpan = SushiRuntime::span<const Shape>;
@@ -84,7 +85,28 @@ namespace SushiAI
                  * @return InvalidDescription when @p inputs does not fit the node.
                  */
                 [[nodiscard]] virtual Status forward(const Trace& trace, ValueSpan inputs,
-                                                     std::vector<Graph::ValueId>& outputs) = 0;
+                                                     std::vector<Graph::ValueID>& outputs) = 0;
+
+                /**
+                 * @brief Traces the node's incremental form: the newest slice of each input,
+                 *        with what the node carried from the runs before.
+                 * @param trace A carrying trace.
+                 * @param outputs Grows by ports().size() on success and stays as it was on a
+                 *                failure this node reports.
+                 * @return Unsupported unless the node overrides this entry.
+                 */
+                [[nodiscard]] virtual Status forward_incremental(
+                    const Trace& trace, ValueSpan inputs, std::vector<Graph::ValueID>& outputs)
+                {
+                    static_cast<void>(trace);
+                    static_cast<void>(outputs);
+                    SA_FAIL_IF(true, StatusCode::Unsupported,
+                               "the node has no incremental form, so it cannot be traced one "
+                               "slice at a time; it was given {} inputs",
+                               inputs.size());
+
+                    return Status();
+                }
 
                 /**
                  * @brief Hands every declared parameter and defined buffer to @p visitor.
@@ -123,6 +145,26 @@ namespace SushiAI
 
             /** @brief Points at the factory that builds the type. */
             NodeFactory make;
+        };
+
+        /**
+         * @brief Builds one node from a row that names a row above it.
+         * @param above The nodes of the rows above; a node of it outlives the one built.
+         *
+         * The other parameters are those of NodeFactory.
+         */
+        using LinkedNodeFactory = Result<std::unique_ptr<Node>> (*)(
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context,
+            const BuiltRows& above);
+
+        /** @brief Holds one row of the node registry whose factory reads the rows above. */
+        struct LinkedNodeEntry
+        {
+            /** @brief Holds the "type" a model file spells. */
+            std::string_view type;
+
+            /** @brief Points at the factory that builds the type. */
+            LinkedNodeFactory make;
         };
 
         namespace Detail

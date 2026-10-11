@@ -127,7 +127,7 @@ namespace SushiAI
             std::vector<std::size_t> positions;
             SA_TRY(match_leaves(graph, positions));
 
-            const std::vector<std::pair<Graph::StateId, Graph::ValueId>>& leaves =
+            const std::vector<std::pair<Graph::StateID, Graph::ValueID>>& leaves =
                 graph.state_leaves();
             for (std::size_t i = 0; i < leaves.size(); ++i)
                 SA_TRY(pool.bind(leaves[i].second, tensors_[positions[i]]));
@@ -157,7 +157,7 @@ namespace SushiAI
             return &tensors_[position->second];
         }
 
-        Result<SushiBLAS::Tensor*> ModelState::tensor(Graph::StateId state)
+        Result<SushiBLAS::Tensor*> ModelState::tensor(Graph::StateID state)
         {
             const auto position = by_state_.find(state);
             SA_FAIL_IF(position == by_state_.end(), StatusCode::InvalidDescription,
@@ -197,11 +197,11 @@ namespace SushiAI
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
-                const std::vector<std::pair<Graph::StateId, Graph::ValueId>>& leaves =
+                const std::vector<std::pair<Graph::StateID, Graph::ValueID>>& leaves =
                     graph.state_leaves();
                 positions.clear();
                 positions.reserve(leaves.size());
-                for (const std::pair<Graph::StateId, Graph::ValueId>& leaf : leaves)
+                for (const std::pair<Graph::StateID, Graph::ValueID>& leaf : leaves)
                 {
                     const auto found = by_state_.find(leaf.first);
                     SA_FAIL_IF(found == by_state_.end(), StatusCode::Incompatible,

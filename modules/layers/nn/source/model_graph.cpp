@@ -85,10 +85,19 @@ namespace SushiAI
             }
 
             /** @brief Traces @p model and returns the value of its single published output. */
-            Result<Graph::ValueId> trace_single_output(ModelGraph& model, const Trace& trace,
-                                                       Graph::ValueId input)
+            Result<Graph::ValueID> trace_single_output(ModelGraph& model, const Trace& trace,
+                                                       Graph::ValueID input)
             {
                 SA_TRY_ASSIGN(const ModelOutputs outputs, model.trace(trace, input));
+
+                return outputs.only();
+            }
+
+            /** @brief Traces the incremental form and returns its single published output. */
+            Result<Graph::ValueID> trace_single_incremental(ModelGraph& model, const Trace& trace,
+                                                            Graph::ValueID input)
+            {
+                SA_TRY_ASSIGN(const ModelOutputs outputs, model.trace_incremental(trace, input));
 
                 return outputs.only();
             }
@@ -192,7 +201,7 @@ namespace SushiAI
             return Status();
         }
 
-        Result<ModelOutputs> ModelGraph::trace(const Trace& trace, Graph::ValueId input)
+        Result<ModelOutputs> ModelGraph::trace(const Trace& trace, Graph::ValueID input)
         {
             const Graph::Graph& graph = trace.builder().graph();
             SA_FATAL_IF(input >= graph.value_count(),
@@ -202,13 +211,36 @@ namespace SushiAI
                        StatusCode::InvalidDescription,
                        "the model input is declared as {} per sample; the traced value is {}",
                        input_sample_.to_string(), graph.value(input).shape.to_string());
+
+            return trace_nodes(trace, input, &Node::forward, PortCheck::PerSample);
+        }
+
+        Result<ModelOutputs> ModelGraph::trace_incremental(const Trace& trace,
+                                                           Graph::ValueID input)
+        {
+            const Graph::Graph& graph = trace.builder().graph();
+            SA_FATAL_IF(input >= graph.value_count(),
+                        "a model graph was traced over value {}; the traced graph holds {} values",
+                        input, graph.value_count());
+            SA_FAIL_IF(!trace.is_carrying(), StatusCode::InvalidDescription,
+                       "the incremental form of a model graph was traced in a trace whose step "
+                       "keeps nothing between runs; it has {} nodes",
+                       entries_.size());
+
+            return trace_nodes(trace, input, &Node::forward_incremental, PortCheck::None);
+        }
+
+        Result<ModelOutputs> ModelGraph::trace_nodes(const Trace& trace, Graph::ValueID input,
+                                                     NodeForm form, PortCheck check)
+        {
+            const Graph::Graph& graph = trace.builder().graph();
             SA_FAIL_IF(outputs_.empty(), StatusCode::InvalidDescription,
                        "the model publishes no output; name one with output() or output_ports() "
                        "among its {} nodes",
                        entries_.size());
 
             // values[entry.first_value + port] is the traced id of that port.
-            std::vector<Graph::ValueId> values;
+            std::vector<Graph::ValueID> values;
             values.reserve(port_count());
             const auto value_of = [&](NodeRef ref)
             {
@@ -218,15 +250,15 @@ namespace SushiAI
                 return values[entries_[ref.node()].first_value + ref.port()];
             };
 
-            std::vector<Graph::ValueId> read;
+            std::vector<Graph::ValueID> read;
             for (const Entry& entry : entries_)
             {
                 read.clear();
                 for (const NodeRef source : entry.sources)
                     read.push_back(value_of(source));
 
-                const Status traced =
-                    entry.node->forward(trace, ValueSpan(read.data(), read.size()), values);
+                const Status traced = ((*entry.node).*form)(
+                    trace, ValueSpan(read.data(), read.size()), values);
                 SA_TRY(SA_ANNOTATE(traced, "node '{}'", entry.name));
 
                 const SushiRuntime::span<const Port> ports = entry.node->ports();
@@ -236,12 +268,13 @@ namespace SushiAI
 
                 for (std::size_t index = 0; index < ports.size(); ++index)
                 {
-                    const Graph::ValueId id = values[entry.first_value + index];
+                    const Graph::ValueID id = values[entry.first_value + index];
                     SA_FATAL_IF(id >= graph.value_count(),
                                 "node '{}' returned value {} for port '{}'; the traced graph "
                                 "holds {} values",
                                 entry.name, id, ports[index].name, graph.value_count());
-                    SA_FAIL_IF(!is_batch_of(graph.value(id).shape, ports[index].shape),
+                    SA_FAIL_IF(check == PortCheck::PerSample
+                                   && !is_batch_of(graph.value(id).shape, ports[index].shape),
                                StatusCode::InvalidDescription,
                                "node '{}' declares port '{}' as {} per sample; the traced value "
                                "is {}",
@@ -257,9 +290,15 @@ namespace SushiAI
             return published;
         }
 
-        Graph::ValueId ModelGraph::forward(const Trace& trace, Graph::ValueId input)
+        Graph::ValueID ModelGraph::forward(const Trace& trace, Graph::ValueID input)
         {
             return trace.value_or_fail(trace_single_output(*this, trace, input), input);
+        }
+
+        Graph::ValueID ModelGraph::forward_incremental(const Trace& trace, Graph::ValueID input,
+                                                       const Shape&)
+        {
+            return trace.value_or_fail(trace_single_incremental(*this, trace, input), input);
         }
 
         Shape ModelGraph::output_shape(const Shape&) const

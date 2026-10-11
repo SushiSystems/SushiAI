@@ -61,7 +61,7 @@ namespace SushiAI
              * @param x An NHWC [N, height * width * channels] value.
              * @return The reshaped value's id.
              */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const;
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.

@@ -91,12 +91,23 @@ namespace SushiAI
                 SA_FATAL_IF(row.make == nullptr, "the registry row '{}' has no factory",
                             row.type);
                 SA_FAIL_IF(registry.find_node(row.type) != nullptr ||
+                               registry.find_linked(row.type) != nullptr ||
                                registry.find_layer(row.type) != nullptr,
                            StatusCode::InvalidDescription,
                            "the type '{}' is already in the registry; a type has one row",
                            row.type);
 
                 return Status();
+            }
+
+            /** @brief Joins the types of the node rows and the linked node rows of @p registry. */
+            [[nodiscard]] std::string list_node_types(const NodeRegistry& registry)
+            {
+                std::string listed = list_types(registry.nodes());
+                if (!listed.empty() && !registry.linked().empty())
+                    listed.append(", ");
+
+                return listed.append(list_types(registry.linked()));
             }
 
             /** @brief Appends @p row to @p rows, or returns the failure of the allocation. */
@@ -195,10 +206,11 @@ namespace SushiAI
                     shapes.push_back(graph.shape_of(ref));
                 }
 
+                // Node i of the graph is row i, so the graph is the rows above this one.
                 SA_TRY_ASSIGN(std::unique_ptr<Node> node,
                               make_node(registry, spec.type,
                                         ShapeSpan(shapes.data(), shapes.size()),
-                                        spec.attributes, context));
+                                        spec.attributes, context, BuiltRows(graph)));
 
                 return graph.add(std::to_string(index), std::move(node),
                                  SushiRuntime::span<const NodeRef>(sources.data(),
@@ -255,9 +267,21 @@ namespace SushiAI
             return append_row(layers_, row);
         }
 
+        Status NodeRegistry::add(const LinkedNodeEntry& row)
+        {
+            SA_TRY(require_new_type(*this, row));
+
+            return append_row(linked_, row);
+        }
+
         const NodeEntry* NodeRegistry::find_node(std::string_view type) const noexcept
         {
             return find_type(nodes_, type);
+        }
+
+        const LinkedNodeEntry* NodeRegistry::find_linked(std::string_view type) const noexcept
+        {
+            return find_type(linked_, type);
         }
 
         const LayerEntry* NodeRegistry::find_layer(std::string_view type) const noexcept
@@ -270,6 +294,11 @@ namespace SushiAI
             return SushiRuntime::span<const NodeEntry>(nodes_.data(), nodes_.size());
         }
 
+        SushiRuntime::span<const LinkedNodeEntry> NodeRegistry::linked() const noexcept
+        {
+            return SushiRuntime::span<const LinkedNodeEntry>(linked_.data(), linked_.size());
+        }
+
         SushiRuntime::span<const LayerEntry> NodeRegistry::layers() const noexcept
         {
             return SushiRuntime::span<const LayerEntry>(layers_.data(), layers_.size());
@@ -278,11 +307,15 @@ namespace SushiAI
         Result<std::unique_ptr<Node>> make_node(const NodeRegistry& registry,
                                                 std::string_view type, ShapeSpan inputs,
                                                 const Config::Value& attributes,
-                                                std::string_view context)
+                                                std::string_view context, const BuiltRows& above)
         {
             const NodeEntry* const node = registry.find_node(type);
             if (node != nullptr)
                 return node->make(inputs, attributes, context);
+
+            const LinkedNodeEntry* const linked = registry.find_linked(type);
+            if (linked != nullptr)
+                return linked->make(inputs, attributes, context, above);
 
             const LayerEntry* const layer = registry.find_layer(type);
             if (layer != nullptr)
@@ -293,7 +326,7 @@ namespace SushiAI
                 return SushiBLAS::Core::format(
                     "{} has the type '{}', which this build does not have; the node types "
                     "are: {}; the layer types are: {}",
-                    context, type, list_types(registry.nodes()),
+                    context, type, list_node_types(registry),
                     list_types(registry.layers()));
             });
         }

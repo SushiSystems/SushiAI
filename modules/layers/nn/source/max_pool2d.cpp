@@ -88,15 +88,15 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueId MaxPool2d::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueId x) const
+        Graph::ValueID MaxPool2d::forward(const Graph::GraphBuilder& builder,
+                                          Graph::ValueID x) const
         {
             const Shape& image = builder.graph().value(x).shape;
             SA_THROW_IF(image.rank() != 4,
                         "MaxPool2d needs a rank-4 [N, H, W, C] input; got {}", image.to_string());
 
             // Only NHWC reaches the fit; the emitter refuses any other layout first.
-            if (builder.graph().value(x).layout != Graph::TensorLayout::Nhwc)
+            if (builder.graph().value(x).layout != Graph::TensorLayout::NHWC)
                 return builder.maxpool2d(x, geometry).output;
 
             const Shape sample{image[1], image[2], image[3]};

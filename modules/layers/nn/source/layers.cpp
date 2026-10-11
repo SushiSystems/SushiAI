@@ -42,7 +42,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueId Linear::forward(const Graph::GraphBuilder& builder, Graph::ValueId x)
+        Graph::ValueID Linear::forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
         {
             require_positive_features(*this);
 
@@ -55,16 +55,16 @@ namespace SushiAI
 
             const DType dtype = builder.graph().value(x).dtype;
 
-            const Graph::ValueId w = weight.declare(builder, Shape{out_features, in_features},
-                                                    ParameterRole::Weight,
+            const Graph::ValueID w = weight.declare(builder, Shape{out_features, in_features},
+                                                    ParameterRole::Weight, weight_init,
                                                     in_features, out_features, "weight", dtype);
 
             // X [N, in] against W [out, in] transposed: the flag, never a view.
-            Graph::ValueId y = builder.matmul(x, w, false, true);
+            Graph::ValueID y = builder.matmul(x, w, false, true);
 
             if (use_bias)
             {
-                const Graph::ValueId b = bias.declare(builder, Shape{out_features},
+                const Graph::ValueID b = bias.declare(builder, Shape{out_features},
                                                       ParameterRole::Bias,
                                                       in_features, out_features, "bias", dtype);
                 y = builder.bias_add(y, b);

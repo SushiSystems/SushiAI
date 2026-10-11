@@ -49,9 +49,9 @@ namespace SushiAI
              * @return A 1-element loss value's id.
              * @throws Error If the two operands disagree in shape or dtype.
              */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder,
-                                   Graph::ValueId logits,
-                                   Graph::ValueId one_hot) const
+            Graph::ValueID forward(const Graph::GraphBuilder& builder,
+                                   Graph::ValueID logits,
+                                   Graph::ValueID one_hot) const
             {
                 return builder.nll_loss(builder.log_softmax(logits), one_hot);
             }

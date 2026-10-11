@@ -43,8 +43,8 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueId LeakyReLU::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueId x) const
+        Graph::ValueID LeakyReLU::forward(const Graph::GraphBuilder& builder,
+                                          Graph::ValueID x) const
         {
             require_legal_slope(*this);
 

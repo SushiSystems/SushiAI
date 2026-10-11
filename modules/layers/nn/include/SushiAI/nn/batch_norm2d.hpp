@@ -98,7 +98,7 @@ namespace SushiAI
              * @return The normalised value's id, or @p x after trace.fail() when @p x or this
              *         layer's description does not fit.
              */
-            Graph::ValueId trace_training(const Trace& trace, Graph::ValueId x);
+            Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x);
 
             /**
              * @brief Traces BATCHNORM_FOLD over the running statistics, then CHANNEL_AFFINE.
@@ -106,7 +106,7 @@ namespace SushiAI
              * @return The normalised value's id, or @p x after trace.fail() when @p x or this
              *         layer's description does not fit.
              */
-            Graph::ValueId trace_evaluation(const Trace& trace, Graph::ValueId x);
+            Graph::ValueID trace_evaluation(const Trace& trace, Graph::ValueID x);
 
             /**
              * @brief Returns the per-sample shape either form produces, which is @p input.

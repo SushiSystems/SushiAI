@@ -172,7 +172,7 @@ TEST(Unit_ModuleList, TheWalkNamesChildrenByIndex)
     list.push_back(Linear{4, 8});
     list.push_back(Linear{8, 3, false});
 
-    Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     for (Linear& layer : list)
         x = layer.forward(builder, x);
 
@@ -193,7 +193,7 @@ TEST(Unit_ModuleList, AListUnderAChildFieldIsNamedByFieldThenIndex)
     stage.blocks.push_back(Linear{4, 4});
     stage.blocks.push_back(Linear{4, 4});
 
-    Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     for (Linear& layer : stage.blocks)
         x = layer.forward(builder, x);
     (void)stage.head.forward(builder, x);
@@ -236,9 +236,9 @@ TEST(Unit_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
     list.push_back(Linear{4, 4});
     (void)list[0].forward(builder, builder.input(Shape{2, 4}, "x"));
 
-    const Graph::StateId weight_state = list[0].weight.state();
-    const Graph::ValueId weight_leaf = list[0].weight.id_in(graph);
-    const Graph::ValueId bias_leaf = list[0].bias.id_in(graph);
+    const Graph::StateID weight_state = list[0].weight.state();
+    const Graph::ValueID weight_leaf = list[0].weight.id_in(graph);
+    const Graph::ValueID bias_leaf = list[0].bias.id_in(graph);
     ASSERT_NE(weight_state, Graph::K_NO_STATE);
 
     // 64 appends to a one-element vector move its storage at least once.

@@ -53,7 +53,7 @@ namespace
     {
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
-        const Graph::ValueId x = builder.input(batched_input, "x");
+        const Graph::ValueID x = builder.input(batched_input, "x");
         const Shape traced = graph.value(layer.forward(builder, x)).shape;
         return Shape{traced[1], traced[2], traced[3]};
     }
@@ -86,17 +86,17 @@ TEST(Unit_ChannelSlice, OutputShapeAcceptsTheFirstLastAndWholeRanges)
 }
 
 /** @brief Tests that the traced result carries the NHWC layout tag. */
-TEST(Unit_ChannelSlice, TheResultIsTaggedNhwc)
+TEST(Unit_ChannelSlice, TheResultIsTaggedNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     const ChannelSlice layer{32, 32};
-    const Graph::ValueId x = builder.input(Shape{2, 5, 3, 64}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 5, 3, 64}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /**
@@ -109,14 +109,14 @@ TEST(Unit_ChannelSlice, ForwardEmitsOneSliceNodeCarryingTheOffset)
     const Graph::GraphBuilder builder(graph);
 
     const ChannelSlice layer{32, 32};
-    const Graph::ValueId x = builder.input(Shape{2, 5, 3, 64}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 5, 3, 64}, "x");
     const std::size_t nodes_before = graph.node_count();
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
     EXPECT_EQ(node.op, Ops::K_SLICE_CHANNELS.id);
-    EXPECT_EQ(node.inputs, (std::vector<Graph::ValueId>{x}));
+    EXPECT_EQ(node.inputs, (std::vector<Graph::ValueID>{x}));
     EXPECT_DOUBLE_EQ(node.attributes.get(0), 32.0);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 5, 3, 32}));
 }
@@ -128,8 +128,8 @@ TEST(Unit_ChannelSlice, TheWholeChannelRangeTracesToTheInputShape)
     const Graph::GraphBuilder builder(graph);
 
     const ChannelSlice layer{0, 64};
-    const Graph::ValueId x = builder.input(Shape{2, 5, 3, 64}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 5, 3, 64}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 5, 3, 64}));
 }
@@ -227,7 +227,7 @@ TEST(Unit_ChannelSlice, ForwardRejectsARankTwoInput)
     const Graph::GraphBuilder builder(graph);
 
     const ChannelSlice layer{0, 1};
-    const Graph::ValueId x = builder.input(Shape{2, 12}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 12}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "ChannelSlice", "rank-4", "[2, 12]");
 }
@@ -242,14 +242,14 @@ TEST(Unit_ChannelSlice, ForwardRejectsARangePastTheChannels)
 }
 
 /** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
-TEST(Unit_ChannelSlice, ForwardRejectsAnNchwInput)
+TEST(Unit_ChannelSlice, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     const ChannelSlice layer{0, 1};
-    const Graph::ValueId x = builder.input(Shape{1, 2, 2, 3}, "x");
-    const Graph::ValueId x_nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
+    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x_nchw), "slice_channels", "NHWC");
 }
@@ -261,7 +261,7 @@ TEST(Unit_ChannelSlice, TheParameterWalkVisitsNothing)
     const Graph::GraphBuilder builder(graph);
 
     ChannelSlice layer{0, 1};
-    const Graph::ValueId x = builder.input(Shape{1, 2, 2, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
     (void)layer.forward(builder, x);
 
     std::size_t visited = 0;

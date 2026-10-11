@@ -65,7 +65,7 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
 
-        const Graph::ValueId x =
+        const Graph::ValueID x =
             builder.input(Shape{batch, sample[0], sample[1], sample[2]}, "x");
         return graph.value(layer.forward(builder, x)).shape;
     }
@@ -84,24 +84,24 @@ TEST(Unit_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 3, 3}));
 }
 
 /** @brief Tests that the traced rank-4 result carries the NHWC layout tag. */
-TEST(Unit_MaxPool2d, ForwardTagsItsResultNhwc)
+TEST(Unit_MaxPool2d, ForwardTagsItsResultNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that forward() returns the pooled value and not the INT64 argmax beside it. */
@@ -111,8 +111,8 @@ TEST(Unit_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
     EXPECT_NE(graph.value(y).dtype, DType::Int64);
@@ -174,7 +174,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAnInputThatIsNotRankFour)
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueId x = builder.input(Shape{2, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 16}, "x");
 
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }
@@ -186,31 +186,31 @@ TEST(Unit_MaxPool2d, ForwardRejectsAWindowThatDoesNotFit)
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(5, 5, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
 
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }
 
 /** @brief Tests that forward() throws on a rank-4 input tagged NCHW. */
-TEST(Unit_MaxPool2d, ForwardRejectsAnNchwInput)
+TEST(Unit_MaxPool2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     EXPECT_THROW((void)layer.forward(builder, nchw), Error);
 }
 
 /** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
-TEST(Unit_MaxPool2d, ForwardNamesTheLayoutOfAnNchwInputNarrowerThanTheWindow)
+TEST(Unit_MaxPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{1, 8, 8, 2}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{1, 8, 8, 2}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     const MaxPool2d layer = make_pool(3, 3, 1, 1);
 
@@ -224,7 +224,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAZeroStride)
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 0, 2);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "MaxPool2d", "stride 0,2");
 }
@@ -236,7 +236,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsANegativePadding)
     const Graph::GraphBuilder builder(graph);
 
     const MaxPool2d layer = make_pool(2, 2, 2, 2, 0, -1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "MaxPool2d", "padding 0,-1");
 }
@@ -375,7 +375,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsANegativeTrailingPad)
 
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     layer.trailing_pad_h = -2;
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "MaxPool2d", "non-negative trailing padding",
@@ -410,7 +410,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsATrailingPadThatLeavesAWindowNoTap)
 
     MaxPool2d layer = make_pool(2, 2, 2, 2);
     layer.trailing_pad_w = 3;
-    const Graph::ValueId x = builder.input(Shape{1, 4, 4, 2}, "x");
+    const Graph::ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
     const std::size_t nodes_before = graph.node_count();
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "MaxPool2d",
@@ -427,7 +427,7 @@ TEST(Unit_MaxPool2d, TheParameterWalkVisitsNothing)
     MaxPool2d layer = make_pool(2, 2, 2, 2);
     EXPECT_EQ(NN::parameter_count(layer), 0u);
 
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(NN::parameter_count(layer), 0u);

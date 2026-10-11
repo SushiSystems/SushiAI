@@ -48,7 +48,7 @@ TEST(Unit_Identity, ForwardReturnsItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
 
     const Identity layer{};
 
@@ -60,7 +60,7 @@ TEST(Unit_Identity, ForwardEmitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
@@ -85,7 +85,7 @@ TEST(Unit_Identity, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     Identity layer{};
     (void)layer.forward(builder, x);

@@ -66,15 +66,15 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueId AvgPool2d::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueId x) const
+        Graph::ValueID AvgPool2d::forward(const Graph::GraphBuilder& builder,
+                                          Graph::ValueID x) const
         {
             const Shape& image = builder.graph().value(x).shape;
             SA_THROW_IF(image.rank() != 4,
                         "AvgPool2d needs a rank-4 [N, H, W, C] input; got {}", image.to_string());
 
             // Axes 1 and 2 hold H and W under NHWC only; the emitter refuses any other layout.
-            if (builder.graph().value(x).layout == Graph::TensorLayout::Nhwc)
+            if (builder.graph().value(x).layout == Graph::TensorLayout::NHWC)
                 (void)fit_window(*this, Shape{image[1], image[2], image[3]});
 
             return builder.avgpool2d(x, geometry);

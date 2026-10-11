@@ -30,6 +30,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -93,7 +94,7 @@ namespace
 
             /** @brief Appends the ReLU, then the GELU, of the one input. */
             [[nodiscard]] Status forward(const Trace& trace, NN::ValueSpan inputs,
-                                         std::vector<Graph::ValueId>& outputs) override
+                                         std::vector<Graph::ValueID>& outputs) override
             {
                 SA_TRY(NN::Detail::require_input_count(inputs, 1));
 
@@ -232,21 +233,21 @@ TEST(Unit_ModelGraph, BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace)
 
     Graph::Graph traced;
     const Graph::GraphBuilder traced_builder(traced);
-    const Graph::ValueId traced_x = traced_builder.input(Shape{2, 8, 8, 3}, "x");
-    const Graph::ValueId features =
+    const Graph::ValueID traced_x = traced_builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID features =
         built.model.forward(Trace::evaluation(traced_builder), traced_x);
 
     Graph::Graph expected;
     const Graph::GraphBuilder builder(expected);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     Conv2d stem = Conv2d::same_padded(3, 4, 3, 2);
     Conv2d down = Conv2d::same_padded(4, 8, 3, 2);
     Conv2d mix = Conv2d::same_padded(12, 4, 1, 1);
-    const Graph::ValueId p3 = stem.forward(builder, x);
-    const Graph::ValueId up = NN::Upsample2d{2}.forward(builder, down.forward(builder, p3));
-    const Graph::ValueId parts[] = {up, p3};
-    const Graph::ValueId merged = builder.concat_channels(NN::ValueSpan(parts, 2));
-    const Graph::ValueId expected_features = mix.forward(builder, merged);
+    const Graph::ValueID p3 = stem.forward(builder, x);
+    const Graph::ValueID up = NN::Upsample2d{2}.forward(builder, down.forward(builder, p3));
+    const Graph::ValueID parts[] = {up, p3};
+    const Graph::ValueID merged = builder.concat_channels(NN::ValueSpan(parts, 2));
+    const Graph::ValueID expected_features = mix.forward(builder, merged);
 
     const OpList ops = ops_of(traced);
     EXPECT_EQ(ops, ops_of(expected));
@@ -267,11 +268,11 @@ TEST(Unit_ModelGraph, MergeEmitsOneConcatChannelsReadingBothBranches)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             built.model.trace(Trace::evaluation(builder), x));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId stem, outputs.at("stem"));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId up, outputs.at("up"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID stem, outputs.at("stem"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID up, outputs.at("up"));
 
     std::vector<const Graph::Node*> concats;
     for (const Graph::Node& node : graph.nodes())
@@ -281,7 +282,7 @@ TEST(Unit_ModelGraph, MergeEmitsOneConcatChannelsReadingBothBranches)
     }
 
     ASSERT_EQ(concats.size(), 1u);
-    EXPECT_EQ(concats.front()->inputs, (std::vector<Graph::ValueId>{up, stem}));
+    EXPECT_EQ(concats.front()->inputs, (std::vector<Graph::ValueID>{up, stem}));
     ASSERT_EQ(concats.front()->outputs.size(), 1u);
     EXPECT_EQ(graph.value(concats.front()->outputs.front()).shape, (Shape{2, 4, 4, 12}));
 }
@@ -295,15 +296,15 @@ TEST(Unit_ModelGraph, TraceReturnsEveryPublishedOutputByName)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             built.model.trace(Trace::evaluation(builder), x));
 
     ASSERT_EQ(outputs.all().size(), 2u);
     EXPECT_EQ(outputs.all()[0].first, "features");
     EXPECT_EQ(outputs.all()[1].first, "skip");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId features, outputs.at("features"));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId skip, outputs.at("skip"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID features, outputs.at("features"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID skip, outputs.at("skip"));
     EXPECT_NE(features, skip);
     EXPECT_EQ(graph.value(features).shape, (Shape{2, 4, 4, 4}));
     EXPECT_EQ(graph.value(skip).shape, (Shape{2, 4, 4, 4}));
@@ -318,14 +319,14 @@ TEST(Unit_ModelGraph, ForwardReturnsTheSinglePublishedOutput)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     const std::size_t leaves = graph.node_count();
-    const Graph::ValueId y = model.forward(Trace::evaluation(builder), x);
+    const Graph::ValueID y = model.forward(Trace::evaluation(builder), x);
 
     ASSERT_EQ(graph.node_count(), leaves + 1u);
     EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_RELU.id);
-    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueId>{y}));
-    EXPECT_EQ(graph.nodes()[leaves].inputs, (std::vector<Graph::ValueId>{x}));
+    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueID>{y}));
+    EXPECT_EQ(graph.nodes()[leaves].inputs, (std::vector<Graph::ValueID>{x}));
 }
 
 /** @brief Tests that forward refuses a model that publishes two outputs and names both. */
@@ -337,7 +338,7 @@ TEST(Unit_ModelGraph, ForwardFailsWhenTwoOutputsArePublished)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
     const Trace trace = Trace::evaluation(builder);
 
@@ -376,12 +377,12 @@ TEST(Unit_ModelGraph, AGraphIsANodeOfAnotherGraph)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             outer.trace(Trace::evaluation(builder), x));
 
     EXPECT_EQ(outer.shape_of(nested), (Shape{8}));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId y, outputs.only());
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, outputs.only());
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 8}));
     EXPECT_EQ(parameter_names(outer, ""), (std::vector<std::string>{
         "inner.dense.weight:[8, 6]", "inner.dense.bias:[8]"}));
@@ -402,7 +403,7 @@ TEST(Unit_ModelGraph, ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
 
     SA_EXPECT_FAILURE(outer.trace(Trace::evaluation(builder), x),
                       StatusCode::InvalidDescription, "node 'inner'",
@@ -425,13 +426,13 @@ TEST(Unit_ModelGraph, ASequentialAndALayerStackAreNodesOfAGraph)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             model.trace(Trace::evaluation(builder), x));
 
     EXPECT_EQ(model.shape_of(head), (Shape{8}));
     EXPECT_EQ(model.shape_of(tail), (Shape{4}));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId y, outputs.only());
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, outputs.only());
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 4}));
     EXPECT_EQ(parameter_names(model, ""), (std::vector<std::string>{
         "head.0.weight:[8, 6]", "head.0.bias:[8]", "tail.0.weight:[4, 8]", "tail.0.bias:[4]"}));
@@ -445,7 +446,7 @@ TEST(Unit_ModelGraph, TheInputCanBePublishedAsAnOutput)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     const std::size_t leaves = graph.node_count();
 
     EXPECT_EQ(model.forward(Trace::evaluation(builder), x), x);
@@ -460,7 +461,7 @@ TEST(Unit_ModelGraph, WalkNamesStateByNodeNameInTheOrderAdded)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     SA_EXPECT_OK(built.model.trace(Trace::evaluation(builder), x));
 
     EXPECT_EQ(parameter_names(built.model, "model"), (std::vector<std::string>{
@@ -483,7 +484,7 @@ TEST(Unit_ModelGraph, ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
     NN::BufferUpdateList list;
     SA_EXPECT_OK(model.trace(Trace::training(builder, list), x));
 
@@ -551,8 +552,8 @@ TEST(Unit_ModelGraph, NestsInASequentialUnderItsIndex)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
-    const Graph::ValueId y = model.forward(Trace::evaluation(builder), x);
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID y = model.forward(Trace::evaluation(builder), x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 8}));
     EXPECT_EQ(graph.nodes().back().op, Ops::K_RELU.id);
@@ -673,7 +674,7 @@ TEST(Unit_ModelGraph, PortSelectsANamedPortThatALaterNodeReads)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     const std::size_t leaves = graph.node_count();
     static_cast<void>(model.forward(Trace::evaluation(builder), x));
 
@@ -711,16 +712,16 @@ TEST(Unit_ModelGraph, OutputPortsPublishesEveryPortUnderItsOwnName)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     const std::size_t leaves = graph.node_count();
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             model.trace(Trace::evaluation(builder), x));
 
     ASSERT_EQ(outputs.all().size(), 2u);
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId low, outputs.at("low"));
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId high, outputs.at("high"));
-    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueId>{low}));
-    EXPECT_EQ(graph.nodes()[leaves + 1u].outputs, (std::vector<Graph::ValueId>{high}));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID low, outputs.at("low"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID high, outputs.at("high"));
+    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueID>{low}));
+    EXPECT_EQ(graph.nodes()[leaves + 1u].outputs, (std::vector<Graph::ValueID>{high}));
 }
 
 /** @brief Tests that output_ports publishes nothing when one of the port names is taken. */
@@ -741,7 +742,7 @@ TEST(Unit_ModelGraph, OutputPortsPublishesNothingWhenAPortNameIsTaken)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             model.trace(Trace::evaluation(builder), x));
     EXPECT_EQ(outputs.all().size(), 1u);
@@ -774,7 +775,7 @@ TEST(Unit_ModelGraph, TraceRejectsADeclaredShapeThatDisagreesWithTheTracedOne)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
 
     SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), x),
                       StatusCode::InvalidDescription, "node 'narrow'", "port 'output'", "[5]",
@@ -790,8 +791,8 @@ TEST(Unit_ModelGraph, TraceRejectsAnInputOfAnotherSampleShape)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId wide = builder.input(Shape{4, 7}, "wide");
-    const Graph::ValueId flat = builder.input(Shape{6}, "flat");
+    const Graph::ValueID wide = builder.input(Shape{4, 7}, "wide");
+    const Graph::ValueID flat = builder.input(Shape{6}, "flat");
     const std::size_t leaves = graph.node_count();
 
     SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), wide),
@@ -810,7 +811,7 @@ TEST(Unit_ModelGraph, TraceRejectsAModelThatPublishesNoOutput)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{4, 6}, "x");
+    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
     const std::size_t leaves = graph.node_count();
 
     SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), x),
@@ -857,14 +858,14 @@ TEST(Unit_ModelGraph, AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph)
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
     const std::size_t leaves = graph.node_count();
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelOutputs outputs,
                             built.model.trace(Trace::evaluation(builder), x));
 
     ASSERT_EQ(graph.node_count(), leaves + 1u);
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueId activated, outputs.at("activated"));
-    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueId>{activated}));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID activated, outputs.at("activated"));
+    EXPECT_EQ(graph.nodes()[leaves].outputs, (std::vector<Graph::ValueID>{activated}));
 }
 
 /** @brief Tests that shape_of and node stop the process on a ref or an index out of range. */
@@ -900,4 +901,157 @@ TEST(Unit_ModelGraphDeathTest, AddIsFatalOnANodeWithTwoPortsOfOneName)
         static_cast<void>(model.add("pair", std::make_unique<TwoPortNode>(Shape{6}, "low", "low"),
                                     SushiRuntime::span<const NodeRef>(&input, 1))),
         "'pair'", "two ports named 'low'");
+}
+
+namespace
+{
+    /** @brief Traces a ReLU, or a GELU in its incremental form, and notes its sample. */
+    struct SliceProbe
+    {
+        /** @brief Points at where forward_incremental() writes its sample; not owned. */
+        Shape* seen = nullptr;
+
+        /** @brief Lists no state. */
+        static constexpr auto fields()
+        {
+            return std::tuple<>{};
+        }
+
+        /** @brief Traces a ReLU of @p x. */
+        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
+        {
+            return trace.builder().relu(x);
+        }
+
+        /** @brief Traces a GELU of @p x and writes @p sample to seen. */
+        Graph::ValueID forward_incremental(const Trace& trace, Graph::ValueID x,
+                                           const Shape& sample)
+        {
+            *seen = sample;
+            return trace.builder().gelu(x);
+        }
+
+        /** @brief Returns @p input. */
+        Shape output_shape(const Shape& input) const
+        {
+            return input;
+        }
+    };
+
+    static_assert(NN::IncrementalModule<SliceProbe>, "SliceProbe must have an incremental form");
+    static_assert(!NN::IncrementalModule<NN::ReLU>, "ReLU must have no incremental form");
+    static_assert(NN::IncrementalModule<ModelGraph>,
+                  "ModelGraph must nest as a node that has an incremental form");
+} // namespace
+
+/** @brief Tests that the incremental walk calls the incremental form with the node's sample. */
+TEST(Unit_ModelGraph, TraceIncrementalHandsEachLayerThePerSampleShapeItReads)
+{
+    Shape seen{};
+    ModelGraph model(Shape{5, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef probe,
+                            model.add("probe", SliceProbe{&seen}, model.input()));
+    SA_EXPECT_OK(model.output("y", probe));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID slice = builder.input(Shape{1, 1, 6}, "slice");
+    const std::size_t leaves = graph.node_count();
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    SA_ASSERT_OK_AND_ASSIGN(
+        const NN::ModelOutputs outputs,
+        model.trace_incremental(Trace::carrying(builder, fed, carried), slice));
+
+    EXPECT_EQ(seen, (Shape{5, 6}));
+    ASSERT_EQ(graph.node_count(), leaves + 1u);
+    EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_GELU.id);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, outputs.at("y"));
+    EXPECT_EQ(graph.value(y).shape, (Shape{1, 1, 6}));
+}
+
+/** @brief Tests that the ordinary walk still refuses the slice the incremental walk takes. */
+TEST(Unit_ModelGraph, TraceStillChecksThePerSampleShapeTheIncrementalWalkSkips)
+{
+    Shape seen{};
+    ModelGraph model(Shape{5, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef probe,
+                            model.add("probe", SliceProbe{&seen}, model.input()));
+    SA_EXPECT_OK(model.output("y", probe));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID slice = builder.input(Shape{1, 1, 6}, "slice");
+
+    SA_EXPECT_FAILURE(model.trace(Trace::evaluation(builder), slice),
+                      StatusCode::InvalidDescription, "[5, 6]", "[1, 1, 6]");
+}
+
+/** @brief Tests that a node without an incremental form is refused by name. */
+TEST(Unit_ModelGraph, TraceIncrementalNamesTheNodeThatHasNoIncrementalForm)
+{
+    Shape seen{};
+    ModelGraph model(Shape{5, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef probe,
+                            model.add("probe", SliceProbe{&seen}, model.input()));
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef act, model.add("act", NN::ReLU{}, probe));
+    SA_EXPECT_OK(model.output("y", act));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID slice = builder.input(Shape{1, 1, 6}, "slice");
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+
+    SA_EXPECT_FAILURE(model.trace_incremental(Trace::carrying(builder, fed, carried), slice),
+                      StatusCode::Unsupported, "node 'act'", "no incremental form");
+}
+
+/** @brief Tests that the incremental walk is refused in a trace that carries nothing. */
+TEST(Unit_ModelGraph, TraceIncrementalNeedsACarryingTrace)
+{
+    Shape seen{};
+    ModelGraph model(Shape{5, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef probe,
+                            model.add("probe", SliceProbe{&seen}, model.input()));
+    SA_EXPECT_OK(model.output("y", probe));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID slice = builder.input(Shape{1, 1, 6}, "slice");
+    const std::size_t nodes = graph.node_count();
+
+    SA_EXPECT_FAILURE(model.trace_incremental(Trace::evaluation(builder), slice),
+                      StatusCode::InvalidDescription, "keeps nothing between runs");
+    EXPECT_EQ(graph.node_count(), nodes);
+}
+
+/** @brief Tests that a nested graph traces its own nodes in their incremental form. */
+TEST(Unit_ModelGraph, ANestedGraphTracesItsIncrementalForm)
+{
+    Shape seen{};
+    ModelGraph inner(Shape{5, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef probe,
+                            inner.add("probe", SliceProbe{&seen}, inner.input()));
+    SA_EXPECT_OK(inner.output("y", probe));
+
+    ModelGraph outer(Shape{5, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const NodeRef nested,
+                            outer.add("inner", std::move(inner), outer.input()));
+    SA_EXPECT_OK(outer.output("y", nested));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID slice = builder.input(Shape{1, 1, 6}, "slice");
+    const std::size_t leaves = graph.node_count();
+    NN::FedLeafList fed;
+    NN::CarriedValueList carried;
+    SA_ASSERT_OK_AND_ASSIGN(
+        const NN::ModelOutputs outputs,
+        outer.trace_incremental(Trace::carrying(builder, fed, carried), slice));
+    static_cast<void>(outputs);
+
+    EXPECT_EQ(seen, (Shape{5, 6}));
+    ASSERT_EQ(graph.node_count(), leaves + 1u);
+    EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_GELU.id);
 }

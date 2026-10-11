@@ -76,7 +76,7 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
 
-        const Graph::ValueId x = builder.input(with_batch(batch, sample), "x");
+        const Graph::ValueID x = builder.input(with_batch(batch, sample), "x");
         return graph.value(layer.forward(builder, x)).shape;
     }
 
@@ -120,7 +120,7 @@ TEST(Unit_DepthwiseConv2d, ForwardEmitsOneDepthwiseNodeAndNoBiasAdd)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(count_op(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
@@ -134,8 +134,8 @@ TEST(Unit_DepthwiseConv2d, TheEmittedNodeReadsTheInputAndTheWeight)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     const Graph::Node* node = first_node(graph, Ops::K_DEPTHWISE_CONV2D.id);
     ASSERT_NE(node, nullptr);
@@ -147,17 +147,17 @@ TEST(Unit_DepthwiseConv2d, TheEmittedNodeReadsTheInputAndTheWeight)
 }
 
 /** @brief Tests that a padded 3x3 stride-1 convolution keeps the spatial extents and tags NHWC. */
-TEST(Unit_DepthwiseConv2d, ForwardKeepsTheSpatialExtentsAndTagsNhwc)
+TEST(Unit_DepthwiseConv2d, ForwardKeepsTheSpatialExtentsAndTagsNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 4}));
-    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::Nhwc);
+    EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
 
 /** @brief Tests that a stride-2 convolution over an even extent halves both spatial extents. */
@@ -167,8 +167,8 @@ TEST(Unit_DepthwiseConv2d, StrideTwoHalvesAnEvenExtent)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 6, 4}, "x");
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 6, 4}, "x");
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 3, 4}));
 }
@@ -181,7 +181,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightOfAnAnisotropicWindowIsHeightWidthChannels)
 
     DepthwiseConv2d layer = make_layer(3, 2);
     layer.geometry.kernel_w = 4;
-    const Graph::ValueId x = builder.input(Shape{2, 6, 9, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 6, 9, 3}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.shape(), (Shape{2, 4, 3}));
@@ -194,7 +194,7 @@ TEST(Unit_DepthwiseConv2d, TheParameterWalkNamesOnlyTheWeight)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
     EXPECT_TRUE(walk(layer).empty());
     (void)layer.forward(builder, x);
 
@@ -209,7 +209,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightRecordsTheWeightRole)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
@@ -222,7 +222,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightRecordsItsWindowAsBothFans)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
     (void)layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.fan_in(), 3 * 3);
@@ -236,8 +236,8 @@ TEST(Unit_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(2, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
-    const Graph::ValueId y = layer.forward(builder, x);
+    const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
+    const Graph::ValueID y = layer.forward(builder, x);
 
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
@@ -310,20 +310,20 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAnInputThatIsNotRankFour)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 16}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 16}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "rank-4");
 }
 
 /** @brief Tests that forward() throws on a rank-4 input tagged NCHW, naming NHWC. */
-TEST(Unit_DepthwiseConv2d, ForwardRejectsAnNchwInput)
+TEST(Unit_DepthwiseConv2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
-    const Graph::ValueId nchw = builder.layout_convert(x, Graph::TensorLayout::Nchw);
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
 
     SA_EXPECT_ERROR((void)layer.forward(builder, nchw), "NHWC");
 }
@@ -335,7 +335,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAChannelCountThatDiffersFromTheLayer)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 3}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "[H, W, 4]");
 }
@@ -347,7 +347,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsANonPositiveChannelCount)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(0, 3, 1, 1);
-    const Graph::ValueId x = builder.input(Shape{2, 8, 8, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
 
     SA_EXPECT_ERROR((void)layer.forward(builder, x), "positive channel count");
 }
@@ -359,7 +359,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAWindowThatDoesNotFit)
     const Graph::GraphBuilder builder(graph);
 
     DepthwiseConv2d layer = make_layer(4, 5, 1, 0);
-    const Graph::ValueId x = builder.input(Shape{2, 4, 4, 4}, "x");
+    const Graph::ValueID x = builder.input(Shape{2, 4, 4, 4}, "x");
 
     EXPECT_THROW((void)layer.forward(builder, x), Error);
 }

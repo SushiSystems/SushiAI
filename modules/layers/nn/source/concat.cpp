@@ -80,10 +80,10 @@ namespace SushiAI
         }
 
         Status Concat::forward(const Trace& trace, ValueSpan inputs,
-                               std::vector<Graph::ValueId>& outputs)
+                               std::vector<Graph::ValueID>& outputs)
         {
             SA_TRY(Detail::require_input_count(inputs, input_count_));
-            SA_TRY_ASSIGN(const Graph::ValueId joined, Detail::bridge_throwing([&trace, &inputs]()
+            SA_TRY_ASSIGN(const Graph::ValueID joined, Detail::bridge_throwing([&trace, &inputs]()
             {
                 return trace.builder().concat_channels(inputs);
             }));

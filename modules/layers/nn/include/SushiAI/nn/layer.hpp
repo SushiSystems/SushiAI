@@ -56,8 +56,8 @@ namespace SushiAI
                  * @param x The input value.
                  * @return The result's id.
                  */
-                virtual Graph::ValueId forward(const Graph::GraphBuilder& builder,
-                                               Graph::ValueId x) = 0;
+                virtual Graph::ValueID forward(const Graph::GraphBuilder& builder,
+                                               Graph::ValueID x) = 0;
 
                 /**
                  * @brief Applies @p visitor to every declared parameter this layer owns.
@@ -168,8 +168,8 @@ namespace SushiAI
                 static_assert(Module<L>,
                               "LayerAdapter's argument must satisfy the Module contract: "
                               "a static fields() listing its parameters, and a "
-                              "forward(const Graph::GraphBuilder&, Graph::ValueId) returning "
-                              "exactly Graph::ValueId.");
+                              "forward(const Graph::GraphBuilder&, Graph::ValueID) returning "
+                              "exactly Graph::ValueID.");
 
                 static_assert(!Detail::HoldsBufferField<L>::value,
                               "LayerAdapter's argument lists a buffer in its fields() tree. "
@@ -192,8 +192,8 @@ namespace SushiAI
                 LayerAdapter(L layer, int64_t output_features)
                     : LayerAdapter(std::move(layer), Shape{output_features}) {}
 
-                Graph::ValueId forward(const Graph::GraphBuilder& builder,
-                                       Graph::ValueId x) override
+                Graph::ValueID forward(const Graph::GraphBuilder& builder,
+                                       Graph::ValueID x) override
                 {
                     return layer_.forward(builder, x);
                 }

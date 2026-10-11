@@ -68,8 +68,8 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueId Upsample2d::forward(const Graph::GraphBuilder& builder,
-                                           Graph::ValueId x) const
+        Graph::ValueID Upsample2d::forward(const Graph::GraphBuilder& builder,
+                                           Graph::ValueID x) const
         {
             const Shape& image = builder.graph().value(x).shape;
             SA_THROW_IF(image.rank() != 4,

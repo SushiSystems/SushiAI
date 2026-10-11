@@ -51,7 +51,7 @@ namespace SushiAI
              * @param x An NHWC input of rank 2 or more, batch axis first.
              * @return The [N, d1 * ... * dk] result's id; @p x itself when it is rank 2.
              */
-            Graph::ValueId forward(const Graph::GraphBuilder& builder, Graph::ValueId x) const;
+            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.

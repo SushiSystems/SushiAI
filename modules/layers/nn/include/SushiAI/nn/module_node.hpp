@@ -59,10 +59,10 @@ namespace SushiAI
             public:
                 static_assert(Traceable<L>,
                               "ModuleNode's argument needs a static fields() and one of three "
-                              "forms: forward(const Graph::GraphBuilder&, Graph::ValueId), "
-                              "forward(const Trace&, Graph::ValueId), or the pair trace_training "
-                              "and trace_evaluation over (const Trace&, Graph::ValueId), each "
-                              "returning exactly Graph::ValueId. Check the layer named in the "
+                              "forms: forward(const Graph::GraphBuilder&, Graph::ValueID), "
+                              "forward(const Trace&, Graph::ValueID), or the pair trace_training "
+                              "and trace_evaluation over (const Trace&, Graph::ValueID), each "
+                              "returning exactly Graph::ValueID. Check the layer named in the "
                               "instantiation below, not this line.");
                 static_assert(Detail::HasOutputShapeOfInput<L>::value,
                               "ModuleNode's argument needs output_shape(const Shape&) returning "
@@ -83,7 +83,8 @@ namespace SushiAI
                         return layer.output_shape(input);
                     }));
 
-                    return std::unique_ptr<ModuleNode>(new ModuleNode(std::move(layer), produced));
+                    return std::unique_ptr<ModuleNode>(
+                        new ModuleNode(std::move(layer), input, produced));
                 }
 
                 /**
@@ -92,10 +93,10 @@ namespace SushiAI
                  *         accepts; @p outputs is unchanged then.
                  */
                 [[nodiscard]] Status forward(const Trace& trace, ValueSpan inputs,
-                                             std::vector<Graph::ValueId>& outputs) override
+                                             std::vector<Graph::ValueID>& outputs) override
                 {
                     SA_TRY(Detail::require_input_count(inputs, K_INPUT_COUNT));
-                    const Result<Graph::ValueId> traced =
+                    const Result<Graph::ValueID> traced =
                         Detail::bridge_throwing([this, &trace, &inputs]()
                     {
                         return trace_layer(layer_, trace, inputs[0]);
@@ -107,6 +108,37 @@ namespace SushiAI
 
                     outputs.push_back(traced.value());
                     return Status();
+                }
+
+                /**
+                 * @brief Traces the layer's incremental form over the shape create() was given.
+                 * @return Unsupported for a layer without forward_incremental(), or
+                 *         InvalidDescription unless @p inputs holds one value it accepts.
+                 */
+                [[nodiscard]] Status forward_incremental(
+                    const Trace& trace, ValueSpan inputs,
+                    std::vector<Graph::ValueID>& outputs) override
+                {
+                    if constexpr (IncrementalModule<L>)
+                    {
+                        SA_TRY(Detail::require_input_count(inputs, K_INPUT_COUNT));
+                        const Result<Graph::ValueID> traced =
+                            Detail::bridge_throwing([this, &trace, &inputs]()
+                        {
+                            return trace_layer_incremental(layer_, trace, inputs[0], input_);
+                        });
+
+                        // A failure the layer recorded caused whatever it threw afterwards.
+                        SA_TRY(trace.status());
+                        SA_TRY(traced);
+
+                        outputs.push_back(traced.value());
+                        return Status();
+                    }
+                    else
+                    {
+                        return Node::forward_incremental(trace, inputs, outputs);
+                    }
                 }
 
                 /** @brief Returns one, the number of values a layer reads. */
@@ -143,15 +175,20 @@ namespace SushiAI
                 /** @brief Holds the number of values a layer reads. */
                 static constexpr std::size_t K_INPUT_COUNT = 1;
 
-                /** @brief Binds the layer and the shape create() read from it. */
-                ModuleNode(L layer, const Shape& produced)
-                    : layer_(std::move(layer)), port_{std::string(K_SINGLE_PORT_NAME), produced}
+                /** @brief Binds the layer, the shape it reads and the shape it produces. */
+                ModuleNode(L layer, const Shape& input, const Shape& produced)
+                    : layer_(std::move(layer)),
+                      input_(input),
+                      port_{std::string(K_SINGLE_PORT_NAME), produced}
                 {
 
                 }
 
                 /** @brief Holds the wrapped layer. */
                 L layer_;
+
+                /** @brief Holds the per-sample shape the layer reads, batch axis excluded. */
+                Shape input_;
 
                 /** @brief Holds the one port forward() appends to. */
                 Port port_;

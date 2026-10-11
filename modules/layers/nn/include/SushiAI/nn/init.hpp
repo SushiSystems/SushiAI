@@ -46,8 +46,8 @@ namespace SushiAI
         {
             Linear,     /**< No activation, or an identity one. */
             Tanh,       /**< Hyperbolic tangent. */
-            Relu,       /**< Rectified linear unit; also GELU and SiLU in practice. */
-            LeakyRelu, /**< Leaky rectified linear unit. */
+            ReLU,       /**< Rectified linear unit; also GELU and SiLU in practice. */
+            LeakyReLU, /**< Leaky rectified linear unit. */
             Sigmoid,    /**< Logistic sigmoid. */
         };
 
@@ -65,6 +65,15 @@ namespace SushiAI
          */
         [[nodiscard]] Status constant(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
                                       double value);
+
+        /**
+         * @brief Records a fill of @p tensor from N(0, deviation^2).
+         * @param engine The engine whose Philox stream supplies the numbers.
+         * @return Success, InvalidDescription for a deviation that is not positive and
+         *         finite, or the seam's failure of the recording.
+         */
+        [[nodiscard]] Status normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+                                    double deviation);
 
         /**
          * @brief Records a fill of @p tensor from N(0, (gain / sqrt(fan_in))^2).
@@ -133,7 +142,7 @@ namespace SushiAI
             InitFamily family = InitFamily::Kaiming;
 
             /** @brief The activation the hidden layers feed. */
-            Nonlinearity nonlinearity = Nonlinearity::Relu;
+            Nonlinearity nonlinearity = Nonlinearity::ReLU;
 
             /** @brief Draw uniformly rather than normally. */
             bool uniform = false;
@@ -152,7 +161,7 @@ namespace SushiAI
         {
             /**
              * @brief Records the initial fill of one tensor.
-             * @param init The fill the tensor starts from; a Constant fill is tested first.
+             * @param init The fill; a Constant or a Normal one is tested before the zeroing.
              * @param fan_in Inputs feeding one output unit, as the parameter declared them.
              * @param fan_out Outputs one input unit feeds, as the parameter declared them.
              * @param is_final_layer True if the tensor belongs to the final classifier layer.

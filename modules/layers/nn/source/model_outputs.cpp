@@ -69,7 +69,7 @@ namespace SushiAI
 
         } // namespace
 
-        Status ModelOutputs::add(std::string name, Graph::ValueId id)
+        Status ModelOutputs::add(std::string name, Graph::ValueID id)
         {
             SA_FATAL_IF(id == Graph::K_NO_VALUE,
                         "a model output named '{}' was added with no value", name);
@@ -85,7 +85,7 @@ namespace SushiAI
             return Status();
         }
 
-        Result<Graph::ValueId> ModelOutputs::at(std::string_view name) const noexcept
+        Result<Graph::ValueID> ModelOutputs::at(std::string_view name) const noexcept
         {
             const auto found = find_entry(entries_, name);
             SA_FAIL_IF(found == entries_.end(), StatusCode::InvalidDescription,
@@ -95,7 +95,7 @@ namespace SushiAI
             return found->second;
         }
 
-        Result<Graph::ValueId> ModelOutputs::only() const noexcept
+        Result<Graph::ValueID> ModelOutputs::only() const noexcept
         {
             SA_FAIL_IF(entries_.size() != 1, StatusCode::InvalidDescription,
                        "exactly one model output was expected; the model has {}: {}",

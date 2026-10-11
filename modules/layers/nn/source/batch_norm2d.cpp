@@ -46,8 +46,8 @@ namespace SushiAI
             /** @brief Holds the two parameter leaves both trace forms declare. */
             struct DeclaredState
             {
-                Graph::ValueId gamma; /**< The leaf of the scale. */
-                Graph::ValueId beta;  /**< The leaf of the shift. */
+                Graph::ValueID gamma; /**< The leaf of the scale. */
+                Graph::ValueID beta;  /**< The leaf of the shift. */
             };
 
             /** @brief Lists every key a "batchnorm2d" row accepts. */
@@ -77,7 +77,7 @@ namespace SushiAI
              */
             [[nodiscard]] Result<Shape> checked_image(const BatchNorm2d& layer,
                                                       const Graph::GraphBuilder& builder,
-                                                      Graph::ValueId x)
+                                                      Graph::ValueID x)
             {
                 SA_FATAL_IF(x >= builder.graph().value_count(),
                             "BatchNorm2d({}) was traced over value {}; the graph holds {} values",
@@ -89,7 +89,7 @@ namespace SushiAI
                            StatusCode::InvalidDescription,
                            "BatchNorm2d({}) needs a rank-4 [N, H, W, {}] input; got {}",
                            layer.channels, layer.channels, image.to_string());
-                SA_FAIL_IF(builder.graph().value(x).layout != Graph::TensorLayout::Nhwc,
+                SA_FAIL_IF(builder.graph().value(x).layout != Graph::TensorLayout::NHWC,
                            StatusCode::InvalidDescription,
                            "BatchNorm2d({}) needs an NHWC input; got {} tagged NCHW. Cross with "
                            "layout_convert first (CV-3).",
@@ -108,18 +108,18 @@ namespace SushiAI
              */
             [[nodiscard]] Result<DeclaredState> declare_state(BatchNorm2d& layer,
                                                               const Graph::GraphBuilder& builder,
-                                                              Graph::ValueId x)
+                                                              Graph::ValueID x)
             {
                 // The type is held by value; declaring a parameter grows the value table.
                 const DType dtype = builder.graph().value(x).dtype;
                 const Shape per_channel{layer.channels};
 
-                SA_TRY_ASSIGN(const Graph::ValueId gamma, Detail::bridge_throwing([&]()
+                SA_TRY_ASSIGN(const Graph::ValueID gamma, Detail::bridge_throwing([&]()
                 {
                     return layer.weight.declare(builder, per_channel, ParameterRole::Scale,
                                                 layer.channels, layer.channels, "weight", dtype);
                 }));
-                SA_TRY_ASSIGN(const Graph::ValueId beta, Detail::bridge_throwing([&]()
+                SA_TRY_ASSIGN(const Graph::ValueID beta, Detail::bridge_throwing([&]()
                 {
                     return layer.bias.declare(builder, per_channel, ParameterRole::Bias,
                                               layer.channels, layer.channels, "bias", dtype);
@@ -145,7 +145,7 @@ namespace SushiAI
 
             /** @brief Hands one update of @p target to the sink of a Training trace. */
             void request_update(const Trace& trace, Buffer& target, std::string_view debug_name,
-                                Graph::ValueId source, double momentum, double source_scale)
+                                Graph::ValueID source, double momentum, double source_scale)
             {
                 const Status requested = trace.update(target, source, momentum, source_scale);
                 SA_FATAL_IF(!requested.is_ok(),
@@ -154,9 +154,9 @@ namespace SushiAI
             }
 
             /** @brief Traces the training form, or returns why @p x or @p layer does not fit. */
-            [[nodiscard]] Result<Graph::ValueId> trace_batch_statistics(BatchNorm2d& layer,
+            [[nodiscard]] Result<Graph::ValueID> trace_batch_statistics(BatchNorm2d& layer,
                                                                         const Trace& trace,
-                                                                        Graph::ValueId x)
+                                                                        Graph::ValueID x)
             {
                 const Graph::GraphBuilder& builder = trace.builder();
                 SA_TRY_ASSIGN(const Shape image, checked_image(layer, builder, x));
@@ -182,19 +182,19 @@ namespace SushiAI
             }
 
             /** @brief Traces the evaluation form, or returns why @p x or @p layer does not fit. */
-            [[nodiscard]] Result<Graph::ValueId> trace_running_statistics(BatchNorm2d& layer,
+            [[nodiscard]] Result<Graph::ValueID> trace_running_statistics(BatchNorm2d& layer,
                                                                           const Trace& trace,
-                                                                          Graph::ValueId x)
+                                                                          Graph::ValueID x)
             {
                 const Graph::GraphBuilder& builder = trace.builder();
                 SA_TRY(checked_image(layer, builder, x));
 
                 SA_TRY_ASSIGN(const DeclaredState state, declare_state(layer, builder, x));
-                SA_TRY_ASSIGN(const Graph::ValueId mean, Detail::bridge_throwing([&]()
+                SA_TRY_ASSIGN(const Graph::ValueID mean, Detail::bridge_throwing([&]()
                 {
                     return layer.running_mean.read(builder, "running_mean");
                 }));
-                SA_TRY_ASSIGN(const Graph::ValueId variance, Detail::bridge_throwing([&]()
+                SA_TRY_ASSIGN(const Graph::ValueID variance, Detail::bridge_throwing([&]()
                 {
                     return layer.running_var.read(builder, "running_var");
                 }));
@@ -216,7 +216,7 @@ namespace SushiAI
 
         }
 
-        Graph::ValueId BatchNorm2d::trace_training(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID BatchNorm2d::trace_training(const Trace& trace, Graph::ValueID x)
         {
             SA_FATAL_IF(trace.mode() != TraceMode::Training,
                         "BatchNorm2d::trace_training was given an evaluation trace; trace_layer "
@@ -225,7 +225,7 @@ namespace SushiAI
             return trace.value_or_fail(trace_batch_statistics(*this, trace, x), x);
         }
 
-        Graph::ValueId BatchNorm2d::trace_evaluation(const Trace& trace, Graph::ValueId x)
+        Graph::ValueID BatchNorm2d::trace_evaluation(const Trace& trace, Graph::ValueID x)
         {
             return trace.value_or_fail(trace_running_statistics(*this, trace, x), x);
         }

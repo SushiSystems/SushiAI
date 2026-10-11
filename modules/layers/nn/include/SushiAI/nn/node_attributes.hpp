@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -38,6 +39,7 @@
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
+#include <SushiAI/nn/layer_norm.hpp>
 #include <SushiAI/nn/module_node.hpp>
 #include <SushiAI/nn/node.hpp>
 
@@ -52,6 +54,9 @@ namespace SushiAI
 
             /** @brief Names the key that holds a row's batch-normalisation momentum. */
             inline constexpr std::string_view K_NORM_MOMENTUM_KEY = "bn_momentum";
+
+            /** @brief Names the key that holds a row's layer-normalisation epsilon. */
+            inline constexpr std::string_view K_LAYER_NORM_EPSILON_KEY = "ln_epsilon";
 
             /** @brief Views the keys one node row accepts. */
             using KeySpan = SushiRuntime::span<const std::string_view>;
@@ -94,6 +99,33 @@ namespace SushiAI
             [[nodiscard]] Result<bool> read_bool_or(const Config::Value& attributes,
                                                     std::string_view key,
                                                     std::string_view context, bool fallback);
+
+            /**
+             * @brief Reads the row above that @p key names: a row number, -1 for the row
+             *        before, or an object that holds one of the two under "node".
+             * @param rows_above How many rows are above the one being built.
+             * @return The row's index, below @p rows_above, or InvalidDescription for any
+             *         other form and for a row that is not above.
+             */
+            [[nodiscard]] Result<std::size_t> read_row_above(const Config::Value& attributes,
+                                                             std::string_view key,
+                                                             std::string_view context,
+                                                             std::size_t rows_above);
+
+            /**
+             * @brief Reads the required number under @p key.
+             * @return InvalidDescription when the key is absent or holds anything but a number.
+             */
+            [[nodiscard]] Result<double> read_real(const Config::Value& attributes,
+                                                   std::string_view key,
+                                                   std::string_view context);
+
+            /**
+             * @brief Reads K_LAYER_NORM_EPSILON_KEY, or K_LAYER_NORM_EPSILON when it is absent.
+             * @return InvalidDescription unless the epsilon is a positive number.
+             */
+            [[nodiscard]] Result<double> read_layer_norm_epsilon(
+                const Config::Value& attributes, std::string_view context);
 
             /**
              * @brief Reads K_NORM_EPSILON_KEY and K_NORM_MOMENTUM_KEY over NormOptions' defaults.

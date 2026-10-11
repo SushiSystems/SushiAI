@@ -64,7 +64,7 @@ namespace SushiAI
                  *         the shape the node was built over; @p outputs is unchanged then.
                  */
                 [[nodiscard]] Status forward(const Trace& trace, ValueSpan inputs,
-                                             std::vector<Graph::ValueId>& outputs) override;
+                                             std::vector<Graph::ValueID>& outputs) override;
 
                 /** @brief Returns 2, the number of operands an addition takes. */
                 [[nodiscard]] std::size_t input_count() const noexcept override;
