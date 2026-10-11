@@ -186,7 +186,7 @@ namespace SushiAI
             }
 
             text += "per-node timing:\n";
-            for (const NodeTimings::value_type& timing : node_timings)
+            for (const SushiRuntime::NodeTiming& timing : node_timings)
             {
                 text += SushiBLAS::Core::format(
                     "  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
