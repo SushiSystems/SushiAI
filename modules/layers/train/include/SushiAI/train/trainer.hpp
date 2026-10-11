@@ -149,7 +149,7 @@ namespace SushiAI
             double duration_ms = 0.0;
 
             /** @brief Names the per-node timing rows of a SushiRuntime run report. */
-            using NodeTimings = decltype(SushiRuntime::RunReport::node_timings);
+            using NodeTimings = std::vector<SushiRuntime::NodeTiming>;
 
             /** @brief Per-node timings summed over the steps; empty unless the runtime profiles. */
             NodeTimings node_timings;

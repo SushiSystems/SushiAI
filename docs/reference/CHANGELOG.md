@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-12 — train: Spelled RunReport::NodeTimings as a vector of SushiRuntime::NodeTiming, where a decltype stood in for the name (`trainer.hpp`, `trainer.cpp`).
 - 2026-10-12 — tests: Made the four cases skipped for a missing runtime query assert again, through Graph::plan() and live_allocation_count() (`test_fusion_numerics.cpp`, `test_static_memory.cpp`, `test_resilience.cpp`).
 - 2026-10-12 — graph: Made CompiledStep::compile compile the step's graph, so a compile failure returns from compile() and compile_count() is 1 before the first run (`compiled_step.cpp`, `compiled_step.hpp`).
 - 2026-10-12 — core: Moved every caller to the bare accessors of SushiBLAS and to OperationID, and renamed the three get_ readers of the checkpoint format to read_ (`ops.hpp`, `allocation.cpp`, `checkpoint_format.cpp`).
