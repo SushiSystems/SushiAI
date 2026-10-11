@@ -21,28 +21,35 @@
 
 /**
  * @file domains.hpp
- * @brief Declares the function that adds the rows of the linked domain to the app registries.
+ * @brief Declares the functions that add the rows of each linked domain to the app registries.
  * @author Mustafa Garip
  */
 
 #pragma once
 
 #include <SushiAI/core/status.hpp>
-#include <SushiAI/data/dataset_registry.hpp>
-#include <SushiAI/nn/node_registry.hpp>
+
+#include "registries.hpp"
 
 namespace SushiAI
 {
     namespace Apps
     {
         /**
-         * @brief Adds the node and dataset rows of the domain this build links.
-         * @param nodes The node registry the domain's node rows are added to.
-         * @param datasets The dataset registry the domain's dataset rows are added to.
+         * @brief Adds the node, dataset, objective, run, report and importer rows of vision,
+         *        or nothing in a build that does not link it.
+         * @param registries The registries the rows are added to.
          * @return Ok, or the first failure a register function returned.
          */
-        [[nodiscard]] Status register_domains(NN::NodeRegistry& nodes,
-                                              Data::DatasetRegistry& datasets);
+        [[nodiscard]] Status register_vision_domain(Registries& registries);
+
+        /**
+         * @brief Adds the node, dataset, objective and report rows of language, or nothing
+         *        in a build that does not link it.
+         * @param registries The registries the rows are added to.
+         * @return Ok, or the first failure a register function returned.
+         */
+        [[nodiscard]] Status register_language_domain(Registries& registries);
 
     } // namespace Apps
 } // namespace SushiAI

@@ -10,12 +10,12 @@ change as the library grows.
 sa build
 sushiai train      applications/examples/heavy_mlp/train.json
 sushiai inference  applications/examples/heavy_mlp/model.json \
-                   applications/examples/heavy_mlp/heavy_mlp.ckpt \
+                   applications/examples/heavy_mlp/heavy_mlp.sushi \
                    applications/examples/heavy_mlp/eval.json
 ```
 
 The checkpoint lands **beside `train.json`**, not in your working directory:
-`"checkpoint": "heavy_mlp.ckpt"` is relative, and a relative path in a
+`"checkpoint": "heavy_mlp.sushi"` is relative, and a relative path in a
 configuration file resolves against that file's own directory.
 
 ## What it does, measured
@@ -30,7 +30,7 @@ Training takes about 30 seconds on a CPU/OpenCL box (AMD Ryzen 5 7600X,
   epoch  50/50  loss 0.012367   accuracy 100.00%
 
 compiles: 1
-wrote applications/examples/heavy_mlp/heavy_mlp.ckpt (108996 scalars)
+wrote applications/examples/heavy_mlp/heavy_mlp.sushi (108996 scalars)
 ```
 
 Inference over the 512 held-out points then reports **86.33% top-1

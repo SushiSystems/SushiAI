@@ -33,8 +33,10 @@
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
+#include <SushiAI/train/objective_registry.hpp>
 
 #include "domains.hpp"
+#include "trainer_run.hpp"
 
 namespace SushiAI
 {
@@ -46,7 +48,10 @@ namespace SushiAI
 
             SA_TRY(NN::register_layers(registries.nodes));
             SA_TRY(Data::register_datasets(registries.datasets));
-            SA_TRY(register_domains(registries.nodes, registries.datasets));
+            SA_TRY(Train::register_objectives(registries.objectives));
+            SA_TRY(register_runs(registries.runs));
+            SA_TRY(register_vision_domain(registries));
+            SA_TRY(register_language_domain(registries));
 
             return registries;
         }

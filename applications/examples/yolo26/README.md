@@ -6,9 +6,9 @@ Ultralytics `yolo26.yaml` at scale `n`, read by `NN::build_model`
 this directory.
 
 `build_model` builds the whole file over the registry that `NN::register_layers` and
-`Vision::register_nodes` fill. `TheYolo26FileBuildsWhole` in
+`Vision::register_nodes` fill. `TheYOLO26FileBuildsWhole` in
 `modules/vision/registration/tests/test_registration.cpp` pins that build: the 594 state records
-of `weights.sacp` and the twelve ports the last row publishes. No command trains or evaluates this
+of `weights.sushi` and the twelve ports the last row publishes. No command trains or evaluates this
 model, and no run has been made with it.
 
 ## Row types
@@ -21,7 +21,7 @@ model, and no run has been made with it.
 | 22 | `c3k2` with `"inner": "bottleneck_psa"` | `register_nodes` |
 | 23 | `detect`, 80 classes, over rows 16, 19 and 22 | `register_nodes` |
 
-`TheYolo26FileHoldsItsTwentyFourRows` pins the types. The shape tests replace row 10 with a
+`TheYOLO26FileHoldsItsTwentyFourRows` pins the types. The shape tests replace row 10 with a
 `silu` row, which keeps the shape `c2psa` keeps, so they run without the attention block.
 
 ## The rows
@@ -71,7 +71,7 @@ them here.
 third is the expansion `e`. `shortcut` is the last parameter of `C3k2.__init__` and defaults to
 `True`, and no row of `yolo26.yaml` states it, so the one `Bottleneck(16, 16)` of row 2 and the one
 `Bottleneck(32, 32)` of row 4 add their input.
-`Unit_VisionRegistration.Yolo26RowsTwoAndFourAddTheirBottlenecksInput` pins the two additions.
+`Unit_VisionRegistration.YOLO26RowsTwoAndFourAddTheirBottlenecksInput` pins the two additions.
 
 `defaults` gives every block the batch-normalisation constants Ultralytics sets, epsilon 0.001
 and momentum 0.03. A row that states either key keeps its own value.

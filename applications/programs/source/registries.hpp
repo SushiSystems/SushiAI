@@ -29,7 +29,12 @@
 
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
+#include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>
+#include <SushiAI/train/objective_registry.hpp>
+
+#include "inference_run.hpp"
+#include "training_run.hpp"
 
 namespace SushiAI
 {
@@ -46,10 +51,22 @@ namespace SushiAI
 
             /** @brief The dataset types a data block may name. */
             Data::DatasetRegistry datasets;
+
+            /** @brief The objective types an objective block may name. */
+            Train::ObjectiveRegistry objectives;
+
+            /** @brief The training runs, by the objective type each trains. */
+            RunRegistry runs;
+
+            /** @brief The reports of `sushiai inference`, by the task type each reads. */
+            InferenceRegistry inferences;
+
+            /** @brief The importers `sushiai import` may name, by format. */
+            IO::ImporterRegistry importers;
         };
 
         /**
-         * @brief Builds the registries of an app: the layers, the blocks, "rings" and "mnist".
+         * @brief Builds the registries of an app: the rows of the library, then of the domain.
          * @return The filled registries, or the first failure a register function returned.
          */
         [[nodiscard]] Result<Registries> compose_registries();

@@ -39,6 +39,8 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.h>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/format.hpp>
@@ -52,8 +54,8 @@ namespace
     /** @brief Selects the update rule the demo trains with. */
     enum class OptimizerKind : std::uint8_t
     {
-        Adamw, /**< AdamW, the default; converges on this problem without tuning. */
-        Sgd,   /**< SGD with momentum, for comparison. */
+        AdamW, /**< AdamW, the default; converges on this problem without tuning. */
+        SGD,   /**< SGD with momentum, for comparison. */
     };
 
     /**
@@ -62,8 +64,8 @@ namespace
      */
     enum class ActivationKind : std::uint8_t
     {
-        Relu, /**< The default; folds with nothing spilled. */
-        Gelu, /**< Folds only via the auxiliary pre-activation spill. */
+        ReLU, /**< The default; folds with nothing spilled. */
+        GELU, /**< Folds only via the auxiliary pre-activation spill. */
     };
 
     /**
@@ -84,9 +86,9 @@ namespace
 
         std::uint64_t seed = 0x0D15EA5E'0BADF00Dull; /**< Seeds both the data and the weights. */
         /** @brief Holds the update rule the run trains with. */
-        OptimizerKind optimizer = OptimizerKind::Adamw;
+        OptimizerKind optimizer = OptimizerKind::AdamW;
         /** @brief Holds the activation of the hidden layer. */
-        ActivationKind activation = ActivationKind::Relu;
+        ActivationKind activation = ActivationKind::ReLU;
         /** @brief Holds the directory the MNIST IDX files are looked for in. */
         std::filesystem::path mnist_directory = "data/mnist";
 
@@ -369,16 +371,16 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             else if (flag == "--optimizer")
             {
                 SA_TRY_ASSIGN(const std::string name, value());
-                if (name == "adamw") settings.optimizer = OptimizerKind::Adamw;
-                else if (name == "sgd") settings.optimizer = OptimizerKind::Sgd;
+                if (name == "adamw") settings.optimizer = OptimizerKind::AdamW;
+                else if (name == "sgd") settings.optimizer = OptimizerKind::SGD;
                 else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
                                 "--optimizer takes 'adamw' or 'sgd', got '{}'", name);
             }
             else if (flag == "--activation")
             {
                 SA_TRY_ASSIGN(const std::string name, value());
-                if (name == "relu") settings.activation = ActivationKind::Relu;
-                else if (name == "gelu") settings.activation = ActivationKind::Gelu;
+                if (name == "relu") settings.activation = ActivationKind::ReLU;
+                else if (name == "gelu") settings.activation = ActivationKind::GELU;
                 else SA_FAIL_IF(true, sa::StatusCode::InvalidDescription,
                                 "--activation takes 'relu' or 'gelu', got '{}'", name);
             }
@@ -405,7 +407,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         const Settings& settings,
         double& learning_rate)
     {
-        if (settings.optimizer == OptimizerKind::Sgd)
+        if (settings.optimizer == OptimizerKind::SGD)
         {
             sa::Optim::SGDOptions sgd;
             sgd.learning_rate = settings.learning_rate.value_or(0.2);
@@ -444,7 +446,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      */
     [[nodiscard]] sa::Result<DataChoice> load_dataset(sb::Engine& engine, const Settings& settings)
     {
-        sa::Vision::Datasets::MnistOptions mnist;
+        sa::Vision::Datasets::MNISTOptions mnist;
         mnist.directory = settings.mnist_directory;
         mnist.batch_size = settings.batch_size;
         mnist.max_samples = settings.batch_size * settings.batches;
@@ -665,8 +667,11 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         // The trainer checks the graph against the policy it was built with.
         options.precision = precision;
 
+        // The objective build_classifier traced; it feeds and measures every step.
+        const sa::Train::CrossEntropyObjective objective(settings.batch_size, classes,
+                                                         sa::DType::Float32);
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::Trainer> trainer,
-                      sa::Train::Trainer::make(engine, built.graph, pool, built.spec, *optimizer,
+                      sa::Train::Trainer::make(engine, built, pool, objective, *optimizer,
                                                options));
 
         // The step count comes from the dataset, which the MNIST path may cap below --batches.
@@ -683,9 +688,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                        features, settings.hidden, classes,
                                        sa::NN::parameter_elements(model))
             << SushiBLAS::Core::format("Optimizer: {} (lr {:g}{})\n",
-                                       settings.optimizer == OptimizerKind::Sgd ? "sgd" : "adamw",
+                                       settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw",
                                        learning_rate,
-                                       settings.optimizer == OptimizerKind::Sgd
+                                       settings.optimizer == OptimizerKind::SGD
                                            ? SushiBLAS::Core::format(", momentum {:g}",
                                                                      K_SGD_MOMENTUM)
                                            : std::string{})
@@ -721,7 +726,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
             if (epoch == 1) run.first_loss = epoch_report.first_loss;
             run.last_loss = epoch_report.last_loss;
-            run.last_accuracy = epoch_report.last_accuracy;
+            run.last_metrics = epoch_report.last_metrics;
             run.operations_per_step = epoch_report.operations_per_step;
             run.steps += epoch_report.steps;
             run.duration_ms += epoch_report.duration_ms;
@@ -729,7 +734,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             trajectory += SushiBLAS::Core::format(
                 "  epoch {:>3}/{:<3} loss {:.6f} -> {:.6f}   accuracy {:6.2f}%\n",
                 epoch, settings.epochs, epoch_report.first_loss,
-                epoch_report.last_loss, epoch_report.last_accuracy * 100.0);
+                epoch_report.last_loss,
+                epoch_report.last_metrics.value_or("accuracy", 0.0) * 100.0);
         }
         run.compile_count = trainer->compile_count();
 
@@ -738,7 +744,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             << "\n================================================================\n"
             << " SushiAI MLP demo - result\n"
             << " " << (data.is_mnist ? "MNIST" : "synthetic fallback")
-            << ", " << (settings.optimizer == OptimizerKind::Sgd ? "sgd" : "adamw")
+            << ", " << (settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw")
             << SushiBLAS::Core::format(", {} -> {} -> {}\n", features, settings.hidden, classes)
             << "================================================================\n"
             << trajectory
@@ -778,11 +784,17 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         SA_TRY_ASSIGN(const DataChoice data, load_dataset(engine, settings));
         const sa::Data::Dataset& dataset = *data.dataset;
 
-        const int64_t features = dataset.input_dim();
-        const int64_t classes = dataset.num_classes();
+        const sa::Data::TargetDescription* const labels =
+            sa::Data::find_target(dataset.targets(), sa::Data::K_ROLE_LABELS);
+        SA_FAIL_IF(labels == nullptr, sa::StatusCode::InvalidDescription,
+                   "the '{}' data publishes no '{}' role", dataset.name(),
+                   sa::Data::K_ROLE_LABELS);
+
+        const int64_t features = dataset.sample_shape().num_elements();
+        const int64_t classes = labels->classes;
 
         // The activation is a type, so the choice is made here and nowhere after it.
-        if (settings.activation == ActivationKind::Gelu)
+        if (settings.activation == ActivationKind::GELU)
         {
             sa::NN::Sequential model{
                 sa::NN::Linear{features, settings.hidden},
