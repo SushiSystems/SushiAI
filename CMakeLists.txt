@@ -63,6 +63,7 @@ else()
 endif()
 
 option(SA_BUILD_VISION "Build the vision domain, SushiAI::vision" ${SA_IS_TOP_LEVEL})
+option(SA_BUILD_LANGUAGE "Build the language domain, SushiAI::language" ${SA_IS_TOP_LEVEL})
 
 # --- Configuration ---
 # C++17, matching SushiBLAS and SushiRuntime. The whole stack has to agree on

@@ -10,17 +10,18 @@
 # The design is docs/design/DOMAIN_MODULES.md.
 
 # Lowest first. A module may depend on a module of its own tier or of a lower one.
-set(SUSHIAI_TIER_ORDER core layers vision)
+set(SUSHIAI_TIER_ORDER core layers vision language)
 
 # Tiers that are domains. Every domain ranks directly above `layers`, and no
 # module of one domain may depend on a module of another.
-set(SUSHIAI_DOMAIN_TIERS vision)
+set(SUSHIAI_DOMAIN_TIERS vision language)
 
 # Pairs: tier, then the library target its modules are archived into.
 set(SUSHIAI_TIER_LIBRARY
     core    sushiai
     layers  sushiai
     vision  sushiai_vision
+    language  sushiai_language
 )
 
 # Pairs: module key, then its tier. A module of a domain tier is keyed
@@ -39,11 +40,20 @@ set(SUSHIAI_MODULE_TIERS
     train                layers
     umbrella             layers
     vision/imaging       vision
+    vision/codecs        vision
     vision/detect        vision
+    vision/segment       vision
     vision/blocks        vision
     vision/datasets      vision
     vision/importers     vision
     vision/training      vision
     vision/registration  vision
     vision/umbrella      vision
+    language/text        language
+    language/blocks      language
+    language/datasets    language
+    language/training    language
+    language/generation  language
+    language/registration language
+    language/umbrella    language
 )

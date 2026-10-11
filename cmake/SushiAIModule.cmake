@@ -84,10 +84,38 @@ function(sushiai_check_module_edge consumer dependency)
     endif()
 endfunction()
 
+# sushiai_promote_imported(<target> ...)
+#
+# Makes each imported target, and every imported target its link interface
+# names, visible from every directory. It is called from the directory whose
+# find_package created them, which is the only one CMake lets do so.
+function(sushiai_promote_imported)
+    foreach(external IN LISTS ARGN)
+        if(NOT TARGET ${external})
+            continue()
+        endif()
+
+        get_target_property(aliased ${external} ALIASED_TARGET)
+        get_target_property(imported ${external} IMPORTED)
+        get_target_property(global ${external} IMPORTED_GLOBAL)
+        if(aliased OR NOT imported OR global)
+            continue()
+        endif()
+
+        set_target_properties(${external} PROPERTIES IMPORTED_GLOBAL TRUE)
+
+        get_target_property(interface ${external} INTERFACE_LINK_LIBRARIES)
+        if(interface)
+            sushiai_promote_imported(${interface})
+        endif()
+    endforeach()
+endfunction()
+
 # sushiai_add_module(NAME <module> TIER <tier>
 #     [SOURCES source/<file>.cpp ...]
 #     [PUBLIC_DEPENDS <module key> ...] [PRIVATE_DEPENDS <module key> ...]
 #     [EXTERNAL_PUBLIC <target> ...] [EXTERNAL_PRIVATE_INCLUDES <target> ...]
+#     [EXTERNAL_PRIVATE_LINKS <target> ...]
 #     [TESTS tests/<file>.cpp ...])
 #
 # Called from modules/<tier>/<module>/CMakeLists.txt. With SOURCES the module
@@ -96,11 +124,14 @@ endfunction()
 # SUSHIAI_MODULE_TIERS, and an edge the tier order refuses stops the configure.
 # EXTERNAL_PRIVATE_INCLUDES takes the include directories and definitions of a
 # header-only target as values, so the target's name stays out of every link
-# interface. The objects, the include root and the test files are handed to the
-# library of the module's tier.
+# interface. EXTERNAL_PRIVATE_LINKS takes the same of a compiled target and
+# hands the target to the library of the module's tier, which links it PRIVATE:
+# the module's sources alone see its headers, and a consumer of the static
+# library inherits the link and nothing else. The objects, the include root
+# and the test files are handed to the library of the module's tier.
 function(sushiai_add_module)
     cmake_parse_arguments(ARG "" "NAME;TIER"
-        "SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC;EXTERNAL_PRIVATE_INCLUDES;TESTS"
+        "SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC;EXTERNAL_PRIVATE_INCLUDES;EXTERNAL_PRIVATE_LINKS;TESTS"
         ${ARGN})
 
     if(NOT ARG_NAME OR NOT ARG_TIER)
@@ -165,11 +196,22 @@ function(sushiai_add_module)
         target_link_libraries(${target} PRIVATE ${dependency_target})
     endforeach()
 
+    sushiai_promote_imported(${ARG_EXTERNAL_PUBLIC} ${ARG_EXTERNAL_PRIVATE_LINKS})
+
     foreach(external IN LISTS ARG_EXTERNAL_PUBLIC)
         target_link_libraries(${target} ${public_scope} ${external})
     endforeach()
 
-    foreach(external IN LISTS ARG_EXTERNAL_PRIVATE_INCLUDES)
+    if(ARG_EXTERNAL_PRIVATE_LINKS AND NOT ARG_SOURCES)
+        message(FATAL_ERROR
+            "sushiai_add_module(${key}): a module without SOURCES has no private side.")
+    endif()
+
+    foreach(external IN LISTS ARG_EXTERNAL_PRIVATE_LINKS)
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_PRIVATE_LINKS_${library} ${external})
+    endforeach()
+
+    foreach(external IN LISTS ARG_EXTERNAL_PRIVATE_INCLUDES ARG_EXTERNAL_PRIVATE_LINKS)
         target_include_directories(${target} PRIVATE
             "$<TARGET_PROPERTY:${external},INTERFACE_INCLUDE_DIRECTORIES>")
         target_compile_definitions(${target} PRIVATE
@@ -233,6 +275,7 @@ function(sushiai_add_library)
 
     get_property(objects GLOBAL PROPERTY SUSHIAI_OBJECTS_${ARG_NAME})
     get_property(include_roots GLOBAL PROPERTY SUSHIAI_INCLUDE_ROOTS_${ARG_NAME})
+    get_property(private_links GLOBAL PROPERTY SUSHIAI_PRIVATE_LINKS_${ARG_NAME})
 
     add_library(${ARG_NAME} STATIC ${objects})
     add_library(SushiAI::${ARG_EXPORT_NAME} ALIAS ${ARG_NAME})
@@ -249,6 +292,11 @@ function(sushiai_add_library)
         SushiRuntime::SushiRuntime
         SushiBLAS::sushiblas
         ${ARG_DEPENDS})
+
+    if(private_links)
+        list(REMOVE_DUPLICATES private_links)
+        target_link_libraries(${ARG_NAME} PRIVATE ${private_links})
+    endif()
 
     # Restated on the target, so an add_subdirectory consumer at another
     # standard still links the library its ABI was decided under.

@@ -29,7 +29,7 @@ latex/
 # Checkpoints. Written into the working directory by the examples and by
 # `sushiai train`, whose default output path is relative - so a run from the
 # repository root leaves one here.
-*.ckpt
+*.sushi
 
 # CLI: machine-specific overrides, Python caches, and editable installs.
 cli/config.local.toml
