@@ -512,8 +512,9 @@ plan. SushiBLAS cannot see into the functor, so this library has to make the dec
 
 The edge is what the test is for, and a loss cannot stand in for it. With no edge the two tasks may still come out
 in the right order on any given run, so a falling loss proves nothing about ordering, and this
-failure mode survives an otherwise green suite. `SushiRuntime::Graph` shows no dependency of a
-recorded node, so the case asserts the node count and then reports itself skipped. The node count is asserted for a related reason:
+failure mode survives an otherwise green suite. The case reads the edge from
+`SushiRuntime::Graph::plan()`, as the predecessor count of the second recorded node. The node
+count is asserted for a related reason:
 the plan used to hold three nodes, the third being a host-side ordering node that ran nothing and
 existed only to carry this edge.
 
@@ -528,7 +529,7 @@ This test covers the other half of the epilogue's access set, the half only the 
 the spill behind the GEMM. Without the second declaration, the backward pass that differentiates at
 the pre-activation races the kernel that produced it. A race that usually resolves the right way
 cannot be told apart from training, so a loss cannot stand in for the edge here either. The case
-asserts the node count and then reports itself skipped, for the same reason.
+asserts the predecessor count of the reader in the plan.
 
 The test emits a reader of the pre-activation after the K_GELU, the way the differentiation pass
 emits gelu_backward.
@@ -923,9 +924,9 @@ Suites: `Regression_StaticMemory`.
 The file tests four guarantees of the static memory planner whose failure would be silent: the loop
 still converges, the run still reports success, and nobody notices.
 
-1. A training loop allocates nothing after the first step. `SushiRuntime::Runtime` shows no
-   count of its live allocations, so the test asserts the bytes the pool holds after each of
-   twelve steps and then reports itself skipped.
+1. A training loop allocates nothing after the first step. The test counts this. Every Storage
+   allocates through the runtime, so `AdvancedControls::live_allocation_count()` is the
+   live-allocation count, and one extra buffer moves it by exactly one.
 2. Packing shrinks the footprint. A pass that quietly stopped packing would leave every other test
    in the suite green. The footprint is measured on the unfused graph, because fusion reaches the
    same bytes by a different route: it deletes the intermediates where packing overlaps them. A

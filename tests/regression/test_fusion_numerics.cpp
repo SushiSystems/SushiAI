@@ -540,11 +540,14 @@ TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
         << "this machine's device declined the fused form, so there is no epilogue to "
            "order and this test is not exercising what it claims to";
 
-    ASSERT_EQ(2u, tasks.recorder().node_count());
-    ASSERT_EQ(nullptr, tasks.recorder().refusal());
-    GTEST_SKIP() << "The fused GEMM must depend on the task that wrote the bias its epilogue "
-                    "dereferences, and SushiRuntime::Graph shows no dependency of a recorded "
-                    "node, so the edge is not asserted.";
+    SushiRuntime::Result<SushiRuntime::PlanView> plan = tasks.plan();
+    ASSERT_TRUE(plan.has_value()) << plan.error().message;
+    ASSERT_EQ(2u, plan->nodes.size());
+    EXPECT_EQ(1u, plan->nodes[1].predecessor_count)
+        << "The fused GEMM must depend on the task that wrote the bias its epilogue "
+           "dereferences. A predecessor count of 0 means the read was never declared to "
+           "SushiBLAS, and the optimizer's update is free to land before the forward "
+           "pass has read the old value - which still trains, and still reports success.";
 }
 
 /**
@@ -589,12 +592,14 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt
            "have declined the fused form, in which case this test is not exercising what "
            "it claims to";
 
-    ASSERT_EQ(2u, tasks.recorder().node_count());
-    ASSERT_EQ(nullptr, tasks.recorder().refusal());
-    GTEST_SKIP() << "The task that reads the spilled pre-activation must depend on the fused "
-                    "GEMM whose epilogue wrote it, and SushiRuntime::Graph shows no "
-                    "dependency of a recorded node, so the edge is not asserted.";
-
+    SushiRuntime::Result<SushiRuntime::PlanView> plan = tasks.plan();
+    ASSERT_TRUE(plan.has_value()) << plan.error().message;
+    ASSERT_EQ(2u, plan->nodes.size());
+    EXPECT_EQ(1u, plan->nodes[1].predecessor_count)
+        << "The task that reads the spilled pre-activation must depend on the fused GEMM "
+           "whose epilogue wrote it. A predecessor count of 0 means `.writes(aux)` was "
+           "never declared, the two may run concurrently, and the spill buys nothing at "
+           "all - while the run still trains and still reports success.";
 }
 
 /**

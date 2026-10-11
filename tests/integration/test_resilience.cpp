@@ -768,6 +768,13 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 
 TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 {
+    // The runtime counts its live USM allocations; see tests/integration/README.md.
+    const auto live_allocations = [this]()
+    {
+        return engine->runtime().advanced().live_allocation_count();
+    };
+
+    std::size_t baseline = 0;
     std::size_t baseline_bytes = 0;
 
     for (int iteration = 0; iteration < 5; ++iteration)
@@ -797,11 +804,14 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
         }
 
         engine->runtime().wait().value();
-    }
 
-    GTEST_SKIP() << "A trainer's buffers must all die with it, and SushiRuntime::Runtime "
-                    "shows no count of live allocations, so only the pool's bytes are "
-                    "asserted.";
+        if (iteration == 0)
+            baseline = live_allocations();
+        else
+            EXPECT_EQ(live_allocations(), baseline)
+                << "iteration " << iteration << " changed the number of live buffers; a "
+                << "trainer's buffers must all die with it";
+    }
 }
 
 TEST_F(Integration_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIROperationAndSaysSo)
