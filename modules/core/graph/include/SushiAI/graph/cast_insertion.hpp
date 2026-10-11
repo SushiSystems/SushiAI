@@ -55,7 +55,7 @@ namespace SushiAI
             /**
              * @brief Holds values read by id whose element types must not change.
              */
-            SushiRuntime::span<const ValueId> observed{};
+            SushiRuntime::span<const ValueID> observed{};
         };
 
         /**
@@ -65,16 +65,16 @@ namespace SushiAI
         struct InsertedCast
         {
             /** @brief The node whose dtype boundary this cast resolves. */
-            NodeId node = K_NO_NODE;
+            NodeID node = K_NO_NODE;
 
             /** @brief That node's operation, in the graph as it arrived. */
             OpID op{};
 
             /** @brief The value read. */
-            ValueId source = K_NO_VALUE;
+            ValueID source = K_NO_VALUE;
 
             /** @brief The value written. */
-            ValueId destination = K_NO_VALUE;
+            ValueID destination = K_NO_VALUE;
 
             /** @brief The source's element type. */
             DType from = DType::Float32;
@@ -153,13 +153,13 @@ namespace SushiAI
         struct DTypeMismatch
         {
             /** @brief The offending node. */
-            NodeId node = K_NO_NODE;
+            NodeID node = K_NO_NODE;
 
             /** @brief Its operation. */
             OpID op{};
 
             /** @brief The operand or result that disagrees. */
-            ValueId value = K_NO_VALUE;
+            ValueID value = K_NO_VALUE;
 
             /** @brief That value's element type. */
             DType found = DType::Float32;

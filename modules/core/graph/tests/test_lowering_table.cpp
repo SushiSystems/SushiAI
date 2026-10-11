@@ -49,7 +49,7 @@ namespace SushiAI
             }
         }
 
-        /** @brief Tests that the three identities of K_UNLOWERED have no row. */
+        /** @brief Tests that the four identities of K_UNLOWERED have no row. */
         TEST(Unit_LoweringTable, TheUnloweredIdentitiesHaveNoRow)
         {
             for (const OpID id : Graph::K_UNLOWERED)
@@ -58,7 +58,7 @@ namespace SushiAI
                 EXPECT_EQ(Graph::lowering_row_count(id), 0u) << Ops::name_of(id);
             }
 
-            EXPECT_EQ(Graph::K_UNLOWERED.size(), 3u);
+            EXPECT_EQ(Graph::K_UNLOWERED.size(), 4u);
         }
 
         /** @brief Tests that no row of the combined table names an identity with a second row. */
@@ -83,13 +83,14 @@ namespace SushiAI
         {
             EXPECT_EQ(Graph::K_ELEMENTWISE_LOWERINGS.size(), 17u);
             EXPECT_EQ(Graph::K_ACTIVATION_LOWERINGS.size(), 14u);
-            EXPECT_EQ(Graph::K_LINALG_LOWERINGS.size(), 3u);
-            EXPECT_EQ(Graph::K_LOSS_LOWERINGS.size(), 2u);
+            EXPECT_EQ(Graph::K_LINALG_LOWERINGS.size(), 6u);
+            EXPECT_EQ(Graph::K_LOSS_LOWERINGS.size(), 3u);
             EXPECT_EQ(Graph::K_SHAPE_LOWERINGS.size(), 4u);
             EXPECT_EQ(Graph::K_SPATIAL_LOWERINGS.size(), 15u);
-            EXPECT_EQ(Graph::K_NORM_LOWERINGS.size(), 4u);
+            EXPECT_EQ(Graph::K_NORM_LOWERINGS.size(), 6u);
             EXPECT_EQ(Graph::K_FUSED_LOWERINGS.size(), 6u);
-            EXPECT_EQ(Graph::K_LOWERINGS.size(), 65u);
+            EXPECT_EQ(Graph::K_RANDOM_LOWERINGS.size(), 1u);
+            EXPECT_EQ(Graph::K_LOWERINGS.size(), 72u);
         }
 
     } // namespace Test

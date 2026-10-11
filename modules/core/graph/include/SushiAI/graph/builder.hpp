@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
@@ -116,8 +117,8 @@ namespace SushiAI
          */
         struct PoolResult
         {
-            ValueId output;   /**< @brief The pooled @c [N,H_o,W_o,C] value. */
-            ValueId indices;  /**< @brief The INT64 argmax, same shape. */
+            ValueID output;   /**< @brief The pooled @c [N,H_o,W_o,C] value. */
+            ValueID indices;  /**< @brief The INT64 argmax, same shape. */
         };
 
         /**
@@ -126,17 +127,17 @@ namespace SushiAI
          */
         struct BatchNormResult
         {
-            ValueId output;         /**< @brief The normalised [N,H,W,C] value. */
-            ValueId saved_mean;     /**< @brief The batch mean, [C]. */
-            ValueId saved_inv_std;  /**< @brief 1/sqrt(var + eps), [C]. */
-            ValueId batch_variance; /**< @brief The biased batch variance before epsilon, [C]. */
+            ValueID output;         /**< @brief The normalised [N,H,W,C] value. */
+            ValueID saved_mean;     /**< @brief The batch mean, [C]. */
+            ValueID saved_inv_std;  /**< @brief 1/sqrt(var + eps), [C]. */
+            ValueID batch_variance; /**< @brief The biased batch variance before epsilon, [C]. */
         };
 
         /** @brief Holds the per-channel scale and shift BATCHNORM_FOLD yields. */
         struct BatchNormFold
         {
-            ValueId scale;  /**< @brief Holds gamma / sqrt(variance + epsilon), [C]. */
-            ValueId shift;  /**< @brief Holds beta - mean * scale, [C]. */
+            ValueID scale;  /**< @brief Holds gamma / sqrt(variance + epsilon), [C]. */
+            ValueID shift;  /**< @brief Holds beta - mean * scale, [C]. */
         };
 
         /**
@@ -145,10 +146,39 @@ namespace SushiAI
          */
         struct BatchNormGrads
         {
-            ValueId dx;      /**< @brief The [N,H,W,C] input gradient. */
-            ValueId dgamma;  /**< @brief The [C] scale gradient. */
-            ValueId dbeta;   /**< @brief The [C] shift gradient. */
+            ValueID dx;      /**< @brief The [N,H,W,C] input gradient. */
+            ValueID dgamma;  /**< @brief The [C] scale gradient. */
+            ValueID dbeta;   /**< @brief The [C] shift gradient. */
         };
+
+        /** @brief Holds the normalised value and the two row statistics LAYER_NORM saves. */
+        struct LayerNormResult
+        {
+            ValueID output;         /**< @brief The normalised [..., D] value. */
+            ValueID saved_mean;     /**< @brief The mean of each row, [rows]. */
+            ValueID saved_inv_std;  /**< @brief 1/sqrt(var + eps) of each row, [rows]. */
+        };
+
+        /** @brief Holds the three gradients LAYER_NORM_BACKWARD yields. */
+        struct LayerNormGrads
+        {
+            ValueID dx;      /**< @brief The [..., D] input gradient. */
+            ValueID dgamma;  /**< @brief The [D] gain gradient. */
+            ValueID dbeta;   /**< @brief The [D] bias gradient. */
+        };
+
+        /** @brief Holds the masked value and the mask K_DROPOUT saves for its gradient. */
+        struct DropoutResult
+        {
+            ValueID output;      /**< @brief The input times the mask, shaped like the input. */
+            ValueID saved_mask;  /**< @brief The mask of the run: 0 or 1/(1 - rate) per element. */
+        };
+
+        /** @brief Names the attribute slot of a K_DROPOUT node that holds its rate. */
+        inline constexpr std::size_t K_DROPOUT_RATE_SLOT = 0;
+
+        /** @brief Returns the site seed a K_DROPOUT node holds in attribute slots 1 and 2. */
+        [[nodiscard]] std::uint64_t dropout_seed(const Attributes& attributes) noexcept;
 
         /**
          * @class GraphBuilder
@@ -173,7 +203,7 @@ namespace SushiAI
                  * @param dtype The element type.
                  * @return The new value's id.
                  */
-                ValueId input(Shape shape, std::string_view debug_name,
+                ValueID input(Shape shape, std::string_view debug_name,
                               DType dtype = DType::Float32) const;
 
                 /**
@@ -183,7 +213,7 @@ namespace SushiAI
                  * @param dtype The element type.
                  * @return The new value's id.
                  */
-                ValueId parameter(Shape shape, std::string_view debug_name,
+                ValueID parameter(Shape shape, std::string_view debug_name,
                                   DType dtype = DType::Float32) const;
 
                 /**
@@ -193,7 +223,7 @@ namespace SushiAI
                  * @param dtype The element type.
                  * @return The new value's id, with the BUFFER lifetime.
                  */
-                ValueId buffer(Shape shape, std::string_view debug_name,
+                ValueID buffer(Shape shape, std::string_view debug_name,
                                DType dtype = DType::Float32) const;
 
                 /**
@@ -204,7 +234,7 @@ namespace SushiAI
                  * @param transpose_b Whether to transpose each matrix of @p b.
                  * @throws Error If ranks differ or are not 2 or 3, or extents or batches disagree.
                  */
-                ValueId matmul(ValueId a, ValueId b,
+                ValueID matmul(ValueID a, ValueID b,
                                bool transpose_a = false, bool transpose_b = false) const;
 
                 /**
@@ -214,7 +244,7 @@ namespace SushiAI
                  * @return The sum's id.
                  * @throws Error If the ranks or extents do not line up.
                  */
-                ValueId bias_add(ValueId x, ValueId bias) const;
+                ValueID bias_add(ValueID x, ValueID bias) const;
 
                 /**
                  * @brief Emits @c K_SUM_ROWS: the column sums of an [N, C] matrix.
@@ -222,16 +252,46 @@ namespace SushiAI
                  * @return The [C] result's id.
                  * @throws Error If @p x is not rank 2.
                  */
-                ValueId sum_rows(ValueId x) const;
+                ValueID sum_rows(ValueID x) const;
+
+                /**
+                 * @brief Emits @c K_GATHER_ROWS: the rows of @p table that @p indices names.
+                 * @param table A [V, D] value of a real floating type.
+                 * @param indices An INT32 value of rank one or more; each element is in [0, V).
+                 * @return The [..., D] result's id, or InvalidDescription when @p table is not
+                 *         rank 2 or not floating, @p indices is not INT32, or a rank or an extent
+                 *         does not fit.
+                 */
+                Traced gather_rows(ValueID table, ValueID indices) const;
+
+                /**
+                 * @brief Emits @c K_SCATTER_ADD_ROWS: a zero [table_rows, D] with each row of
+                 *        @p rows added to the row its index names, in index order.
+                 * @param rows A [..., D] value of a real floating type.
+                 * @param indices An INT32 value shaped like @p rows without its last axis.
+                 * @param table_rows The row count V of the result; every index is in [0, V).
+                 * @return The result's id, or InvalidDescription when an argument does not fit.
+                 */
+                Traced scatter_add_rows(ValueID rows, ValueID indices, int64_t table_rows) const;
+
+                /**
+                 * @brief Emits @c K_CAUSAL_MASK: @p scores with every entry above the diagonal of
+                 *        its last two axes replaced by @p fill.
+                 * @param scores A [..., T, T] value of a real floating type.
+                 * @param fill The replacement, stored in attribute slot 0; must be finite.
+                 * @return The result's id, shaped like @p scores, or InvalidDescription when
+                 *         an argument does not fit.
+                 */
+                Traced causal_mask(ValueID scores, double fill) const;
 
                 /** @brief Emits @c K_ADD: elementwise A + B. @throws Error on mismatch. */
-                ValueId add(ValueId a, ValueId b) const;
+                ValueID add(ValueID a, ValueID b) const;
 
                 /** @brief Emits @c K_SUB: elementwise A - B. @throws Error on mismatch. */
-                ValueId sub(ValueId a, ValueId b) const;
+                ValueID sub(ValueID a, ValueID b) const;
 
                 /** @brief Emits @c K_MUL: elementwise A * B. @throws Error on mismatch. */
-                ValueId mul(ValueId a, ValueId b) const;
+                ValueID mul(ValueID a, ValueID b) const;
 
                 /**
                  * @brief Emits DIV: elementwise a / b.
@@ -239,7 +299,7 @@ namespace SushiAI
                  * @param b The divisor; must share the shape and dtype of @p a.
                  * @return The quotient, shaped and laid out like @p a.
                  */
-                ValueId div(ValueId a, ValueId b) const;
+                ValueID div(ValueID a, ValueID b) const;
 
                 /**
                  * @brief Emits MINIMUM: the elementwise smaller of a and b.
@@ -247,7 +307,7 @@ namespace SushiAI
                  * @param b Must share the shape and dtype of @p a.
                  * @return The minimum, shaped and laid out like @p a.
                  */
-                ValueId minimum(ValueId a, ValueId b) const;
+                ValueID minimum(ValueID a, ValueID b) const;
 
                 /**
                  * @brief Emits MAXIMUM: the elementwise larger of a and b.
@@ -255,7 +315,7 @@ namespace SushiAI
                  * @param b Must share the shape and dtype of @p a.
                  * @return The maximum, shaped and laid out like @p a.
                  */
-                ValueId maximum(ValueId a, ValueId b) const;
+                ValueID maximum(ValueID a, ValueID b) const;
 
                 /**
                  * @brief Emits LESS_EQUAL: 1 where a <= b and 0 elsewhere.
@@ -263,7 +323,7 @@ namespace SushiAI
                  * @param b Must share the shape and dtype of @p a.
                  * @return The mask, in the shape, dtype and layout of @p a.
                  */
-                ValueId less_equal(ValueId a, ValueId b) const;
+                ValueID less_equal(ValueID a, ValueID b) const;
 
                 /**
                  * @brief Emits SELECT: a where the condition is non-zero, b elsewhere.
@@ -272,7 +332,7 @@ namespace SushiAI
                  * @param b Must share the shape and dtype of @p a.
                  * @return The selection, shaped and laid out like @p a.
                  */
-                ValueId select(ValueId condition, ValueId a, ValueId b) const;
+                ValueID select(ValueID condition, ValueID a, ValueID b) const;
 
                 /**
                  * @brief Emits @c K_SCALE: Y = alpha * X.
@@ -280,7 +340,7 @@ namespace SushiAI
                  * @param alpha The host-side constant factor.
                  * @return The scaled value's id.
                  */
-                ValueId scale(ValueId x, double alpha) const;
+                ValueID scale(ValueID x, double alpha) const;
 
                 /**
                  * @brief Emits DYNAMIC_SCALE: Y = X * S[0] with S in device memory.
@@ -290,20 +350,20 @@ namespace SushiAI
                  * @return The scaled value id.
                  * @throws Error If factor is not 1 element or dtypes mismatch.
                  */
-                ValueId dynamic_scale(ValueId x, ValueId factor,
+                ValueID dynamic_scale(ValueID x, ValueID factor,
                                       std::string_view debug_name = "dynamic_scale") const;
 
                 /** @brief Emits @c K_EXP: elementwise exp(X), out of place. */
-                ValueId exp(ValueId x) const;
+                ValueID exp(ValueID x) const;
 
                 /** @brief Emits ABS: elementwise |x|, out of place. */
-                ValueId abs(ValueId x) const;
+                ValueID abs(ValueID x) const;
 
                 /** @brief Emits ATAN: elementwise arctangent of x, out of place. */
-                ValueId atan(ValueId x) const;
+                ValueID atan(ValueID x) const;
 
                 /** @brief Emits SOFTPLUS: elementwise log(1 + exp(x)), out of place. */
-                ValueId softplus(ValueId x) const;
+                ValueID softplus(ValueID x) const;
 
                 /**
                  * @brief Emits ZERO: a fresh all-zero tensor with no operands.
@@ -311,7 +371,7 @@ namespace SushiAI
                  * @param dtype The element data type.
                  * @return The new value id.
                  */
-                ValueId zeros(Shape shape, DType dtype = DType::Float32) const;
+                ValueID zeros(Shape shape, DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Emits ZERO adopting the layout of @p like.
@@ -320,7 +380,7 @@ namespace SushiAI
                  * @param dtype The element data type.
                  * @return The new value id.
                  */
-                ValueId zeros_like(ValueId like, Shape shape,
+                ValueID zeros_like(ValueID like, Shape shape,
                                    DType dtype = DType::Float32) const;
 
                 /**
@@ -330,7 +390,7 @@ namespace SushiAI
                  * @param dtype The element type; must be half, float32 or float64.
                  * @return The new value id, in the NHWC layout, requiring no gradient.
                  */
-                ValueId constant(Shape shape, double value, DType dtype = DType::Float32) const;
+                ValueID constant(Shape shape, double value, DType dtype = DType::Float32) const;
 
                 /**
                  * @brief Emits CONSTANT in the shape, element type and layout of @p x.
@@ -338,22 +398,22 @@ namespace SushiAI
                  * @param value The fill, stored in attribute slot 0.
                  * @return The new value id, requiring no gradient.
                  */
-                ValueId constant_like(ValueId x, double value) const;
+                ValueID constant_like(ValueID x, double value) const;
 
                 /** @brief Emits @c K_RELU. */
-                ValueId relu(ValueId x) const;
+                ValueID relu(ValueID x) const;
 
                 /** @brief Emits @c K_GELU (tanh approximation). */
-                ValueId gelu(ValueId x) const;
+                ValueID gelu(ValueID x) const;
 
                 /** @brief Emits @c K_SIGMOID. */
-                ValueId sigmoid(ValueId x) const;
+                ValueID sigmoid(ValueID x) const;
 
                 /** @brief Emits @c K_TANH. */
-                ValueId tanh(ValueId x) const;
+                ValueID tanh(ValueID x) const;
 
                 /** @brief Emits SILU: elementwise x * sigmoid(x). */
-                ValueId silu(ValueId x) const;
+                ValueID silu(ValueID x) const;
 
                 /**
                  * @brief Emits LEAKY_RELU with the given negative slope.
@@ -362,7 +422,7 @@ namespace SushiAI
                  * @return The activated value id.
                  * @throws Error If @p slope is outside (0, 1).
                  */
-                ValueId leaky_relu(ValueId x, double slope) const;
+                ValueID leaky_relu(ValueID x, double slope) const;
 
                 /**
                  * @brief Emits an activation gradient operation.
@@ -372,7 +432,7 @@ namespace SushiAI
                  * @param attributes Optional attributes such as leaky ReLU slope.
                  * @return The gradient value id.
                  */
-                ValueId activation_backward(OpID op, ValueId dy, ValueId primal,
+                ValueID activation_backward(OpID op, ValueID dy, ValueID primal,
                                             const Attributes& attributes = {}) const;
 
                 /**
@@ -381,17 +441,24 @@ namespace SushiAI
                  * @return The [N, C] log-probabilities' id.
                  * @throws Error If @p x is not rank 2.
                  */
-                ValueId log_softmax(ValueId x) const;
+                ValueID log_softmax(ValueID x) const;
 
                 /**
                  * @brief Emits a softmax over the last axis: RESHAPE, LOG_SOFTMAX, EXP, RESHAPE.
                  * @param x The logits, of rank two or more; the last axis is normalised.
                  * @return The probabilities' id, with the shape of @p x.
                  * @throws Error If @p x has rank below two.
-                 *
-                 * Differentiating through LOG_SOFTMAX throws unless NLL_LOSS follows it.
                  */
-                ValueId softmax(ValueId x) const;
+                ValueID softmax(ValueID x) const;
+
+                /**
+                 * @brief Emits @c K_LOG_SOFTMAX_BACKWARD: dy - exp(log_probs) * rowsum(dy).
+                 * @param dy The [N, C] gradient of the log-probabilities.
+                 * @param log_probs The [N, C] result of the @c K_LOG_SOFTMAX being differentiated.
+                 * @return The [N, C] gradient of the logits, or InvalidDescription when the two
+                 *         operands are not rank 2 of one shape and one real floating type.
+                 */
+                Traced log_softmax_backward(ValueID dy, ValueID log_probs) const;
 
                 /**
                  * @brief Emits @c K_NLL_LOSS: the mean negative log-likelihood.
@@ -401,7 +468,7 @@ namespace SushiAI
                  * @return A 1-element loss value's id.
                  * @throws Error If the two operands disagree in shape or dtype.
                  */
-                ValueId nll_loss(ValueId log_probs, ValueId one_hot) const;
+                ValueID nll_loss(ValueID log_probs, ValueID one_hot) const;
 
                 /**
                  * @brief Emits ACCUMULATE: acc_out = acc + delta into buffer of @p acc.
@@ -410,7 +477,7 @@ namespace SushiAI
                  * @return The accumulated value id.
                  * @throws Error If operands disagree in shape or dtype.
                  */
-                ValueId accumulate(ValueId acc, ValueId delta) const;
+                ValueID accumulate(ValueID acc, ValueID delta) const;
 
                 /**
                  * @brief Emits LAYOUT_CONVERT to permute between NHWC and NCHW layouts.
@@ -419,7 +486,7 @@ namespace SushiAI
                  * @return The converted value id.
                  * @throws Error If @p x is not rank 4.
                  */
-                ValueId layout_convert(ValueId x, TensorLayout layout) const;
+                ValueID layout_convert(ValueID x, TensorLayout layout) const;
 
                 /**
                  * @brief Emits CAST: a copy of @p x converted to @p dtype.
@@ -429,7 +496,7 @@ namespace SushiAI
                  * @return The converted value id.
                  * @throws Error If either element type is not a real float.
                  */
-                ValueId cast(ValueId x, DType dtype, std::string_view debug_name = "cast") const;
+                ValueID cast(ValueID x, DType dtype, std::string_view debug_name = "cast") const;
 
                 /**
                  * @brief Emits CAST writing directly into an existing value buffer.
@@ -437,7 +504,7 @@ namespace SushiAI
                  * @param destination The value to write; must have no producer yet.
                  * @throws Error If shapes disagree, non-float dtype, or destination exists.
                  */
-                void cast_into(ValueId source, ValueId destination) const;
+                void cast_into(ValueID source, ValueID destination) const;
 
                 /**
                  * @brief Declares a value with the same shape, dtype and lifetime as @p like.
@@ -445,7 +512,7 @@ namespace SushiAI
                  * @param debug_name A label for diagnostics; must outlive the graph.
                  * @return The new value's id.
                  */
-                ValueId like(ValueId like, std::string_view debug_name = {}) const;
+                ValueID like(ValueID like, std::string_view debug_name = {}) const;
 
                 /**
                  * @brief Declares a value inheriting the layout of @p like.
@@ -455,7 +522,7 @@ namespace SushiAI
                  * @param lifetime Storage arena lifetime.
                  * @return The new value id.
                  */
-                ValueId declare_like(ValueId like, Shape shape, DType dtype,
+                ValueID declare_like(ValueID like, Shape shape, DType dtype,
                                      Lifetime lifetime, std::string_view debug_name) const;
 
                 /**
@@ -465,7 +532,7 @@ namespace SushiAI
                  * @return The column matrix value id.
                  * @throws Error If @p x is not rank 4 NHWC or window does not fit.
                  */
-                ValueId im2col(ValueId x, const ConvGeometry& g) const;
+                ValueID im2col(ValueID x, const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits IM2COL with explicit output extents.
@@ -474,7 +541,7 @@ namespace SushiAI
                  * @param out_h Number of window rows; @p out_w Number of window columns.
                  * @return The column matrix value id.
                  */
-                ValueId im2col_with_extents(ValueId x, const ConvGeometry& g,
+                ValueID im2col_with_extents(ValueID x, const ConvGeometry& g,
                                             int64_t out_h, int64_t out_w) const;
 
                 /**
@@ -485,7 +552,7 @@ namespace SushiAI
                  * @return The image value id.
                  * @throws Error If shapes, ranks, or implied dimensions mismatch.
                  */
-                ValueId col2im(ValueId cols, Shape image_shape, const ConvGeometry& g) const;
+                ValueID col2im(ValueID cols, Shape image_shape, const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits COL2IM with explicit window counts.
@@ -495,7 +562,7 @@ namespace SushiAI
                  * @param out_h Window rows; @p out_w Window columns.
                  * @return The reconstructed image value id.
                  */
-                ValueId col2im_with_extents(ValueId cols, Shape image_shape,
+                ValueID col2im_with_extents(ValueID cols, Shape image_shape,
                                             const ConvGeometry& g,
                                             int64_t out_h, int64_t out_w) const;
 
@@ -507,7 +574,7 @@ namespace SushiAI
                  * @param g The window geometry; a 1x1 unit-stride unpadded one emits no IM2COL.
                  * @return The [N,out_h,out_w,C_out] value id.
                  */
-                ValueId conv2d(ValueId x, ValueId weight, ValueId bias,
+                ValueID conv2d(ValueID x, ValueID weight, ValueID bias,
                                const ConvGeometry& g) const;
 
                 /**
@@ -518,7 +585,7 @@ namespace SushiAI
                  * @return The [N,out_h,out_w,C] value id.
                  * @throws Error If @p x, the taps or the window disagree with @p g.
                  */
-                ValueId depthwise_conv2d(ValueId x, ValueId weight, const ConvGeometry& g) const;
+                ValueID depthwise_conv2d(ValueID x, ValueID weight, const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits K_DEPTHWISE_CONV2D_BACKWARD_INPUT: the gradient of the input.
@@ -528,7 +595,7 @@ namespace SushiAI
                  * @param g The window geometry the forward used.
                  * @throws Error If the shapes disagree with one another or with @p g.
                  */
-                ValueId depthwise_conv2d_backward_input(ValueId dy, ValueId weight,
+                ValueID depthwise_conv2d_backward_input(ValueID dy, ValueID weight,
                                                         Shape input_shape,
                                                         const ConvGeometry& g) const;
 
@@ -539,7 +606,7 @@ namespace SushiAI
                  * @param g The window geometry the forward used.
                  * @throws Error If the shapes disagree with one another or with @p g.
                  */
-                ValueId depthwise_conv2d_backward_weight(ValueId dy, ValueId x,
+                ValueID depthwise_conv2d_backward_weight(ValueID dy, ValueID x,
                                                          const ConvGeometry& g) const;
 
                 /**
@@ -550,7 +617,7 @@ namespace SushiAI
                  * @throws Error If @p x is not rank 4, not NHWC, or the
                  *         window does not fit.
                  */
-                PoolResult maxpool2d(ValueId x, const ConvGeometry& g) const;
+                PoolResult maxpool2d(ValueID x, const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits MAXPOOL2D with explicit output extents.
@@ -559,7 +626,7 @@ namespace SushiAI
                  * @param out_h Pooled height; @p out_w Pooled width.
                  * @return The pooled value and argmax indices.
                  */
-                PoolResult maxpool2d_with_extents(ValueId x, const ConvGeometry& g,
+                PoolResult maxpool2d_with_extents(ValueID x, const ConvGeometry& g,
                                                   int64_t out_h, int64_t out_w) const;
 
                 /**
@@ -570,7 +637,7 @@ namespace SushiAI
                  * @throws Error If @p x is not rank 4, not NHWC, or the
                  *         window does not fit.
                  */
-                ValueId avgpool2d(ValueId x, const ConvGeometry& g) const;
+                ValueID avgpool2d(ValueID x, const ConvGeometry& g) const;
 
                 /**
                  * @brief Emits UPSAMPLE2D using nearest-neighbour integer scaling.
@@ -580,7 +647,7 @@ namespace SushiAI
                  * @return The upsampled value id.
                  * @throws Error If @p x is not rank 4 NHWC or scales are below 1.
                  */
-                ValueId upsample2d(ValueId x, int64_t scale_h, int64_t scale_w) const;
+                ValueID upsample2d(ValueID x, int64_t scale_h, int64_t scale_w) const;
 
                 /**
                  * @brief Emits @c K_SPATIAL_MEAN: the mean of every [H,W] plane.
@@ -588,7 +655,7 @@ namespace SushiAI
                  * @return The @c [N,C] result's id.
                  * @throws Error If @p x is not rank 4 or not NHWC.
                  */
-                ValueId spatial_mean(ValueId x) const;
+                ValueID spatial_mean(ValueID x) const;
 
                 /**
                  * @brief Emits MAXPOOL2D_BACKWARD routing gradients through argmax indices.
@@ -598,7 +665,7 @@ namespace SushiAI
                  * @param g The window geometry.
                  * @return The input gradient value id.
                  */
-                ValueId maxpool2d_backward(ValueId dy, ValueId indices, Shape input_shape,
+                ValueID maxpool2d_backward(ValueID dy, ValueID indices, Shape input_shape,
                                           const ConvGeometry& g) const;
 
                 /**
@@ -609,7 +676,7 @@ namespace SushiAI
                  * @return The @c [N,H,W,C] input gradient's id.
                  * @throws Error If @p dy is not rank 4 or not NHWC.
                  */
-                ValueId avgpool2d_backward(ValueId dy, Shape input_shape,
+                ValueID avgpool2d_backward(ValueID dy, Shape input_shape,
                                           const ConvGeometry& g) const;
 
                 /**
@@ -619,7 +686,7 @@ namespace SushiAI
                  * @param scale_h Vertical factor; @p scale_w Horizontal factor.
                  * @return The input gradient value id.
                  */
-                ValueId upsample2d_backward(ValueId dy, Shape input_shape,
+                ValueID upsample2d_backward(ValueID dy, Shape input_shape,
                                            int64_t scale_h, int64_t scale_w) const;
 
                 /**
@@ -629,7 +696,7 @@ namespace SushiAI
                  * @return The [N,H,W,C] input gradient value id.
                  * @throws Error If @p dy is not rank 2 or input_shape is not rank 4.
                  */
-                ValueId spatial_mean_backward(ValueId dy, Shape input_shape) const;
+                ValueID spatial_mean_backward(ValueID dy, Shape input_shape) const;
 
                 /**
                  * @brief Emits @c K_CONCAT_CHANNELS: joins operands along the channel axis.
@@ -639,7 +706,7 @@ namespace SushiAI
                  * @throws Error If @p parts is empty, any operand is not rank 4
                  *         or not NHWC, or the operands disagree on N, H, W or dtype.
                  */
-                ValueId concat_channels(SushiRuntime::span<const ValueId> parts) const;
+                ValueID concat_channels(SushiRuntime::span<const ValueID> parts) const;
 
                 /**
                  * @brief Emits SLICE_CHANNELS extracting a contiguous channel slice.
@@ -649,7 +716,7 @@ namespace SushiAI
                  * @return The [N,H,W,count] sliced tensor id.
                  * @throws Error If range exceeds channels or @p x is not rank 4 NHWC.
                  */
-                ValueId slice_channels(ValueId x, int64_t offset, int64_t count) const;
+                ValueID slice_channels(ValueID x, int64_t offset, int64_t count) const;
 
                 /**
                  * @brief Emits CHANNEL_AFFINE: per-channel Y = gamma * X + beta.
@@ -659,7 +726,7 @@ namespace SushiAI
                  * @return The [N,H,W,C] affine result id.
                  * @throws Error If shapes or parameter dimensions mismatch.
                  */
-                ValueId channel_affine(ValueId x, ValueId gamma, ValueId beta) const;
+                ValueID channel_affine(ValueID x, ValueID gamma, ValueID beta) const;
 
                 /**
                  * @brief Sums an [N,H,W,C] tensor down to [C] per-channel sums.
@@ -667,7 +734,7 @@ namespace SushiAI
                  * @return The [C] per-channel sum value id.
                  * @throws Error If @p x is not rank 4 or not NHWC.
                  */
-                ValueId sum_channels(ValueId x) const;
+                ValueID sum_channels(ValueID x) const;
 
                 /**
                  * @brief Emits BATCHNORM2D normalising across N, H, and W dimensions.
@@ -676,7 +743,7 @@ namespace SushiAI
                  * @param epsilon Small constant added to variance; must be positive.
                  * @return The normalised value, the saved statistics and the batch variance.
                  */
-                BatchNormResult batchnorm2d(ValueId x, ValueId gamma, ValueId beta,
+                BatchNormResult batchnorm2d(ValueID x, ValueID gamma, ValueID beta,
                                             double epsilon) const;
 
                 /**
@@ -687,9 +754,9 @@ namespace SushiAI
                  * @param saved_inv_std The [C] inverse standard deviation.
                  * @return The input, scale, and shift gradient value ids.
                  */
-                BatchNormGrads batchnorm2d_backward(ValueId dy, ValueId x, ValueId gamma,
-                                                    ValueId saved_mean,
-                                                    ValueId saved_inv_std) const;
+                BatchNormGrads batchnorm2d_backward(ValueID dy, ValueID x, ValueID gamma,
+                                                    ValueID saved_mean,
+                                                    ValueID saved_inv_std) const;
 
                 /**
                  * @brief Emits BATCHNORM_FOLD: the scale and shift of fixed statistics.
@@ -699,8 +766,41 @@ namespace SushiAI
                  * @return scale = gamma / sqrt(variance + epsilon) and shift = beta - mean * scale.
                  * @pre The four operands share one [C] shape, one real floating type and a layout.
                  */
-                BatchNormFold batchnorm_fold(ValueId gamma, ValueId beta, ValueId mean,
-                                             ValueId variance, double epsilon) const;
+                BatchNormFold batchnorm_fold(ValueID gamma, ValueID beta, ValueID mean,
+                                             ValueID variance, double epsilon) const;
+
+                /**
+                 * @brief Emits @c K_LAYER_NORM: each [D] row of @p x minus its mean, over the
+                 *        root of its biased variance plus @p epsilon, times gamma, plus beta.
+                 * @param x A [..., D] value of a real floating type, of rank one or more.
+                 * @param gamma The [D] gain; @p beta The [D] bias; both of the type of @p x.
+                 * @param epsilon Added to each row's variance; must be positive.
+                 * @return The result and the saved statistics, or InvalidDescription.
+                 */
+                Result<LayerNormResult> layer_norm(ValueID x, ValueID gamma, ValueID beta,
+                                                   double epsilon) const;
+
+                /**
+                 * @brief Emits @c K_LAYER_NORM_BACKWARD: the gradients of x, gamma and beta.
+                 * @param dy The output gradient, shaped and typed like @p x.
+                 * @param x The forward input; @p gamma The [D] gain the forward read.
+                 * @param saved_mean The [rows] means and @p saved_inv_std the [rows] inverse
+                 *        deviations the forward saved.
+                 * @return The three gradients, or InvalidDescription when an operand misfits.
+                 */
+                Result<LayerNormGrads> layer_norm_backward(ValueID dy, ValueID x, ValueID gamma,
+                                                           ValueID saved_mean,
+                                                           ValueID saved_inv_std) const;
+
+                /**
+                 * @brief Emits @c K_DROPOUT: @p x times a mask whose elements are 0 with
+                 *        probability @p rate and 1/(1 - rate) otherwise, drawn at each replay.
+                 * @param x A value of a real floating type with an element.
+                 * @param rate Stored in attribute slot 0; must lie in (0, 1).
+                 * @param seed The site seed, stored in slots 1 and 2; dropout_seed() reads it.
+                 * @return The result and the saved mask, or InvalidDescription.
+                 */
+                Result<DropoutResult> dropout(ValueID x, double rate, std::uint64_t seed) const;
 
                 /**
                  * @brief Emits @c K_RESHAPE: a view of @p x with different extents.
@@ -709,14 +809,14 @@ namespace SushiAI
                  * @return The reshaped value's id.
                  * @throws Error If @p shape's element count differs from @p x's.
                  */
-                ValueId reshape(ValueId x, Shape shape) const;
+                ValueID reshape(ValueID x, Shape shape) const;
 
                 /**
                  * @brief Emits STOP_GRADIENT: the value of @p x, with no gradient path back to it.
                  * @param x The value to pass through.
                  * @return A value shaped, typed and laid out like @p x that requires no gradient.
                  */
-                ValueId stop_gradient(ValueId x) const;
+                ValueID stop_gradient(ValueID x) const;
 
                 /**
                  * @brief Records on the graph that a description was refused.
@@ -755,14 +855,14 @@ namespace SushiAI
                 }
 
             private:
-                ValueId declare(Shape shape, DType dtype, Lifetime lifetime,
+                ValueID declare(Shape shape, DType dtype, Lifetime lifetime,
                                 std::string_view debug_name = {}) const;
 
-                ValueId elementwise(OpID op, ValueId a, ValueId b, std::string_view what) const;
+                ValueID elementwise(OpID op, ValueID a, ValueID b, std::string_view what) const;
 
-                ValueId unary(OpID op, ValueId x) const;
+                ValueID unary(OpID op, ValueID x) const;
 
-                void require_same(ValueId a, ValueId b, std::string_view what) const;
+                void require_same(ValueID a, ValueID b, std::string_view what) const;
 
                 Graph* graph_;
         };

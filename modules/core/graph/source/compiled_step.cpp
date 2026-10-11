@@ -27,6 +27,7 @@
 
 #include <SushiAI/graph/compiled_step.hpp>
 
+#include <cstdint>
 #include <utility>
 
 #include <SushiAI/core/check.hpp>
@@ -38,7 +39,7 @@ namespace SushiAI
     namespace Graph
     {
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing)
-            : engine_(&engine), trailing_(trailing), graph_(engine.get_context()),
+            : engine_(&engine), trailing_(trailing),
               recorder_(graph_, engine.get_scratch_pool(), engine.get_mode())
         {
 
@@ -64,6 +65,7 @@ namespace SushiAI
 
             Status recorded = lowering.record(graph);
             step->operations_ = lowering.emitted_operations();
+            step->preludes_ = lowering.take_preludes();
 
             const Status copied = SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
                                                          [&]()
@@ -108,10 +110,25 @@ namespace SushiAI
             return std::move(step);
         }
 
+        Status CompiledStep::restore_run_count(std::size_t count)
+        {
+            SA_FAIL_IF(run_count_ != 0, StatusCode::InvalidDescription,
+                       "The run count of a compiled step is restored before its first run, "
+                       "but this step has reached run {}",
+                       run_count_);
+
+            run_count_ = count;
+            return Status();
+        }
+
         Status CompiledStep::run()
         {
             if (empty_)
                 return Status();
+
+            // The plan is idle here, so a prelude may write memory its kernels read.
+            for (const ReplayPrelude& prelude : preludes_)
+                prelude(static_cast<std::uint64_t>(run_count_));
 
             if (trailing_)
                 trailing_->before_replay();

@@ -64,7 +64,7 @@ namespace SushiAI
             };
 
             /** @brief Adds a per-column bias, then SushiBLAS's ReLU. */
-            struct BiasReluEpilogue
+            struct BiasReLUEpilogue
             {
                 /// @brief The bias elements, one per column.
                 const void* bias;
@@ -109,7 +109,7 @@ namespace SushiAI
             };
 
             /** @brief Adds a per-column bias, stores the sum in a second buffer, then GELU. */
-            struct BiasGeluSpillEpilogue
+            struct BiasGELUSpillEpilogue
             {
                 /// @brief The bias elements, one per column.
                 const void* bias;
@@ -214,7 +214,7 @@ namespace SushiAI
                 const std::size_t before = context.emitted();
                 std::size_t tasks = 0;
 
-                // context.select() refuses every answer but form, GemmBias and None.
+                // context.select() refuses every answer but form, GEMMBias and None.
                 if (choice.form == form)
                 {
                     SushiBLAS::Dispatch::execute_gemm(
@@ -223,7 +223,7 @@ namespace SushiAI
                         std::forward<MakeEpilogue>(make_epilogue)(bias, aux));
                     tasks += 1;
                 }
-                else if (choice.form == FusedForm::GemmBias)
+                else if (choice.form == FusedForm::GEMMBias)
                 {
                     SushiBLAS::Dispatch::execute_gemm(
                         context.recorder(), a, b, c, transpose_a, transpose_b, 1.0, 0.0,
@@ -263,7 +263,7 @@ namespace SushiAI
         Status lower_gemm_bias(const LoweringContext& context)
         {
             return record_fused_gemm(
-                context, FusedForm::GemmBias, Ops::K_GEMM_BIAS, nullptr,
+                context, FusedForm::GEMMBias, Ops::K_GEMM_BIAS, nullptr,
                 [](const SushiBLAS::Tensor& bias, SushiBLAS::Tensor*)
                 {
                     return SushiBLAS::Dispatch::gemm_epilogue(BiasEpilogue{bias.data()})
@@ -274,11 +274,11 @@ namespace SushiAI
         Status lower_gemm_bias_relu(const LoweringContext& context)
         {
             return record_fused_gemm(
-                context, FusedForm::GemmBiasRelu, Ops::K_GEMM_BIAS_RELU,
+                context, FusedForm::GEMMBiasReLU, Ops::K_GEMM_BIAS_RELU,
                 &SushiBLAS::NonLinearOps::relu,
                 [](const SushiBLAS::Tensor& bias, SushiBLAS::Tensor*)
                 {
-                    return SushiBLAS::Dispatch::gemm_epilogue(BiasReluEpilogue{bias.data()})
+                    return SushiBLAS::Dispatch::gemm_epilogue(BiasReLUEpilogue{bias.data()})
                         .reads(bias);
                 });
         }
@@ -286,7 +286,7 @@ namespace SushiAI
         Status lower_gemm_bias_sigmoid(const LoweringContext& context)
         {
             return record_fused_gemm(
-                context, FusedForm::GemmBiasSigmoid, Ops::K_GEMM_BIAS_SIGMOID,
+                context, FusedForm::GEMMBiasSigmoid, Ops::K_GEMM_BIAS_SIGMOID,
                 &SushiBLAS::NonLinearOps::sigmoid,
                 [](const SushiBLAS::Tensor& bias, SushiBLAS::Tensor*)
                 {
@@ -298,7 +298,7 @@ namespace SushiAI
         Status lower_gemm_bias_tanh(const LoweringContext& context)
         {
             return record_fused_gemm(
-                context, FusedForm::GemmBiasTanh, Ops::K_GEMM_BIAS_TANH,
+                context, FusedForm::GEMMBiasTanh, Ops::K_GEMM_BIAS_TANH,
                 &SushiBLAS::NonLinearOps::tanh,
                 [](const SushiBLAS::Tensor& bias, SushiBLAS::Tensor*)
                 {
@@ -310,17 +310,37 @@ namespace SushiAI
         Status lower_gemm_bias_gelu(const LoweringContext& context)
         {
             return record_fused_gemm(
-                context, FusedForm::GemmBiasGelu, Ops::K_GEMM_BIAS_GELU,
+                context, FusedForm::GEMMBiasGELU, Ops::K_GEMM_BIAS_GELU,
                 &SushiBLAS::NonLinearOps::gelu,
                 [](const SushiBLAS::Tensor& bias, SushiBLAS::Tensor* aux)
                 {
                     return SushiBLAS::Dispatch::gemm_epilogue(
-                               BiasGeluSpillEpilogue{bias.data(), aux->data(),
+                               BiasGELUSpillEpilogue{bias.data(), aux->data(),
                                                      aux->strides[0], aux->strides[1]})
                         .reads(bias)
                         .writes(*aux);
                 });
         }
+
+        namespace
+        {
+            /** @brief Records the one task of (exp(a) - b) * @p alpha, with the factor as given. */
+            template <typename Alpha>
+            void record_exp_sub_scale(const LoweringContext& context,
+                                      const std::array<SushiBLAS::Tensor*, 3>& operands,
+                                      Alpha alpha)
+            {
+                SushiBLAS::Dispatch::execute_zip_inplace(
+                    context.recorder(), operands,
+                    Ops::K_EXP_SUB_SCALE.name.data(), Ops::K_EXP_SUB_SCALE.id,
+                    [alpha](auto& value, auto& logit, auto& target)
+                    {
+                        using T = std::decay_t<decltype(value)>;
+                        value = (SushiBLAS::Dispatch::safe_exp(logit) - target)
+                              * static_cast<T>(alpha);
+                    });
+            }
+        } // namespace
 
         Status lower_exp_sub_scale(const LoweringContext& context)
         {
@@ -336,8 +356,8 @@ namespace SushiAI
             SushiBLAS::BLASOps blas(context.recorder());
             SushiBLAS::ElementwiseOps elementwise(context.recorder());
 
-            // The fused arm multiplies by the float that the unfused arm hands to scal.
-            const float alpha = static_cast<float>(context.node().attributes.get(0));
+            // Both arms multiply by the factor in the element type of the result.
+            const double alpha = context.node().attributes.get(0);
 
             FusionQuery query;
             query.matched = FusedForm::ExpSubScale;
@@ -361,15 +381,11 @@ namespace SushiAI
             {
                 const std::array<SushiBLAS::Tensor*, 3> operands{&out, &a, &b};
 
-                SushiBLAS::Dispatch::execute_zip_inplace(
-                    context.recorder(), operands,
-                    Ops::K_EXP_SUB_SCALE.name.data(), Ops::K_EXP_SUB_SCALE.id,
-                    [alpha](auto& value, auto& logit, auto& target)
-                    {
-                        using T = std::decay_t<decltype(value)>;
-                        value = (SushiBLAS::Dispatch::safe_exp(logit) - target)
-                              * static_cast<T>(alpha);
-                    });
+                // A kernel that captures a double needs a device with double precision.
+                if (result.dtype == DType::Float64)
+                    record_exp_sub_scale(context, operands, alpha);
+                else
+                    record_exp_sub_scale(context, operands, static_cast<float>(alpha));
                 tasks = 1;
             }
 

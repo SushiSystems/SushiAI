@@ -35,7 +35,7 @@ namespace SushiAI
     namespace Autograd
     {
         /**
-         * @brief Differentiates standalone log-softmax operations.
+         * @brief Differentiates a log-softmax that no fused cross-entropy absorbed.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
         void log_softmax_backward(const GradientTape& tape);
@@ -56,7 +56,8 @@ namespace SushiAI
         }
 
         /** @brief Holds backward rule entries for loss operations. */
-        inline constexpr std::array<RuleEntry, 1> K_LOSS_RULES = {{
+        inline constexpr std::array<RuleEntry, 2> K_LOSS_RULES = {{
+            {Ops::K_LOG_SOFTMAX.id, &log_softmax_backward},
             {Ops::K_NLL_LOSS.id, &nll_loss_backward},
         }};
     }

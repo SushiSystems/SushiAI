@@ -54,7 +54,7 @@ namespace SushiAI
 
             /**
              * @class Aliases
-             * @brief Disjoint sets over ValueIds for tracking shared buffer aliases.
+             * @brief Disjoint sets over ValueIDs for tracking shared buffer aliases.
              *
              * Resolves alias chains like ACCUMULATE to a single representative value.
              */
@@ -65,11 +65,11 @@ namespace SushiAI
                     explicit Aliases(std::size_t count) : parent_(count)
                     {
                         for (std::size_t i = 0; i < count; ++i)
-                            parent_[i] = static_cast<ValueId>(i);
+                            parent_[i] = static_cast<ValueID>(i);
                     }
 
                     /** @brief The representative of @p id's set, with path halving. */
-                    ValueId find(ValueId id) noexcept
+                    ValueID find(ValueID id) noexcept
                     {
                         while (parent_[id] != id)
                         {
@@ -80,17 +80,17 @@ namespace SushiAI
                     }
 
                     /** @brief Merges @p a's and @p b's sets. */
-                    void merge(ValueId a, ValueId b) noexcept
+                    void merge(ValueID a, ValueID b) noexcept
                     {
-                        const ValueId ra = find(a);
-                        const ValueId rb = find(b);
+                        const ValueID ra = find(a);
+                        const ValueID rb = find(b);
                         if (ra == rb) return;
                         if (ra < rb) parent_[rb] = ra;
                         else         parent_[ra] = rb;
                     }
 
                 private:
-                    std::vector<ValueId> parent_;
+                    std::vector<ValueID> parent_;
             };
 
             /**
@@ -108,7 +108,7 @@ namespace SushiAI
                      * @param consumers Which nodes read each value.
                      */
                     Reachability(const Graph& graph,
-                                 const std::vector<std::vector<NodeId>>& consumers)
+                                 const std::vector<std::vector<NodeID>>& consumers)
                     {
                         const std::size_t count = graph.node_count();
                         words_ = (count + 63) / 64;
@@ -118,8 +118,8 @@ namespace SushiAI
                         {
                             std::uint64_t* row = bits_.data() + index * words_;
 
-                            for (ValueId out : graph.node(static_cast<NodeId>(index)).outputs)
-                                for (NodeId consumer : consumers[out])
+                            for (ValueID out : graph.node(static_cast<NodeID>(index)).outputs)
+                                for (NodeID consumer : consumers[out])
                                 {
                                     const std::uint64_t* successor =
                                         bits_.data() + static_cast<std::size_t>(consumer) * words_;
@@ -139,7 +139,7 @@ namespace SushiAI
                      * @param to Downstream destination node.
                      * @return True if to is strictly downstream of from.
                      */
-                    bool reaches(NodeId from, NodeId to) const noexcept
+                    bool reaches(NodeID from, NodeID to) const noexcept
                     {
                         const std::uint64_t* row =
                             bits_.data() + static_cast<std::size_t>(from) * words_;
@@ -160,7 +160,7 @@ namespace SushiAI
             struct Buffer
             {
                 /** @brief The alias class's representative value. */
-                ValueId owner = K_NO_VALUE;
+                ValueID owner = K_NO_VALUE;
 
                 /** @brief Which arena class it belongs to. */
                 Lifetime lifetime = Lifetime::Activation;
@@ -172,13 +172,13 @@ namespace SushiAI
                 std::size_t alignment = 1;
 
                 /** @brief The earliest node that writes it, or NO_NODE. */
-                NodeId first_write = K_NO_NODE;
+                NodeID first_write = K_NO_NODE;
 
                 /** @brief Every node that writes or reads any member. */
-                std::vector<NodeId> uses;
+                std::vector<NodeID> uses;
 
                 /** @brief Every value that names these bytes. */
-                std::vector<ValueId> members;
+                std::vector<ValueID> members;
 
                 /**
                  * @brief Whether the planner may overlap this buffer with others.
@@ -200,7 +200,7 @@ namespace SushiAI
             {
                 if (later.first_write == K_NO_NODE) return false;
 
-                for (NodeId use : earlier.uses)
+                for (NodeID use : earlier.uses)
                     if (!reach.reaches(use, later.first_write)) return false;
 
                 return true;
@@ -221,7 +221,7 @@ namespace SushiAI
             };
         }
 
-        const Placement& MemoryPlan::placement(ValueId id) const
+        const Placement& MemoryPlan::placement(ValueID id) const
         {
             SA_THROW_IF(id >= placements_.size(),
                         "Value {} has no placement; this plan covers {} values",
@@ -255,7 +255,7 @@ namespace SushiAI
             const std::size_t node_count = graph.node_count();
 
             plan.placements_.assign(value_count, Placement{});
-            for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
             {
                 plan.placements_[id].bytes = byte_size(graph.value(id));
                 plan.placements_[id].buffer = id;
@@ -269,12 +269,12 @@ namespace SushiAI
             if (value_count == 0) return plan;
 
             // Verifies topological ordering to ensure downstream reachability closure validity.
-            std::vector<std::vector<NodeId>> consumers(value_count);
+            std::vector<std::vector<NodeID>> consumers(value_count);
 
-            for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
-                for (ValueId in : graph.node(id).inputs)
+            for (NodeID id = 0; id < static_cast<NodeID>(node_count); ++id)
+                for (ValueID in : graph.node(id).inputs)
                 {
-                    const NodeId producer = graph.value(in).producer;
+                    const NodeID producer = graph.value(in).producer;
                     SA_THROW_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The memory "
                                 "planner needs the graph's insertion order to be a topological "
@@ -290,13 +290,13 @@ namespace SushiAI
                     aliases.merge(node.outputs[0], node.inputs[0]);
 
             std::vector<Buffer> buffers;
-            std::unordered_map<ValueId, std::size_t> buffer_of_owner;
+            std::unordered_map<ValueID, std::size_t> buffer_of_owner;
             buffers.reserve(value_count);
 
-            for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
             {
                 const Value& value = graph.value(id);
-                const ValueId owner = aliases.find(id);
+                const ValueID owner = aliases.find(id);
 
                 const auto [entry, inserted] = buffer_of_owner.emplace(owner, buffers.size());
                 if (inserted)
@@ -328,11 +328,11 @@ namespace SushiAI
                     buffer.uses.push_back(value.producer);
                 }
 
-                for (NodeId consumer : consumers[id]) buffer.uses.push_back(consumer);
+                for (NodeID consumer : consumers[id]) buffer.uses.push_back(consumer);
             }
 
             // Caller-pinned buffers bypass packing regardless of lifetime class.
-            for (ValueId pinned : options.pinned)
+            for (ValueID pinned : options.pinned)
             {
                 SA_THROW_IF(pinned >= value_count,
                             "PlanOptions::pinned names value {}, which this graph does not have",
@@ -377,7 +377,7 @@ namespace SushiAI
                               return buffers[a].owner < buffers[b].owner;
                           });
 
-                const ArenaId arena_id = static_cast<ArenaId>(plan.arenas_.size());
+                const ArenaID arena_id = static_cast<ArenaID>(plan.arenas_.size());
                 std::vector<Slot> placed;
                 placed.reserve(candidates.size());
 
@@ -411,7 +411,7 @@ namespace SushiAI
                     arena.unpacked_bytes += buffer.bytes;
                     ++arena.buffers;
 
-                    for (ValueId member : buffer.members)
+                    for (ValueID member : buffer.members)
                     {
                         plan.placements_[member].arena = arena_id;
                         plan.placements_[member].offset = offset;
@@ -426,7 +426,7 @@ namespace SushiAI
             // Unpacked buffers retain dedicated allocations while recording owner aliases.
             for (const Buffer& buffer : buffers)
                 if (!buffer.packable)
-                    for (ValueId member : buffer.members)
+                    for (ValueID member : buffer.members)
                         plan.placements_[member].buffer = buffer.owner;
 
             return plan;

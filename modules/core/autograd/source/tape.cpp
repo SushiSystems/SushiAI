@@ -37,13 +37,13 @@ namespace SushiAI
             return owner_->current_node();
         }
 
-        Graph::ValueId GradientTape::apply_seed_factor(Graph::ValueId gradient) const
+        Graph::ValueID GradientTape::apply_seed_factor(Graph::ValueID gradient) const
         {
             if (seed_factor_ == Graph::K_NO_VALUE) return gradient;
             return builder_.dynamic_scale(gradient, seed_factor_, "loss_scaled_grad");
         }
 
-        Graph::ValueId GradientTape::output_grad(std::size_t index) const
+        Graph::ValueID GradientTape::output_grad(std::size_t index) const
         {
             const Graph::Node& n = node();
             SA_THROW_IF(index >= n.outputs.size(),
@@ -67,12 +67,12 @@ namespace SushiAI
             return owner_->graph().value(n.inputs[index]).requires_grad;
         }
 
-        void GradientTape::contribute(Graph::ValueId primal, Graph::ValueId gradient) const
+        void GradientTape::contribute(Graph::ValueID primal, Graph::ValueID gradient) const
         {
             owner_->contribute(primal, gradient);
         }
 
-        void GradientTape::contribute_input(std::size_t index, Graph::ValueId gradient) const
+        void GradientTape::contribute_input(std::size_t index, Graph::ValueID gradient) const
         {
             const Graph::Node& n = node();
             SA_THROW_IF(index >= n.inputs.size(),
@@ -80,7 +80,7 @@ namespace SushiAI
             owner_->contribute(n.inputs[index], gradient);
         }
 
-        void GradientTape::skip(Graph::NodeId node_to_skip) const
+        void GradientTape::skip(Graph::NodeID node_to_skip) const
         {
             owner_->skip(node_to_skip);
         }

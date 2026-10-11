@@ -53,12 +53,12 @@ namespace SushiAI
          * @param loss One-element result of an operation that has a backward rule; a leaf throws.
          * @param seed_factor One-element value multiplied into the root gradient, or NO_VALUE.
          * @param provenance Filled with the origin of every appended node when not null.
-         * @return Gradient ValueId per wrt entry, or Graph::NO_VALUE if unreachable.
+         * @return Gradient ValueID per wrt entry, or Graph::NO_VALUE if unreachable.
          */
-        std::vector<Graph::ValueId> differentiate(Graph::Graph& graph,
-                                                  Graph::ValueId loss,
-                                                  SushiRuntime::span<const Graph::ValueId> wrt,
-                                                  Graph::ValueId seed_factor = Graph::K_NO_VALUE,
+        std::vector<Graph::ValueID> differentiate(Graph::Graph& graph,
+                                                  Graph::ValueID loss,
+                                                  SushiRuntime::span<const Graph::ValueID> wrt,
+                                                  Graph::ValueID seed_factor = Graph::K_NO_VALUE,
                                                   Provenance* provenance = nullptr);
 
     } // namespace Autograd

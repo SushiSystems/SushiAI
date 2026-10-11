@@ -41,11 +41,22 @@ namespace SushiAI
         /** @brief Differentiates matrix row summation by broadcasting incoming gradients. */
         void sum_rows_backward(const GradientTape& tape);
 
+        /** @brief Differentiates a row gather by scatter-adding its gradient into the table's. */
+        void gather_rows_backward(const GradientTape& tape);
+        /** @brief Differentiates a row scatter-add by gathering its gradient's rows back. */
+        void scatter_add_rows_backward(const GradientTape& tape);
+
+        /** @brief Differentiates the causal mask by zeroing the gradient above the diagonal. */
+        void causal_mask_backward(const GradientTape& tape);
+
         /** @brief Holds backward rule entries for linear algebra operations. */
-        inline constexpr std::array<RuleEntry, 3> K_LINALG_RULES = {{
-            {Ops::K_MATMUL.id,   &matmul_backward},
-            {Ops::K_BIAS_ADD.id, &bias_add_backward},
-            {Ops::K_SUM_ROWS.id, &sum_rows_backward},
+        inline constexpr std::array<RuleEntry, 6> K_LINALG_RULES = {{
+            {Ops::K_MATMUL.id,           &matmul_backward},
+            {Ops::K_BIAS_ADD.id,         &bias_add_backward},
+            {Ops::K_SUM_ROWS.id,         &sum_rows_backward},
+            {Ops::K_GATHER_ROWS.id,      &gather_rows_backward},
+            {Ops::K_SCATTER_ADD_ROWS.id, &scatter_add_rows_backward},
+            {Ops::K_CAUSAL_MASK.id,      &causal_mask_backward},
         }};
     }
 }

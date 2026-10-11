@@ -15,12 +15,17 @@ sushiai_add_module(NAME autograd TIER core
         source/rules/linalg.cpp
         source/rules/loss.cpp
         source/rules/norm.cpp
+        source/rules/random.cpp
         source/rules/shape.cpp
         source/rules/spatial.cpp
         source/tape.cpp
     PUBLIC_DEPENDS core graph
     TESTS
+        tests/test_causal_mask_backward.cpp
+        tests/test_dropout_backward.cpp
+        tests/test_gather_backward.cpp
         tests/test_gradcheck.cpp
+        tests/test_layer_norm_backward.cpp
         tests/test_layout.cpp
         tests/test_precision.cpp
         tests/test_provenance.cpp

@@ -41,10 +41,11 @@ namespace SushiAI
         {
             emitted_ = 0;
             selections_.clear();
+            preludes_.clear();
 
             graph.prove_layout_uniformity();
 
-            for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
+            for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
             {
                 const Node& node = graph.node(id);
                 const LoweringRule rule = find_lowering(node.op);
@@ -55,7 +56,7 @@ namespace SushiAI
                             Ops::name_of(node.op), id);
 
                 const LoweringContext context(*recorder_, *stream_, *pool_, graph, id, *selector_,
-                                              selections_, emitted_);
+                                              selections_, emitted_, preludes_);
                 const Status recorded = ::SushiAI::Detail::guard(
                     ::SushiAI::Detail::SeamPhase::Record, [&]() { return rule(context); });
                 if (!recorded.is_ok())

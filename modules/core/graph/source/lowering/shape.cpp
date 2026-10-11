@@ -95,9 +95,9 @@ namespace SushiAI
             const TensorLayout source_layout = context.input_value(0).layout;
             const TensorLayout dest_layout = context.output_value(0).layout;
 
-            const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::Nchw)
+            const SushiBLAS::Tensor source_view = (source_layout == TensorLayout::NCHW)
                 ? source.transpose(1, 2).transpose(2, 3) : source;
-            SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::Nchw)
+            SushiBLAS::Tensor dest_view = (dest_layout == TensorLayout::NCHW)
                 ? destination.transpose(1, 2).transpose(2, 3) : destination;
 
             SushiBLAS::SpatialOps spatial(context.recorder());

@@ -40,6 +40,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 
@@ -72,8 +73,17 @@ namespace SushiAI
                 CompiledStep& operator=(CompiledStep&&) = delete;
                 ~CompiledStep() = default;
 
-                /** @brief Re-arms the plan, runs it and waits until it has finished. */
+                /**
+                 * @brief Calls each replay prelude with run_count(), re-arms the plan, runs it
+                 *        and waits until it has finished.
+                 */
                 [[nodiscard]] Status run();
+
+                /** @brief Returns how many replay preludes the lowered nodes registered. */
+                [[nodiscard]] std::size_t replay_prelude_count() const noexcept
+                {
+                    return preludes_.size();
+                }
 
                 /** @brief Returns whether a trailing recorder added work to this step. */
                 [[nodiscard]] bool has_trailing_work() const noexcept
@@ -87,11 +97,19 @@ namespace SushiAI
                     return compile_count_;
                 }
 
-                /** @brief Returns how many times run() has executed the plan. */
+                /** @brief Returns the index the next run() gives its replay preludes. */
                 [[nodiscard]] std::size_t run_count() const noexcept
                 {
                     return run_count_;
                 }
+
+                /**
+                 * @brief Sets run_count() to what the step of a saved run had reached.
+                 * @param count The runs the saved step had finished.
+                 * @return InvalidDescription, with run_count(), once the step has run or
+                 *         has been restored to a count above 0.
+                 */
+                [[nodiscard]] Status restore_run_count(std::size_t count);
 
                 /** @brief Returns whether the graph lowered to no runnable work. */
                 [[nodiscard]] bool empty() const noexcept
@@ -147,10 +165,13 @@ namespace SushiAI
                 /// @brief The fusion decisions of the lowering, in execution order.
                 std::vector<FusionSelection> selections_;
 
+                /// @brief The host work the lowered nodes need before each replay, in node order.
+                std::vector<ReplayPrelude> preludes_;
+
                 /// @brief The number of times graph_ has been compiled.
                 std::size_t compile_count_ = 0;
 
-                /// @brief The number of times run() has executed the plan.
+                /// @brief The runs finished, counted from what restore_run_count() set.
                 std::size_t run_count_ = 0;
 
                 /// @brief The number of tasks the lowering and the trailing recorder recorded.

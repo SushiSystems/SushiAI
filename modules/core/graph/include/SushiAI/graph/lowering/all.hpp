@@ -40,13 +40,14 @@
 #include <SushiAI/graph/lowering/spatial.hpp>
 #include <SushiAI/graph/lowering/norm.hpp>
 #include <SushiAI/graph/lowering/fused.hpp>
+#include <SushiAI/graph/lowering/random.hpp>
 
 namespace SushiAI
 {
     namespace Graph
     {
         /**
-         * @brief Holds every lowering row, the eight domain tables joined in the order of the
+         * @brief Holds every lowering row, the nine domain tables joined in the order of the
          *        includes above.
          */
         inline constexpr auto K_LOWERINGS = concat_lowerings(
@@ -55,7 +56,8 @@ namespace SushiAI
                 concat_lowerings(K_LINALG_LOWERINGS, K_LOSS_LOWERINGS)),
             concat_lowerings(
                 concat_lowerings(K_SHAPE_LOWERINGS, K_SPATIAL_LOWERINGS),
-                concat_lowerings(K_NORM_LOWERINGS, K_FUSED_LOWERINGS)));
+                concat_lowerings(concat_lowerings(K_NORM_LOWERINGS, K_FUSED_LOWERINGS),
+                                 K_RANDOM_LOWERINGS)));
 
         /** @brief Returns the rule of the first row that names @p op, or nullptr when none does. */
         [[nodiscard]] constexpr LoweringRule find_lowering(OpID op) noexcept

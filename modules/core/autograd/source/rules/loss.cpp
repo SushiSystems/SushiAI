@@ -31,35 +31,63 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        void log_softmax_backward(const GradientTape&)
+        void log_softmax_backward(const GradientTape& tape)
         {
-            // Standalone log-softmax differentiation requires a row-reduction IR node.
-            SA_THROW_IF(true,
-                        "LOG_SOFTMAX can only be differentiated as part of the fused "
-                        "LOG_SOFTMAX + NLL_LOSS pair in this release: the standalone rule "
-                        "needs a row-wise reduction of the incoming gradient, and SushiAI has "
-                        "no IR node for one yet (SushiBLAS::ReductionOps::sum_along is the "
-                        "kernel it would lower to). Feed its result to NLL_LOSS (see "
-                        "NN::CrossEntropyLoss), or add a row-sum operation first.");
+            const Graph::ValueID dy = tape.output_grad(0);
+            if (dy == Graph::K_NO_VALUE) return;
+            if (!tape.input_requires_grad(0)) return;
+
+            // The id is copied out before the emission grows the graph.
+            const Graph::ValueID log_probs = tape.node().outputs.at(0);
+
+            // The forward emitter checked the shape, so a refusal here is fatal in value().
+            tape.contribute_input(
+                0, tape.builder().log_softmax_backward(dy, log_probs).value());
         }
+
+        namespace
+        {
+            /**
+             * @brief Returns @p local weighted by the gradient that reaches the loss.
+             *
+             * At the root the gradient is the implicit one and the seed factor stands in for
+             * it. Elsewhere @p dy, one element, is spread over the shape of @p local and
+             * multiplied in.
+             */
+            Graph::ValueID weigh_by_loss_gradient(const GradientTape& tape, Graph::ValueID local)
+            {
+                if (tape.output_is_root(0))
+                    return tape.apply_seed_factor(local);
+
+                const Graph::GraphBuilder& builder = tape.builder();
+                const Graph::ValueID dy = tape.output_grad(0);
+
+                // The shape and the type are copied out before the emission grows the graph.
+                const Shape shape = tape.graph().value(local).shape;
+                const DType dtype = tape.graph().value(local).dtype;
+
+                const Graph::ValueID column =
+                    builder.zeros_like(dy, Shape{shape.num_elements(), 1}, dtype);
+                const Graph::ValueID spread =
+                    builder.bias_add(column, builder.reshape(dy, Shape{1}));
+                return builder.mul(builder.reshape(spread, shape), local);
+            }
+        } // namespace
 
         void nll_loss_backward(const GradientTape& tape)
         {
             const Graph::Node& node = tape.node();
 
-            SA_THROW_IF(!tape.output_is_root(0),
-                        "NLL_LOSS is differentiable only as the value passed to "
-                        "differentiate(); its gradient is seeded as the implicit scalar one, "
-                        "so it cannot sit inside a larger expression yet.");
+            if (!tape.output_is_root(0) && tape.output_grad(0) == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueId log_probs = node.inputs.at(0);
-            const Graph::ValueId targets = node.inputs.at(1);
+            const Graph::ValueID log_probs = node.inputs.at(0);
+            const Graph::ValueID targets = node.inputs.at(1);
 
             const Graph::Value& value = tape.graph().value(log_probs);
             const double batch = static_cast<double>(value.shape.dim(0));
 
-            const Graph::NodeId producer = value.producer;
+            const Graph::NodeID producer = value.producer;
             const bool fused = producer != Graph::K_NO_NODE
                             && tape.graph().node(producer).op == Ops::K_LOG_SOFTMAX.id;
 
@@ -67,22 +95,22 @@ namespace SushiAI
             {
                 // loss = -sum(L * Y) / N, so dL is just the targets, scaled.
                 if (tape.input_requires_grad(0))
-                    tape.contribute_input(0, tape.apply_seed_factor(
-                        builder.scale(targets, -1.0 / batch)));
+                    tape.contribute_input(0, weigh_by_loss_gradient(
+                        tape, builder.scale(targets, -1.0 / batch)));
                 return;
             }
 
             // Fused cross-entropy analytic gradient with one-hot targets simplifies to (softmax(X) - Y) / N.
             tape.skip(producer);
 
-            const Graph::ValueId logits = tape.graph().node(producer).inputs.at(0);
+            const Graph::ValueID logits = tape.graph().node(producer).inputs.at(0);
             if (!tape.graph().value(logits).requires_grad) return;
 
-            const Graph::ValueId probabilities = builder.exp(log_probs);
-            const Graph::ValueId difference = builder.sub(probabilities, targets);
+            const Graph::ValueID probabilities = builder.exp(log_probs);
+            const Graph::ValueID difference = builder.sub(probabilities, targets);
             // Seed loss scale factor at the root gradient before downstream precision casts.
-            tape.contribute(logits, tape.apply_seed_factor(
-                builder.scale(difference, 1.0 / batch)));
+            tape.contribute(logits, weigh_by_loss_gradient(
+                tape, builder.scale(difference, 1.0 / batch)));
         }
 
     } // namespace Autograd

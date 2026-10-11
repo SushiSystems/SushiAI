@@ -107,8 +107,7 @@ namespace
         protected:
             /** @brief Builds the graph, its scratch pool and the recorder the tests use. */
             Unit_StepRecorder()
-                : graph_(SushiAI::Test::TestEnvironment::context()),
-                  scratch_(SushiAI::Test::TestEnvironment::context()),
+                : scratch_(SushiAI::Test::TestEnvironment::context()),
                   recorder_(graph_, scratch_)
             {
 

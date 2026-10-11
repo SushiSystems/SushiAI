@@ -51,9 +51,9 @@ using Graph::Lifetime;
 using Graph::MixedPrecisionPolicy;
 using Graph::K_NO_NODE;
 using Graph::K_NO_VALUE;
-using Graph::NodeId;
+using Graph::NodeID;
 using Graph::UniformPrecisionPolicy;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -70,15 +70,15 @@ namespace
     struct Traced
     {
         Graph::Graph graph;
-        ValueId x = K_NO_VALUE;
-        ValueId targets = K_NO_VALUE;
-        ValueId w1 = K_NO_VALUE;
-        ValueId b1 = K_NO_VALUE;
-        ValueId w2 = K_NO_VALUE;
-        ValueId b2 = K_NO_VALUE;
-        ValueId logits = K_NO_VALUE;
-        ValueId loss = K_NO_VALUE;
-        std::vector<ValueId> gradients;
+        ValueID x = K_NO_VALUE;
+        ValueID targets = K_NO_VALUE;
+        ValueID w1 = K_NO_VALUE;
+        ValueID b1 = K_NO_VALUE;
+        ValueID w2 = K_NO_VALUE;
+        ValueID b2 = K_NO_VALUE;
+        ValueID logits = K_NO_VALUE;
+        ValueID loss = K_NO_VALUE;
+        std::vector<ValueID> gradients;
     };
 
     /** @brief x -> linear -> relu -> linear -> log_softmax -> nll, then backward. */
@@ -94,7 +94,7 @@ namespace
         traced.w2 = builder.parameter(Shape{K_CLASSES, K_HIDDEN}, "w2");
         traced.b2 = builder.parameter(Shape{K_CLASSES}, "b2");
 
-        const ValueId h = builder.relu(
+        const ValueID h = builder.relu(
             builder.bias_add(builder.matmul(traced.x, traced.w1, false, true), traced.b1));
 
         traced.logits = builder.bias_add(builder.matmul(h, traced.w2, false, true), traced.b2);
@@ -102,15 +102,15 @@ namespace
 
         if (!differentiate) return traced;
 
-        const ValueId wrt[] = {traced.w1, traced.b1, traced.w2, traced.b2};
+        const ValueID wrt[] = {traced.w1, traced.b1, traced.w2, traced.b2};
         traced.gradients = Autograd::differentiate(
-            traced.graph, traced.loss, SushiRuntime::span<const ValueId>(wrt, 4));
+            traced.graph, traced.loss, SushiRuntime::span<const ValueID>(wrt, 4));
 
         return traced;
     }
 
     /** @brief The four values a training loop reads by id. */
-    std::vector<ValueId> observed_of(const Traced& traced)
+    std::vector<ValueID> observed_of(const Traced& traced)
     {
         return {traced.x, traced.targets, traced.logits, traced.loss};
     }
@@ -145,7 +145,7 @@ TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
     EXPECT_EQ(policy.name(), "fp32");
 }
 
-TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
+TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
 {
     // Every narrowing operation is listed here; see tests/unit/README.md.
     const OpID narrows[] = {
@@ -173,7 +173,7 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/unit/README.md.
         Ops::K_GELU.id, Ops::K_GELU_BACKWARD.id, Ops::K_GEMM_BIAS_GELU.id,
         Ops::K_LEAF.id, Ops::K_CAST.id,
-        Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id,
+        Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id, Ops::K_CLIP_SCALE.id,
         // The twenty-three spatial identities keep the default; see tests/unit/README.md.
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
@@ -192,6 +192,14 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGemmFoldsIntoItNarrow)
         Ops::K_LESS_EQUAL.id, Ops::K_SELECT.id, Ops::K_STOP_GRADIENT.id, Ops::K_CONSTANT.id,
         // BATCHNORM_FOLD takes the square root of a variance plus epsilon, so it stays wide.
         Ops::K_BATCHNORM_FOLD.id,
+        // A row gather and its scatter-add move rows, so they keep the table's type.
+        Ops::K_GATHER_ROWS.id, Ops::K_SCATTER_ADD_ROWS.id,
+        // The mask copies its kept entries, and a layer normalisation takes a square root.
+        Ops::K_CAUSAL_MASK.id, Ops::K_LAYER_NORM.id, Ops::K_LAYER_NORM_BACKWARD.id,
+        // DROPOUT multiplies by a mask of its operand's type, so it keeps that type.
+        Ops::K_DROPOUT.id,
+        // The gradient of LOG_SOFTMAX sums a row and takes an exponential, as its forward does.
+        Ops::K_LOG_SOFTMAX_BACKWARD.id,
     };
 
     for (OpID op : stays)
@@ -223,7 +231,7 @@ TEST(Unit_Precision, TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecis
     }
 }
 
-TEST(Unit_Precision, GeluStaysWideEvenThoughACatalogEntryNowFoldsIt)
+TEST(Unit_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
     // The catalog folds GELU and the policy keeps it wide; see tests/unit/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id))
@@ -304,8 +312,8 @@ TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
@@ -315,7 +323,7 @@ TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
     EXPECT_EQ(traced.graph.node_count(), nodes_before);
     EXPECT_EQ(traced.graph.value_count(), values_before);
 
-    for (ValueId id = 0; id < static_cast<ValueId>(values_before); ++id)
+    for (ValueID id = 0; id < static_cast<ValueID>(values_before); ++id)
         EXPECT_EQ(traced.graph.value(id).dtype, DType::Float32);
 }
 
@@ -339,8 +347,8 @@ TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
     EXPECT_GT(report.count(), 0u) << "a mixed policy that inserted nothing is not mixed";
@@ -357,8 +365,8 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
-    const std::vector<ValueId> observed = observed_of(traced);
-    const SushiRuntime::span<const ValueId> observed_span(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    const SushiRuntime::span<const ValueID> observed_span(observed.data(), observed.size());
 
     CastOptions casts;
     casts.policy = &policy;
@@ -369,7 +377,7 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     fusion.observed = observed_span;
     const Graph::FusionReport fused = Graph::fuse(traced.graph, fusion);
 
-    EXPECT_GT(fused.count(FusedForm::GemmBiasRelu), 0u)
+    EXPECT_GT(fused.count(FusedForm::GEMMBiasReLU), 0u)
         << "the casts landed inside a fusable chain and broke it";
 
     const std::vector<DTypeMismatch> mismatches =
@@ -377,13 +385,13 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     EXPECT_TRUE(mismatches.empty()) << describe_all(mismatches);
 
     // After the *whole* pipeline, not just after the cast pass.
-    for (ValueId parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
+    for (ValueID parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
     {
         EXPECT_EQ(traced.graph.value(parameter).dtype, DType::Float32);
         EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
     }
 
-    for (ValueId gradient : traced.gradients)
+    for (ValueID gradient : traced.gradients)
     {
         ASSERT_NE(gradient, K_NO_VALUE);
         EXPECT_EQ(traced.graph.value(gradient).dtype, DType::Float32);
@@ -397,8 +405,8 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x", DType::Float32);
-    const ValueId w = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w", DType::Float32);
+    const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x", DType::Float32);
+    const ValueID w = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w", DType::Float32);
     builder.matmul(x, w, false, true);
 
     const MixedPrecisionPolicy policy;
@@ -424,12 +432,12 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
-    for (ValueId parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
+    for (ValueID parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
     {
         EXPECT_EQ(traced.graph.value(parameter).dtype, DType::Float32)
             << "a master weight was retyped in place";
@@ -458,29 +466,29 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
     // Only the weight gradients come from a low MATMUL; see tests/unit/README.md.
-    for (ValueId weight_gradient : {traced.gradients[0], traced.gradients[2]})
+    for (ValueID weight_gradient : {traced.gradients[0], traced.gradients[2]})
     {
         ASSERT_NE(weight_gradient, K_NO_VALUE);
         EXPECT_EQ(traced.graph.value(weight_gradient).dtype, DType::Float32);
 
-        const NodeId producer = traced.graph.value(weight_gradient).producer;
+        const NodeID producer = traced.graph.value(weight_gradient).producer;
         ASSERT_NE(producer, K_NO_NODE);
         EXPECT_EQ(traced.graph.node(producer).op, Ops::K_CAST.id)
             << "an fp16 matmul wrote straight into an fp32 gradient buffer";
 
-        const ValueId narrow = traced.graph.node(producer).inputs.at(0);
+        const ValueID narrow = traced.graph.node(producer).inputs.at(0);
         EXPECT_EQ(traced.graph.value(narrow).dtype, DType::Half);
         EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::K_MATMUL.id);
     }
 
     // The bias gradients come from a wide reduction; see tests/unit/README.md.
-    for (ValueId bias_gradient : {traced.gradients[1], traced.gradients[3]})
+    for (ValueID bias_gradient : {traced.gradients[1], traced.gradients[3]})
     {
         EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::Float32);
         EXPECT_EQ(traced.graph.node(traced.graph.value(bias_gradient).producer).op,
@@ -496,19 +504,19 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
-    const ValueId targets = builder.input(Shape{K_ROWS, K_CLASSES}, "targets");
-    const ValueId w = builder.parameter(Shape{K_CLASSES, K_IN_FEATURES}, "w");
+    const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    const ValueID targets = builder.input(Shape{K_ROWS, K_CLASSES}, "targets");
+    const ValueID w = builder.parameter(Shape{K_CLASSES, K_IN_FEATURES}, "w");
 
     // The same weight in two products, summed - the smallest fan-out there is.
-    const ValueId a = builder.matmul(x, w, false, true);
-    const ValueId b = builder.matmul(x, w, false, true);
-    const ValueId logits = builder.add(a, b);
-    const ValueId loss = builder.nll_loss(builder.log_softmax(logits), targets);
+    const ValueID a = builder.matmul(x, w, false, true);
+    const ValueID b = builder.matmul(x, w, false, true);
+    const ValueID logits = builder.add(a, b);
+    const ValueID loss = builder.nll_loss(builder.log_softmax(logits), targets);
 
-    const ValueId wrt[] = {w};
-    const std::vector<ValueId> gradients =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueId>(wrt, 1));
+    const ValueID wrt[] = {w};
+    const std::vector<ValueID> gradients =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt, 1));
 
     ASSERT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 1u);
 
@@ -516,8 +524,8 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
     CastOptions options;
     options.policy = &policy;
 
-    const ValueId observed[] = {x, targets, logits, loss};
-    options.observed = SushiRuntime::span<const ValueId>(observed, 4);
+    const ValueID observed[] = {x, targets, logits, loss};
+    options.observed = SushiRuntime::span<const ValueID>(observed, 4);
 
     Graph::insert_casts(graph, options);
 
@@ -543,8 +551,8 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 
     CastOptions with;
     with.policy = &policy;
-    const std::vector<ValueId> observed = observed_of(pinned);
-    with.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(pinned);
+    with.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
     Graph::insert_casts(pinned.graph, with);
 
     CastOptions without;
@@ -558,8 +566,8 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
     Traced other = trace();
     CastOptions bad;
     bad.policy = &policy;
-    const ValueId nonsense[] = {static_cast<ValueId>(other.graph.value_count() + 10)};
-    bad.observed = SushiRuntime::span<const ValueId>(nonsense, 1);
+    const ValueID nonsense[] = {static_cast<ValueID>(other.graph.value_count() + 10)};
+    bad.observed = SushiRuntime::span<const ValueID>(nonsense, 1);
     EXPECT_THROW(Graph::insert_casts(other.graph, bad), Error);
 }
 
@@ -572,8 +580,8 @@ TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
@@ -609,14 +617,14 @@ TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
     EXPECT_EQ(readers, 2u);
 }
 
-TEST(Unit_CastInsertion, ValueIdsSurviveThePass)
+TEST(Unit_CastInsertion, ValueIDsSurviveThePass)
 {
     Traced traced = trace();
     const std::size_t values_before = traced.graph.value_count();
 
     std::vector<Shape> shapes;
     std::vector<Lifetime> lifetimes;
-    for (ValueId id = 0; id < static_cast<ValueId>(values_before); ++id)
+    for (ValueID id = 0; id < static_cast<ValueID>(values_before); ++id)
     {
         shapes.push_back(traced.graph.value(id).shape);
         lifetimes.push_back(traced.graph.value(id).lifetime);
@@ -626,13 +634,13 @@ TEST(Unit_CastInsertion, ValueIdsSurviveThePass)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     Graph::insert_casts(traced.graph, options);
 
     EXPECT_GT(traced.graph.value_count(), values_before);
-    for (ValueId id = 0; id < static_cast<ValueId>(values_before); ++id)
+    for (ValueID id = 0; id < static_cast<ValueID>(values_before); ++id)
     {
         EXPECT_EQ(traced.graph.value(id).shape, shapes[id]);
         EXPECT_EQ(traced.graph.value(id).lifetime, lifetimes[id]);
@@ -647,8 +655,8 @@ TEST(Unit_CastInsertion, RunningThePassTwiceAddsNothingTheSecondTime)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport first = Graph::insert_casts(traced.graph, options);
     const std::size_t nodes = traced.graph.node_count();
@@ -670,8 +678,8 @@ TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed = observed_of(traced);
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
@@ -692,8 +700,8 @@ TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
     // A conversion sits immediately before its consumer; see tests/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId a = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "a");
-    const ValueId b = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "b");
+    const ValueID a = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "a");
+    const ValueID b = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "b");
 
     graph.add_node(Ops::K_RELU.id, {b}, {a});   // reads b...
     graph.add_node(Ops::K_RELU.id, {a}, {b});   // ...which is written here.
@@ -715,9 +723,9 @@ namespace
     struct Pooled
     {
         Graph::Graph graph;
-        ValueId x = K_NO_VALUE;
-        ValueId indices = K_NO_VALUE;
-        ValueId loss = K_NO_VALUE;
+        ValueID x = K_NO_VALUE;
+        ValueID indices = K_NO_VALUE;
+        ValueID loss = K_NO_VALUE;
     };
 
     Pooled trace_pool()
@@ -726,7 +734,7 @@ namespace
         const GraphBuilder builder(p.graph);
 
         p.x = builder.parameter(Shape{2, 8, 8, 4}, "x");
-        const ValueId w = builder.parameter(Shape{4, 4}, "w");
+        const ValueID w = builder.parameter(Shape{4, 4}, "w");
 
         Graph::ConvGeometry g;
         g.kernel_h = 2; g.kernel_w = 2;
@@ -735,28 +743,28 @@ namespace
         const Graph::PoolResult pool = builder.maxpool2d(p.x, g);
         p.indices = pool.indices;
 
-        const ValueId rows = builder.reshape(builder.spatial_mean(pool.output), Shape{2, 4});
-        const ValueId hidden = builder.relu(builder.matmul(rows, w));
-        const ValueId target = builder.input(Shape{2, 4}, "target");
+        const ValueID rows = builder.reshape(builder.spatial_mean(pool.output), Shape{2, 4});
+        const ValueID hidden = builder.relu(builder.matmul(rows, w));
+        const ValueID target = builder.input(Shape{2, 4}, "target");
 
         p.loss = builder.nll_loss(builder.log_softmax(hidden), target);
         p.graph.finalise();
 
-        const std::vector<ValueId> wrt{w, p.x};
+        const std::vector<ValueID> wrt{w, p.x};
         (void)Autograd::differentiate(p.graph, p.loss,
-            SushiRuntime::span<const ValueId>(wrt.data(), wrt.size()));
+            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
         return p;
     }
 
     /** @brief Whether any CAST node in @p graph reads or writes @p value. */
-    bool any_cast_touches(const Graph::Graph& graph, ValueId value)
+    bool any_cast_touches(const Graph::Graph& graph, ValueID value)
     {
         for (const Graph::Node& node : graph.nodes())
         {
             if (node.op != Ops::K_CAST.id) continue;
-            for (ValueId in : node.inputs) if (in == value) return true;
-            for (ValueId out : node.outputs) if (out == value) return true;
+            for (ValueID in : node.inputs) if (in == value) return true;
+            for (ValueID out : node.outputs) if (out == value) return true;
         }
         return false;
     }
@@ -787,8 +795,8 @@ TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
     CastOptions options;
     options.policy = &policy;
 
-    const std::vector<ValueId> observed{p.x, p.loss};
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    const std::vector<ValueID> observed{p.x, p.loss};
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     EXPECT_NO_THROW(Graph::insert_casts(p.graph, options));
 
@@ -801,9 +809,9 @@ TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
     // A pinned argmax keeps its id and its INT64 buffer; see tests/unit/README.md.
     Pooled p = trace_pool();
 
-    const std::vector<ValueId> observed{p.indices};
+    const std::vector<ValueID> observed{p.indices};
     CastOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     EXPECT_NO_THROW(Graph::insert_casts(p.graph, options));
 
@@ -817,13 +825,13 @@ TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
-    const ValueId weight = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w");
-    const ValueId shift = builder.buffer(Shape{K_HIDDEN}, "running_shift");
-    const ValueId biased = builder.bias_add(builder.matmul(x, weight, false, true), shift);
+    const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    const ValueID weight = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w");
+    const ValueID shift = builder.buffer(Shape{K_HIDDEN}, "running_shift");
+    const ValueID biased = builder.bias_add(builder.matmul(x, weight, false, true), shift);
 
-    graph.bind_state_leaf(Graph::StateId{31}, weight);
-    graph.bind_state_leaf(Graph::StateId{32}, shift);
+    graph.bind_state_leaf(Graph::StateID{31}, weight);
+    graph.bind_state_leaf(Graph::StateID{32}, shift);
     graph.mark_refused();
     const auto bound_before = graph.state_leaves();
 
@@ -840,8 +848,8 @@ TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
     EXPECT_EQ(graph.value(shift).dtype, DType::Float32);
     EXPECT_EQ(graph.value(shift).lifetime, Lifetime::Buffer);
     EXPECT_FALSE(graph.value(shift).requires_grad);
-    EXPECT_EQ(graph.state_leaf(Graph::StateId{31}), weight);
-    EXPECT_EQ(graph.state_leaf(Graph::StateId{32}), shift);
+    EXPECT_EQ(graph.state_leaf(Graph::StateID{31}), weight);
+    EXPECT_EQ(graph.state_leaf(Graph::StateID{32}), shift);
     EXPECT_EQ(graph.state_leaves(), bound_before);
     EXPECT_TRUE(graph.has_refusal());
 
@@ -855,10 +863,10 @@ TEST(Unit_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId gamma = builder.parameter(Shape{K_HIDDEN}, "gamma");
-    const ValueId beta = builder.parameter(Shape{K_HIDDEN}, "beta");
-    const ValueId mean = builder.buffer(Shape{K_HIDDEN}, "running_mean");
-    const ValueId variance = builder.buffer(Shape{K_HIDDEN}, "running_var");
+    const ValueID gamma = builder.parameter(Shape{K_HIDDEN}, "gamma");
+    const ValueID beta = builder.parameter(Shape{K_HIDDEN}, "beta");
+    const ValueID mean = builder.buffer(Shape{K_HIDDEN}, "running_mean");
+    const ValueID variance = builder.buffer(Shape{K_HIDDEN}, "running_var");
     const Graph::BatchNormFold fold = builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
 
     const MixedPrecisionPolicy policy;
@@ -871,6 +879,6 @@ TEST(Unit_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
     EXPECT_EQ(count_op(graph, Ops::K_CAST.id), 0u);
     ASSERT_EQ(count_op(graph, Ops::K_BATCHNORM_FOLD.id), 1u);
 
-    for (ValueId id : {gamma, beta, mean, variance, fold.scale, fold.shift})
+    for (ValueID id : {gamma, beta, mean, variance, fold.scale, fold.shift})
         EXPECT_EQ(graph.value(id).dtype, DType::Float32) << "value " << id;
 }

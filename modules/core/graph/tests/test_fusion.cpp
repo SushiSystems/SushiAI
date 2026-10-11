@@ -43,8 +43,8 @@ using Graph::FusionOptions;
 using Graph::FusionReport;
 using Graph::GraphBuilder;
 using Graph::K_NO_NODE;
-using Graph::NodeId;
-using Graph::ValueId;
+using Graph::NodeID;
+using Graph::ValueID;
 
 namespace
 {
@@ -58,11 +58,11 @@ namespace
      */
     struct LinearTrace
     {
-        ValueId x = Graph::K_NO_VALUE;
-        ValueId weight = Graph::K_NO_VALUE;
-        ValueId bias = Graph::K_NO_VALUE;
-        ValueId product = Graph::K_NO_VALUE;   /**< The MATMUL's result. */
-        ValueId biased = Graph::K_NO_VALUE;    /**< The BIAS_ADD's result. */
+        ValueID x = Graph::K_NO_VALUE;
+        ValueID weight = Graph::K_NO_VALUE;
+        ValueID bias = Graph::K_NO_VALUE;
+        ValueID product = Graph::K_NO_VALUE;   /**< The MATMUL's result. */
+        ValueID biased = Graph::K_NO_VALUE;    /**< The BIAS_ADD's result. */
     };
 
     /** @brief Emits x -> matmul -> bias_add, the shape every case below builds on. */
@@ -101,9 +101,9 @@ TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
 {
     // Every form round-trips through its operation identity; see tests/unit/README.md.
     constexpr FusedForm K_ALL[] = {
-        FusedForm::GemmBias, FusedForm::GemmBiasRelu,
-        FusedForm::GemmBiasSigmoid, FusedForm::GemmBiasTanh,
-        FusedForm::GemmBiasGelu,
+        FusedForm::GEMMBias, FusedForm::GEMMBiasReLU,
+        FusedForm::GEMMBiasSigmoid, FusedForm::GEMMBiasTanh,
+        FusedForm::GEMMBiasGELU,
         FusedForm::ExpSubScale,
     };
 
@@ -132,10 +132,10 @@ TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFac
 
     // Only the entry that spills folds GELU; see tests/unit/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id));
-    EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GemmBiasGelu));
+    EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GEMMBiasGELU));
 
-    for (FusedForm form : {FusedForm::GemmBias, FusedForm::GemmBiasRelu,
-                           FusedForm::GemmBiasSigmoid, FusedForm::GemmBiasTanh,
+    for (FusedForm form : {FusedForm::GEMMBias, FusedForm::GEMMBiasReLU,
+                           FusedForm::GEMMBiasSigmoid, FusedForm::GEMMBiasTanh,
                            FusedForm::ExpSubScale})
         EXPECT_FALSE(Graph::fused_form_spills(form))
             << Graph::fused_form_name(form) << " grew a second output without a reason";
@@ -144,9 +144,9 @@ TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFac
     EXPECT_FALSE(Graph::catalog_folds_activation(Ops::K_MATMUL.id));
     EXPECT_FALSE(Graph::catalog_folds_activation(Ops::K_EXP.id));
 
-    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GemmBias), Ops::K_LEAF.id);
-    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GemmBiasRelu), Ops::K_RELU.id);
-    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GemmBiasGelu), Ops::K_GELU.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBias), Ops::K_LEAF.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBiasReLU), Ops::K_RELU.id);
+    EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBiasGELU), Ops::K_GELU.id);
 }
 
 TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
@@ -155,13 +155,13 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const std::vector<ValueId> observed{layer.biased};
+    const std::vector<ValueID> observed{layer.biased};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    ASSERT_EQ(report.count(FusedForm::GemmBias), 1u);
+    ASSERT_EQ(report.count(FusedForm::GEMMBias), 1u);
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::K_GEMM_BIAS.id), 1u);
@@ -191,16 +191,16 @@ TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueId activated = builder.relu(layer.biased);
+    const ValueID activated = builder.relu(layer.biased);
 
-    const std::vector<ValueId> observed{activated};
+    const std::vector<ValueID> observed{activated};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 1u);
-    EXPECT_EQ(report.count(FusedForm::GemmBias), 0u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasReLU), 1u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBias), 0u);
     EXPECT_EQ(graph.node_count(), report.nodes_before() - 2u);
 }
 
@@ -209,15 +209,15 @@ TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId log_probs = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "log_probs");
-    const ValueId targets = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "targets");
-    const ValueId probabilities = builder.exp(log_probs);
-    const ValueId difference = builder.sub(probabilities, targets);
-    const ValueId scaled = builder.scale(difference, 0.25);
+    const ValueID log_probs = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "log_probs");
+    const ValueID targets = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "targets");
+    const ValueID probabilities = builder.exp(log_probs);
+    const ValueID difference = builder.sub(probabilities, targets);
+    const ValueID scaled = builder.scale(difference, 0.25);
 
-    const std::vector<ValueId> observed{scaled};
+    const std::vector<ValueID> observed{scaled};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -238,15 +238,15 @@ TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
-    const ValueId b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
-    const ValueId exponent = builder.exp(a);
-    const ValueId difference = builder.sub(b, exponent);
-    const ValueId scaled = builder.scale(difference, 0.5);
+    const ValueID a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
+    const ValueID b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
+    const ValueID exponent = builder.exp(a);
+    const ValueID difference = builder.sub(b, exponent);
+    const ValueID scaled = builder.scale(difference, 0.5);
 
-    const std::vector<ValueId> observed{scaled};
+    const std::vector<ValueID> observed{scaled};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -261,11 +261,11 @@ TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
     const LinearTrace layer = trace_linear(builder);
 
     // The MATMUL result has a second reader; see tests/unit/README.md.
-    const ValueId also = builder.scale(layer.product, 2.0);
+    const ValueID also = builder.scale(layer.product, 2.0);
 
-    const std::vector<ValueId> observed{layer.biased, also};
+    const std::vector<ValueID> observed{layer.biased, also};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -275,25 +275,25 @@ TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
 }
 
-TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIdIsNotFusedAway)
+TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIDIsNotFusedAway)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueId activated = builder.relu(layer.biased);
+    const ValueID activated = builder.relu(layer.biased);
 
     // The training loop reads `biased` after every replay; see tests/unit/README.md.
-    const std::vector<ValueId> observed{layer.biased, activated};
+    const std::vector<ValueID> observed{layer.biased, activated};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 0u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasReLU), 0u);
     EXPECT_TRUE(declined_for(report, FusionDecline::ValueIsObserved));
 
     // The shorter form rooted at the bias_add still fuses; see tests/unit/README.md.
-    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
 }
 
 TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
@@ -302,14 +302,14 @@ TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
-    const ValueId b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
-    const ValueId exponent = builder.exp(a);
+    const ValueID a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
+    const ValueID b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
+    const ValueID exponent = builder.exp(a);
 
     // The exp's result is forced into a persistent class; see tests/unit/README.md.
     graph.value(exponent).lifetime = Graph::Lifetime::OptimizerState;
 
-    const ValueId difference = builder.sub(exponent, b);
+    const ValueID difference = builder.sub(exponent, b);
     (void)builder.scale(difference, 0.5);
 
     const FusionReport report = Graph::fuse(graph, FusionOptions{});
@@ -325,18 +325,18 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const ValueId activated = builder.gelu(layer.biased);
-    const ValueId upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
-    const ValueId gradient =
+    const ValueID activated = builder.gelu(layer.biased);
+    const ValueID upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
+    const ValueID gradient =
         builder.activation_backward(Ops::K_GELU_BACKWARD.id, upstream, layer.biased);
 
-    const std::vector<ValueId> observed{activated, gradient};
+    const std::vector<ValueID> observed{activated, gradient};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    ASSERT_EQ(report.count(FusedForm::GemmBiasGelu), 1u) << report.to_string();
+    ASSERT_EQ(report.count(FusedForm::GEMMBiasGELU), 1u) << report.to_string();
     EXPECT_EQ(count_op(graph, Ops::K_GELU.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
@@ -346,7 +346,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     EXPECT_EQ(report.fused()[0].result, activated);
     EXPECT_EQ(report.fused()[0].spilled, layer.biased);
 
-    const NodeId producer = graph.value(layer.biased).producer;
+    const NodeID producer = graph.value(layer.biased).producer;
     ASSERT_NE(producer, K_NO_NODE) << "the pre-activation has no producer - the spill was lost";
     EXPECT_EQ(producer, graph.value(activated).producer)
         << "the spill and the result must come from the same node";
@@ -357,7 +357,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     EXPECT_EQ(fused.outputs[1], layer.biased);
 
     // Only the MATMUL's result is reported as eliminated; see tests/unit/README.md.
-    EXPECT_EQ(report.fused()[0].eliminated, std::vector<ValueId>{layer.product});
+    EXPECT_EQ(report.fused()[0].eliminated, std::vector<ValueID>{layer.product});
     EXPECT_EQ(graph.value(layer.product).producer, K_NO_NODE);
 
     // And gelu_backward still reads the pre-activation, not the result.
@@ -374,27 +374,27 @@ TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
     const LinearTrace layer = trace_linear(builder);
 
     // Emitted *before* the GELU, unlike the backward node in the case above.
-    const ValueId early = builder.scale(layer.biased, 2.0);
-    const ValueId activated = builder.gelu(layer.biased);
+    const ValueID early = builder.scale(layer.biased, 2.0);
+    const ValueID activated = builder.gelu(layer.biased);
 
-    const std::vector<ValueId> observed{early, activated};
+    const std::vector<ValueID> observed{early, activated};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasGelu), 0u) << report.to_string();
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasGELU), 0u) << report.to_string();
     EXPECT_TRUE(declined_for(report, FusionDecline::SpillReadTooEarly));
 
     // The shorter form still fuses after the refusal; see tests/unit/README.md.
-    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
     EXPECT_EQ(count_op(graph, Ops::K_GELU.id), 1u);
 
     // The rewritten graph stays topological; see tests/unit/README.md.
-    for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
-        for (ValueId in : graph.node(id).inputs)
+    for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
+        for (ValueID in : graph.node(id).inputs)
         {
-            const NodeId producer = graph.value(in).producer;
+            const NodeID producer = graph.value(in).producer;
             if (producer == K_NO_NODE) continue;
             EXPECT_LT(producer, id) << "node " << id << " reads value " << in;
         }
@@ -406,32 +406,32 @@ TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueId activated = builder.gelu(layer.biased);
+    const ValueID activated = builder.gelu(layer.biased);
 
-    const std::vector<ValueId> observed{layer.biased, activated};
+    const std::vector<ValueID> observed{layer.biased, activated};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasGelu), 1u) << report.to_string();
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasGELU), 1u) << report.to_string();
     EXPECT_FALSE(declined_for(report, FusionDecline::ValueIsObserved));
     EXPECT_NE(graph.value(layer.biased).producer, K_NO_NODE);
 }
 
-TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
+TEST_F(Unit_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
 {
     // A spill licenses one interior value and no other; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const ValueId also = builder.scale(layer.product, 2.0);
-    const ValueId activated = builder.gelu(layer.biased);
+    const ValueID also = builder.scale(layer.product, 2.0);
+    const ValueID activated = builder.gelu(layer.biased);
 
-    const std::vector<ValueId> observed{also, activated};
+    const std::vector<ValueID> observed{also, activated};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
@@ -440,24 +440,24 @@ TEST_F(Unit_Fusion, TheGeluFoldStillObeysEveryOtherRefusal)
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
-TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
+TEST_F(Unit_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueId activated = builder.gelu(layer.biased);
+    const ValueID activated = builder.gelu(layer.biased);
 
-    const std::vector<ValueId> observed{activated};
-    const std::vector<FusedForm> off{FusedForm::GemmBiasGelu};
+    const std::vector<ValueID> observed{activated};
+    const std::vector<FusedForm> off{FusedForm::GEMMBiasGELU};
 
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
     options.disabled = SushiRuntime::span<const FusedForm>(off.data(), off.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasGelu), 0u);
-    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasGELU), 0u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
     EXPECT_TRUE(declined_for(report, FusionDecline::Disabled));
 
     // The GELU left outside is not reported as unfoldable; see tests/unit/README.md.
@@ -465,25 +465,25 @@ TEST_F(Unit_Fusion, DisablingTheGeluFormFallsBackToTheShorterOne)
     EXPECT_FALSE(declined_for(report, FusionDecline::NoCatalogEntry));
 }
 
-TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGemmIsFoldedNotReported)
+TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
 {
     // ReLU's gradient reads its own result, so it folds; see tests/unit/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const ValueId activated = builder.relu(layer.biased);
-    const ValueId upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
-    const ValueId gradient =
+    const ValueID activated = builder.relu(layer.biased);
+    const ValueID upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
+    const ValueID gradient =
         builder.activation_backward(Ops::K_RELU_BACKWARD.id, upstream, activated);
 
-    const std::vector<ValueId> observed{gradient};
+    const std::vector<ValueID> observed{gradient};
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 1u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasReLU), 1u);
     EXPECT_FALSE(declined_for(report, FusionDecline::GradientNeedsPreActivation));
 }
 
@@ -514,23 +514,23 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueId activated = builder.relu(layer.biased);
+    const ValueID activated = builder.relu(layer.biased);
 
-    const std::vector<ValueId> observed{activated};
-    const std::vector<FusedForm> off{FusedForm::GemmBiasRelu};
+    const std::vector<ValueID> observed{activated};
+    const std::vector<FusedForm> off{FusedForm::GEMMBiasReLU};
 
     FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueId>(observed.data(), observed.size());
+    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
     options.disabled = SushiRuntime::span<const FusedForm>(off.data(), off.size());
 
     const FusionReport report = Graph::fuse(graph, options);
 
-    EXPECT_EQ(report.count(FusedForm::GemmBiasRelu), 0u);
-    EXPECT_EQ(report.count(FusedForm::GemmBias), 1u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBiasReLU), 0u);
+    EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
     EXPECT_TRUE(declined_for(report, FusionDecline::Disabled));
 }
 
-TEST_F(Unit_Fusion, ValueIdsAndTheirDescriptionsSurviveTheRewrite)
+TEST_F(Unit_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
 {
     // Value ids and descriptions survive the rewrite; see tests/unit/README.md.
     Graph::Graph graph;
@@ -551,7 +551,7 @@ TEST_F(Unit_Fusion, ValueIdsAndTheirDescriptionsSurviveTheRewrite)
     (void)Graph::fuse(graph, FusionOptions{});
 
     ASSERT_EQ(graph.value_count(), shapes.size());
-    for (ValueId id = 0; id < static_cast<ValueId>(graph.value_count()); ++id)
+    for (ValueID id = 0; id < static_cast<ValueID>(graph.value_count()); ++id)
     {
         EXPECT_EQ(graph.value(id).shape, shapes[id]) << "value " << id;
         EXPECT_EQ(graph.value(id).lifetime, lifetimes[id]) << "value " << id;
@@ -566,18 +566,18 @@ TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
     const GraphBuilder builder(graph);
 
     const LinearTrace first = trace_linear(builder);
-    const ValueId hidden = builder.relu(first.biased);
-    const ValueId weight = builder.parameter(Shape{K_OUT_FEATURES, K_OUT_FEATURES}, "w2");
-    const ValueId bias = builder.parameter(Shape{K_OUT_FEATURES}, "b2");
-    const ValueId product = builder.matmul(hidden, weight, false, true);
+    const ValueID hidden = builder.relu(first.biased);
+    const ValueID weight = builder.parameter(Shape{K_OUT_FEATURES, K_OUT_FEATURES}, "w2");
+    const ValueID bias = builder.parameter(Shape{K_OUT_FEATURES}, "b2");
+    const ValueID product = builder.matmul(hidden, weight, false, true);
     (void)builder.bias_add(product, bias);
 
     (void)Graph::fuse(graph, FusionOptions{});
 
-    for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
-        for (ValueId in : graph.node(id).inputs)
+    for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
+        for (ValueID in : graph.node(id).inputs)
         {
-            const NodeId producer = graph.value(in).producer;
+            const NodeID producer = graph.value(in).producer;
             if (producer == K_NO_NODE) continue;
             EXPECT_LT(producer, id) << "node " << id << " reads value " << in
                                     << ", which node " << producer << " writes later";
@@ -604,13 +604,13 @@ TEST_F(Unit_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueId x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
-    const ValueId weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
-    const ValueId shift = builder.buffer(Shape{K_OUT_FEATURES}, "running_shift");
+    const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    const ValueID weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
+    const ValueID shift = builder.buffer(Shape{K_OUT_FEATURES}, "running_shift");
     (void)builder.relu(builder.bias_add(builder.matmul(x, weight, false, true), shift));
 
-    graph.bind_state_leaf(Graph::StateId{21}, weight);
-    graph.bind_state_leaf(Graph::StateId{22}, shift);
+    graph.bind_state_leaf(Graph::StateID{21}, weight);
+    graph.bind_state_leaf(Graph::StateID{22}, shift);
     graph.mark_refused();
     const auto bound_before = graph.state_leaves();
 
@@ -620,8 +620,8 @@ TEST_F(Unit_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
     ASSERT_EQ(report.fused().size(), 1u);
     ASSERT_EQ(count_op(graph, Ops::K_GEMM_BIAS_RELU.id), 1u);
 
-    EXPECT_EQ(graph.state_leaf(Graph::StateId{21}), weight);
-    EXPECT_EQ(graph.state_leaf(Graph::StateId{22}), shift);
+    EXPECT_EQ(graph.state_leaf(Graph::StateID{21}), weight);
+    EXPECT_EQ(graph.state_leaf(Graph::StateID{22}), shift);
     EXPECT_EQ(graph.state_leaves(), bound_before);
     EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::Buffer);
     EXPECT_FALSE(graph.value(shift).requires_grad);

@@ -40,7 +40,7 @@ namespace SushiAI
                 Autograd::K_ELEMENTWISE_RULES.size() + Autograd::K_LINALG_RULES.size()
                 + Autograd::K_ACTIVATION_RULES.size() + Autograd::K_LOSS_RULES.size()
                 + Autograd::K_SHAPE_RULES.size() + Autograd::K_SPATIAL_RULES.size()
-                + Autograd::K_NORM_RULES.size();
+                + Autograd::K_NORM_RULES.size() + Autograd::K_RANDOM_RULES.size();
 
             EXPECT_EQ(Autograd::K_RULES.size(), K_DOMAINS);
         }
@@ -112,7 +112,49 @@ namespace SushiAI
             EXPECT_TRUE(Autograd::has_rule(Ops::K_BATCHNORM2D.id));
             EXPECT_FALSE(Autograd::has_rule(Ops::K_BATCHNORM_FOLD.id));
             EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_FOLD.id));
-            EXPECT_EQ(Autograd::K_NORM_RULES.size(), 2u);
+            EXPECT_EQ(Autograd::K_NORM_RULES.size(), 3u);
+        }
+
+        /** @brief Tests that LAYER_NORM has the third normalisation rule and its gradient none. */
+        TEST(Unit_RuleTable, LayerNormHasItsRuleAndItsGradientHasNone)
+        {
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_LAYER_NORM.id));
+            EXPECT_FALSE(Ops::K_LAYER_NORM_BACKWARD.differentiable);
+            EXPECT_FALSE(Autograd::has_rule(Ops::K_LAYER_NORM_BACKWARD.id));
+        }
+
+        /** @brief Tests that LOG_SOFTMAX has the second loss rule and its gradient none. */
+        TEST(Unit_RuleTable, LogSoftmaxHasItsRuleAndItsGradientHasNone)
+        {
+            EXPECT_EQ(Autograd::K_LOSS_RULES.size(), 2u);
+            EXPECT_TRUE(Ops::K_LOG_SOFTMAX.differentiable);
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_LOG_SOFTMAX.id));
+            EXPECT_FALSE(Ops::K_LOG_SOFTMAX_BACKWARD.differentiable);
+            EXPECT_FALSE(Autograd::has_rule(Ops::K_LOG_SOFTMAX_BACKWARD.id));
+        }
+
+        /** @brief Tests that CAUSAL_MASK has one of the six linear-algebra rules. */
+        TEST(Unit_RuleTable, TheCausalMaskHasItsRule)
+        {
+            EXPECT_EQ(Autograd::K_LINALG_RULES.size(), 6u);
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_CAUSAL_MASK.id));
+        }
+
+        /** @brief Tests that DROPOUT has the one rule of the random domain. */
+        TEST(Unit_RuleTable, DropoutHasTheRuleOfTheRandomDomain)
+        {
+            EXPECT_EQ(Autograd::K_RANDOM_RULES.size(), 1u);
+            EXPECT_TRUE(Ops::K_DROPOUT.differentiable);
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_DROPOUT.id));
+        }
+
+        /** @brief Tests that the row gather and its scatter-add each have a rule. */
+        TEST(Unit_RuleTable, TheGatherAndTheScatterAddDifferentiateIntoEachOther)
+        {
+            EXPECT_TRUE(Ops::K_GATHER_ROWS.differentiable);
+            EXPECT_TRUE(Ops::K_SCATTER_ADD_ROWS.differentiable);
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_GATHER_ROWS.id));
+            EXPECT_TRUE(Autograd::has_rule(Ops::K_SCATTER_ADD_ROWS.id));
         }
 
         /** @brief Tests that the depthwise forward has the spatial table's ninth rule. */

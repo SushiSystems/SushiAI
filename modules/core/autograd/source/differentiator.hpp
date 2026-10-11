@@ -53,8 +53,8 @@ namespace SushiAI
                  * @brief Binds one run to @p graph and resets @p provenance when it is given.
                  * @param provenance Receives the origin of every appended node; may be null.
                  */
-                Differentiator(Graph::Graph& graph, Graph::ValueId loss,
-                               Graph::ValueId seed_factor, Provenance* provenance)
+                Differentiator(Graph::Graph& graph, Graph::ValueID loss,
+                               Graph::ValueID seed_factor, Provenance* provenance)
                     : graph_(graph),
                       loss_(loss),
                       builder_(graph),
@@ -74,28 +74,28 @@ namespace SushiAI
                  * @brief Throws unless a gradient may be requested for @p value.
                  * @param value A value of the graph whose lifetime is not BUFFER.
                  */
-                void require_requestable(Graph::ValueId value) const;
+                void require_requestable(Graph::ValueID value) const;
 
                 /** @brief Runs the reverse sweep over the forward nodes. */
                 void run();
 
                 /** @brief The summed gradient of @p primal, materialising the sum on first read. */
-                Graph::ValueId resolve(Graph::ValueId primal);
+                Graph::ValueID resolve(Graph::ValueID primal);
 
                 /**
                  * @brief Returns the gradient a caller requested for @p value, after run().
                  * @see modules/core/eager/README.md, "Provenance".
                  */
-                Graph::ValueId resolve_requested(Graph::ValueId value);
+                Graph::ValueID resolve_requested(Graph::ValueID value);
 
                 /** @brief Records one gradient contribution to @p primal. */
-                void contribute(Graph::ValueId primal, Graph::ValueId gradient);
+                void contribute(Graph::ValueID primal, Graph::ValueID gradient);
 
                 /** @brief Marks @p node as already differentiated by a fusion. */
-                void skip(Graph::NodeId node);
+                void skip(Graph::NodeID node);
 
                 /** @brief Whether @p value is the scalar being differentiated. */
-                bool is_root(Graph::ValueId value) const noexcept { return value == loss_; }
+                bool is_root(Graph::ValueID value) const noexcept { return value == loss_; }
 
                 /**
                  * @brief Returns a snapshot copy of the node currently being differentiated.
@@ -112,29 +112,29 @@ namespace SushiAI
                  * @param producer The node that produces the root.
                  * @pre finalise() has run on the graph.
                  */
-                void require_seedable_root(Graph::NodeId producer) const;
+                void require_seedable_root(Graph::NodeID producer) const;
 
                 /**
                  * @brief Emits the explicit one that seeds the root and records it as a gradient.
                  * @param producer The node that produces the root; the seed nodes get it as origin.
                  * @pre require_seedable_root(producer) has passed.
                  */
-                void seed_root(Graph::NodeId producer);
+                void seed_root(Graph::NodeID producer);
 
                 /** @brief Emits the gradient nodes of forward node @p id, when it needs any. */
-                void differentiate_node(Graph::NodeId id);
+                void differentiate_node(Graph::NodeID id);
 
                 /**
                  * @brief Records @p origin for every node appended since the last call.
                  * @see modules/core/eager/README.md, "Provenance".
                  */
-                void stamp_appended(Graph::NodeId origin);
+                void stamp_appended(Graph::NodeID origin);
 
                 /** @brief Holds the graph being extended. */
                 Graph::Graph& graph_;
 
                 /** @brief Holds the scalar being differentiated. */
-                Graph::ValueId loss_;
+                Graph::ValueID loss_;
 
                 /** @brief Emits the ACCUMULATE nodes that sum contributions. */
                 Graph::GraphBuilder builder_;
@@ -146,10 +146,10 @@ namespace SushiAI
                 std::vector<bool> skipped_;
 
                 /** @brief Holds the gradient contributions received so far, per primal value. */
-                std::unordered_map<Graph::ValueId, std::vector<Graph::ValueId>> contributions_;
+                std::unordered_map<Graph::ValueID, std::vector<Graph::ValueID>> contributions_;
 
                 /** @brief Holds the summed gradients already read, per primal value. */
-                std::unordered_map<Graph::ValueId, Graph::ValueId> resolved_;
+                std::unordered_map<Graph::ValueID, Graph::ValueID> resolved_;
 
                 /** @brief Holds the view of this run that backward rules receive. */
                 GradientTape tape_;

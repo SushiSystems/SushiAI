@@ -33,7 +33,7 @@ namespace SushiAI
     {
         void activation_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
@@ -46,7 +46,7 @@ namespace SushiAI
                         "the fusion catalog also reads.",
                         Ops::name_of(node.op));
 
-            const Graph::ValueId primal =
+            const Graph::ValueID primal =
                 activation->gradient_source == Ops::GradientSource::Output
                     ? node.outputs.at(0)
                     : node.inputs.at(0);

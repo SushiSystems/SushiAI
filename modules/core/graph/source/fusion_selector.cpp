@@ -35,7 +35,7 @@ namespace SushiAI
         {
             // Device profile queries are cached statically across engine bindings.
             return DeviceFusionSelector(
-                SushiBLAS::Device::profile_for(engine.get_context().get_queue()),
+                SushiBLAS::Device::profile_for(engine.get_context().devices().queue(0)),
                 engine.get_mode());
         }
 

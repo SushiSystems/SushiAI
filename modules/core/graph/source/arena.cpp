@@ -56,7 +56,7 @@ namespace SushiAI
 
         }
 
-        SushiBLAS::Tensor ArenaSet::view(ValueId id, const Shape& shape, DType dtype) const
+        SushiBLAS::Tensor ArenaSet::view(ValueID id, const Shape& shape, DType dtype) const
         {
             const Placement& placement = plan_.placement(id);
 

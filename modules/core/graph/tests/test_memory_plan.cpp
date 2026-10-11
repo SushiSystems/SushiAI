@@ -41,9 +41,9 @@ using Graph::Lifetime;
 using Graph::MemoryPlan;
 using Graph::K_NO_ARENA;
 using Graph::K_NO_NODE;
-using Graph::NodeId;
+using Graph::NodeID;
 using Graph::PlanOptions;
-using Graph::ValueId;
+using Graph::ValueID;
 
 namespace
 {
@@ -56,22 +56,22 @@ namespace
      * Deliberately not the planner's bitset closure: this is the independent
      * second opinion the contract check is measured against.
      */
-    std::set<NodeId> descendants(const Graph::Graph& graph, NodeId from)
+    std::set<NodeID> descendants(const Graph::Graph& graph, NodeID from)
     {
-        std::vector<std::vector<NodeId>> successors(graph.node_count());
-        for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
-            for (ValueId in : graph.node(id).inputs)
+        std::vector<std::vector<NodeID>> successors(graph.node_count());
+        for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
+            for (ValueID in : graph.node(id).inputs)
                 if (graph.value(in).producer != K_NO_NODE)
                     successors[graph.value(in).producer].push_back(id);
 
-        std::set<NodeId> seen;
-        std::vector<NodeId> pending{from};
+        std::set<NodeID> seen;
+        std::vector<NodeID> pending{from};
 
         while (!pending.empty())
         {
-            const NodeId here = pending.back();
+            const NodeID here = pending.back();
             pending.pop_back();
-            for (NodeId next : successors[here])
+            for (NodeID next : successors[here])
                 if (seen.insert(next).second) pending.push_back(next);
         }
 
@@ -79,32 +79,32 @@ namespace
     }
 
     /** @brief Every node that writes or reads @p id. */
-    std::vector<NodeId> uses_of(const Graph::Graph& graph, ValueId id)
+    std::vector<NodeID> uses_of(const Graph::Graph& graph, ValueID id)
     {
-        std::vector<NodeId> uses;
+        std::vector<NodeID> uses;
         if (graph.value(id).producer != K_NO_NODE) uses.push_back(graph.value(id).producer);
 
-        for (NodeId node = 0; node < static_cast<NodeId>(graph.node_count()); ++node)
-            for (ValueId in : graph.node(node).inputs)
+        for (NodeID node = 0; node < static_cast<NodeID>(graph.node_count()); ++node)
+            for (ValueID in : graph.node(node).inputs)
                 if (in == id) uses.push_back(node);
 
         return uses;
     }
 
     /** @brief Whether every use of @p earlier is a strict ancestor of @p later's producer. */
-    bool finished_before(const Graph::Graph& graph, ValueId earlier, ValueId later)
+    bool finished_before(const Graph::Graph& graph, ValueID earlier, ValueID later)
     {
-        const NodeId write = graph.value(later).producer;
+        const NodeID write = graph.value(later).producer;
         if (write == K_NO_NODE) return false;
 
-        for (NodeId use : uses_of(graph, earlier))
+        for (NodeID use : uses_of(graph, earlier))
             if (descendants(graph, use).count(write) == 0) return false;
 
         return true;
     }
 
     /** @brief Two values are live together unless one is finished before the other starts. */
-    bool live_together(const Graph::Graph& graph, ValueId a, ValueId b)
+    bool live_together(const Graph::Graph& graph, ValueID a, ValueID b)
     {
         return !finished_before(graph, a, b) && !finished_before(graph, b, a);
     }
@@ -118,8 +118,8 @@ namespace
      */
     void expect_no_live_overlap(const Graph::Graph& graph, const MemoryPlan& plan)
     {
-        for (ValueId a = 0; a < static_cast<ValueId>(graph.value_count()); ++a)
-            for (ValueId b = a + 1; b < static_cast<ValueId>(graph.value_count()); ++b)
+        for (ValueID a = 0; a < static_cast<ValueID>(graph.value_count()); ++a)
+            for (ValueID b = a + 1; b < static_cast<ValueID>(graph.value_count()); ++b)
             {
                 if (!plan.is_packed(a) || !plan.is_packed(b)) continue;
                 if (plan.placement(a).arena != plan.placement(b).arena) continue;
@@ -152,8 +152,8 @@ TEST(Unit_MemoryPlan, ASingleActivationGetsOneArenaAndOffsetZero)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    const ValueId y = builder.relu(x);
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID y = builder.relu(x);
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 
@@ -188,11 +188,11 @@ TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    const ValueId a = builder.relu(x);
-    const ValueId b = builder.relu(a);
-    const ValueId c = builder.relu(b);
-    const ValueId d = builder.relu(c);
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID a = builder.relu(x);
+    const ValueID b = builder.relu(a);
+    const ValueID c = builder.relu(b);
+    const ValueID d = builder.relu(c);
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 
@@ -213,15 +213,15 @@ TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
+    const ValueID x = builder.input(unit_shape(), "x");
 
-    const ValueId a1 = builder.relu(x);
-    const ValueId a2 = builder.relu(a1);
+    const ValueID a1 = builder.relu(x);
+    const ValueID a2 = builder.relu(a1);
 
-    const ValueId b1 = builder.sigmoid(x);
-    const ValueId b2 = builder.sigmoid(b1);
+    const ValueID b1 = builder.sigmoid(x);
+    const ValueID b2 = builder.sigmoid(b1);
 
-    const ValueId out = builder.add(a2, b2);
+    const ValueID out = builder.add(a2, b2);
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 
@@ -245,22 +245,22 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
     // Only ACTIVATION and SCRATCH reach an arena; see tests/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId parameter = graph.add_value(unit_shape(), DType::Float32, Lifetime::Parameter, "w");
+    const ValueID parameter = graph.add_value(unit_shape(), DType::Float32, Lifetime::Parameter, "w");
     graph.add_node(Ops::K_LEAF.id, {}, {parameter});
 
-    const ValueId input = graph.add_value(unit_shape(), DType::Float32, Lifetime::Input, "x");
+    const ValueID input = graph.add_value(unit_shape(), DType::Float32, Lifetime::Input, "x");
     graph.add_node(Ops::K_LEAF.id, {}, {input});
 
-    const ValueId activation = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "h");
+    const ValueID activation = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "h");
     graph.add_node(Ops::K_RELU.id, {input}, {activation});
 
-    const ValueId scratch = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "t");
+    const ValueID scratch = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "t");
     graph.add_node(Ops::K_RELU.id, {activation}, {scratch});
 
-    const ValueId gradient = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "dw");
+    const ValueID gradient = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "dw");
     graph.add_node(Ops::K_RELU.id, {scratch}, {gradient});
 
-    const ValueId state = graph.add_value(unit_shape(), DType::Float32, Lifetime::OptimizerState, "m");
+    const ValueID state = graph.add_value(unit_shape(), DType::Float32, Lifetime::OptimizerState, "m");
     graph.add_node(Ops::K_RELU.id, {gradient}, {state});
 
     const MemoryPlan plan = MemoryPlan::build(graph);
@@ -285,8 +285,8 @@ TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
     // An ACTIVATION with no producer lives the whole run; see tests/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId orphan = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "?");
-    const ValueId out = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "y");
+    const ValueID orphan = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "?");
+    const ValueID out = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "y");
     graph.add_node(Ops::K_RELU.id, {orphan}, {out});
 
     const MemoryPlan plan = MemoryPlan::build(graph);
@@ -301,11 +301,11 @@ TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    const ValueId first = builder.relu(x);
-    const ValueId second = builder.sigmoid(x);
-    const ValueId accumulated = builder.accumulate(first, second);
-    const ValueId sink = builder.relu(accumulated);
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID first = builder.relu(x);
+    const ValueID second = builder.sigmoid(x);
+    const ValueID accumulated = builder.accumulate(first, second);
+    const ValueID sink = builder.relu(accumulated);
 
     const MemoryPlan plan = MemoryPlan::build(graph);
 
@@ -326,16 +326,16 @@ TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
     // The float64 buffer starts at 24, not at 20; see tests/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId narrow_leaf = graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
+    const ValueID narrow_leaf = graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
     graph.add_node(Ops::K_LEAF.id, {}, {narrow_leaf});
 
-    const ValueId wide_leaf = graph.add_value(Shape{2}, DType::Float64, Lifetime::Input, "y");
+    const ValueID wide_leaf = graph.add_value(Shape{2}, DType::Float64, Lifetime::Input, "y");
     graph.add_node(Ops::K_LEAF.id, {}, {wide_leaf});
 
-    const ValueId narrow = graph.add_value(Shape{5}, DType::Float32, Lifetime::Activation, "a");
+    const ValueID narrow = graph.add_value(Shape{5}, DType::Float32, Lifetime::Activation, "a");
     graph.add_node(Ops::K_RELU.id, {narrow_leaf}, {narrow});
 
-    const ValueId wide = graph.add_value(Shape{2}, DType::Float64, Lifetime::Activation, "b");
+    const ValueID wide = graph.add_value(Shape{2}, DType::Float64, Lifetime::Activation, "b");
     graph.add_node(Ops::K_RELU.id, {wide_leaf}, {wide});
 
     PlanOptions options;
@@ -356,10 +356,10 @@ TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    const ValueId a = builder.relu(x);
-    const ValueId b = builder.relu(a);
-    const ValueId c = builder.relu(b);
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID a = builder.relu(x);
+    const ValueID b = builder.relu(a);
+    const ValueID c = builder.relu(b);
     (void)c;
 
     PlanOptions options;
@@ -378,8 +378,8 @@ TEST(Unit_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    ValueId last = builder.relu(x);
+    const ValueID x = builder.input(unit_shape(), "x");
+    ValueID last = builder.relu(x);
     for (int i = 0; i < 4; ++i) last = builder.relu(last);
     (void)last;
 
@@ -398,14 +398,14 @@ TEST(Unit_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    const ValueId a = builder.relu(x);
-    const ValueId b = builder.relu(a);
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID a = builder.relu(x);
+    const ValueID b = builder.relu(a);
 
-    const ValueId pinned[] = {a};
+    const ValueID pinned[] = {a};
 
     PlanOptions options;
-    options.pinned = SushiRuntime::span<const ValueId>(pinned, 1);
+    options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
 
     const MemoryPlan plan = MemoryPlan::build(graph, options);
 
@@ -419,10 +419,10 @@ TEST(Unit_MemoryPlan, PinningAValueThatDoesNotExistThrows)
     const GraphBuilder builder(graph);
     (void)builder.input(unit_shape(), "x");
 
-    const ValueId pinned[] = {99};
+    const ValueID pinned[] = {99};
 
     PlanOptions options;
-    options.pinned = SushiRuntime::span<const ValueId>(pinned, 1);
+    options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
 
     EXPECT_THROW((void)MemoryPlan::build(graph, options), Error);
 }
@@ -441,8 +441,8 @@ TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
     // The pass relies on topological order; see tests/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId a = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "a");
-    const ValueId b = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "b");
+    const ValueID a = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "a");
+    const ValueID b = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "b");
 
     graph.add_node(Ops::K_RELU.id, {a}, {b});
     graph.add_node(Ops::K_RELU.id, {b}, {a});
@@ -456,18 +456,18 @@ TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueId x = builder.input(unit_shape(), "x");
-    const ValueId a = builder.relu(x);
-    const ValueId b = builder.sigmoid(x);
-    const ValueId c = builder.add(a, b);
-    const ValueId d = builder.tanh(c);
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID a = builder.relu(x);
+    const ValueID b = builder.sigmoid(x);
+    const ValueID c = builder.add(a, b);
+    const ValueID d = builder.tanh(c);
     (void)d;
 
     const MemoryPlan first = MemoryPlan::build(graph);
     const MemoryPlan second = MemoryPlan::build(graph);
 
     ASSERT_EQ(first.value_count(), second.value_count());
-    for (ValueId id = 0; id < static_cast<ValueId>(first.value_count()); ++id)
+    for (ValueID id = 0; id < static_cast<ValueID>(first.value_count()); ++id)
     {
         EXPECT_EQ(first.placement(id).arena, second.placement(id).arena) << "value " << id;
         EXPECT_EQ(first.placement(id).offset, second.placement(id).offset) << "value " << id;
@@ -479,21 +479,21 @@ TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
     // A node does not reach itself, so its results conflict; see tests/unit/README.md.
     Graph::Graph graph;
 
-    const ValueId input = graph.add_value(Shape{8, 4}, DType::Float32, Lifetime::Activation, "x");
+    const ValueID input = graph.add_value(Shape{8, 4}, DType::Float32, Lifetime::Activation, "x");
     graph.add_node(Ops::K_LEAF.id, {}, {input});
 
-    const ValueId result = graph.add_value(Shape{8, 4}, DType::Float32,
+    const ValueID result = graph.add_value(Shape{8, 4}, DType::Float32,
                                            Lifetime::Activation, "y");
-    const ValueId spill = graph.add_value(Shape{8, 4}, DType::Float32,
+    const ValueID spill = graph.add_value(Shape{8, 4}, DType::Float32,
                                           Lifetime::Activation, "pre");
     graph.add_node(Ops::K_GEMM_BIAS_GELU.id, {input}, {result, spill});
 
     // Both are read afterwards, as the forward and the backward pass read them.
-    const ValueId downstream = graph.add_value(Shape{8, 4}, DType::Float32,
+    const ValueID downstream = graph.add_value(Shape{8, 4}, DType::Float32,
                                                Lifetime::Activation, "h");
     graph.add_node(Ops::K_RELU.id, {result}, {downstream});
 
-    const ValueId gradient = graph.add_value(Shape{8, 4}, DType::Float32,
+    const ValueID gradient = graph.add_value(Shape{8, 4}, DType::Float32,
                                              Lifetime::Activation, "dx");
     graph.add_node(Ops::K_GELU_BACKWARD.id, {downstream, spill}, {gradient});
 

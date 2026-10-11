@@ -68,12 +68,12 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Col2im adjoint accumulates window gradients using recorded forward window extents.
             const Graph::Node& node = tape.node();
-            const Graph::ValueId x = node.inputs[0];
+            const Graph::ValueID x = node.inputs[0];
             const Graph::ConvGeometry g = geometry_of(node);
             const Shape image_shape = tape.graph().value(x).shape;
 
@@ -89,7 +89,7 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Reconstruct im2col adjoint using recorded forward window grid extents.
@@ -107,7 +107,7 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Maxpool backward routes gradients through argmax indices from the forward node output.
@@ -121,7 +121,7 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Avgpool backward distributes incoming gradients uniformly across the window area.
@@ -134,7 +134,7 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::Node& node = tape.node();
@@ -148,7 +148,7 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             const Graph::Node& node = tape.node();
@@ -158,7 +158,7 @@ namespace SushiAI
 
         void concat_channels_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Channel concatenation backward extracts operand slices along cumulative channel offsets.
@@ -184,7 +184,7 @@ namespace SushiAI
         {
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Slice adjoint pads zeros around the active channel range via channel concatenation.
@@ -194,7 +194,7 @@ namespace SushiAI
             const int64_t taken = tape.graph().value(node.outputs[0]).shape[3];
             const DType dtype = tape.graph().value(dy).dtype;
 
-            std::vector<Graph::ValueId> parts;
+            std::vector<Graph::ValueID> parts;
             if (offset > 0)
                 parts.push_back(tape.builder().zeros_like(
                     dy, Shape({in[0], in[1], in[2], offset}), dtype));
@@ -206,18 +206,18 @@ namespace SushiAI
             tape.contribute_input(0, parts.size() == 1
                 ? dy
                 : tape.builder().concat_channels(
-                      SushiRuntime::span<const Graph::ValueId>(parts.data(), parts.size())));
+                      SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size())));
         }
 
         void depthwise_conv2d_backward(const GradientTape& tape)
         {
-            const Graph::ValueId dy = tape.output_grad(0);
+            const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // The operands and geometry are copied out before the first emission.
             const Graph::Node& node = tape.node();
-            const Graph::ValueId x = node.inputs[0];
-            const Graph::ValueId weight = node.inputs[1];
+            const Graph::ValueID x = node.inputs[0];
+            const Graph::ValueID weight = node.inputs[1];
             const Graph::ConvGeometry g = geometry_of(node);
 
             if (tape.input_requires_grad(0))

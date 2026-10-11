@@ -40,7 +40,7 @@ namespace SushiAI
          * @brief Holds a traced value's id, or the failure that stopped the trace.
          *
          * Both converting constructors are implicit, against the single-argument rule, so an
-         * emitter takes a ValueId or another emitter's result as an operand and returns
+         * emitter takes a ValueID or another emitter's result as an operand and returns
          * either an id or a Status.
          */
         class [[nodiscard]] Traced final
@@ -50,7 +50,7 @@ namespace SushiAI
                 Traced() noexcept = default;
 
                 /** @brief Holds @p id. */
-                Traced(ValueId id) noexcept : id_(id)
+                Traced(ValueID id) noexcept : id_(id)
                 {
 
                 }
@@ -82,7 +82,7 @@ namespace SushiAI
                  * @brief Returns the held id, which is the absent-value id for an absent operand.
                  * @pre has_value(); a failure is fatal and reports its message.
                  */
-                [[nodiscard]] ValueId value() const noexcept
+                [[nodiscard]] ValueID value() const noexcept
                 {
                     SA_FATAL_IF(!status_.is_ok(),
                                 "Traced::value() was called on a failure: {}", status_.message());
@@ -91,7 +91,7 @@ namespace SushiAI
 
             private:
                 /** @brief Holds the id; the absent-value id when a failure is held. */
-                ValueId id_ = K_NO_VALUE;
+                ValueID id_ = K_NO_VALUE;
 
                 /** @brief Holds the failure; a success when an id is held. */
                 Status status_;

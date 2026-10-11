@@ -48,13 +48,13 @@ namespace SushiAI
             std::size_t forward_node_count = 0;
 
             /** @brief Origins in append order: origin[i] belongs to node forward_node_count + i. */
-            std::vector<Graph::NodeId> origin;
+            std::vector<Graph::NodeID> origin;
 
             /**
              * @brief Returns the forward node that @p backward_node was emitted for.
              * @param backward_node A node id at or above forward_node_count.
              */
-            Graph::NodeId origin_of(Graph::NodeId backward_node) const
+            Graph::NodeID origin_of(Graph::NodeID backward_node) const
             {
                 SA_THROW_IF(backward_node < forward_node_count
                                 || backward_node - forward_node_count >= origin.size(),

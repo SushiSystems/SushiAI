@@ -105,7 +105,7 @@ namespace SushiAI
              */
             struct CastKey
             {
-                ValueId value;
+                ValueID value;
                 std::int32_t dtype;
 
                 bool operator==(const CastKey& other) const noexcept
@@ -177,10 +177,10 @@ namespace SushiAI
             if (value_count == 0) return report;
 
             // Verify topological insertion order before emitting preceding cast nodes.
-            for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
-                for (ValueId in : graph.node(id).inputs)
+            for (NodeID id = 0; id < static_cast<NodeID>(node_count); ++id)
+                for (ValueID in : graph.node(id).inputs)
                 {
-                    const NodeId producer = graph.value(in).producer;
+                    const NodeID producer = graph.value(in).producer;
                     SA_THROW_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The cast "
                                 "pass needs the graph's insertion order to be a topological "
@@ -190,11 +190,11 @@ namespace SushiAI
 
             // Snapshot initial declared precision before rewriting graph nodes.
             std::vector<DType> declared(value_count);
-            for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
                 declared[id] = graph.value(id).dtype;
 
             std::vector<DType> computed(node_count, DType::Float32);
-            for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
+            for (NodeID id = 0; id < static_cast<NodeID>(node_count); ++id)
             {
                 const Node& node = graph.node(id);
                 computed[id] = is_structural(node.op)
@@ -204,10 +204,10 @@ namespace SushiAI
 
             // Retain declared types for persistent or explicitly observed values.
             std::vector<bool> pinned(value_count, false);
-            for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
                 pinned[id] = is_persistent(graph.value(id).lifetime);
 
-            for (ValueId id : options.observed)
+            for (ValueID id : options.observed)
             {
                 SA_THROW_IF(id >= value_count,
                             "CastOptions::observed names value {}, which this graph does not "
@@ -216,9 +216,9 @@ namespace SushiAI
             }
 
             std::vector<DType> final_dtype = declared;
-            for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
             {
-                const NodeId producer = graph.value(id).producer;
+                const NodeID producer = graph.value(id).producer;
                 if (pinned[id] || producer == K_NO_NODE) continue;
                 if (is_structural(graph.node(producer).op)) continue;
                 if (!has_precision(declared[id])) continue;
@@ -230,13 +230,13 @@ namespace SushiAI
             // Callers hold value ids and state leaves across the pass; only nodes are rebuilt.
             Graph rebuilt = graph.without_nodes();
 
-            for (ValueId id = 0; id < static_cast<ValueId>(value_count); ++id)
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
                 rebuilt.value(id).dtype = final_dtype[id];
 
             const GraphBuilder builder(rebuilt);
-            std::unordered_map<CastKey, ValueId, CastKeyHash> converted;
+            std::unordered_map<CastKey, ValueID, CastKeyHash> converted;
 
-            for (NodeId id = 0; id < static_cast<NodeId>(node_count); ++id)
+            for (NodeID id = 0; id < static_cast<NodeID>(node_count); ++id)
             {
                 const Node& node = graph.node(id);
 
@@ -248,10 +248,10 @@ namespace SushiAI
 
                 const DType wanted = computed[id];
 
-                std::vector<ValueId> inputs;
+                std::vector<ValueID> inputs;
                 inputs.reserve(node.inputs.size());
 
-                for (ValueId in : node.inputs)
+                for (ValueID in : node.inputs)
                 {
                     if (rebuilt.value(in).dtype == wanted) { inputs.push_back(in); continue; }
                     if (!has_precision(rebuilt.value(in).dtype)) { inputs.push_back(in); continue; }
@@ -262,7 +262,7 @@ namespace SushiAI
                     if (found != converted.end()) { inputs.push_back(found->second); continue; }
 
                     const DType from = rebuilt.value(in).dtype;
-                    const ValueId narrowed = builder.cast(in, wanted, cast_label(from, wanted));
+                    const ValueID narrowed = builder.cast(in, wanted, cast_label(from, wanted));
 
                     converted.emplace(key, narrowed);
                     inputs.push_back(narrowed);
@@ -272,11 +272,11 @@ namespace SushiAI
                 }
 
                 // Pinned results compute in low precision and are widened into external buffers.
-                std::vector<ValueId> outputs;
-                std::vector<std::pair<ValueId, ValueId>> widenings;
+                std::vector<ValueID> outputs;
+                std::vector<std::pair<ValueID, ValueID>> widenings;
                 outputs.reserve(node.outputs.size());
 
-                for (ValueId out : node.outputs)
+                for (ValueID out : node.outputs)
                 {
                     if (rebuilt.value(out).dtype == wanted) { outputs.push_back(out); continue; }
                     if (!has_precision(rebuilt.value(out).dtype)) { outputs.push_back(out); continue; }
@@ -286,7 +286,7 @@ namespace SushiAI
                     const DType master = rebuilt.value(out).dtype;
                     const bool needs_grad = rebuilt.value(out).requires_grad;
 
-                    const ValueId computed_result =
+                    const ValueID computed_result =
                         rebuilt.add_value(shape, wanted, Lifetime::Activation,
                                           cast_label(wanted, master));
 
@@ -301,7 +301,7 @@ namespace SushiAI
 
                 rebuilt.add_node(node.op, std::move(inputs), std::move(outputs), node.attributes);
 
-                for (const std::pair<ValueId, ValueId>& widening : widenings)
+                for (const std::pair<ValueID, ValueID>& widening : widenings)
                     builder.cast_into(widening.first, widening.second);
             }
 
@@ -327,7 +327,7 @@ namespace SushiAI
         {
             std::vector<DTypeMismatch> mismatches;
 
-            for (NodeId id = 0; id < static_cast<NodeId>(graph.node_count()); ++id)
+            for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
             {
                 const Node& node = graph.node(id);
                 if (is_structural(node.op) || node.outputs.empty()) continue;
@@ -339,12 +339,12 @@ namespace SushiAI
                 const DType wanted = policy.choose(query).dtype;
 
                 // Skip non-floating values exempt from precision policies.
-                for (ValueId in : node.inputs)
+                for (ValueID in : node.inputs)
                     if (has_precision(graph.value(in).dtype) && graph.value(in).dtype != wanted)
                         mismatches.push_back(DTypeMismatch{
                             id, node.op, in, graph.value(in).dtype, wanted, false});
 
-                for (ValueId out : node.outputs)
+                for (ValueID out : node.outputs)
                     if (has_precision(graph.value(out).dtype) && graph.value(out).dtype != wanted)
                         mismatches.push_back(DTypeMismatch{
                             id, node.op, out, graph.value(out).dtype, wanted, true});

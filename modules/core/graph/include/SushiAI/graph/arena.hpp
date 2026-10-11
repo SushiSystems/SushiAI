@@ -62,7 +62,7 @@ namespace SushiAI
                 const MemoryPlan& plan() const noexcept { return plan_; }
 
                 /** @brief Whether @p id's bytes live in one of these arenas. */
-                bool holds(ValueId id) const noexcept { return plan_.is_packed(id); }
+                bool holds(ValueID id) const noexcept { return plan_.is_packed(id); }
 
                 /**
                  * @brief Returns a tensor view of the slot reserved for @p id.
@@ -70,7 +70,7 @@ namespace SushiAI
                  * @pre @p id is packed into an arena, and its bytes fit the planned slot; a
                  *      violation stops the process.
                  */
-                SushiBLAS::Tensor view(ValueId id, const Shape& shape, DType dtype) const;
+                SushiBLAS::Tensor view(ValueID id, const Shape& shape, DType dtype) const;
 
                 /** @brief How many arenas were allocated. */
                 std::size_t arena_count() const noexcept { return storages_.size(); }

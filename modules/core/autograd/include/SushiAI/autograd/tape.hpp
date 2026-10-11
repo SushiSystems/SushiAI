@@ -60,14 +60,14 @@ namespace SushiAI
                 const Graph::Node& node() const;
 
                 /** @brief The id of the node currently being differentiated. */
-                Graph::NodeId node_id() const noexcept { return node_; }
+                Graph::NodeID node_id() const noexcept { return node_; }
 
                 /**
-                 * @brief Returns the gradient ValueId of the node's result.
+                 * @brief Returns the gradient ValueID of the node's result.
                  * @param index Output index on the current node.
-                 * @return Gradient ValueId, or Graph::NO_VALUE if unseeded or inactive.
+                 * @return Gradient ValueID, or Graph::NO_VALUE if unseeded or inactive.
                  */
-                Graph::ValueId output_grad(std::size_t index) const;
+                Graph::ValueID output_grad(std::size_t index) const;
 
                 /** @brief Whether the node's @p index-th result is the differentiation root. */
                 bool output_is_root(std::size_t index) const;
@@ -84,43 +84,43 @@ namespace SushiAI
                  * @param primal Forward value receiving the gradient.
                  * @param gradient Contribution value to accumulate.
                  */
-                void contribute(Graph::ValueId primal, Graph::ValueId gradient) const;
+                void contribute(Graph::ValueID primal, Graph::ValueID gradient) const;
 
                 /** @brief Convenience: contribute to the current node's @p index-th operand. */
-                void contribute_input(std::size_t index, Graph::ValueId gradient) const;
+                void contribute_input(std::size_t index, Graph::ValueID gradient) const;
 
                 /**
                  * @brief Marks an upstream node as already handled by the current rule.
                  * @param node Node identifier to skip during reverse traversal.
                  */
-                void skip(Graph::NodeId node) const;
+                void skip(Graph::NodeID node) const;
 
                 /**
                  * @brief Returns the optional device-resident scaling factor for the root gradient.
-                 * @return Single-element ValueId, or Graph::NO_VALUE if unscaled.
+                 * @return Single-element ValueID, or Graph::NO_VALUE if unscaled.
                  */
-                Graph::ValueId seed_factor() const noexcept { return seed_factor_; }
+                Graph::ValueID seed_factor() const noexcept { return seed_factor_; }
 
                 /**
                  * @brief Multiplies gradient by seed_factor if present, returning the result.
                  * @param gradient Root gradient to scale.
-                 * @return Scaled gradient ValueId, or gradient unchanged if unscaled.
+                 * @return Scaled gradient ValueID, or gradient unchanged if unscaled.
                  */
-                Graph::ValueId apply_seed_factor(Graph::ValueId gradient) const;
+                Graph::ValueID apply_seed_factor(Graph::ValueID gradient) const;
 
                 /** @brief Internal: constructs a tape over a differentiation run. */
                 GradientTape(Graph::GraphBuilder builder, Differentiator& owner,
-                             Graph::ValueId seed_factor = Graph::K_NO_VALUE) noexcept
+                             Graph::ValueID seed_factor = Graph::K_NO_VALUE) noexcept
                     : builder_(builder), owner_(&owner), seed_factor_(seed_factor) {}
 
                 /** @brief Internal: points the tape at the next node. */
-                void retarget(Graph::NodeId node) noexcept { node_ = node; }
+                void retarget(Graph::NodeID node) noexcept { node_ = node; }
 
             private:
                 Graph::GraphBuilder builder_;
                 Differentiator* owner_;
-                Graph::NodeId node_ = Graph::K_NO_NODE;
-                Graph::ValueId seed_factor_ = Graph::K_NO_VALUE;
+                Graph::NodeID node_ = Graph::K_NO_NODE;
+                Graph::ValueID seed_factor_ = Graph::K_NO_VALUE;
         };
 
     } // namespace Autograd
