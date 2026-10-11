@@ -83,8 +83,8 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
     const SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
     const SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
 
-    const SushiRuntime::Memory::ResourceRegion left = first.region();
-    const SushiRuntime::Memory::ResourceRegion right = second.region();
+    const SushiRuntime::BufferRegion left = first.region();
+    const SushiRuntime::BufferRegion right = second.region();
 
     // One allocation - if these differed the test would be proving nothing.
     EXPECT_EQ(left.base, right.base);

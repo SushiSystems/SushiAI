@@ -222,9 +222,9 @@ TEST_F(Unit_GradientClip, AClipAddsItsTasksAndItsAbsenceAddsNone)
     SA_EXPECT_OK(clipped->enable_gradient_clip(1.0));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t without,
-                            plain->record_into_step(engine->get_recorder()));
+                            plain->record_into_step(engine->recorder()));
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t with,
-                            clipped->record_into_step(engine->get_recorder()));
+                            clipped->record_into_step(engine->recorder()));
     flush();
 
     EXPECT_EQ(plain->gradient_clip(), nullptr);

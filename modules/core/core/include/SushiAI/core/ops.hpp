@@ -32,16 +32,16 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiAI
 {
     /** @brief The runtime's operation-identity type, aliased for brevity. */
-    using OpID = SushiRuntime::Graph::OpID;
+    using OpID = SushiRuntime::OperationID;
 
     namespace Ops
     {
-        using namespace SushiRuntime::Graph::Literals;
+        using namespace SushiRuntime::Literals;
 
         /**
          * @struct OpName
@@ -84,7 +84,7 @@ namespace SushiAI
          */
         constexpr OpName op(std::string_view n)
         {
-            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), false, false};
+            return OpName{n, OpID(OpID::hash(n.data(), n.size())), false, false};
         }
 
         /**
@@ -96,7 +96,7 @@ namespace SushiAI
          */
         constexpr OpName differentiable_op(std::string_view n)
         {
-            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), true, false};
+            return OpName{n, OpID(OpID::hash(n.data(), n.size())), true, false};
         }
 
         /**
@@ -109,7 +109,7 @@ namespace SushiAI
          */
         constexpr OpName gradient_barrier_op(std::string_view n)
         {
-            return OpName{n, OpID(OpID::hash_str(n.data(), n.size())), false, true};
+            return OpName{n, OpID(OpID::hash(n.data(), n.size())), false, true};
         }
 
         /** @brief A graph leaf: a parameter or an input, produced by nothing. */

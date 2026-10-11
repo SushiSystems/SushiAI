@@ -82,7 +82,7 @@ namespace SushiAI
 
         /**
          * @brief Allocates Storage of @p bytes, shared between host and device.
-         * @param engine Engine whose context owns the allocator.
+         * @param engine Engine whose runtime allocates.
          * @param bytes Byte count.
          * @return The new storage, or the Status of what the allocator threw.
          */
@@ -93,15 +93,15 @@ namespace SushiAI
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&engine, bytes]()
             {
                 return SushiRuntime::make_sushi<SushiBLAS::Storage>(
-                    engine.get_context(),
+                    engine.runtime(),
                     bytes,
-                    SushiRuntime::API::Residency::Shared);
+                    SushiRuntime::Residency::Shared);
             });
         }
 
         /**
          * @brief Allocates Storage of @p bytes for a tensor, with diagnostic context.
-         * @param engine Engine whose context owns the allocator.
+         * @param engine Engine whose runtime allocates.
          * @param bytes Byte count.
          * @param dims Extents, named in the failure's message with @p dtype.
          * @return The new storage, or OutOfMemory annotated with the tensor's description.
@@ -141,7 +141,7 @@ namespace SushiAI
 
         return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
         {
-            return SushiBLAS::Tensor(std::move(storage), dims, dtype, 0, engine.get_layout());
+            return SushiBLAS::Tensor(std::move(storage), dims, dtype, 0, engine.layout());
         });
     }
 
@@ -223,7 +223,7 @@ namespace SushiAI
                                      dims,
                                      dtype,
                                      static_cast<int64_t>(byte_offset / element),
-                                     engine.get_layout());
+                                     engine.layout());
         }).value();
     }
 

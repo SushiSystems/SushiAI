@@ -119,7 +119,7 @@ namespace SushiAI
              * @param what Names what is being read, in the failure's message.
              * @return The decoded value, or InvalidFile when the stream ends first.
              */
-            [[nodiscard]] Result<std::uint32_t> get_u32(std::istream& in, std::string_view what)
+            [[nodiscard]] Result<std::uint32_t> read_u32(std::istream& in, std::string_view what)
             {
                 char bytes[4];
                 in.read(bytes, 4);
@@ -138,7 +138,7 @@ namespace SushiAI
              * @param what Names what is being read, in the failure's message.
              * @return The decoded value, or InvalidFile when the stream ends first.
              */
-            [[nodiscard]] Result<std::int64_t> get_i64(std::istream& in, std::string_view what)
+            [[nodiscard]] Result<std::int64_t> read_i64(std::istream& in, std::string_view what)
             {
                 char bytes[8];
                 in.read(bytes, 8);
@@ -159,12 +159,12 @@ namespace SushiAI
              * @return The name; InvalidFile for a length above @ref K_MAX_NAME_LENGTH and
              *         for a stream that ends first.
              */
-            [[nodiscard]] Result<std::string> get_name(std::istream& in,
+            [[nodiscard]] Result<std::string> read_name(std::istream& in,
                                                        std::string_view subject,
                                                        std::string_view what)
             {
                 SA_TRY_ASSIGN(const std::uint32_t length,
-                              get_u32(in, std::string(what) + " length"));
+                              read_u32(in, std::string(what) + " length"));
                 SA_FAIL_IF(length > K_MAX_NAME_LENGTH, StatusCode::InvalidFile,
                            "{} declares a {}-byte name; at most {} are allowed",
                            subject, length, K_MAX_NAME_LENGTH);
@@ -189,7 +189,7 @@ namespace SushiAI
             [[nodiscard]] Result<HeaderV1> read_header_v1(std::istream& in)
             {
                 HeaderV1 header;
-                SA_TRY_ASSIGN(header.count, get_u32(in, "the tensor count"));
+                SA_TRY_ASSIGN(header.count, read_u32(in, "the tensor count"));
                 return header;
             }
 
@@ -197,8 +197,8 @@ namespace SushiAI
             [[nodiscard]] Result<HeaderV2> read_header_v2(std::istream& in)
             {
                 HeaderV2 header;
-                SA_TRY_ASSIGN(header.count, get_u32(in, "the tensor count"));
-                SA_TRY_ASSIGN(header.run_state_count, get_u32(in, "the run-state count"));
+                SA_TRY_ASSIGN(header.count, read_u32(in, "the tensor count"));
+                SA_TRY_ASSIGN(header.run_state_count, read_u32(in, "the run-state count"));
                 return header;
             }
 
@@ -325,12 +325,12 @@ namespace SushiAI
         {
             SA_TRY(check_host_byte_order());
 
-            SA_TRY_ASSIGN(const std::uint32_t magic, get_u32(in, "the magic number"));
+            SA_TRY_ASSIGN(const std::uint32_t magic, read_u32(in, "the magic number"));
             SA_FAIL_IF(magic != K_CHECKPOINT_MAGIC, StatusCode::InvalidFile,
                        "this is not a SushiAI checkpoint: expected the magic bytes "
                        "'SACP' (0x{:08X}), got 0x{:08X}", K_CHECKPOINT_MAGIC, magic);
 
-            SA_TRY_ASSIGN(const std::uint32_t version, get_u32(in, "the version"));
+            SA_TRY_ASSIGN(const std::uint32_t version, read_u32(in, "the version"));
             SA_FAIL_IF(version < K_CHECKPOINT_FIRST_VERSION || version > K_CHECKPOINT_VERSION,
                        StatusCode::InvalidFile,
                        "this checkpoint is version {}; this build reads versions {} to {}",
@@ -365,7 +365,7 @@ namespace SushiAI
                         "section was opened");
 
             SA_TRY_ASSIGN(std::string owner,
-                          get_name(*in_, "a checkpoint's run-state section",
+                          read_name(*in_, "a checkpoint's run-state section",
                                    "the run-state owner's name"));
             SA_FAIL_IF(owner.empty(), StatusCode::InvalidFile,
                        "the run-state section of this checkpoint names no owner");
@@ -384,16 +384,16 @@ namespace SushiAI
                         "requested", run_state_count_);
 
             TensorRecord record;
-            SA_TRY_ASSIGN(record.name, get_name(*in_, "a checkpoint record", "a record's name"));
+            SA_TRY_ASSIGN(record.name, read_name(*in_, "a checkpoint record", "a record's name"));
 
             SA_TRY_ASSIGN(const std::uint32_t encoded_dtype,
-                          get_u32(*in_, "'" + record.name + "'s dtype"));
+                          read_u32(*in_, "'" + record.name + "'s dtype"));
             SA_FAIL_IF(!is_known_dtype(encoded_dtype), StatusCode::InvalidFile,
                        "'{}' declares dtype {}, which this build does not know",
                        record.name, encoded_dtype);
             record.dtype = static_cast<DType>(encoded_dtype);
 
-            SA_TRY_ASSIGN(const std::uint32_t rank, get_u32(*in_, "'" + record.name + "'s rank"));
+            SA_TRY_ASSIGN(const std::uint32_t rank, read_u32(*in_, "'" + record.name + "'s rank"));
             SA_FAIL_IF(rank > static_cast<std::uint32_t>(K_MAX_RANK), StatusCode::InvalidFile,
                        "'{}' declares rank {}; at most {} is allowed",
                        record.name, rank, K_MAX_RANK);
@@ -403,7 +403,7 @@ namespace SushiAI
             for (std::uint32_t i = 0; i < rank; ++i)
             {
                 SA_TRY_ASSIGN(const std::int64_t extent,
-                              get_i64(*in_, "'" + record.name + "'s extents"));
+                              read_i64(*in_, "'" + record.name + "'s extents"));
                 SA_FAIL_IF(extent <= 0, StatusCode::InvalidFile,
                            "'{}' declares extent {} for dimension {}; "
                            "every extent must be positive",
