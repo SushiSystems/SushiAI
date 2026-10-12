@@ -927,8 +927,28 @@ The fixture `DarknetTrainingTest` reads `yolov3-tiny.cfg`, `yolov3-tiny.weights`
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov3_tiny`, one image of
 YOLOv3-tiny with its deltas and assignments, and `yolov3_tiny_train_step`, one training step of two
 images. The box loss is `BoxLoss::SquaredError` and the objectness target is
-`ObjectnessTarget::One`. Every case is skipped without its files. The source states that no run has
-measured the bounds of the step cases yet.
+`ObjectnessTarget::One`. Every case is skipped without its files.
+
+The run of 2026-10-12 on this model set the bounds of the step cases: each bound that run exceeded
+is now about 1.5 times the largest difference it measured. Two differences from the reference
+cause them, and neither is a difference of float32 rounding.
+
+The first is the divisor of the batch variance. The library normalises a training batch by the
+variance divided by the count and keeps the variance divided by the count less one for the rolling
+statistic. The reference normalises by the second. On a 13 by 13 map of two images the count is 338,
+so each normalised layer differs in scale by about 0.15 percent, and the heads end 0.0466 and 0.0334
+from the dump. A host model of this network in double, written outside the repository and checked
+against finite differences, sits 0.0018 and 0.0026 from the dump with the reference's divisor and
+0.04664 and 0.03336 with the library's, against 0.04665 and 0.03337 measured here. The deltas and
+the updates of the head convolutions inherit the difference.
+
+The second is the reference's backward pass. Its convolution clears the delta of the layer before
+it and then writes its own, so a delta that a route had already added to that layer is lost. In this
+model the second head's delta through layers 18 and 17 never reaches layer 13. The dumped updates of
+the first convolution are therefore not the gradient: the host model is 14.18 from the dumped weight
+update with every path and 0.36 with that path removed, against a largest entry of 27.9. The library
+keeps every path, and is 15.60 from the dump where the host model with the library's divisor is
+15.61. The suite compares no update of the first convolution with the dump for that reason.
 
 ### TheTrainingOptionsMatchTheDumpedSettings
 
@@ -948,27 +968,29 @@ that run dumped, under the same bounds, and the stored cost to 1e-5 relative.
 
 ### TheHeadsUnderBatchStatisticsMatchDarknet
 
-Each head of the Separate model under batch statistics, and the [yolo] output computed from it, are
-within 1e-3 absolute plus 1e-4 relative of the dump.
+Each head of the Separate model under batch statistics is within 7e-2 absolute plus 1e-4
+relative of the dump, and the [yolo] output computed from it within 6e-3 absolute plus 1e-4
+relative. The largest differences measured were 0.0466 and 0.0037.
 
 ### TheDeltasOfTheStepMatchDarknet
 
-The deltas the step fed are compared with the dumped ones: a box entry within 1.5e-3 absolute plus
-1.5e-4 relative, any other entry within 1e-3. The summed cost and its mean over the heads are
+The deltas the step fed are compared with the dumped ones: a box entry within 2.5e-3 absolute plus
+1.5e-4 relative, any other entry within 2.5e-3; the largest differences measured were 0.0017
+and 0.0016. The summed cost and its mean over the heads are
 compared with the layer costs and the network cost to 1e-3 relative. The bounds do not cover a slot
 that crosses the ignore threshold.
 
 ### TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
 The weight and bias gradients of the convolution before each head, times minus the batch, are
-compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
-entry.
+compared with the dumped updates. The bound is 7e-3 of the dump's largest
+magnitude plus 1e-3 of the entry; the largest difference measured was 4.2e-3 of that magnitude.
 
-### TheUpdatesOfTheFirstConvolutionMatchDarknet
+### TheFirstConvolutionReceivesAGradient
 
-The weight and scale gradients of the first convolution, times minus the batch, are within 1e-2 of
-the dump's largest magnitude plus 1e-3 of the entry, and its shift has a gradient. The dumped bias
-update of that layer is zero and is not compared.
+The weight, the scale and the shift of the first convolution each have a finite gradient that is
+not zero after one step. The dumped updates of that layer are not the gradient and are not
+compared; the start of this section says why.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
@@ -976,8 +998,8 @@ The rolling mean and variance of the first batch norm equal the dump before the 
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
 convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
-double on these models, so the two are not compared directly.
+term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
+in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1028,11 +1050,11 @@ The weight and bias gradients of the convolution before each head, times minus t
 compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
 entry.
 
-### TheUpdatesOfTheFirstConvolutionMatchDarknet
+### TheFirstConvolutionReceivesAGradient
 
-The weight and scale gradients of the first convolution, times minus the batch, are within 1e-2 of
-the dump's largest magnitude plus 1e-3 of the entry, and its shift has a gradient. The dumped bias
-update of that layer is zero and is not compared.
+The weight, the scale and the shift of the first convolution each have a finite gradient that is
+not zero after one step. The dumped updates of that layer are not the gradient and are not
+compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
@@ -1040,8 +1062,8 @@ The rolling mean and variance of the first batch norm equal the dump before the 
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
 convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
-double on these models, so the two are not compared directly.
+term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
+in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1128,8 +1150,11 @@ The fixture `DarknetTrainingTest` reads `yolov4-tiny.cfg`, `yolov4-tiny.weights`
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov4_tiny`, one image of
 YOLOv4-tiny with its deltas and assignments, and `yolov4_tiny_train_step`, one training step of two
 images. The box loss is `BoxLoss::CompleteIoU` and the objectness target is `ObjectnessTarget::One`.
-Every case is skipped without its files. The source states that no run has measured the bounds of
-the step cases yet.
+Every case is skipped without its files.
+
+The run of 2026-10-12 on this model set the bounds of the step cases: each bound that run exceeded
+is now about 1.5 times the largest difference it measured. `test_darknet_yolov3_tiny_training.cpp`
+above gives the two differences from the reference that cause them.
 
 ### TheTrainingOptionsMatchTheDumpedSettings
 
@@ -1149,27 +1174,29 @@ that run dumped, under the same bounds, and the stored cost to 1e-5 relative.
 
 ### TheHeadsUnderBatchStatisticsMatchDarknet
 
-Each head of the Separate model under batch statistics, and the [yolo] output computed from it, are
-within 1e-3 absolute plus 1e-4 relative of the dump.
+Each head of the Separate model under batch statistics is within 7e-2 absolute plus 1e-4
+relative of the dump, and the [yolo] output computed from it within 8e-3 absolute plus 1e-4
+relative. The largest differences measured were 0.0481 and 0.0051.
 
 ### TheDeltasOfTheStepMatchDarknet
 
 The deltas the step fed are compared with the dumped ones: a box entry within 1.5e-3 absolute plus
-1.5e-4 relative, any other entry within 1e-3. The summed cost and its mean over the heads are
+1.5e-4 relative, any other entry within 2e-3; the largest differences measured were 0.00043
+and 0.0014. The summed cost and its mean over the heads are
 compared with the layer costs and the network cost to 1e-3 relative. The bounds do not cover a slot
 that crosses the ignore threshold.
 
 ### TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
 The weight and bias gradients of the convolution before each head, times minus the batch, are
-compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
-entry.
+compared with the dumped updates. The bound is 1.3e-2 of the dump's largest
+magnitude plus 1e-3 of the entry; the largest difference measured was 8.6e-3 of that magnitude.
 
-### TheUpdatesOfTheFirstConvolutionMatchDarknet
+### TheFirstConvolutionReceivesAGradient
 
-The weight and scale gradients of the first convolution, times minus the batch, are within 1e-2 of
-the dump's largest magnitude plus 1e-3 of the entry, and its shift has a gradient. The dumped bias
-update of that layer is zero and is not compared.
+The weight, the scale and the shift of the first convolution each have a finite gradient that is
+not zero after one step. The dumped updates of that layer are not the gradient and are not
+compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
@@ -1177,8 +1204,8 @@ The rolling mean and variance of the first batch norm equal the dump before the 
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
 convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
-double on these models, so the two are not compared directly.
+term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
+in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1230,11 +1257,11 @@ The weight and bias gradients of the convolution before each head, times minus t
 compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
 entry.
 
-### TheUpdatesOfTheFirstConvolutionMatchDarknet
+### TheFirstConvolutionReceivesAGradient
 
-The weight and scale gradients of the first convolution, times minus the batch, are within 1e-2 of
-the dump's largest magnitude plus 1e-3 of the entry, and its shift has a gradient. The dumped bias
-update of that layer is zero and is not compared.
+The weight, the scale and the shift of the first convolution each have a finite gradient that is
+not zero after one step. The dumped updates of that layer are not the gradient and are not
+compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
@@ -1242,8 +1269,8 @@ The rolling mean and variance of the first batch norm equal the dump before the 
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
 convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
-double on these models, so the two are not compared directly.
+term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
+in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1328,8 +1355,11 @@ The fixture `DarknetTrainingTest` reads `yolov7-tiny.cfg`, `yolov7-tiny.weights`
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov7_tiny_plain_pool_thresh_0p01`,
 one image of YOLOv7-tiny with its deltas and assignments, and `yolov7_tiny_train_step`, one training
 step of two images. The box loss is `BoxLoss::CompleteIoU` and the objectness target is
-`ObjectnessTarget::BestIoU`. Every case is skipped without its files. The source states that no run
-has measured the bounds of the step cases yet.
+`ObjectnessTarget::BestIoU`. Every case is skipped without its files.
+
+The run of 2026-10-12 on this model set the bounds of the step cases: each bound that run exceeded
+is now about 1.5 times the largest difference it measured. `test_darknet_yolov3_tiny_training.cpp`
+above gives the two differences from the reference that cause them.
 
 ### TheTrainingOptionsMatchTheDumpedSettings
 
@@ -1349,27 +1379,29 @@ that run dumped, under the same bounds, and the stored cost to 1e-5 relative.
 
 ### TheHeadsUnderBatchStatisticsMatchDarknet
 
-Each head of the Separate model under batch statistics, and the [yolo] output computed from it, are
-within 1e-3 absolute plus 1e-4 relative of the dump.
+Each head of the Separate model under batch statistics is within 2e-2 absolute plus 1e-4
+relative of the dump, and the [yolo] output computed from it within 3e-2 absolute plus 1e-4
+relative. The largest differences measured were 0.0128 and 0.0197.
 
 ### TheDeltasOfTheStepMatchDarknet
 
 The deltas the step fed are compared with the dumped ones: a box entry within 1.5e-3 absolute plus
-1.5e-4 relative, any other entry within 1e-3. The summed cost and its mean over the heads are
+1.5e-4 relative, any other entry within 7.5e-3; the largest differences measured were 0.00094
+and 0.0049. The summed cost and its mean over the heads are
 compared with the layer costs and the network cost to 1e-3 relative. The bounds do not cover a slot
 that crosses the ignore threshold.
 
 ### TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
 The weight and bias gradients of the convolution before each head, times minus the batch, are
-compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
-entry.
+compared with the dumped updates. The bound is 7e-3 of the dump's largest
+magnitude plus 1e-3 of the entry; the largest difference measured was 4.4e-3 of that magnitude.
 
-### TheUpdatesOfTheFirstConvolutionMatchDarknet
+### TheFirstConvolutionReceivesAGradient
 
-The weight and scale gradients of the first convolution, times minus the batch, are within 1e-2 of
-the dump's largest magnitude plus 1e-3 of the entry, and its shift has a gradient. The dumped bias
-update of that layer is zero and is not compared.
+The weight, the scale and the shift of the first convolution each have a finite gradient that is
+not zero after one step. The dumped updates of that layer are not the gradient and are not
+compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
@@ -1377,8 +1409,8 @@ The rolling mean and variance of the first batch norm equal the dump before the 
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
 convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
-double on these models, so the two are not compared directly.
+term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
+in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1430,11 +1462,11 @@ The weight and bias gradients of the convolution before each head, times minus t
 compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
 entry.
 
-### TheUpdatesOfTheFirstConvolutionMatchDarknet
+### TheFirstConvolutionReceivesAGradient
 
-The weight and scale gradients of the first convolution, times minus the batch, are within 1e-2 of
-the dump's largest magnitude plus 1e-3 of the entry, and its shift has a gradient. The dumped bias
-update of that layer is zero and is not compared.
+The weight, the scale and the shift of the first convolution each have a finite gradient that is
+not zero after one step. The dumped updates of that layer are not the gradient and are not
+compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
@@ -1442,8 +1474,8 @@ The rolling mean and variance of the first batch norm equal the dump before the 
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
 convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
-double on these models, so the two are not compared directly.
+term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
+in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 

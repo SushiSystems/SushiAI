@@ -909,26 +909,12 @@ namespace SushiAI
             const std::vector<std::int64_t> layers =
                 find_darknet_parity_model(stated.stem).yolo_layers;
             const std::vector<std::string> host = list_host_names(layers);
-            std::vector<std::string> step = list_step_names(layers);
+            const std::vector<std::string> step = list_step_names(layers);
 
             std::string missing = find_missing_darknet_file(stated.stem, stated.host_run, host);
             if (missing.empty())
                 missing = find_missing_darknet_file(stated.stem, stated.step_run, step);
-            if (!missing.empty())
-                return missing;
-
-            // A network cost that names no layer is a failure of the cases, not a skip.
-            const Result<DarknetTensor> solver =
-                load_darknet_reference(stated.step_run, K_DARKNET_NETWORK_COST);
-            if (!solver.has_value())
-                return std::string();
-            const Result<std::int64_t> first = read_first_layer(solver.value());
-            if (!first.has_value())
-                return std::string();
-
-            step = {name_darknet_layer(first.value(), "weight_updates"),
-                    name_darknet_layer(first.value(), "scale_updates")};
-            return find_missing_darknet_file(stated.stem, stated.step_run, step);
+            return missing;
         }
 
         DarknetTrainingTest::DarknetTrainingTest(DarknetTrainingCase stated)
@@ -1020,7 +1006,7 @@ namespace SushiAI
                 EXPECT_TRUE(within_tolerance(head.output + " [yolo] output",
                                              compute_yolo_output(computed, head.options),
                                              clear_nans(output.values),
-                                             stated.bounds.head_absolute,
+                                             stated.bounds.yolo_absolute,
                                              stated.bounds.head_relative));
             }
         }
@@ -1079,7 +1065,7 @@ namespace SushiAI
             }
         }
 
-        void check_first_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
+        void check_first_gradients(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1090,16 +1076,21 @@ namespace SushiAI
             const std::int64_t layer = run.first_layer;
             const DarknetWeightTarget* const targets = find_targets(run, layer);
             ASSERT_NE(targets, nullptr) << "the cfg has no convolution at layer " << layer;
-            check_update(run, stated, targets->weight,
-                         name_darknet_layer(layer, "weight_updates"), &load_darknet_maps,
-                         stated.bounds.first_update_share);
-            check_update(run, stated, targets->scale, name_darknet_layer(layer, "scale_updates"),
-                         &load_darknet_reference, stated.bounds.first_update_share);
 
-            // The shift of a normalised convolution has the gradient of its sum of deltas.
-            ASSERT_FALSE(targets->bias.empty());
-            EXPECT_GT(measure_peak(read_update(run, targets->bias)), 0.0)
-                << "the shift of layer " << layer << " received no gradient";
+            // The dumped updates of this layer are no reference; see tests/integration/README.md.
+            for (const std::string* const name :
+                 {&targets->weight, &targets->scale, &targets->bias})
+            {
+                SCOPED_TRACE(*name);
+                ASSERT_FALSE(name->empty()) << "the importer names no entry of layer " << layer;
+
+                const std::vector<float> update = read_update(run, *name);
+                EXPECT_TRUE(std::all_of(update.begin(), update.end(),
+                                        [](float value) { return std::isfinite(value); }))
+                    << "a gradient of layer " << layer << " is not finite";
+                EXPECT_GT(measure_peak(update), 0.0)
+                    << "layer " << layer << " received no gradient";
+            }
         }
 
         namespace
