@@ -33,6 +33,8 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiAI/core/result.hpp>
+#include <SushiAI/core/seam.hpp>
 
 namespace SushiAI
 {
@@ -45,10 +47,9 @@ namespace SushiAI
                 /** @brief Creates the runtime before the first test. */
                 void SetUp() override
                 {
-                    SushiRuntime::Result<SushiRuntime::Runtime> created =
-                        SushiRuntime::Runtime::create();
-                    ASSERT_TRUE(created.has_value()) << created.error().message;
-                    runtime_.emplace(std::move(*created));
+                    Result<SushiRuntime::Runtime> created = Detail::create_runtime();
+                    ASSERT_TRUE(created.has_value()) << created.status().message();
+                    runtime_.emplace(std::move(created).value());
                 }
 
                 /** @brief Destroys the runtime after the last test. */

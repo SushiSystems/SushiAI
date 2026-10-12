@@ -27,11 +27,11 @@ The sections below hold the reasoning that the source files cite.
 
 ## test_environment.hpp
 
-`Runtime::create()` starts a worker pool, probes the topology and builds SYCL queues. Doing
+`Detail::create_runtime()` starts a worker pool, probes the topology and builds SYCL queues. Doing
 that per test would dominate the suite's runtime, and it would repeatedly tear down and
 restart the thread pool while other work is settling. The suite therefore keeps one
 process-global runtime in a GTest `Environment` and gives each test a fresh `Engine`, so no
-test inherits another's graph or RNG offset. `SetUp()` fails the run when the runtime
+test inherits another's graph or RNG offset. `SetUp()` fails the run with the message of the `Status` when the runtime
 cannot be created. SushiBLAS's own suite, in its
 `tests/common/test_environment.hpp`, uses the same split.
 

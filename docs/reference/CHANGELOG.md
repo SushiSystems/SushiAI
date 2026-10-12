@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-12 — tests: Made TestEnvironment create its runtime through Detail::create_runtime, so the seam is the one reader of a runtime Result (`test_environment.hpp`).
 - 2026-10-12 — train: Made Trainer::fit sum node timings by plan index and return Incompatible when the step is compiled again or a row has no match, where it restarted the totals (`trainer.cpp`, `trainer.hpp`).
 - 2026-10-12 — graph: Made CompiledStep::compile read a refused recording in one place, under the Record phase, so compile() of the runtime reports the plan alone under Execute (`compiled_step.cpp`).
 - 2026-10-12 — core: Breaking change: Made status_of_error return a Status for InvalidGraph, InvalidAccess, InvalidState, CompileFailed and ProtocolMismatch; only DanglingResource is fatal (`seam.cpp`, `seam.hpp`, `test_seam.cpp`).
