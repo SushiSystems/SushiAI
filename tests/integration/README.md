@@ -1003,8 +1003,14 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
-200 steps on the batch and the truth of `yolov3_tiny_train_step` bring the summed cost of the
+200 steps on the batch and the truth of `yolov3_tiny_train_step` bring the stored cost of the
 Separate model below 0.1 of the first step's.
+
+The stored cost is `HeadCost::stored` summed over the heads: the squared delta entries for a
+squared-error head, and for a CIoU head the box weight times the mean of 1 - IoU plus the weighted
+squares of the other entries. The summed squares of the delta are not used here, because the box
+entries of a CIoU delta do not shrink as the boxes fit: on YOLOv4-tiny their squares stay between
+1.0 and 2.8 over 300 steps while the stored cost falls from 15.9 to 0.03.
 
 ## test_darknet_yolov3_training.cpp
 
@@ -1067,7 +1073,7 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
-200 steps on the batch and the truth of `yolov3_train_step` bring the summed cost of the Separate
+200 steps on the batch and the truth of `yolov3_train_step` bring the stored cost of the Separate
 model below 0.1 of the first step's.
 
 ## test_darknet_yolov4_forward.cpp
@@ -1209,7 +1215,7 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
-200 steps on the batch and the truth of `yolov4_tiny_train_step` bring the summed cost of the
+200 steps on the batch and the truth of `yolov4_tiny_train_step` bring the stored cost of the
 Separate model below 0.1 of the first step's.
 
 ## test_darknet_yolov4_training.cpp
@@ -1274,7 +1280,7 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
-200 steps on the batch and the truth of `yolov4_train_step` bring the summed cost of the Separate
+200 steps on the batch and the truth of `yolov4_train_step` bring the stored cost of the Separate
 model below 0.1 of the first step's.
 
 ## test_darknet_yolov7_forward.cpp
@@ -1414,7 +1420,7 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
-200 steps on the batch and the truth of `yolov7_tiny_train_step` bring the summed cost of the
+200 steps on the batch and the truth of `yolov7_tiny_train_step` bring the stored cost of the
 Separate model below 0.1 of the first step's.
 
 ## test_darknet_yolov7_training.cpp
@@ -1479,7 +1485,7 @@ in double on YOLOv3-tiny, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
-200 steps on the batch and the truth of `yolov7_train_step` bring the summed cost of the Separate
+200 steps on the batch and the truth of `yolov7_train_step` bring the stored cost of the Separate
 model below 0.1 of the first step's.
 
 ## test_decoder_from_files.cpp

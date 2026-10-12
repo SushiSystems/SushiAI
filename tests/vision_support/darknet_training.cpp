@@ -1265,19 +1265,24 @@ namespace SushiAI
 
             double first = 0.0;
             double last = 0.0;
+            const std::int64_t tenth = std::max<std::int64_t>(stated.overfit_steps / 10, 1);
             for (std::int64_t step = 0; step < stated.overfit_steps; ++step)
             {
                 run_step(run);
                 ASSERT_TRUE(run.is_ready) << "step " << step << " did not run";
-                ASSERT_TRUE(std::isfinite(run.cost.total))
-                    << "the summed cost of step " << step << " is " << run.cost.total;
+                ASSERT_TRUE(std::isfinite(run.cost.stored))
+                    << "the stored cost of step " << step << " is " << run.cost.stored;
 
-                first = step == 0 ? run.cost.total : first;
-                last = run.cost.total;
+                first = step == 0 ? run.cost.stored : first;
+                last = run.cost.stored;
+                if (step % tenth == 0)
+                    std::cout << "[ MEASURED ] " << stated.step_run << ": stored cost " << last
+                              << " (squared box entries " << run.cost.box << ", other "
+                              << run.cost.non_box << ") at step " << step << "\n";
             }
 
             const double bound = stated.overfit_cost_share * first;
-            std::cout << "[ MEASURED ] " << stated.step_run << ": summed cost " << first
+            std::cout << "[ MEASURED ] " << stated.step_run << ": stored cost " << first
                       << " at step 0, " << last << " at step " << stated.overfit_steps - 1
                       << ", bound " << bound << "\n";
             EXPECT_GT(first, 0.0) << "the first step has no cost to bring down";
