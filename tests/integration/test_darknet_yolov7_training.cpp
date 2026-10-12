@@ -156,7 +156,7 @@ TEST_F(Integration_DarknetYolov7Training, TheRollingStatisticsAfterOneStepMatchD
 }
 
 /**
- * @brief Tests that 200 steps on the batch and truth of the step run bring the summed cost of
+ * @brief Tests that 200 steps on the batch and truth of the step run bring the stored cost of
  *        the Separate model below 0.1 of the first step's.
  */
 TEST_F(Integration_DarknetYolov7Training, TheCostOfOneBatchFallsUnderATenth)

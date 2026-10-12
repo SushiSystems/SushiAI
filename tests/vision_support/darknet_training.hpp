@@ -223,7 +223,7 @@ namespace SushiAI
 
         /**
          * @brief Checks that `overfit_steps` steps on the batch and truth of the step run bring
-         *        the summed `HeadCost::total` below `overfit_cost_share` of the first step's,
+         *        the summed `HeadCost::stored` below `overfit_cost_share` of the first step's,
          *        and prints both costs.
          *
          * The solver is the one every step check builds. A cost that is not finite fails at
