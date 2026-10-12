@@ -194,5 +194,5 @@ was also building another project, so the whole-step figures are not a measureme
 | Fifty layers, a scope appears | 101 | 878.1 us |
 | Fifty layers, a scope disappears | 101 | 522.2 us |
 
-`SPEC.md` still holds the three names listed under "Files"; it is the owner's approved text and
-was not edited.
+The three pages listed under "Files" are corrected: the root `README.md` and the changelog in
+the commit of the work, `SPEC.md` after it, on the owner's word.

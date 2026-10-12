@@ -17,11 +17,10 @@ Each was made by the owner on 2026-10-07.
 | Substrate | SushiRuntime's `DynamicGraph`, one region per unit of structure, not a cache of whole compiled plans |
 | Region boundary | A policy behind an interface. The default cuts only where the caller opens a scope; with no scope the forward pass is one region |
 | SushiBLAS seam | `TaskRecorder` is a concrete type constructed over a `TaskGraph&` the caller supplies. `Engine::get_graph()` leaves the public surface |
-| SushiRuntime seam | `Graph::add_emitter(emit)`, re-exposed by `Region`; `emit` receives the backing `TaskGraph&` |
+| SushiRuntime seam | `Region::recorder()` hands out the `SushiRuntime::Recorder` of a region; a `SushiBLAS::TaskRecorder` is built over it |
 | Python front end | Out of scope |
 
-`add_emitter` exists in the sushiruntime working tree and passes its tests on the CUDA build. The
-`TaskRecorder` is designed in sushiblas under `docs/agent/2026_10_07_V010/` and its signatures are
+`Region::recorder()` is on SushiRuntime's `main`. The `TaskRecorder` is designed in sushiblas under `docs/agent/2026_10_07_V010/` and its signatures are
 not fixed. Section 9 lists what this spec assumes about it.
 
 ## 2. What the caller writes
@@ -29,8 +28,9 @@ not fixed. Section 9 lists what this spec assumes about it.
 The names below are proposals; the public shape is the owner's to change.
 
 ```cpp
-SushiRuntime::API::Runtime runtime = SushiRuntime::API::Runtime::create();
-SushiAI::Eager::Session session(runtime, options);
+SushiAI::Eager::RegionExecutor executor(engine);
+SushiAI::Eager::ScopePartitioner partitioner;
+SushiAI::Eager::Session session(engine, executor, partitioner, options);
 
 for (const Data::Batch& batch : batches)
 {
@@ -40,12 +40,12 @@ for (const Data::Batch& batch : batches)
     Graph::ValueId h = encoder.forward(step.builder(), x);
     if (use_wide_head)
     {
-        Eager::Scope scope(step, "head");
+        Eager::Scope scope(step.scopes(), "head");
         h = wide_head.forward(step.builder(), h);
     }
     else
     {
-        Eager::Scope scope(step, "head");
+        Eager::Scope scope(step.scopes(), "head");
         h = narrow_head.forward(step.builder(), h);
     }
 
@@ -96,7 +96,7 @@ no SYCL, so they are unit tested without a device, as `fusion.hpp` and `memory_p
    holds for that region.
 5. **Rebuild what changed.** For a region whose key differs, or that is new: the cast pass, fusion,
    rematerialisation and the memory planner run over that region's sub-graph; the session drops the
-   old region and records a new one through `Region::add_emitter`. For a region whose key matches,
+   old region and records a new one through `Region::recorder()`. For a region whose key matches,
    nothing runs and the session does not call `DynamicGraph::region()`, which would mark it dirty.
 6. **Run.** `DynamicGraph::run()` composes the changed regions with their boundaries and executes
    the step.
