@@ -52,6 +52,7 @@
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/node_registry.hpp>
+#include <SushiAI/train/steps.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
@@ -85,12 +86,20 @@ namespace SushiAI
                 return std::string();
             }
 
-            /** @brief Builds the model of @p spec over the rows the layers tier registers. */
+            /**
+             * @brief Builds the model of @p spec over the rows the layers tier registers and
+             *        traces it once, so every layer has declared the entries of its state.
+             */
             Result<NN::ModelGraph> build_graph(const Config::ModelSpec& spec)
             {
                 NN::NodeRegistry registry;
                 SA_TRY(NN::register_layers(registry));
-                return NN::build_model(registry, spec);
+                SA_TRY_ASSIGN(NN::ModelGraph graph, NN::build_model(registry, spec));
+
+                SA_TRY_ASSIGN(const Shape batch, Train::batch_shape(1, spec.input_shape));
+                SA_TRY_ASSIGN([[maybe_unused]] const Train::TracedStep traced,
+                              Train::build_evaluation_graph(graph, batch));
+                return Result<NN::ModelGraph>(std::move(graph));
             }
 
             /** @brief Checks that each entry of @p found holds the bytes of its twin. */
