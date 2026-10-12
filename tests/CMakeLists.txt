@@ -91,7 +91,7 @@ add_executable(sushiai_tests
 target_include_directories(sushiai_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # GTest::gtest_main is deliberately absent: common/test_main.cpp supplies main()
-# so the RuntimeContext is built once per binary rather than once per test.
+# so the Runtime is built once per binary rather than once per test.
 # Linking both is a duplicate-symbol error at link time.
 target_link_libraries(sushiai_tests PRIVATE
     sushiai
