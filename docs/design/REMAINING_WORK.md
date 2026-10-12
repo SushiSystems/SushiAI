@@ -292,6 +292,12 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   so 12 tests of `Integration_DarknetYolov4Training` and `Integration_DarknetYolov7Training`
   fail in `sa test`. Which share is activations, gradients and convolution scratch is not
   measured. Packing the lowering's scratch, above, is the planned repair.
+- **Measure where YOLOv3's training step leaves Darknet, layer by layer.** The step bounds of
+  `test_darknet_yolov3_training.cpp` are 1.5 times what the run of 2026-10-12 measured: a head
+  is up to 0.243 from the dump on values near 49. No layer before the heads is compared, so
+  whether the difference grows evenly over the 75 convolutions or enters at one layer is not
+  known. It needs a Darknet dump of each layer's output under batch statistics and a case that
+  walks them.
 - **Feed a batch without two copies.** A step issues two `blas().copy()` calls to move the batch
   into the plan's input buffers, because a recorded SushiBLAS call captures its operand addresses
   by value and every batch is a different source tensor. It needs either an operand-address late
