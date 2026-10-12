@@ -1418,10 +1418,17 @@ convolution's weight: ours against the sum in double, and the dump's against the
 term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
 in double on YOLOv3-tiny, so the two are not compared directly.
 
-### TheCostOfOneBatchFallsUnderATenth
+### TheCostOfOneBatchFallsUnderAThird
 
 200 steps on the batch and the truth of `yolov7_tiny_train_step` bring the stored cost of the
-Separate model below 0.1 of the first step's.
+Separate model below 0.33 of the first step's.
+
+The share is 0.33 where the other five models state 0.1, by the owner's ruling of 2026-10-12.
+CPU Darknet, run for 200 steps on the same batch, weights and learning rate with no burn-in,
+takes its summed layer cost from 30.72 to 6.93, which is 0.226 of the first, and its lowest
+step holds 4.27. SushiAI goes from 30.71 to 6.63, which is 0.216. Neither reaches a tenth.
+The two curves agree at step 0 and are not compared step by step after it. Why the cost
+stops there is not known.
 
 ## test_darknet_yolov7_training.cpp
 

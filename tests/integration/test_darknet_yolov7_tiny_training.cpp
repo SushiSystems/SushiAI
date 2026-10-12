@@ -62,7 +62,7 @@ namespace
         training.bounds.update_relative = 1e-3;
         training.bounds.rolling_absolute = 1e-5;
         training.overfit_steps = 200;
-        training.overfit_cost_share = 0.1;
+        training.overfit_cost_share = 0.33;
         return training;
     }
 
@@ -158,9 +158,11 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMa
 
 /**
  * @brief Tests that 200 steps on the batch and truth of the step run bring the stored cost of
- *        the Separate model below 0.1 of the first step's.
+ *        the Separate model below 0.33 of the first step's.
+ *
+ * Darknet ends the same 200 steps at 0.226 of its first cost; see tests/integration/README.md.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderATenth)
+TEST_F(Integration_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAThird)
 {
     SaTest::check_one_batch_overfit(*engine, training);
 }
