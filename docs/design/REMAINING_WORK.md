@@ -285,6 +285,13 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   description of each operation's scratch, shared by the plan and `Lowering`. Today those shapes
   are written inline in `record_log_softmax()` and `record_nll_loss()`
   (`src/graph/memory_plan.cpp`, `src/graph/lowering.cpp`).
+- **Fit a full-size Darknet training step under the default memory limit.** One training step of
+  YOLOv4 at 608 by 608 with a batch of 2 commits 11.1 GB in the test process and takes about
+  9.8 GB on the device (measured 2026-10-12, sampled every 0.4 s, `sa run --memory-limit 13`).
+  Under the default limit of half the machine's memory, 7.6 GB, the step returns `OutOfMemory`,
+  so 12 tests of `Integration_DarknetYolov4Training` and `Integration_DarknetYolov7Training`
+  fail in `sa test`. Which share is activations, gradients and convolution scratch is not
+  measured. Packing the lowering's scratch, above, is the planned repair.
 - **Feed a batch without two copies.** A step issues two `blas().copy()` calls to move the batch
   into the plan's input buffers, because a recorded SushiBLAS call captures its operand addresses
   by value and every batch is a different source tensor. It needs either an operand-address late
