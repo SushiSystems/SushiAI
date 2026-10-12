@@ -825,6 +825,26 @@ namespace SushiAI
                 run.is_ready = true;
             }
 
+            /** @brief Prints the megabytes @p pool allocated, by kind and by arena lifetime. */
+            void report_pool_bytes(const std::string& name, const Graph::TensorPool& pool)
+            {
+                constexpr double megabyte = 1024.0 * 1024.0;
+                const Graph::PoolBytes& bytes = pool.bytes();
+                std::cout << "[ MEASURED ] " << name << ": " << bytes.total() / megabyte
+                          << " MB; arenas " << bytes.arenas / megabyte << ", own values "
+                          << bytes.values / megabyte << ", ones " << bytes.ones / megabyte
+                          << ", scratch " << bytes.scratch / megabyte << "\n";
+                if (!pool.has_plan())
+                    return;
+
+                for (const Graph::Arena& arena : pool.arenas().plan().arenas())
+                    std::cout << "[ MEASURED ] " << name << ": arena of lifetime "
+                              << static_cast<int>(arena.lifetime) << " holds "
+                              << arena.bytes / megabyte << " MB for " << arena.buffers
+                              << " buffers that are " << arena.unpacked_bytes / megabyte
+                              << " MB unpacked\n";
+            }
+
             /** @brief Runs the one step over the dumped batch and truth; keeps its cost. */
             void run_step(StepRun& run)
             {
@@ -1072,6 +1092,8 @@ namespace SushiAI
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
+            report_pool_bytes(stated.step_run + " probe pool", *run.probe_pool);
+            report_pool_bytes(stated.step_run + " training pool", *run.training_pool);
 
             const std::int64_t layer = run.first_layer;
             const DarknetWeightTarget* const targets = find_targets(run, layer);

@@ -47,6 +47,18 @@ namespace SushiAI
 {
     namespace Graph
     {
+        /** @brief Holds the bytes a pool allocated, by what they back. */
+        struct PoolBytes
+        {
+            std::size_t arenas = 0;  /**< Every arena of the adopted plan, in full. */
+            std::size_t values = 0;  /**< Graph values that kept a Storage of their own. */
+            std::size_t ones = 0;    /**< The shared all-ones tensors. */
+            std::size_t scratch = 0; /**< The per-node scratch buffers. */
+
+            /** @brief Returns the sum of the four. */
+            std::size_t total() const noexcept { return arenas + values + ones + scratch; }
+        };
+
         /**
          * @class TensorPool
          * @brief Owns device memory buffers backing graph values across steps.
@@ -191,10 +203,10 @@ namespace SushiAI
                  * kept its own Storage. This is the number that shrinks when
                  * planning works; compare it against @c unpacked_bytes().
                  */
-                std::size_t allocated_bytes() const noexcept
-                {
-                    return arena_bytes_ + standalone_bytes_;
-                }
+                std::size_t allocated_bytes() const noexcept { return bytes_.total(); }
+
+                /** @brief Returns allocated_bytes() split by what the bytes back. */
+                const PoolBytes& bytes() const noexcept { return bytes_; }
 
                 /**
                  * @brief What the same tensors would cost one allocation each.
@@ -209,8 +221,12 @@ namespace SushiAI
                 SushiBLAS::Engine& engine() const noexcept { return *engine_; }
 
             private:
-                /** @brief Books a tensor that got its own Storage, for both counters. */
-                void note_standalone(const Shape& shape, DType dtype) noexcept;
+                /**
+                 * @brief Books a tensor that got its own Storage.
+                 * @param counter The member of bytes_ the tensor belongs to.
+                 */
+                void note_standalone(std::size_t& counter, const Shape& shape,
+                                     DType dtype) noexcept;
 
                 struct ShapeKey
                 {
@@ -258,8 +274,7 @@ namespace SushiAI
                 std::unordered_map<ShapeKey, SushiBLAS::Tensor, ShapeKeyHash> ones_;
                 std::unordered_map<ScratchKey, SushiBLAS::Tensor, ScratchKeyHash> scratch_;
                 std::vector<std::pair<SushiBLAS::Tensor*, double>> pending_constants_;
-                std::size_t arena_bytes_ = 0;
-                std::size_t standalone_bytes_ = 0;
+                PoolBytes bytes_;
                 std::size_t unpacked_bytes_ = 0;
         };
 

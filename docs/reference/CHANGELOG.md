@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-13 — graph: Added TensorPool::bytes(), which splits the allocated bytes into arenas, own values, ones and scratch (`tensor_pool.hpp`, `PoolBytes`).
 - 2026-10-12 — tests: Set the step bounds of YOLOv3 to 1.5 times what its first run measured (`test_darknet_yolov3_training.cpp`).
 - 2026-10-12 — eager: Added the session, the step and the region executor of the eager front end (`session.hpp`, `step.hpp`, `region_executor.hpp`, `region_table.hpp`, `slot_ledger.hpp`).
 - 2026-10-12 — tests: Set the one-batch overfit share of YOLOv7-tiny to 0.33, the other five models keeping 0.1 (`test_darknet_yolov7_tiny_training.cpp`).
