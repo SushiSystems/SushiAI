@@ -47,13 +47,29 @@ beside it holds each wave's review and the runs.
 
 ## Eager front end
 
-The design is `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md`. The host-lane units exist; nothing
-executes a partition.
+The design is `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md`, and
+`modules/core/eager/README.md` describes the units. `Session`, `Step`, `StepExecutor`,
+`RegionExecutor` and `RegionEmitter` are written, with the boundary matching in `SlotLedger` and
+`RegionTable`. They have passed a syntax check and have not been built or run;
+`docs/agent/2026_10_07_EAGER_FRONT_END/REPORT.md` lists what the first build has to confirm.
 
-- **`Session`, `Step`, `StepExecutor`, `RegionExecutor`, `RegionEmitter`**, after the migration.
-- **Match a boundary value with its storage of the previous step**, so a region survives the
-  rebuild of the region that feeds it.
-- **Measure the host cost of a step whose structure did not change**, and of renumbering.
+- **Build the new units and run their tests**: nine test files under
+  `modules/core/eager/tests/`, five of which need an engine.
+- **Read the host cost off a run.** `test_step_cost.cpp` prints the cost of an unchanged step for
+  two and for fifty layers, and of a scope that appears and disappears. No number exists yet.
+- **Phases.** A step runs once; tracing on after a read returns `Unsupported`. The design keeps
+  one dynamic graph per stretch between two reads. Two things are undecided: which values of a
+  closed phase stay readable for a later one, and how `Autograd::differentiate` treats the
+  values of an earlier phase as constants, since `Graph::finalise` propagates `requires_grad`
+  through every node.
+- **The debug option that flushes after every node** rests on the phases.
+- **Compare an eager loop with `Train::Trainer`.** `test_session.cpp` compares it with
+  `Graph::CompiledStep`; a test that names `Trainer` crosses modules and belongs under `tests/`.
+- **`signature_of` scans every node of the graph for each region**, so a step costs
+  nodes times regions on the host. One pass that signs every region would make it linear.
+- **Buffer updates on the eager path.** A running statistic is blended by a recorder that holds
+  the tensor of a value of one compiled graph; the eager path has no such tensor across steps.
+- **Two states whose gradient is one graph value** make `Session::run` return `Unsupported`.
 - **`Scope`'s destructor can throw** through `ScopeTrace::close()`.
 
 ## Convolutional networks

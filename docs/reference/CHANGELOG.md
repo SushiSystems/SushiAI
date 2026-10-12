@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-12 — eager: Added the session, the step and the region executor of the eager front end (`session.hpp`, `step.hpp`, `region_executor.hpp`, `region_table.hpp`, `slot_ledger.hpp`).
+- 2026-10-12 — tests: Set the one-batch overfit share of YOLOv7-tiny to 0.33, the other five models keeping 0.1 (`test_darknet_yolov7_tiny_training.cpp`).
 - 2026-10-12 — docs: Named SushiRuntime::Graph and OperationID where the manual named TaskGraph and Graph::OpID; stated what last_report() holds after a failed run (`ARCHITECTURE.md`, `GLOSSARY.md`, `compiled_step.hpp`).
 - 2026-10-12 — tests: Made TestEnvironment create its runtime through Detail::create_runtime, so the seam is the one reader of a runtime Result (`test_environment.hpp`).
 - 2026-10-12 — train: Made Trainer::fit sum node timings by plan index and return Incompatible when the step is compiled again or a row has no match, where it restarted the totals (`trainer.cpp`, `trainer.hpp`).

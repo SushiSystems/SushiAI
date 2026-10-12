@@ -572,7 +572,7 @@ modules/                 One folder per module, grouped by tier
     config/              Config::Value, the registry lookup, the model and training schemas
     optim/               SGD and AdamW, their registry and the loss scaler
     data/                The Dataset seam, its registry and the materialised dataset
-    eager/               The host side of the eager front end: scope tracing and partitioning
+    eager/               The eager front end: scope tracing, partitioning and the session that runs a step
   layers/                The layers, and what trains, saves and loads a model of them
     nn/                  Parameters, the Module contract, layers, losses, init, the runtime path
     io/                  The SACP checkpoint: the byte format and the binding

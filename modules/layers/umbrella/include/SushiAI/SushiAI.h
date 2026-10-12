@@ -151,6 +151,18 @@
 #include <SushiAI/eager/region_partitioner.hpp>
 #include <SushiAI/eager/scope_partitioner.hpp>
 #include <SushiAI/eager/region_signature.hpp>
+#include <SushiAI/eager/storage_id.hpp>
+#include <SushiAI/eager/region_boundary.hpp>
+#include <SushiAI/eager/region_names.hpp>
+#include <SushiAI/eager/slot_ledger.hpp>
+#include <SushiAI/eager/region_table.hpp>
+#include <SushiAI/eager/region_program.hpp>
+#include <SushiAI/eager/storage_bank.hpp>
+#include <SushiAI/eager/region_emitter.hpp>
+#include <SushiAI/eager/step_executor.hpp>
+#include <SushiAI/eager/region_executor.hpp>
+#include <SushiAI/eager/session.hpp>
+#include <SushiAI/eager/step.hpp>
 
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
