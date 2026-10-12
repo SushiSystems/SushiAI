@@ -205,39 +205,56 @@ TEST(Unit_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
         StatusCode::Unsupported, "no fp16");
 }
 
-TEST(Unit_Seam, RuntimeFailureWithTheOkCodeTakesItsCodeFromThePhase)
+TEST(Unit_Seam, RuntimeInvalidGraphIsInvalidDescription)
 {
     SA_EXPECT_FAILURE(
-        status_of_error(runtime_failure(ErrorCode::Ok, "no cause named"), SeamPhase::Allocate),
-        StatusCode::OutOfMemory, "no cause named");
-    SA_EXPECT_FAILURE(
-        status_of_error(runtime_failure(ErrorCode::Ok, "no cause named"), SeamPhase::Execute),
-        StatusCode::DeviceFailed, "no cause named");
+        status_of_error(runtime_failure(ErrorCode::InvalidGraph, "buffers span two contexts"),
+                        SeamPhase::Execute),
+        StatusCode::InvalidDescription, "buffers span two contexts");
 }
 
-TEST(Unit_Seam, RuntimeFailureThatReportsADefectIsFatal)
+TEST(Unit_Seam, RuntimeInvalidAccessIsUnsupported)
 {
-    SA_EXPECT_FATAL(
-        (void)status_of_error(runtime_failure(ErrorCode::InvalidGraph, "cyclic"),
-                              SeamPhase::Execute),
-        "SushiRuntime reported InvalidGraph", "cyclic");
-    SA_EXPECT_FATAL(
-        (void)status_of_error(runtime_failure(ErrorCode::CompileFailed, "deps"),
-                              SeamPhase::Execute),
-        "SushiRuntime reported CompileFailed", "deps");
-    SA_EXPECT_FATAL(
-        (void)status_of_error(runtime_failure(ErrorCode::InvalidAccess, "host"),
-                              SeamPhase::Execute),
-        "SushiRuntime reported InvalidAccess", "host");
-    SA_EXPECT_FATAL(
-        (void)status_of_error(runtime_failure(ErrorCode::InvalidState, "mid-run"),
-                              SeamPhase::Execute),
-        "SushiRuntime reported InvalidState", "mid-run");
+    SA_EXPECT_FAILURE(
+        status_of_error(runtime_failure(ErrorCode::InvalidAccess, "no device 3"),
+                        SeamPhase::Record),
+        StatusCode::Unsupported, "no device 3");
+}
+
+TEST(Unit_Seam, RuntimeInvalidStateIsUnsupported)
+{
+    SA_EXPECT_FAILURE(
+        status_of_error(runtime_failure(ErrorCode::InvalidState, "another run is in flight"),
+                        SeamPhase::Execute),
+        StatusCode::Unsupported, "another run is in flight");
+}
+
+TEST(Unit_Seam, RuntimeProtocolMismatchIsIncompatible)
+{
+    SA_EXPECT_FAILURE(
+        status_of_error(runtime_failure(ErrorCode::ProtocolMismatch, "peer speaks version 2"),
+                        SeamPhase::Execute),
+        StatusCode::Incompatible, "peer speaks version 2");
+}
+
+TEST(Unit_Seam, RuntimeCompileFailedTakesItsCodeFromThePhase)
+{
+    SA_EXPECT_FAILURE(
+        status_of_error(runtime_failure(ErrorCode::CompileFailed, "no plan"),
+                        SeamPhase::Allocate),
+        StatusCode::OutOfMemory, "no plan");
+    SA_EXPECT_FAILURE(
+        status_of_error(runtime_failure(ErrorCode::CompileFailed, "no plan"),
+                        SeamPhase::Execute),
+        StatusCode::DeviceFailed, "no plan");
+}
+
+TEST(Unit_Seam, RuntimeDanglingResourceIsFatal)
+{
     SA_EXPECT_FATAL(
         (void)status_of_error(runtime_failure(ErrorCode::DanglingResource, "freed"),
                               SeamPhase::Execute),
         "SushiRuntime reported DanglingResource", "freed");
-
 }
 
 TEST(Unit_Seam, ErrorOfAHostUnitIsFatalWithItsText)

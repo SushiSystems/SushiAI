@@ -55,8 +55,9 @@ namespace SushiAI
         /**
          * @brief Returns the Status of an Error SushiRuntime returned, by its code.
          *
-         * Stops the process for a code that reports a defect of the caller.
-         * @param phase Decides the code of an Error whose own code is Ok.
+         * Stops the process for DanglingResource, which reports a tensor freed before the
+         * step that names it.
+         * @param phase Decides the code of CompileFailed, which names no cause.
          * @return A failure whose message is the Error's; never a success.
          */
         [[nodiscard]] Status status_of_error(const SushiRuntime::Error& error,
@@ -93,7 +94,6 @@ namespace SushiAI
             const SushiRuntime::RuntimeConfig& config = {}) noexcept;
 
         /** @brief Runs the tasks recorded on @p engine and returns when they have finished. */
-
         [[nodiscard]] Status run_recorded(SushiBLAS::Engine& engine) noexcept;
 
         /**
@@ -102,7 +102,6 @@ namespace SushiAI
          */
         [[nodiscard]] Status run_step(SushiRuntime::Graph& graph,
                                       SushiRuntime::RunReport& report) noexcept;
-
 
         /**
          * @brief Destroys every task recorded on @p engine that has not run.
@@ -167,3 +166,6 @@ namespace SushiAI
 
     } // namespace Detail
 } // namespace SushiAI
+
+/** @brief Short alias for the namespace of SushiRuntime, whose Runtime create_runtime() returns. */
+namespace sr = SushiRuntime;

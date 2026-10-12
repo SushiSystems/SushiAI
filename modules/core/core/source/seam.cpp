@@ -93,18 +93,22 @@ namespace SushiAI
                     return failure_of(StatusCode::DeviceFailed, text);
 
                 case ErrorCode::Unsupported:
+                case ErrorCode::InvalidAccess:
+                case ErrorCode::InvalidState:
                     return failure_of(StatusCode::Unsupported, text);
 
                 case ErrorCode::InvalidGraph:
+                    return failure_of(StatusCode::InvalidDescription, text);
+
+                case ErrorCode::ProtocolMismatch:
+                    return failure_of(StatusCode::Incompatible, text);
+
                 case ErrorCode::CompileFailed:
-                case ErrorCode::InvalidAccess:
-                case ErrorCode::InvalidState:
+                    return failure_of(untyped_code(phase), text);
+
                 case ErrorCode::DanglingResource:
                     SA_FATAL("SushiRuntime reported {}: {}",
                              SushiRuntime::to_string(error.code), text);
-
-                case ErrorCode::Ok:
-                    break;
             }
 
             return failure_of(untyped_code(phase), text);
