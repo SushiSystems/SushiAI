@@ -250,7 +250,12 @@ the headings follow the order of the tests.
 | [`test_precision.cpp`](../../modules/core/autograd/tests/test_precision.cpp) | The mixed-precision policy and where the cast insertion pass places its casts. |
 | [`test_provenance.cpp`](../../modules/core/autograd/tests/test_provenance.cpp) | The forward origin that differentiation records for every node it appends. |
 | [`test_rate_schedule.cpp`](../../modules/core/optim/tests/test_rate_schedule.cpp) | That a schedule section is read by the type it states, the default of `step`, the unknown type, and the step-only reader's refusal of a cosine file. |
+| [`test_region_boundary.cpp`](../../modules/core/eager/tests/test_region_boundary.cpp) | Which values `find_boundaries` lists as the imports and exports of a region, and which values share a buffer. |
+| [`test_region_emitter.cpp`](../../modules/core/eager/tests/test_region_emitter.cpp) | That `RegionEmitter` records a region's program on the recorder it is handed, and counts its calls. Needs an engine. |
+| [`test_region_executor.cpp`](../../modules/core/eager/tests/test_region_executor.cpp) | That `RegionExecutor` builds, keeps, records again and drops regions as a step says, and runs trailing work behind them. Needs an engine. |
+| [`test_region_program.cpp`](../../modules/core/eager/tests/test_region_program.cpp) | The graph, the memory plan and the fusion report `compile_region` makes for one region. |
 | [`test_region_signature.cpp`](../../modules/core/eager/tests/test_region_signature.cpp) | The signature that `signature_of` computes for one region of a partition. |
+| [`test_region_table.cpp`](../../modules/core/eager/tests/test_region_table.cpp) | What `RegionTable` keeps, records again, builds and drops from one step to the next. |
 | [`test_registration.cpp`](../../modules/language/registration/tests/test_registration.cpp) | The rows the language module's `register_nodes`, `register_datasets` and `register_objectives` add, and that a decoder written as a model file builds from them and publishes what the balance objective reads. |
 | [`test_registration.cpp`](../../modules/vision/registration/tests/test_registration.cpp) | The rows the vision module's `register_nodes`, `register_datasets`, `register_objectives` and `register_importers` add, that each block row builds from a minimal object, and that the YOLO26n model file builds to the state and shapes MANIFEST.json records. The dataset row case needs an engine. |
 | [`test_rematerialise.cpp`](../../modules/core/autograd/tests/test_rematerialise.cpp) | The structure of the graph that the K_IM2COL rematerialisation pass rewrites. |
@@ -268,14 +273,18 @@ the headings follow the order of the tests.
 | [`test_segment_metrics.cpp`](../../modules/vision/segment/tests/test_segment_metrics.cpp) | IoU per class and its mean over the classes that occur, pixel accuracy, an empty matrix, and the class pick with its tie. |
 | [`test_segment_rasterise.cpp`](../../modules/vision/segment/tests/test_segment_rasterise.cpp) | The even-odd fill by pixel centres, a shared edge, a hole, clipping, the later outline winning an overlap, and the refusals. |
 | [`test_segmentation_metrics.cpp`](../../modules/vision/training/tests/test_segmentation_metrics.cpp) | Mean IoU and pixel accuracy of one step by hand, and the steps refused. Needs an engine. |
+| [`test_session.cpp`](../../modules/core/eager/tests/test_session.cpp) | The steps an eager `Session` runs against a compiled step, over a settled loop and across a changed scope, and the points at which a `Step` runs. Needs an engine. |
 | [`test_shape.cpp`](../../modules/core/core/tests/test_shape.cpp) | Shape's extents, indexing, validation, equality and hash. |
 | [`test_silu.cpp`](../../modules/layers/nn/tests/test_silu.cpp) | The SiLU layer's trace, shape inference and empty state. |
+| [`test_slot_ledger.cpp`](../../modules/core/eager/tests/test_slot_ledger.cpp) | Which slot `SlotLedger` gives a shared buffer from one step to the next. |
 | [`test_spatial_shapes.cpp`](../../modules/core/autograd/tests/test_spatial_shapes.cpp) | The shapes the builder infers for spatial operations and the layouts it refuses. |
 | [`test_status.cpp`](../../modules/core/core/tests/test_status.cpp) | Status, its macros, the fatal family and the assertions of test_status.hpp. |
+| [`test_step_cost.cpp`](../../modules/core/eager/tests/test_step_cost.cpp) | Prints the host cost of an eager step whose structure held, for two and for fifty layers, and of a scope that appears and disappears. Needs an engine. |
 | [`test_step_recorder.cpp`](../../modules/core/graph/tests/test_step_recorder.cpp) | That StepRecorderList drives its members as one recorder, in the order added. |
 | [`test_step_schedule.cpp`](../../modules/core/optim/tests/test_step_schedule.cpp) | The rate `Optim::StepSchedule::rate_at` gives under a constant policy, a warm-up and listed steps, and the schedules `validate_step_schedule` refuses. |
 | [`test_step_schedule_section.cpp`](../../modules/core/optim/tests/test_step_schedule_section.cpp) | That a `StepSchedule` and the `schedule` section of a training file convert both ways without loss, and which sections and schedules are refused. |
 | [`test_steps.cpp`](../../modules/layers/train/tests/test_steps.cpp) | The training, probe, evaluation, carrying and incremental graph builders, the role of each parameter binding, and the batch shape function. |
+| [`test_storage_bank.cpp`](../../modules/core/eager/tests/test_storage_bank.cpp) | That `StorageBank` holds, allocates and lets go of tensors by storage id. Needs an engine. |
 | [`test_sum_objective.cpp`](../../modules/layers/train/tests/test_sum_objective.cpp) | The composite objective: its terms, the refusal of a step-fed term, the prefixed leaves, the emitted SCALE and ADD, the first-wins metric merge and the `sum` factory. |
 | [`test_target.cpp`](../../modules/core/data/tests/test_target.cpp) | find_target over the targets of a batch and over the descriptions of a dataset. Its fixture cases need an engine. |
 | [`test_text_bpe_trainer.cpp`](../../modules/language/text/tests/test_text_bpe_trainer.cpp) | Two hand-worked merge orders, the tie rule, the chunk edge, determinism over a seeded corpus, the stop rules and the size bounds. |
@@ -17448,6 +17457,208 @@ rate 0.5.
 `StepSchedule` of two steps and one scale. It is ok for a held `CosineSchedule` with the base
 rate 0.5 and a total of 10.
 
+## modules/core/eager/tests/test_region_boundary.cpp
+
+Suites: `Unit_RegionBoundary`.
+
+Tests which values `find_boundaries` lists as the imports and exports of a region.
+
+This file needs no device. Every case traces a small graph on the host, partitions it with
+`ScopePartitioner` and reads the `BoundaryMap`. `modules/core/eager/README.md`, under
+`region_boundary.hpp`, says when a buffer is shared and why a region exports every value of a
+shared buffer.
+
+### eager_test_support.hpp
+
+The host-lane tests of the module share the traced steps of `eager_test_support.hpp`.
+`encoder_head_loss(head, extra)` traces scopes "encoder", "head" and "loss" over an [8, 6]
+input, differentiates the loss and partitions the result; `extra` adds a scope "extra" between
+the head and the loss, which turns three segments into four. `linear_then_relu(split)` traces
+`relu(linear(x))` with no backward pass, as one segment or as two. `presets_of` gives each leaf
+the id `K_LEAF_STORAGE` plus its position among the leaves and each parameter gradient
+`K_GRADIENT_STORAGE` plus the parameter's position, which is the storage a `Session` would
+supply. The positions are the same in every variant of a step, so two traces of one model give
+their leaves the same ids. `observed_of` returns the loss and the gradients, the values a session
+observes.
+
+### AForwardRegionExportsWhatALaterRegionReads
+
+The encoder's result is read by the head, so the encoder's forward region exports it and the
+head's forward region imports it. The head's result is read by the loss region.
+
+### AnObservedValueIsExportedWithNoReader
+
+One region holds the whole step. Its result is exported when the caller observes it and is not
+exported when nobody does.
+
+### AnExportIsNamedByItsPlaceInTheRegion
+
+The region holds K_MATMUL, K_BIAS_ADD and K_RELU; the three K_LEAF nodes are in no region. The
+observed result is therefore at node 2, result 0. The position counts the region's own nodes,
+which is what keeps it stable when an earlier region grows.
+
+### ImportsAreListedOnceInReadOrder
+
+`add(add(b, a), add(a, b))` reads `b` first and each leaf twice. The imports are `b`, `a`.
+
+### EveryImportIsALeafOrAnExportOfALowerKey
+
+The case walks every region of a four-segment differentiated step. Each import that a node
+produces comes from a region with a lower key, and that region lists it as an export. `checked`
+counts the imports the loop compared, so a map with no boundary value would fail the last
+assertion.
+
+### AnAccumulateSharesTheBufferOfItsFirstOperand
+
+K_ACCUMULATE writes its result into its first operand. The result and that operand have one
+buffer and the second operand has its own. The result is observed, so both values of the buffer
+are exports and the second operand is not.
+
+### AnAccumulateIntoALeafThrows
+
+An accumulate whose first operand is an input leaf would add into storage the session does not
+own.
+
+### APartitionOfAnotherGraphThrows
+
+A partition with one node too few is refused before any node is read.
+
+## modules/core/eager/tests/test_region_emitter.cpp
+
+Suites: `Unit_RegionEmitter`.
+
+Tests that `RegionEmitter` records a region's program on the recorder it is handed.
+
+This file needs an engine: its cases allocate tensors and run a recorded graph. The emitter is
+handed the recorder of a static `SushiRuntime::Graph`, which shows that it depends on a
+`Recorder` and on nothing of a dynamic graph.
+
+### Recorded
+
+`make_recorded` compiles `relu(x * weight + bias)` as one region, adopts the program's plan in a
+`TensorPool` and binds a tensor filled by `fill_wave` to each import and export.
+`expected_result` reads the three imports back and computes the result on the host with
+`linear_relu`. The imports are in the order the region reads them: `x`, `weight`, `bias`.
+
+### EmitRecordsTheProgramOnTheGraphItIsHanded
+
+After `emit()` the graph runs once and the export holds the host result within `K_TOLERANCE`,
+1e-5, the distance a FLOAT32 sum of six products keeps from the same sum in double.
+
+### EmitCountsItsCallsAndItsTasks
+
+Two `emit()` calls on two graphs record the same number of nodes and leave `emit_count()` at 2.
+A region recorded again under a new key is this second call. The program has no dropout, so it
+asks for no replay prelude.
+
+## modules/core/eager/tests/test_region_executor.cpp
+
+Suites: `Unit_RegionExecutor`.
+
+Tests that `RegionExecutor` builds, keeps, records again and drops regions as a step says.
+
+This file needs an engine. `modules/core/eager/README.md`, under `region_executor.hpp`, gives the
+two passes of `execute` and says why a kept region is not touched.
+
+### Harness
+
+`Harness` does a session's planning for a host-traced step: it allocates a filled tensor for
+each leaf, plans the step on a `RegionTable`, allocates the created slots and compiles each
+built region. `prepare` returns the `StepWork`, and `run` executes it. `expected` computes
+`relu(x * weight + bias)` on the host from the leaves; the first leaf of `linear_then_relu` is
+`x`, so it sits in `K_LEAF_STORAGE`.
+
+### ABuiltStepWritesItsObservedValue
+
+One region is built, lowered once and composed once, and the observed result matches the host.
+
+### AKeptStepRunsAgainWithoutBeingComposedOrRecorded
+
+The second step traces the same graph. The executor composes nothing, lowers nothing and
+allocates no pool byte. The input tensor was refilled between the steps, and the result follows
+it, so the kept kernels read the storage they were recorded with.
+
+### TwoRegionsRunInKeyOrder
+
+A scope between the linear layer and the activation gives two regions. The result equals the
+one-region result, so the region with the lower key ran first.
+
+### ARegionRecordedUnderAnotherKeyKeepsItsProgram
+
+The case hands the executor a `RegionOrder` with the action `Record`, the key raised by 2 and
+the old key as `previous_key`, which is what the table emits when a scope appears. The old key
+holds no region afterwards, the new one holds a program of the same node count, the region was
+lowered twice and the graph composed twice.
+
+### ARegionThatLeftIsDropped
+
+Two regions, then one: the step that joins them drops the activation region by its old key.
+
+### TheTrailingWorkRunsBehindEveryRegionOnEveryRun
+
+The update subtracts the region's result from a zeroed tensor, so that tensor holds the negated
+result only if the update ran after the region. The second step hands over the same recorder
+under the same key: it is replayed and not recorded again.
+
+### DiscardDropsEveryRegionAndAKeptRegionIsThenRefused
+
+After `discard()` the executor holds no region. The harness's table was not told, so it plans a
+`Keep`, and `execute` returns `InvalidDescription`. A session calls `RegionTable::forget` with
+`discard()` for this reason.
+
+## modules/core/eager/tests/test_region_program.cpp
+
+Suites: `Unit_RegionProgram`.
+
+Tests the graph, the plan and the reports `compile_region` makes for one region.
+
+This file needs no device. `modules/core/eager/README.md`, under `region_program.hpp`, describes
+the program.
+
+### TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport
+
+The region "activation#0" holds one K_RELU and reads the linear layer's result. With fusion off
+its program has two nodes: a K_LEAF that writes the import, and the K_RELU.
+
+### ValuesKeepTheIdsOfTheStep
+
+A value has the same id in the program and in the step, so the storage list of the step addresses
+both.
+
+### AnImportAnotherRegionComputesIsAnInputOfTheProgram
+
+The linear layer's result is an activation in the step and has `Lifetime::Input` in the program
+that imports it.
+
+### AParameterImportKeepsItsLifetime
+
+A leaf of the step keeps the lifetime it was declared with.
+
+### NoSharedValueIsPackedIntoAnArena
+
+Over every region of a differentiated three-segment step, no import and no export is packed. A
+packed export would be overwritten by a later value of the same region while another region
+still reads it.
+
+### AChainInOneRegionFolds
+
+With no scope, K_MATMUL, K_BIAS_ADD and K_RELU fold into one `GEMMBiasReLU` and the program
+holds no K_RELU.
+
+### AChainCutByAScopeFoldsOnlyUpToTheBoundary
+
+With a scope between the layer and the activation, the first region folds a `GEMMBias`, no
+region holds a `GEMMBiasReLU`, and the second region keeps its K_RELU. This is the price of a
+boundary the design names.
+
+### SwitchingFusionOffLeavesTheNodesAsTraced
+
+`ProgramOptions::fusion` reaches the pass.
+
+### AKeyThatNamesNoRegionThrows
+
+`K_NO_REGION` is the key of the leaves and compiles to nothing.
+
 ## modules/core/eager/tests/test_region_signature.cpp
 
 Suites: `Unit_RegionSignature`.
@@ -17662,6 +17873,58 @@ The message contains "assigns 4 nodes" and "holds 5".
 
 The identity vector is cleared, so the id of `x` lies beyond its end. The message contains
 "External value 0" and "no identity". The call throws and does not read past the span.
+
+## modules/core/eager/tests/test_region_table.cpp
+
+Suites: `Unit_RegionTable`.
+
+Tests what `RegionTable` keeps, records again, builds and drops from one step to the next.
+
+This file needs no device: the table works on storage ids. Each case plans two or three traces
+of `encoder_head_loss` on one table, with the presets of `eager_test_support.hpp` as the storage
+of the leaves and the gradients. `modules/core/eager/README.md`, under `region_table.hpp` and
+`slot_ledger.hpp`, states the rules.
+
+### TheFirstStepBuildsEveryRegion
+
+Every region is built, none has a previous key, and the plan creates slots.
+
+### TheSameTraceKeepsEveryRegion
+
+A second trace of the same model keeps every region and creates and releases nothing. The
+encoder's result and the loss are in the storage the first plan gave them.
+
+### AChangedScopeRebuildsItsTwoRegionsAndNoOther
+
+The head ends in K_TANH in the first step and in K_RELU in the second. Its forward and backward
+regions are built. The encoder's two regions and the loss region are kept: each reads the
+head's results from the slots of the first step, because it names them by its own import places
+and its own structure did not change.
+
+### AReaderKeepsTheStorageOfAResultWhoseProducerChanged
+
+The head's result has one storage id in both steps. This is the single fact the case above
+rests on, asserted on its own.
+
+### AScopeThatAppearsRenumbersARegionWithoutRebuildingIt
+
+Three segments give the encoder's backward region key 5 and four give it key 7. The region is
+recorded again under the new key with its old key as `previous_key`. The encoder's forward
+region keeps key 1 and is kept, and the new scope's region is built with no previous key.
+
+### AScopeThatDisappearsIsDroppedByItsOldKeys
+
+The plan lists the two keys the "extra" scope's regions held, forward before backward, and
+releases the slots only they used.
+
+### ALeafWithoutStorageThrows
+
+A plan with no preset names the region and the value it could not place.
+
+### ForgetBuildsEveryRegionAgain
+
+`forget()` returns one id per slot the first plan created, and the next plan builds every region
+with nothing to drop.
 
 ## modules/language/registration/tests/test_registration.cpp
 
@@ -18888,6 +19151,92 @@ reports two metrics: `mean_iou` 0.5 and `pixel_accuracy` 2/3, each within 1e-15.
 mask with a 3 at pixel 1 ("true class of pixel 1", "is 3") and for extents of 4 classes over
 logits of 3 ("the logits"). No metric is reported by the four calls.
 
+## modules/core/eager/tests/test_session.cpp
+
+Suites: `Unit_EagerSession`.
+
+Tests the steps a `Session` runs and the points at which a `Step` runs them.
+
+This file needs an engine. Its cases are the acceptance list of
+`docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md`, section 10, as far as one module reaches.
+
+### eager_run_support.hpp
+
+`Support::Loop` owns a `ScopePartitioner`, a `RegionExecutor`, a `Session`, a model of linear
+layers and one batch. `step(options)` traces the model, differentiates, applies the update and
+reads the loss. `TraceOptions::scoping` says where scopes open: nowhere, one per layer, one
+between the first layer and its activation, or "encoder" and "head". `PlainDescent` is the
+update: one `axpy` of minus the rate times the gradient per parameter. It is a
+`Graph::StepRecorder` and counts its recordings and its replays. `make_model` fills every tensor
+with `fill_wave`, so two models of the same widths start from the same numbers.
+
+### Compiled
+
+`make_compiled` traces the same two-layer model in the same order, differentiates it, runs the
+cast and fusion passes with the leaves, the loss and the gradients observed, plans the memory
+with the loss and the gradients pinned, binds the same tensors and compiles the graph with a
+`PlainDescent` behind it through `Graph::CompiledStep`.
+
+### AnUnscopedStepGivesTheLossBytesOfTheCompiledStep
+
+Four steps of both paths give the same loss bytes. With no scope the eager step is one region
+that holds the forward and the backward nodes, so the two paths lower the same nodes. The case
+compares with `Graph::CompiledStep` and not with `Train::Trainer`, which a test of this module
+cannot name.
+
+### ASettledLoopComposesOnceAndAllocatesNothingMore
+
+A three-layer model with one scope per layer runs five steps. After the first, the composition
+count stays 1 and the lowering count, the pool bytes, the session's allocation count and its
+tensor count do not move. The update is recorded once and replayed five times.
+
+### FlippingABranchRebuildsThatScopesTwoRegionsAndNoOther
+
+Two steps with a K_TANH head, then one with a K_RELU head. The head's forward and backward
+regions are lowered twice and every other region once. The loss is traced after the head closes,
+in the second unnamed segment of the step, so its region is named "#1"; the first unnamed
+segment holds the input leaf and no region.
+
+### AScopeBetweenALinearLayerAndItsActivationTrainsToTheSameLoss
+
+Two loops start from the same numbers, one with no scope and one with a scope between the first
+layer and its activation. Their losses are compared within `K_LOSS_TOLERANCE`, 1e-5, over five
+steps, and not byte for byte: the two loops run different kernels for the first layer.
+No region of the scoped loop reports a `GEMMBiasReLU`.
+
+### AScopeThatAppearsAndDisappearsRecordsTheRegionsItRenumbers
+
+A scope "extra" appears in the second step and is gone in the third. The trailing key is twice
+the segment count, so the update is recorded three times. The encoder's forward region keeps its
+key and is lowered once; its backward region moves twice and is lowered three times.
+
+### AParameterNoStepTracesKeepsAZeroGradientAndItsValue
+
+A third layer is bound and paired with the update and never traced. After two steps its gradient
+tensor holds zeros and its weight holds the bytes it started with.
+
+### AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsRead
+
+`read_scalar` of an untouched step runs it. No update was applied, so none was recorded.
+
+### AValueTheStepDidNotKeepCannotBeReadAfterTheRun
+
+After `apply` the model's result is not readable: it sits inside the step's one region and was
+not passed to `keep`. The loss is, because `backward` keeps it. `keep` after the run is refused.
+
+### TracingAfterTheStepRanIsRefused
+
+A node emitted after `finish` makes the next read return `Unsupported`.
+
+### AStateTheSessionDoesNotHoldIsRefused, BindingAStateTwiceIsRefused
+
+`Step::state` and `Session::gradient` refuse an identity that was never bound, and
+`Session::bind_state` refuses one that already is.
+
+### ASecondLiveStepStopsTheProcess
+
+A session traces one step at a time.
+
 ## modules/core/core/tests/test_shape.cpp
 
 Suites: `Unit_Shape`.
@@ -18987,6 +19336,70 @@ converted value's shape.
 ### TheParameterWalkVisitsNothing
 
 After a trace, `NN::for_each_parameter` calls its visitor zero times.
+
+## modules/core/eager/tests/test_slot_ledger.cpp
+
+Suites: `Unit_SlotLedger`.
+
+Tests which slot `SlotLedger` gives a shared buffer from one step to the next.
+
+This file needs no device. A case opens a step, asks for slots and closes it, twice or three
+times. `K_PRODUCER` writes the buffer and `K_READER` reads it; a reader names it by its own id
+and the place of the value among its imports. `modules/core/eager/README.md`, under
+`slot_ledger.hpp`, gives the three questions the ledger answers.
+
+### match, first_step
+
+The file-local `match` calls `match_readers` with every reader trusted and falls back to
+`place`, the order `RegionTable` uses for a changed producer. `first_step` runs one step that
+creates a slot.
+
+### TheFirstMatchCreatesASlot
+
+The slot is listed in `created()` with the extents and the element type asked for.
+
+### AnUnchangedProducerKeepsItsSlot, KeepFindsNoSlotAtAnotherPosition
+
+`keep` returns the slot written at the same position and nothing for another position.
+
+### AChangedProducerReusesTheSlotItsReaderRead
+
+The producer grew and the value moved from node 2 to node 5. The reader still names it as its
+first import, so the buffer takes the old slot. The third step finds it by `keep` at the new
+position, which shows that a matched slot is filed under its new name.
+
+### AReaderThatIsNotTrustedNamesNoSlot
+
+With no trusted reader `match_readers` returns `K_NO_STORAGE`, although a reader of that name
+read the slot in the step before.
+
+### PlaceTakesTheSlotWrittenAtTheSamePosition
+
+`place` reuses the slot at the position once; the second call for the same position creates one.
+
+### AChangedShapeGetsANewSlotAndReleasesTheOld, AChangedElementTypeGetsANewSlot
+
+A slot is reused only for the same extents and element type. The slot left behind is returned by
+`end_step`.
+
+### ASlotIsClaimedOnce
+
+Two buffers that the same reader slot names get two slots, and the first is not handed out again
+through `keep`.
+
+### ASlotOfAnotherProducerIsNotTaken
+
+Another region now feeds the reader's first import. It gets a new slot, and the first producer
+keeps its own.
+
+### AnUnclaimedSlotIsReleasedAtTheEndOfTheStep
+
+A step that asks for nothing releases every slot of the step before.
+
+### ForgetReturnsEverySlotOnce
+
+The second step is left open after one `keep` and one creation, as a step that failed after
+planning leaves it. `forget` returns the kept slot and the created one, each once.
 
 ## modules/core/autograd/tests/test_spatial_shapes.cpp
 
@@ -19581,6 +19994,34 @@ With `NDEBUG` defined, `SA_ASSERT(counted(evaluations, 0) == 1)` does not evalua
 condition: the counter stays at zero. Without it, `assert_positive(1)` returns and
 `assert_positive(0)` stops the process with "assertion failed: value > 0".
 
+## modules/core/eager/tests/test_step_cost.cpp
+
+Suites: `Unit_EagerStepCost`.
+
+Prints the host cost of an eager step and asserts only that the measured steps were the kind it
+claims to measure.
+
+This file needs an engine. Each row it prints starts with `[eager step cost]` and gives the mean
+over the measured steps, in microseconds, of the three host stages `StepCost` separates
+(partition, plan, compile), their sum, and the whole step beside them. The numbers are read off
+a run; none is asserted and none is recorded in this page.
+
+`K_WARM_STEPS`, 3, run before the measured ones so every region is recorded. `K_MEASURED_STEPS`
+is 20. `K_RATE` is 1e-6 so that fifty RELU layers stay finite for the length of the run.
+`widths_of(layers)` gives a model 16 wide with 4 results.
+
+### AnUnchangedStepOfTheTwoLayerModel, AnUnchangedStepOfAFiftyLayerModel
+
+`measure_settled` runs a loop with no scope and with one scope per layer. It returns
+`Incompatible` when a measured step built or recorded a region, since that step would not be an
+unchanged one.
+
+### AScopeThatAppearsAndDisappears
+
+A fifty-layer loop with one scope per layer alternates a step with a scope "extra" and a step
+without it, ten times each, and prints the two means. The case fails when no region was recorded
+again, because the steps would then not have been renumberings.
+
 ## modules/core/graph/tests/test_step_recorder.cpp
 
 Suites: `Unit_StepRecorder`, `Unit_StepRecorderDeathTest`.
@@ -19931,6 +20372,33 @@ value.
 
 `build_incremental_graph` of a model whose one node is a `Linear` named "dense" fails with
 `Unsupported`, "node 'dense'" and "no incremental form".
+
+## modules/core/eager/tests/test_storage_bank.cpp
+
+Suites: `Unit_StorageBank`.
+
+Tests that `StorageBank` holds, allocates and lets go of tensors by storage id.
+
+This file needs an engine, because the bank allocates tensors.
+
+### AllocateHoldsATensorOfTheShapeAndTypeAsked
+
+The tensor has 12 elements of FLOAT64, and `allocation_count()` is 1.
+
+### AdoptSharesTheStorageOfTheCallersTensor
+
+The bank's tensor has the address of the caller's and reads the caller's numbers. `adopt` does
+not count as an allocation.
+
+### ReleaseForgetsTheTensorAndIgnoresAnUnknownId
+
+`release` of an id the bank does not hold does nothing, which lets a session release the ids a
+failed step never allocated.
+
+### ASecondTensorUnderOneIdStopsTheProcess, AskingForAnUnknownIdStopsTheProcess
+
+Both are caller errors and are fatal.
+
 
 ## modules/layers/train/tests/test_sum_objective.cpp
 
