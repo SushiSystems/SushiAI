@@ -42,3 +42,6 @@ cli/.pytest_cache/
 # YOLO26 reference tensors: 35 MB, regenerated bit for bit by
 # tools/reference/export_yolo26_reference.py; MANIFEST.json pins their hashes.
 tests/fixtures/yolo26/*.sacp
+
+# Checkpoints a training run writes; each example names how to produce its own.
+*.ckpt
