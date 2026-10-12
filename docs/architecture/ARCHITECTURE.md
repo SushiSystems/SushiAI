@@ -46,7 +46,7 @@ The pipeline for one training step is:
 trace a model  ->  forward IR
 differentiate  ->  forward + backward IR      (IR -> IR, no device work)
 fuse           ->  fewer, bigger nodes        (IR -> IR, no device work)
-lower          ->  a SushiRuntime TaskGraph   (the only SushiBLAS calls)
+lower          ->  a SushiRuntime Graph       (the only SushiBLAS calls)
 compile        ->  ONCE, per model
 replay         ->  per batch, for ever
 ```
@@ -240,12 +240,12 @@ file.
 nodes, so every operation's shape inference is stated exactly once.
 
 A backward rule reads that IR and writes more of it. It never calls
-SushiBLAS and never touches a `TaskGraph`. The full argument is in
-`ir.hpp`'s file comment; the short version is that a `TaskGraph` node
+SushiBLAS and never touches a `SushiRuntime::Graph`. The full argument is in
+`ir.hpp`'s file comment; the short version is that a `SushiRuntime::Graph` node
 carries byte ranges that cannot be known until the memory planner has seen
 the whole forward *and* backward graph, that fusion needs a DAG to
-partition, and that `TaskGraph::compile()` drains its builder and so cannot
-be held and rewritten.
+partition, and that `SushiRuntime::Graph::compile()` drains its builder and so
+cannot be held and rewritten.
 
 `autograd/backward.hpp` declares the reverse walk — `differentiate()` and
 `has_backward_rule()` — and nothing else.
@@ -493,8 +493,9 @@ the step quietly does nothing. `CompiledStep::compile` is the only way to
 obtain a step, and it captures the base state before it returns; `run()`
 re-arms and executes. That makes the state unrepresentable.
 
-A `CompiledStep` owns its `SushiRuntime::Graph::TaskGraph`, the
-`SushiBLAS::TaskRecorder` bound to that graph, and the `CompiledGraph` plan.
+A `CompiledStep` owns its `SushiRuntime::Graph`, the
+`SushiBLAS::TaskRecorder` bound to that graph's recorder, and the
+`SushiRuntime::RunReport` each run refills. The graph holds the plan.
 The engine and the pool are borrowed and must outlive it. When the recording
 fails, `compile` discards the recorded nodes and returns the refusal.
 
@@ -520,7 +521,7 @@ and AdamW's bias corrections change every step — but a single functor can
 capture a **device pointer** instead, and read the step's numbers from the
 small `Optim::StepScalars` buffer behind it. A pointer is capturable by value
 and its contents may change between replays, so the recorded work is
-launch-invariant and goes into the same `TaskGraph` as forward and backward.
+launch-invariant and goes into the same `SushiRuntime::Graph` as forward and backward.
 Ordering needs no new machinery: every call declares the bytes it reads and
 writes, so the tracker already sees that the update reads the gradients the
 backward pass wrote and writes the parameters the forward pass read.
@@ -540,7 +541,7 @@ report nothing.
 
 What it is worth, measured rather than assumed: on `sa demo mlp`'s four
 parameters, a step goes from 81 device tasks in three dispatch rounds to 37 in
-two, and a whole run from 278 `TaskGraph::compile()` calls to 150. The wall
+two, and a whole run from 278 `SushiRuntime::Graph::compile()` calls to 150. The wall
 clock moves much less — a median 8.80 to 7.74 ms/step over ten runs each on a
 quiet CPU/OpenCL box — because this model's largest tensor is 4096 elements
 and most of a step is neither the optimizer nor arithmetic. The launch counts
@@ -673,7 +674,7 @@ for a plain feed-forward model, and relying on it is exactly the accident that
 survives every test and breaks on the first second writer.
 
 This used to be paid for with a `Lowering::declare_epilogue_operand()` that
-emitted a `TaskGraph::add_native` node running nothing, present only for its two
+emitted a host node of the SushiRuntime graph running nothing, present only for its two
 access declarations - one node per fused GEMM, no kernel launch, counted apart by
 a `RunReport::ordering_nodes_per_step`. All of that is gone.
 `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) hands SushiBLAS the
