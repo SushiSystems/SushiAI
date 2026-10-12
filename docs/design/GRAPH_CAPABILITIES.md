@@ -123,7 +123,7 @@ The memory is Shared: `TensorFactory::create` defaults to `Residency::Shared`
 `TensorPool::create` passes no residency (`modules/core/graph/source/tensor_pool.cpp:63-66`).
 `sushiruntime/docs/design/GRAPH_REPLAY.md` section D designs the same pattern for late-bound
 counts: a kernel reads a host-USM word the step machinery writes before each submission. No
-header states it as a contract of `TaskGraph` and `CompiledGraph`, and no test replays a plan
+header states it as a contract of `SushiRuntime::Graph` and its plan, and no test replays a plan
 around a host write.
 
 **Design.** No code changes. One contract sentence and one test.
@@ -145,7 +145,7 @@ the caller orders it by writing between executions.
 
 **Adds.** `sushiruntime/modules/engine/execution/tests/test_replay_host_write.cpp`.
 
-**Must not change.** Every signature of `TaskGraph`, `CompiledGraph` and the execution engine.
+**Must not change.** Every signature of `SushiRuntime::Graph`, its plan and the execution engine.
 
 **Tests.** One kernel node reads a Shared word `w` and writes `out = w + 1`. The plan is
 compiled once. For `k` in 0 to 7 the host writes `w = k`, re-arms and executes; `out` is `k + 1`
@@ -255,7 +255,7 @@ namespace SushiBLAS::Dispatch
      */
     template<Domain Dom, typename Func>
     TaskHandle execute_random_at(TaskRecorder& recorder, const Tensor& position, Tensor& t,
-                                 const char* name, SushiRuntime::Graph::OpID op_id,
+                                 const char* name, SushiRuntime::OperationID op_id,
                                  std::initializer_list<double> params, Func&& task_func);
 } // namespace SushiBLAS::Dispatch
 
@@ -535,7 +535,7 @@ namespace SushiBLAS::Dispatch
     template<Domain Dom = Domain::Real, std::size_t N, typename Func, typename Param = double>
     TaskHandle execute_broadcast(TaskRecorder& recorder, const Tensor& A,
                                  const std::array<BroadcastOperand, N>& vectors, Tensor& C,
-                                 const char* name, SushiRuntime::Graph::OpID op_id,
+                                 const char* name, SushiRuntime::OperationID op_id,
                                  Func&& op_func, std::initializer_list<Param> params = {});
 } // namespace SushiBLAS::Dispatch
 

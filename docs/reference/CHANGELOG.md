@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-12 — docs: Named SushiRuntime::Graph and OperationID where the manual named TaskGraph and Graph::OpID; stated what last_report() holds after a failed run (`ARCHITECTURE.md`, `GLOSSARY.md`, `compiled_step.hpp`).
 - 2026-10-12 — tests: Made TestEnvironment create its runtime through Detail::create_runtime, so the seam is the one reader of a runtime Result (`test_environment.hpp`).
 - 2026-10-12 — train: Made Trainer::fit sum node timings by plan index and return Incompatible when the step is compiled again or a row has no match, where it restarted the totals (`trainer.cpp`, `trainer.hpp`).
 - 2026-10-12 — graph: Made CompiledStep::compile read a refused recording in one place, under the Record phase, so compile() of the runtime reports the plan alone under Execute (`compiled_step.cpp`).
@@ -13,7 +14,7 @@
 - 2026-10-12 — graph: Made CompiledStep::compile compile the step's graph, so a compile failure returns from compile() and compile_count() is 1 before the first run (`compiled_step.cpp`, `compiled_step.hpp`).
 - 2026-10-12 — core: Moved every caller to the bare accessors of SushiBLAS and to OperationID, and renamed the three get_ readers of the checkpoint format to read_ (`ops.hpp`, `allocation.cpp`, `checkpoint_format.cpp`).
 - 2026-10-12 — train: Breaking change: Made Trainer::fit sum the node timings of each step's run report and built the programs and the tests on a SushiRuntime::Runtime (`trainer.hpp`, `create_runtime`, `test_environment.hpp`).
-- 2026-10-12 — graph: Breaking change: Made CompiledStep replay a SushiRuntime graph its first run compiles, so compile_count() starts at 0; removed plan(), compile_graph and run_plan (`compiled_step.hpp`, `seam.hpp`, `status_of_error`).
+- 2026-10-12 — graph: Breaking change: Made CompiledStep replay a SushiRuntime graph and removed plan(), compile_graph and run_plan (`compiled_step.hpp`, `seam.hpp`, `status_of_error`).
 - 2026-10-11 — cli: Capped the memory sa test and sa run may commit at half of the machine by default (`memory_limit.py`, `--memory-limit`, `SA_MEMORY_LIMIT_GB`).
 - 2026-10-11 — graph: Fixed SCALE, NLL_LOSS and EXP_SUB_SCALE applying their factor as a float in a float64 graph (`lowering/elementwise.cpp`, `lowering/loss.cpp`, `lowering/fused.cpp`).
 - 2026-10-11 — autograd: Made NLL_LOSS differentiable inside a larger expression, so a sum of objectives holds a cross-entropy (`rules/loss.cpp`).

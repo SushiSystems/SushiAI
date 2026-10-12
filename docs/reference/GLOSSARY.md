@@ -27,7 +27,7 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | Lowering row | One entry of a table: an operation identity and the function that records it (`LoweringEntry`, `graph/lowering/rule.hpp`) |
 | Lowering context | What one row reads for its node: the recorder, the pool, the operands and the results (`LoweringContext`, `graph/lowering/context.hpp`) |
 | Task recorder | The object a SushiBLAS call records its tasks on. A lowering row builds its SushiBLAS view from one (`SushiBLAS::TaskRecorder`) |
-| Task graph | The graph of recorded tasks a compiled step owns, compiled into a plan once (`SushiRuntime::Graph::TaskGraph`) |
+| Task graph | The graph of recorded tasks a compiled step owns, compiled into a plan once (`SushiRuntime::Graph`) |
 | Compiled step | A graph lowered, compiled once and re-armed for every batch (`Graph::CompiledStep`, `graph/compiled_step.hpp`) |
 | Compile once | The guarantee that `compile_count()` stays 1 however many batches run; a regression test pins it |
 | Replay | Running the compiled step again for the next batch without tracing or compiling |

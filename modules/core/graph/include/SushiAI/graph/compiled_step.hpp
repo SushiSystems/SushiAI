@@ -137,11 +137,10 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Returns the report of the last run() that succeeded.
-                 * @return A report with no node timing before the first run(), and on a
-                 *         runtime built without profiling.
+                 * @brief Returns the report the last run() of a step that holds work refilled.
+                 * @return An empty report marked failed after a run() that failed; one with no
+                 *         node timing before the first run(), and without profiling.
                  */
-
                 [[nodiscard]] const SushiRuntime::RunReport& last_report() const noexcept
                 {
                     return report_;
@@ -186,7 +185,6 @@ namespace SushiAI
                 std::size_t operations_ = 0;
 
                 /// @brief Whether nothing was recorded on graph_.
-
                 bool empty_ = false;
         };
 
