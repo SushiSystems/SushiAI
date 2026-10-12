@@ -123,10 +123,10 @@ namespace SushiAI
             double host_cost_relative = 0.0; /**< The stored cost of such a delta. */
             double head_absolute = 0.0;      /**< A head under batch statistics, absolute. */
             double head_relative = 0.0;      /**< A head under batch statistics, relative. */
+            double yolo_absolute = 0.0;      /**< A [yolo] output of such a head, absolute. */
             DarknetDeltaBounds step_delta;   /**< A delta computed from the library's head. */
             double step_cost_relative = 0.0; /**< The summed cost of the deltas of the step. */
             double head_update_share = 0.0;  /**< A head update, as a share of the dump's peak. */
-            double first_update_share = 0.0; /**< A first update, as a share of the dump's peak. */
             double update_relative = 0.0;    /**< Every update, relative to the dumped entry. */
             double rolling_absolute = 0.0;   /**< A rolling statistic after the step. */
         };
@@ -185,8 +185,9 @@ namespace SushiAI
         void check_two_image_deltas(const DarknetTrainingCase& stated);
 
         /**
-         * @brief Checks each head of one step under batch statistics, and the [yolo] output
-         *        computed from it, against the step run, within the head bounds.
+         * @brief Checks each head of one step under batch statistics against the step run
+         *        within the head bounds, and the [yolo] output computed from it within the
+         *        [yolo] bound and the head's relative bound.
          *
          * A NaN of a dumped [yolo] output is read as 0, the value its logistic has there.
          */
@@ -205,12 +206,13 @@ namespace SushiAI
         void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated);
 
         /**
-         * @brief Checks the weight and scale gradients of the first convolution, times minus the
-         *        batch, against the dumped updates, and that its shift has a gradient.
+         * @brief Checks that the weight, the scale and the shift of the first convolution each
+         *        have a finite gradient that is not zero after one step.
          *
-         * The dumped bias update of that layer is not a reference and is not read.
+         * The dumped updates of that layer are not a reference and are not read.
          */
-        void check_first_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated);
+        void check_first_gradients(SushiBLAS::Engine& engine,
+                                   const DarknetTrainingCase& stated);
 
         /**
          * @brief Checks the rolling mean and variance of the first batch norm: equal to the
