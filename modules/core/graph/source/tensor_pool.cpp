@@ -73,7 +73,7 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(ArenaSet arenas, ArenaSet::make(*engine_, std::move(plan)));
             arenas_.emplace(std::move(arenas));
-            arena_bytes_ = arenas_->bytes();
+            bytes_.arenas = arenas_->bytes();
             return Status();
         }
 
@@ -112,12 +112,13 @@ namespace SushiAI
             return it->second;
         }
 
-        void TensorPool::note_standalone(const Shape& shape, DType dtype) noexcept
+        void TensorPool::note_standalone(std::size_t& counter, const Shape& shape,
+                                         DType dtype) noexcept
         {
             const std::size_t bytes = static_cast<std::size_t>(shape.num_elements())
                                     * dtype_size(dtype);
             unpacked_bytes_ += bytes;
-            standalone_bytes_ += bytes;
+            counter += bytes;
         }
 
         Result<SushiBLAS::Tensor&> TensorPool::materialise(ValueID id, const Value& value)
@@ -152,7 +153,7 @@ namespace SushiAI
             }
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor own, create(value.shape, value.dtype));
-            note_standalone(value.shape, value.dtype);
+            note_standalone(bytes_.values, value.shape, value.dtype);
             return store_tensor(tensors_, id, std::move(own));
         }
 
@@ -199,7 +200,7 @@ namespace SushiAI
             if (it != ones_.end()) return it->second;
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor fill, create(shape, dtype));
-            note_standalone(shape, dtype);
+            note_standalone(bytes_.ones, shape, dtype);
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor& slot, store_tensor(ones_, key, std::move(fill)));
 
@@ -223,7 +224,7 @@ namespace SushiAI
             if (it != scratch_.end()) return it->second;
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor buffer, create(shape, dtype));
-            note_standalone(shape, dtype);
+            note_standalone(bytes_.scratch, shape, dtype);
 
             return store_tensor(scratch_, key, std::move(buffer));
         }
