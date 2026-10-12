@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-12 — core: Breaking change: Made status_of_error return a Status for InvalidGraph, InvalidAccess, InvalidState, CompileFailed and ProtocolMismatch; only DanglingResource is fatal (`seam.cpp`, `seam.hpp`, `test_seam.cpp`).
+- 2026-10-12 — core: Declared the alias sr for the SushiRuntime namespace beside create_runtime (`seam.hpp`).
 - 2026-10-12 — core: Breaking change: Removed the runtime parameter of Detail::run_step and the Runtime::wait() after it and after Detail::run_recorded; both runs block until done (`seam.hpp`, `seam.cpp`, `compiled_step.cpp`).
 - 2026-10-12 — train: Spelled RunReport::NodeTimings as a vector of SushiRuntime::NodeTiming, where a decltype stood in for the name (`trainer.hpp`, `trainer.cpp`).
 - 2026-10-12 — tests: Made the four cases skipped for a missing runtime query assert again, through Graph::plan() and live_allocation_count() (`test_fusion_numerics.cpp`, `test_static_memory.cpp`, `test_resilience.cpp`).

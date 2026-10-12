@@ -18595,17 +18595,36 @@ A SushiRuntime `Error` that carries a code the user can act on keeps it: `OutOfM
 missing USM allocation, `DeviceFailed` for a device fault or an unplugged device, and `Unsupported`
 for a missing fp16 path.
 
-### RuntimeFailureWithTheOkCodeTakesItsCodeFromThePhase
+### RuntimeInvalidGraphIsInvalidDescription
 
-A SushiRuntime `Error` that carries the `Ok` code takes its code from the phase, as a plain
-`std::runtime_error` does.
+`InvalidGraph` maps to `InvalidDescription` and keeps its text: the runtime refuses a graph for
+what the model asked of it, such as buffers that span two device contexts.
 
-### RuntimeFailureThatReportsADefectIsFatal
+### RuntimeInvalidAccessIsUnsupported
 
-A SushiRuntime `Error` that reports a defect stops the process rather than returning a Status.
-The case checks five defect codes with `SA_EXPECT_FATAL`: `InvalidGraph`, `CompileFailed`,
-`InvalidAccess`, `InvalidState` and `DanglingResource`.
+`InvalidAccess` maps to `Unsupported` and keeps its text: the machine lacks the device a
+placement names, or the runtime refuses an external handle.
 
+### RuntimeInvalidStateIsUnsupported
+
+`InvalidState` maps to `Unsupported` and keeps its text: one runtime runs one graph at a time,
+and a second trainer on the same runtime asked for another.
+
+### RuntimeProtocolMismatchIsIncompatible
+
+`ProtocolMismatch` maps to `Incompatible` and keeps its text: two builds of the runtime speak
+different versions of the wire protocol.
+
+### RuntimeCompileFailedTakesItsCodeFromThePhase
+
+`CompileFailed` names no cause, so it takes its code from the phase, as a plain
+`std::runtime_error` does: `OutOfMemory` while allocating and `DeviceFailed` while executing.
+
+### RuntimeDanglingResourceIsFatal
+
+`DanglingResource` stops the process and returns no Status, because a tensor freed before the
+step that names it breaks the contract of the pool. The case checks the report with
+`SA_EXPECT_FATAL`.
 
 ### ErrorOfAHostUnitIsFatalWithItsText
 
