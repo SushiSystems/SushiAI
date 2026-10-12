@@ -28,7 +28,9 @@
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/train/trainer.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <vector>
@@ -372,16 +374,35 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief Adds the timing rows of one step to the totals of a run.
-             * @param totals Empty, or the rows of earlier steps of the same compiled step.
-             * @param step Rows of one run of that step, in plan order.
-             * @return Success, or OutOfMemory when the first rows could not be copied.
+             * @brief Returns the row of @p totals that carries @p plan_index, or null.
+             * @param row Where the row sits when @p totals keeps the order of the step's rows.
+             */
+            [[nodiscard]] SushiRuntime::NodeTiming* find_total(RunReport::NodeTimings& totals,
+                                                               std::size_t row,
+                                                               std::size_t plan_index) noexcept
+            {
+                if (row < totals.size() && totals[row].plan_index == plan_index)
+                    return &totals[row];
+
+                const auto found = std::find_if(totals.begin(), totals.end(),
+                                                [plan_index](const SushiRuntime::NodeTiming& total)
+                {
+                    return total.plan_index == plan_index;
+                });
+                return found == totals.end() ? nullptr : &*found;
+            }
+
+            /**
+             * @brief Adds the timing rows of one step to the totals of a run, by plan index.
+             * @param totals Empty, or the rows of earlier runs of the same plan.
+             * @param step Rows of one run of that plan.
+             * @return Success; OutOfMemory when the first rows could not be copied;
+             *         Incompatible when @p step holds a row @p totals has no row for.
              */
             [[nodiscard]] Status add_node_timings(RunReport::NodeTimings& totals,
                                                   const RunReport::NodeTimings& step)
             {
-                // A run that compiled the step again reports other rows; the totals start over.
-                if (totals.size() != step.size())
+                if (totals.empty())
                 {
                     return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
                     {
@@ -390,11 +411,23 @@ namespace SushiAI
                     });
                 }
 
+                SA_FAIL_IF(totals.size() != step.size(), StatusCode::Incompatible,
+                           "A step reported {} node timing rows but the steps before it "
+                           "reported {}, so the rows cannot be summed",
+                           step.size(), totals.size());
+
                 for (std::size_t row = 0; row < step.size(); ++row)
                 {
-                    totals[row].invocations += step[row].invocations;
-                    totals[row].device_ms += step[row].device_ms;
-                    totals[row].host_ms += step[row].host_ms;
+                    SushiRuntime::NodeTiming* total =
+                        find_total(totals, row, step[row].plan_index);
+                    SA_FAIL_IF(total == nullptr, StatusCode::Incompatible,
+                               "A step reported a node timing for plan index {}, which the "
+                               "steps before it did not report",
+                               step[row].plan_index);
+
+                    total->invocations += step[row].invocations;
+                    total->device_ms += step[row].device_ms;
+                    total->host_ms += step[row].host_ms;
                 }
 
                 return Status();
@@ -414,6 +447,9 @@ namespace SushiAI
 
             RunReport report;
             report.operations_per_step = step_->step().operation_count();
+
+            // A plan index names a node of one plan, so the sum holds for one compile.
+            const std::size_t compiles = step_->step().compile_count();
 
             const auto started = std::chrono::steady_clock::now();
 
@@ -438,8 +474,15 @@ namespace SushiAI
                     ++report.steps;
 
                     if (options_.profile)
+                    {
+                        SA_FAIL_IF(step_->step().compile_count() != compiles,
+                                   StatusCode::Incompatible,
+                                   "The step was compiled again during fit(), compile {} after "
+                                   "compile {}, so its node timings name another plan",
+                                   step_->step().compile_count(), compiles);
                         SA_TRY(add_node_timings(report.node_timings,
                                                 step_->step().last_report().node_timings));
+                    }
                 }
             }
 
@@ -447,8 +490,7 @@ namespace SushiAI
             report.duration_ms =
                 std::chrono::duration<double, std::milli>(finished - started).count();
 
-            report.compile_count
- = step_->step().compile_count();
+            report.compile_count = step_->step().compile_count();
             return report;
         }
 
