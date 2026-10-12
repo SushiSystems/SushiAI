@@ -20,6 +20,13 @@ On a Pascal machine, send the CLI, the tests and training to the OpenCL CPU runt
 $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 ```
 
+## Tests
+
+| Issue | Where |
+| --- | --- |
+| A training step of YOLOv4 and of YOLOv7 at full size returns `OutOfMemory` under the default memory limit of `sa test`, so 12 cases fail; one step of YOLOv4 commits 11.1 GB | `tests/integration/test_darknet_yolov4_training.cpp`, `tests/integration/test_darknet_yolov7_training.cpp` |
+| The step bounds of YOLOv3 hold a head to 0.36 of the dump, 1.5 times the one measured difference; no layer before the heads is compared | `tests/integration/test_darknet_yolov3_training.cpp:56-61` |
+
 ## Documentation
 
 | Issue | Where |

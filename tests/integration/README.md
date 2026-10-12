@@ -1020,7 +1020,15 @@ The fixture `DarknetTrainingTest` reads `yolov3.cfg`, `yolov3.weights` and two r
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov3`, one image of YOLOv3 with its
 deltas and assignments, and `yolov3_train_step`, one training step of two images. The box loss is
 `BoxLoss::SquaredError` and the objectness target is `ObjectnessTarget::One`. Every case is skipped
-without its files. The source states that no run has measured the bounds of the step cases yet.
+without its files.
+
+The run of 2026-10-12 on this model set the bounds of the step cases, by the owner's ruling of that
+day: each bound that run exceeded is now about 1.5 times the largest difference it measured. The
+heads were 0.176, 0.228 and 0.243 from the dump on values near 30 to 49, the [yolo] outputs at most
+0.0261, a box entry of the delta 0.00235 and any other entry 0.0039, the costs 1.24e-3 relative,
+and an update of a head convolution 0.0091 of the dump's largest magnitude. The two differences
+`test_darknet_yolov3_tiny_training.cpp` above describes are the likely cause; where the difference
+grows, layer by layer, is not measured on this model.
 
 ### TheTrainingOptionsMatchTheDumpedSettings
 
@@ -1040,21 +1048,21 @@ run dumped, under the same bounds, and the stored cost to 1e-5 relative.
 
 ### TheHeadsUnderBatchStatisticsMatchDarknet
 
-Each head of the Separate model under batch statistics, and the [yolo] output computed from it, are
-within 1e-3 absolute plus 1e-4 relative of the dump.
+Each head of the Separate model under batch statistics is within 3.6e-1 absolute plus 1e-4 relative
+of the dump, and the [yolo] output computed from it within 4e-2 absolute plus 1e-4 relative.
 
 ### TheDeltasOfTheStepMatchDarknet
 
-The deltas the step fed are compared with the dumped ones: a box entry within 1.5e-3 absolute plus
-1.5e-4 relative, any other entry within 1e-3. The summed cost and its mean over the heads are
-compared with the layer costs and the network cost to 1e-3 relative. The bounds do not cover a slot
+The deltas the step fed are compared with the dumped ones: a box entry within 3.5e-3 absolute plus
+1.5e-4 relative, any other entry within 6e-3. The summed cost and its mean over the heads are
+compared with the layer costs and the network cost to 2e-3 relative. The bounds do not cover a slot
 that crosses the ignore threshold.
 
 ### TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
 The weight and bias gradients of the convolution before each head, times minus the batch, are
-compared with the dumped updates. The bound is 1e-3 of the dump's largest magnitude plus 1e-3 of the
-entry.
+compared with the dumped updates. The bound is 1.4e-2 of the dump's largest magnitude plus 1e-3 of
+the entry.
 
 ### TheFirstConvolutionReceivesAGradient
 
