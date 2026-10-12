@@ -139,8 +139,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor& negated_mean,
                           context.scratch(0, per_channel, dtype));
             SA_TRY_ASSIGN(SushiBLAS::Tensor& centred, context.scratch(1, x_shape, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& squared, context.scratch(2, x_shape, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& scale, context.scratch(3, per_channel, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& scale, context.scratch(2, per_channel, dtype));
 
             SushiBLAS::BLASOps blas(context.recorder());
             SushiBLAS::ElementwiseOps elementwise(context.recorder());
@@ -155,8 +154,9 @@ namespace SushiAI
             blas.scal(-1.0, negated_mean);
             spatial.channel_affine(x, ones, negated_mean, centred);
 
-            elementwise.mul(centred, centred, squared);
-            const SushiBLAS::Tensor squared_rows = channel_rows(squared, rows, channels);
+            // y holds the squares until their sums are taken; its own values are written last.
+            elementwise.mul(centred, centred, y);
+            const SushiBLAS::Tensor squared_rows = channel_rows(y, rows, channels);
             reductions.sum_along(squared_rows, 0, variance);
             blas.scal(inverse_rows, variance);
 
@@ -204,12 +204,11 @@ namespace SushiAI
             const Shape per_channel({channels});
             SA_TRY_ASSIGN(SushiBLAS::Tensor& shift, context.scratch(0, per_channel, dtype));
             SA_TRY_ASSIGN(SushiBLAS::Tensor& x_hat, context.scratch(1, x_shape, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& product, context.scratch(2, x_shape, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& direct, context.scratch(3, per_channel, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& hat_term, context.scratch(4, per_channel, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& mean_term, context.scratch(5, per_channel, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& correction, context.scratch(6, x_shape, dtype));
-            SA_TRY_ASSIGN(SushiBLAS::Tensor& zero, context.scratch(7, per_channel, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& direct, context.scratch(2, per_channel, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& hat_term, context.scratch(3, per_channel, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& mean_term, context.scratch(4, per_channel, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& correction, context.scratch(5, x_shape, dtype));
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& zero, context.scratch(6, per_channel, dtype));
 
             SushiBLAS::BLASOps blas(context.recorder());
             SushiBLAS::ElementwiseOps elementwise(context.recorder());
@@ -224,8 +223,9 @@ namespace SushiAI
             const SushiBLAS::Tensor dy_rows = channel_rows(dy, rows, channels);
             reductions.sum_along(dy_rows, 0, dbeta);
 
-            elementwise.mul(dy, x_hat, product);
-            const SushiBLAS::Tensor product_rows = channel_rows(product, rows, channels);
+            // dx holds dy * x_hat until its sums are taken; its own values are written after.
+            elementwise.mul(dy, x_hat, dx);
+            const SushiBLAS::Tensor product_rows = channel_rows(dx, rows, channels);
             reductions.sum_along(product_rows, 0, dgamma);
 
             elementwise.mul(gamma, inv_std, direct);
