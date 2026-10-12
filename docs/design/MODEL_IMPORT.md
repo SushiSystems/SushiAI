@@ -1,10 +1,10 @@
 # Model import
 
-**Status:** Open — phase 1, all four phases written, not yet built
+**Status:** Open — phase 4 of 9
 
-How a model of another framework (Darknet today; ONNX, Caffe and Ultralytics later) enters
-SushiAI once, through one door, and is trained and run afterwards from SushiAI's own files with
-no file of the other framework in sight.
+How a model of another framework (Darknet today; PyTorch weight files, ONNX and Caffe by the
+format engine below) enters SushiAI once, through one door, and is trained and run afterwards
+from SushiAI's own files with no file of the other framework in sight.
 
 ## Rulings
 
@@ -139,11 +139,120 @@ Still lacking:
   `eval.json` has no key for them, and boxes are printed in pixels of the network input.
 - **One image file cannot be given to `inference`**; it reads the split of `eval.json`.
 
+## The format engine
+
+Ruled by the owner on 2026-10-12: SushiAI reads every foreign format with readers of its own
+and takes no external dependency for it, Caffe is among the formats, and the design is written
+before any of it is built. Nothing in this section exists yet.
+
+### Two kinds of format
+
+| Kind | Formats | The file holds | The import needs |
+| --- | --- | --- | --- |
+| Weight file | `.pth`, `.pth.tar`, `.safetensors`, `.npz` | Tensors by name | A model file a person wrote, and a name map |
+| Graph file | ONNX, Caffe, Darknet | The layers and the weights | A translation of each foreign operator into rows |
+
+A weight file cannot produce a model file, so the two kinds enter by two commands:
+
+```
+sushiai import <format> <files...> --output <directory>
+sushiai import weights <file> --model <model.json> --map <map.json> --output <file.sushi>
+```
+
+The first is the command above. The second detects the container from the file's first
+bytes, reads the tensors, renames them by the map and writes the `.sushi` file. It builds the
+model file's state records first and refuses the import when a record has no tensor, a tensor
+has no record, or a shape differs, naming every such entry in one message.
+
+### The readers
+
+Each reader turns bytes into a structure and knows no model. They live in `io`, one unit each.
+
+| Reader | Reads | Used by |
+| --- | --- | --- |
+| `ZipArchive` | The entries of a zip file, stored and deflated | `.pth`, `.npz` |
+| `PickleReader` | A pickle stream of protocol 2 to 5, into a tree of values | `.pth` |
+| `NpyReader` | One `.npy` array: its header and its raw data | `.npz` |
+| `SafetensorsReader` | The length, the JSON header and the raw data | `.safetensors` |
+| `ProtobufWire` | Varints, fixed fields and length-delimited fields, one field at a time | ONNX, Caffe weights |
+| `ProtobufText` | The protobuf text format, into a tree of fields | Caffe `.prototxt` |
+
+- **`PickleReader` runs no code.** A pickle names callables; the reader holds a table of the
+  ones it accepts (`collections.OrderedDict`, PyTorch's tensor, storage and parameter
+  rebuilders) and builds a value for each itself. Any other name is refused with that name.
+- **`ProtobufWire` has no schema compiler.** ONNX and Caffe each state the field numbers of the
+  messages they read in a table of their own: `ModelProto`, `GraphProto`, `NodeProto`,
+  `TensorProto`, `AttributeProto` and `ValueInfoProto` for ONNX; `NetParameter`,
+  `LayerParameter`, `V1LayerParameter` and `BlobProto` for Caffe. An unknown field is skipped
+  by its wire type.
+- **A tensor is read where it lies.** The readers return an offset and a length into the file
+  for each tensor, and the bytes are copied once, into the `.sushi` writer.
+
+### The name map
+
+A JSON file beside the model file. It holds prefix rules in the shape of `RenameRule`, a list
+of names to drop (`num_batches_tracked` of every PyTorch normalisation), and the key of the
+state dictionary inside the file (`model` for the ByteTrack checkpoints). The layout of a
+weight follows from the record it lands in: a convolution weight stored `OIHW` is permuted to
+the layout the record states, and the map says nothing about it.
+
+### The graph importers
+
+ONNX and Caffe each get an importer in the shape of the Darknet one, and each holds an
+operator table: one row per foreign operator, naming the function that writes its rows of the
+model file. An operator without a row is refused; the message lists every such operator of
+the file with the nodes that use it, so one run shows the whole gap.
+
+Shared by the two, written once:
+
+- **Axis translation.** Both formats are `NCHW` and SushiAI's activations are `NHWC`. One unit
+  rewrites an axis attribute (`Concat`, `Slice`, `Softmax`, `Transpose`, `Reshape`) and
+  permutes a weight.
+- **Constant folding of shape arithmetic.** An ONNX export computes shapes with `Shape`,
+  `Gather`, `Unsqueeze` and `Concat` nodes that feed a `Reshape` or a `Resize`. One unit
+  evaluates the nodes whose inputs are all constants and removes them before translation.
+- **The task section.** Neither format states one. `--task <task.json>` gives it; without it
+  the model has no task and `inference` gives the class report.
+
+Caffe reads the layers from the `.prototxt` and the weights from the `.caffemodel`, joined by
+layer name. Its `BatchNorm` and `Scale` pair becomes one normalisation row.
+
+### The first model: YOLOX-X
+
+The first use of the weight command is YOLOX-X with a ByteTrack checkpoint of SushiTrack
+(`mot17x.pth.tar`, a zip container of 793 MB).
+
+| Part | State |
+| --- | --- |
+| Convolution with normalisation and SiLU, bottleneck, upsample, concat | `conv`, `bottleneck`, `upsample`, `concat` |
+| CSP layer | `c3k` has the same parts; whether its options reach the 1x1 and 3x3 bottleneck is not checked |
+| SPP with 5, 9 and 13 pools | `sppf` with three 5x5 pools gives the same values; not checked against a run |
+| Focus stem | Missing: a row that stacks the four pixel phases into channels |
+| Decoupled head | Missing: a stem and separate class, box and objectness branches per level |
+| Box decoding | Missing: a third task type; the offset is added to the cell and the size is an exponential, both times the stride |
+
+The model file is written by hand from the paper and from the shapes of the checkpoint's
+tensors. A PyTorch run outside the repository dumps the three head outputs for one input, and
+a parity suite compares them, as the Darknet suites do. No YOLOX source enters the repository.
+
+### Phases 5 to 9
+
+| Phase | Work | Proven by |
+| --- | --- | --- |
+| 5 | `ZipArchive`, `PickleReader`, `SafetensorsReader`, the name map, `sushiai import weights` | A `.pth` and a `.safetensors` fixture of a small model give the `.sushi` file `train` wrote for it |
+| 6 | YOLOX-X: the focus row, the decoupled head, the task type, the model file and its map | The three head outputs against the dumped ones; detections on a MOT17 frame |
+| 7 | `ProtobufWire`, axis translation, constant folding, the ONNX importer | The ONNX export of YOLOX-X imports to the outputs of phase 6 |
+| 8 | `ProtobufText`, the Caffe importer | A Caffe model's outputs against a dump of a Caffe run |
+| 9 | `NpyReader` and `.npz`; Ultralytics `.pt`, which pickles module objects and widens the accepted names | The YOLO26 fixture read from its `.pt` |
+
 ## Open
 
 Each is the owner's decision.
 
-- **Where the importer interface lives.** `ImportedModel` and the importer table name no
-  domain, so they fit the layers tier (`io`); each importer stays in its domain.
-- **Formats after Darknet, and their order.** ONNX needs a protobuf reader, which is an
-  external dependency.
+- **When phases 5 to 9 run** against tag 0.1.0. Moving SushiTrack's inference from PyTorch to
+  SushiAI is after 0.1.0; phases 5 and 6 are what the YOLOX-X run needs.
+- **The first Caffe model** of phase 8.
+- **One image as the input of `inference`.** It reads the split of `eval.json` today; the
+  YOLOX-X run on a MOT17 frame needs either a split of one image or a new argument.
+- **TensorFlow Lite**, which needs a FlatBuffers reader, and the order of formats after
+  phase 9.
