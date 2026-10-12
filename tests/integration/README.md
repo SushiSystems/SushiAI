@@ -972,8 +972,12 @@ update of that layer is zero and is not compared.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step and are within
-1e-5 of it after one blend.
+The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
+is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
+same 1e-5, each time against a variance the test computes on the host from the batch and the
+convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
+term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
+double on these models, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1032,8 +1036,12 @@ update of that layer is zero and is not compared.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step and are within
-1e-5 of it after one blend.
+The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
+is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
+same 1e-5, each time against a variance the test computes on the host from the batch and the
+convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
+term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
+double on these models, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1165,8 +1173,12 @@ update of that layer is zero and is not compared.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step and are within
-1e-5 of it after one blend.
+The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
+is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
+same 1e-5, each time against a variance the test computes on the host from the batch and the
+convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
+term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
+double on these models, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1226,8 +1238,12 @@ update of that layer is zero and is not compared.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step and are within
-1e-5 of it after one blend.
+The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
+is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
+same 1e-5, each time against a variance the test computes on the host from the batch and the
+convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
+term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
+double on these models, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1357,8 +1373,12 @@ update of that layer is zero and is not compared.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step and are within
-1e-5 of it after one blend.
+The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
+is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
+same 1e-5, each time against a variance the test computes on the host from the batch and the
+convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
+term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
+double on these models, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 
@@ -1418,8 +1438,12 @@ update of that layer is zero and is not compared.
 
 ### TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step and are within
-1e-5 of it after one blend.
+The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
+is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
+same 1e-5, each time against a variance the test computes on the host from the batch and the
+convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
+term in float32. The dump's variance is the float32 sum and sits 1.0e-4 to 2.3e-4 below the sum in
+double on these models, so the two are not compared directly.
 
 ### TheCostOfOneBatchFallsUnderATenth
 

@@ -54,6 +54,7 @@
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -1101,8 +1102,119 @@ namespace SushiAI
                 << "the shift of layer " << layer << " received no gradient";
         }
 
-        void check_rolling_statistics(SushiBLAS::Engine& engine,
-                                      const DarknetTrainingCase& stated)
+        namespace
+        {
+            /** @brief Holds each channel's rolling variance after one step, summed two ways. */
+            struct HostRollingVariance
+            {
+                std::vector<float> exact;      /**< From a batch variance summed in double. */
+                std::vector<float> sequential; /**< From one summed term by term in float32. */
+            };
+
+            /**
+             * @brief Computes what the rolling variance of the first convolution becomes after
+             *        one step over the dumped batch, from @p weight and @p before on the host.
+             * @return Both sums, or Incompatible when the convolution of @p target does not read
+             *         the model input with a square kernel.
+             */
+            Result<HostRollingVariance> measure_host_rolling_variance(
+                const StepRun& run, const DarknetWeightTarget& target,
+                const std::vector<float>& weight, const std::vector<float>& before)
+            {
+                const std::size_t row = static_cast<std::size_t>(
+                    std::stoll(target.weight.substr(0, target.weight.find('.'))));
+                const Config::ModelSpec& spec = run.imported.model.spec;
+                SA_FAIL_IF(row >= spec.layers.size() || spec.layers[row].from.size() != 1 ||
+                               spec.layers[row].from[0].node != Config::K_MODEL_INPUT,
+                           StatusCode::Incompatible,
+                           "'{}' is not a convolution over the model input", target.weight);
+
+                const Config::Value& attributes = spec.layers[row].attributes;
+                const std::int64_t kernel = attributes.at("kernel", "conv2d").as_int("kernel");
+                const std::int64_t stride = attributes.at("stride", "conv2d").as_int("stride");
+                const std::int64_t padding = attributes.at("padding", "conv2d").as_int("padding");
+
+                const SushiBLAS::Tensor& input = *run.inputs;
+                const std::int64_t images = input.shape[0];
+                const std::int64_t height = input.shape[1];
+                const std::int64_t width = input.shape[2];
+                const std::int64_t channels = input.shape[3];
+                const std::int64_t filters = static_cast<std::int64_t>(before.size());
+                const std::int64_t out_height = (height + 2 * padding - kernel) / stride + 1;
+                const std::int64_t out_width = (width + 2 * padding - kernel) / stride + 1;
+                const std::int64_t count = images * out_height * out_width;
+                SA_FAIL_IF(static_cast<std::int64_t>(weight.size()) !=
+                               filters * kernel * kernel * channels,
+                           StatusCode::Incompatible,
+                           "'{}' holds {} values, and {} filters of {} by {} over {} channels "
+                           "need {}",
+                           target.weight, weight.size(), filters, kernel, kernel, channels,
+                           filters * kernel * kernel * channels);
+
+                const float* const pixels = input.data_as<float>();
+                const double momentum = NN::NormOptions{}.momentum;
+                HostRollingVariance result;
+                std::vector<float> output(static_cast<std::size_t>(count));
+                for (std::int64_t f = 0; f < filters; ++f)
+                {
+                    // The weights are stored filter, row, column, channel.
+                    const float* const taps = weight.data() + f * kernel * kernel * channels;
+                    std::size_t at = 0;
+                    for (std::int64_t n = 0; n < images; ++n)
+                    for (std::int64_t y = 0; y < out_height; ++y)
+                    for (std::int64_t x = 0; x < out_width; ++x)
+                    {
+                        float sum = 0.0f;
+                        for (std::int64_t ky = 0; ky < kernel; ++ky)
+                        for (std::int64_t kx = 0; kx < kernel; ++kx)
+                        {
+                            const std::int64_t in_y = y * stride + ky - padding;
+                            const std::int64_t in_x = x * stride + kx - padding;
+                            if (in_y < 0 || in_y >= height || in_x < 0 || in_x >= width)
+                                continue;
+
+                            const float* const pixel =
+                                pixels + ((n * height + in_y) * width + in_x) * channels;
+                            const float* const tap = taps + (ky * kernel + kx) * channels;
+                            for (std::int64_t c = 0; c < channels; ++c)
+                                sum += pixel[c] * tap[c];
+                        }
+                        output[at++] = sum;
+                    }
+
+                    double exact_mean = 0.0;
+                    float sequential_mean = 0.0f;
+                    for (const float value : output)
+                    {
+                        exact_mean += static_cast<double>(value);
+                        sequential_mean += value;
+                    }
+                    exact_mean /= static_cast<double>(count);
+                    sequential_mean /= static_cast<float>(count);
+
+                    double exact = 0.0;
+                    float sequential = 0.0f;
+                    for (const float value : output)
+                    {
+                        const double centred = static_cast<double>(value) - exact_mean;
+                        exact += centred * centred;
+                        sequential += (value - sequential_mean) * (value - sequential_mean);
+                    }
+                    exact /= static_cast<double>(count - 1);
+                    sequential /= static_cast<float>(count - 1);
+
+                    const double running = static_cast<double>(before[static_cast<std::size_t>(f)]);
+                    result.exact.push_back(static_cast<float>(
+                        NN::updated_statistic(running, exact, momentum, 1.0)));
+                    result.sequential.push_back(static_cast<float>(NN::updated_statistic(
+                        running, static_cast<double>(sequential), momentum, 1.0)));
+                }
+
+                return Result<HostRollingVariance>(std::move(result));
+            }
+        } // namespace
+
+        void check_rolling_statistics(SushiBLAS::Engine& engine,                                      const DarknetTrainingCase& stated)
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1128,15 +1240,26 @@ namespace SushiAI
                                          read_state(run, targets->variance),
                                          variance_before.values, 0.0, 0.0));
 
+            // The step moves the weights, so the host reads them first.
+            SA_ASSERT_OK_AND_ASSIGN(
+                const HostRollingVariance host,
+                measure_host_rolling_variance(run, *targets, read_state(run, targets->weight),
+                                              variance_before.values));
+
             run_step(run);
             ASSERT_TRUE(run.is_ready);
 
             const double bound = stated.bounds.rolling_absolute;
             EXPECT_TRUE(within_tolerance("rolling mean after", read_state(run, targets->mean),
                                          mean_after.values, bound, 0.0));
-            EXPECT_TRUE(within_tolerance("rolling variance after",
-                                         read_state(run, targets->variance),
-                                         variance_after.values, bound, 0.0));
+
+            // The two variances differ by more than the bound; see tests/integration/README.md.
+            EXPECT_TRUE(within_tolerance("rolling variance after, against the sum in double",
+                                         read_state(run, targets->variance), host.exact, bound,
+                                         0.0));
+            EXPECT_TRUE(within_tolerance(
+                "the reference's rolling variance, against the sum term by term in float32",
+                variance_after.values, host.sequential, bound, 0.0));
         }
 
         void check_one_batch_overfit(SushiBLAS::Engine& engine,
