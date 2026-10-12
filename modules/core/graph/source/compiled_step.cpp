@@ -118,14 +118,15 @@ namespace SushiAI
             SA_TRY(recorded);
 
             const SushiRuntime::Recorder& tasks = step->graph_.recorder();
+            step->empty_ = tasks.node_count() == 0;
+            SA_TRY(step->add_replay_hooks(lowering.take_preludes()));
+
+            // An empty step is never compiled, so a refused recording is read here and only here.
             if (const SushiRuntime::Error* refused = tasks.refusal())
                 return SushiAI::Detail::status_of_error(*refused,
                                                         SushiAI::Detail::SeamPhase::Record);
 
-            step->empty_ = tasks.node_count() == 0;
-            SA_TRY(step->add_replay_hooks(lowering.take_preludes()));
-
-            // The runtime refuses to compile a graph that holds no task.
+            // compile() refuses a graph with no task; past the read above it fails for the plan.
             if (!step->empty_)
             {
                 const SushiRuntime::Result<void> compiled = step->graph_.compile();
