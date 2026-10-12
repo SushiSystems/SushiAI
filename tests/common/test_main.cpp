@@ -35,7 +35,7 @@
 int main(int argc, char** argv)
 {
     // Logging is synchronous so it cannot interleave with GTest's own output.
-    SR_LOGGER_SET_SYNC_MODE(true);
+    SushiRuntime::set_log_synchronous(true);
     SB_LOGGER_SET_SYNC_MODE(true);
 
     ::testing::InitGoogleTest(&argc, argv);
