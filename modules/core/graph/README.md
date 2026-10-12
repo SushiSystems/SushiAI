@@ -111,7 +111,7 @@ holds. A step whose graph registers none and has no trailing recorder adds no ho
 A prelude writes host-addressable memory that no task of the step writes, while no replay is in
 flight. The kernels of the next replay read those bytes. SushiRuntime states this in the
 `before_each_step` section of
-`modules/surface/api/include/SushiRuntime/api/graph/README.md`. A caller that
+`modules/surface/api/include/SushiRuntime/api/graph/plumbing/README.md`. A caller that
 
 uses `Lowering` without `CompiledStep` and replays the recorded work itself calls the preludes
 it took. A `LoweringContext` built by the constructor without a list answers `Unsupported`.
