@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-12 — graph: Made CompiledStep::compile read a refused recording in one place, under the Record phase, so compile() of the runtime reports the plan alone under Execute (`compiled_step.cpp`).
 - 2026-10-12 — core: Breaking change: Made status_of_error return a Status for InvalidGraph, InvalidAccess, InvalidState, CompileFailed and ProtocolMismatch; only DanglingResource is fatal (`seam.cpp`, `seam.hpp`, `test_seam.cpp`).
 - 2026-10-12 — core: Declared the alias sr for the SushiRuntime namespace beside create_runtime (`seam.hpp`).
 - 2026-10-12 — core: Breaking change: Removed the runtime parameter of Detail::run_step and the Runtime::wait() after it and after Detail::run_recorded; both runs block until done (`seam.hpp`, `seam.cpp`, `compiled_step.cpp`).
