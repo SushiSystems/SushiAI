@@ -279,19 +279,22 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
 
 ## Memory planning
 
-- **Pack the lowering's scratch.** `MemoryPlan::build` packs graph IR values into arenas.
-  `TensorPool::scratch()` and `TensorPool::ones()` are not IR values, so each still gets one
-  `Storage`; on the demo that is about 2 KiB of 130 KiB. Packing them needs a host-lane
-  description of each operation's scratch, shared by the plan and `Lowering`. Today those shapes
-  are written inline in `record_log_softmax()` and `record_nll_loss()`
-  (`src/graph/memory_plan.cpp`, `src/graph/lowering.cpp`).
-- **Fit a full-size Darknet training step under the default memory limit.** One training step of
-  YOLOv4 at 608 by 608 with a batch of 2 commits 11.1 GB in the test process and takes about
-  9.8 GB on the device (measured 2026-10-12, sampled every 0.4 s, `sa run --memory-limit 13`).
-  Under the default limit of half the machine's memory, 7.6 GB, the step returns `OutOfMemory`,
-  so 12 tests of `Integration_DarknetYolov4Training` and `Integration_DarknetYolov7Training`
-  fail in `sa test`. Which share is activations, gradients and convolution scratch is not
-  measured. Packing the lowering's scratch, above, is the planned repair.
+- **Write the scratch rules of the rows that have none.** A lowering row states the buffers it
+  writes on every run in a scratch rule, and the plan packs them (`lowering/rule.hpp`,
+  `ScratchRule`). Batch norm and its gradient have a rule. The other rows that call
+  `LoweringContext::scratch()`, in `lowering/norm.cpp`, `loss.cpp`, `linalg.cpp` and
+  `random.cpp`, have none, so each of their buffers still gets one `Storage`, as does every
+  shared `ones()` tensor. A rule must leave out a buffer the host fills once or a replay
+  prelude writes.
+- **Set the step bounds of YOLOv4 and YOLOv7 from a measurement.** Their training steps ran
+  under the default memory limit for the first time on 2026-10-13, and five cases differ from
+  the Darknet dump by more than the starting bounds allow: the heads under batch statistics
+  and the deltas of the step in both models, and the updates of the head convolutions in
+  YOLOv4. The worst head value of YOLOv4 is -40.2478 against -40.4527. The differences are in
+  `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md`; the bounds wait for the owner's word.
+- **Measure what the recomputed column matrices cost in time.** A training graph recomputes
+  each column matrix before the backward pass (`GraphOptions::rematerialise`). The GPU was
+  power limited when the change was made, so the step time before and after is not known.
 - **Measure where YOLOv3's training step leaves Darknet, layer by layer.** The step bounds of
   `test_darknet_yolov3_training.cpp` are 1.5 times what the run of 2026-10-12 measured: a head
   is up to 0.243 from the dump on values near 49. No layer before the heads is compared, so

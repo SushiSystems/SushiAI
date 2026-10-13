@@ -1,5 +1,9 @@
 # Plan-packed scratch: plan
 
+**Status:** Closed 2026-10-13. Tasks 1 and 2 ran as written. Tasks 3 to 7 were done in one
+pass and in a narrower shape, and task 8 is done but for the bounds of five full-size cases;
+`REPORT.md` has both.
+
 Each task has one acceptance criterion and at most one build. A build runs with 6 jobs and only
 while the owner's machine is free; no run raises the memory limit of `sa`.
 

@@ -995,7 +995,7 @@ first.
 ## 7. What's not here yet
 
 Open work is listed in one place,
-[`REMAINING_WORK.md`](../design/REMAINING_WORK.md): packing the lowering's scratch, the
+[`REMAINING_WORK.md`](../design/REMAINING_WORK.md): the scratch rules of the rows that have none, the
 log-softmax and `K_NLL_LOSS` fusions, the two batch copies, the standalone `K_LOG_SOFTMAX` rule, the
 whole-step overflow skip, bfloat16, the `Dataset` and `Trainer` seams, and the demo's reference
 loss curve and timing table. What behaves wrongly or narrowly today, including why `gradcheck`

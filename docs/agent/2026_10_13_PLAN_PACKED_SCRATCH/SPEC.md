@@ -1,6 +1,8 @@
 # Plan-packed scratch: specification
 
-**Status:** Proposed. The interface shape in section 4 waits for the owner's word.
+**Status:** Implemented 2026-10-13 in a narrower shape than sections 4 and 5 propose; the
+owner left the three choices of section 5 to the engineer. `REPORT.md` states what was built
+and where it leaves this page.
 
 ## 1. The problem
 

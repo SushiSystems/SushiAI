@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-13 — tests: Added a case to the three tiny Darknet training suites that runs one step with and without its memory plan and compares every value bit for bit (`darknet_training.cpp`, `check_plan_changes_no_value`).
+- 2026-10-13 — vision: Made the forward-only pass of the anchor training step borrow the arenas of the replay, so the step allocates one set of arenas (`anchor_training_step.cpp`, `TensorPool::adopt`, `ArenaSet::make`).
+- 2026-10-13 — graph: Added scratch rules: a lowering row states the buffers it writes on every run and the planner packs them; batch norm and its gradient have one (`lowering/rule.hpp`, `ScratchRule`, `scratch_of`).
 - 2026-10-13 — train: Added GraphOptions::rematerialise, on by default, so a training graph recomputes its column matrices before the backward pass and does not keep them (`steps.hpp`, `steps.cpp`, `rematerialise_im2col`).
 - 2026-10-13 — graph: Made the memory planner overlap Scratch buffers by the order of the nodes, where it asked that one reach the other in the graph; Activation buffers are planned as before (`memory_plan.cpp`, `memory_plan.hpp`).
 - 2026-10-13 — graph: Added TensorPool::bytes(), which splits the allocated bytes into arenas, own values, ones and scratch (`tensor_pool.hpp`, `PoolBytes`).
