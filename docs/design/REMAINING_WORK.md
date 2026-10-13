@@ -286,15 +286,24 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   `random.cpp`, have none, so each of their buffers still gets one `Storage`, as does every
   shared `ones()` tensor. A rule must leave out a buffer the host fills once or a replay
   prelude writes.
-- **Set the step bounds of YOLOv4 and YOLOv7 from a measurement.** Their training steps ran
-  under the default memory limit for the first time on 2026-10-13, and five cases differ from
-  the Darknet dump by more than the starting bounds allow: the heads under batch statistics
-  and the deltas of the step in both models, and the updates of the head convolutions in
-  YOLOv4. The worst head value of YOLOv4 is -40.2478 against -40.4527. The differences are in
-  `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md`; the bounds wait for the owner's word.
-- **Measure what the recomputed column matrices cost in time.** A training graph recomputes
-  each column matrix before the backward pass (`GraphOptions::rematerialise`). The GPU was
-  power limited when the change was made, so the step time before and after is not known.
+- **Find why a full-size training step leaves Darknet.** The step bounds of YOLOv4 and YOLOv7
+  are 1.5 times what the run of 2026-10-13 measured, by the owner's ruling of that day: a head
+  of YOLOv4 is up to 0.205 from the dump on values near 40, a head of YOLOv7 up to 0.0052.
+  YOLOv3 below differs by as much as YOLOv4, and the three tiny models hold 1e-3. The memory
+  plan is ruled out for the tiny models, where a planned step equals an unplanned one bit for
+  bit; no full-size model fits unplanned. The owner asked for the cause to be found. It needs a
+  Darknet dump of each layer's output under batch statistics and a case that walks them, the
+  same work as the YOLOv3 item below.
+- **Find why a training step takes about fifteen times Darknet's.** Measured 2026-10-13 on the
+  RTX 3080 Ti with a batch of 2: a step of YOLOv4 at 608 by 608 takes 3.2 s against 0.21 s for
+  an iteration of a CUDA build of Darknet without cuDNN, YOLOv7 at 640 by 640 3.0 s against
+  0.18 s, YOLOv4-tiny 0.25 s against 0.02 to 0.04 s. A step here runs the forward pass twice
+  and recomputes each column matrix (`GraphOptions::rematerialise`), which accounts for a
+  small part of the factor. Where the rest goes is not measured. Three things to measure
+  first: the time per node of a step, what `Residency::Shared` costs against
+  `Residency::Device` for the arenas, and the time of one im2col and one matmul against the
+  reference's. `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both sides were
+  timed.
 - **Measure where YOLOv3's training step leaves Darknet, layer by layer.** The step bounds of
   `test_darknet_yolov3_training.cpp` are 1.5 times what the run of 2026-10-12 measured: a head
   is up to 0.243 from the dump on values near 49. No layer before the heads is compared, so

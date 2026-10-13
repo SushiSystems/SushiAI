@@ -1,8 +1,10 @@
 # Plan-packed scratch: report
 
 **Status:** Done 2026-10-13. A full-size training step of YOLOv4 and of YOLOv7 runs under the
-default memory limit. Five full-size cases still fail, on a comparison with the Darknet dump
-and not on memory; their bounds wait for the owner's word.
+default memory limit, and both full-size suites pass with step bounds the owner widened to 1.5
+times the measured differences. Two things are left open and listed in `REMAINING_WORK.md`:
+why a full-size step leaves the Darknet dump, and why a step takes about fifteen times
+Darknet's.
 
 ## Task 1: the share of scratch
 
@@ -181,6 +183,52 @@ among them (694 s and 466 s for 200 steps). Five failed on a comparison with the
 run has measured, and these runs are the first. The bit-for-bit case above rules the memory
 plan out as the cause for the tiny models; for the full-size ones nothing compares a planned
 step with an unplanned one. The bounds were not changed.
+
+## The bounds, the reshape view and the step time
+
+**Bounds.** By the owner's ruling of 2026-10-13 each step bound the first full-size run
+exceeded is 1.5 times its largest difference: for YOLOv4 `head_absolute` 3.1e-1,
+`yolo_absolute` 4.8e-2, `step_delta` {3e-3, 1.5e-4, 6.4e-3} and `head_update_share` 7.1e-3;
+for YOLOv7 `head_absolute` and `yolo_absolute` 7.9e-3 and the last entry of `step_delta`
+1.6e-3. The owner asked that the cause be found; YOLOv3 differs by as much as YOLOv4 and the
+three tiny models do not.
+
+**Reshape.** A `RESHAPE` result is a view of its operand unless a row writes either side in
+place or the result is pinned (`modules/core/graph/README.md`, Memory plan). The first version
+gave an unpacked buffer the extents of whichever value was materialised first, and
+`ThePlanOfTheStepChangesNoValue` caught it; the pool now gives each value of a buffer a view
+under its own extents.
+
+| Model | Training arenas before the view | After | Both pools after |
+| --- | --- | --- | --- |
+| YOLOv4-tiny | 240.1 MB | 202.2 MB | 239.8 MB |
+| YOLOv4 | 4040.5 MB | 3543.7 MB | 3865.5 MB |
+| YOLOv7 | 3001.1 MB | 2701.5 MB | 2926.7 MB |
+
+Run after it, under the default limit: the 1931 cases of `sushiai_tests` in one process, the
+three bit-for-bit cases, the nine training cases of YOLOv4-tiny and the 20 of YOLOv4 and
+YOLOv7. All passed. `sa test` over every binary was not run to the end; it was stopped at 613
+of 5736 cases, none failed, when the next build began. The language and program binaries were
+not run.
+
+**Step time.** Measured 2026-10-13 after the owner lifted the power limit of the GPU, batch
+of 2. SushiAI: the 200 steps of the overfit case, less about 7 s of setup. Darknet: a CUDA
+build of the oracle without cuDNN, which this machine does not have, running `detector train`
+on two images with multi-scale training and mosaic off; the median of 25 iterations after the
+first five. Its figure includes loading the two images and SushiAI's does not.
+
+| Model | SushiAI, s per step | Darknet, s per iteration | Darknet, device memory |
+| --- | --- | --- | --- |
+| YOLOv4-tiny, 416 | 0.25 | 0.018 and 0.044 in two runs | about 0.7 GB |
+| YOLOv4, 608 | 3.2 | 0.21 | about 6.5 GB |
+| YOLOv7, 640 | 3.0 | 0.18 | about 5.6 GB |
+
+The device memory is what the card had in use less the 410 MiB it had before the run. YOLOv7
+took 466 s for its 200 steps under the power limit, before the reshape view, and 595 s after
+both changed; which of the two it is, or whether it is the machine, is not examined.
+
+The CUDA build is in `_darknet/build_cuda` beside the oracle's CPU build, 20 MB, and nothing
+of the oracle was changed.
 
 ## What Darknet allocates for the same step
 
