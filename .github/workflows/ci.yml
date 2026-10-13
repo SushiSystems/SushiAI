@@ -52,6 +52,9 @@ on:
   pull_request:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   functional:
     name: Functional tests
@@ -79,12 +82,12 @@ jobs:
       # prefer it only when the module actually exists under it, and leaving it
       # unset makes the layout below the single thing that decides resolution.
       - name: Check out SushiAI
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
 
       - name: Check out the SushiRuntime sibling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
@@ -101,7 +104,7 @@ jobs:
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
 
       - name: Check out the SushiBLAS sibling
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiBLAS
           path: sushiblas
@@ -149,10 +152,10 @@ jobs:
     name: Python CLI (lint + tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
 
@@ -207,8 +210,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - name: python tools/documentation/check_source_comments.py .
