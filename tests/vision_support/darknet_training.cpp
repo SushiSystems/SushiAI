@@ -1092,8 +1092,8 @@ namespace SushiAI
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
-            report_pool_bytes(stated.step_run + " probe pool", *run.probe_pool);
-            report_pool_bytes(stated.step_run + " training pool", *run.training_pool);
+            report_pool_bytes(std::string(stated.step_run) + " probe pool", *run.probe_pool);
+            report_pool_bytes(std::string(stated.step_run) + " training pool", *run.training_pool);
 
             const std::int64_t layer = run.first_layer;
             const DarknetWeightTarget* const targets = find_targets(run, layer);
