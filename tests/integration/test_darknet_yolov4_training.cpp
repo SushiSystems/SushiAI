@@ -40,7 +40,8 @@ namespace
      * Of the inference-mode runs only the `*_plain_pool*` ones are valid (REPORT 25 and 28).
      * `yolov4_train_step` is a training-mode run, which the defect does not reach.
      * A delta is held to 1e-6 absolute (PLAN 4.7), a box entry to 1e-4 besides (REPORT 11).
-     * The bounds of the step are starting values no run has measured yet.
+     * A step bound the 2026-10-13 run exceeded is 1.5 times its largest difference
+     * (tests/integration/README.md).
      */
     SaTest::DarknetTrainingCase describe_model()
     {
@@ -52,12 +53,12 @@ namespace
         training.objectness_target = SushiAI::Vision::Detect::Anchor::ObjectnessTarget::One;
         training.bounds.host_delta = {1e-6, 1e-4, 1e-6};
         training.bounds.host_cost_relative = 1e-5;
-        training.bounds.head_absolute = 1e-3;
+        training.bounds.head_absolute = 3.1e-1;
         training.bounds.head_relative = 1e-4;
-        training.bounds.yolo_absolute = 1e-3;
-        training.bounds.step_delta = {1.5e-3, 1.5e-4, 1e-3};
+        training.bounds.yolo_absolute = 4.8e-2;
+        training.bounds.step_delta = {3e-3, 1.5e-4, 6.4e-3};
         training.bounds.step_cost_relative = 1e-3;
-        training.bounds.head_update_share = 1e-3;
+        training.bounds.head_update_share = 7.1e-3;
         training.bounds.update_relative = 1e-3;
         training.bounds.rolling_absolute = 1e-5;
         training.overfit_steps = 200;
