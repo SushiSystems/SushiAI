@@ -206,6 +206,14 @@ namespace SushiAI
         void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated);
 
         /**
+         * @brief Checks that the memory plans of the probe graph and the training graph overlap
+         *        live ranges, and prints each graph's nodes and the bytes its plan asks for.
+         *
+         * The graphs are traced and planned on the host; nothing is allocated on the device.
+         */
+        void check_training_plan(const DarknetTrainingCase& stated);
+
+        /**
          * @brief Checks that the weight, the scale and the shift of the first convolution each
          *        have a finite gradient that is not zero after one step.
          *
