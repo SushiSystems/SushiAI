@@ -294,24 +294,26 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   bit; no full-size model fits unplanned. The owner asked for the cause to be found. It needs a
   Darknet dump of each layer's output under batch statistics and a case that walks them, the
   same work as the YOLOv3 item below.
-- **Find why a training step takes about fifteen times Darknet's.** Measured 2026-10-13 on the
-  RTX 3080 Ti with a batch of 2: a step of YOLOv4 at 608 by 608 takes 3.2 s against 0.21 s for
-  an iteration of a CUDA build of Darknet without cuDNN, YOLOv7 at 640 by 640 3.0 s against
-  0.18 s, YOLOv4-tiny 0.25 s against 0.02 to 0.04 s. A step here runs the forward pass twice
-  and recomputes each column matrix (`GraphOptions::rematerialise`), which accounts for a
-  small part of the factor. `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both
-  sides were timed. Measured the same day with `RuntimeConfig::profiling`: the time is device
-  time, and four fifths of it is `gemm`. A YOLOv4 step spends 2605 ms of its 2643 ms on the
-  device, 2057 ms in 326 `gemm` nodes and 179 ms in 6 `gemv` nodes; the 107 `gemm` nodes of
-  the forward pass take 89 ms. Eighteen `gemm` nodes of the backward pass take about 1700 ms,
-  one of them 444 ms. YOLOv4-tiny gives the same shares: 158 ms of 196 ms. The slow nodes are
-  taken to be the weight gradients of the first convolutions, a product with a small result
-  and a depth of batch times height times width; their shapes were not printed. SushiBLAS's
-  `gemm` on this device divides the work over the result's elements only, and reaches 6000
-  GFLOP/s on a square product of order 2048. Arenas of `Residency::Device` change nothing:
-  200 steps of YOLOv4-tiny take 46.8 s against 46.6 s. Left to do: print the shapes of the
-  slow nodes, then give SushiBLAS a `gemm` and a `gemv` that divide the depth, which is the
-  owner's decision as it is another repository.
+- **Close the rest of the step time against Darknet.** On the RTX 3080 Ti with a batch of 2,
+  measured 2026-10-13 over 200 steps: YOLOv4 at 608 by 608 takes 0.84 s a step against 0.21 s
+  for an iteration of a CUDA build of Darknet without cuDNN, YOLOv7 at 640 by 640 0.74 s
+  against 0.18 s, YOLOv4-tiny 0.08 s against 0.02 to 0.04 s. The steps took 3.2 s, 3.0 s and
+  0.25 s before SushiBLAS gained a `gemm` that divides the depth of a product with a small
+  result, which the weight gradient of a convolution is. `RuntimeConfig::profiling` gives the
+  time of each node of a step and was how that product was found; a step is device time, with
+  no host share. Arenas of `Residency::Device` change nothing. Left: profile a step again and
+  take the next largest share. A step runs the forward pass twice and recomputes each column
+  matrix (`GraphOptions::rematerialise`).
+  `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both sides were timed.
+- **Make the one-batch overfit of YOLOv7 hold.**
+  `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails since
+  2026-10-13: the stored cost is 11.1 at step 199 against a bound of 3.56. It reached 1.27
+  with the `gemm` SushiBLAS had before. The two runs agree to 1e-7 of the cost at step 0 and
+  3e-8 at step 1, then part: 6e-5 at step 2, 1e-3 at step 3, 2 % at step 4. Both costs jump
+  between 14 and 60 over the first 25 steps, so the run is unstable on this batch and the last
+  bits of a sum decide where it stands at step 199. The one-step cases of the suite pass. To
+  find: what makes the run unstable, the learning rate and the warm-up first. The bound waits
+  on the owner.
 - **Measure where YOLOv3's training step leaves Darknet, layer by layer.** The step bounds of
   `test_darknet_yolov3_training.cpp` are 1.5 times what the run of 2026-10-12 measured: a head
   is up to 0.243 from the dump on values near 49. No layer before the heads is compared, so

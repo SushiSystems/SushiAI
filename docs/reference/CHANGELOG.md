@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-13 — docs: Recorded the step times on the depth-split `gemm` of SushiBLAS and the failing one-batch overfit of YOLOv7 (`REMAINING_WORK.md`, `KNOWN_ISSUES.md`).
 - 2026-10-13 — cli: Pinned `sushicore==0.8.1`, read help text without colour codes in the tests and listed `tokenize` among the visible commands (`pyproject.toml`, `test_cli.py`, `test_help_screen.py`).
 - 2026-10-13 — tests: Set the step bounds of YOLOv4 and YOLOv7 to 1.5 times what their first run under the default memory limit measured (`test_darknet_yolov4_training.cpp`, `test_darknet_yolov7_training.cpp`).
 - 2026-10-13 — graph: Made a RESHAPE result a view of its operand, with no copy, unless a row writes either side in place or the result is pinned (`memory_plan.cpp`, `tensor_pool.cpp`, `lowering/shape.cpp`).
