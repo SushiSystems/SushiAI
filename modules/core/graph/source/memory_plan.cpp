@@ -212,6 +212,27 @@ namespace SushiAI
                 return !precedes(a, b, reach) && !precedes(b, a, reach);
             }
 
+            /** @brief Whether the buffers of @p lifetime are overlapped by the order of the nodes. */
+            constexpr bool follows_node_order(Lifetime lifetime) noexcept
+            {
+                return lifetime == Lifetime::Scratch;
+            }
+
+            /** @brief The last node, in the order of the graph, that writes or reads @p buffer. */
+            NodeID last_use(const Buffer& buffer) noexcept
+            {
+                return *std::max_element(buffer.uses.begin(), buffer.uses.end());
+            }
+
+            /**
+             * @brief Two buffers conflict in node order when neither's last use comes before
+             *        the other's first write.
+             */
+            bool conflicts_in_node_order(const Buffer& a, const Buffer& b) noexcept
+            {
+                return !(last_use(a) < b.first_write) && !(last_use(b) < a.first_write);
+            }
+
             /** @brief One buffer already given an offset in the arena being filled. */
             struct Slot
             {
@@ -384,6 +405,13 @@ namespace SushiAI
                 Arena arena;
                 arena.lifetime = lifetime;
 
+                const bool in_node_order = options.reuse && follows_node_order(lifetime);
+                const auto clashes = [&](const Buffer& a, const Buffer& b)
+                {
+                    if (in_node_order) return conflicts_in_node_order(a, b);
+                    return !overlap || conflicts(a, b, *reach);
+                };
+
                 for (std::size_t index : candidates)
                 {
                     const Buffer& buffer = buffers[index];
@@ -392,7 +420,7 @@ namespace SushiAI
                     std::size_t offset = 0;
                     for (const Slot& slot : placed)
                     {
-                        if (!overlap || conflicts(buffer, buffers[slot.buffer], *reach))
+                        if (clashes(buffer, buffers[slot.buffer]))
                         {
                             offset = round_up(offset, buffer.alignment);
                             if (offset + buffer.bytes <= slot.offset) break;
