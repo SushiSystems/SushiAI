@@ -163,3 +163,11 @@ TEST_F(Integration_DarknetYolov3TinyTraining, TheCostOfOneBatchFallsUnderATenth)
 {
     SaTest::check_one_batch_overfit(*engine, training);
 }
+
+/**
+ * @brief Tests that the memory plan of the step changes no head, no delta and no gradient.
+ */
+TEST_F(Integration_DarknetYolov3TinyTraining, ThePlanOfTheStepChangesNoValue)
+{
+    SaTest::check_plan_changes_no_value(*engine, training);
+}

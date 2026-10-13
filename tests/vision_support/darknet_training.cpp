@@ -55,6 +55,8 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/lowering.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
@@ -793,7 +795,7 @@ namespace SushiAI
              *        the batch of its step run; sets `is_ready` when nothing failed.
              */
             void prepare_step(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated,
-                              StepRun& run)
+                              StepRun& run, bool is_packed = true)
             {
                 DarknetTensor input;
                 Shape batch_shape;
@@ -814,6 +816,14 @@ namespace SushiAI
 
                 run.probe_pool = std::make_unique<Graph::TensorPool>(engine);
                 run.training_pool = std::make_unique<Graph::TensorPool>(engine);
+                if (!is_packed)
+                {
+                    // An empty plan packs nothing, so every value keeps a Storage of its own.
+                    const Status probe_plan = run.probe_pool->adopt(Graph::MemoryPlan{});
+                    ASSERT_TRUE(probe_plan.is_ok()) << probe_plan.message();
+                    const Status training_plan = run.training_pool->adopt(Graph::MemoryPlan{});
+                    ASSERT_TRUE(training_plan.is_ok()) << training_plan.message();
+                }
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.slots, Train::bind_parameters(run.built, *run.state, *run.training_pool));
                 SA_ASSERT_OK_AND_ASSIGN(
@@ -973,7 +983,11 @@ namespace SushiAI
                 Graph::PlanOptions options;
                 options.pinned =
                     SushiRuntime::span<const Graph::ValueID>(pinned.data(), pinned.size());
-                const Graph::MemoryPlan plan = Graph::MemoryPlan::build(graph, options);
+                const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(graph);
+                const Graph::MemoryPlan plan = Graph::MemoryPlan::build(
+                    graph, options,
+                    SushiRuntime::span<const Graph::ScratchRequest>(scratch.data(),
+                                                                    scratch.size()));
 
                 std::size_t own_bytes = 0;
                 for (std::size_t id = 0; id < plan.value_count(); ++id)
@@ -1000,6 +1014,55 @@ namespace SushiAI
                 run.is_ready = false;
                 SA_ASSERT_OK_AND_ASSIGN(run.cost, run.step->run(*run.inputs, run.truth));
                 run.is_ready = true;
+            }
+
+            /** @brief Holds what one step wrote: each head, each delta and each gradient. */
+            struct StepValues
+            {
+                std::vector<std::vector<float>> heads;     /**< Each head of the probe. */
+                std::vector<std::vector<float>> deltas;    /**< Each delta the host computed. */
+                std::vector<std::vector<float>> gradients; /**< Each gradient of the replay. */
+            };
+
+            /**
+             * @brief Runs the one step with its pools planned or, when @p is_packed is false,
+             *        with every value in a Storage of its own, and copies what it wrote.
+             */
+            void collect_step_values(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated,
+                                     bool is_packed, StepValues& values)
+            {
+                StepRun run;
+                prepare_step(engine, stated, run, is_packed);
+                ASSERT_TRUE(run.is_ready);
+                run_step(run);
+                ASSERT_TRUE(run.is_ready);
+
+                for (const DarknetHead& head : run.imported.model.heads)
+                {
+                    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const found,
+                                            run.step->evaluation().output(head.output));
+                    values.heads.push_back(read_elements(*found));
+                }
+                for (const HeadDelta& delta : run.step->deltas())
+                    values.deltas.emplace_back(delta.delta.begin(), delta.delta.end());
+                for (const Optim::ParameterSlot& slot : run.slots)
+                    values.gradients.push_back(read_elements(slot.gradient));
+            }
+
+            /** @brief Checks that @p packed and @p unpacked hold the same floats, bit for bit. */
+            void expect_same_values(const std::string& name,
+                                    const std::vector<std::vector<float>>& packed,
+                                    const std::vector<std::vector<float>>& unpacked)
+            {
+                ASSERT_EQ(packed.size(), unpacked.size()) << name;
+                for (std::size_t k = 0; k < packed.size(); ++k)
+                {
+                    ASSERT_EQ(packed[k].size(), unpacked[k].size()) << name << " " << k;
+                    const bool same =
+                        std::memcmp(packed[k].data(), unpacked[k].data(),
+                                    packed[k].size() * sizeof(float)) == 0;
+                    EXPECT_TRUE(same) << name << " " << k << " differs under the plan";
+                }
             }
 
             /** @brief Returns the weight targets of the convolution at layer @p layer, or null. */
@@ -1244,6 +1307,21 @@ namespace SushiAI
             check_plan(std::string(stated.step_run) + " probe graph", run.probe.graph, {});
             check_plan(std::string(stated.step_run) + " training graph", run.built.graph,
                        run.built.pinned);
+        }
+
+        void check_plan_changes_no_value(SushiBLAS::Engine& engine,
+                                         const DarknetTrainingCase& stated)
+        {
+            StepValues packed;
+            collect_step_values(engine, stated, true, packed);
+            StepValues unpacked;
+            collect_step_values(engine, stated, false, unpacked);
+
+            ASSERT_FALSE(packed.heads.empty());
+            ASSERT_FALSE(packed.gradients.empty());
+            expect_same_values("head", packed.heads, unpacked.heads);
+            expect_same_values("delta", packed.deltas, unpacked.deltas);
+            expect_same_values("gradient", packed.gradients, unpacked.gradients);
         }
 
         void check_first_gradients(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
