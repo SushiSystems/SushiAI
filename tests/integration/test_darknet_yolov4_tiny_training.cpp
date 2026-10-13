@@ -164,3 +164,12 @@ TEST_F(Integration_DarknetYolov4TinyTraining, TheCostOfOneBatchFallsUnderATenth)
 {
     SaTest::check_one_batch_overfit(*engine, training);
 }
+
+/**
+ * @brief Tests that the memory plans of the probe graph and the training graph overlap live
+ *        ranges; prints each graph's nodes and the bytes its plan asks for.
+ */
+TEST_F(Integration_DarknetYolov4TinyTraining, ThePlansOfTheStepOverlapLiveRanges)
+{
+    SaTest::check_training_plan(training);
+}

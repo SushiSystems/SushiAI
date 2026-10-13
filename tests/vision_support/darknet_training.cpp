@@ -732,28 +732,28 @@ namespace SushiAI
                 std::unique_ptr<AnchorTrainingStep> step;  /**< The step under test. */
                 std::optional<SushiBLAS::Tensor> inputs;   /**< The dumped batch. */
                 HeadCost cost;                             /**< What the step returned. */
+                bool is_traced = false;                    /**< Whether trace_step() ended. */
                 bool is_ready = false;                     /**< Whether prepare_step() ended. */
             };
 
             /**
-             * @brief Builds the model of @p stated with the file's weights and one step over
-             *        the batch of its step run; sets `is_ready` when nothing failed.
+             * @brief Imports the model of @p stated and traces its two graphs for the batch of
+             *        its step run, on the host alone; sets `is_traced` when nothing failed.
              */
-            void prepare_step(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated,
-                              StepRun& run)
+            void trace_step(const DarknetTrainingCase& stated, StepRun& run, DarknetTensor& input,
+                            Shape& batch_shape)
             {
                 const std::string_view folder = stated.step_run;
                 SA_ASSERT_OK_AND_ASSIGN(run.imported, import_training(stated.stem));
                 const DarknetModel& model = run.imported.model;
 
-                SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor input,
-                                        load_darknet_maps(folder, K_DARKNET_INPUT));
+                SA_ASSERT_OK_AND_ASSIGN(input, load_darknet_maps(folder, K_DARKNET_INPUT));
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.solver, load_darknet_reference(folder, K_DARKNET_NETWORK_COST));
                 SA_ASSERT_OK_AND_ASSIGN(run.first_layer, read_first_layer(run.solver));
                 run.batch = input.extents[0];
-                const Shape batch_shape{input.extents[0], input.extents[1], input.extents[2],
-                                        input.extents[3]};
+                batch_shape = Shape{input.extents[0], input.extents[1], input.extents[2],
+                                    input.extents[3]};
 
                 std::vector<AnchorHead> heads(model.heads.size());
                 for (std::size_t k = 0; k < model.heads.size(); ++k)
@@ -783,6 +783,21 @@ namespace SushiAI
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.built,
                     Train::build_training_graph(*run.graph, *run.objective, batch_shape));
+                run.is_traced = true;
+            }
+
+            /**
+             * @brief Builds the model of @p stated with the file's weights and one step over
+             *        the batch of its step run; sets `is_ready` when nothing failed.
+             */
+            void prepare_step(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated,
+                              StepRun& run)
+            {
+                DarknetTensor input;
+                Shape batch_shape;
+                trace_step(stated, run, input, batch_shape);
+                ASSERT_TRUE(run.is_traced);
+                const DarknetModel& model = run.imported.model;
                 SA_ASSERT_OK_AND_ASSIGN(run.state, NN::ModelState::create(engine, *run.graph));
 
                 const DarknetFile file =
@@ -843,6 +858,37 @@ namespace SushiAI
                               << arena.bytes / megabyte << " MB for " << arena.buffers
                               << " buffers that are " << arena.unpacked_bytes / megabyte
                               << " MB unpacked\n";
+            }
+
+            /**
+             * @brief Prints the nodes of @p graph and what its plan under @p pinned asks for,
+             *        and checks that the plan overlaps live ranges; allocates nothing.
+             */
+            void check_plan(const std::string& name, const Graph::Graph& graph,
+                            const std::vector<Graph::ValueID>& pinned)
+            {
+                constexpr double megabyte = 1024.0 * 1024.0;
+                Graph::PlanOptions options;
+                options.pinned =
+                    SushiRuntime::span<const Graph::ValueID>(pinned.data(), pinned.size());
+                const Graph::MemoryPlan plan = Graph::MemoryPlan::build(graph, options);
+
+                std::size_t own_bytes = 0;
+                for (std::size_t id = 0; id < plan.value_count(); ++id)
+                {
+                    const Graph::Placement& placement =
+                        plan.placement(static_cast<Graph::ValueID>(id));
+                    const bool owns = plan.buffer_of(static_cast<Graph::ValueID>(id)) == id;
+                    if (owns && placement.arena == Graph::K_NO_ARENA)
+                        own_bytes += placement.bytes;
+                }
+
+                std::cout << "[ MEASURED ] " << name << ": " << graph.node_count() << " nodes, "
+                          << plan.value_count() << " values, arenas "
+                          << plan.arena_bytes() / megabyte << " MB for "
+                          << plan.unpacked_bytes() / megabyte << " MB unpacked, own values "
+                          << own_bytes / megabyte << " MB\n";
+                EXPECT_TRUE(plan.reuse_enabled()) << plan.reuse_note();
             }
 
             /** @brief Runs the one step over the dumped batch and truth; keeps its cost. */
@@ -1083,6 +1129,18 @@ namespace SushiAI
                              name_darknet_layer(layer, "bias_updates"), &load_darknet_reference,
                              stated.bounds.head_update_share);
             }
+        }
+
+        void check_training_plan(const DarknetTrainingCase& stated)
+        {
+            StepRun run;
+            DarknetTensor input;
+            Shape batch_shape;
+            trace_step(stated, run, input, batch_shape);
+            ASSERT_TRUE(run.is_traced);
+            check_plan(std::string(stated.step_run) + " probe graph", run.probe.graph, {});
+            check_plan(std::string(stated.step_run) + " training graph", run.built.graph,
+                       run.built.pinned);
         }
 
         void check_first_gradients(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
