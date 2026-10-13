@@ -299,11 +299,19 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   an iteration of a CUDA build of Darknet without cuDNN, YOLOv7 at 640 by 640 3.0 s against
   0.18 s, YOLOv4-tiny 0.25 s against 0.02 to 0.04 s. A step here runs the forward pass twice
   and recomputes each column matrix (`GraphOptions::rematerialise`), which accounts for a
-  small part of the factor. Where the rest goes is not measured. Three things to measure
-  first: the time per node of a step, what `Residency::Shared` costs against
-  `Residency::Device` for the arenas, and the time of one im2col and one matmul against the
-  reference's. `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both sides were
-  timed.
+  small part of the factor. `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both
+  sides were timed. Measured the same day with `RuntimeConfig::profiling`: the time is device
+  time, and four fifths of it is `gemm`. A YOLOv4 step spends 2605 ms of its 2643 ms on the
+  device, 2057 ms in 326 `gemm` nodes and 179 ms in 6 `gemv` nodes; the 107 `gemm` nodes of
+  the forward pass take 89 ms. Eighteen `gemm` nodes of the backward pass take about 1700 ms,
+  one of them 444 ms. YOLOv4-tiny gives the same shares: 158 ms of 196 ms. The slow nodes are
+  taken to be the weight gradients of the first convolutions, a product with a small result
+  and a depth of batch times height times width; their shapes were not printed. SushiBLAS's
+  `gemm` on this device divides the work over the result's elements only, and reaches 6000
+  GFLOP/s on a square product of order 2048. Arenas of `Residency::Device` change nothing:
+  200 steps of YOLOv4-tiny take 46.8 s against 46.6 s. Left to do: print the shapes of the
+  slow nodes, then give SushiBLAS a `gemm` and a `gemv` that divide the depth, which is the
+  owner's decision as it is another repository.
 - **Measure where YOLOv3's training step leaves Darknet, layer by layer.** The step bounds of
   `test_darknet_yolov3_training.cpp` are 1.5 times what the run of 2026-10-12 measured: a head
   is up to 0.243 from the dump on values near 49. No layer before the heads is compared, so
