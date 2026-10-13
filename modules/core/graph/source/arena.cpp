@@ -33,27 +33,52 @@ namespace SushiAI
 {
     namespace Graph
     {
-        Result<ArenaSet> ArenaSet::make(SushiBLAS::Engine& engine, MemoryPlan plan)
+        Result<ArenaSet> ArenaSet::make(SushiBLAS::Engine& engine, MemoryPlan plan,
+                                        const ArenaSet* lender)
         {
             Storages storages;
+            std::size_t owned_bytes = 0;
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                             [&]() -> Status
             {
                 storages.reserve(plan.arenas().size());
                 for (const Arena& arena : plan.arenas())
                 {
+                    auto borrowed = borrow(lender, arena);
+                    if (borrowed)
+                    {
+                        storages.push_back(std::move(borrowed));
+                        continue;
+                    }
+
                     SA_TRY_ASSIGN(auto storage, allocate_arena(engine, arena.bytes));
                     storages.push_back(std::move(storage));
+                    owned_bytes += arena.bytes;
                 }
                 return Status();
             }));
-            return ArenaSet(engine, std::move(plan), std::move(storages));
+            return ArenaSet(engine, std::move(plan), std::move(storages), owned_bytes);
         }
 
-        ArenaSet::ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan, Storages storages) noexcept
-            : engine_(&engine), plan_(std::move(plan)), storages_(std::move(storages))
+        ArenaSet::ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan, Storages storages,
+                           std::size_t owned_bytes) noexcept
+            : engine_(&engine), plan_(std::move(plan)), storages_(std::move(storages)),
+              owned_bytes_(owned_bytes)
         {
 
+        }
+
+        SushiRuntime::sushi_ptr<SushiBLAS::Storage> ArenaSet::borrow(const ArenaSet* lender,
+                                                                     const Arena& arena)
+        {
+            if (lender == nullptr) return {};
+
+            const SushiRuntime::span<const Arena> lent = lender->plan_.arenas();
+            for (std::size_t index = 0; index < lent.size(); ++index)
+                if (lent[index].lifetime == arena.lifetime && lent[index].bytes >= arena.bytes)
+                    return lender->storages_[index];
+
+            return {};
         }
 
         SushiBLAS::Tensor ArenaSet::view(ValueID id, const Shape& shape, DType dtype) const
@@ -73,6 +98,28 @@ namespace SushiAI
                         id, placement.bytes, dtype_name(dtype), shape.to_string(), bytes);
 
             return view_tensor(*engine_, storages_[placement.arena], placement.offset,
+                               shape, dtype);
+        }
+
+        SushiBLAS::Tensor ArenaSet::scratch_view(NodeID node, int slot, const Shape& shape,
+                                                 DType dtype) const
+        {
+            const Placement* const placement = plan_.scratch_placement(node, slot);
+
+            SA_FATAL_IF(placement == nullptr,
+                        "Node {} has no planned scratch buffer in slot {}", node, slot);
+
+            const std::size_t bytes = static_cast<std::size_t>(shape.num_elements())
+                                    * dtype_size(dtype);
+
+            // The scratch rule of the operation and its lowering row must state one buffer.
+            SA_FATAL_IF(bytes != placement->bytes,
+                        "Slot {} of node {} was planned {} bytes but its row asks for a {} {} "
+                        "buffer of {}; the scratch rule and the row state different buffers",
+                        slot, node, placement->bytes, dtype_name(dtype), shape.to_string(),
+                        bytes);
+
+            return view_tensor(*engine_, storages_[placement->arena], placement->offset,
                                shape, dtype);
         }
 

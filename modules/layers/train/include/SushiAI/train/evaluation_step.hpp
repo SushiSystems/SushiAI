@@ -80,14 +80,15 @@ namespace SushiAI
                  * @brief Binds @p traced to @p state and @p pool, then compiles it once.
                  * @param engine Must outlive the step, as must @p state and @p pool.
                  * @param traced Read during the call only; the step copies what it keeps.
-                 * @param pool Holds no leaf of the graph yet.
+                 * @param pool Holds no leaf of the graph yet; borrows the arenas of @p lender.
                  * @return The step, InvalidDescription for a graph with no input leaf, a fed
                  *         leaf named as the model input is, or a plan the planner refuses.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<EvaluationStep>> make(
                     SushiBLAS::Engine& engine, const TracedStep& traced,
                     const NN::ModelState& state, Graph::TensorPool& pool,
-                    const Graph::FusionSelector* selector = nullptr);
+                    const Graph::FusionSelector* selector = nullptr,
+                    const Graph::TensorPool* lender = nullptr);
 
                 /** @brief Deleted: a step holds one compiled plan and is not copied. */
                 EvaluationStep(const EvaluationStep&) = delete;

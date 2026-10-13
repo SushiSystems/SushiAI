@@ -93,9 +93,10 @@ namespace SushiAI::Vision::Training
                    "The anchor step needs the input leaf of its training graph bound in the "
                    "training pool; call Train::bind_parameters() on that pool first");
 
+        // The probe has run before the replay starts, so its pool borrows the replay's arenas.
         SA_TRY_ASSIGN(std::unique_ptr<Train::EvaluationStep> evaluation,
                       Train::EvaluationStep::make(engine, probe, state, probe_pool,
-                                                  options.fusion_selector));
+                                                  options.fusion_selector, &training_pool));
         SA_TRY_ASSIGN(std::unique_ptr<Train::TrainingStep> training,
                       Train::TrainingStep::make(engine, built.graph, training_pool, optimizer,
                                                 std::move(updates), options));

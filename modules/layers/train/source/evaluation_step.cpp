@@ -149,7 +149,8 @@ namespace SushiAI
 
         Result<std::unique_ptr<EvaluationStep>> EvaluationStep::make(
             SushiBLAS::Engine& engine, const TracedStep& traced, const NN::ModelState& state,
-            Graph::TensorPool& pool, const Graph::FusionSelector* selector)
+            Graph::TensorPool& pool, const Graph::FusionSelector* selector,
+            const Graph::TensorPool* lender)
         {
             SA_FAIL_IF(traced.input == Graph::K_NO_VALUE, StatusCode::InvalidDescription,
                        "The evaluation step needs the input leaf of its traced graph");
@@ -162,7 +163,7 @@ namespace SushiAI
                 Graph::PlanOptions options;
                 options.pinned = SushiRuntime::span<const Graph::ValueID>(pinned.data(),
                                                                           pinned.size());
-                SA_TRY(Detail::adopt_plan(traced.graph, pool, options));
+                SA_TRY(Detail::adopt_plan(traced.graph, pool, options, lender));
             }
 
             SA_TRY(require_kept(pool, traced.carried));

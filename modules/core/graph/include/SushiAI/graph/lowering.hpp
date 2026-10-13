@@ -45,6 +45,13 @@ namespace SushiAI
     namespace Graph
     {
         /**
+         * @brief Collects the scratch requests of every node of @p graph, in node order,
+         *        through the scratch rules of the table in graph/lowering/all.hpp.
+         * @return The requests; MemoryPlan::build() places them.
+         */
+        [[nodiscard]] std::vector<ScratchRequest> scratch_of(const Graph& graph);
+
+        /**
          * @class Lowering
          * @brief Records the SushiBLAS work of every node of an IR graph, in node order, each
          *        node through its row of the table in graph/lowering/all.hpp.

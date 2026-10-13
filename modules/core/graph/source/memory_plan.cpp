@@ -151,6 +151,9 @@ namespace SushiAI
                     std::vector<std::uint64_t> bits_;
             };
 
+            /** @brief Marks a buffer that serves no scratch request. */
+            constexpr std::size_t K_NO_REQUEST = ~std::size_t{0};
+
             /**
              * @struct Buffer
              * @brief One run of bytes the plan has to find room for.
@@ -179,6 +182,9 @@ namespace SushiAI
 
                 /** @brief Every value that names these bytes. */
                 std::vector<ValueID> members;
+
+                /** @brief The index of the scratch request these bytes serve, or K_NO_REQUEST. */
+                std::size_t request = K_NO_REQUEST;
 
                 /**
                  * @brief Whether the planner may overlap this buffer with others.
@@ -250,6 +256,14 @@ namespace SushiAI
             return placements_[id];
         }
 
+        const Placement* MemoryPlan::scratch_placement(NodeID node, int slot) const noexcept
+        {
+            for (const ScratchSlot& held : scratch_)
+                if (held.node == node && held.slot == slot) return &held.placement;
+
+            return nullptr;
+        }
+
         std::size_t MemoryPlan::arena_bytes() const noexcept
         {
             std::size_t total = 0;
@@ -264,7 +278,8 @@ namespace SushiAI
             return total;
         }
 
-        MemoryPlan MemoryPlan::build(const Graph& graph, const PlanOptions& options)
+        MemoryPlan MemoryPlan::build(const Graph& graph, const PlanOptions& options,
+                                     SushiRuntime::span<const ScratchRequest> scratch)
         {
             SA_THROW_IF(options.alignment == 0,
                         "PlanOptions::alignment must be positive; an offset cannot be rounded "
@@ -352,6 +367,31 @@ namespace SushiAI
                 for (NodeID consumer : consumers[id]) buffer.uses.push_back(consumer);
             }
 
+            // A requested scratch buffer has one user, its node, and names no value.
+            plan.scratch_.reserve(scratch.size());
+            for (std::size_t index = 0; index < scratch.size(); ++index)
+            {
+                const ScratchRequest& request = scratch[index];
+                SA_THROW_IF(request.node >= node_count,
+                            "A scratch request names node {}, which this graph does not have",
+                            request.node);
+
+                Buffer fresh;
+                fresh.lifetime = Lifetime::Scratch;
+                fresh.bytes = static_cast<std::size_t>(request.shape.num_elements())
+                            * dtype_size(request.dtype);
+                fresh.alignment = std::lcm(options.alignment, dtype_size(request.dtype));
+                fresh.first_write = request.node;
+                fresh.uses.push_back(request.node);
+                fresh.packable = true;
+                fresh.request = index;
+                buffers.push_back(std::move(fresh));
+
+                Placement placement;
+                placement.bytes = buffers.back().bytes;
+                plan.scratch_.push_back(ScratchSlot{request.node, request.slot, placement});
+            }
+
             // Caller-pinned buffers bypass packing regardless of lifetime class.
             for (ValueID pinned : options.pinned)
             {
@@ -395,7 +435,9 @@ namespace SushiAI
                           {
                               if (buffers[a].bytes != buffers[b].bytes)
                                   return buffers[a].bytes > buffers[b].bytes;
-                              return buffers[a].owner < buffers[b].owner;
+                              if (buffers[a].owner != buffers[b].owner)
+                                  return buffers[a].owner < buffers[b].owner;
+                              return a < b;
                           });
 
                 const ArenaID arena_id = static_cast<ArenaID>(plan.arenas_.size());
@@ -444,6 +486,12 @@ namespace SushiAI
                         plan.placements_[member].arena = arena_id;
                         plan.placements_[member].offset = offset;
                         plan.placements_[member].buffer = buffer.owner;
+                    }
+
+                    if (buffer.request != K_NO_REQUEST)
+                    {
+                        plan.scratch_[buffer.request].placement.arena = arena_id;
+                        plan.scratch_[buffer.request].placement.offset = offset;
                     }
                 }
 

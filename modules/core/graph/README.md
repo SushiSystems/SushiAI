@@ -69,6 +69,19 @@ node needs for a short time, such as a column matrix `rematerialise_im2col` reco
 nothing in the graph orders one such buffer after another, so the rule of the Activation class
 would give each its own bytes.
 
+A lowering row that writes a buffer on every run before it reads it states the buffer in a
+scratch rule beside its row (`lowering/rule.hpp`, `ScratchRule`). `scratch_of` collects the
+requests of a graph, `MemoryPlan::build` places them in the Scratch arena with their node as
+the one user, and `TensorPool::scratch` hands the row a view of the arena. A buffer no rule
+states keeps a `Storage` of its own, which is what a buffer the host fills once needs. The
+pool stops the process when a row asks for other bytes than its rule stated.
+
+A pool may borrow the arenas of another pool (`TensorPool::adopt`, `lender`). The two then
+write the same bytes, so no step of one may run while a step of the other runs, and neither
+may read a packed value after the other has run. The anchor training step does this: its
+forward-only pass has finished, and the host has read its pinned outputs, before the replay
+starts.
+
 ## Row gathers and integer leaves
 
 `GraphBuilder::gather_rows` and `scatter_add_rows` return a `Traced`: a refusal marks the

@@ -50,10 +50,10 @@ namespace SushiAI
         /** @brief Holds the bytes a pool allocated, by what they back. */
         struct PoolBytes
         {
-            std::size_t arenas = 0;  /**< Every arena of the adopted plan, in full. */
+            std::size_t arenas = 0;  /**< Every arena the pool allocated, in full. */
             std::size_t values = 0;  /**< Graph values that kept a Storage of their own. */
             std::size_t ones = 0;    /**< The shared all-ones tensors. */
-            std::size_t scratch = 0; /**< The per-node scratch buffers. */
+            std::size_t scratch = 0; /**< The per-node scratch buffers outside the arenas. */
 
             /** @brief Returns the sum of the four. */
             std::size_t total() const noexcept { return arenas + values + ones + scratch; }
@@ -75,13 +75,14 @@ namespace SushiAI
                 explicit TensorPool(SushiBLAS::Engine& engine) noexcept : engine_(&engine) {}
 
                 /**
-                 * @brief Allocates arenas from the specified memory plan.
+                 * @brief Allocates arenas from the specified memory plan, or borrows them.
                  * @param plan Arena placement plan to adopt.
+                 * @param lender A pool whose arenas this one uses where they fit, or nullptr.
                  * @return Success, or the failure of an arena allocation.
                  * @pre No plan has been adopted and no planned value has been materialised; a
                  *      second adoption stops the process.
                  */
-                [[nodiscard]] Status adopt(MemoryPlan plan);
+                [[nodiscard]] Status adopt(MemoryPlan plan, const TensorPool* lender = nullptr);
 
                 /** @brief Whether a plan has been adopted. */
                 bool has_plan() const noexcept { return arenas_.has_value(); }
@@ -170,7 +171,8 @@ namespace SushiAI
                 /**
                  * @brief Retrieves or creates a per-node scratch buffer.
                  *
-                 * Keyed by node and slot, reused across replays.
+                 * Keyed by node and slot, reused across replays. A buffer the adopted plan
+                 * placed is a view of its arena; any other keeps a Storage of its own.
                  *
                  * @return Stable reference to scratch tensor, or the allocation failure.
                  */
