@@ -214,6 +214,15 @@ namespace SushiAI
         void check_training_plan(const DarknetTrainingCase& stated);
 
         /**
+         * @brief Checks that one step writes the same heads, deltas and gradients, bit for
+         *        bit, with its pools planned as with every value in a Storage of its own.
+         *
+         * The second run packs nothing, so it fits only a model that is small unpacked.
+         */
+        void check_plan_changes_no_value(SushiBLAS::Engine& engine,
+                                         const DarknetTrainingCase& stated);
+
+        /**
          * @brief Checks that the weight, the scale and the shift of the first convolution each
          *        have a finite gradient that is not zero after one step.
          *
