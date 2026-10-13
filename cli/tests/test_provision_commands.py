@@ -7,23 +7,27 @@
 
 from __future__ import annotations
 
+import re
+
 from typer.testing import CliRunner
 
 from sushicore.provision.config import ProvisionSettings
 from sushiai.cli import app
 from sushiai.config import Config
 
+K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+
 
 def test_the_four_provision_commands_are_registered():
     """Assert setup, doctor, link and unlink appear in the help."""
-    out = CliRunner().invoke(app, ["--help"]).output
+    out = K_ANSI_ESCAPE.sub("", CliRunner().invoke(app, ["--help"]).output)
     for name in ("setup", "doctor", "link", "unlink"):
         assert name in out
 
 
 def test_setup_takes_the_shared_options():
     """Assert setup offers --dry-run, --toolchain and --no-gpu."""
-    out = CliRunner().invoke(app, ["setup", "--help"]).output
+    out = K_ANSI_ESCAPE.sub("", CliRunner().invoke(app, ["setup", "--help"]).output)
     for option in ("--dry-run", "--toolchain", "--no-gpu"):
         assert option in out
 
