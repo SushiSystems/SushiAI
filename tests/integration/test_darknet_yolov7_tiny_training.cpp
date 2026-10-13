@@ -40,8 +40,7 @@ namespace
      * Of the inference-mode runs only the `*_plain_pool*` ones are valid (REPORT 25 and 28).
      * `yolov7_tiny_train_step` is a training-mode run, which the defect does not reach.
      * A delta is held to 1e-6 absolute (PLAN 4.7), a box entry to 1e-4 besides (REPORT 11).
-     * The run of 2026-10-12 set the bounds of the step: each bound it exceeded is about 1.5
-     * times the largest difference it measured; see tests/integration/README.md.
+     * Bounds are 1.5 times the 2026-10-12 run's largest difference (tests/integration/README.md).
      */
     SaTest::DarknetTrainingCase describe_model()
     {

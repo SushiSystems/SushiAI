@@ -55,14 +55,12 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Lowers @p graph into a new step, records it on the step's own graph and
-                 *        compiles that graph.
+                 * @brief Lowers @p graph into a new step that records and compiles it.
                  * @param engine Must outlive the step.
                  * @param pool Holds the tensor of each value; must outlive the step.
                  * @param trailing Records extra work behind the graph's; must outlive the step.
                  * @param selector Picks the form of a fusible node; null selects by device.
-                 * @return The step, or the first refusal of the lowering, the recording or the
-                 *         compilation.
+                 * @return The step, or the first refusal from lowering, recording or compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
                     SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
