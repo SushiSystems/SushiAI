@@ -76,6 +76,9 @@ namespace SushiAI
 
             /** @brief Seeds the random sites of a Training trace, such as each dropout. */
             std::uint64_t seed = 0;
+
+            /** @brief Whether stored K_IM2COL results are recomputed at their later readers. */
+            bool rematerialise = true;
         };
 
         /** @brief Holds one forward-only graph and what a step reads from it. */

@@ -45,6 +45,7 @@
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/node.hpp>
@@ -67,7 +68,8 @@ namespace SushiAI
             }
 
             /**
-             * @brief Runs the cast pass, then the fusion pass, over @p graph.
+             * @brief Runs the cast pass, the fusion pass and, when asked, the rematerialisation
+             *        of column matrices over @p graph.
              * @param observed The values the step reads by id; the caller's own are appended.
              * @return The failure of a pass, or OutOfMemory when @p observed cannot grow.
              */
@@ -100,6 +102,15 @@ namespace SushiAI
                 {
                     return Graph::fuse(graph, fusion_options);
                 }));
+
+                if (options.rematerialise)
+                {
+                    SA_TRY(NN::Detail::bridge_throwing([&graph]()
+                    {
+                        Graph::rematerialise_im2col(graph);
+                        return true;
+                    }));
+                }
 
                 return Status();
             }

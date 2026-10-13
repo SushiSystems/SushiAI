@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-13 — train: Added GraphOptions::rematerialise, on by default, so a training graph recomputes its column matrices before the backward pass and does not keep them (`steps.hpp`, `steps.cpp`, `rematerialise_im2col`).
+- 2026-10-13 — graph: Made the memory planner overlap Scratch buffers by the order of the nodes, where it asked that one reach the other in the graph; Activation buffers are planned as before (`memory_plan.cpp`, `memory_plan.hpp`).
 - 2026-10-13 — graph: Added TensorPool::bytes(), which splits the allocated bytes into arenas, own values, ones and scratch (`tensor_pool.hpp`, `PoolBytes`).
 - 2026-10-12 — tests: Set the step bounds of YOLOv3 to 1.5 times what its first run measured (`test_darknet_yolov3_training.cpp`).
 - 2026-10-12 — eager: Added the session, the step and the region executor of the eager front end (`session.hpp`, `step.hpp`, `region_executor.hpp`, `region_table.hpp`, `slot_ledger.hpp`).
