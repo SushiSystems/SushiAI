@@ -1234,8 +1234,14 @@ The fixture `DarknetTrainingTest` reads `yolov4.cfg`, `yolov4.weights` and two r
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov4_plain_pool`, one image of
 YOLOv4 with its deltas and assignments, and `yolov4_train_step`, one training step of two images.
 The box loss is `BoxLoss::CompleteIoU` and the objectness target is `ObjectnessTarget::One`. Every
-case is skipped without its files. The source states that no run has measured the bounds of the step
-cases yet.
+case is skipped without its files.
+
+The run of 2026-10-13 on this model, the first under the default memory limit, set the bounds of
+the step cases by the owner's ruling of that day: each bound that run exceeded is now about 1.5
+times the largest difference it measured. The heads were 0.205, 0.104 and 0.065 from the dump on
+values near 40, the [yolo] outputs at most 0.0316, a box entry of the delta 0.0020 and any other
+entry 0.0043, and an update of a head convolution 0.0047 of the dump's largest magnitude. The
+cause is not known; YOLOv3 above differs by as much.
 
 ### TheTrainingOptionsMatchTheDumpedSettings
 
@@ -1446,8 +1452,13 @@ The fixture `DarknetTrainingTest` reads `yolov7.cfg`, `yolov7.weights` and two r
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov7_plain_pool_thresh_0p01`, one
 image of YOLOv7 with its deltas and assignments, and `yolov7_train_step`, one training step of two
 images. The box loss is `BoxLoss::CompleteIoU` and the objectness target is
-`ObjectnessTarget::BestIoU`. Every case is skipped without its files. The source states that no run
-has measured the bounds of the step cases yet.
+`ObjectnessTarget::BestIoU`. Every case is skipped without its files.
+
+The run of 2026-10-13 on this model, the first under the default memory limit, set three bounds
+of the step cases by the owner's ruling of that day, each about 1.5 times the largest difference
+that run measured: the heads were at most 0.0052 from the dump, the [yolo] outputs the same, and
+an entry of the delta that is no box entry 0.00103. The other bounds held. The cause of the
+differences is not known.
 
 ### TheTrainingOptionsMatchTheDumpedSettings
 
