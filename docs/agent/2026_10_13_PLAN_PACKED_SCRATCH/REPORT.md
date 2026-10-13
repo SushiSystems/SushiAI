@@ -1,6 +1,7 @@
 # Plan-packed scratch: report
 
-**Status:** Task 1 done, and the full-size plans measured. Tasks 2 to 8 not started.
+**Status:** Task 1 done, and the full-size plans measured. Tasks 2 to 8 not started; the
+measurements below put two other changes ahead of them, and the owner has not ruled on those.
 
 ## Task 1: the share of scratch
 
@@ -58,10 +59,71 @@ needs inside the arena. The default limit is 7.6 GB. The work is needed for the 
 cases, and by this estimate it is not certain to be enough alone. The probe pool, about 1.2 GB
 with its scratch, is the next largest part; whether a step can do without it is not examined.
 
+## What is live at the peak
+
+Measured 2026-10-13 on the host by the same three cases. A packed buffer is taken as live from
+the first node that writes it to the last node that reads or writes it, with the nodes in
+insertion order. No arena that follows that order can be smaller than the peak.
+
+| Model | Graph | Arena | Peak in insertion order | Peak at node |
+| --- | --- | --- | --- | --- |
+| YOLOv4-tiny | Probe | 75.8 MB | 53.0 MB | 21 of 198 |
+| YOLOv4-tiny | Training | 409.4 MB | 379.0 MB | 229 of 395 |
+| YOLOv4 | Probe | 719.0 MB | 338.5 MB | 59 of 1164 |
+| YOLOv4 | Training | 5436.7 MB | 5262.6 MB | 1194 of 2314 |
+| YOLOv7 | Probe | 640.6 MB | 500.1 MB | 21 of 850 |
+| YOLOv7 | Training | 4420.2 MB | 4268.8 MB | 880 of 1644 |
+
+The training arenas of the two full-size models are within 4% of the peak, so a better packing
+has little
+left to win there. The probe arena of YOLOv4 is about twice its peak.
+
+The bytes live at the peak of a training graph, by the operation that wrote them:
+
+| Model | `im2col` | `reshape` | `batchnorm2d` | Activation | Rest |
+| --- | --- | --- | --- | --- | --- |
+| YOLOv4-tiny | 225.8 MB | 80.4 MB | 0.01 MB | 45.4 MB | 27.4 MB |
+| YOLOv4 | 1897.4 MB | 1749.2 MB | 723.5 MB | 858.1 MB | 34.4 MB |
+| YOLOv7 | 2250.0 MB | 1286.0 MB | 646.2 MB | 0 MB | 86.6 MB |
+
+Two things follow from reading the code beside these figures:
+
+- **Every column matrix is kept from the forward pass to the backward pass.** In YOLOv4 that is
+  1.9 GB of a 5.3 GB peak, in YOLOv7 2.25 GB of 4.3 GB. `rematerialise_im2col` recomputes the
+  columns before the backward pass instead; the eager front end calls it
+  (`modules/core/eager/source/region_program.cpp`) and the compiled training path does not.
+- **`reshape` copies.** `GraphBuilder::reshape` declares a new value and `lower_reshape` records
+  a copy, so a convolution keeps a second copy of its input for a 1x1 kernel and writes its
+  result twice. How much of the 1.7 GB of YOLOv4 an alias would give back is not measured.
+
+## What Darknet allocates for the same step
+
+Measured 2026-10-13 outside the repository: the CPU build of the oracle ran one training step
+of the same cfg, batch and input, and its peak private bytes were read while it ran.
+
+| Model | Batch and input | Darknet, peak private bytes | SushiAI |
+| --- | --- | --- | --- |
+| YOLOv4-tiny | 2 x 416 x 416 | 378 MB | 710 MB in the two pools |
+| YOLOv4 | 2 x 608 x 608 | 5950 MB | 11.1 GB committed |
+| YOLOv7 | 2 x 640 x 640 | 4940 MB | not measured |
+
+The Darknet figure is a whole process on the CPU, weights included. The SushiAI figure of
+YOLOv4-tiny leaves out the weights and the process itself, so the two columns are not the same
+quantity; they show that a step here takes close to twice what the reference takes.
+
+## Where the memory is counted
+
+Every tensor is allocated with `Residency::Shared` (`modules/core/core/source/allocation.cpp`),
+which SushiRuntime turns into `sycl::malloc_shared`. The memory limit of `sa` is a limit on the
+committed bytes of the process, and the arenas count against it. Whether `Residency::Device`
+would count against it too is not measured.
+
 ## Not measured
 
 - The scratch of the full-size models. They do not fit under the default limit and are not run.
 - What the remaining 1.8 GB of the 11.1 GB commit is.
+- The peak of a training graph after `rematerialise_im2col`, and after `reshape` is an alias.
+- Whether the probe pool can share the bytes of the training arena.
 
 ## Build
 
