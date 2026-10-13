@@ -69,6 +69,13 @@ node needs for a short time, such as a column matrix `rematerialise_im2col` reco
 nothing in the graph orders one such buffer after another, so the rule of the Activation class
 would give each its own bytes.
 
+A `RESHAPE` result is a view of its operand: the planner puts the two in one buffer, the pool
+hands the result the operand's bytes under its own extents, and the row records no copy. Two
+cases keep the copy. A row that writes an operand in place (`ACCUMULATE`, `EXP_SUB_SCALE`)
+would change what the other side of the view reads, so a reshape whose operand or result such
+a row touches is left alone; `LoweringContext::mutable_input` stops the process if a row
+writes a viewed value all the same. A pinned result must keep bytes of its own.
+
 A lowering row that writes a buffer on every run before it reads it states the buffer in a
 scratch rule beside its row (`lowering/rule.hpp`, `ScratchRule`). `scratch_of` collects the
 requests of a graph, `MemoryPlan::build` places them in the Scratch arena with their node as

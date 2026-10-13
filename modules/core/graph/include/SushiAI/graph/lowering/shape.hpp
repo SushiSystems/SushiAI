@@ -37,7 +37,10 @@ namespace SushiAI
         /** @brief Checks that every result of a leaf has a tensor bound; records no task. */
         [[nodiscard]] Status lower_leaf(const LoweringContext& context);
 
-        /** @brief Records a copy of a contiguous operand into a result of other extents. */
+        /**
+         * @brief Records a copy of a contiguous operand into a result of other extents, and
+         *        nothing when the plan made the result a view of the operand.
+         */
         [[nodiscard]] Status lower_reshape(const LoweringContext& context);
 
         /** @brief Records the conversion of one operand between the NCHW and NHWC layouts. */

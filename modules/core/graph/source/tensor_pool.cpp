@@ -91,12 +91,24 @@ namespace SushiAI
         {
             SA_FATAL_IF(is_bound(id),
                         "Value {} is already bound to a tensor; a value has one buffer", id);
+            SA_FATAL_IF(arenas_.has_value() && find_shared(arenas_->plan().buffer_of(id)) != nullptr,
+                        "Value {} shares its buffer with a value that was materialised first; "
+                        "bind it before any value that views it", id);
 
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
                 tensors_.emplace(id, std::move(tensor));
                 return Status();
             });
+        }
+
+        const SushiBLAS::Tensor* TensorPool::find_shared(ValueID owner) const noexcept
+        {
+            const auto bound = tensors_.find(owner);
+            if (bound != tensors_.end()) return &bound->second;
+
+            const auto first = shared_.find(owner);
+            return first != shared_.end() ? &first->second : nullptr;
         }
 
         SushiBLAS::Tensor& TensorPool::tensor(ValueID id)
@@ -131,14 +143,7 @@ namespace SushiAI
 
             if (arenas_.has_value())
             {
-                // Materialises alias chains through buffer owner to align with planner liveness.
-                const ValueID owner = arenas_->plan().buffer_of(id);
-                if (owner != id)
-                {
-                    SA_TRY_ASSIGN(SushiBLAS::Tensor& shared, materialise(owner, value));
-                    return store_tensor(tensors_, id, shared);
-                }
-
+                // Every value of a packed buffer has the buffer's offset in its own placement.
                 if (arenas_->holds(id))
                 {
                     SA_TRY_ASSIGN(SushiBLAS::Tensor slice,
@@ -152,6 +157,32 @@ namespace SushiAI
                     unpacked_bytes_ += static_cast<std::size_t>(value.shape.num_elements())
                                      * dtype_size(value.dtype);
                     return store_tensor(tensors_, id, std::move(slice));
+                }
+
+                // The values of an unpacked buffer share one Storage, each under its extents.
+                const ValueID owner = arenas_->plan().buffer_of(id);
+                const SushiBLAS::Tensor* const base = find_shared(owner);
+                if (base != nullptr)
+                {
+                    SA_TRY_ASSIGN(SushiBLAS::Tensor view,
+                                  ::SushiAI::Detail::guard_value(
+                                      ::SushiAI::Detail::SeamPhase::Allocate, [&]()
+                    {
+                        return SushiBLAS::Tensor(
+                            base->storage,
+                            SushiRuntime::span<const std::int64_t>(
+                                value.shape.data(), static_cast<std::size_t>(value.shape.rank())),
+                            base->dtype, base->storage_offset, base->layout);
+                    }));
+                    return store_tensor(tensors_, id, std::move(view));
+                }
+
+                if (owner != id)
+                {
+                    SA_TRY_ASSIGN(SushiBLAS::Tensor first, create(value.shape, value.dtype));
+                    note_standalone(bytes_.values, value.shape, value.dtype);
+                    SA_TRY(store_tensor(shared_, owner, first));
+                    return store_tensor(tensors_, id, std::move(first));
                 }
             }
 

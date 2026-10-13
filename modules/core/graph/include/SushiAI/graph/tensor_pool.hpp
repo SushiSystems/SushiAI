@@ -270,9 +270,18 @@ namespace SushiAI
                     }
                 };
 
+                /**
+                 * @brief Returns the tensor that holds the bytes of the unpacked buffer
+                 *        @p owner names, or nullptr when none of its values has a tensor yet.
+                 */
+                const SushiBLAS::Tensor* find_shared(ValueID owner) const noexcept;
+
                 SushiBLAS::Engine* engine_;
                 std::optional<ArenaSet> arenas_;
                 std::unordered_map<ValueID, SushiBLAS::Tensor> tensors_;
+
+                /** @brief The first tensor of each unpacked buffer whose owner came later. */
+                std::unordered_map<ValueID, SushiBLAS::Tensor> shared_;
                 std::unordered_map<ShapeKey, SushiBLAS::Tensor, ShapeKeyHash> ones_;
                 std::unordered_map<ScratchKey, SushiBLAS::Tensor, ScratchKeyHash> scratch_;
                 std::vector<std::pair<SushiBLAS::Tensor*, double>> pending_constants_;
