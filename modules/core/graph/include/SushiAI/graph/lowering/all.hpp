@@ -73,6 +73,20 @@ namespace SushiAI
             return nullptr;
         }
 
+        /** @brief Returns the scratch rule of the first row that names @p op, or nullptr. */
+        [[nodiscard]] constexpr ScratchRule find_scratch_rule(OpID op) noexcept
+        {
+            for (const LoweringEntry& entry : K_LOWERINGS)
+            {
+                if (entry.op == op)
+                {
+                    return entry.scratch;
+                }
+            }
+
+            return nullptr;
+        }
+
         /** @brief Returns whether K_UNLOWERED lists @p op. */
         [[nodiscard]] constexpr bool is_unlowered(OpID op) noexcept
         {

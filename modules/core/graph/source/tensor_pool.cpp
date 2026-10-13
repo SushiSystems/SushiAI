@@ -65,15 +65,18 @@ namespace SushiAI
             return allocate_tensor(*engine_, shape, dtype);
         }
 
-        Status TensorPool::adopt(MemoryPlan plan)
+        Status TensorPool::adopt(MemoryPlan plan, const TensorPool* lender)
         {
             SA_FATAL_IF(arenas_.has_value(),
                         "This pool has already adopted a memory plan; its arenas are allocated "
                         "once and a second plan would leave the first one's views dangling");
 
-            SA_TRY_ASSIGN(ArenaSet arenas, ArenaSet::make(*engine_, std::move(plan)));
+            const ArenaSet* const lent =
+                lender != nullptr && lender->arenas_.has_value() ? &*lender->arenas_ : nullptr;
+
+            SA_TRY_ASSIGN(ArenaSet arenas, ArenaSet::make(*engine_, std::move(plan), lent));
             arenas_.emplace(std::move(arenas));
-            bytes_.arenas = arenas_->bytes();
+            bytes_.arenas = arenas_->owned_bytes();
             return Status();
         }
 
@@ -222,6 +225,20 @@ namespace SushiAI
 
             const auto it = scratch_.find(key);
             if (it != scratch_.end()) return it->second;
+
+            if (arenas_.has_value() && arenas_->holds_scratch(node, slot))
+            {
+                SA_TRY_ASSIGN(SushiBLAS::Tensor slice,
+                              ::SushiAI::Detail::guard_value(
+                                  ::SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    return arenas_->scratch_view(node, slot, shape, dtype);
+                }));
+
+                unpacked_bytes_ += static_cast<std::size_t>(shape.num_elements())
+                                 * dtype_size(dtype);
+                return store_tensor(scratch_, key, std::move(slice));
+            }
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor buffer, create(shape, dtype));
             note_standalone(bytes_.scratch, shape, dtype);

@@ -40,6 +40,14 @@ namespace SushiAI
         /** @brief Records the gradients of 2D batch normalization for x, gamma and beta. */
         [[nodiscard]] Status lower_batchnorm2d_backward(const LoweringContext& context);
 
+        /** @brief Appends the three buffers lower_batchnorm2d() writes on every run. */
+        void request_batchnorm2d_scratch(const Graph& graph, NodeID node,
+                                         std::vector<ScratchRequest>& requests);
+
+        /** @brief Appends the seven buffers lower_batchnorm2d_backward() writes on every run. */
+        void request_batchnorm2d_backward_scratch(const Graph& graph, NodeID node,
+                                                  std::vector<ScratchRequest>& requests);
+
         /** @brief Records a per-channel scale and shift of an NHWC operand. */
         [[nodiscard]] Status lower_channel_affine(const LoweringContext& context);
 
@@ -54,8 +62,9 @@ namespace SushiAI
 
         /** @brief Pairs each normalization operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 6> K_NORM_LOWERINGS = {{
-            {Ops::K_BATCHNORM2D.id, &lower_batchnorm2d},
-            {Ops::K_BATCHNORM2D_BACKWARD.id, &lower_batchnorm2d_backward},
+            {Ops::K_BATCHNORM2D.id, &lower_batchnorm2d, &request_batchnorm2d_scratch},
+            {Ops::K_BATCHNORM2D_BACKWARD.id, &lower_batchnorm2d_backward,
+             &request_batchnorm2d_backward_scratch},
             {Ops::K_CHANNEL_AFFINE.id, &lower_channel_affine},
             {Ops::K_BATCHNORM_FOLD.id, &lower_batchnorm_fold},
             {Ops::K_LAYER_NORM.id, &lower_layer_norm},

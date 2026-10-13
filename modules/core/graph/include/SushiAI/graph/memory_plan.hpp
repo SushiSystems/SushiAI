@@ -88,6 +88,25 @@ namespace SushiAI
         };
 
         /**
+         * @struct ScratchRequest
+         * @brief Names one buffer a node writes on every run before it reads it.
+         */
+        struct ScratchRequest
+        {
+            /** @brief The node that asks for the buffer and is its one user. */
+            NodeID node = K_NO_NODE;
+
+            /** @brief The scratch slot of the node. */
+            int slot = 0;
+
+            /** @brief The extents of the buffer. */
+            Shape shape;
+
+            /** @brief The element type of the buffer. */
+            DType dtype = DType::Float32;
+        };
+
+        /**
          * @struct PlanOptions
          * @brief The three knobs the planner has, and nothing else.
          */
@@ -142,13 +161,14 @@ namespace SushiAI
 
                 /**
                  * @brief Generates an arena memory plan for the given graph.
-                 *
                  * @param graph The graph to plan.
                  * @param options Packing and alignment options.
+                 * @param scratch The buffers to place in the Scratch arena beside the values.
                  * @return The computed memory plan.
-                 * @throws Error If alignment is zero or graph topological order is broken.
+                 * @throws Error For a zero alignment, a broken order or an unknown node.
                  */
-                static MemoryPlan build(const Graph& graph, const PlanOptions& options = {});
+                static MemoryPlan build(const Graph& graph, const PlanOptions& options = {},
+                                        SushiRuntime::span<const ScratchRequest> scratch = {});
 
                 /** @brief How many values the plan covers. */
                 std::size_t value_count() const noexcept { return placements_.size(); }
@@ -182,6 +202,12 @@ namespace SushiAI
                     return owner == K_NO_VALUE ? id : owner;
                 }
 
+                /**
+                 * @brief Where the scratch buffer of @p node and @p slot lives.
+                 * @return The placement, or nullptr when the plan was given no such request.
+                 */
+                const Placement* scratch_placement(NodeID node, int slot) const noexcept;
+
                 /** @brief Every arena the plan asks for, in id order. */
                 SushiRuntime::span<const Arena> arenas() const noexcept { return arenas_; }
 
@@ -203,7 +229,16 @@ namespace SushiAI
                 std::string_view reuse_note() const noexcept { return reuse_note_; }
 
             private:
+                /** @brief Holds the placement of one requested scratch buffer. */
+                struct ScratchSlot
+                {
+                    NodeID node = K_NO_NODE;
+                    int slot = 0;
+                    Placement placement;
+                };
+
                 std::vector<Placement> placements_;
+                std::vector<ScratchSlot> scratch_;
                 std::vector<Arena> arenas_;
                 bool reuse_enabled_ = false;
                 std::string_view reuse_note_{};

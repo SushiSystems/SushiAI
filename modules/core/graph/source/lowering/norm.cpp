@@ -106,6 +106,32 @@ namespace SushiAI
             }
         } // namespace
 
+        void request_batchnorm2d_scratch(const Graph& graph, NodeID node,
+                                         std::vector<ScratchRequest>& requests)
+        {
+            const Value& x = graph.value(graph.node(node).inputs[0]);
+            const Shape per_channel({x.shape[3]});
+
+            requests.push_back(ScratchRequest{node, 0, per_channel, x.dtype});
+            requests.push_back(ScratchRequest{node, 1, x.shape, x.dtype});
+            requests.push_back(ScratchRequest{node, 2, per_channel, x.dtype});
+        }
+
+        void request_batchnorm2d_backward_scratch(const Graph& graph, NodeID node,
+                                                  std::vector<ScratchRequest>& requests)
+        {
+            const Value& x = graph.value(graph.node(node).inputs[1]);
+            const Shape per_channel({x.shape[3]});
+
+            requests.push_back(ScratchRequest{node, 0, per_channel, x.dtype});
+            requests.push_back(ScratchRequest{node, 1, x.shape, x.dtype});
+            requests.push_back(ScratchRequest{node, 2, per_channel, x.dtype});
+            requests.push_back(ScratchRequest{node, 3, per_channel, x.dtype});
+            requests.push_back(ScratchRequest{node, 4, per_channel, x.dtype});
+            requests.push_back(ScratchRequest{node, 5, x.shape, x.dtype});
+            requests.push_back(ScratchRequest{node, 6, per_channel, x.dtype});
+        }
+
         Status lower_batchnorm2d(const LoweringContext& context)
         {
             context.require_arity(3, 4);

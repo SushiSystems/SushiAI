@@ -49,14 +49,16 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Allocates every arena requested by @p plan.
+                 * @brief Allocates every arena requested by @p plan, or borrows it.
                  * @param engine The engine whose context owns the allocator.
                  * @param plan The memory plan to realise.
+                 * @param lender Lends each arena of the same lifetime that is large enough.
                  * @return The arena set, or the OutOfMemory failure of the first arena the
                  *         allocator refuses.
                  */
                 [[nodiscard]] static Result<ArenaSet> make(SushiBLAS::Engine& engine,
-                                                           MemoryPlan plan);
+                                                           MemoryPlan plan,
+                                                           const ArenaSet* lender = nullptr);
 
                 /** @brief The plan these arenas realise. */
                 const MemoryPlan& plan() const noexcept { return plan_; }
@@ -72,11 +74,29 @@ namespace SushiAI
                  */
                 SushiBLAS::Tensor view(ValueID id, const Shape& shape, DType dtype) const;
 
+                /** @brief Whether the plan placed the scratch buffer of @p node and @p slot. */
+                bool holds_scratch(NodeID node, int slot) const noexcept
+                {
+                    return plan_.scratch_placement(node, slot) != nullptr;
+                }
+
+                /**
+                 * @brief Returns a tensor view of the slot reserved for a node's scratch buffer.
+                 * @return A tensor sharing the arena storage at the planned offset.
+                 * @pre holds_scratch() is true for the pair, and the view needs exactly the
+                 *      planned bytes; a violation stops the process.
+                 */
+                SushiBLAS::Tensor scratch_view(NodeID node, int slot, const Shape& shape,
+                                               DType dtype) const;
+
                 /** @brief How many arenas were allocated. */
                 std::size_t arena_count() const noexcept { return storages_.size(); }
 
                 /** @brief Total bytes across every arena. */
                 std::size_t bytes() const noexcept { return plan_.arena_bytes(); }
+
+                /** @brief Total bytes of the arenas this set allocated and did not borrow. */
+                std::size_t owned_bytes() const noexcept { return owned_bytes_; }
 
             private:
                 /** @brief One owning handle per arena, in the order of the plan's arenas. */
@@ -87,12 +107,19 @@ namespace SushiAI
                  * @param engine The engine whose context owns the allocator.
                  * @param plan The memory plan the storages realise.
                  * @param storages One storage per arena of @p plan, in the plan's order.
+                 * @param owned_bytes The bytes of the storages that were allocated for this set.
                  */
-                ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan, Storages storages) noexcept;
+                ArenaSet(SushiBLAS::Engine& engine, MemoryPlan plan, Storages storages,
+                         std::size_t owned_bytes) noexcept;
+
+                /** @brief Returns the storage @p lender holds for @p arena, or null. */
+                static SushiRuntime::sushi_ptr<SushiBLAS::Storage> borrow(const ArenaSet* lender,
+                                                                          const Arena& arena);
 
                 SushiBLAS::Engine* engine_;
                 MemoryPlan plan_;
                 Storages storages_;
+                std::size_t owned_bytes_ = 0;
         };
 
     } // namespace Graph

@@ -29,8 +29,11 @@
 
 #include <array>
 #include <cstddef>
+#include <vector>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/status.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
 
 namespace SushiAI
 {
@@ -41,11 +44,18 @@ namespace SushiAI
         /** @brief Records the SushiBLAS work of one node and reports a refusal as a status. */
         using LoweringRule = Status (*)(const LoweringContext&);
 
-        /** @brief Pairs an operation with the function that lowers it. */
+        /**
+         * @brief Appends the scratch buffers of one node that its row writes on every run
+         *        before it reads them; a buffer that keeps its bytes between runs is left out.
+         */
+        using ScratchRule = void (*)(const Graph&, NodeID, std::vector<ScratchRequest>&);
+
+        /** @brief Pairs an operation with the function that lowers it and its scratch rule. */
         struct LoweringEntry
         {
-            OpID op;           /**< The operation. */
-            LoweringRule rule; /**< What records it. */
+            OpID op;                       /**< The operation. */
+            LoweringRule rule;             /**< What records it. */
+            ScratchRule scratch = nullptr; /**< What it asks the plan to place, or nullptr. */
         };
 
         /** @brief Joins two lowering tables into one, @p a first. */

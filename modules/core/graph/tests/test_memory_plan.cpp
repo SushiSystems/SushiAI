@@ -327,6 +327,58 @@ TEST(Unit_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
     EXPECT_NE(plan.placement(first).offset, plan.placement(second).offset);
 }
 
+TEST(Unit_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(unit_shape(), "x");
+    const ValueID a = builder.relu(x);
+    const ValueID b = builder.relu(a);
+    const NodeID first = graph.value(a).producer;
+    const NodeID second = graph.value(b).producer;
+
+    const Graph::ScratchRequest requests[] = {
+        {first, 0, unit_shape(), DType::Float32},
+        {first, 1, unit_shape(), DType::Float32},
+        {second, 0, unit_shape(), DType::Float32},
+    };
+
+    const MemoryPlan plan = MemoryPlan::build(
+        graph, PlanOptions{}, SushiRuntime::span<const Graph::ScratchRequest>(requests, 3));
+
+    const Graph::Placement* const one = plan.scratch_placement(first, 0);
+    const Graph::Placement* const two = plan.scratch_placement(first, 1);
+    const Graph::Placement* const three = plan.scratch_placement(second, 0);
+    ASSERT_NE(one, nullptr);
+    ASSERT_NE(two, nullptr);
+    ASSERT_NE(three, nullptr);
+
+    EXPECT_NE(one->arena, K_NO_ARENA);
+    EXPECT_EQ(one->arena, two->arena);
+    EXPECT_NE(one->offset, two->offset) << "two buffers of one node are live together";
+    EXPECT_TRUE(three->offset == one->offset || three->offset == two->offset)
+        << "the buffer of a later node takes the bytes of an earlier node's";
+
+    EXPECT_NE(one->arena, plan.placement(a).arena) << "scratch has an arena of its own";
+    EXPECT_EQ(plan.scratch_placement(second, 1), nullptr);
+}
+
+TEST(Unit_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    (void)builder.relu(builder.input(unit_shape(), "x"));
+
+    const Graph::ScratchRequest request{static_cast<NodeID>(graph.node_count()), 0, unit_shape(),
+                                        DType::Float32};
+
+    EXPECT_THROW((void)MemoryPlan::build(
+                     graph, PlanOptions{},
+                     SushiRuntime::span<const Graph::ScratchRequest>(&request, 1)),
+                 Error);
+}
+
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
     // An ACTIVATION with no producer lives the whole run; see tests/unit/README.md.

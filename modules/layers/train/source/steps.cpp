@@ -44,6 +44,7 @@
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -331,7 +332,8 @@ namespace SushiAI
             }
 
             Status adopt_plan(const Graph::Graph& graph, Graph::TensorPool& pool,
-                              const Graph::PlanOptions& options)
+                              const Graph::PlanOptions& options,
+                              const Graph::TensorPool* lender)
             {
                 if (pool.has_plan())
                     return Status();
@@ -339,10 +341,14 @@ namespace SushiAI
                 SA_TRY_ASSIGN(Graph::MemoryPlan plan,
                               NN::Detail::bridge_throwing([&graph, &options]()
                 {
-                    return Graph::MemoryPlan::build(graph, options);
+                    const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(graph);
+                    return Graph::MemoryPlan::build(
+                        graph, options,
+                        SushiRuntime::span<const Graph::ScratchRequest>(scratch.data(),
+                                                                        scratch.size()));
                 }));
 
-                return pool.adopt(std::move(plan));
+                return pool.adopt(std::move(plan), lender);
             }
 
         } // namespace Detail

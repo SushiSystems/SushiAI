@@ -193,10 +193,12 @@ namespace SushiAI
             /**
              * @brief Adopts a plan of @p graph into @p pool unless the pool holds one.
              * @param options Its pinned span must stay valid for the length of the call.
+             * @param lender A pool whose arenas @p pool borrows, or nullptr.
              * @return The failure of the planner or of the pool.
              */
             [[nodiscard]] Status adopt_plan(const Graph::Graph& graph, Graph::TensorPool& pool,
-                                            const Graph::PlanOptions& options);
+                                            const Graph::PlanOptions& options,
+                                            const Graph::TensorPool* lender = nullptr);
 
             /**
              * @brief Traces @p model once and returns what it published.

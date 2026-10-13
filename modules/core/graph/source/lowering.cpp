@@ -37,6 +37,18 @@ namespace SushiAI
 {
     namespace Graph
     {
+        std::vector<ScratchRequest> scratch_of(const Graph& graph)
+        {
+            std::vector<ScratchRequest> requests;
+            for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
+            {
+                const ScratchRule rule = find_scratch_rule(graph.node(id).op);
+                if (rule != nullptr) rule(graph, id, requests);
+            }
+
+            return requests;
+        }
+
         Status Lowering::record(const Graph& graph)
         {
             emitted_ = 0;

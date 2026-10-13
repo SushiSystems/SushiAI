@@ -34,6 +34,7 @@
 
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/ops.hpp>
+#include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 
 namespace SushiAI
@@ -121,7 +122,10 @@ namespace SushiAI
 
             Graph::PlanOptions plan_options = options.plan;
             plan_options.pinned = view_of(boundary.exports);
-            program.plan = Graph::MemoryPlan::build(program.graph, plan_options);
+            const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(program.graph);
+            program.plan = Graph::MemoryPlan::build(
+                program.graph, plan_options,
+                SushiRuntime::span<const Graph::ScratchRequest>(scratch.data(), scratch.size()));
 
             return program;
         }
