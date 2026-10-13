@@ -379,6 +379,46 @@ TEST(Unit_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
                  Error);
 }
 
+TEST(Unit_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 8}, "x");
+    const ValueID a = builder.relu(x);
+    const ValueID flat = builder.reshape(a, Shape{32});
+    (void)builder.relu(flat);
+
+    const MemoryPlan plan = MemoryPlan::build(graph);
+
+    EXPECT_EQ(plan.buffer_of(flat), plan.buffer_of(a));
+    ASSERT_TRUE(plan.is_packed(flat));
+    EXPECT_EQ(plan.placement(flat).offset, plan.placement(a).offset);
+}
+
+TEST(Unit_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 8}, "x");
+    const ValueID a = builder.relu(x);
+    const ValueID written = builder.reshape(a, Shape{32});
+    (void)builder.accumulate(written, builder.relu(written));
+    const ValueID kept = builder.reshape(a, Shape{8, 4});
+    (void)builder.relu(kept);
+
+    const ValueID pinned[] = {kept};
+    PlanOptions options;
+    options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
+    const MemoryPlan plan = MemoryPlan::build(graph, options);
+
+    EXPECT_NE(plan.buffer_of(written), plan.buffer_of(a));
+    EXPECT_NE(plan.buffer_of(kept), plan.buffer_of(a));
+    EXPECT_FALSE(plan.is_packed(kept));
+    EXPECT_TRUE(plan.is_packed(a));
+}
+
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
     // An ACTIVATION with no producer lives the whole run; see tests/unit/README.md.

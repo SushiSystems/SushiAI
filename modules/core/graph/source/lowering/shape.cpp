@@ -70,6 +70,13 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(SushiBLAS::Tensor& destination, context.output(0));
 
+            // The plan made the result a view of the operand, so there is nothing to copy.
+            if (destination.storage == source.storage
+                && destination.storage_offset == source.storage_offset)
+            {
+                return Status();
+            }
+
             // reshaped reads the operand's storage, which the check above found contiguous.
             const Shape& out_shape = context.output_value(0).shape;
             const SushiBLAS::Tensor reshaped(

@@ -38,6 +38,13 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Whether the row of @p node writes its operand @p index in place. */
+            bool writes_operand(const Node& node, std::size_t index) noexcept
+            {
+                if (node.op == Ops::K_ACCUMULATE.id) return index == 0;
+                return node.op == Ops::K_EXP_SUB_SCALE.id;
+            }
+
             /** @brief @p value rounded up to the next multiple of @p multiple. */
             std::size_t round_up(std::size_t value, std::size_t multiple) noexcept
             {
@@ -324,6 +331,36 @@ namespace SushiAI
             for (const Node& node : graph.nodes())
                 if (node.op == Ops::K_ACCUMULATE.id && !node.inputs.empty() && !node.outputs.empty())
                     aliases.merge(node.outputs[0], node.inputs[0]);
+
+            // A class a row writes in place keeps a reshape's copy, as does a pinned result.
+            std::vector<char> is_written(value_count, 0);
+            for (const Node& node : graph.nodes())
+            {
+                for (std::size_t index = 0; index < node.inputs.size(); ++index)
+                    if (writes_operand(node, index)) is_written[node.inputs[index]] = 1;
+                if (node.op == Ops::K_ACCUMULATE.id)
+                    for (ValueID out : node.outputs) is_written[out] = 1;
+            }
+            for (ValueID id = 0; id < static_cast<ValueID>(value_count); ++id)
+                if (is_written[id]) is_written[aliases.find(id)] = 1;
+
+            std::vector<char> is_pinned(value_count, 0);
+            for (ValueID pinned : options.pinned)
+                if (pinned < value_count) is_pinned[pinned] = 1;
+
+            // A reshape result is a view of its operand: the two name the same bytes.
+            for (const Node& node : graph.nodes())
+            {
+                if (node.op != Ops::K_RESHAPE.id || node.inputs.empty() || node.outputs.empty())
+                    continue;
+
+                const ValueID in = node.inputs[0];
+                const ValueID out = node.outputs[0];
+                if (is_pinned[out] || is_written[aliases.find(in)] || is_written[aliases.find(out)])
+                    continue;
+
+                aliases.merge(out, in);
+            }
 
             std::vector<Buffer> buffers;
             std::unordered_map<ValueID, std::size_t> buffer_of_owner;

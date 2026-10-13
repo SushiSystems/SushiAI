@@ -172,7 +172,25 @@ namespace SushiAI
         SushiBLAS::Tensor& LoweringContext::mutable_input(std::size_t index) const
         {
             check_input(index);
-            return pool_.tensor(node().inputs[index]);
+            const ValueID written = node().inputs[index];
+            if (!pool_.has_plan()) return pool_.tensor(written);
+
+            // The planner leaves a reshape its copy when a row writes either side in place.
+            const MemoryPlan& plan = pool_.arenas().plan();
+            const ValueID buffer = plan.buffer_of(written);
+            for (const Node& other : graph_.nodes())
+            {
+                if (other.op != Ops::K_RESHAPE.id) continue;
+
+                const ValueID in = plan.buffer_of(other.inputs[0]);
+                SA_FATAL_IF(in == buffer && in == plan.buffer_of(other.outputs[0]),
+                            "{} (node {}) writes value {} in place, but a RESHAPE shares its "
+                            "bytes as a view; MemoryPlan::build must list the operation among "
+                            "the ones that write an operand",
+                            name(), id_, written);
+            }
+
+            return pool_.tensor(written);
         }
 
         Result<SushiBLAS::Tensor&> LoweringContext::output(std::size_t index) const
