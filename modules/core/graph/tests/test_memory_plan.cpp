@@ -280,6 +280,53 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
     EXPECT_EQ(plan.arenas()[1].lifetime, Lifetime::Scratch);
 }
 
+TEST(Unit_MemoryPlan, TwoUnorderedScratchBuffersShareBytesInNodeOrder)
+{
+    Graph::Graph graph;
+
+    const ValueID input = graph.add_value(unit_shape(), DType::Float32, Lifetime::Input, "x");
+    graph.add_node(Ops::K_LEAF.id, {}, {input});
+
+    const ValueID first = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "s");
+    graph.add_node(Ops::K_RELU.id, {input}, {first});
+    const ValueID left = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "l");
+    graph.add_node(Ops::K_RELU.id, {first}, {left});
+
+    const ValueID second = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "t");
+    graph.add_node(Ops::K_RELU.id, {input}, {second});
+    const ValueID right = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "r");
+    graph.add_node(Ops::K_RELU.id, {second}, {right});
+
+    const MemoryPlan plan = MemoryPlan::build(graph);
+
+    ASSERT_TRUE(plan.is_packed(first));
+    ASSERT_TRUE(plan.is_packed(second));
+    EXPECT_EQ(plan.placement(first).offset, plan.placement(second).offset);
+    EXPECT_EQ(plan.arena_bytes(), plan.placement(first).bytes);
+}
+
+TEST(Unit_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
+{
+    Graph::Graph graph;
+
+    const ValueID input = graph.add_value(unit_shape(), DType::Float32, Lifetime::Input, "x");
+    graph.add_node(Ops::K_LEAF.id, {}, {input});
+
+    const ValueID first = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "s");
+    graph.add_node(Ops::K_RELU.id, {input}, {first});
+    const ValueID second = graph.add_value(unit_shape(), DType::Float32, Lifetime::Scratch, "t");
+    graph.add_node(Ops::K_RELU.id, {input}, {second});
+
+    const ValueID sum = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "g");
+    graph.add_node(Ops::K_ADD.id, {first, second}, {sum});
+
+    const MemoryPlan plan = MemoryPlan::build(graph);
+
+    ASSERT_TRUE(plan.is_packed(first));
+    ASSERT_TRUE(plan.is_packed(second));
+    EXPECT_NE(plan.placement(first).offset, plan.placement(second).offset);
+}
+
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
     // An ACTIVATION with no producer lives the whole run; see tests/unit/README.md.

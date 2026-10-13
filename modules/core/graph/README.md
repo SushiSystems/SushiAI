@@ -52,6 +52,23 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/lowering/spatial.hpp` | `K_SPATIAL_LOWERINGS` |
 | `SushiAI/graph/lowering/unlowered.hpp` | `K_UNLOWERED` |
 
+## Memory plan
+
+`MemoryPlan::build` packs the Activation and the Scratch values into one arena each and decides
+which buffers of an arena may share bytes.
+
+Two Activation buffers share bytes only when every use of one reaches the first write of the
+other in the graph. Two branches nothing orders therefore never share, and the runtime can run
+them at the same time.
+
+Two Scratch buffers share bytes when the last use of one comes before the first write of the
+other in the order of the nodes. SushiRuntime orders two accesses whose byte ranges overlap in
+the order they were recorded, and a step records its nodes in graph order, so the plan is
+correct; the nodes that share scratch bytes run one after the other. Scratch holds what a
+node needs for a short time, such as a column matrix `rematerialise_im2col` recomputes, and
+nothing in the graph orders one such buffer after another, so the rule of the Activation class
+would give each its own bytes.
+
 ## Row gathers and integer leaves
 
 `GraphBuilder::gather_rows` and `scatter_add_rows` return a `Traced`: a refusal marks the

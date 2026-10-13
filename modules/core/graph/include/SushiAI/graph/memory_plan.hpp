@@ -122,6 +122,7 @@ namespace SushiAI
         /**
          * @class MemoryPlan
          * @brief The planner's output: one Placement per value, plus arena sizes.
+         * @see modules/core/graph/README.md
          *
          * A value type. Copyable, and cheap enough to hand around by value; it
          * holds two vectors and nothing that owns memory on a device.
