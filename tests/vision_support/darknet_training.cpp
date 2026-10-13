@@ -38,6 +38,7 @@
 #include <ios>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -50,6 +51,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/core/allocation.hpp>
+#include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
@@ -860,6 +862,106 @@ namespace SushiAI
                               << " MB unpacked\n";
             }
 
+            /** @brief Prints the @p count largest entries of @p bytes_of_op under @p title. */
+            void report_largest_ops(const std::string& title,
+                                    const std::map<std::string, std::size_t>& bytes_of_op,
+                                    std::size_t count)
+            {
+                constexpr double megabyte = 1024.0 * 1024.0;
+                std::vector<std::pair<std::size_t, std::string>> ranked;
+                for (const auto& [op, bytes] : bytes_of_op)
+                    ranked.emplace_back(bytes, op);
+                std::sort(ranked.rbegin(), ranked.rend());
+
+                std::cout << "[ MEASURED ] " << title << ":";
+                for (std::size_t i = 0; i < ranked.size() && i < count; ++i)
+                    std::cout << " " << ranked[i].second << " " << ranked[i].first / megabyte;
+                std::cout << "\n";
+            }
+
+            /**
+             * @brief Prints the peak of the bytes that are live at one node when the nodes of
+             *        @p graph run in insertion order, and which operations wrote them.
+             *
+             * A packed buffer is live from the first node that writes it to the last node that
+             * reads or writes it. No arena that follows insertion order can be smaller than the
+             * peak.
+             */
+            void report_live_ranges(const std::string& name, const Graph::Graph& graph,
+                                    const Graph::MemoryPlan& plan)
+            {
+                constexpr double megabyte = 1024.0 * 1024.0;
+                const std::size_t node_count = graph.node_count();
+                const std::size_t value_count = plan.value_count();
+                if (node_count == 0)
+                    return;
+
+                std::vector<std::size_t> first(value_count, node_count);
+                std::vector<std::size_t> last(value_count, 0);
+                std::vector<std::size_t> bytes(value_count, 0);
+                const auto touch = [&](Graph::ValueID id, std::size_t node)
+                {
+                    if (!plan.is_packed(id))
+                        return;
+                    const Graph::ValueID owner = plan.buffer_of(id);
+                    first[owner] = std::min(first[owner], node);
+                    last[owner] = std::max(last[owner], node);
+                    bytes[owner] = std::max(bytes[owner], plan.placement(id).bytes);
+                };
+                for (std::size_t node = 0; node < node_count; ++node)
+                {
+                    const Graph::Node& visited = graph.node(static_cast<Graph::NodeID>(node));
+                    for (Graph::ValueID id : visited.outputs)
+                        touch(id, node);
+                    for (Graph::ValueID id : visited.inputs)
+                        touch(id, node);
+                }
+
+                std::vector<std::ptrdiff_t> change(node_count + 1, 0);
+                for (std::size_t owner = 0; owner < value_count; ++owner)
+                {
+                    if (bytes[owner] == 0)
+                        continue;
+                    change[first[owner]] += static_cast<std::ptrdiff_t>(bytes[owner]);
+                    change[last[owner] + 1] -= static_cast<std::ptrdiff_t>(bytes[owner]);
+                }
+
+                std::ptrdiff_t live = 0;
+                std::ptrdiff_t peak = 0;
+                std::size_t peak_node = 0;
+                for (std::size_t node = 0; node < node_count; ++node)
+                {
+                    live += change[node];
+                    if (live > peak)
+                    {
+                        peak = live;
+                        peak_node = node;
+                    }
+                }
+
+                std::map<std::string, std::size_t> packed_of_op;
+                std::map<std::string, std::size_t> live_of_op;
+                for (std::size_t owner = 0; owner < value_count; ++owner)
+                {
+                    if (bytes[owner] == 0)
+                        continue;
+                    const Graph::NodeID writer =
+                        graph.value(static_cast<Graph::ValueID>(owner)).producer;
+                    const std::string op(Ops::name_of(graph.node(writer).op));
+                    packed_of_op[op] += bytes[owner];
+                    if (first[owner] <= peak_node && peak_node <= last[owner])
+                        live_of_op[op] += bytes[owner];
+                }
+
+                std::cout << "[ MEASURED ] " << name << ": peak of live bytes in insertion order "
+                          << static_cast<double>(peak) / megabyte << " MB at node " << peak_node
+                          << " of " << node_count << "\n";
+                report_largest_ops(name + ", MB packed by the operation that wrote it",
+                                   packed_of_op, 10);
+                report_largest_ops(name + ", MB live at the peak by the operation that wrote it",
+                                   live_of_op, 10);
+            }
+
             /**
              * @brief Prints the nodes of @p graph and what its plan under @p pinned asks for,
              *        and checks that the plan overlaps live ranges; allocates nothing.
@@ -888,6 +990,7 @@ namespace SushiAI
                           << plan.arena_bytes() / megabyte << " MB for "
                           << plan.unpacked_bytes() / megabyte << " MB unpacked, own values "
                           << own_bytes / megabyte << " MB\n";
+                report_live_ranges(name, graph, plan);
                 EXPECT_TRUE(plan.reuse_enabled()) << plan.reuse_note();
             }
 
