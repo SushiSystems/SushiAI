@@ -300,11 +300,39 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   against 0.18 s, YOLOv4-tiny 0.08 s against 0.02 to 0.04 s. The steps took 3.2 s, 3.0 s and
   0.25 s before SushiBLAS gained a `gemm` that divides the depth of a product with a small
   result, which the weight gradient of a convolution is. `RuntimeConfig::profiling` gives the
-  time of each node of a step and was how that product was found; a step is device time, with
-  no host share. Arenas of `Residency::Device` change nothing. Left: profile a step again and
-  take the next largest share. A step runs the forward pass twice and recomputes each column
-  matrix (`GraphOptions::rematerialise`).
+  time of each node of a step and was how that product was found. Arenas of
+  `Residency::Device` change nothing.
   `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both sides were timed.
+
+  `AnchorTrainingStep::run` was timed in three parts the same day, 60 steps a model, while
+  another process held 28 % of the GPU, so a step took 1.2 s where the quiet run took 0.84 s.
+  The shares:
+
+  | Part | YOLOv4-tiny | YOLOv4 | YOLOv7 |
+  | --- | --- | --- | --- |
+  | Probe: a forward pass that only yields the heads | 25 ms | 240 ms | 204 ms |
+  | Head deltas on the host, between the two plans | 28 ms | 230 ms | 250 ms |
+  | Copy of the inputs | 2 ms | 12 ms | 13 ms |
+  | Training plan: forward, backward, update | 60 ms | 720 ms | 625 ms |
+
+  Darknet runs one forward pass and computes its deltas inside it, so the first two rows,
+  two fifths of a step, have no counterpart there. The host part grows with the elements of
+  the heads, about 60 ns an element; whether that is `compute_head_delta` or the pages of a
+  shared allocation moving between device and host was not separated.
+
+  Inside the training plan of YOLOv4, with profiling on: 5308 nodes and 1017 ms of device
+  time, 319 ms of it in 326 `gemm` nodes, none above 4.4 ms. The other 698 ms is spread over
+  about 4980 nodes at 0.14 ms each: `math.ew.mul` 145 ms in 971 nodes,
+  `spatial.channel_affine` 105 ms in 535, `blas.lvl1.scal` 85 ms in 862, `math.sum_along`
+  77 ms in 428, `blas.lvl1.axpy` 71 ms in 537, `sushiai.optim.sgd` 70 ms in 327. Batch
+  normalisation, lowered to primitives in `lowering/norm.cpp`, and its gradient are most of
+  those nodes; each is one kernel launch over a tensor that one fused kernel could cover.
+
+  Left, in the order of what each would return: drop the probe, which needs either the
+  deltas computed on the device inside the training plan or that plan split into a forward
+  and a backward half around the host; find which of the two causes the host part has and
+  remove it; lower batch normalisation and its gradient to a few fused kernels. The first
+  changes how a step is built and is the owner's decision.
 - **Make the one-batch overfit of YOLOv7 hold.**
   `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails since
   2026-10-13: the stored cost is 11.1 at step 199 against a bound of 3.56. It reached 1.27
