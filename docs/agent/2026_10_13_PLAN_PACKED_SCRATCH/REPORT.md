@@ -1,7 +1,8 @@
 # Plan-packed scratch: report
 
-**Status:** Task 1 done, and the full-size plans measured. Tasks 2 to 8 not started. The
-measurements below put the recomputing of column matrices ahead of them, and that is done.
+**Status:** Done 2026-10-13. A full-size training step of YOLOv4 and of YOLOv7 runs under the
+default memory limit. Five full-size cases still fail, on a comparison with the Darknet dump
+and not on memory; their bounds wait for the owner's word.
 
 ## Task 1: the share of scratch
 
@@ -123,6 +124,64 @@ YOLOv4-tiny. An alias would take about 0.4 GB off the peak of YOLOv4.
 With the arenas at 4.0 GB and 0.7 GB, the estimate of a YOLOv4 step is about 7.9 GB before
 the weights, against 9.3 GB before. The full-size training cases were not run.
 
+## Scratch rules and borrowed arenas
+
+Done 2026-10-13 on the owner's word to finish both.
+
+**Scratch rules.** `LoweringEntry` has a third member, a `ScratchRule` that appends the buffers
+a row writes on every run before it reads them. `scratch_of` collects the requests of a graph,
+`MemoryPlan::build` takes them as a third argument and places each in the Scratch arena with
+its node as the one user, and `TensorPool::scratch` returns the arena view.
+
+This leaves the SPEC in three places:
+
+- `LoweringContext::scratch(slot, shape, dtype)` keeps its signature and its 39 call sites.
+  The pool stops the process when a row asks for other bytes than its rule stated, so the two
+  cannot disagree without notice.
+- There is no `Held` kind. A buffer no rule states keeps a `Storage` of its own, which is the
+  old behaviour and what a host-filled buffer needs.
+- Only `BATCHNORM2D` and `BATCHNORM2D_BACKWARD` have a rule, ten buffers of the 39. On
+  YOLOv4-tiny the scratch outside the arenas was 140.2 MB and 46.7 MB, which is three times
+  and once the bytes of the batch norm results, and it is 0 MB with the two rules. The other
+  rows are listed in `REMAINING_WORK.md`.
+
+**Borrowed arenas.** `TensorPool::adopt` takes a lender and `ArenaSet::make` uses the lender's
+arena of the same lifetime where it is large enough. `AnchorTrainingStep::make` lends the
+replay's pool to the forward-only pass. The outputs of that pass are pinned and keep their own
+bytes, so they are still read after the replay.
+
+Pools after one step, measured on the device under the default limit:
+
+| Model | Probe pool | Training pool | Both | Before any change | Darknet, whole process |
+| --- | --- | --- | --- | --- | --- |
+| YOLOv4-tiny | 5.6 MB | 272.1 MB | 277.7 MB | 709.9 MB | 378 MB |
+| YOLOv4 | 23.2 MB | 4339.0 MB | 4362.2 MB | not run | 5950 MB |
+| YOLOv7 | 25.7 MB | 3200.6 MB | 3226.3 MB | not run | 4940 MB |
+
+**The plan changes no value.** `ThePlanOfTheStepChangesNoValue` runs one step with its pools
+planned and once more with an empty plan, where every value has a `Storage` of its own, and
+compares each head, delta and gradient bit for bit. It passes for YOLOv3-tiny, YOLOv4-tiny and
+YOLOv7-tiny. A full-size model does not fit unplanned, so it has no such case.
+
+## The full-size suites under the default limit
+
+Run 2026-10-13: `Integration_DarknetYolov4Training.*` and `Integration_DarknetYolov7Training.*`,
+20 cases, memory limit 7.6 GB. No case returned `OutOfMemory`. 15 passed, the two overfit cases
+among them (694 s and 466 s for 200 steps). Five failed on a comparison with the dump:
+
+| Case | Model | Worst difference |
+| --- | --- | --- |
+| Heads under batch statistics | YOLOv4 | -40.2478 against -40.4527; 1450412 of 2945760 values of head 0 outside 1e-3 + 1e-4 relative |
+| Deltas of the step | YOLOv4 | 0.0043 on one entry of head 2; 7 entries outside their bounds |
+| Updates of the head convolutions | YOLOv4 | 2.00339 against 1.98274 in `layer_160_weight_updates`; 101 values outside |
+| Heads under batch statistics | YOLOv7 | 0.69399 against 0.68877; 260 of 4284000 head values outside |
+| Deltas of the step | YOLOv7 | 0.0010 on one entry of head 1 |
+
+`test_darknet_yolov4_training.cpp` says of its step bounds that they are starting values no
+run has measured, and these runs are the first. The bit-for-bit case above rules the memory
+plan out as the cause for the tiny models; for the full-size ones nothing compares a planned
+step with an unplanned one. The bounds were not changed.
+
 ## What Darknet allocates for the same step
 
 Measured 2026-10-13 outside the repository: the CPU build of the oracle ran one training step
@@ -147,7 +206,6 @@ would count against it too is not measured.
 
 ## Not measured
 
-- The scratch of the full-size models. They do not fit under the default limit and are not run.
 - What the remaining 1.8 GB of the 11.1 GB commit is.
 - What the recomputed column matrices cost in time; the GPU was power limited on the day.
 - Whether the probe pool can share the bytes of the training arena.

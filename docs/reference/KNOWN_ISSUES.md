@@ -24,7 +24,7 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 
 | Issue | Where |
 | --- | --- |
-| A training step of YOLOv4 and of YOLOv7 at full size returns `OutOfMemory` under the default memory limit of `sa test`, so 12 cases fail; one step of YOLOv4 commits 11.1 GB | `tests/integration/test_darknet_yolov4_training.cpp`, `tests/integration/test_darknet_yolov7_training.cpp` |
+| Five cases of the full-size YOLOv4 and YOLOv7 training suites differ from the Darknet dump by more than their starting bounds: the heads under batch statistics and the deltas of the step in both, the updates of the head convolutions in YOLOv4; the bounds were never set from a run | `tests/integration/test_darknet_yolov4_training.cpp`, `tests/integration/test_darknet_yolov7_training.cpp` |
 | The step bounds of YOLOv3 hold a head to 0.36 of the dump, 1.5 times the one measured difference; no layer before the heads is compared | `tests/integration/test_darknet_yolov3_training.cpp:56-61` |
 
 ## Documentation

@@ -497,7 +497,8 @@ says so instead of falling back to the linear approximation. Gate met:
 through the allocator's reference count. `sa demo mlp` reports 112.6 KiB against 130.9 KiB.
 
 Two things the sketch assumed and the implementation does not do: the lowering's own temporaries
-(`TensorPool::scratch()`, the shared `ones()`) are not IR values and are still one `Storage` each
+(`TensorPool::scratch()`, the shared `ones()`) are not IR values and, but for the buffers a
+scratch rule states (batch norm and its gradient since 2026-10-13), are still one `Storage` each
 (~2 KiB of 130 KiB on the demo); and two values stay out of the arena because
 `SushiBLAS::Dispatch::execute_reduction` still builds its `ResourceRegion`s from raw `data()`
 pointers rather than `Tensor::region()`, which for a view at a non-zero offset produces **no
