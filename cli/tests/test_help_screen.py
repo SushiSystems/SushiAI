@@ -38,6 +38,7 @@ K_EXAMPLES = {
 }
 
 K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)[\] ]")
+K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_PACKAGE = Path(__file__).resolve().parents[1] / "sushiai"
 
 
@@ -45,7 +46,7 @@ def _run(*args: str) -> str:
     """Return the output of one sa invocation, asserting it exited zero."""
     result = CliRunner().invoke(app, list(args))
     assert result.exit_code == 0, result.output
-    return result.output
+    return K_ANSI_ESCAPE.sub("", result.output)
 
 
 def _commands_by_heading(page: str) -> dict[str, list[str]]:
@@ -94,7 +95,7 @@ def test_no_command_is_listed_under_a_group_it_does_not_belong_to():
 
 def test_a_bare_invocation_prints_the_same_page():
     result = CliRunner().invoke(app, [])
-    assert result.output.strip() == _run("--help").strip()
+    assert K_ANSI_ESCAPE.sub("", result.output).strip() == _run("--help").strip()
 
 
 @pytest.mark.parametrize("name", list(K_EXAMPLES))
@@ -122,8 +123,9 @@ def test_a_forwarding_command_draws_its_own_page_while_its_program_is_not_built(
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(app, [*words, "--help"])
     line = "sa " + " ".join(words)
-    assert f"Usage: {line}" in result.output
-    assert "Examples" in result.output and f"{line} " in result.output.split("Examples")[1]
+    page = K_ANSI_ESCAPE.sub("", result.output)
+    assert f"Usage: {line}" in page
+    assert "Examples" in page and f"{line} " in page.split("Examples")[1]
     assert result.exit_code == 1
 
 
@@ -131,7 +133,8 @@ def test_a_forwarding_command_draws_its_own_page_while_its_program_is_not_built(
 def test_a_forwarding_command_names_the_program_the_user_typed(name, tmp_path, monkeypatch):
     """The page of a forwarding command says `sa`, as every other page does."""
     monkeypatch.chdir(tmp_path)
-    assert f"sushiai {name}" not in CliRunner().invoke(app, [name, "--help"]).output
+    page = K_ANSI_ESCAPE.sub("", CliRunner().invoke(app, [name, "--help"]).output)
+    assert f"sushiai {name}" not in page
 
 
 @pytest.mark.parametrize("path", sorted(K_PACKAGE.rglob("*.py")), ids=lambda p: p.name)

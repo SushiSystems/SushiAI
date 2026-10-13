@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,8 +26,9 @@ from sushiai.services import project
 
 K_VISIBLE_COMMANDS = [
     "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "import",
-    "inference", "link", "run", "setup", "test", "train", "unlink",
+    "inference", "link", "run", "setup", "test", "tokenize", "train", "unlink",
 ]
+K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_BROKEN_TOML = "tool = [\n"
 K_GIT = (
     "git", "-c", "user.name=tests", "-c", "user.email=tests@example.invalid",
@@ -52,7 +54,7 @@ def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_p
     assert runner.invoke(cli.app, ["doxygen"]).exit_code == 6
     missing = runner.invoke(cli.app, ["docs", "bundle"])
     assert missing.exit_code == 2
-    assert "--release" in missing.output
+    assert "--release" in K_ANSI_ESCAPE.sub("", missing.output)
 
 
 @pytest.fixture

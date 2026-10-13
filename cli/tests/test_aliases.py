@@ -19,6 +19,7 @@ from sushiai.cli import app
 from sushiai.services import project
 
 K_OLD_SPELLINGS = ["sa doxygen"]
+K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_DOCS_ROW = re.compile(r"^\s+docs\b", re.MULTILINE)
 K_DOXYGEN_ROW = re.compile(r"^\s+doxygen\b", re.MULTILINE)
 
@@ -47,7 +48,7 @@ def test_the_old_word_runs_the_new_command(word, doxygen_runs):
 
 def test_the_old_word_is_absent_from_the_help_page():
     """The root help lists docs and no doxygen row."""
-    page = CliRunner().invoke(app, ["--help"]).output
+    page = K_ANSI_ESCAPE.sub("", CliRunner().invoke(app, ["--help"]).output)
     assert K_DOCS_ROW.search(page)
     assert not K_DOXYGEN_ROW.search(page)
 
