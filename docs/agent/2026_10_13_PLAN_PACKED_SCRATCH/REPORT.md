@@ -1,7 +1,7 @@
 # Plan-packed scratch: report
 
-**Status:** Task 1 done, and the full-size plans measured. Tasks 2 to 8 not started; the
-measurements below put two other changes ahead of them, and the owner has not ruled on those.
+**Status:** Task 1 done, and the full-size plans measured. Tasks 2 to 8 not started. The
+measurements below put the recomputing of column matrices ahead of them, and that is done.
 
 ## Task 1: the share of scratch
 
@@ -96,6 +96,33 @@ Two things follow from reading the code beside these figures:
   a copy, so a convolution keeps a second copy of its input for a 1x1 kernel and writes its
   result twice. How much of the 1.7 GB of YOLOv4 an alias would give back is not measured.
 
+## Rematerialised columns and Scratch planned by node order
+
+Done 2026-10-13 on the owner's word. `GraphOptions::rematerialise`, on by default, runs
+`rematerialise_im2col` over a step's graph after the fusion pass. The pass alone made the
+arenas larger: nothing in the graph orders one recomputed column matrix after another, so the
+planner gave each its own bytes. The planner now overlaps Scratch buffers by the order of the
+nodes and plans Activation buffers as before (`modules/core/graph/README.md`, Memory plan).
+
+Arenas of the training graph, measured on the host:
+
+| Model | Before | Pass alone | Pass and node order | Peak in insertion order |
+| --- | --- | --- | --- | --- |
+| YOLOv4-tiny | 409.4 MB | 439.1 MB | 240.1 MB | 180.3 MB |
+| YOLOv4 | 5436.7 MB | 5823.6 MB | 4040.5 MB | 3665.4 MB |
+| YOLOv7 | 4420.2 MB | 4899.5 MB | 3001.1 MB | 2417.8 MB |
+
+The training pool of YOLOv4-tiny on the device fell from 581.7 MB to 412.3 MB. The nine
+training cases of YOLOv4-tiny passed with the bounds they had, and so did the 27 unit tests of
+the plan and of the pass.
+
+A temporary measurement, not committed, merged each `reshape` result with the buffer it reads
+and took the peak again: 3257.2 MB for YOLOv4, 2180.9 MB for YOLOv7 and 159.2 MB for
+YOLOv4-tiny. An alias would take about 0.4 GB off the peak of YOLOv4.
+
+With the arenas at 4.0 GB and 0.7 GB, the estimate of a YOLOv4 step is about 7.9 GB before
+the weights, against 9.3 GB before. The full-size training cases were not run.
+
 ## What Darknet allocates for the same step
 
 Measured 2026-10-13 outside the repository: the CPU build of the oracle ran one training step
@@ -122,7 +149,7 @@ would count against it too is not measured.
 
 - The scratch of the full-size models. They do not fit under the default limit and are not run.
 - What the remaining 1.8 GB of the 11.1 GB commit is.
-- The peak of a training graph after `rematerialise_im2col`, and after `reshape` is an alias.
+- What the recomputed column matrices cost in time; the GPU was power limited on the day.
 - Whether the probe pool can share the bytes of the training arena.
 
 ## Build
