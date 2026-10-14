@@ -8,6 +8,4 @@
 
 sushiai_add_module(NAME version TIER core
     SOURCES
-        source/version.cpp
-    TESTS
-        tests/test_version.cpp)
+        source/version.cpp)

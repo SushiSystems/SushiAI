@@ -32,8 +32,9 @@ set(SUSHIAI_TEST_LABELS
 # sushiai_<name>_tests for an application. It links the library of the
 # owner's tier, GTest, the internal module engine_fixture, which holds main(),
 # and every module DEPENDS names.
-# Its cases are labelled by suite prefix, and SA_TEST_FIXTURE_DIR names the
-# fixtures/ folder beside its CMakeLists.txt.
+# Its cases are labelled by suite prefix. SA_TEST_FIXTURE_DIR names the
+# fixtures/ folder beside its CMakeLists.txt, and SA_REPOSITORY_ROOT names the
+# root of the repository.
 function(sushiai_add_test_program)
     cmake_parse_arguments(ARG "" "OWNER;APPLICATION" "SOURCES;DEPENDS;LINKS" ${ARGN})
 
@@ -81,7 +82,8 @@ function(sushiai_add_test_program)
     endforeach()
 
     target_compile_definitions(${program} PRIVATE
-        SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+        SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+        SA_REPOSITORY_ROOT="${PROJECT_SOURCE_DIR}")
 
     sushiai_apply_build_policy(${program})
 

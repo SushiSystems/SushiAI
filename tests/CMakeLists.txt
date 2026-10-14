@@ -33,6 +33,10 @@ cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
 
 # GTest::gtest is found in modules/CMakeLists.txt, which the internal modules need first.
 include(GoogleTest)
+include(SushiAITestProgram)
+
+# One test program per module, under tests/<tier>/<module>/.
+add_subdirectory(core)
 
 # The tests of a module sit in its own tests/ folder and reach this binary
 # through sushiai_add_module(); the files listed here cross module boundaries.

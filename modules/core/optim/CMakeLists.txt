@@ -23,14 +23,4 @@ sushiai_add_module(NAME optim TIER core
         source/step_scalars.cpp
         source/step_schedule.cpp
         source/step_schedule_section.cpp
-    PUBLIC_DEPENDS core graph config
-    TESTS
-        tests/test_apply_step_schedule.cpp
-        tests/test_cosine_schedule.cpp
-        tests/test_gradient_clip.cpp
-        tests/test_parameter_decay.cpp
-        tests/test_rate_schedule.cpp
-        tests/test_run_schedule.cpp
-        tests/test_run_state.cpp
-        tests/test_step_schedule.cpp
-        tests/test_step_schedule_section.cpp)
+    PUBLIC_DEPENDS core graph config)
