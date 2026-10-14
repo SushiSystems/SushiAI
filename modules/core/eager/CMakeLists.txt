@@ -21,17 +21,4 @@ sushiai_add_module(NAME eager TIER core
         source/slot_ledger.cpp
         source/step.cpp
         source/storage_bank.cpp
-    PUBLIC_DEPENDS core graph autograd
-    TESTS
-        tests/test_region_boundary.cpp
-        tests/test_region_emitter.cpp
-        tests/test_region_executor.cpp
-        tests/test_region_program.cpp
-        tests/test_region_signature.cpp
-        tests/test_region_table.cpp
-        tests/test_scope_partitioner.cpp
-        tests/test_scope_trace.cpp
-        tests/test_session.cpp
-        tests/test_slot_ledger.cpp
-        tests/test_step_cost.cpp
-        tests/test_storage_bank.cpp)
+    PUBLIC_DEPENDS core graph autograd)

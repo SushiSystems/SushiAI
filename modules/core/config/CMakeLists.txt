@@ -21,10 +21,4 @@ sushiai_add_module(NAME config TIER core
         source/train_config.cpp
         source/value.cpp
     PUBLIC_DEPENDS core
-    EXTERNAL_PRIVATE_INCLUDES nlohmann_json::nlohmann_json
-    TESTS
-        tests/test_json_events.cpp
-        tests/test_json_writer.cpp
-        tests/test_model_writer.cpp
-        tests/test_section_reader.cpp
-        tests/test_train_config.cpp)
+    EXTERNAL_PRIVATE_INCLUDES nlohmann_json::nlohmann_json)

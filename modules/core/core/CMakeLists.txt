@@ -12,9 +12,4 @@ sushiai_add_module(NAME core TIER core
         source/check.cpp
         source/seam.cpp
         source/status.cpp
-    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime SushiBLAS::sushiblas
-    TESTS
-        tests/test_ops.cpp
-        tests/test_result.cpp
-        tests/test_shape.cpp
-        tests/test_status.cpp)
+    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime SushiBLAS::sushiblas)

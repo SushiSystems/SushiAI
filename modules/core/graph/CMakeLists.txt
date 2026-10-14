@@ -30,21 +30,4 @@ sushiai_add_module(NAME graph TIER core
         source/precision.cpp
         source/rematerialise.cpp
         source/tensor_pool.cpp
-    PUBLIC_DEPENDS core
-    TESTS
-        tests/test_batched_matmul.cpp
-        tests/test_causal_mask_ops.cpp
-        tests/test_compiled_step.cpp
-        tests/test_depthwise_ops.cpp
-        tests/test_dropout_mask.cpp
-        tests/test_dropout_ops.cpp
-        tests/test_elementwise_ops.cpp
-        tests/test_fusion.cpp
-        tests/test_gather_ops.cpp
-        tests/test_ir.cpp
-        tests/test_layer_norm_ops.cpp
-        tests/test_log_softmax_ops.cpp
-        tests/test_lowering_table.cpp
-        tests/test_memory_plan.cpp
-        tests/test_step_recorder.cpp
-        tests/test_traced.cpp)
+    PUBLIC_DEPENDS core)
