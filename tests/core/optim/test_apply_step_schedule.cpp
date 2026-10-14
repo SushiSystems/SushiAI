@@ -50,7 +50,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
 using namespace SushiAI;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
 namespace SaTest = SushiAI::Test;
 using Optim::apply_step_schedule;
 using Optim::StepSchedule;

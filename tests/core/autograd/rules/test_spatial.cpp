@@ -49,7 +49,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColProducesTheColumnMatrixAGEMMExpects)
         {
-            // A row is one window, channels innermost (CV-3); see tests/unit/README.md.
+            // A row is one window, channels innermost (CV-3); see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 5, 5, 3}, "x");
@@ -65,7 +65,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColHonoursStrideAndDilation)
         {
-            // A dilated 3x3 covers 5 pixels; see tests/unit/README.md.
+            // A dilated 3x3 covers 5 pixels; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 7, 7, 2}, "x");
@@ -85,7 +85,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColRejectsAWindowLargerThanThePaddedInput)
         {
-            // The message names the geometry, not the Shape; see tests/unit/README.md.
+            // The message names the geometry, not the Shape; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 2, 2, 1}, "x");
@@ -110,7 +110,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Col2ImReturnsToTheImageItWasAskedFor)
         {
-            // The caller states the image shape; see tests/unit/README.md.
+            // The caller states the image shape; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID cols = builder.input({2 * 5 * 5, 3 * 3 * 3}, "cols");
@@ -139,14 +139,14 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward)
         {
-            // The backward rule states the 13x13 extents back; see tests/unit/README.md.
+            // The backward rule states the 13x13 extents back; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 13, 13, 3}, "x");
 
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
-            // Padding is applied bottom and right only; see tests/unit/README.md.
+            // Padding is applied bottom and right only; see tests/core/autograd/README.md.
 
             const ValueID cols = builder.im2col_with_extents(x, g, 13, 13);
             EXPECT_EQ(graph.values()[cols].shape, Shape({1 * 13 * 13, 3 * 3 * 3}));
@@ -158,7 +158,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Col2ImDerivingStillRejectsThatSameAsymmetricPair)
         {
-            // The deriving col2im assumes symmetric padding; see tests/unit/README.md.
+            // The deriving col2im assumes symmetric padding; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 13, 13, 3}, "x");
@@ -173,7 +173,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, Im2ColRejectsAnNCHWInput)
         {
-            // im2col reads axes 1, 2, 3 as NHWC; see tests/unit/README.md.
+            // im2col reads axes 1, 2, 3 as NHWC; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 32, 32}, "x");
@@ -188,7 +188,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, MaxPoolProducesAValueAndItsArgmaxTogether)
         {
-            // The indices are a second result of the node; see tests/unit/README.md.
+            // The indices are a second result of the node; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 4, 4, 3}, "x");
@@ -208,7 +208,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, MaxPoolHandlesYOLOTinysAsymmetricThirteenToThirteen)
         {
-            // The caller states what ConvGeometry cannot; see tests/unit/README.md.
+            // The caller states what ConvGeometry cannot; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 13, 13, 256}, "x");
@@ -226,7 +226,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, AvgPoolProducesOnlyAValue)
         {
-            // avgpool2d records no indices (CV-6); see tests/unit/README.md.
+            // avgpool2d records no indices (CV-6); see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 6, 6, 3}, "x");
@@ -258,7 +258,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, MaxPoolRejectsAnNCHWInput)
         {
-            // maxpool2d reads axes 1, 2, 3 as NHWC; see tests/unit/README.md.
+            // maxpool2d reads axes 1, 2, 3 as NHWC; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
@@ -297,7 +297,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, SpatialMeanReducesToNAndC)
         {
-            // The numeric probe's loss needs [N, C]; see tests/unit/README.md.
+            // The numeric probe's loss needs [N, C]; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({4, 7, 7, 512}, "x");
@@ -433,13 +433,13 @@ namespace SushiAI
             const ValueID wrong = builder.parameter({8}, "wrong");
             EXPECT_THROW((void)builder.batchnorm2d(x, wrong, beta, 1e-5), Error);
 
-            // Epsilon must be positive; see tests/unit/README.md.
+            // Epsilon must be positive; see tests/core/autograd/README.md.
             EXPECT_THROW((void)builder.batchnorm2d(x, gamma, beta, 0.0), Error);
         }
 
         TEST(Unit_SpatialShapes, BatchNorm2dRejectsAnNCHWInput)
         {
-            // The layout check runs before any extent is read; see tests/unit/README.md.
+            // The layout check runs before any extent is read; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
@@ -548,7 +548,7 @@ namespace SushiAI
 
         TEST(Unit_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
         {
-            // A reshape moves no data; see tests/unit/README.md.
+            // A reshape moves no data; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 3, 4}, "x");

@@ -484,7 +484,7 @@ class DeclaredTiersTest(unittest.TestCase):
         self.assertEqual(K_LAYOUT.module_tiers["io"], K_LAYOUT.module_tiers["nn"])
         self.assertIn(K_LAYOUT.module_tiers["vision/detect"], K_LAYOUT.domain_tiers)
         self.assertLess(
-            K_LAYOUT.rank(K_LAYOUT.scoped_roots["tests/common"]), K_LAYOUT.rank("vision")
+            K_LAYOUT.rank(K_LAYOUT.module_tiers["engine_fixture"]), K_LAYOUT.rank("vision")
         )
         self.assertIsNone(K_LAYOUT.scoped_roots["tests"])
         self.assertIsNone(K_LAYOUT.scoped_roots["applications"])

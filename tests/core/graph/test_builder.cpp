@@ -1501,7 +1501,7 @@ TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
 
 TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
 {
-    // The message shows both operand shapes; see tests/unit/README.md.
+    // The message shows both operand shapes; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

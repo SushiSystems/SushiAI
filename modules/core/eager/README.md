@@ -61,7 +61,7 @@ both, and binds each model state once with `Session::bind_state`. Per step it ca
 `Step::state`, emits nodes through `Step::builder`, and opens `Scope` objects on `Step::scopes`
 where it wants a region boundary. `Step::backward` appends the gradients, `Step::apply` runs
 the step with an update behind it, and `Step::read_scalar` returns the loss.
-`Support::Loop` in `modules/core/eager/tests/eager_run_support.hpp` is that loop in full.
+`Support::Loop` in `tests/core/eager/eager_run_support.hpp` is that loop in full.
 
 The update is a `Graph::StepRecorder`. An `Optim::Optimizer` is one, so an optimizer built over
 the tensors `Session::gradient` returns is applied without this module depending on `optim`.
@@ -78,7 +78,7 @@ the tensors `Session::gradient` returns is applied without this module depending
    executor, which drops, records and builds regions and runs the dynamic graph once.
 
 `StepCost` holds the host time of stages 2, 4 and 5 and of the whole flush for the last step.
-`modules/core/eager/tests/test_step_cost.cpp` prints them for a settled loop and for a
+`tests/core/eager/test_session.cpp` prints them for a settled loop and for a
 renumbering.
 
 ## Notes on the units

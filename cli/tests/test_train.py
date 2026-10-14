@@ -22,11 +22,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _COMPILE_ONCE = re.compile(r"compiles\s*:\s*1\b")
 
-# tests/CMakeLists.txt generates this file into the build tree; see cli/tests/README.md.
-_TRAIN_CONFIG = REPO_ROOT / "build" / "tests" / "fixtures" / "tiny_train.json"
-_CHECKPOINT = REPO_ROOT / "build" / "tests" / "fixtures" / "tiny.sushi"
-_MODEL_CONFIG = REPO_ROOT / "tests" / "fixtures" / "tiny_model.json"
-_EVAL_CONFIG = REPO_ROOT / "tests" / "fixtures" / "tiny_eval.json"
+# tests/applications/programs/CMakeLists.txt writes tiny_train.json into the build tree.
+_TINY_RUN = REPO_ROOT / "tests" / "applications" / "programs" / "fixtures" / "tiny_run"
+_BUILT_TINY_RUN = REPO_ROOT / "build" / _TINY_RUN.relative_to(REPO_ROOT)
+_TRAIN_CONFIG = _BUILT_TINY_RUN / "tiny_train.json"
+_CHECKPOINT = _BUILT_TINY_RUN / "tiny.sushi"
+_MODEL_CONFIG = _TINY_RUN / "tiny_model.json"
+_EVAL_CONFIG = _TINY_RUN / "tiny_eval.json"
 
 _needs_cli = pytest.mark.skipif(
     shutil.which("sushiai") is None, reason="the `sushiai` CLI is not on PATH")

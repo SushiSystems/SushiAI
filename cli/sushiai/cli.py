@@ -129,7 +129,7 @@ def test(
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    the binary directly: sa run sushiai_tests -- --gtest_filter=Version.*
+    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Unit_Version.*
 
     --suite package is the exception: it runs no CTest at all, so --filter and
     --repeat are rejected there.
@@ -143,7 +143,7 @@ def test(
     epilog="sa run  # Run the configured default target\n"
            "sa run sushiai_example\n"
            "sa run --sort  # Pick an executable from a list\n"
-           "sa run sushiai_tests -- --gtest_filter=Unit_Version.*  # Forward what follows --",
+           "sa run sushiai_core_version_tests -- --gtest_filter=Unit_Version.*  # Pass the rest on",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def run(

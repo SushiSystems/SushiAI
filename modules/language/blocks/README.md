@@ -364,7 +364,7 @@ layer has declared yet and one of another shape or element type.
 
 The head keeps the address of the table. A model that is copied or moved after `tie_to` is
 tied to the object it was copied from, so a model ties in its constructor and forbids the
-copy, as the decoder of `tests/integration/test_decoder_overfit.cpp` does.
+copy, as the decoder of `tests/language/training/test_next_token_objective.cpp` does.
 
 A `language_head` row of a model file ties with `"tie"`, a reference to the `embedding` row
 above it in the forms `from` takes for a row: a row number, `-1` for the row before, or

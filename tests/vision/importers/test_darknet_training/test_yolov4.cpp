@@ -41,8 +41,7 @@ namespace
      * Of the inference-mode runs only the `*_plain_pool*` ones are valid (REPORT 25 and 28).
      * `yolov4_train_step` is a training-mode run, which the defect does not reach.
      * A delta is held to 1e-6 absolute (PLAN 4.7), a box entry to 1e-4 besides (REPORT 11).
-     * A step bound the 2026-10-13 run exceeded is 1.5 times its largest difference
-     * (tests/integration/README.md).
+     * A step bound the 2026-10-13 run exceeded is 1.5 times its largest difference (README).
      */
     SaTest::DarknetTrainingCase describe_model()
     {
@@ -141,7 +140,7 @@ TEST_F(Integration_DarknetYolov4Training, TheUpdatesOfTheHeadConvolutionsMatchDa
  *        finite gradient that is not zero after one step.
  *
  * The dumped updates of that layer are not the gradient and are not compared; see
- * tests/integration/README.md.
+ * tests/vision/importers/README.md.
  */
 TEST_F(Integration_DarknetYolov4Training, TheFirstConvolutionReceivesAGradient)
 {

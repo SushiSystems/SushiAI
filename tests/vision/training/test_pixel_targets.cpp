@@ -50,7 +50,7 @@ using Vision::Training::DiceLeaves;
 using Vision::Training::fill_dice_targets;
 using Vision::Training::fill_pixel_targets;
 using Vision::Training::validate_pixel_labels;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

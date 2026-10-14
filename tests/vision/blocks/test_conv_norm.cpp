@@ -247,7 +247,7 @@ TEST(Unit_BlockConvNorm, StateMatchesManifestRow0)
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 169.
+    // MANIFEST.json of the registration fixtures, weights.sushi tensors, from line 169.
     const std::vector<std::string> expected = {
         record("model.0.conv.weight", Shape{16, 3, 3, 3}, StateKind::Parameter),
         record("model.0.bn.weight", Shape{16}, StateKind::Parameter),
@@ -328,7 +328,7 @@ TEST(Unit_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 3166.
+    // MANIFEST.json of the registration fixtures, weights.sushi tensors, from line 3166.
     const std::string prefix = "model.10.m.0.attn.pe";
     const std::vector<std::string> expected = {
         record(prefix + ".conv.weight", Shape{3, 3, 128}, StateKind::Parameter),

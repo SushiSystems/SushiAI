@@ -39,7 +39,7 @@
 
 using namespace SushiAI;
 
-// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/regression/README.md.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/layers/train/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 
@@ -72,7 +72,7 @@ namespace
 
 /**
  * @brief Tests that repeated fit() calls leave the trainer's compile count at one.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 {
@@ -118,7 +118,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 
 /**
  * @brief Tests that five replayed steps each change the loss and move a parameter.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmediately)
 {
@@ -176,7 +176,7 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
 
 /**
  * @brief Tests that the first run() and three replays overwrite a poisoned output buffer.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_CompileOnce,
        TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline)
@@ -211,7 +211,7 @@ TEST_F(Regression_CompileOnce,
 
     EXPECT_EQ(step->run_count(), 1u);
 
-    // Each replay must track the new input; see tests/regression/README.md.
+    // Each replay must track the new input; see tests/layers/train/README.md.
     for (int replay = 0; replay < 3; ++replay)
     {
         std::vector<double> next(inputs.size());
@@ -236,7 +236,7 @@ TEST_F(Regression_CompileOnce,
 /**
  * @brief Tests that swapping data, changing the learning rate and resuming fit() never recompile
  *        the step.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps)
 {
@@ -261,7 +261,7 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
                             Train::Trainer::make(*engine, built, pool, objective,
                                                  *optimizer, options));
 
-    // The plan reads its inputs by address; see tests/regression/README.md.
+    // The plan reads its inputs by address; see tests/layers/train/README.md.
     Data::SyntheticOptions other = make_data_options();
     other.seed = 0xFEED'BEEFull;
 
@@ -273,12 +273,12 @@ TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenS
 
     for (int round = 0; round < 4; ++round)
     {
-        // fit() returns and is entered again; see tests/regression/README.md.
+        // fit() returns and is entered again; see tests/layers/train/README.md.
         SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
                                 trainer->fit(round % 2 == 0 ? *first : *second));
         EXPECT_EQ(report.compile_count, 1u) << "recompiled in round " << round;
 
-        // The learning rate is a host-side scalar; see tests/regression/README.md.
+        // The learning rate is a host-side scalar; see tests/layers/train/README.md.
         optimizer->options().learning_rate *= 0.5;
 
         // Individual steps between fits, mixing the two datasets.

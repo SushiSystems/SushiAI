@@ -56,7 +56,7 @@ namespace
 
     /**
      * @brief Returns the non-square [1, 5, 4, 2] image the convolution reads; see
-     *        tests/integration/README.md.
+     *        tests/core/graph/README.md.
      */
     std::vector<double> image_values()
     {
@@ -159,14 +159,14 @@ TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
     Outcome recomputed;
     ASSERT_NO_FATAL_FAILURE(run_convolution(*engine, true, recomputed));
 
-    // The pass must have inserted a recomputation; see tests/integration/README.md.
+    // The pass must have inserted a recomputation; see tests/core/graph/README.md.
     ASSERT_EQ(stored.im2col_nodes, std::size_t{1});
     ASSERT_EQ(recomputed.im2col_nodes, std::size_t{2}) << "no recomputation was inserted";
     ASSERT_EQ(recomputed.nodes, stored.nodes + 1);
     ASSERT_EQ(stored.cols_lifetime, Graph::Lifetime::Activation);
     ASSERT_EQ(recomputed.cols_lifetime, Graph::Lifetime::Scratch);
 
-    // Equality is exact, not within a tolerance; see tests/integration/README.md.
+    // Equality is exact, not within a tolerance; see tests/core/graph/README.md.
     ASSERT_EQ(recomputed.loss.size(), stored.loss.size());
     for (std::size_t i = 0; i < stored.loss.size(); ++i)
         EXPECT_EQ(recomputed.loss[i], stored.loss[i]) << "loss element " << i;
@@ -187,7 +187,7 @@ TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
 
 TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
 {
-    // The planner must agree with the lifetime; see tests/integration/README.md.
+    // The planner must agree with the lifetime; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

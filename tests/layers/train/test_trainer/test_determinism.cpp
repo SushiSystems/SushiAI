@@ -40,7 +40,7 @@
 
 using namespace SushiAI;
 
-// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/regression/README.md.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/layers/train/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 
@@ -88,7 +88,7 @@ namespace
     /**
      * @brief Trains an MLP from scratch on a fresh Engine and reports the result.
      * @return The run, or the first failure of a library call.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     [[nodiscard]] Result<RunResult> train_once(int64_t epochs, bool use_adam)
     {
@@ -159,7 +159,7 @@ namespace
 
         for (std::size_t step = 0; step < first.losses.size(); ++step)
         {
-            // Identical runs produce the same float; see tests/regression/README.md.
+            // Identical runs produce the same float; see tests/layers/train/README.md.
             EXPECT_EQ(first.losses[step], second.losses[step])
                 << "the runs diverged at step " << step << " (" << first.losses[step]
                 << " vs " << second.losses[step] << ")";
@@ -178,7 +178,7 @@ namespace
 
 /**
  * @brief Tests that two SGD-with-momentum runs of two epochs agree byte for byte.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
 {
@@ -191,7 +191,7 @@ TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
 
 /**
  * @brief Tests that two AdamW runs of two epochs agree byte for byte.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
 {
@@ -203,7 +203,7 @@ TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
 
 /**
  * @brief Tests that two initialisations from one seed produce identical parameter bytes.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 {
@@ -241,7 +241,7 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 
 /**
  * @brief Tests that two synthetic datasets built from one seed hold identical bytes.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 {
@@ -279,7 +279,7 @@ TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 
 /**
  * @brief Tests that replaying one compiled step on fixed inputs yields identical gradient bytes.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
 {
@@ -310,7 +310,7 @@ TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseSta
                             Train::Trainer::make(engine, built, pool, objective,
                                                  *optimizer, options));
 
-    // A zero learning rate keeps the parameters fixed; see tests/regression/README.md.
+    // A zero learning rate keeps the parameters fixed; see tests/layers/train/README.md.
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_EXPECT_OK(trainer->run_step(dataset_batch));

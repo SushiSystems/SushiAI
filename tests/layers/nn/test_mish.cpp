@@ -50,7 +50,7 @@
 
 using namespace SushiAI;
 using NN::Mish;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/layers/nn/README.md.
 namespace SaTest = SushiAI::Test;
 using SaTest::read_tensor;
 using SaTest::write_tensor;

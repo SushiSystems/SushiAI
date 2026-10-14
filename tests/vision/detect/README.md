@@ -703,7 +703,7 @@ This file needs no device. Its three suites, `Unit_DetectAnchors`, `Unit_DetectA
 `Unit_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/anchors.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/anchor_leaves.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/level_rows.hpp`.
 `modules/vision/detect/README.md` quotes the reference lines each unit ports. One case reads
-`loss.sacp` through `tests/common/reference_fixture.hpp` and reports itself skipped when the
+`loss.sacp` through `modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp` and reports itself skipped when the
 file is absent.
 
 ### K_EXACT
@@ -713,8 +713,9 @@ float32 holds exactly.
 
 ### K_REFERENCE_LEVELS
 
-`K_REFERENCE_LEVELS` holds the three levels `tests/fixtures/yolo26/MANIFEST.json` records for a
-640 px input: 80 by 80 at stride 8, 40 by 40 at stride 16 and 20 by 20 at stride 32.
+`K_REFERENCE_LEVELS` holds the three levels
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json` records for a 640 px input: 80 by 80 at
+stride 8, 40 by 40 at stride 16 and 20 by 20 at stride 32.
 
 ### K_SMALL_LEVELS
 
@@ -899,7 +900,7 @@ tied metrics. The helper skips when `loss.sacp` is absent.
 
 `one_to_many_assigner_config(80, {8, 16, 32})` has `topk` 10, `topk2` 10, 80 classes, `alpha`
 0.5, `beta` 6, `stride_val` 16 and `eps` 1e-9. These are the `assigner.one2many` values of
-`loss.sacp` in `tests/fixtures/yolo26/MANIFEST.json`.
+`loss.sacp` in `tests/vision/registration/fixtures/yolo26/MANIFEST.json`.
 
 ### OneToOnePresetMatchesTheReferenceSettings
 
@@ -1717,3 +1718,470 @@ The read fails with `InvalidDescription` and "objective" for a `match_threshold`
 `write_head_training_section` fails with `InvalidDescription` and "objective" for an object
 weight of NaN ("object weight"), an infinite `max_delta` ("max_delta") and a `BoxLoss` of 7
 ("BoxLoss", "7").
+
+## anchor/test_head_options.cpp, anchor/test_head_decode.cpp
+
+The boxes and scores an anchor head decodes to under the Logit and the Activated coding and under `scale_xy`, the order of the decoded rows, the channel and row counts, and what `validate_head` refuses.
+
+Suites: `Unit_DetectAnchorDecode`.
+
+Tests the decoding of one anchor head, with `count_head_channels`, `count_head_rows` and
+`validate_head`. A head entry holds x, y, width, height, objectness and then the classes. A
+saturated logit in this file is 100 or -100, and decoded values are compared to 1e-6.
+
+### ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterScores
+
+A one-cell head of zero logits over a 0.25 x 0.5 anchor decodes to the centre (0.5, 0.5), the
+size (0.25, 0.5) and a score of 0.25 for each of two classes.
+
+### SaturatedLogitsReachTheCellEdgesAndTheScoreBounds
+
+With x at +100, y at -100 and width at -100, the box has x 1, y 0, width 0 and height 0.5. With
+objectness and the first class at +100 and the second class at -100, the scores are 1 and 0.
+
+### ZeroObjectnessLogitHalvesASaturatedClass
+
+A zero objectness logit with a saturated class logit gives the score 0.5.
+
+### ScaleTwoMovesASaturatedOffsetHalfACellPastTheEdge
+
+With `scale_xy` 2 on a grid of one cell, x at +100 decodes to 1.5 and y at -100 to -0.5.
+
+### ScaleTwoKeepsAZeroLogitAtTheCellCentre
+
+With `scale_xy` 2, zero logits decode to x 0.5 and y 0.5.
+
+### ActivatedSizeAtZeroHalfAndOneIsZeroTheAnchorAndFourAnchors
+
+Under the Activated coding with a 0.125 x 0.25 anchor, size inputs of 0, 0.5 and 1 decode to
+the widths 0, 0.125 and 0.5 and the heights 0, 0.25 and 1.
+
+### ActivatedOffsetsAndScoresTakeNoLogistic
+
+Under the Activated coding, x 0.25 and y 1 decode to 0.25 and 1. Objectness 0.5 with the
+classes 0.5 and 1 gives the scores 0.25 and 0.5.
+
+### ActivatedScaleTwoMapsZeroAndOnePastTheCellEdges
+
+Under the Activated coding with `scale_xy` 2, the offsets 0 and 1 decode to -0.5 and 1.5.
+
+### RowsRunCellByCellThenByAnchorSlotInEveryImage
+
+On a 2x3 grid with two slots and two images, decoded row `(row * 3 + col) * 2 + slot` holds the
+centre of that cell and the size of that slot's anchor. The head's slots are anchors 2 and 0 of
+the layout. Every score is 0.25 except row 11 of image 1, which the case saturated and which
+is 1.
+
+### OneLayoutGivesTheSameFractionalSizeOnTwoGrids
+
+One 0.3 x 0.45 anchor decodes to that size on a 13x13 grid and to the identical floats on a
+19x19 grid. The last cell's x is 12.5 / 13 on the first grid and 18.5 / 19 on the second.
+
+### CountsChannelsAndRowsFromTheHeadsOwnAnchors
+
+With 80 classes, a head of three anchors has 255 channels and a head of two has 170. A batch of
+4 on a 13x13 grid with three anchors has 507 rows, and on a 26x26 grid with two anchors 1352.
+
+### ValidatesAHeadTheLayoutHolds
+
+`validate_head` is ok for 80 classes, the Activated coding, `scale_xy` 2 and head 0 of a
+one-head layout.
+
+### RefusesAHeadIndexOutsideTheLayout
+
+Head index 1 and head index -1 of a one-head layout each fail with `InvalidDescription`.
+
+### RefusesAHeadWithoutClasses
+
+A class count of 0 fails with `InvalidDescription`.
+
+### RefusesAScaleThatIsNotFiniteAndPositive
+
+A `scale_xy` of 0 and a NaN `scale_xy` each fail with `InvalidDescription`.
+
+### RefusesAHeadWhoseLayoutDoesNotValidate
+
+A layout whose head names anchor 3 of one anchor fails with `InvalidDescription`.
+
+## anchor/test_head_delta.cpp, anchor/test_head_training_options.cpp
+
+The delta an anchor head with Logit coding receives: the assigned cell and slot, the IoU sum, the ignore rule and its class gate, two truths in one slot, padding rows, and the training options refused.
+
+Suites: `Unit_DetectAnchorDelta`.
+
+Tests the delta of one anchor head with the Logit coding, and `validate_head_training`. The
+cases place truths in pixels of a 64-pixel network side and compare the whole delta with an
+array built by hand, to 1e-6.
+
+### DefaultTrainingOptionsValidate
+
+`validate_head_training` is ok for a default `HeadTrainingOptions`.
+
+### TrainingOptionsOutsideTheirRangeAreRefused
+
+Nine option sets each fail with `InvalidDescription`: a match threshold of 0 and of 1.5, an
+ignore threshold of -0.1, a class gate of 1.5, a box weight of -1 and of infinity, a NaN
+object weight, a `max_delta` of -2, and a `box_gradient` that is no enumerator.
+
+### OneTruthWritesTheCellAndSlotOfItsBestAnchor
+
+One truth of the size (0.5, 0.5) centred at (0.75, 0.25) on a 2x2 grid with three anchors is
+assigned to row 0, column 1, slot 1. That slot's box deltas are k times the differences in x, y,
+log width and log height, with k = (2 - 0.5 * 0.5) * 0.75. Its objectness delta is 0.5 and its
+class deltas are -0.5 and 0.5. Every other slot has an objectness delta of -0.5 and zeros
+elsewhere. The result counts one assignment, and `assigned_row` and `assigned_class` are 0 and
+1 at that slot and -1 at the others.
+
+### AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum
+
+A one-cell head of zero logits whose anchor is the truth's box gives one assignment and an IoU
+sum of 1 to 1e-6.
+
+### ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing
+
+A truth whose size is the anchor head 1 owns leaves head 0 with no assignment, an IoU sum of 0,
+`assigned_row` and `assigned_class` of -1 everywhere, and an objectness delta of -0.5 in each of
+its four slots.
+
+### AnOverlappingSlotIsIgnoredOnlyWithAClassAboveTheGate
+
+Two images hold a slot that overlaps the truth with an IoU of 0.81 and is not assigned. Where
+the class logit is -1.0, the objectness delta is exactly 0. Where it is -1.2, the objectness
+delta is -0.5.
+
+### AnOverlapBelowTheIgnoreThresholdIsNotIgnored
+
+With an ignore threshold of 0.9, the same overlap of 0.81 leaves the objectness delta at -0.5.
+
+### TwoTruthsInOneSlotUpdateOneClassOnly
+
+Two truths with the same box and the classes 0 and 2 land in one slot. The box deltas are
+twice those of one truth, the objectness delta is 0.5, and the class deltas are 0.5, -0.5 and
+0.5. The result counts two assignments.
+
+### AnEmptyTruthListGivesObjectnessDeltasAlone
+
+Over random logits in [-3, 3] with an object weight of 2 and no truth, each objectness entry
+holds 2 * (0 - objectness) and every other entry is 0. No slot is assigned.
+
+### APaddingRowAssignsNothing
+
+A truth row whose `valid` flag is 0 gives no assignment. The slot's objectness delta is -0.5
+and its class delta is exactly 0.
+
+## free/test_box_coding.cpp, test_box_format.cpp, test_iou.cpp
+
+Box decoding and encoding, the two box formats and the IoU forms.
+
+Suites: `Unit_DetectBoxes`.
+
+Tests box decoding and encoding, the two box formats and the IoU forms.
+
+This file needs no device. `Unit_DetectBoxes` covers `modules/vision/detect/include/SushiAI/vision/detect/box_coding.hpp`,
+`modules/vision/detect/include/SushiAI/vision/detect/box_format.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/iou.hpp`. The hand cases
+write the expected value as the arithmetic that produces it. Three cases read `forward.sacp`
+and report themselves skipped when the file is absent.
+
+### Tolerances
+
+`K_EXACT` is 0, for values float32 holds exactly. `K_DECODE_TOLERANCE` is 1.3e-4, two float32
+steps at 640, for a decoded box in pixels. `K_ROUND_TRIP_TOLERANCE` is 1.6e-5, two steps at 80,
+for a decode followed by an encode in grid units. `K_IOU_TOLERANCE` is 1e-6, eight float32
+steps at 1.
+
+### K_REFERENCE_ANCHORS and K_REFERENCE_LEVELS
+
+`K_REFERENCE_ANCHORS` is 8400 and `K_REFERENCE_LEVELS` holds the three levels of a 640 px
+input, both from "levels" in `tests/vision/registration/fixtures/yolo26/MANIFEST.json`.
+
+### ReferenceGrid
+
+`ReferenceGrid` holds the `[8400, 2]` points and the `[8400]` strides of the reference levels
+in grid units, and `make_reference_grid` fills one with `make_anchors`.
+
+### join_raw_boxes
+
+`join_raw_boxes` reads a branch's three per-level tensors, `<branch>.level<i>.boxes`, and
+copies each into its place in an `[8400, 4]` array with `join_level`. It returns an empty
+string, or the reason a level could not be read.
+
+### DecodesDistancesToCorners
+
+`decode_xyxy` of the distances (0.5, 1, 1.5, 2) at the point (1.5, 2.5) gives
+(1, 1.5, 3, 4.5): left and top are subtracted from the point, right and bottom added.
+
+### DecodesDistancesToCentreAndSize
+
+`decode_xywh` of the same input gives the midpoint (2, 3) and the size (2, 3) of those corners.
+
+### RepeatsTheAnchorPointsForEachImage
+
+Two anchor points and four rows of distances decode as two images: rows 2 and 3 use points 0
+and 1 again.
+
+### EncodeInvertsDecode
+
+`encode_distances` of the boxes `decode_xyxy` writes returns the three rows of distances at
+tolerance 0.
+
+### ScalesEachBoxByItsAnchorStride
+
+`scale_boxes` multiplies all four values of a row by its anchor's stride: the row (1, 2, 3, 4)
+becomes (8, 16, 24, 32) at stride 8 and (16, 32, 48, 64) at stride 16.
+
+### ConvertsBetweenCornersAndCentreSize
+
+`xyxy_to_xywh` maps (1, 2, 5, 8) to (3, 5, 4, 6), and `xywh_to_xyxy` maps that back to the
+corners.
+
+### RejectsRowsThatDoNotCoverTheAnchors
+
+Three rows of distances over two anchor points throw with a message containing "2 anchors" and
+"12".
+
+### ReproducesTheReferenceOneToManyDecode
+
+The raw one-to-many boxes, decoded with `decode_xywh` and scaled by the strides, equal
+`one2many.decoded.boxes` within `K_DECODE_TOLERANCE`. The case is skipped when `forward.sacp`
+is absent.
+
+### ReproducesTheReferenceOneToOneDecode
+
+The raw one-to-one boxes, decoded with `decode_xyxy` and scaled, equal `one2one.decoded.boxes`
+within `K_DECODE_TOLERANCE`. The case is skipped when `forward.sacp` is absent.
+
+### EncodeInvertsTheDecodeOfTheReferenceBoxes
+
+Encoding the decode of the raw one-to-one boxes returns them within `K_ROUND_TRIP_TOLERANCE`.
+The case is skipped when `forward.sacp` is absent.
+
+### IdenticalBoxesScoreOne
+
+A 2 by 2 box has IoU 1 and complete IoU 1 with itself.
+
+### DisjointBoxesScoreZeroAndPayForDistance
+
+Two unit squares two units apart have IoU 0. Their complete IoU is minus the squared centre
+distance, 4, over the squared hull diagonal, 10.
+
+### OverlappingSquaresLoseTheCentreTerm
+
+Two 2 by 2 squares offset by 1 on both axes have IoU 1 / 7, and their complete IoU is that
+minus 2 / 18. The aspect ratios are equal, so the aspect term is 0.
+
+### DifferentAspectRatiosLoseTheAspectTerm
+
+A 4 by 2 box and a 2 by 2 box at one corner have IoU 0.5. The expected complete IoU is computed
+in double from the centre term, the angle gap `atan(1) - atan(2)` and the trade-off factor, and
+compared within `K_IOU_TOLERANCE`.
+
+### ADegenerateBoxStaysFinite
+
+A box of zero size inside a 2 by 2 box has IoU 0. Its width over its height is 0 over eps, so
+the angle gap is pi / 4, the aspect term is 0.25, and the complete IoU is -0.25 * 0.25 / 1.25,
+which is -0.05. The complete IoU of the zero-size box with itself is finite and 0.
+
+### ElementwiseFormsPairRows
+
+`elementwise_iou` and `elementwise_complete_iou` over two rows give 1 / 7 and 0, and
+1 / 7 - 2 / 18 and -4 / 10: row i of the first array is paired with row i of the second.
+
+### PairwiseFormFillsEveryPair
+
+`pairwise_iou` of two boxes against three writes six values, row n and column m holding the
+IoU of box n with box m: 1, 1 / 7, 0, then 1 / 4, 0, 0.
+
+### RejectsElementwiseInputsOfDifferentLength
+
+Arrays of 8 and 4 values with an output of 2 throw with a message containing "got 8, 4 and 2".
+
+## test_detections_nms.cpp, test_detections_topk.cpp, test_top_k.cpp
+
+The top-k selection, both postprocess paths and the overlap suppression.
+
+Suites: `Unit_DetectTopK`, `Unit_DetectPostprocess`.
+
+Tests the top-k selection, both postprocess paths and the overlap suppression.
+
+This file needs no device. `Unit_DetectTopK` covers `modules/vision/detect/include/SushiAI/vision/detect/top_k.hpp`, and
+`Unit_DetectPostprocess` covers `modules/vision/detect/include/SushiAI/vision/detect/detections_topk.hpp` and
+`modules/vision/detect/include/SushiAI/vision/detect/detections_nms.hpp`. The suppression path takes boxes as centre and
+size, so the hand cases write them that way and expect corners. Four cases read `forward.sacp`
+and report themselves skipped when the file is absent.
+
+Two of the reference comparisons cannot compare row by row. The reference orders equal scores
+in an order torch does not specify, and the fixture's scores are nearly constant.
+`modules/vision/detect/README.md`, under `top_k.hpp` and "Reference rows the suppression test
+reads", gives the counts.
+
+### K_EXACT
+
+`K_EXACT` is the tolerance 0. A postprocess copies its output values from its inputs.
+
+### K_SUPPRESSION_CONFIDENCE
+
+`K_SUPPRESSION_CONFIDENCE` is 1.8e-4, the `suppression.arguments.conf_thres` of `forward.sacp`
+in `tests/vision/registration/fixtures/yolo26/MANIFEST.json`.
+
+### Row
+
+`Row` is an array of six floats, one detection.
+
+### sorted_rows_above
+
+`sorted_rows_above` returns the rows whose score exceeds a floor, sorted by their six values.
+Two detection arrays that hold the same rows in different orders compare equal through it.
+
+### is_anchor_class_pair
+
+`is_anchor_class_pair` reports whether a row's box is some anchor's box and its score is that
+anchor's score in the row's class.
+
+### make_nms_config
+
+`make_nms_config` returns an `NMSConfig` with the given confidence threshold, IoU threshold,
+label mode and class mode, and the default limits.
+
+### suppress_one_image
+
+`suppress_one_image` runs `select_nms_detections` on one image of `[A, 4]` boxes and returns
+that image's rows.
+
+### OrdersByValueThenIndex
+
+`select_top_k` of the values 0.5, 0.9, 0.5, 0.1, 0.9 with k = 4 returns the indices 1, 4, 0, 2:
+larger values first, equal values by ascending index. Asking for 6 of 5 values throws with a
+message containing "6" and "5 values".
+
+### SelectsTheHighestScoringAnchorClassPairs
+
+Three anchors with two classes and a limit of 2 give the row of anchor 1 with score 0.9 and
+class 0, then the row of anchor 0 with score 0.7 and class 1.
+
+### OneAnchorCanYieldTwoDetections
+
+Anchor 1 scores 0.8 and 0.7 in its two classes, both above anchor 0's 0.6. Both output rows
+carry anchor 1's box, with classes 0 and 1.
+
+### LimitsRowsToTheAnchorCount
+
+`count_top_detections` returns 3 for three anchors and a limit of 300, and 300 for 8400 anchors.
+
+### SelectsEachImageFromItsOwnRows
+
+A batch of two images with two anchors each and a limit of 1 gives one row per image: anchor 1
+of image 0 at 0.6 in class 0, and anchor 1 of image 1 at 0.9 in class 1.
+
+### RejectsADetectionArrayOfTheWrongSize
+
+An output of 6 values where the shape needs `[1, 2, 6]` throws with a message containing
+"[1, 2, 6] detections" and "6 values".
+
+### ReproducesTheReferenceDetections
+
+`select_top_detections` on `one2one.decoded.boxes` and `one2one.decoded.scores` with
+`K_MAX_DETECTIONS` is compared with `one2one.detections` in three ways. The score column and
+the class column are equal row by row. The rows above the last score are equal as a set,
+through `sorted_rows_above`. Every output row passes `is_anchor_class_pair`. The case is
+skipped when `forward.sacp` is absent.
+
+### TheConfidenceFilterDropsAScoreAtTheThreshold
+
+`keep_confident_detections` at 0.25 keeps the rows at 0.5 and 0.26, in their order, and drops
+the rows at 0.25 and 0.1.
+
+### TheConfidenceFilterKeepsEachImagesRows
+
+Four rows split between two images at `K_VALIDATION_CONFIDENCE`: image 0 keeps its row at 0.9
+and image 1 keeps none.
+
+### TheConfidenceFilterRejectsRowsTheBatchDoesNotDivide
+
+Three rows for a batch of 2 throw with a message containing "[2, k, 6] detections" and "18
+values". A batch of 0 throws with "positive batch" and "got 0".
+
+### TheConfidenceFilterKeepsTheRowsTheReferenceValidatorKeeps
+
+At `K_VALIDATION_CONFIDENCE` the filter keeps none of the 300 rows of `one2one.detections`,
+which is `validation.row_count.one2one` of the manifest. At threshold 0 it keeps all of them
+unchanged, since every reference score is a sigmoid above zero. The case is skipped when
+`forward.sacp` is absent.
+
+### SuppressionReproducesTheReferenceRows
+
+`select_nms_detections` at `K_SUPPRESSION_CONFIDENCE` on the one-to-many decode returns as many
+values as `one2many.suppressed.detections`. The score column is equal row by row and the rows
+above the last score are equal as a set. The case is skipped when `forward.sacp` is absent.
+
+### NoReferenceScorePassesTheValidationConfidence
+
+With a default `NMSConfig` the one-to-many decode yields no row, which is
+`validation.row_count.one2many` of the manifest. The case is skipped when `forward.sacp` is
+absent.
+
+### SuppressionDefaultsMatchTheValidator
+
+A default `NMSConfig` has confidence 0.001, IoU 0.7, `LabelMode::MultiLabel`,
+`ClassMode::ClassAware`, 300 detections, 30000 candidates and a class offset of 7680.
+
+### SuppressesTheLowerOfTwoOverlappingBoxes
+
+Boxes 0 and 1 share 81 of 119 px, an IoU of 0.68, and box 2 is apart. `suppress_overlaps` at 0.5
+keeps the indices 0 and 2.
+
+### ListsSurvivorsByDescendingScore
+
+Four boxes that do not overlap, with scores 0.1, 0.9, 0.5 and 0.5, are kept in the order
+1, 2, 3, 0.
+
+### KeepsABoxWhoseIoUEqualsTheThreshold
+
+Two boxes share 2 of 4 px, an IoU of exactly 0.5 in float32. At threshold 0.5 both are kept; at
+0.25 only the first is.
+
+### OverlappingBoxesOfOneClassCollapse
+
+Two anchors hold the same box and score 0.9 and 0.8 in class 0. One row remains, with corners
+(0, 0, 10, 10), score 0.9 and class 0.
+
+### OverlappingBoxesOfDifferentClassesBothSurvive
+
+The same two boxes score in classes 0 and 1. `ClassMode::ClassAware` keeps both rows, and
+`ClassMode::ClassAgnostic` keeps the one at 0.9.
+
+### DropsAScoreEqualToTheConfidenceThreshold
+
+An anchor at 0.25 with the threshold at 0.25 yields no row. The anchor at 0.5 yields the one
+row.
+
+### AnAnchorContributesEveryPassingClassOrItsBest
+
+One anchor scores 0.6, 0.1 and 0.7 in three classes. `LabelMode::MultiLabel` yields two rows,
+class 2 at 0.7 then class 0 at 0.6. `LabelMode::BestClass` yields the row of class 2 alone.
+
+### LimitsDetectionsToTheHighestScores
+
+Three boxes that are apart score 0.5, 0.9 and 0.7. With `max_detections` 2 the rows at 0.9 and
+0.7 remain.
+
+### LimitsCandidatesBeforeSuppression
+
+With `max_candidates` 1 the same input yields the row at 0.9 alone.
+
+### RejectsAThresholdOutsideTheUnitInterval
+
+A confidence threshold of 1.5 throws with a message containing "[0, 1]" and "1.5".
+
+### AnImageBelowTheThresholdYieldsNoRows
+
+Scores of 0.25, 0.1, 0.2 and 0 at the threshold 0.25 yield an empty row vector.
+
+### SuppressesEachImageFromItsOwnRows
+
+A batch of two images with two anchors each. Image 0 holds one box twice, so the row at 0.9
+remains. Image 1 holds two boxes that are apart, and its rows are 0.6 then 0.3.
+
+### RejectsScoresThatDoNotFillTheShape
+
+Six scores where the shape `[1, 2, 2]` needs four throw with a message containing "[1, 2, 2]
+scores" and "8 and 6 values".

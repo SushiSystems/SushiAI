@@ -44,7 +44,7 @@ namespace
     using SushiAI::IO::CheckpointWriter;
     using SushiAI::IO::TensorRecord;
 
-    // Offsets index the first record of sample_stream(); see tests/unit/README.md.
+    // Offsets index the first record of sample_stream(); see tests/layers/io/README.md.
     constexpr std::size_t K_OFFSET_MAGIC        = 0;
     constexpr std::size_t K_OFFSET_VERSION      = 4;
     constexpr std::size_t K_OFFSET_COUNT        = 8;
@@ -199,7 +199,7 @@ TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
 
 TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
 {
-    // The recorded shape separates [2, 3] from [3, 2]; see tests/unit/README.md.
+    // The recorded shape separates [2, 3] from [3, 2]; see tests/layers/io/README.md.
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 1));
     SA_EXPECT_OK(writer.write(TensorRecord{"w", SushiAI::DType::Float32, SushiAI::Shape{2, 3}},

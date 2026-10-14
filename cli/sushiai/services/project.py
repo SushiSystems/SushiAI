@@ -276,7 +276,7 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    the binary directly: sa run sushiai_tests -- --gtest_filter=Version.*
+    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Unit_Version.*
 
     ``package`` is the one suite that is not a CTest label; it delegates to
     :func:`test_package`, which builds a separate project.

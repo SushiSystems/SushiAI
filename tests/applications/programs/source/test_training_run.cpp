@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_program_runs.cpp                                                  */
+/* test_training_run.cpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -19,11 +19,12 @@
 /* "as is", without warranty of any kind.                                 */
 /**************************************************************************/
 
+
 /**
- * @file test_program_runs.cpp
- * @brief Tests the run table, the fallback run, the report table and the start of a run.
+ * @file test_training_run.cpp
+ * @brief Tests the run table of training_run: the row a task picks, the fallback, and a
+ *        classification run.
  * @author Mustafa Garip
- * @see tests/integration/README.md
  */
 
 #include <cstddef>
@@ -36,38 +37,39 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/config/model_config.hpp>
-#include <SushiAI/config/train_config.hpp>
-#include <SushiAI/io/run_checkpoint.hpp>
-#include <SushiAI/nn/model_outputs.hpp>
-#include <SushiAI/optim/sgd.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
-#include <SushiAI/train/objective_context.hpp>
-#include <SushiAI/classifier_objective/classifier_objective.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/SushiAI.h>
-#include <SushiAI/engine_fixture/engine_test.hpp>
-#include <SushiAI/scratch_files/scratch_file.hpp>
-
 #include "inference_run.hpp"
 #include "run_start.hpp"
 #include "trainer_run.hpp"
 #include "training_run.hpp"
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/config/model_config.hpp>
+#include <SushiAI/config/train_config.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/io/run_checkpoint.hpp>
+#include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/optim/sgd.hpp>
+#include <SushiAI/scratch_files/scratch_file.hpp>
+#include <SushiAI/train/evaluation_step.hpp>
+#include <SushiAI/train/objective_context.hpp>
 
 using namespace SushiAI;
-
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/applications/programs/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_ProgramRuns : public SaTest::EngineTest {};
+    class Integration_TrainingRun : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
     constexpr int64_t K_BATCH = 8;
+
     constexpr int64_t K_FEATURES = 6;
+
     constexpr int64_t K_CLASSES = 4;
+
     constexpr int64_t K_BATCHES = 8;
 
     /** @brief Holds the epochs of the classification run. */
@@ -182,12 +184,6 @@ namespace
         return summary;
     }
 
-    /** @brief Stands for a report; prints nothing and succeeds. */
-    Status report_nothing(Apps::PreparedInference&)
-    {
-        return Status();
-    }
-
     /** @brief Returns the number after each "loss " of @p text, in order. */
     std::vector<double> losses_of(const std::string& text)
     {
@@ -201,10 +197,11 @@ namespace
 
         return losses;
     }
+
 } // namespace
 
 /** @brief Tests that a row runs for its type, the fallback for any other, and neither twice. */
-TEST_F(Integration_ProgramRuns, TheRunTablePicksARowOrTheFallback)
+TEST_F(Integration_TrainingRun, TheRunTablePicksARowOrTheFallback)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
     Apps::PreparedRun prepared = prepare(*pieces, *engine);
@@ -230,7 +227,7 @@ TEST_F(Integration_ProgramRuns, TheRunTablePicksARowOrTheFallback)
 }
 
 /** @brief Tests that the fallback run trains a classifier: one compile and a falling loss. */
-TEST_F(Integration_ProgramRuns, AClassificationRunTrainsThroughTheFallback)
+TEST_F(Integration_TrainingRun, AClassificationRunTrainsThroughTheFallback)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
     Apps::PreparedRun prepared = prepare(*pieces, *engine);
@@ -254,71 +251,4 @@ TEST_F(Integration_ProgramRuns, AClassificationRunTrainsThroughTheFallback)
     const std::vector<double> losses = losses_of(printed);
     ASSERT_EQ(losses.size(), static_cast<std::size_t>(K_EPOCHS)) << printed;
     EXPECT_LT(losses.back(), losses.front()) << printed;
-}
-
-/** @brief Tests that a report runs for its task type and an unknown type names the known. */
-TEST_F(Integration_ProgramRuns, TheReportTableRefusesAnUnknownTask)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
-    SA_ASSERT_OK_AND_ASSIGN(
-        const Train::TracedStep traced,
-        Train::build_evaluation_graph(pieces->model, Shape{K_BATCH, K_FEATURES}));
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, *pieces->state, pool));
-
-    const std::filesystem::path model_path("model.json");
-    const std::filesystem::path weights_path("model.sushi");
-    const Config::ModelSpec model{};
-    const std::vector<NN::ModelOutputs::Entry> outputs;
-    Apps::PreparedInference prepared{
-        model_path, weights_path, model, 3, *pieces->dataset, *step, outputs, *engine,
-    };
-
-    Apps::InferenceRegistry registry;
-    SA_EXPECT_OK(registry.add(Apps::InferenceEntry{"classification", &report_nothing}));
-    SA_EXPECT_FAILURE(registry.add(Apps::InferenceEntry{"classification", &report_nothing}),
-                      StatusCode::InvalidDescription, "'classification'", "already registered");
-
-    SA_EXPECT_OK(Apps::report_inference(registry, "classification", prepared));
-    SA_EXPECT_FAILURE(Apps::report_inference(registry, "pose", prepared),
-                      StatusCode::InvalidDescription, "model.json", "'pose'",
-                      "'classification'");
-}
-
-/** @brief Tests that a run starts initialised, from weights, or resumed with its run state. */
-TEST_F(Integration_ProgramRuns, ARunStartsFromWhatItsFileStates)
-{
-    const SaTest::ScratchFile file("sushiai_program_runs_resume.sushi");
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> trained, make_pieces(*engine));
-    Apps::PreparedRun prepared = prepare(*trained, *engine);
-    Apps::RunRegistry registry;
-    SA_EXPECT_OK(Apps::register_runs(registry));
-
-    testing::internal::CaptureStdout();
-    const Result<Apps::RunSummary> summary =
-        Apps::run_training(registry, "cross_entropy", prepared);
-    (void)testing::internal::GetCapturedStdout();
-    SA_EXPECT_OK(summary);
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *trained->state, *trained->optimizer,
-                                         *engine));
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
-    EXPECT_EQ(Apps::describe_start(fresh->spec), "initialised");
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
-    EXPECT_EQ(fresh->optimizer->step_count(), 0u);
-
-    fresh->spec.weights = file.path();
-    EXPECT_EQ(Apps::describe_start(fresh->spec), file.path().string());
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
-    EXPECT_EQ(fresh->optimizer->step_count(), 0u);
-
-    fresh->spec.weights.clear();
-    fresh->spec.resume = file.path();
-    EXPECT_EQ(Apps::describe_start(fresh->spec), "resumed from " + file.path().string());
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
-    EXPECT_EQ(fresh->optimizer->step_count(), trained->optimizer->step_count());
-    EXPECT_EQ(fresh->optimizer->step_count(),
-              static_cast<std::uint64_t>(K_EPOCHS * K_BATCHES));
 }

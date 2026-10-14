@@ -104,7 +104,7 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
 
 TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
 {
-    // Each view writes only its own bytes; see tests/integration/README.md.
+    // Each view writes only its own bytes; see tests/core/graph/README.md.
     const Chain chain;
     SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas,
                             ArenaSet::make(*engine, MemoryPlan::build(chain.graph)));
@@ -145,7 +145,7 @@ TEST_F(Integration_ArenaDeathTest, AnOffsetThatIsNotAWholeNumberOfElementsIsRefu
 {
     SA_ASSERT_OK_AND_ASSIGN(const auto arena, allocate_arena(*engine, 256));
 
-    // A float64 view needs a whole-element offset; see tests/integration/README.md.
+    // A float64 view needs a whole-element offset; see tests/core/graph/README.md.
     SA_EXPECT_FATAL((void)view_tensor(*engine, arena, 4, Shape{2}, DType::Float64),
                     "counts elements");
 
@@ -163,7 +163,7 @@ TEST_F(Integration_ArenaDeathTest, AViewThatWouldRunPastTheArenaIsRefused)
 
 TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
 {
-    // Alignment 1 leaves only the element-width floor; see tests/integration/README.md.
+    // Alignment 1 leaves only the element-width floor; see tests/core/graph/README.md.
     Graph::Graph graph;
 
     const ValueID narrow_leaf =
@@ -205,7 +205,7 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     EXPECT_EQ(as_float.storage->allocation_base(), as_double.storage->allocation_base());
     EXPECT_FALSE(as_float.region().overlaps(as_double.region()));
 
-    // A round trip proves each address is usable; see tests/integration/README.md.
+    // A round trip proves each address is usable; see tests/core/graph/README.md.
     SaTest::write_tensor(as_float, std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0});
     SaTest::write_tensor(as_double, std::vector<double>{-1.5, -2.5, -3.5});
 
@@ -224,7 +224,7 @@ TEST_F(Integration_ArenaDeathTest, AdoptingASecondPlanIsRefused)
 
 TEST_F(Integration_Arena, TheEmptyPlanPacksNothing)
 {
-    // The empty plan is the unpacked control; see tests/integration/README.md.
+    // The empty plan is the unpacked control; see tests/core/graph/README.md.
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
@@ -259,5 +259,5 @@ TEST_F(Integration_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
         << "two packed values must come out of the same allocation";
     EXPECT_EQ(pool.arenas().arena_count(), 1u);
 
-    // Bytes are not compared at this tensor size; see tests/integration/README.md.
+    // Bytes are not compared at this tensor size; see tests/core/graph/README.md.
 }

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- 2026-10-14 — tests: Moved the program tests and the train and inference smoke tests to tests/applications/programs, one program for the application (`sushiai_programs_tests`, `test_training_run.cpp`).
+- 2026-10-14 — tools: Made the YOLO26 exporter write each reference file to the fixture folder of the tests that read it (`export_yolo26_reference.py`, `K_DESTINATIONS`).
+- 2026-10-14 — generation: Made the position feeds public headers, with detect's seeded sequence, so their tests stop reaching into source/ (`position_feed.hpp`, `seeded_sequence.hpp`).
+- 2026-10-14 — tests: Moved the vision and language tests to tests/<tier>/<module>/, one program per module (`tests/vision/`, `tests/language/`).
+- 2026-10-14 — tests: Gave each cross-module test of core and layers an owner and removed sushiai_tests (`tests/layers/train/test_trainer/`, `SA_REPOSITORY_ROOT`).
+- 2026-10-14 — tests: Moved the core and layers tests to tests/<tier>/<module>/, one program per module (`SushiAITestProgram.cmake`, `sushiai_add_test_program`).
+- 2026-10-14 — tests: Split the shared test code into sixteen internal modules named for what they hold (`SushiAIModule.cmake`, `sushiai_add_internal_module`, `engine_fixture`).
+- 2026-10-14 — tools: Added the test mirror checker (`check_test_mirror.py`).
 - 2026-10-14 — vision: Made AnchorTrainingStep run the forward pass once; make() takes no probe graph, probe pool or state, and output() replaces evaluation() (`anchor_training_step.hpp`, `domains_vision.cpp`, `training_run.hpp`).
 - 2026-10-14 — train: Added a host stage to TrainingStep: the step compiles in two parts and `run(host_work)` calls the host between them (`training_step.hpp`, `HostStage`, `TrainingStep::lead`).
 - 2026-10-14 — graph: Added NodeRange, so Lowering::record and CompiledStep::compile take a run of consecutive nodes of a graph (`node_range.hpp`, `lowering.hpp`, `compiled_step.hpp`).

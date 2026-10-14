@@ -47,7 +47,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
 using namespace SushiAI;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/core/autograd/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
@@ -60,7 +60,7 @@ namespace SushiAI
     {
         TEST(Unit_RuleTable, EveryDomainsRulesReachTheCombinedTable)
         {
-            // A domain left out of all.hpp still compiles; see tests/unit/README.md.
+            // A domain left out of all.hpp still compiles; see tests/core/autograd/README.md.
             constexpr std::size_t K_DOMAINS =
                 Autograd::K_ELEMENTWISE_RULES.size() + Autograd::K_LINALG_RULES.size()
                 + Autograd::K_ACTIVATION_RULES.size() + Autograd::K_LOSS_RULES.size()
@@ -72,7 +72,7 @@ namespace SushiAI
 
         TEST(Unit_RuleTable, NoOperationHasTwoRules)
         {
-            // The first of two entries would win silently; see tests/unit/README.md.
+            // The first of two entries would win silently; see tests/core/autograd/README.md.
             for (std::size_t i = 0; i < Autograd::K_RULES.size(); ++i)
                 for (std::size_t j = i + 1; j < Autograd::K_RULES.size(); ++j)
                     EXPECT_NE(Autograd::K_RULES[i].op, Autograd::K_RULES[j].op)
@@ -82,7 +82,7 @@ namespace SushiAI
 
         TEST(Unit_RuleTable, TheRulesThatExistedBeforeTheSplitStillDo)
         {
-            // These fourteen rules predate the split; see tests/unit/README.md.
+            // These fourteen rules predate the split; see tests/core/autograd/README.md.
             for (OpID op : {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_ADD.id,
                                  Ops::K_SUB.id, Ops::K_MUL.id, Ops::K_SCALE.id, Ops::K_EXP.id,
                                  Ops::K_RELU.id, Ops::K_GELU.id, Ops::K_SIGMOID.id,
@@ -224,7 +224,7 @@ namespace
     /**
      * @brief Holds a FLOAT64 graph whose loss and gradient can both be evaluated at a point.
      * @pre The variable under test is the only gradient-requiring leaf; see
-     *      tests/integration/README.md.
+     *      tests/core/autograd/README.md.
      */
     class Probe
     {
@@ -251,7 +251,7 @@ namespace
                 gradient_ = grads.at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
-                // Fusion is off unless a case asks; see tests/integration/README.md.
+                // Fusion is off unless a case asks; see tests/core/autograd/README.md.
                 if (fuse)
                 {
                     const ValueID observed[] = {loss_, targets_};
@@ -470,7 +470,7 @@ TEST_F(Integration_Autograd, MatmulWithBothOperandsTransposed)
 
 TEST_F(Integration_Autograd, MatmulGradientOfTheRightOperand)
 {
-    // The weight is the variable, covering dB; see tests/integration/README.md.
+    // The weight is the variable, covering dB; see tests/core/autograd/README.md.
     ValueID activations = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{3, 5}, [&activations](const GraphBuilder& builder, ValueID w)
@@ -589,7 +589,7 @@ TEST_F(Integration_Autograd, ElementwiseMultiply)
 
 TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
 {
-    // Covers dB = dC * A, the right-hand half; see tests/integration/README.md.
+    // Covers dB = dC * A, the right-hand half; see tests/core/autograd/README.md.
     ValueID other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueID x)
@@ -609,7 +609,7 @@ TEST_F(Integration_Autograd, ElementwiseMultiplyFromTheRight)
 
 TEST_F(Integration_Autograd, AccumulateInTheForwardGraph)
 {
-    // Every probe rewrites the whole variable first; see tests/integration/README.md.
+    // Every probe rewrites the whole variable first; see tests/core/autograd/README.md.
     ValueID other = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{4, 3}, [&other](const GraphBuilder& builder, ValueID x)
@@ -669,7 +669,7 @@ TEST_F(Integration_Autograd, ReLUAwayFromItsKink)
     std::vector<double> point(probe.size());
     SaTest::HostNoise(152).fill(point, 1.0);
 
-    // ReLU is sampled clear of its kink at zero; see tests/integration/README.md.
+    // ReLU is sampled clear of its kink at zero; see tests/core/autograd/README.md.
     Autograd::push_off_kinks(point);
 
     expect_gradient_matches(probe, point);
@@ -677,7 +677,7 @@ TEST_F(Integration_Autograd, ReLUAwayFromItsKink)
 
 TEST_F(Integration_Autograd, LeakyReLUHasBothOfItsSlopes)
 {
-    // The sample range puts elements on both slopes; see tests/integration/README.md.
+    // The sample range puts elements on both slopes; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{4, 8}, [](const GraphBuilder& builder, ValueID x)
     {
         return builder.log_softmax(builder.leaky_relu(x, 0.1));
@@ -696,7 +696,7 @@ TEST_F(Integration_Autograd, LeakyReLUHasBothOfItsSlopes)
 
 TEST_F(Integration_Autograd, LeakyReLUBranchSwapIsCaughtByProbePoints)
 {
-    // Pins the sign split of the sample used above; see tests/integration/README.md.
+    // Pins the sign split of the sample used above; see tests/core/autograd/README.md.
     std::vector<double> point(4 * 8);
     SaTest::HostNoise(171).fill(point, 1.5);
     Autograd::push_off_kinks(point);
@@ -729,7 +729,7 @@ TEST_F(Integration_Autograd, GELU)
 
 TEST_F(Integration_Autograd, AFusedGELUEpilogueHasTheSameDerivativeAsAnUnfusedOne)
 {
-    // The fused epilogue is checked in FLOAT64; see tests/integration/README.md.
+    // The fused epilogue is checked in FLOAT64; see tests/core/autograd/README.md.
     ValueID weight = Graph::K_NO_VALUE;
     ValueID bias = Graph::K_NO_VALUE;
 
@@ -744,7 +744,7 @@ TEST_F(Integration_Autograd, AFusedGELUEpilogueHasTheSameDerivativeAsAnUnfusedOn
                 },
                 /*fuse=*/true);
 
-    // The fused arm must really have run; see tests/integration/README.md.
+    // The fused arm must really have run; see tests/core/autograd/README.md.
     ASSERT_EQ(probe.fusion().count(Graph::FusedForm::GEMMBiasGELU), 1u)
         << probe.fusion().to_string();
 
@@ -895,7 +895,7 @@ TEST_F(Integration_Autograd, ScatterAddRowsOverARankTwoIndexGathersInTheRowsOwnS
 
 TEST_F(Integration_Autograd, FusedCrossEntropyAgainstOneHotTargets)
 {
-    // The fused rule gives (softmax - Y) / N; see tests/integration/README.md.
+    // The fused rule gives (softmax - Y) / N; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{4, 5}, [](const GraphBuilder& builder, ValueID x)
     {
         return builder.log_softmax(x);
@@ -927,7 +927,7 @@ TEST_F(Integration_Autograd, GradientAccumulationAtAFanOut)
 
 TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
 {
-    // Sixteen random directions cost 2k runs, not 2n; see tests/integration/README.md.
+    // Sixteen random directions cost 2k runs, not 2n; see tests/core/autograd/README.md.
     ValueID hidden_weight = Graph::K_NO_VALUE;
     ValueID output_weight = Graph::K_NO_VALUE;
     ValueID inputs = Graph::K_NO_VALUE;
@@ -961,13 +961,13 @@ TEST_F(Integration_Autograd, WholeTwoLayerModelUnderRandomDirections)
 
 TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
 {
-    // The gradient returns in the input shape; see tests/integration/README.md.
+    // The gradient returns in the input shape; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{3, 8}, [](const GraphBuilder& builder, ValueID x)
     {
         return builder.log_softmax(builder.reshape(builder.reshape(x, Shape{4, 6}), Shape{3, 8}));
     });
 
-    // The fused NLL rule needs one-hot targets; see tests/integration/README.md.
+    // The fused NLL rule needs one-hot targets; see tests/core/autograd/README.md.
     probe.fill_one_hot(3, 8);
 
     std::vector<double> point(probe.size());
@@ -978,7 +978,7 @@ TEST_F(Integration_Autograd, ReshapeMovesItsGradientBackUnchanged)
 
 TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
 {
-    // A single layout_convert, so the order matters; see tests/integration/README.md.
+    // A single layout_convert, so the order matters; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueID x)
     {
         builder.graph().value(x).layout = Graph::TensorLayout::NCHW;
@@ -996,7 +996,7 @@ TEST_F(Integration_Autograd, LayoutConvertsGradientIsThePermutedGradient)
 
 TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
 {
-    // The round trip is a secondary check only; see tests/integration/README.md.
+    // The round trip is a secondary check only; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueID x)
     {
         const ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
@@ -1014,7 +1014,7 @@ TEST_F(Integration_Autograd, LayoutConvertRoundTripComposesBothDirections)
 
 TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatmul)
 {
-    // Single hop: im2col feeds matmul, never col2im; see tests/integration/README.md.
+    // Single hop: im2col feeds matmul, never col2im; see tests/core/autograd/README.md.
     ValueID weights = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{2, 5, 5, 3}, [&weights](const GraphBuilder& builder, ValueID x)
@@ -1029,7 +1029,7 @@ TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatm
     });
 
     probe.fill_noise(weights, 301, 1.0);
-    // A log_softmax probe needs one-hot targets; see tests/integration/README.md.
+    // A log_softmax probe needs one-hot targets; see tests/core/autograd/README.md.
     probe.fill_one_hot(50, 8);
 
     std::vector<double> point(probe.size());
@@ -1040,7 +1040,7 @@ TEST_F(Integration_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatm
 
 TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel)
 {
-    // Nine windows read each interior pixel; see tests/integration/README.md.
+    // Nine windows read each interior pixel; see tests/core/autograd/README.md.
     ValueID weights = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{1, 4, 4, 2}, [&weights](const GraphBuilder& builder, ValueID x)
@@ -1065,7 +1065,7 @@ TEST_F(Integration_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel
 
 TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOverItsRealWindowGrid)
 {
-    // The real grid is 5x4; a symmetric guess is 4x5; see tests/integration/README.md.
+    // The real grid is 5x4; a symmetric guess is 4x5; see tests/core/autograd/README.md.
     ValueID weights = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape{1, 4, 5, 1}, [&weights](const GraphBuilder& builder, ValueID x)
@@ -1090,7 +1090,7 @@ TEST_F(Integration_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOver
 
 TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 {
-    // The variable is the column matrix itself; see tests/integration/README.md.
+    // The variable is the column matrix itself; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{9, 18}, [](const GraphBuilder& builder, ValueID x)
     {
         Graph::ConvGeometry g;
@@ -1111,7 +1111,7 @@ TEST_F(Integration_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 
 TEST_F(Integration_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
 {
-    // push_off_kinks leaves no ties in a window; see tests/integration/README.md.
+    // push_off_kinks leaves no ties in a window; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({2, 4, 4, 3}), [](const GraphBuilder& b, ValueID x)
     {
         Graph::ConvGeometry g;
@@ -1131,7 +1131,7 @@ TEST_F(Integration_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
 
 TEST_F(Integration_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel)
 {
-    // At stride 1 a pixel can win several windows; see tests/integration/README.md.
+    // At stride 1 a pixel can win several windows; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({1, 5, 5, 2}), [](const GraphBuilder& b, ValueID x)
     {
         Graph::ConvGeometry g;
@@ -1150,7 +1150,7 @@ TEST_F(Integration_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel
 
 TEST_F(Integration_Autograd, AvgPoolSpreadsItsGradientOverTheWholeWindow)
 {
-    // One batch row keeps this under 200 inputs; see tests/integration/README.md.
+    // One batch row keeps this under 200 inputs; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({1, 6, 6, 3}), [](const GraphBuilder& b, ValueID x)
     {
         Graph::ConvGeometry g;
@@ -1169,7 +1169,7 @@ TEST_F(Integration_Autograd, AvgPoolSpreadsItsGradientOverTheWholeWindow)
 
 TEST_F(Integration_Autograd, UpsampleSumsEachSourcePixelsReplicas)
 {
-    // Scale 2 makes each gradient a sum of four; see tests/integration/README.md.
+    // Scale 2 makes each gradient a sum of four; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({2, 3, 3, 4}), [](const GraphBuilder& b, ValueID x)
     {
         return b.log_softmax(b.spatial_mean(b.upsample2d(x, 2, 2)));
@@ -1185,7 +1185,7 @@ TEST_F(Integration_Autograd, UpsampleSumsEachSourcePixelsReplicas)
 
 TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
 {
-    // The broadcast is per (n, c); see tests/integration/README.md.
+    // The broadcast is per (n, c); see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({2, 4, 4, 5}), [](const GraphBuilder& b, ValueID x)
     {
         return b.log_softmax(b.spatial_mean(x));
@@ -1201,7 +1201,7 @@ TEST_F(Integration_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
 
 TEST_F(Integration_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
 {
-    // Operands are reordered against their slices; see tests/integration/README.md.
+    // Operands are reordered against their slices; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({2, 4, 4, 6}), [](const GraphBuilder& b, ValueID x)
     {
         const ValueID left = b.slice_channels(x, 0, 2);
@@ -1221,7 +1221,7 @@ TEST_F(Integration_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
 
 TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
 {
-    // Channels outside the slice receive zero; see tests/integration/README.md.
+    // Channels outside the slice receive zero; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape({1, 3, 3, 8}), [](const GraphBuilder& b, ValueID x)
     {
         return b.log_softmax(b.spatial_mean(b.slice_channels(x, 3, 2)));
@@ -1237,7 +1237,7 @@ TEST_F(Integration_Autograd, SliceScattersItsGradientBackIntoZeros)
 
 TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItComputed)
 {
-    // dx has three terms, not one; see tests/integration/README.md.
+    // dx has three terms, not one; see tests/core/autograd/README.md.
     ValueID gamma = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
@@ -1261,7 +1261,7 @@ TEST_F(Integration_Autograd, BatchNormsGradientAccountsForTheStatisticsItCompute
 
 TEST_F(Integration_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput)
 {
-    // The same node, differentiated at gamma; see tests/integration/README.md.
+    // The same node, differentiated at gamma; see tests/core/autograd/README.md.
     ValueID x = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
@@ -1329,7 +1329,7 @@ TEST_F(Integration_Autograd, ChannelAffineDifferentiatesAtItsInput)
 
 TEST_F(Integration_Autograd, ChannelAffinesScaleGradientSumsOverNHAndW)
 {
-    // dgamma sums over N, H and W at once; see tests/integration/README.md.
+    // dgamma sums over N, H and W at once; see tests/core/autograd/README.md.
     ValueID x = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 

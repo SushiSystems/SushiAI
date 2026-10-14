@@ -6,10 +6,10 @@ The tests of the module `vision/blocks`, one file per header of `modules/vision/
 
 Suites: `Unit_BlockAttention`.
 
-Tests the `Attention` block at the width of row 10 of YOLO26n: 128 channels, two heads, a
-query and key width of 32 and a value width of 64 per head. The traced cases run the block in
-training mode over a [2, 4, 4, 128] input, which is 16 positions per sample. The norm options
-are the epsilon 1e-3 and the momentum 0.03 that `tests/fixtures/yolo26/MANIFEST.json` records.
+Tests the `Attention` block at the width of row 10 of YOLO26n: 128 channels, two heads, a query and
+key width of 32 and a value width of 64 per head. The traced cases run the block in training mode
+over a [2, 4, 4, 128] input, which is 16 positions per sample. The norm options are the epsilon 1e-3
+and the momentum 0.03 that `tests/vision/registration/fixtures/yolo26/MANIFEST.json` records.
 
 ### TwoHeadsOver128ChannelsGiveAHeadOf64AndAKeyOf32
 
@@ -84,8 +84,8 @@ This file needs no device. `NN::Bottleneck` in `modules/vision/blocks/include/Su
 two `Conv` blocks, `cv1` and `cv2`, and an optional K_ADD of the block's input to the second
 one's result. `NN::make_bottleneck_node` builds the node of a `bottleneck` row.
 
-The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
-No case opens a fixture file.
+The expected state names are typed into the test from
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
 ### Constants
 
@@ -188,10 +188,10 @@ updates, and `expect_norm_options` finds those two values on all of them.
 
 Suites: `Unit_BlockC2psa`.
 
-Tests the `C2PSA` block and its factory `Vision::Blocks::make_c2psa_node` at row 10 of YOLO26n:
-256 channels in and out and a hidden width of 128. The traced cases use a [2, 4, 4, 256] input
-and the norm options `tests/fixtures/yolo26/MANIFEST.json` records, epsilon 1e-3 and momentum
-0.03.
+Tests the `C2PSA` block and its factory `Vision::Blocks::make_c2psa_node` at row 10 of YOLO26n: 256
+channels in and out and a hidden width of 128. The traced cases use a [2, 4, 4, 256] input and the
+norm options `tests/vision/registration/fixtures/yolo26/MANIFEST.json` records, epsilon 1e-3 and
+momentum 0.03.
 
 ### OutputShapeKeepsTheExtentsAndSetsTheWidth
 
@@ -262,8 +262,8 @@ blocks, `cv1`, `cv2` and `cv3`, and a `ModuleList` of `Bottleneck`s named `m`. T
 its trace: a chain of bottlenecks on one branch, `cv2` on the other, one K_CONCAT_CHANNELS of the
 two, and `cv3` after it. `NN::make_c3k_node` builds the node of a `c3k` row.
 
-The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
-No case opens a fixture file.
+The expected state names are typed into the test from
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
 ### Constants
 
@@ -387,8 +387,8 @@ the second half, and one K_CONCAT_CHANNELS joins both halves and every inner blo
 before `cv2`. `Inner` is `Bottleneck` or `C3k`. `NN::make_c3k2_node` reads the row's `inner`
 key and selects a factory from `NN::K_C3K2_INNER`.
 
-The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
-No case opens a fixture file.
+The expected state names are typed into the test from
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
 ### Constants
 
@@ -577,8 +577,8 @@ bias-free same-padded `Conv2d`, a `BatchNorm2d` and an activation, traced in tha
 `NN::Conv` is `ConvNorm<Conv2d, SiLU>` and `NN::ConvLinear` is `ConvNorm<Conv2d, Identity>`.
 `NN::make_conv_node` builds the node of a `conv` row of a model file.
 
-The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
-No case opens a fixture file.
+The expected state names are typed into the test from
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
 ### Constants
 
@@ -868,8 +868,8 @@ its trace: `cv1` narrows the input, the pool is applied a number of times in a c
 K_CONCAT_CHANNELS joins `cv1`'s result and every pooled value, `cv2` follows, and an optional K_ADD
 closes the block. `NN::make_sppf_node` builds the node of an `sppf` row.
 
-The expected state names are typed into the test from `tests/fixtures/yolo26/MANIFEST.json`.
-No case opens a fixture file.
+The expected state names are typed into the test from
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json`. No case opens a fixture file.
 
 ### Constants
 

@@ -42,7 +42,7 @@
 
 using namespace SushiAI;
 
-// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/regression/README.md.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/layers/train/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 
@@ -77,7 +77,7 @@ namespace
     /**
      * @brief Runs the pinned configuration on a fresh Engine and returns its per-step losses.
      * @return One loss per step, K_EPOCHS * K_BATCHES of them, or the first failure.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     [[nodiscard]] Result<std::vector<double>> recorded_trajectory()
     {
@@ -186,7 +186,7 @@ namespace
 
 /**
  * @brief Tests that every step's loss is within its tolerance of the recorded reference.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
 {
@@ -214,7 +214,7 @@ TEST_F(Regression_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
 
 /**
  * @brief Tests that the trajectory starts at ln(C), stays finite and improves every epoch.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
 {
@@ -230,7 +230,7 @@ TEST_F(Regression_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
     EXPECT_LT(losses.back(), losses.front() * 0.25)
         << "the loss barely moved over " << losses.size() << " steps";
 
-    // Each epoch's mean must beat the one before it; see tests/regression/README.md.
+    // Each epoch's mean must beat the one before it; see tests/layers/train/README.md.
     double previous_epoch = 0.0;
     for (int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
     {

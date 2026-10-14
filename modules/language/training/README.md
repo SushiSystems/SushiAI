@@ -8,9 +8,9 @@ Everything is in namespace `SushiAI::Language::Training`.
 
 The module holds no training loop. `NextTokenObjective::feed` writes its target leaf from the
 `labels` role of a batch, so `Train::Trainer` drives it as it drives any objective of the
-layers tier; `tests/integration/test_next_token_trainer.cpp` does. A caller may still run a
+layers tier; `tests/language/training/test_next_token_objective.cpp` does. A caller may still run a
 `Train::TrainingStep` and call `fill_next_token_targets` itself, as
-`tests/integration/test_decoder_overfit.cpp` does.
+`tests/language/training/test_next_token_objective.cpp` does.
 
 ## Depends on
 
@@ -121,9 +121,9 @@ and `Unit_LanguageTrainingPerplexity`. The second suite allocates tensors on an 
 `tests/test_training_expert_balance_objective.cpp` holds
 `Unit_LanguageTrainingExpertBalanceObjective` and, on an engine,
 `Unit_LanguageTrainingExpertBalanceMetrics`.
-`tests/integration/test_next_token_objective.cpp` compares the loss and its gradient with a
-host computation, `tests/integration/test_decoder_overfit.cpp` trains with it,
-`tests/integration/test_next_token_trainer.cpp` fits it through `Train::Trainer`, and
-`tests/integration/test_moe.cpp` trains a decoder of experts with and without the balance.
+`tests/language/training/test_next_token_objective.cpp` compares the loss and its gradient with a
+host computation, `tests/language/training/test_next_token_objective.cpp` trains with it,
+`tests/language/training/test_next_token_objective.cpp` fits it through `Train::Trainer`, and
+`tests/language/registration/test_registration.cpp` trains a decoder of experts with and without the balance.
 
 Source: `docs/design/LANGUAGE.md`, phases 4 and 7.

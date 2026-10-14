@@ -1611,9 +1611,6 @@ contains "No lowering for operation".
 
 Suites: `Integration_LoweredOperations`.
 
-`tests/CMakeLists.txt` does not list this file yet, so `sushiai_tests` does not hold its cases and
-no run has executed them.
-
 This file runs fourteen lowerings through a compiled step and compares the result with values
 computed on the host: twelve forward cases on FLOAT32 and two gradient cases on FLOAT64. Each case
 builds a graph with one operation, compiles it with `CompiledStep::compile`, runs it, and reads the

@@ -7,7 +7,7 @@ this directory.
 
 `build_model` builds the whole file over the registry that `NN::register_layers` and
 `Vision::register_nodes` fill. `TheYOLO26FileBuildsWhole` in
-`modules/vision/registration/tests/test_registration.cpp` pins that build: the 594 state records
+`tests/vision/registration/test_registration.cpp` pins that build: the 594 state records
 of `weights.sushi` and the twelve ports the last row publishes. No command trains or evaluates this
 model, and no run has been made with it.
 
@@ -60,10 +60,10 @@ Rows 16, 19 and 22 are the three feature levels the head reads, at strides 8, 16
 
 ## Where the numbers come from
 
-Every `filters` and `hidden` value, and every `from` index, follows from the convolution
-weight shapes in `tests/fixtures/yolo26/MANIFEST.json`, which a run of the pinned Ultralytics
-commit produced. No weight shape carries `stride`, `shortcut`, `pools` or `heads`; those four
-are read from the Ultralytics sources at commit `ce13994`, and no reference run has confirmed
+Every `filters` and `hidden` value, and every `from` index, follows from the convolution weight
+shapes in `tests/vision/registration/fixtures/yolo26/MANIFEST.json`, which a run of the pinned
+Ultralytics commit produced. No weight shape carries `stride`, `shortcut`, `pools` or `heads`; those
+four are read from the Ultralytics sources at commit `ce13994`, and no reference run has confirmed
 them here.
 
 `shortcut` is `true` on every `c3k2` row. `yolo26.yaml` writes rows 2 and 4 as

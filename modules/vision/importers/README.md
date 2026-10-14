@@ -127,5 +127,5 @@ value: `batch`, `subdivisions`, `max_batches`, `angle`, `saturation`, `exposure`
 `[yolo]` section. The two lists are tables in `source/darknet_recipe.cpp`.
 
 No run has trained a model with the written `optimizer`. The parity suites of
-`tests/vision_support/darknet_training.cpp` keep momentum and decay at 0, so whether
-`weight_decay` under `sgd` equals Darknet's `decay` at a given batch size is not measured.
+`modules/vision/darknet_training_cases/source/darknet_training.cpp` keep momentum and decay at 0, so
+whether `weight_decay` under `sgd` equals Darknet's `decay` at a given batch size is not measured.

@@ -38,6 +38,7 @@ include(SushiAITestProgram)
 # One test program per module, under tests/<tier>/<module>/.
 add_subdirectory(core)
 add_subdirectory(layers)
+add_subdirectory(applications)
 if(SA_BUILD_VISION)
     add_subdirectory(vision)
 endif()
@@ -70,98 +71,5 @@ if(TARGET sushiai_demo_mlp)
     set_tests_properties(Integration_Demo.MLPRunsAndReportsOneCompile PROPERTIES
         LABELS "integration"
         PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
-    )
-endif()
-
-# --- The `sushiai train` / `sushiai inference` smoke tests ---
-# Two separate tests, not one chained round trip: a single test that trained
-# and then evaluated would report one failure for two independent programs, and
-# a broken inference would look like a broken trainer.
-#
-# tiny_train.json is GENERATED rather than committed, because a train.json's
-# relative paths resolve against its own directory - so a committed one would
-# write its checkpoint into the source tree. Generating it puts absolute paths
-# into the binary tree instead. tiny_model.json and tiny_eval.json name no
-# paths at all and are committed as they are.
-set(SUSHIAI_TEST_MODEL_JSON "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_model.json")
-set(SUSHIAI_TEST_CHECKPOINT "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny.sushi")
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_train.json.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny_train.json"
-    @ONLY
-)
-
-# The compile-count line IS the contract, exactly as it is for `sa demo mlp`,
-# so the assertion is PASS_REGULAR_EXPRESSION rather than the exit code -
-# CTest ignores a test's exit code once that property is set, so a bare exit-0
-# check would be silently dropped anyway.
-#
-# The trailing [^0-9] is load-bearing: CMake's regex has no multiline mode, so
-# `$` would anchor to the end of the whole output rather than the end of the
-# line, and without it "compiles: 12" would satisfy a bare "...: 1".
-add_test(NAME Integration_App.TrainRunsAndReportsOneCompile
-    COMMAND sushiai_train "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny_train.json"
-)
-set_tests_properties(Integration_App.TrainRunsAndReportsOneCompile PROPERTIES
-    LABELS "integration"
-    PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
-)
-
-# DEPENDS is a CTest ordering constraint, not a chained assertion: inference
-# needs a checkpoint to exist, and the training test is what writes one. Each
-# still asserts its own contract on its own output.
-add_test(NAME Integration_App.InferenceLoadsACheckpointAndReportsOneCompile
-    COMMAND sushiai_inference
-        "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_model.json"
-        "${SUSHIAI_TEST_CHECKPOINT}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_eval.json"
-)
-set_tests_properties(Integration_App.InferenceLoadsACheckpointAndReportsOneCompile PROPERTIES
-    LABELS "integration"
-    DEPENDS Integration_App.TrainRunsAndReportsOneCompile
-    PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
-)
-
-# --- The programs' suite ---
-# The programs are executables with no library, so the units a test can reach without a
-# process are compiled here beside the test.
-set(SUSHIAI_PROGRAM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../applications/programs/source")
-
-add_executable(sushiai_program_tests
-    integration/test_program_runs.cpp
-    "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
-    "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
-    "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
-    "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
-)
-
-target_include_directories(sushiai_program_tests PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${SUSHIAI_PROGRAM_SOURCE_DIR}")
-
-target_link_libraries(sushiai_program_tests PRIVATE
-    sushiai
-    GTest::gtest
-    sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective
-)
-
-target_compile_definitions(sushiai_program_tests PRIVATE
-    SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-)
-
-sushiai_apply_build_policy(sushiai_program_tests)
-
-gtest_discover_tests(sushiai_program_tests
-    DISCOVERY_MODE PRE_TEST
-    TEST_FILTER "Integration_*"
-    PROPERTIES LABELS "integration"
-)
-
-if(WIN32)
-    add_custom_command(TARGET sushiai_program_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
-            $<TARGET_FILE_DIR:sushiai_program_tests>
-        COMMENT "Copying runtime DLL to the program test directory..."
     )
 endif()

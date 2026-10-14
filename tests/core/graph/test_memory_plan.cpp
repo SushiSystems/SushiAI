@@ -190,7 +190,7 @@ TEST(Unit_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
 
 TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 {
-    // Four chained activations need exactly two buffers; see tests/unit/README.md.
+    // Four chained activations need exactly two buffers; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -215,7 +215,7 @@ TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 
 TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 {
-    // Nothing orders node 2 before node 3; see tests/unit/README.md.
+    // Nothing orders node 2 before node 3; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -248,7 +248,7 @@ TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 
 TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
 {
-    // Only ACTIVATION and SCRATCH reach an arena; see tests/unit/README.md.
+    // Only ACTIVATION and SCRATCH reach an arena; see tests/core/graph/README.md.
     Graph::Graph graph;
 
     const ValueID parameter = graph.add_value(unit_shape(), DType::Float32, Lifetime::Parameter, "w");
@@ -427,7 +427,7 @@ TEST(Unit_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
 
 TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
-    // An ACTIVATION with no producer lives the whole run; see tests/unit/README.md.
+    // An ACTIVATION with no producer lives the whole run; see tests/core/graph/README.md.
     Graph::Graph graph;
 
     const ValueID orphan = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "?");
@@ -442,7 +442,7 @@ TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 
 TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
 {
-    // ACCUMULATE's result is its accumulator's storage; see tests/unit/README.md.
+    // ACCUMULATE's result is its accumulator's storage; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -468,7 +468,7 @@ TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
 
 TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
 {
-    // The float64 buffer starts at 24, not at 20; see tests/unit/README.md.
+    // The float64 buffer starts at 24, not at 20; see tests/core/graph/README.md.
     Graph::Graph graph;
 
     const ValueID narrow_leaf = graph.add_value(Shape{5}, DType::Float32, Lifetime::Input, "x");
@@ -519,7 +519,7 @@ TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
 
 TEST(Unit_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
 {
-    // Over the node limit the planner declines to overlap; see tests/unit/README.md.
+    // Over the node limit the planner declines to overlap; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -583,7 +583,7 @@ TEST(Unit_MemoryPlan, ZeroAlignmentThrows)
 
 TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 {
-    // The pass relies on topological order; see tests/unit/README.md.
+    // The pass relies on topological order; see tests/core/graph/README.md.
     Graph::Graph graph;
 
     const ValueID a = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "a");
@@ -597,7 +597,7 @@ TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 
 TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 {
-    // Two builds give byte-identical offsets; see tests/unit/README.md.
+    // Two builds give byte-identical offsets; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -621,7 +621,7 @@ TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 
 TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
 {
-    // A node does not reach itself, so its results conflict; see tests/unit/README.md.
+    // A node does not reach itself, so its results conflict; see tests/core/graph/README.md.
     Graph::Graph graph;
 
     const ValueID input = graph.add_value(Shape{8, 4}, DType::Float32, Lifetime::Activation, "x");
@@ -672,7 +672,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // x is a parameter so MAXPOOL2D_BACKWARD is emitted; see tests/regression/README.md.
+    // x is a parameter so MAXPOOL2D_BACKWARD is emitted; see tests/core/graph/README.md.
     const ValueID x = builder.parameter(Shape{2, 8, 8, 4}, "x", DType::Float64);
     const ValueID w = builder.parameter(Shape{4, 4}, "w", DType::Float64);
 
@@ -682,7 +682,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
 
     const Graph::PoolResult pooled = builder.maxpool2d(x, g);
 
-    // Activations live and die while the argmax waits; see tests/regression/README.md.
+    // Activations live and die while the argmax waits; see tests/core/graph/README.md.
     const ValueID mean = builder.spatial_mean(pooled.output);
     const ValueID rows = builder.reshape(mean, Shape{2, 4});
     const ValueID hidden = builder.relu(builder.matmul(rows, w));
@@ -694,7 +694,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     (void)Autograd::differentiate(graph, loss,
         SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
-    // Differentiation emitted a reader of the indices; see tests/regression/README.md.
+    // Differentiation emitted a reader of the indices; see tests/core/graph/README.md.
     bool backward_reads_the_indices = false;
     for (const Graph::Node& node : graph.nodes())
         if (node.op == Ops::K_MAXPOOL2D_BACKWARD.id)
@@ -709,7 +709,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
         << "the planner declined to overlap anything, so nothing here is under test: "
         << plan.reuse_note();
 
-    // An unpacked argmax would pass every check below; see tests/regression/README.md.
+    // An unpacked argmax would pass every check below; see tests/core/graph/README.md.
     ASSERT_TRUE(plan.is_packed(pooled.indices))
         << "the argmax is not in an arena, so the overlap check proves nothing about it";
 
@@ -719,7 +719,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     ASSERT_EQ(argmax.bytes, std::size_t{2 * 4 * 4 * 4} * sizeof(std::int64_t))
         << "the argmax is not the INT64 buffer this test thinks it is";
 
-    // No other buffer may overlap the argmax; see tests/regression/README.md.
+    // No other buffer may overlap the argmax; see tests/core/graph/README.md.
     std::size_t overlapping_neighbours = 0;
     for (std::size_t i = 0; i < plan.value_count(); ++i)
     {
@@ -739,7 +739,7 @@ TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackw
     }
     EXPECT_EQ(overlapping_neighbours, std::size_t{0});
 
-    // The planner overlapped something in this graph; see tests/regression/README.md.
+    // The planner overlapped something in this graph; see tests/core/graph/README.md.
     bool the_planner_reused_anything = false;
     for (const Graph::Arena& arena : plan.arenas())
         if (arena.unpacked_bytes > arena.bytes) the_planner_reused_anything = true;

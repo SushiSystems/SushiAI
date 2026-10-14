@@ -6,10 +6,10 @@ The tests of the module `vision/registration`, one file per header of `modules/v
 
 Suites: `Unit_VisionRegistration`, `Unit_VisionRegistrationData`.
 
-Tests the four registration entry points of the vision module and what builds from their rows.
-The YOLO26n cases read `applications/examples/yolo26/model.json` and
-`tests/fixtures/yolo26/MANIFEST.json` and report themselves skipped when the repository root is
-not found. `Unit_VisionRegistrationData` is an engine fixture.
+Tests the four registration entry points of the vision module and what builds from their rows. The
+YOLO26n cases read `applications/examples/yolo26/model.json` and
+`tests/vision/registration/fixtures/yolo26/MANIFEST.json` and report themselves skipped when the
+repository root is not found. `Unit_VisionRegistrationData` is an engine fixture.
 
 ### RegisterNodesAddsTheEightBlocks
 
@@ -118,7 +118,7 @@ holds "'darknet'", ".cfg" and "0 files".
 an absent root fails with `InvalidDescription`. The message holds "the data block 'reader'",
 "'coco_json'" and "'yolo_txt'".
 
-Suites: `Integration_Yolo26Forward`, in `sushiai_vision_tests`.
+Suites: `Integration_Yolo26Forward`, in `sushiai_vision_registration_tests`.
 
 The model is built from `applications/examples/yolo26/model.json`, with rows 9, 10, 16, 19, 21 and
 22 published beside the head. The weights and the references come from the `yolo26` folder of the
@@ -157,3 +157,60 @@ the scores equal the `decoded.boxes` and `decoded.scores` records of the branch.
 
 `select_top_detections` over the `one2one` decode gives rows whose score column equals that of the
 `one2one.detections` record within 1e-6.
+
+## test_registration.cpp
+
+The "mnist" row of the vision module's dataset registry: the keys, splits and layouts it refuses, the files it names when they are absent, and the rank-4 batches of the "image" layout. Needs an engine.
+
+Suites: `Integration_VisionMnist`.
+
+Tests the "mnist" dataset row the vision module registers, through `Data::make_dataset`, and
+`Vision::Datasets::try_load_mnist`. The suite's fixture is an `EngineTest`, so every case
+needs an engine. It keeps the prefix `Integration_` although the file is in a unit test
+folder. The refusal cases point at a directory that does not exist. The one case that reads
+images reports itself skipped when the MNIST IDX files are absent.
+
+### TheDatasetRegistryListsMNIST
+
+`find("mnist")` returns a row. `make_dataset` of the type "coco" fails with
+`InvalidDescription` and a message that holds "'mnist'".
+
+### MNISTRefusesADirectoryWithoutTheFiles
+
+"mnist" over an absent directory fails with `FileNotFound`. The message holds "data", the
+directory, "MNIST train split" and the names of the four IDX files.
+
+### MNISTTestSplitLooksForTheT10kFiles
+
+With "split" set to "test" the failure holds "MNIST test split" and
+"t10k-images-idx3-ubyte, labels".
+
+### MNISTRequiresADirectory
+
+A section without "directory" throws an error naming "data", "has no" and "'directory'".
+
+### AnUnknownMNISTKeyIsRejectedByItsOwnFactory
+
+The key "batch_sizes" throws an error naming "data", "'batch_sizes'" and "'batch_size'".
+
+### MNISTRefusesASplitItDoesNotKnow
+
+The split "validation" fails with `InvalidDescription`, and the message holds "'split'",
+"'validation'", "'train'" and "'test'".
+
+### AnMNISTLayoutOtherThanFlatOrImageIsRefused
+
+The layout "tiled" fails with `InvalidDescription`, and the message holds "'layout'", "'tiled'",
+"'flat'" and "'image'".
+
+### AnImageLayoutYieldsRankFourBatches
+
+With `MNISTLayout::Image`, a batch size of 16 and 32 samples, the dataset's sample shape is
+[28, 28, 1]. It has one target, of the role `Data::K_ROLE_LABELS`, a scalar sample shape, the
+element type `Int32` and 10 classes. Batch 0 holds a rank-1 `Int32` label tensor of 16 entries
+and a [16, 28, 28, 1] input tensor.
+
+### MNISTFallsBackToSyntheticWhenTheFilesAreAbsent
+
+For a directory that does not exist, `mnist_available` is false, `try_load_mnist` fails with
+`FileNotFound` and names the directory, and `mnist_expected_paths` is not empty.

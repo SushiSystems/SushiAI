@@ -919,7 +919,7 @@ else.
 repository. Each writes files of a few bytes, or CIFAR records of 3073 or 3074 bytes, under the
 system's temporary directory and removes them. `datasets_test_support.hpp` holds the scratch
 directory and the IDX file builder the tests share. The MNIST loader's tests are in
-`modules/vision/registration/tests/test_datasets_mnist.cpp`. `test_datasets_collators.cpp`,
+`tests/vision/registration/test_registration.cpp`. `test_datasets_collators.cpp`,
 `test_datasets_task_collators.cpp`, `test_datasets_reader_dataset.cpp`,
 `test_datasets_table_dataset.cpp` and `test_datasets_reader_section.cpp` take an engine from
 `SushiAI::Test::EngineTest`, because `Data::allocate_batch` allocates through one. A test that

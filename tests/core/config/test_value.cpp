@@ -75,14 +75,14 @@ TEST(Unit_Value, ParsesEveryScalarKind)
 
 TEST(Unit_Value, KeepsTheKeyOrderTheFileSpelled)
 {
-    // Key order follows the file; see tests/unit/README.md.
+    // Key order follows the file; see tests/core/config/README.md.
     const Value root = parse_json(R"({"zebra": 1, "apple": 2, "mango": 3})", "<test>");
     EXPECT_EQ(root.keys(), (std::vector<std::string>{"zebra", "apple", "mango"}));
 }
 
 TEST(Unit_Value, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
 {
-    // An integer widens to a real, never the reverse; see tests/unit/README.md.
+    // An integer widens to a real, never the reverse; see tests/core/config/README.md.
     const Value root = parse_json(R"({"lr": 3, "units": 2.5})", "<test>");
 
     EXPECT_DOUBLE_EQ(root.at("lr", "<test>").as_real("lr"), 3.0);
@@ -126,7 +126,7 @@ TEST(Unit_Value, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
     const std::string_view keys[] = {"type", "units"};
     EXPECT_NO_THROW(with_keys.reject_unknown_keys("layer 0", allowed(keys)));
 
-    // An empty allowed set refuses every key; see tests/unit/README.md.
+    // An empty allowed set refuses every key; see tests/core/config/README.md.
     const std::string_view none[] = {"type"};
     const Value stray = parse_json(R"({"type": "gelu", "units": 8})", "<test>");
     SA_EXPECT_ERROR(stray.reject_unknown_keys("layer 1 'gelu'", allowed(none)),
@@ -143,7 +143,7 @@ TEST(Unit_Value, WithoutRemovesTheDiscriminatorAndLeavesTheRest)
     EXPECT_TRUE(attributes.has("units"));
     EXPECT_EQ(attributes.keys(), (std::vector<std::string>{"units", "use_bias"}));
 
-    // Removing an absent key is not an error; see tests/unit/README.md.
+    // Removing an absent key is not an error; see tests/core/config/README.md.
     EXPECT_EQ(attributes.without("type").keys().size(), 2u);
 }
 
@@ -155,7 +155,7 @@ TEST(Unit_Value, AtOrFallsBackWithoutThrowing)
     EXPECT_EQ(root.at_or("units", fallback).as_int("units"), 256);
     EXPECT_TRUE(root.at_or("use_bias", fallback).as_bool("use_bias"));
 
-    // A non-object falls back instead of throwing; see tests/unit/README.md.
+    // A non-object falls back instead of throwing; see tests/core/config/README.md.
     const Value not_an_object = Value::integer(1);
     EXPECT_TRUE(not_an_object.at_or("use_bias", fallback).as_bool("use_bias"));
 }

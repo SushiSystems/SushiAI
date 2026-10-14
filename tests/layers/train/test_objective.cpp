@@ -203,7 +203,7 @@ TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIR)
 
 TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 {
-    // The target leaf sits between the input and the model; see tests/unit/README.md.
+    // The target leaf sits between the input and the model; see tests/layers/train/README.md.
     MLP model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
     SA_ASSERT_OK_AND_ASSIGN(const Train::TrainingGraph built,
@@ -348,7 +348,7 @@ TEST_F(Unit_ObjectiveScore, ALeafWithoutATensorIsNamed)
 
 TEST(Unit_Objective, TheObjectiveOwnsTheOutputShapeCheck)
 {
-    // The objective owns the output shape message; see tests/unit/README.md.
+    // The objective owns the output shape message; see tests/layers/train/README.md.
     MLP model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 5);   // asks for 5 classes, model gives 3
 
@@ -435,7 +435,7 @@ TEST(Unit_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
 /** @brief Tests that cross-entropy refuses every key, naming the one it met. */
 TEST(Unit_Objective, CrossEntropyTakesNoKeysAtAll)
 {
-    // Cross-entropy accepts no key; see tests/unit/README.md.
+    // Cross-entropy accepts no key; see tests/layers/train/README.md.
     const Config::Value stray = Config::parse_json(R"({"label_smoothing": 0.1})", "<test>");
     Train::ObjectiveContext given;
     given.batch = 4;

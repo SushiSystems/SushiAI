@@ -99,7 +99,7 @@ TEST(Unit_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
     const std::vector<ValueID> grads =
         Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
-    // Cross-entropy differentiates as one fused rule; see tests/unit/README.md.
+    // Cross-entropy differentiates as one fused rule; see tests/layers/nn/README.md.
     EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
         "sushiai.exp",
         "sushiai.sub",
@@ -115,7 +115,7 @@ TEST(Unit_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
     // No LOG_SOFTMAX gradient: the fused rule absorbed that node.
     EXPECT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX.id), 1u);
 
-    // One contributor per value emits no ACCUMULATE; see tests/unit/README.md.
+    // One contributor per value emits no ACCUMULATE; see tests/layers/nn/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 0u);
 
     ASSERT_EQ(grads.size(), 4u);
@@ -142,7 +142,7 @@ TEST(Unit_Layers, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     const std::vector<ValueID> wrt = {layer.weight.id_in(graph)};
     (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
 
-    // The input gradient's MATMUL is skipped; see tests/unit/README.md.
+    // The input gradient's MATMUL is skipped; see tests/layers/nn/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 2u);
 }
 

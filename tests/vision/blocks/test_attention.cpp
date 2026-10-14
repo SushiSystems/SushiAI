@@ -426,7 +426,7 @@ TEST(Unit_BlockAttention, StateMatchesManifestRecords175To189)
 {
     TracedAttention traced;
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 3004.
+    // MANIFEST.json of the registration fixtures, weights.sushi tensors, from line 3004.
     const std::string prefix = "model.10.m.0.attn";
     std::vector<std::string> expected;
     append_conv_norm(expected, prefix + ".qkv", Shape{256, 1, 1, 128}, 256);

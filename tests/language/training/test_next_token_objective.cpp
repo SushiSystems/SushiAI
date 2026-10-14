@@ -97,7 +97,7 @@
 using namespace SushiAI;
 using Language::Training::make_next_token_objective;
 using Language::Training::NextTokenObjective;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/training/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

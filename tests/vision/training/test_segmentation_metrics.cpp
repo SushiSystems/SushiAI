@@ -54,7 +54,7 @@
 using namespace SushiAI;
 using Vision::Training::measure_segmentation;
 using Vision::Training::PixelExtents;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

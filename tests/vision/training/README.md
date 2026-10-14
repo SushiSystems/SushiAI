@@ -228,7 +228,7 @@ A delta of the shape [2, 3, 3, 6] throws an error naming "MUL needs equally shap
 A `Float64` delta against a `Float32` head throws an error naming
 "MUL needs operands of one element type", "float32" and "float64", and adds no node.
 
-Suites: `Integration_HeadDeltaLoss`, in `sushiai_vision_tests`.
+Suites: `Integration_HeadDeltaLoss`, in `sushiai_vision_training_tests`.
 
 The graph holds a `[2, 3, 3, 7]` float32 parameter, the head, and an input leaf of the same shape,
 the delta. `emit_head_delta_loss` joins them with a scale of 0.5, and the loss is differentiated at
@@ -382,7 +382,7 @@ flag of NaN fails with `InvalidDescription`, "'valid'" and "slot 1 of image 1".
 
 ## test_anchor_training_step.cpp
 
-Suites: `Integration_AnchorTrainingStep`, in `sushiai_vision_tests`.
+Suites: `Integration_AnchorTrainingStep`, in `sushiai_vision_training_tests`.
 
 The model reads `[8, 8, 3]` images through two normalised stride-2 convolutions of 8 channels, each
 followed by a LeakyReLU of 0.1 and a 1x1 head convolution of 14 channels. It publishes `head.0` on a
@@ -450,7 +450,7 @@ the work is not called and the run count stays 0.
 
 ## test_pixel_cross_entropy_objective.cpp
 
-Suites: `Integration_SegmentOverfit`, in `sushiai_vision_tests`.
+Suites: `Integration_SegmentOverfit`, in `sushiai_vision_training_tests`.
 
 The model, `TinySegmenter`, is a 3x3 convolution of stride 2, a second 3x3 convolution and a
 `SegmentHead` that upsamples by 2, all 8 channels wide, over two classes. The dataset is one batch
@@ -463,3 +463,112 @@ count, the rate and both thresholds as not yet confirmed by a run.
 
 The report holds 80 steps and one compile. The last loss is below half the first, `mean_iou` of the
 last step is above 0.8, and `pixel_accuracy` is at least `mean_iou`.
+
+## test_pixel_cross_entropy_objective.cpp, test_dice_objective.cpp, test_pixel_extents.cpp
+
+What the two per-pixel objectives keep and refuse, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, their leaves, the nodes of both losses, and both factories.
+
+Suites: `Unit_VisionTrainingPixelObjectives`.
+
+Tests `PixelCrossEntropyObjective` in
+`modules/vision/training/include/SushiAI/vision/training/pixel_cross_entropy_objective.hpp`
+and `DiceObjective` in
+`modules/vision/training/include/SushiAI/vision/training/dice_objective.hpp`, with their
+factories. The extents are a batch of 2, 4 by 4 pixels and 3 classes, so 32 pixels. The model
+of the graph cases is a 1 by 1 `Conv2d` from 5 channels to 3.
+
+### MakeKeepsItsExtentsAndRefusesNone
+
+`PixelCrossEntropyObjective::make` with the ignore index 7 gives an objective of 32 pixels, 3
+classes, the ignore index 7 and the name "pixel_cross_entropy". A height of 0 fails with
+`InvalidDescription`, "pixel_cross_entropy" and "at least 1". `DiceObjective::make` with 0
+classes fails with `InvalidDescription`, "dice" and "at least 1".
+
+### MakeRefusesAnIgnoreIndexThatIsAClass
+
+Over 3 classes the cross entropy fails with `InvalidDescription` for the ignore index 2
+("ignore index 2", "3 classes") and is made for 3 and for -1. The Dice objective fails for the
+ignore index 0 ("ignore index 0"). The cross entropy with `DType::Int32` fails with
+`InvalidDescription` and "float32".
+
+### MakeRefusesWhatInt32CannotIndex
+
+Both objectives are made for the extents 54, 512, 512, 150. For a batch of 55 both fail with
+`InvalidDescription`, "55 * 512 * 512 * 150" and "2147483647".
+
+### TheCrossEntropyDeclaresIndicesAndWeights
+
+`declare` adds two leaves: `targets` of shape [32] and `Int32`, and `weights` of shape [32, 1]
+and `Float32`. It requires one role, `K_ROLE_MASK`, with the sample shape [4, 4], `Int32` and
+0 classes.
+
+### TheDiceDeclaresTwoIndexLeavesAndNoOneHot
+
+`declare` adds five leaves and none named `one_hot`. `score_indices` and `class_indices` are
+[32] and `Int32`, `kept` is [32, 1], and `class_pixels` and `class_weights` are [3]. No leaf
+has more than 32 elements. The one required role is `K_ROLE_MASK`.
+
+### TheCrossEntropyGathersOneLogProbabilityPerPixel
+
+The training graph of the model under the cross entropy has a loss of one element and `Int32`
+targets. It holds no NLL_LOSS node, one LOG_SOFTMAX and one GATHER_ROWS. Both of its
+parameters have a gradient.
+
+### TheDiceLossIsDifferentiated
+
+The training graph under the Dice objective has a loss of one element and no targets value.
+It holds two GATHER_ROWS nodes and two SCATTER_ADD_ROWS nodes, and both of its parameters
+have a gradient.
+
+### TheFactoriesReadTheModelsOutput
+
+For a context that publishes one output of [2, 4, 4, 3], `make_pixel_cross_entropy_objective`
+with an empty section gives a `PixelCrossEntropyObjective` named "pixel_cross_entropy" with 32
+pixels and the ignore index 255. `make_dice_objective` with `ignore_index` 9 and a context of
+0 classes gives a `DiceObjective` with the ignore index 9.
+
+### TheFactoriesRefuseABadSection
+
+The factories fail with `InvalidDescription` for the key `weight` ("the objective block",
+"'weight'", "'ignore_index'"), for an `ignore_index` of 0.5 ("'ignore_index'",
+"whole number") and for an `ignore_index` of 1 over 3 classes ("ignore index 1").
+
+### TheFactoriesRefuseAModelThatDoesNotFit
+
+The factories fail with `InvalidDescription` for a model with two outputs
+("one [N, H, W, classes] output", "publishes 2"), an output of [2, 3] ("'output'", "[2, 3]"),
+an output of [2, 2, 2, 3] under a [4, 4, 5] input ("[2, 2, 2, 3]", "[4, 4, 5]",
+"input size") and data of 4 classes ("holds 4 classes", "scores 3").
+
+## test_pixel_cross_entropy_objective.cpp, test_dice_objective.cpp
+
+Suites: `Integration_PixelObjectives`, in `sushiai_vision_training_tests`.
+
+The logits are one 2 by 3 map of four classes. The model, `LogitMap`, adds a learnable map to an
+input of zeros, so the gradient of the map is the gradient at the logits. The mask ignores two of
+the six pixels with the value 255 and holds no pixel of class 3. One step runs with SGD at a rate of
+0, and the loss and the gradient are compared with a host computation in double within 1e-5.
+
+### TheCrossEntropyAndItsGradientEqualTheHostComputation
+
+The loss equals the mean of `-log p(label)` over the four kept pixels. The gradient has 24 elements:
+`(softmax - one_hot) / 4` on a kept pixel and zero on an ignored one.
+
+### TheDiceLossAndItsGradientEqualTheHostComputation
+
+The loss equals the mean over the present classes of `1 - 2 I / (P + Y + eps)`. The gradient is
+compared with a central difference of that host loss with a step of 1e-4.
+
+### AWeightedSumOfBothLossesEqualsTheHostComputation
+
+A `SumObjective` of the cross entropy at weight 1 and the Dice loss at weight 0.5. The loss equals
+the weighted sum on the host, and the gradient its central difference.
+
+### AMaskWithNoKeptPixelGivesZero
+
+With all six pixels ignored, the cross-entropy loss and every gradient element are zero within 1e-5.
+
+### ALabelOutsideTheClassesStopsTheFeed
+
+A mask that holds 4 at pixel 2 is refused as `Incompatible`. The message contains "holds 4 at pixel
+2" and "below 4".

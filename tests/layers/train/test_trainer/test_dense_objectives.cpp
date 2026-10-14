@@ -67,7 +67,7 @@
 #include <SushiAI/train/training_graph.hpp>
 
 using namespace SushiAI;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace
@@ -249,7 +249,7 @@ TEST_F(Integration_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
         SA_TRY_ASSIGN(const Train::StepMetrics step, trainer.run_step(batch));
         const std::vector<double> logits = SaTest::read_tensor(output);
 
-        // exp of such a logit overflows float32; see tests/integration/README.md.
+        // exp of such a logit overflows float32; see tests/layers/train/README.md.
         double largest = 0.0;
         for (const double logit : logits)
             largest = std::max(largest, std::abs(logit));

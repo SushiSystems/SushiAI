@@ -266,7 +266,7 @@ reads the value published under that name.
 
 ### CrossEntropyRefusesTwoOutputs
 
-The model of `Test::build_two_output_model`, from `tests/common/test_utils.hpp`, publishes
+The model of `Test::build_two_output_model`, from `modules/core/engine_fixture/include/SushiAI/engine_fixture/engine_test.hpp`, publishes
 "features" and "logits". The case asserts that
 `build_training_graph` returns `StatusCode::InvalidDescription` and that the message names both
 outputs.
@@ -461,7 +461,7 @@ under `CrossEntropyObjective`, in node order.
 
 ### build_two_output_model
 
-`build_two_output_model` is `Test::build_two_output_model` from `tests/common/test_utils.hpp`,
+`build_two_output_model` is `Test::build_two_output_model` from `modules/core/engine_fixture/include/SushiAI/engine_fixture/engine_test.hpp`,
 which this file brings in with a using-declaration. It builds a Linear named "body", a GELU named
 "activation" and a Linear named "head" over [6], and publishes "features" on the GELU and
 "logits" on the head.
@@ -959,7 +959,7 @@ does at the edges of what it can. The happy path belongs to `test_forward.cpp` a
 `test_training.cpp`. This file makes three other claims.
 
 1. Every device-lane precondition fails loudly and names the actual problem.
-   `tests/common/test_throws.hpp` explains why the message is asserted and not only the throw.
+   `modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp` explains why the message is asserted and not only the throw.
 2. Degenerate and boundary extents produce right answers and not off-by-one ones: one sample,
    one feature, one class, exactly the GEMM register-block edge and exactly one past it. Index
    arithmetic breaks here or nowhere.
@@ -1088,7 +1088,7 @@ The boundary is gone: the shift is each row's own maximum, so the gap does not r
 arithmetic. The case is kept unchanged. It is the shape a training run produces, and a
 regression that brought back a global shift would still pass every test whose rows sit on top
 of each other. The gaps that break a global shift are pinned separately, with their measured
-errors, in `tests/regression/test_log_softmax_stability.cpp`.
+errors, in `tests/core/graph/lowering/test_loss.cpp`.
 
 Both rows have the same internal spread, so both must produce the same log-probabilities. That
 is the claim of shift invariance.
@@ -1139,7 +1139,7 @@ asks them to say why.
 
 Suites: `Integration_MixedPrecision`.
 
-This is the device half of AI-4. `modules/core/autograd/tests/test_precision.cpp` pins the graph
+This is the device half of AI-4. `tests/core/autograd/test_backward.cpp` pins the graph
 shape with no hardware. This file holds what only a real Engine can answer:
 
 - `sycl::half` executes here, so the fp16 path is a computed answer and not a graph nobody ran.
@@ -1303,7 +1303,7 @@ Each test in this file spells out its own setup and shares none of it through a 
 Trainer holds raw pointers into the pool and the optimizer, so the construction order (create the
 state, bind, then initialise, then optimizer, then trainer) is part of the contract, and a test that spells the order
 out fails loudly if that order ever stops working. The setup matches
-tests/integration/test_training.cpp line for line for the same reason.
+tests/layers/train/test_trainer/test_convergence.cpp line for line for the same reason.
 
 ### ManyFitCallsCompileTheStepExactlyOnce
 
@@ -1907,3 +1907,89 @@ K_ZERO is the one operation whose output nothing else writes. It would work perf
 filled once outside the step, until the planner handed its bytes to a later value. The test
 corrupts the buffer from the host between two replays, which is what a reused arena slot does, and
 the second replay must still see zeros.
+
+## test_binary_cross_entropy_objective.cpp, test_multi_label_objective.cpp, test_mean_squared_error_objective.cpp, test_objective.cpp
+
+The leaf and role each of the binary, multi-label and squared-error objectives declares, what each refuses, their feeds and their metrics. Needs an engine.
+
+Suites: `Unit_DenseObjectiveGraphs`, `Unit_DenseObjectives`.
+
+Tests `Train::BinaryCrossEntropyObjective`, `Train::MultiLabelObjective` and
+`Train::MeanSquaredErrorObjective`: the leaf and the role each declares, what `make` and the
+factories refuse, what `feed` writes and what `measure` reports. The graph cases trace a
+Linear, ReLU, Linear model of 6 features over a batch of 4 and need no device. The
+`Unit_DenseObjectives` fixture needs an engine, and its `bind_targets` helper binds a tensor of
+7s to the `targets` leaf before a feed.
+
+### BinaryDeclaresAColumnLeafAndRealLabels
+
+The objective is named "binary_cross_entropy" and its threshold is 0.5. In the built training
+graph the `targets` leaf has the shape [4, 1] and is `spec.targets`, and the loss has one
+element. The one required target has the role `K_ROLE_LABELS`, an empty sample shape, the type
+float32 and 0 classes.
+
+### MultiLabelDeclaresOneLabelPerClass
+
+`MultiLabelObjective::make(4, 3)` is named "multi_label" and reports 3 classes. The `targets`
+leaf has the shape [4, 3] and the loss has one element. The one required target has the role
+`K_ROLE_LABELS`, the sample shape [3] and the type float32.
+
+### MeanSquaredErrorDeclaresTheValuesRole
+
+`MeanSquaredErrorObjective::make(4, 2)` is named "mean_squared_error" and reports the width 2.
+The `targets` leaf has the shape [4, 2] and the loss has one element. The one required target
+has the role `K_ROLE_VALUES`, the sample shape [2] and the type float32.
+
+### MakeRefusesWhatNoLeafCanHold
+
+Six calls fail with `InvalidDescription`. `BinaryCrossEntropyObjective::make` refuses a batch of
+0 ("at least 1"), a threshold of 1 ("above 0 and below 1") and int32 ("float32", "int32").
+`MultiLabelObjective::make` refuses 0 classes and a threshold of 0, and
+`MeanSquaredErrorObjective::make` refuses a width of 0.
+
+### TheFactoriesReadTheOneOutput
+
+`make_binary_cross_entropy` over a [4, 1] output and `{"threshold": 0.9}` gives the threshold
+0.9 and the batch 4. `make_multi_label` over a [4, 5] output and `{}` gives 5 classes and the
+threshold 0.5. `make_mean_squared_error` over a [4, 2] output gives the width 2.
+
+### TheFactoriesRefuseAnotherOutputAndAStrayKey
+
+Each failure is `InvalidDescription` and names "objective". The binary factory refuses a [4, 2]
+output ("one logit per sample") and a model that publishes two outputs ("publishes 2"). The
+multi-label factory refuses a [4, 3, 5] output and the regression factory an [8, 2] output,
+both with "[4, columns]". The key `huber` is refused by the regression factory and the key
+`weights` by the multi-label factory, which also names `'threshold'`.
+
+### BinaryFeedCopiesLabelsOfZeroAndOne
+
+A batch whose labels are 1, 0.25, 0, 1 fails with `Incompatible`, "element 1" and "0 or 1",
+and the leaf still holds four 7s. A batch of 1, 0, 0, 1 feeds ok and the leaf holds those
+values.
+
+### MeanSquaredErrorFeedReadsTheValuesRole
+
+A batch that carries only the labels role fails with `InvalidDescription` and a message naming
+`'values'`. A batch with the values 1.5, -2, 0.25, 8 under `K_ROLE_VALUES` feeds ok and the
+leaf holds them.
+
+### BinaryMeasuresAccuracyPrecisionAndRecall
+
+Over five rows with the logits 2, 1, -1, -3, 4 and the labels 1, 0, 1, 0, 1, `measure` adds
+three metrics in the order accuracy, precision, recall, with the values 3/5, 2/3 and 2/3. An
+objective made with the threshold 0.95 reports the precision 1 and the recall 1/3.
+
+### MultiLabelMeasuresTheMeanF1OfTheClasses
+
+Over two rows of three classes `measure` adds one metric named "f1" that is a fraction and
+equals 1/3.
+
+### MeanSquaredErrorMeasuresTheMeanAbsoluteError
+
+Over the predictions 1, 2, 3, 4 and the values 1.5, 2, 2, 6, `measure` adds one metric named
+"mean_absolute_error" that is not a fraction and equals 3.5/4.
+
+### AMetricRefusesAnOutputOfAnotherCount
+
+A multi-label objective of 2 rows and 4 classes given a [2, 3] output fails with `Incompatible`
+and a message containing "the logits", "8 values" and "holds 6". No metric is added.

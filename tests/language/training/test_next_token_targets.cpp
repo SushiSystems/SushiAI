@@ -49,7 +49,7 @@
 
 using namespace SushiAI;
 using Language::Training::fill_next_token_targets;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/training/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

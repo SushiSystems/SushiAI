@@ -10,13 +10,11 @@ standard library. `affine_nearest.hpp` and `mask_pipeline.hpp` return a `Status`
 `modules/vision/imaging/CMakeLists.txt` still declares it private.
 
 Each header has one source under `modules/vision/imaging/source/` and one test file under
-`modules/vision/imaging/tests/`, named `test_imaging_<header>.cpp`. Four files break that pairing:
-`partner_source.hpp` is an interface with no source; `test_imaging_partners.cpp` tests both of
-its implementations; `test_imaging_mask_pipeline.cpp` tests `affine_nearest.hpp` and
-`mask_pipeline.hpp`, which have not run; `modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
-fixed-point arithmetic the resize, the letterbox and the warp share. The unit files are compiled
-into `sushiai_tests`, which passed all 1803 cases in the run of 2026-10-09
-(`docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`).
+`tests/vision/imaging/`, named `test_<header>.cpp` and compiled into
+`sushiai_vision_imaging_tests`. `partner_source.hpp` is an interface with no source and no test.
+`test_mask_pipeline.cpp` tests `affine_nearest.hpp` and `mask_pipeline.hpp`.
+`modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
+fixed-point arithmetic the resize, the letterbox and the warp share.
 
 The rulings this module implements are in `docs/design/PROGRAMME.md` and
 `docs/agent/2026_10_07_YOLO26/SPEC.md`, section 8: the default augmentation pipeline in full and

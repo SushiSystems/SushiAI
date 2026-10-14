@@ -8,7 +8,7 @@ Suites: `Integration_Checkpoint`.
 
 The file covers the device half of checkpointing: saving and loading records against the tensors
 of a `NN::ModelState`. The byte format's malformed-file surface needs no device and lives in
-`modules/layers/io/tests/test_checkpoint_format.cpp`.
+`tests/layers/io/test_checkpoint_format.cpp`.
 
 The last equivalence test is the point of the file. A `Sequential` and a `LayerStack` built
 from the equivalent `model.json` are two spellings of one model. The proof that they are one
@@ -225,3 +225,306 @@ The last 151 bytes of a saved file are cut and its run-state count lowered by 4.
 
 `run.batch` retyped to float64 is `Incompatible`; a `run.epoch` with its top bit set is
 `InvalidFile`.
+
+## test_checkpoint_format.cpp
+
+The checkpoint format's round trip, a version 1 file, the run-state section, and its refusal of each malformed byte pattern.
+
+Suites: `Unit_CheckpointFormat`, `Unit_CheckpointFormatDeathTest`.
+
+Tests the checkpoint format's round trip and its refusal of each malformed byte pattern.
+
+This file holds the checkpoint format's whole malformed-file surface in the device-free tier.
+That is the point of splitting `modules/layers/io/include/SushiAI/io/checkpoint_format.hpp` out of
+`modules/layers/io/include/SushiAI/io/checkpoint.hpp`. Every case is a byte pattern, so none of them needs an
+Engine, a TensorPool or a device to run.
+
+Each corruption is written as a patch at a known offset into a good file, not as a hand-written
+byte array. A case therefore says what is wrong with the file and does not restate the whole
+format.
+
+### Field offsets
+
+The `OFFSET_` constants are byte offsets into `sample_stream()`, whose first record is
+"0.weight", FLOAT32, [2, 3]. They are stated once so that a case names the field it breaks.
+
+### RoundTripsNamesShapesAndPayloads
+
+The sample stream opens as two records. The first is `0.weight`, `Float32`, [2, 3], 24
+payload bytes, and its payload reads back as the six floats written. The second is `0.bias`
+of [2] with the two floats written. `read_count` is then 2.
+
+### DistinguishesTwoShapesWithTheSameElementCount
+
+This case covers the defect the format exists to close: an element count alone lets a [2, 3]
+weight load into a [3, 2] one. The shape is recorded, so the two records are not
+interchangeable.
+
+### RejectsAForeignMagic
+
+With the magic bytes replaced by "JUNK" the read fails with `InvalidFile`, "SACP" and
+"not a SushiAI checkpoint".
+
+### RejectsAFutureVersion
+
+With the version patched to 3 the read fails with `InvalidFile`, "version 3" and
+"versions 1 to 2".
+
+### RejectsACountOverTheBound
+
+With the record count patched to 4097 the read fails with `InvalidFile`, "4097" and "4096".
+
+### RejectsATruncatedHeader
+
+The first six bytes of the stream fail with `InvalidFile`, "ended while reading" and
+"version".
+
+### RejectsATruncatedPayload
+
+The stream without its last four bytes fails with `InvalidFile`, "ended while reading" and
+"0.bias".
+
+### RejectsANameLengthOverTheBound
+
+With the first name length patched to 257 the read fails with `InvalidFile`, "257" and "256".
+
+### RejectsARankOverTheBound
+
+With the first rank patched to 7 the read fails with `InvalidFile`, "0.weight", "rank 7" and
+"6".
+
+### RejectsANonPositiveDim
+
+With the first extent patched to 0 the read fails with `InvalidFile`, "0.weight" and
+"must be positive".
+
+### RejectsAnUnknownDType
+
+With the first element type patched to 99 the read fails with `InvalidFile`, "0.weight", "99"
+and "does not know".
+
+### RejectsMoreRecordsThanDeclared
+
+A writer created for 2 records writes two. A third `write` is fatal with "declared 2" and
+"'c'".
+
+### RejectsFewerRecordsThanDeclared
+
+A writer created for 2 records writes one. `finish` is fatal with "declared 2" and
+"1 were written".
+
+### RejectsATensorCountOverTheBoundAtConstruction
+
+`CheckpointWriter::create` for 4097 records fails with `InvalidDescription`, "4097" and
+"4096".
+
+### ReadingPastTheDeclaredCountIsAnError
+
+After both records of the sample stream are read, a third `next` is fatal with "declared 2".
+
+### WritesTheVersionTwoHeaderByteByByte
+
+The sample stream opens with the sixteen bytes 'S', 'A', 'C', 'P', then 2, 2 and 0 as
+little-endian 32-bit values. Its size is those sixteen bytes plus 60 bytes for the weight
+record and 34 for the bias record.
+
+### AVersionOneFileReadsAsModelStateAlone
+
+A version 1 stream opens with `version` 1, two records and a run-state count of 0, and both
+payloads read back as written.
+
+### RejectsAVersionBelowTheFirst
+
+With the version patched to 0 the read fails with `InvalidFile`, "version 0" and
+"versions 1 to 2".
+
+### RoundTripsARunStateSection
+
+In the run-state stream, byte 50 opens the section with the owner length 3 and "sgd", and the
+run-state count field holds 2. The reader reports version 2, one model record and two
+run-state records. After the model record, `begin_run_state` returns "sgd". The next records
+are `step_count`, `Int64` of [1] holding seven, and `0.bias.momentum` holding the two floats
+written. `read_count` is 1 and `run_state_read_count` is 2.
+
+### AReaderOfModelStateLeavesTheRunStateUnread
+
+Reading the model records of the run-state stream alone succeeds.
+
+### RejectsARunStateCountOverTheBound
+
+With the run-state count patched to 16385 the read fails with `InvalidFile`, "16385",
+"16384" and "run-state". `CheckpointWriter::create` with 16385 run-state records fails with
+`InvalidDescription` and the same three texts.
+
+### RejectsAMalformedRunStateOwner
+
+The read fails with `InvalidFile` for an owner length of 0 ("names no owner"), an owner
+length of 257 ("run-state section", "257", "256") and a stream cut inside the owner
+("ended while reading", "run-state owner"). `begin_run_state("")` on a writer fails with
+`InvalidDescription`, "owner" and "0 bytes".
+
+### RejectsATruncatedRunStatePayload
+
+The run-state stream without its last three bytes fails with `InvalidFile`,
+"ended while reading" and "0.bias.momentum".
+
+### TheRunStateOpensAfterTheModelRecords
+
+On a writer that declared one model record and wrote none, `begin_run_state` is fatal with
+"declared 1 records" and "0 were written". On a reader that has read none it is fatal with
+"declared 1 records" and "0 were read".
+
+### ARunStateThatWasNotDeclaredCannotOpen
+
+On a writer created without run-state records, `begin_run_state` is fatal with
+"declared no run-state record". On a reader of a version 1 stream, after both records are
+read, it is fatal with "declares no run-state record".
+
+### TheRunStateHoldsExactlyTheRecordsDeclared
+
+On a writer that declared one run-state record, `finish` right after `begin_run_state` is
+fatal with "declared 1 run-state records" and "0 were written". After one record is written,
+a second `write` is fatal with "declared 1 run-state records" and "'b'".
+
+## test_imported_model_writer.cpp
+
+The three files of an imported model read back, the key order of the training file with `data` null, existing files refused or replaced, and a bad tensor writing nothing.
+
+Suites: `Unit_ImportedModelWriter`.
+
+Tests `IO::compose_training_file` and `IO::write_imported_model`. The imported model of every
+case has one `linear` row over the input shape [4], a task of type `stub_task`, the float32
+tensors `0.weight` of shape [2, 4] and `0.bias` of shape [2], a recipe with an `objective` and
+an `optimizer` section, and one note. The cases that write files use a directory under the
+system's temporary folder and remove it before and after.
+
+### ComposesTheTrainingFileAroundTheRecipe
+
+The composed file has the keys `sushiai_train`, `model`, `weights`, `data`, `checkpoint`,
+`objective`, `optimizer`, in that order. `sushiai_train` is `Config::K_TRAIN_VERSION`, `model`
+is "model.json", `weights` is "weights.sushi", `checkpoint` is "trained.sushi" and the
+optimizer's `type` is "sgd".
+
+### LeavesTheDataBlockNull
+
+The composed file has a `data` key whose value is null.
+
+### StatesNoWeightsKeyWithoutTensors
+
+With no tensors the composed file has no `weights` key.
+
+### ARecipeThatStatesAWriterKeyIsRefused
+
+A recipe that states `model` fails with `InvalidDescription` and a message containing `'model'`
+and "training recipe".
+
+### ARecipeThatIsNoObjectIsRefused
+
+A recipe that is the integer 3 fails with `InvalidDescription` and "must be an object".
+
+### WritesTheThreeFiles
+
+`write_imported_model` with `ExistingFiles::Refuse` returns three paths, `model.json`,
+`weights.sushi` and `train.json` under the directory, and each is a regular file.
+
+### TheModelFileReadsBack
+
+`Config::load_model` over the written model file returns the input shape that was given, one
+layer of type `linear` and a task of type `stub_task`.
+
+### TheWeightFileHoldsEveryTensor
+
+`IO::CheckpointReader` over the written weight file counts two records. Each record has the
+name, the type and the shape of the tensor at its position, and its payload equals that
+tensor's bytes.
+
+### TheTrainingFileIsRefusedUntilItsDataIsFilled
+
+`Config::load_train` over the written training file raises an error containing `'data'`, "must
+be an object" and "null".
+
+### WritesNoWeightFileWithoutTensors
+
+With no tensors the write returns two paths and `weights.sushi` does not exist.
+
+### AnExistingFileIsRefusedAndLeftAlone
+
+With a `train.json` holding "kept" in the directory, the write under `ExistingFiles::Refuse`
+fails with `Incompatible`, "train.json" and "exists already". The file still holds "kept" and
+`model.json` does not exist.
+
+### ReplaceOverwritesAnExistingFile
+
+With a `train.json` holding "stale", the write under `ExistingFiles::Replace` is ok and the
+file contains "sushiai_train".
+
+### ATensorOfTheWrongSizeWritesNothing
+
+With one byte removed from the payload of `0.bias`, the write fails with `InvalidDescription`,
+`'0.bias'`, "7 bytes" and "needs 8", and `model.json` does not exist.
+
+### ATensorNamedTwiceIsRefused
+
+With both tensors named `0.weight`, the write fails with `InvalidDescription`, `'0.weight'` and
+"twice".
+
+## test_importer_registry.cpp
+
+The importer rows in insertion order, a repeated format, a row's failure passed on and an unknown format listing the rows.
+
+Suites: `Unit_ImporterRegistry`.
+
+Tests `IO::ImporterRegistry` and `IO::import_model`. The file registers two stub rows: `first`,
+whose importer returns a model with the number of files it was given as its one note, and
+`second`, whose importer fails with `InvalidFile` when given no file.
+
+### AddKeepsInsertionOrder
+
+After `add` of `first` and then `second`, `rows()` holds two rows in that order.
+
+### FindReturnsNullForAnUnknownFormat
+
+`find("first")` is null on an empty registry. After `first` is added, `find("onnx")` is null
+and `find("first")` returns the row whose format is "first".
+
+### AFormatAddedTwiceIsRefused
+
+A second `add` of `first` fails with `InvalidDescription` and a message containing `'first'`
+and "already registered".
+
+### ImportModelCallsTheRowOfTheFormat
+
+`import_model` for `first` with two files returns a model whose one note is "2".
+
+### ImportModelReturnsTheFailureOfTheRow
+
+`import_model` for `second` with no file fails with `InvalidFile` and "the stub reads no file".
+
+### AnUnknownFormatListsTheFormatsTheRegistryHolds
+
+`import_model` for `onnx` fails with `InvalidDescription` and a message containing `'onnx'` and
+"'first', 'second'".
+
+## test_run_progress.cpp
+
+The default of a run's progress, the names of its four records, and the refusal of a resume under another seed.
+
+Suites: `Unit_RunProgress`.
+
+Tests `IO::RunProgress` and `IO::check_run_seed` in
+`modules/layers/io/include/SushiAI/io/run_progress.hpp`.
+
+### ADefaultProgressIsTheStartOfARun
+
+A default `RunProgress` has the seed 0, 0 step runs, the epoch 0 and the batch 0.
+
+### TheRecordsHaveDistinctNames
+
+`K_RUN_SEED_STATE` is "run.seed", `K_RUN_STEP_RUNS_STATE` is "run.step_runs",
+`K_RUN_EPOCH_STATE` is "run.epoch" and `K_RUN_BATCH_STATE` is "run.batch".
+
+### AResumeUnderAnotherSeedIsRefusedWithBothSeeds
+
+For a progress saved under the seed 20261011, `check_run_seed` passes that seed. The seed 7
+fails with `Incompatible`, "'last.sushi'", "seed 20261011" and "seed 7". A default progress
+checked against 20261011 fails with `Incompatible`, "seed 0" and "seed 20261011".

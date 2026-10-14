@@ -1,6 +1,6 @@
 # Test mirror
 
-**Status:** Open, phase 1 of 8
+**Status:** Done; see `REPORT.md`
 
 Moves every test of SushiAI into the mirror of `repository-layout/TESTS.md`: one test file per
 public header at `tests/<tier>/<module>/test_<name>.cpp`, one test program per module, the kind

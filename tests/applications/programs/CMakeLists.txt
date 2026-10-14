@@ -1,0 +1,79 @@
+# CMakeLists.txt
+# SushiAI - https://github.com/SushiSystems/SushiAI
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
+# The test program of the application programs, and the smoke tests of sushiai_train and
+# sushiai_inference.
+
+# The programs are executables with no library, so the units a test reaches without a
+# process are compiled here beside the tests.
+set(SUSHIAI_PROGRAM_SOURCE_DIR "${PROJECT_SOURCE_DIR}/applications/programs/source")
+
+sushiai_add_test_program(APPLICATION programs
+    SOURCES
+        source/test_inference_run.cpp
+        source/test_run_start.cpp
+        source/test_training_run.cpp
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
+    DEPENDS
+        classifier_objective
+        failure_expectations
+        scratch_files
+    INCLUDES
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}")
+
+# --- The `sushiai train` / `sushiai inference` smoke tests ---
+# Two separate tests, not one chained round trip: a single test that trained
+# and then evaluated would report one failure for two independent programs, and
+# a broken inference would look like a broken trainer.
+#
+# tiny_train.json is GENERATED rather than committed, because a train.json's
+# relative paths resolve against its own directory - so a committed one would
+# write its checkpoint into the source tree. Generating it puts absolute paths
+# into the binary tree instead. tiny_model.json and tiny_eval.json name no
+# paths at all and are committed as they are.
+set(SUSHIAI_TINY_RUN_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/tiny_run")
+set(SUSHIAI_TINY_RUN_BINARY "${CMAKE_CURRENT_BINARY_DIR}/fixtures/tiny_run")
+set(SUSHIAI_TEST_MODEL_JSON "${SUSHIAI_TINY_RUN_SOURCE}/tiny_model.json")
+set(SUSHIAI_TEST_CHECKPOINT "${SUSHIAI_TINY_RUN_BINARY}/tiny.sushi")
+configure_file(
+    "${SUSHIAI_TINY_RUN_SOURCE}/tiny_train.json.in"
+    "${SUSHIAI_TINY_RUN_BINARY}/tiny_train.json"
+    @ONLY
+)
+
+# The compile-count line IS the contract, exactly as it is for `sa demo mlp`,
+# so the assertion is PASS_REGULAR_EXPRESSION rather than the exit code -
+# CTest ignores a test's exit code once that property is set, so a bare exit-0
+# check would be silently dropped anyway.
+#
+# The trailing [^0-9] is load-bearing: CMake's regex has no multiline mode, so
+# `$` would anchor to the end of the whole output rather than the end of the
+# line, and without it "compiles: 12" would satisfy a bare "...: 1".
+add_test(NAME Integration_App.TrainRunsAndReportsOneCompile
+    COMMAND sushiai_train "${SUSHIAI_TINY_RUN_BINARY}/tiny_train.json"
+)
+set_tests_properties(Integration_App.TrainRunsAndReportsOneCompile PROPERTIES
+    LABELS "integration"
+    PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
+)
+
+# DEPENDS is a CTest ordering constraint, not a chained assertion: inference
+# needs a checkpoint to exist, and the training test is what writes one. Each
+# still asserts its own contract on its own output.
+add_test(NAME Integration_App.InferenceLoadsACheckpointAndReportsOneCompile
+    COMMAND sushiai_inference
+        "${SUSHIAI_TEST_MODEL_JSON}"
+        "${SUSHIAI_TEST_CHECKPOINT}"
+        "${SUSHIAI_TINY_RUN_SOURCE}/tiny_eval.json"
+)
+set_tests_properties(Integration_App.InferenceLoadsACheckpointAndReportsOneCompile PROPERTIES
+    LABELS "integration"
+    DEPENDS Integration_App.TrainRunsAndReportsOneCompile
+    PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
+)

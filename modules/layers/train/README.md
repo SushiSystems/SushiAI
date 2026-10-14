@@ -235,7 +235,7 @@ score for `mean_iou`. The merged set holds at most `K_METRIC_CAPACITY` metrics.
 none under that name, so the field stays unset, as it does for `dice`.
 
 `tests/test_sum_objective.cpp` covers the terms, the prefixes, the emitted nodes, the merge and
-the factory. `tests/integration/test_pixel_objectives.cpp` runs a step over
+the factory. `tests/vision/training/test_pixel_cross_entropy_objective.cpp` runs a step over
 `pixel_cross_entropy` plus half of `dice` and compares the loss and its gradient with the host.
 
 ## The objectives over one [N, columns] output
@@ -292,5 +292,5 @@ before a tensor is allocated.
 the context a factory receives and the shapes of a probe trace. `tests/test_metrics.cpp`,
 `test_dense_losses.cpp`, `test_dense_targets.cpp`, `test_binary_confusion.cpp` and
 `test_dense_objectives.cpp` cover the units above, and
-`tests/integration/test_dense_objectives.cpp` compares each loss and metric with a host
+`tests/layers/train/test_trainer/test_dense_objectives.cpp` compares each loss and metric with a host
 computation over the outputs of a step.

@@ -155,7 +155,7 @@ context reaches `T`. A prompt of 3 ids continued by 12 tokens over a window of 8
 runs, 48 of them in the six slides.
 
 Under a greedy sampler the tokens equal those of `WindowGenerator` for a prompt that fits and
-for one whose context slides; `tests/integration/test_cached_generation.cpp` checks both, the
+for one whose context slides; `tests/language/generation/test_cached_generator.cpp` checks both, the
 logits of one position against the window's, and that the step is compiled once.
 
 ### A step fed a cache slot
@@ -186,7 +186,7 @@ that read further back than the window form does, and its logits differ from tho
 `WindowGenerator` by more than rounding. Until the first slide the two agree at any depth.
 
 What the ring computes is the model over a cache of unbounded rows in which each position
-reads the last `T`: `tests/integration/test_rotary_generation.cpp` checks a two-block ring
+reads the last `T`: `tests/language/generation/test_cached_generator.cpp` checks a two-block ring
 against a 64-row cache that never wraps and is masked to the last 8 positions, token for
 token over 26 tokens. The same file checks a one-block ring against `WindowGenerator` over 26
 tokens and its logits at each of 30 fed positions, the count of runs, and that a slot written

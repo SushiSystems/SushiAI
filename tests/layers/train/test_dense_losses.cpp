@@ -96,7 +96,7 @@ TEST(Unit_DenseLosses, TheLogisticLossReadsTheLogitInItsStableForm)
 
     const Graph::ValueID loss = Train::emit_logistic_loss(builder, graph, logits, targets);
 
-    // max(x, 0), x * y, then log(1 + exp(-|x|)); see tests/unit/README.md.
+    // max(x, 0), x * y, then log(1 + exp(-|x|)); see tests/layers/train/README.md.
     EXPECT_EQ(operations_of(graph),
               (std::vector<OpID>{Ops::K_RELU.id, Ops::K_MUL.id, Ops::K_ABS.id, Ops::K_SCALE.id,
                                  Ops::K_SOFTPLUS.id, Ops::K_SUB.id, Ops::K_ADD.id,

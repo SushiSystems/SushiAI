@@ -573,7 +573,7 @@ The row `{"heads": 2}` builds a layer whose `attn.positions` is `Learned`, and `
 fails with `InvalidDescription` and a message containing "layer 3", "rotary positions" and "3
 channels".
 
-Suites: `Integration_AttentionGradient`, in `sushiai_language_tests`.
+Suites: `Integration_AttentionGradient`, in `sushiai_language_blocks_tests`.
 
 Every graph is FLOAT64. The file's `Probe` builds a graph, takes the cross-entropy of the `[N, C]`
 value its build function names against targets whose row r names class r mod C, differentiates it at
@@ -614,7 +614,7 @@ the same check.
 A block built with `AttentionMask::None` is differentiated at its input, with the same node count
 and the same check.
 
-Suites: `Integration_CausalAttention`, in `sushiai_language_tests`.
+Suites: `Integration_CausalAttention`, in `sushiai_language_blocks_tests`.
 
 The mask cases run CAUSAL_MASK with a fill of -1e9 on an engine and compare with a host loop. The
 block cases trace a block over a `[1, 5, 8]` input with two heads, fill every parameter from the
@@ -651,7 +651,7 @@ With `AttentionMask::None`, at least one element of positions 0 to 2 differs bet
 A causal `TransformerBlock` with a feed-forward width of 32 keeps positions 0 to 2 unchanged and
 changes positions 3 and 4.
 
-Suites: `Integration_RotaryEmbedding`, in `sushiai_language_tests`.
+Suites: `Integration_RotaryEmbedding`, in `sushiai_language_blocks_tests`.
 
 A `RotaryEmbedding` is run through a compiled step over rows of float32 values in groups of four
 channels, two pairs each. Results are compared with the host's double within 1e-5 absolute.

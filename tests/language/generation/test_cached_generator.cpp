@@ -75,7 +75,7 @@ using Language::Generation::GreedySampler;
 using Language::Generation::RandomGenerator;
 using Language::Generation::WindowGenerator;
 using Language::Text::TokenID;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/generation/README.md.
 namespace SaTest = SushiAI::Test;
 using Language::Generation::LogitSpan;
 using Language::Generation::RingStepLeaves;
