@@ -48,9 +48,9 @@
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/io/imported_model_writer.hpp>
-#include <common/model_text.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using IO::ExistingFiles;

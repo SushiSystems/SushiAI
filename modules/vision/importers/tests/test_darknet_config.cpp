@@ -32,7 +32,7 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Importers::DarknetConfig;

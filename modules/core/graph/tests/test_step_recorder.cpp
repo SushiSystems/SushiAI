@@ -34,8 +34,8 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
-#include <common/test_environment.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/engine_fixture/test_environment.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::StepRecorder;

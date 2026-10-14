@@ -27,8 +27,8 @@
 
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
 
 using namespace SushiAI;
 

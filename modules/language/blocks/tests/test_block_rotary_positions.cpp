@@ -32,7 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/language/blocks/rotary_positions.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Language::Blocks::rotary_angle;

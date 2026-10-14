@@ -39,7 +39,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;

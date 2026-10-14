@@ -33,7 +33,7 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using NN::Detail::bridge_throwing;

@@ -54,7 +54,7 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/sum_objective.hpp>
 #include <SushiAI/train/training_graph.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Train::CrossEntropyObjective;

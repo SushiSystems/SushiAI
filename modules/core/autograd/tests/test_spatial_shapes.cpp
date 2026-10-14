@@ -37,7 +37,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/common.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 namespace SushiAI
 {

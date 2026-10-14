@@ -32,7 +32,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/datasets/csv.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "datasets_test_support.hpp"
 

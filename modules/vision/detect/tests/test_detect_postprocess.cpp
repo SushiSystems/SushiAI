@@ -36,8 +36,8 @@
 #include <SushiAI/vision/detect/detections_topk.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 namespace
 {

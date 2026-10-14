@@ -36,8 +36,8 @@
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 namespace
 {

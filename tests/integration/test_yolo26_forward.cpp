@@ -69,9 +69,10 @@
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/registration.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 
 using namespace SushiAI;
 

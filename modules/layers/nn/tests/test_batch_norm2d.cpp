@@ -48,8 +48,8 @@
 #include <SushiAI/nn/module_node.hpp>
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using NN::BatchNorm2d;

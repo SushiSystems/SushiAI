@@ -37,7 +37,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 

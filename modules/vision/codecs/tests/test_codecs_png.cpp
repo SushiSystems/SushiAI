@@ -37,7 +37,7 @@
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/codecs/png_decoder.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI::Vision::Codecs;
 using SushiAI::StatusCode;

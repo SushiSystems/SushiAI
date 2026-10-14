@@ -43,8 +43,10 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/language/datasets/next_token_collator.hpp>
 #include <SushiAI/language/text/token.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/layer_rows/minimal_case.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;

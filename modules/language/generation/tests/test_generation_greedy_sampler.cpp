@@ -28,7 +28,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/language/generation/greedy_sampler.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include "generation_test_support.hpp"
 
 using namespace SushiAI;

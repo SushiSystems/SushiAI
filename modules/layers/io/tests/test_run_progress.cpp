@@ -29,7 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/io/run_progress.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace
 {

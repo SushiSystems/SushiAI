@@ -29,7 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/language/datasets/window_layout.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Datasets;

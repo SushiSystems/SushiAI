@@ -30,7 +30,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include "../source/position_feed.hpp"
 #include "position_feed_test_support.hpp"
 

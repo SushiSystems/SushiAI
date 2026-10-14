@@ -42,7 +42,7 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_recipe.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Importers::DarknetConfig;

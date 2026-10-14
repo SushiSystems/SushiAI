@@ -45,7 +45,7 @@
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI::Vision::Codecs;
 using SushiAI::StatusCode;

@@ -35,10 +35,22 @@ set(SUSHIAI_MODULE_TIERS
     optim                core
     data                 core
     eager                core
+    engine_fixture       core
+    failure_expectations core
+    tensor_values        core
+    seeded_noise         core
+    scratch_files        core
+    model_text           core
+    darknet_reference    core
     nn                   layers
     io                   layers
     train                layers
     umbrella             layers
+    layer_rows           layers
+    layer_traces         layers
+    sample_models        layers
+    reference_files      layers
+    classifier_objective layers
     vision/imaging       vision
     vision/codecs        vision
     vision/detect        vision
@@ -49,6 +61,9 @@ set(SUSHIAI_MODULE_TIERS
     vision/training      vision
     vision/registration  vision
     vision/umbrella      vision
+    vision/darknet_forward_cases vision
+    vision/darknet_import_cases vision
+    vision/darknet_training_cases vision
     language/text        language
     language/blocks      language
     language/datasets    language
@@ -56,4 +71,5 @@ set(SUSHIAI_MODULE_TIERS
     language/generation  language
     language/registration language
     language/umbrella    language
+    language/decoder_models language
 )

@@ -36,7 +36,7 @@
 #include <SushiAI/vision/imaging/polygon.hpp>
 #include <SushiAI/vision/segment/fill_outline.hpp>
 #include <SushiAI/vision/segment/rasterise_outlines.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::Image;

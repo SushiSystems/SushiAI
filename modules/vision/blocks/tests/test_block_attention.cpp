@@ -41,7 +41,7 @@
 #include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Blocks::Attention;

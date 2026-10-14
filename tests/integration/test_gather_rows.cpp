@@ -42,8 +42,11 @@
 #include <SushiAI/graph/traced.hpp>
 #include <SushiAI/nn/embedding.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
+#include <SushiAI/seeded_noise/host_noise.hpp>
 
 using namespace SushiAI;
 

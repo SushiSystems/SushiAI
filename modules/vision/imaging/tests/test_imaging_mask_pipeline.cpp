@@ -39,7 +39,7 @@
 #include <SushiAI/vision/imaging/mask_pipeline.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
 
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;

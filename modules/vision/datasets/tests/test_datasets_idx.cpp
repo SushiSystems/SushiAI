@@ -35,7 +35,7 @@
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/datasets/stored_pixels.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "datasets_test_support.hpp"
 

@@ -37,8 +37,8 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
-#include <vision_support/darknet_forward.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

@@ -42,8 +42,8 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using NN::Buffer;

@@ -38,7 +38,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace
 {

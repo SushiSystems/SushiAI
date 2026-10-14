@@ -31,7 +31,7 @@
 
 cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
 
-find_package(GTest CONFIG REQUIRED)
+# GTest::gtest is found in modules/CMakeLists.txt, which the internal modules need first.
 include(GoogleTest)
 
 # The tests of a module sit in its own tests/ folder and reach this binary
@@ -39,7 +39,6 @@ include(GoogleTest)
 get_property(SUSHIAI_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai)
 
 add_executable(sushiai_tests
-    common/test_main.cpp
     ${SUSHIAI_MODULE_TESTS}
 
     unit/test_backward.cpp
@@ -87,19 +86,20 @@ add_executable(sushiai_tests
     regression/test_static_memory.cpp
 )
 
-# Test support is included as <common/name.hpp> from every test folder.
+# The integration and regression folders include each other by path; see tests/README.md.
 target_include_directories(sushiai_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# GTest::gtest_main is deliberately absent: common/test_main.cpp supplies main()
+# GTest::gtest_main is deliberately absent: the internal module engine_fixture supplies main()
 # so the Runtime is built once per binary rather than once per test.
 # Linking both is a duplicate-symbol error at link time.
 target_link_libraries(sushiai_tests PRIVATE
     sushiai
     GTest::gtest
+    sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective
 )
 
 # Where the reference tensors live; a test that needs one reports itself skipped
-# when the file is absent (tests/common/reference_fixture.hpp).
+# when the file is absent (SushiAI/reference_files/reference_file.hpp).
 target_compile_definitions(sushiai_tests PRIVATE
     SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
@@ -216,13 +216,8 @@ if(SA_BUILD_VISION)
     get_property(SUSHIAI_VISION_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai_vision)
 
     add_executable(sushiai_vision_tests
-        common/test_main.cpp
         ${SUSHIAI_VISION_MODULE_TESTS}
 
-        vision_support/darknet_forward.cpp
-        vision_support/darknet_import.cpp
-        vision_support/darknet_reference.cpp
-        vision_support/darknet_training.cpp
         integration/test_anchor_training_step.cpp
         integration/test_darknet_decode.cpp
         integration/test_darknet_import.cpp
@@ -254,6 +249,9 @@ if(SA_BUILD_VISION)
     target_link_libraries(sushiai_vision_tests PRIVATE
         sushiai_vision
         GTest::gtest
+        sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective sushiai_module_darknet_reference
+        sushiai_module_vision_darknet_forward_cases sushiai_module_vision_darknet_import_cases
+        sushiai_module_vision_darknet_training_cases
         JPEG::JPEG
         PNG::PNG
     )
@@ -291,7 +289,6 @@ if(SA_BUILD_LANGUAGE)
     get_property(SUSHIAI_LANGUAGE_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai_language)
 
     add_executable(sushiai_language_tests
-        common/test_main.cpp
         ${SUSHIAI_LANGUAGE_MODULE_TESTS}
 
         integration/test_attention_gradient.cpp
@@ -313,6 +310,7 @@ if(SA_BUILD_LANGUAGE)
     target_link_libraries(sushiai_language_tests PRIVATE
         sushiai_language
         GTest::gtest
+        sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective sushiai_module_language_decoder_models
     )
 
     sushiai_apply_build_policy(sushiai_language_tests)
@@ -344,7 +342,6 @@ endif()
 set(SUSHIAI_PROGRAM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../applications/programs/source")
 
 add_executable(sushiai_program_tests
-    common/test_main.cpp
     integration/test_program_runs.cpp
     "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
     "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
@@ -359,6 +356,7 @@ target_include_directories(sushiai_program_tests PRIVATE
 target_link_libraries(sushiai_program_tests PRIVATE
     sushiai
     GTest::gtest
+    sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective
 )
 
 target_compile_definitions(sushiai_program_tests PRIVATE

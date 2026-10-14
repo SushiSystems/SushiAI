@@ -32,8 +32,8 @@
 #include <gtest/gtest.h>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using Config::Kind;

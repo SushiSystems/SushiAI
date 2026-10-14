@@ -54,10 +54,11 @@
 #include <SushiAI/vision/datasets/task_table.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
-#include <common/model_text.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 
 #include "datasets_test_support.hpp"
 

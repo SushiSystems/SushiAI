@@ -43,9 +43,10 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node_registry.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/layer_rows/layer_registry.hpp>
 
 using namespace SushiAI;
 using NN::GELU;

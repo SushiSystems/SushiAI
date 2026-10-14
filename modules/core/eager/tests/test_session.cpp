@@ -54,8 +54,10 @@
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 
 #include "eager_run_support.hpp"
 

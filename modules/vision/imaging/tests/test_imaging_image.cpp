@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/imaging/image.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using SushiAI::Vision::Imaging::Image;
 using SushiAI::Vision::Imaging::ImageSize;

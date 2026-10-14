@@ -31,7 +31,7 @@
 #include <limits>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/imaging/flip.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::FlipPlan;

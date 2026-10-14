@@ -37,7 +37,7 @@
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/train/steps.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Train::OutputShape;

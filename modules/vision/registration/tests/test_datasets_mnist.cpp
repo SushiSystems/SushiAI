@@ -37,10 +37,11 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiAI/vision/registration.hpp>
-#include <common/model_text.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 
 using namespace SushiAI;
 using Vision::Datasets::MNISTLayout;

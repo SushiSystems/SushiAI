@@ -28,7 +28,7 @@
 
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
-#include <vision_support/darknet_training.hpp>
+#include <SushiAI/vision/darknet_training_cases/darknet_training.hpp>
 
 namespace SaTest = SushiAI::Test;
 

@@ -14,3 +14,8 @@ add_subdirectory(training)
 add_subdirectory(generation)
 add_subdirectory(registration)
 add_subdirectory(umbrella)
+
+# The modules only the tests use; see cmake/SushiAITestProgram.cmake.
+if(SA_BUILD_TESTS)
+    add_subdirectory(decoder_models)
+endif()

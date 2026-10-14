@@ -29,7 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
-#include <vision_support/darknet_forward.hpp>
+#include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 
 namespace SaTest = SushiAI::Test;
 

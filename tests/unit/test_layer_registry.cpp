@@ -56,10 +56,12 @@
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/unflatten.hpp>
 #include <SushiAI/nn/upsample2d.hpp>
-#include <common/model_text.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/layer_rows/layer_registry.hpp>
+#include <SushiAI/layer_rows/minimal_case.hpp>
 
 using namespace SushiAI;
 

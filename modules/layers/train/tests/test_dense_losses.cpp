@@ -34,7 +34,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/train/dense_losses.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

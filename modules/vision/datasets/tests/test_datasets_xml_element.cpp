@@ -31,7 +31,7 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/datasets/xml_element.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;

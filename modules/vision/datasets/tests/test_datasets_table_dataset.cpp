@@ -40,8 +40,9 @@
 #include <SushiAI/vision/datasets/regression_collator.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/datasets/table_dataset.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;

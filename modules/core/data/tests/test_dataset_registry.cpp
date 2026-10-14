@@ -30,7 +30,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

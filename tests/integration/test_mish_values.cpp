@@ -38,8 +38,10 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/mish.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 
 using namespace SushiAI;
 
