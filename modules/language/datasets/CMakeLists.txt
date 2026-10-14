@@ -15,11 +15,4 @@ sushiai_add_module(NAME datasets TIER language
         source/token_file.cpp
         source/tokens_section.cpp
         source/window_layout.cpp
-    PUBLIC_DEPENDS core config data language/text
-    TESTS
-        tests/test_datasets_next_token_collator.cpp
-        tests/test_datasets_prompt_dataset.cpp
-        tests/test_datasets_token_dataset.cpp
-        tests/test_datasets_token_file.cpp
-        tests/test_datasets_tokens_section.cpp
-        tests/test_datasets_window_layout.cpp)
+    PUBLIC_DEPENDS core config data language/text)

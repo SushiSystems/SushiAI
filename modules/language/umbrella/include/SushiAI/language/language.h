@@ -67,6 +67,9 @@
 #include <SushiAI/language/blocks/incremental.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/language/generation/generator.hpp>
+#include <SushiAI/language/generation/position_feed.hpp>
+#include <SushiAI/language/generation/ring_position_feed.hpp>
+#include <SushiAI/language/generation/table_position_feed.hpp>
 
 #include <SushiAI/language/blocks/expert_projection.hpp>
 #include <SushiAI/language/blocks/expert_trace.hpp>

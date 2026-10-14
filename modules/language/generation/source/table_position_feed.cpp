@@ -25,7 +25,7 @@
  * @author Mustafa Garip
  */
 
-#include "table_position_feed.hpp"
+#include <SushiAI/language/generation/table_position_feed.hpp>
 
 #include <utility>
 #include <SushiAI/core/common.hpp>

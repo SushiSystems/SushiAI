@@ -12,8 +12,4 @@ sushiai_add_module(NAME training TIER language
         source/next_token_objective.cpp
         source/next_token_targets.cpp
         source/perplexity.cpp
-    PUBLIC_DEPENDS core graph config data nn train
-    TESTS
-        tests/test_training_expert_balance_objective.cpp
-        tests/test_training_next_token_objective.cpp
-        tests/test_training_next_token_targets.cpp)
+    PUBLIC_DEPENDS core graph config data nn train)

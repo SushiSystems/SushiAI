@@ -29,23 +29,4 @@ sushiai_add_module(NAME imaging TIER vision
         source/recent_partners.cpp
         source/rectangle.cpp
         source/resize.cpp
-    PUBLIC_DEPENDS core
-    TESTS
-        tests/test_imaging_affine.cpp
-        tests/test_imaging_boxes.cpp
-        tests/test_imaging_flip.cpp
-        tests/test_imaging_gray.cpp
-        tests/test_imaging_hsv.cpp
-        tests/test_imaging_image.cpp
-        tests/test_imaging_label_set.cpp
-        tests/test_imaging_labels.cpp
-        tests/test_imaging_letterbox.cpp
-        tests/test_imaging_mask_pipeline.cpp
-        tests/test_imaging_mosaic.cpp
-        tests/test_imaging_partners.cpp
-        tests/test_imaging_pipeline.cpp
-        tests/test_imaging_polygon.cpp
-        tests/test_imaging_random.cpp
-        tests/test_imaging_raw_cache.cpp
-        tests/test_imaging_rectangle.cpp
-        tests/test_imaging_resize.cpp)
+    PUBLIC_DEPENDS core)

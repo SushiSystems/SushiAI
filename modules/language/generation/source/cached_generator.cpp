@@ -36,7 +36,7 @@
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/train/steps.hpp>
-#include "position_feed.hpp"
+#include <SushiAI/language/generation/position_feed.hpp>
 #include "request.hpp"
 #include "step_leaf.hpp"
 

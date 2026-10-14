@@ -38,6 +38,12 @@ include(SushiAITestProgram)
 # One test program per module, under tests/<tier>/<module>/.
 add_subdirectory(core)
 add_subdirectory(layers)
+if(SA_BUILD_VISION)
+    add_subdirectory(vision)
+endif()
+if(SA_BUILD_LANGUAGE)
+    add_subdirectory(language)
+endif()
 
 # --- The `sa demo mlp` smoke test ---
 # A demo whose output nobody checks rots into a lie, and this one's output is
@@ -115,133 +121,6 @@ set_tests_properties(Integration_App.InferenceLoadsACheckpointAndReportsOneCompi
     DEPENDS Integration_App.TrainRunsAndReportsOneCompile
     PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
 )
-
-# --- The vision domain's suite ---
-# Its cases keep the Unit_, Integration_ and Regression_ prefixes, so the
-# labels above select them too.
-if(SA_BUILD_VISION)
-    get_property(SUSHIAI_VISION_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai_vision)
-
-    add_executable(sushiai_vision_tests
-        ${SUSHIAI_VISION_MODULE_TESTS}
-
-        integration/test_anchor_training_step.cpp
-        integration/test_darknet_decode.cpp
-        integration/test_darknet_import.cpp
-        integration/test_darknet_store.cpp
-        integration/test_darknet_yolov3_forward.cpp
-        integration/test_darknet_yolov3_tiny_forward.cpp
-        integration/test_darknet_yolov3_tiny_layers.cpp
-        integration/test_darknet_yolov4_forward.cpp
-        integration/test_darknet_yolov4_tiny_forward.cpp
-        integration/test_darknet_yolov7_forward.cpp
-        integration/test_darknet_yolov7_tiny_forward.cpp
-        integration/test_darknet_yolov3_tiny_training.cpp
-        integration/test_darknet_yolov3_training.cpp
-        integration/test_darknet_yolov4_tiny_training.cpp
-        integration/test_darknet_yolov4_training.cpp
-        integration/test_darknet_yolov7_tiny_training.cpp
-        integration/test_darknet_yolov7_training.cpp
-        integration/test_head_delta_loss.cpp
-        integration/test_pixel_objectives.cpp
-        integration/test_segment_overfit.cpp
-        integration/test_yolo26_forward.cpp
-    )
-
-    target_include_directories(sushiai_vision_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-
-    find_package(JPEG REQUIRED)
-    find_package(PNG REQUIRED)
-
-    target_link_libraries(sushiai_vision_tests PRIVATE
-        sushiai_vision
-        GTest::gtest
-        sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective sushiai_module_darknet_reference
-        sushiai_module_vision_darknet_forward_cases sushiai_module_vision_darknet_import_cases
-        sushiai_module_vision_darknet_training_cases
-        JPEG::JPEG
-        PNG::PNG
-    )
-
-    target_compile_definitions(sushiai_vision_tests PRIVATE
-        SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-    )
-
-    sushiai_apply_build_policy(sushiai_vision_tests)
-
-    foreach(prefix_label IN ITEMS "Unit:unit" "Integration:integration" "Regression:regression")
-        string(REPLACE ":" ";" prefix_and_label "${prefix_label}")
-        list(GET prefix_and_label 0 prefix)
-        list(GET prefix_and_label 1 label)
-        gtest_discover_tests(sushiai_vision_tests
-            DISCOVERY_MODE PRE_TEST
-            TEST_FILTER "${prefix}_*"
-            PROPERTIES LABELS "${label}"
-        )
-    endforeach()
-
-    if(WIN32)
-        add_custom_command(TARGET sushiai_vision_tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
-                $<TARGET_FILE_DIR:sushiai_vision_tests>
-            COMMENT "Copying runtime DLL to the vision test directory..."
-        )
-    endif()
-endif()
-
-# --- The language domain's suite ---
-# Its cases keep the Unit_, Integration_ and Regression_ prefixes, as the vision suite's do.
-if(SA_BUILD_LANGUAGE)
-    get_property(SUSHIAI_LANGUAGE_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai_language)
-
-    add_executable(sushiai_language_tests
-        ${SUSHIAI_LANGUAGE_MODULE_TESTS}
-
-        integration/test_attention_gradient.cpp
-        integration/test_causal_attention.cpp
-        integration/test_decoder_from_files.cpp
-        integration/test_decoder_overfit.cpp
-        integration/test_cached_generation.cpp
-        integration/test_rotary_decoder_overfit.cpp
-        integration/test_rotary_embedding.cpp
-        integration/test_rotary_generation.cpp
-        integration/test_generation.cpp
-        integration/test_moe.cpp
-        integration/test_next_token_objective.cpp
-        integration/test_next_token_trainer.cpp
-    )
-
-    target_include_directories(sushiai_language_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-
-    target_link_libraries(sushiai_language_tests PRIVATE
-        sushiai_language
-        GTest::gtest
-        sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective sushiai_module_language_decoder_models
-    )
-
-    sushiai_apply_build_policy(sushiai_language_tests)
-
-    foreach(prefix_label IN ITEMS "Unit:unit" "Integration:integration" "Regression:regression")
-        string(REPLACE ":" ";" prefix_and_label "${prefix_label}")
-        list(GET prefix_and_label 0 prefix)
-        list(GET prefix_and_label 1 label)
-        gtest_discover_tests(sushiai_language_tests
-            DISCOVERY_MODE PRE_TEST
-            TEST_FILTER "${prefix}_*"
-            PROPERTIES LABELS "${label}"
-        )
-    endforeach()
-
-    if(WIN32)
-        add_custom_command(TARGET sushiai_language_tests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
-                $<TARGET_FILE_DIR:sushiai_language_tests>
-            COMMENT "Copying runtime DLL to the language test directory..."
-        )
-    endif()
-endif()
 
 # --- The programs' suite ---
 # The programs are executables with no library, so the units a test can reach without a

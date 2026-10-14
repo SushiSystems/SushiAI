@@ -18,9 +18,4 @@ sushiai_add_module(NAME codecs TIER vision
         source/jpeg_decoder.cpp
         source/png_decoder.cpp
     PUBLIC_DEPENDS vision/imaging core
-    EXTERNAL_PRIVATE_LINKS JPEG::JPEG PNG::PNG
-    TESTS
-        tests/test_codecs_decode_image.cpp
-        tests/test_codecs_image_format.cpp
-        tests/test_codecs_jpeg.cpp
-        tests/test_codecs_png.cpp)
+    EXTERNAL_PRIVATE_LINKS JPEG::JPEG PNG::PNG)

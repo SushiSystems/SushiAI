@@ -40,9 +40,9 @@ cli/.pytest_cache/
 .sushi_env.json
 
 # YOLO26 reference tensors: 35 MB, regenerated bit for bit by
-# tools/reference/export_yolo26_reference.py; MANIFEST.json pins their hashes.
-tests/fixtures/yolo26/*.sacp
-tests/layers/nn/fixtures/batch_norm2d/*.sacp
+# tools/reference/export_yolo26_reference.py into the fixture folders of their tests;
+# tests/vision/registration/fixtures/yolo26/MANIFEST.json pins their hashes.
+tests/**/fixtures/**/*.sacp
 
 # Checkpoints a training run writes.
 *.ckpt

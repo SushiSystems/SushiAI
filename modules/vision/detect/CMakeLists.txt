@@ -45,29 +45,4 @@ sushiai_add_module(NAME detect TIER vision
         source/suppression_criterion.cpp
         source/top_k.cpp
     PUBLIC_DEPENDS core config
-    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime
-    TESTS
-        tests/test_detect_anchor_clustering.cpp
-        tests/test_detect_anchor_cost.cpp
-        tests/test_detect_anchor_count.cpp
-        tests/test_detect_anchor_decode.cpp
-        tests/test_detect_anchor_delta.cpp
-        tests/test_detect_anchor_delta_activated.cpp
-        tests/test_detect_anchor_delta_gradient.cpp
-        tests/test_detect_anchor_delta_iou.cpp
-        tests/test_detect_anchor_fit.cpp
-        tests/test_detect_anchor_head_assignment.cpp
-        tests/test_detect_anchor_head_truth.cpp
-        tests/test_detect_anchor_layout.cpp
-        tests/test_detect_anchor_plan.cpp
-        tests/test_detect_anchor_review.cpp
-        tests/test_detect_anchor_task.cpp
-        tests/test_detect_anchor_training_section.cpp
-        tests/test_detect_anchor_thresholds.cpp
-        tests/test_detect_anchors.cpp
-        tests/test_detect_assigner.cpp
-        tests/test_detect_average_precision.cpp
-        tests/test_detect_boxes.cpp
-        tests/test_detect_iou_gradient.cpp
-        tests/test_detect_postprocess.cpp
-        tests/test_detect_suppression_criterion.cpp)
+    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime)

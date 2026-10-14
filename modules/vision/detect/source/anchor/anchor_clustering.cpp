@@ -36,7 +36,7 @@
 
 #include <SushiAI/core/check.hpp>
 
-#include "seeded_sequence.hpp"
+#include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
 
 namespace SushiAI
 {

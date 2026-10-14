@@ -14,8 +14,4 @@ sushiai_add_module(NAME segment TIER vision
         source/pixel_accuracy.cpp
         source/rasterise_outlines.cpp
     PUBLIC_DEPENDS core vision/imaging
-    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime
-    TESTS
-        tests/test_segment_confusion_matrix.cpp
-        tests/test_segment_metrics.cpp
-        tests/test_segment_rasterise.cpp)
+    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime)

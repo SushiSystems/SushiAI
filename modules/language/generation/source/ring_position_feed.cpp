@@ -25,7 +25,7 @@
  * @author Mustafa Garip
  */
 
-#include "ring_position_feed.hpp"
+#include <SushiAI/language/generation/ring_position_feed.hpp>
 
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>

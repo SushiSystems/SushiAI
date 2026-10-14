@@ -21,14 +21,4 @@ sushiai_add_module(NAME generation TIER language
         source/top_k_sampler.cpp
         source/weights.cpp
         source/window_generator.cpp
-    PUBLIC_DEPENDS core config data train language/text
-    TESTS
-        tests/test_generation_greedy_sampler.cpp
-        tests/test_generation_nucleus_sampler.cpp
-        tests/test_generation_position_feed.cpp
-        tests/test_generation_ring_position_feed.cpp
-        tests/test_generation_sampler_section.cpp
-        tests/test_generation_table_position_feed.cpp
-        tests/test_generation_task.cpp
-        tests/test_generation_temperature_sampler.cpp
-        tests/test_generation_top_k_sampler.cpp)
+    PUBLIC_DEPENDS core config data train language/text)
