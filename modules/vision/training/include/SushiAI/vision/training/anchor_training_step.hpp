@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include <SushiBLAS/engine/engine.hpp>
@@ -39,11 +40,9 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
-#include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
-#include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include <SushiAI/train/training_step.hpp>
 #include <SushiAI/vision/detect/anchor/head_cost.hpp>
@@ -54,27 +53,26 @@
 namespace SushiAI::Vision::Training
 {
     /**
-     * @brief Owns a forward-only step and a training step that share one model state.
-     * @pre The engine, both pools, the state and the optimizer outlive the step.
+     * @brief Owns a training step that stops after its heads, so the host computes each
+     *        delta from the forward pass the step differentiates.
+     * @pre The engine, the pool and the optimizer outlive the step.
      * @see docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md, section 4.8.
      */
     class AnchorTrainingStep final
     {
         public:
             /**
-             * @brief Compiles both passes and resolves the tensors the host stage touches.
-             * @param probe The graph of build_probe_graph(); @p probe_pool holds no leaf of it.
+             * @brief Compiles the step around its host stage and resolves that stage's tensors.
              * @param built The graph build_training_graph() made with @p objective, already
-             *        bound into @p training_pool by bind_parameters() over @p state.
-             * @return The step; InvalidDescription for a head or a leaf a graph lacks;
+             *        bound into @p training_pool by bind_parameters().
+             * @param options Its host stage is replaced by the heads and the delta leaves.
+             * @return The step; InvalidDescription for a head or a leaf the graph lacks;
              *         Incompatible for one that is not float32 or not of its head's size.
              */
             [[nodiscard]] static Result<std::unique_ptr<AnchorTrainingStep>> make(
                 SushiBLAS::Engine& engine, const AnchorObjective& objective,
-                const Train::TracedStep& probe, Graph::TensorPool& probe_pool,
                 const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
-                const NN::ModelState& state, Optim::Optimizer& optimizer,
-                std::vector<Train::BufferUpdateSlot> updates,
+                Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
                 Train::TrainingStepOptions options = {});
 
             AnchorTrainingStep(const AnchorTrainingStep&) = delete;
@@ -84,7 +82,7 @@ namespace SushiAI::Vision::Training
             ~AnchorTrainingStep() = default;
 
             /**
-             * @brief Runs the forward-only pass, computes and feeds each delta, then trains once.
+             * @brief Runs the step up to its heads, feeds each delta, then runs the rest.
              * @param inputs A tensor with the rank, extents and dtype of the input leaf.
              * @pre The engine holds no recorded task; the copies run everything recorded.
              * @return The summed cost of the deltas fed; Incompatible for a truth of another
@@ -98,8 +96,12 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] SushiRuntime::span<const Detect::Anchor::HeadDelta> deltas()
                 const noexcept;
 
-            /** @brief Returns the forward-only step, for the heads the deltas were computed on. */
-            [[nodiscard]] const Train::EvaluationStep& evaluation() const noexcept;
+            /**
+             * @brief Returns the tensor behind the output the model published under @p name.
+             * @return A tensor the pool owns, holding what the last run() computed, or
+             *         InvalidDescription for a name the model did not publish.
+             */
+            [[nodiscard]] Result<const SushiBLAS::Tensor*> output(std::string_view name) const;
 
             /** @brief Returns the training step, for its counters. */
             [[nodiscard]] const Train::TrainingStep& training() const noexcept;
@@ -108,9 +110,9 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] std::size_t run_count() const noexcept;
 
             /**
-             * @brief Sets the run count of both passes to that of a saved run.
+             * @brief Sets the run count of both parts of the step to that of a saved run.
              * @param count What run_count() of the saved run returned.
-             * @return What Graph::CompiledStep::restore_run_count() returns for either pass.
+             * @return What Train::TrainingStep::restore_run_count() returns.
              */
             [[nodiscard]] Status restore_run_count(std::size_t count);
 
@@ -123,17 +125,26 @@ namespace SushiAI::Vision::Training
         private:
             /** @brief Takes the parts make() built; the tensor lists are filled by make(). */
             AnchorTrainingStep(SushiBLAS::Engine& engine, AnchorObjective objective,
-                               std::unique_ptr<Train::EvaluationStep> evaluation,
-                               std::unique_ptr<Train::TrainingStep> training,
+                               NN::ModelOutputs outputs, Graph::TensorPool& pool,
                                SushiBLAS::Tensor& input) noexcept;
 
             /**
-             * @brief Resolves the forward-only output and the delta leaf of one head.
-             * @return InvalidDescription for a missing head or leaf; Incompatible for a tensor
+             * @brief Names the head and the delta leaf of every head, in head order.
+             * @return The stage; InvalidDescription for a head the model did not publish or a
+             *         leaf the graph does not declare.
+             */
+            [[nodiscard]] Result<Train::HostStage> describe_host_stage(
+                const Train::TrainingGraph& built) const;
+
+            /**
+             * @brief Resolves the output and the delta leaf of one head of the compiled step.
+             * @return InvalidDescription for a leaf with no tensor; Incompatible for a tensor
              *         that is not float32 or does not hold the head's element count.
              */
-            [[nodiscard]] Status resolve_head(std::size_t head, const Train::TrainingGraph& built,
-                                              Graph::TensorPool& training_pool);
+            [[nodiscard]] Status resolve_head(std::size_t head, const Train::HostStage& stage);
+
+            /** @brief Computes the delta of every head and writes it into its leaf. */
+            [[nodiscard]] Status feed_deltas(const Detect::GroundTruthBatch& truth);
 
             /** @brief Returns Incompatible or InvalidDescription for a truth run() cannot use. */
             [[nodiscard]] Status check_truth(const Detect::GroundTruthBatch& truth) const;
@@ -144,16 +155,20 @@ namespace SushiAI::Vision::Training
             /// @brief Describes the heads and measures the cost.
             AnchorObjective objective_;
 
-            /// @brief Runs the model forward under batch statistics; never null.
-            std::unique_ptr<Train::EvaluationStep> evaluation_;
+            /// @brief Names every value the model published in the training graph.
+            NN::ModelOutputs outputs_;
 
-            /// @brief Replays forward, backward and the update; never null.
+            /// @brief Holds the tensor of every value of the training graph; not owned.
+            Graph::TensorPool* pool_;
+
+            /// @brief Replays forward, backward and the update around the host stage; never
+            ///        null once make() returns.
             std::unique_ptr<Train::TrainingStep> training_;
 
             /// @brief Points at the input leaf of the training graph, which its pool owns.
             SushiBLAS::Tensor* input_;
 
-            /// @brief Points at each head of the forward-only pass, in head order.
+            /// @brief Points at each head of the training graph, in head order.
             std::vector<const SushiBLAS::Tensor*> heads_;
 
             /// @brief Points at each delta leaf of the training graph, in head order.

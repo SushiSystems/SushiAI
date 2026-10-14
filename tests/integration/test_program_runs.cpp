@@ -115,9 +115,6 @@ namespace
 
         /** @brief The context a run of a domain reads; the fallback run reads none of it. */
         Train::ObjectiveContext given;
-
-        /** @brief The probe trace a run of a domain reads; the fallback run reads none of it. */
-        Train::TracedStep probe;
     };
 
     /**
@@ -162,8 +159,8 @@ namespace
     {
         return Apps::PreparedRun{
             engine,         pieces.spec,       *pieces.dataset, pieces.given,
-            *pieces.objective, pieces.probe,   *pieces.built,   *pieces.state,
-            pieces.pool,    *pieces.optimizer, {},              nullptr,
+            *pieces.objective, *pieces.built,  *pieces.state,   pieces.pool,
+            *pieces.optimizer, {},             nullptr,
         };
     }
 

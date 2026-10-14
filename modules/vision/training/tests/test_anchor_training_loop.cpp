@@ -216,12 +216,10 @@ namespace
                     AnchorObjective::make({K_NETWORK_SIDE, K_NETWORK_SIDE}, std::move(layout),
                                           std::move(heads)));
 
-                SA_ASSERT_OK_AND_ASSIGN(probe_, Train::build_probe_graph(*model_, batch_shape));
                 SA_ASSERT_OK_AND_ASSIGN(
                     built_, Train::build_training_graph(*model_, objective, batch_shape));
                 SA_ASSERT_OK_AND_ASSIGN(state_, NN::ModelState::create(*engine, *model_));
 
-                probe_pool_ = std::make_unique<TensorPool>(*engine);
                 training_pool_ = std::make_unique<TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::vector<Optim::ParameterSlot> slots,
@@ -240,8 +238,7 @@ namespace
                 options.learning_rate = K_MADE_RATE;
                 SA_ASSERT_OK_AND_ASSIGN(optimizer_, Optim::SGD::make(*engine, slots, options));
                 SA_ASSERT_OK_AND_ASSIGN(
-                    step_, AnchorTrainingStep::make(*engine, objective, probe_, *probe_pool_,
-                                                    built_, *training_pool_, *state_,
+                    step_, AnchorTrainingStep::make(*engine, objective, built_, *training_pool_,
                                                     *optimizer_, std::move(updates)));
             }
 
@@ -251,7 +248,6 @@ namespace
                 step_.reset();
                 optimizer_.reset();
                 training_pool_.reset();
-                probe_pool_.reset();
                 state_.reset();
                 SaTest::EngineTest::TearDown();
             }
@@ -303,17 +299,11 @@ namespace
             /** @brief Holds the one-head model. */
             std::optional<NN::ModelGraph> model_;
 
-            /** @brief Holds the forward-only graph. */
-            Train::TracedStep probe_;
-
             /** @brief Holds the training graph. */
             Train::TrainingGraph built_;
 
             /** @brief Holds the one shared state. */
             std::optional<NN::ModelState> state_;
-
-            /** @brief Holds the forward-only values. */
-            std::unique_ptr<TensorPool> probe_pool_;
 
             /** @brief Holds the training values. */
             std::unique_ptr<TensorPool> training_pool_;
@@ -498,8 +488,8 @@ TEST_F(Unit_AnchorTrainingLoop, AStartTheDatasetLacksIsRefused)
     EXPECT_EQ(optimizer_->step_count(), 0u);
 }
 
-/** @brief Tests that a restored count is the count of both passes, and is restored once. */
-TEST_F(Unit_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothPasses)
+/** @brief Tests that a restored count is the count of both parts, and is restored once. */
+TEST_F(Unit_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothParts)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -507,11 +497,11 @@ TEST_F(Unit_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothPasses)
     EXPECT_EQ(step_->run_count(), 0u);
     SA_EXPECT_OK(step_->restore_run_count(4));
     EXPECT_EQ(step_->run_count(), 4u);
-    EXPECT_EQ(step_->evaluation().step().run_count(), 4u);
+    EXPECT_EQ(step_->training().lead()->run_count(), 4u);
 
     SA_EXPECT_OK(run_anchor_training(*step_, dataset));
     EXPECT_EQ(step_->run_count(), 4u + K_BATCHES);
-    EXPECT_EQ(step_->evaluation().step().run_count(), 4u + K_BATCHES);
+    EXPECT_EQ(step_->training().lead()->run_count(), 4u + K_BATCHES);
 
     SA_EXPECT_FAILURE(step_->restore_run_count(1), StatusCode::InvalidDescription,
                       "before its first run", "run 7");

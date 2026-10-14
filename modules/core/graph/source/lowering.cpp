@@ -49,15 +49,21 @@ namespace SushiAI
             return requests;
         }
 
-        Status Lowering::record(const Graph& graph)
+        Status Lowering::record(const Graph& graph, NodeRange nodes)
         {
             emitted_ = 0;
             selections_.clear();
             preludes_.clear();
 
+            const NodeID count = static_cast<NodeID>(graph.node_count());
+            const NodeID end = nodes.end == K_NO_NODE ? count : nodes.end;
+            SA_FAIL_IF(nodes.first > end || end > count, StatusCode::InvalidDescription,
+                       "The node range [{}, {}) does not lie in a graph of {} nodes",
+                       nodes.first, end, count);
+
             graph.prove_layout_uniformity();
 
-            for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
+            for (NodeID id = nodes.first; id < end; ++id)
             {
                 const Node& node = graph.node(id);
                 const LoweringRule rule = find_lowering(node.op);

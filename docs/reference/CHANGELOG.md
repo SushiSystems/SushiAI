@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-14 — vision: Made AnchorTrainingStep run the forward pass once; make() takes no probe graph, probe pool or state, and output() replaces evaluation() (`anchor_training_step.hpp`, `domains_vision.cpp`, `training_run.hpp`).
+- 2026-10-14 — train: Added a host stage to TrainingStep: the step compiles in two parts and `run(host_work)` calls the host between them (`training_step.hpp`, `HostStage`, `TrainingStep::lead`).
+- 2026-10-14 — graph: Added NodeRange, so Lowering::record and CompiledStep::compile take a run of consecutive nodes of a graph (`node_range.hpp`, `lowering.hpp`, `compiled_step.hpp`).
 - 2026-10-13 — docs: Recorded the parts of an anchor training step by time: the probe, the head deltas on the host and the nodes of the training plan (`REMAINING_WORK.md`).
 - 2026-10-13 — docs: Recorded the step times on the depth-split `gemm` of SushiBLAS and the failing one-batch overfit of YOLOv7 (`REMAINING_WORK.md`, `KNOWN_ISSUES.md`).
 - 2026-10-13 — cli: Pinned `sushicore==0.8.1`, read help text without colour codes in the tests and listed `tokenize` among the visible commands (`pyproject.toml`, `test_cli.py`, `test_help_screen.py`).

@@ -28,7 +28,24 @@ index 0 and batch 0 on every call; a caller that resumes a run drives `run_step`
 `Graph::CompiledStep::restore_run_count`, which a resumed run calls once before its first step
 with the count the saved run reached. `Trainer::step().run_count()` returns that count plus
 the steps since. `Trainer::step_count()` counts the steps of this trainer alone and starts at
-0 in a resumed run. A `TrainingStep` restores through its `step()`.
+0 in a resumed run. `TrainingStep::restore_run_count(count)` restores every part of its step.
+
+## A step that stops for the host
+
+`TrainingStepOptions::host_stage` names the values the host reads and the leaves it writes
+inside one step. `TrainingStep::make` then compiles two parts over the one graph and the one
+pool: the nodes up to the producer of the last value read, and every other node with the
+optimizer and the buffer updates behind them. It refuses, as `InvalidDescription`, a value
+read that the graph lacks or that no node produces, and a node of the first part that reads a
+leaf the stage writes.
+
+`run(host_work)` replays the first part, calls `host_work()`, and replays the rest; a failure
+of the work ends the run before the rest. `run()` replays both parts with nothing between.
+`has_host_stage()` tells the two kinds of step apart, `lead()` returns the first part or null,
+and `step()` the part that holds the trailing work. A step with no host stage refuses
+`run(host_work)` and does not call the work. The values read must be pinned in the memory
+plan, as the outputs of a training graph are, or a later node of the first part may reuse
+their bytes.
 
 ## Depends on
 
@@ -73,7 +90,7 @@ The headers sit in `modules/layers/train/include/SushiAI/train/`.
 | `training_graph.hpp` | `StepSpec`, `ParameterBinding`, `TrainingGraph` |
 | `steps.hpp` | `K_MODEL_INPUT_NAME`, `GraphOptions`, `TracedStep`, `batch_shape`, `retain`, `fill_host_tables`, `build_training_graph`, `build_probe_graph`, `build_evaluation_graph`, `build_carrying_graph`, `build_incremental_graph`, `build_classifier` |
 | `buffer_update_recorder.hpp` | `BufferUpdateSlot`, `bind_buffer_updates`, `BufferUpdateRecorder` |
-| `training_step.hpp` | `OptimizerPlacement`, `TrainingStepOptions`, `TrainingStep` |
+| `training_step.hpp` | `OptimizerPlacement`, `HostStage`, `TrainingStepOptions`, `TrainingStep` |
 | `evaluation_step.hpp` | `NamedFeed`, `FeedSpan`, `EvaluationStep` |
 | `feed.hpp` | `check_feed` |
 | `input_match.hpp` | `describe_input_leaf`, `match_input` |

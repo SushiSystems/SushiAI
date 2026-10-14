@@ -18,7 +18,7 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 
 ## Depends on
 
-- `train`, for `Objective`, `EvaluationStep`, `TrainingStep` and the graph builders.
+- `train`, for `Objective`, `TrainingStep` and the graph builders.
 - `vision/detect`, for the anchor layout, the head options, the delta, the cost and
   `GroundTruthBatch`.
 - `vision/segment`, for the confusion matrix, the two metrics read from it, the class pick
@@ -70,24 +70,27 @@ head carries the same batch.
 
 ## The training step
 
-`AnchorTrainingStep` owns a `Train::EvaluationStep` over the graph of `build_probe_graph` and a
-`Train::TrainingStep` over the graph of `build_training_graph`. Each graph has its own
-`TensorPool`; both pools bind the parameters and buffers of one `NN::ModelState`, so the two
-passes read the same weights. The caller builds both graphs from one model, binds the training
-pool with `Train::bind_parameters`, makes the optimizer, and passes the parts to `make`.
+`AnchorTrainingStep` owns one `Train::TrainingStep` over the graph of `build_training_graph`,
+compiled around a `Train::HostStage` that reads every head and writes every delta leaf. The
+step therefore has two parts: the nodes up to the last head, and the rest. The caller builds
+the graph, binds its pool with `Train::bind_parameters`, makes the optimizer, and passes the
+parts to `make`.
 
 `run(inputs, truth)` does four things in order:
 
 1. It checks the feed and the truth. A truth of another batch or array size is `Incompatible`; a
    valid row whose label names no class of a head is `InvalidDescription`.
-2. It runs the forward-only pass. The probe graph is traced in training mode with its buffer
-   updates dropped, so the heads come out under batch statistics and no running value moves.
+2. It copies the inputs into the training graph and runs the first part, so the heads come out
+   under batch statistics.
 3. It calls `compute_head_delta` on each head and copies the delta into that head's leaf.
-4. It copies the inputs into the training graph and replays it: forward, backward, the
-   optimizer's update and the running-statistic blend, once.
+4. It runs the second part: the backward pass, the optimizer's update and the
+   running-statistic blend, once.
 
-It returns `measure_cost` of the deltas it fed. `deltas()` returns them, and `evaluation()` gives
-the forward-only outputs they were computed on.
+The forward pass runs once a step, and the deltas come from the heads the backward pass
+differentiates.
+
+It returns `measure_cost` of the deltas it fed. `deltas()` returns them, and `output(name)`
+gives the tensor of any output the model published, the heads among them.
 
 The host stage reads the heads and writes the leaves through `Tensor::data_as<float>()`, so both
 must be float32 and host-addressable, as the loss and the logits `Train::Trainer` reads are.

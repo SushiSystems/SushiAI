@@ -66,7 +66,6 @@
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/vision/detect/anchor/head_cost.hpp>
@@ -726,10 +725,8 @@ namespace SushiAI
                 std::int64_t first_layer = 0;              /**< The layer of the first updates. */
                 std::optional<NN::ModelGraph> graph;       /**< The built model. */
                 std::optional<AnchorObjective> objective;  /**< The heads' objective. */
-                Train::TracedStep probe;                   /**< The forward-only graph. */
                 Train::TrainingGraph built;                /**< The training graph. */
                 std::optional<NN::ModelState> state;       /**< The file's weights. */
-                std::unique_ptr<Graph::TensorPool> probe_pool;    /**< Forward-only values. */
                 std::unique_ptr<Graph::TensorPool> training_pool; /**< Training values. */
                 std::vector<Optim::ParameterSlot> slots;   /**< Each gradient's tensor. */
                 std::unique_ptr<Optim::SGD> optimizer;     /**< Plain gradient descent. */
@@ -782,8 +779,6 @@ namespace SushiAI
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.objective,
                     AnchorObjective::make(model.network, model.layout, std::move(heads)));
-                SA_ASSERT_OK_AND_ASSIGN(run.probe,
-                                        Train::build_probe_graph(*run.graph, batch_shape));
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.built,
                     Train::build_training_graph(*run.graph, *run.objective, batch_shape));
@@ -814,13 +809,10 @@ namespace SushiAI
                     weights, model.convolutions, model.targets, *run.state);
                 ASSERT_TRUE(stored.is_ok()) << stored.message();
 
-                run.probe_pool = std::make_unique<Graph::TensorPool>(engine);
                 run.training_pool = std::make_unique<Graph::TensorPool>(engine);
                 if (!is_packed)
                 {
                     // An empty plan packs nothing, so every value keeps a Storage of its own.
-                    const Status probe_plan = run.probe_pool->adopt(Graph::MemoryPlan{});
-                    ASSERT_TRUE(probe_plan.is_ok()) << probe_plan.message();
                     const Status training_plan = run.training_pool->adopt(Graph::MemoryPlan{});
                     ASSERT_TRUE(training_plan.is_ok()) << training_plan.message();
                 }
@@ -840,9 +832,9 @@ namespace SushiAI
                                         Optim::SGD::make(engine, run.slots, options));
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.step,
-                    AnchorTrainingStep::make(engine, *run.objective, run.probe, *run.probe_pool,
-                                             run.built, *run.training_pool, *run.state,
-                                             *run.optimizer, std::move(updates)));
+                    AnchorTrainingStep::make(engine, *run.objective, run.built,
+                                             *run.training_pool, *run.optimizer,
+                                             std::move(updates)));
 
                 SA_ASSERT_OK_AND_ASSIGN(run.inputs, allocate_tensor(engine, batch_shape));
                 ASSERT_EQ(static_cast<std::size_t>(run.inputs->num_elements),
@@ -1019,7 +1011,7 @@ namespace SushiAI
             /** @brief Holds what one step wrote: each head, each delta and each gradient. */
             struct StepValues
             {
-                std::vector<std::vector<float>> heads;     /**< Each head of the probe. */
+                std::vector<std::vector<float>> heads;     /**< Each head of the step. */
                 std::vector<std::vector<float>> deltas;    /**< Each delta the host computed. */
                 std::vector<std::vector<float>> gradients; /**< Each gradient of the replay. */
             };
@@ -1040,7 +1032,7 @@ namespace SushiAI
                 for (const DarknetHead& head : run.imported.model.heads)
                 {
                     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const found,
-                                            run.step->evaluation().output(head.output));
+                                            run.step->output(head.output));
                     values.heads.push_back(read_elements(*found));
                 }
                 for (const HeadDelta& delta : run.step->deltas())
@@ -1225,7 +1217,7 @@ namespace SushiAI
                 const DarknetHead& head = run.imported.model.heads[k];
                 SCOPED_TRACE(head.output);
                 SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor* const found,
-                                        run.step->evaluation().output(head.output));
+                                        run.step->output(head.output));
                 const std::vector<float> computed = read_elements(*found);
                 EXPECT_TRUE(within_tolerance(head.output + " under batch statistics", computed,
                                              run.dumps[k].input, stated.bounds.head_absolute,
@@ -1304,7 +1296,6 @@ namespace SushiAI
             Shape batch_shape;
             trace_step(stated, run, input, batch_shape);
             ASSERT_TRUE(run.is_traced);
-            check_plan(std::string(stated.step_run) + " probe graph", run.probe.graph, {});
             check_plan(std::string(stated.step_run) + " training graph", run.built.graph,
                        run.built.pinned);
         }
@@ -1331,7 +1322,6 @@ namespace SushiAI
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
-            report_pool_bytes(std::string(stated.step_run) + " probe pool", *run.probe_pool);
             report_pool_bytes(std::string(stated.step_run) + " training pool", *run.training_pool);
 
             const std::int64_t layer = run.first_layer;
