@@ -37,6 +37,7 @@ include(SushiAITestProgram)
 
 # One test program per module, under tests/<tier>/<module>/.
 add_subdirectory(core)
+add_subdirectory(layers)
 
 # The tests of a module sit in its own tests/ folder and reach this binary
 # through sushiai_add_module(); the files listed here cross module boundaries.

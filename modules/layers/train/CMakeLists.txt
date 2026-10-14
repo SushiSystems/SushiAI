@@ -34,19 +34,4 @@ sushiai_add_module(NAME train TIER layers
         source/trainer.cpp
         source/training_step.cpp
     PUBLIC_DEPENDS core graph config data optim nn
-    PRIVATE_DEPENDS autograd
-    TESTS
-        tests/test_binary_confusion.cpp
-        tests/test_carrying_step.cpp
-        tests/test_dense_losses.cpp
-        tests/test_dense_objectives.cpp
-        tests/test_dense_targets.cpp
-        tests/test_input_match.cpp
-        tests/test_metrics.cpp
-        tests/test_objective.cpp
-        tests/test_objective_context.cpp
-        tests/test_objective_registry.cpp
-        tests/test_one_hot.cpp
-        tests/test_role_match.cpp
-        tests/test_steps.cpp
-        tests/test_sum_objective.cpp)
+    PRIVATE_DEPENDS autograd)
