@@ -22,16 +22,28 @@
 
 /**
  * @file test_shape.cpp
- * @brief Tests Shape's extents, indexing, validation, equality and hash.
+ * @brief Tests Shape: its extents, its limits and the messages it raises.
  * @author Mustafa Garip
  */
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/core/common.hpp>
 #include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/ir.hpp>
 
 using SushiAI::Shape;
+using namespace SushiAI;
+using Graph::GraphBuilder;
+using Graph::ValueID;
 
 TEST(Unit_Shape, DefaultIsAScalarWithOneElement)
 {
@@ -133,4 +145,26 @@ TEST(Unit_Shape, WorksAsAnUnorderedMapKey)
     EXPECT_EQ(counts.size(), 2u);
     EXPECT_EQ(counts[Shape({2, 2})], 2);
     EXPECT_EQ(counts[Shape({4})], 7);
+}
+
+TEST(Unit_Shape, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
+{
+    // The limit in the message is SushiBLAS's MAX_RANK; see tests/unit/README.md.
+    SA_EXPECT_ERROR((void)Shape({1, 1, 1, 1, 1, 1, 1}),
+                    "Shape rank 7", "exceeds the maximum of 6");
+}
+
+TEST(Unit_Shape, ShapeNonPositiveExtentNamesTheOffendingExtent)
+{
+    // Shape itself refuses a zero-element tensor; see tests/unit/README.md.
+    SA_EXPECT_ERROR((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
+    SA_EXPECT_ERROR((void)Shape({-3}), "Shape extents must be positive", "got -3");
+}
+
+TEST(Unit_Shape, ShapeDimensionOutOfRangeNamesTheIndexAndTheRank)
+{
+    const Shape shape{4, 3};
+
+    SA_EXPECT_ERROR((void)shape.dim(2), "Dimension 2", "rank-2 shape");
+    SA_EXPECT_ERROR((void)shape.dim(-3), "Dimension -3", "rank-2 shape");
 }

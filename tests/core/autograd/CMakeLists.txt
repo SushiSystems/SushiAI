@@ -17,4 +17,6 @@ sushiai_add_test_program(OWNER autograd
         test_gradcheck.cpp
         test_provenance.cpp
     DEPENDS
-        failure_expectations)
+        failure_expectations
+        seeded_noise
+        tensor_values)

@@ -15,6 +15,7 @@ sushiai_add_test_program(OWNER nn
         test_built_rows.cpp
         test_channel_slice.cpp
         test_concat.cpp
+        test_conv2d.cpp
         test_depthwise_conv2d.cpp
         test_dropout.cpp
         test_embedding.cpp
@@ -22,13 +23,17 @@ sushiai_add_test_program(OWNER nn
         test_global_avg_pool.cpp
         test_host_table.cpp
         test_identity.cpp
+        test_init.cpp
         test_layer_norm.cpp
+        test_layer_registry.cpp
         test_layer_stack.cpp
+        test_layers.cpp
         test_leaky_relu.cpp
         test_max_pool2d.cpp
         test_mish.cpp
         test_model_graph.cpp
         test_model_outputs.cpp
+        test_model_state.cpp
         test_module.cpp
         test_module_list.cpp
         test_node.cpp
@@ -43,4 +48,6 @@ sushiai_add_test_program(OWNER nn
         layer_rows
         layer_traces
         model_text
-        reference_files)
+        reference_files
+        seeded_noise
+        tensor_values)

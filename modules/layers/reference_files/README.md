@@ -9,7 +9,7 @@ and `MANIFEST.json`. `ReferenceFile` opens one file and indexes its records by t
 `SA_OPEN_REFERENCE_OR_SKIP` opens a file or skips the test naming the missing file, and
 `SA_READ_REFERENCE_OR_FAIL` reads one named tensor or fails the test. `near_reference` compares
 float results within a tolerance and `equal_reference` compares integer results element by
-element. The folder comes from `SA_TEST_FIXTURE_DIR`, which the test program defines.
+element. A file is named by its path below `SA_TEST_FIXTURE_DIR`, the `fixtures/` folder the test program defines.
 
 ## Depends on
 
@@ -21,4 +21,4 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/reference_files/reference_file.hpp` | `K_YOLO26_FIXTURE_FOLDER`, `fixture_directory`, `ReferenceTensor`, `ReferenceFile`, `near_reference`, `equal_reference`, `SA_OPEN_REFERENCE_OR_SKIP`, `SA_READ_REFERENCE_OR_FAIL` |
+| `SushiAI/reference_files/reference_file.hpp` | `fixture_directory`, `ReferenceTensor`, `ReferenceFile`, `near_reference`, `equal_reference`, `SA_OPEN_REFERENCE_OR_SKIP`, `SA_READ_REFERENCE_OR_FAIL` |

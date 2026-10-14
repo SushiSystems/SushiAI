@@ -22,13 +22,21 @@
 
 /**
  * @file test_ir.cpp
- * @brief Tests the IR's single-assignment and ordering rules and the builder's shape inference.
+ * @brief Tests the IR graph: its values, nodes and producers, and the errors it names.
  * @author Mustafa Garip
  */
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/core/common.hpp>
+#include <SushiAI/core/shape.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -459,4 +467,34 @@ TEST(Unit_Ir, AMovedStateIdentityCarriesItsIdentityAway)
     assigned = std::move(moved);
     EXPECT_EQ(assigned.peek(), drawn);
     EXPECT_EQ(moved.peek(), K_NO_STATE);
+}
+
+TEST(Unit_Ir, ASecondProducerNamesBothOperationsAndTheRule)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID out = graph.add_value(Shape{4, 3}, DType::Float32,
+                                        Graph::Lifetime::Activation, "out");
+    graph.add_node(Ops::K_RELU.id, {x}, {out});
+
+    // The message names both colliding operations; see tests/unit/README.md.
+    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_TANH.id, {x}, {out}),
+                    "sushiai.tanh", "sushiai.relu", "single-assignment");
+}
+
+TEST(Unit_Ir, AnUnknownOperandNamesTheOperationThatAskedForIt)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID out = graph.add_value(Shape{4, 3}, DType::Float32,
+                                        Graph::Lifetime::Activation, "out");
+
+    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {9999u}, {out}),
+                    "sushiai.relu", "reads value 9999", "does not exist");
+    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {x}, {9999u}),
+                    "sushiai.relu", "writes value 9999", "does not exist");
 }

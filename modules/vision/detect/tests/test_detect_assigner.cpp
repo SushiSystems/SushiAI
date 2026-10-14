@@ -279,7 +279,7 @@ namespace
                                      std::int64_t expected_small_box)
     {
         const std::string prefix = branch + ".assignment.";
-        SA_OPEN_REFERENCE_OR_SKIP(loss, "loss.sacp");
+        SA_OPEN_REFERENCE_OR_SKIP(loss, "yolo26/loss.sacp");
         SA_READ_REFERENCE_OR_FAIL(scores, loss, prefix + "input.scores");
         SA_READ_REFERENCE_OR_FAIL(boxes, loss, prefix + "input.boxes");
         SA_READ_REFERENCE_OR_FAIL(points, loss, "anchors.points");
@@ -934,7 +934,7 @@ TEST(Unit_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
 /** @brief Tests that padding the reference labels gives the boxes its assignment targets hold. */
 TEST(Unit_DetectGroundTruth, PadsTheReferenceLabelsToItsTargetBoxes)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(loss, "loss.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(loss, "yolo26/loss.sacp");
     SA_READ_REFERENCE_OR_FAIL(target_boxes, loss, "one2many.assignment.target_boxes");
     SA_READ_REFERENCE_OR_FAIL(target_indices, loss, "one2many.assignment.target_indices");
     SA_READ_REFERENCE_OR_FAIL(target_labels, loss, "one2many.assignment.target_labels");

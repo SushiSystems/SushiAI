@@ -9,13 +9,19 @@
 sushiai_add_test_program(OWNER graph
     SOURCES
         lowering/test_all.cpp
+        lowering/test_linalg.cpp
+        lowering/test_loss.cpp
         lowering/test_random.cpp
+        test_arena.cpp
         test_builder.cpp
         test_compiled_step.cpp
         test_dropout_mask.cpp
         test_fusion.cpp
         test_ir.cpp
+        test_lowering/test_hand_values.cpp
+        test_lowering/test_host_values.cpp
         test_memory_plan.cpp
+        test_rematerialise.cpp
         test_step_recorder.cpp
         test_traced.cpp
     DEPENDS

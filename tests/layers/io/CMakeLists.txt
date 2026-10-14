@@ -8,10 +8,17 @@
 
 sushiai_add_test_program(OWNER io
     SOURCES
+        test_checkpoint.cpp
         test_checkpoint_format.cpp
+        test_import_weights.cpp
         test_imported_model_writer.cpp
         test_importer_registry.cpp
+        test_run_checkpoint.cpp
         test_run_progress.cpp
     DEPENDS
+        classifier_objective
         failure_expectations
-        model_text)
+        layer_rows
+        model_text
+        scratch_files
+        tensor_values)

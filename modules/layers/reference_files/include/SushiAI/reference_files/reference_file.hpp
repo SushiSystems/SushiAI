@@ -49,9 +49,6 @@ namespace SushiAI
 {
     namespace Test
     {
-        /** @brief Holds the folder of the YOLO26 reference files inside the fixture directory. */
-        inline constexpr const char* K_YOLO26_FIXTURE_FOLDER = "yolo26";
-
         /** @brief Returns the directory SA_TEST_FIXTURE_DIR names, or an empty string. */
         inline std::string fixture_directory()
         {
@@ -110,7 +107,7 @@ namespace SushiAI
         class ReferenceFile final
         {
             public:
-                /** @brief Opens @p file_name in the fixture directory and indexes its records. */
+                /** @brief Opens @p file_name, a path below the fixture directory, and indexes its records. */
                 explicit ReferenceFile(std::string_view file_name)
                 {
                     const std::string directory = fixture_directory();
@@ -121,7 +118,7 @@ namespace SushiAI
                         return;
                     }
 
-                    path_ = directory + "/" + K_YOLO26_FIXTURE_FOLDER + "/";
+                    path_ = directory + "/";
                     path_ += file_name;
                     stream_.open(path_, std::ios::binary);
                     if (!stream_.is_open())

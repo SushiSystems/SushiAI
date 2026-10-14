@@ -171,7 +171,7 @@ namespace
      */
     void expect_reference_case(const std::string& case_name, float tolerance)
     {
-        SA_OPEN_REFERENCE_OR_SKIP(file, "batchnorm.sacp");
+        SA_OPEN_REFERENCE_OR_SKIP(file, "batch_norm2d/batchnorm.sacp");
         const std::string prefix = "batchnorm_factor." + case_name + ".";
         SA_READ_REFERENCE_OR_FAIL(input, file, prefix + "input");
         SA_READ_REFERENCE_OR_FAIL(mean_before, file, prefix + "before.running_mean");

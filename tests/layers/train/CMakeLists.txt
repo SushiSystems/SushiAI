@@ -10,6 +10,7 @@ sushiai_add_test_program(OWNER train
     SOURCES
         test_binary_confusion.cpp
         test_binary_cross_entropy_objective.cpp
+        test_buffer_update_recorder.cpp
         test_dense_losses.cpp
         test_dense_targets.cpp
         test_evaluation_step.cpp
@@ -24,7 +25,22 @@ sushiai_add_test_program(OWNER train
         test_role_match.cpp
         test_steps.cpp
         test_sum_objective.cpp
+        test_trainer/test_compile_once.cpp
+        test_trainer/test_convergence.cpp
+        test_trainer/test_dense_objectives.cpp
+        test_trainer/test_determinism.cpp
+        test_trainer/test_dropout.cpp
+        test_trainer/test_fused_optimizer.cpp
+        test_trainer/test_fusion_numerics.cpp
+        test_trainer/test_learning_curve.cpp
+        test_trainer/test_loss_scaling.cpp
+        test_trainer/test_mixed_precision.cpp
+        test_trainer/test_resilience.cpp
+        test_trainer/test_static_memory.cpp
+        test_trainer/test_token_feed.cpp
     DEPENDS
+        classifier_objective
         failure_expectations
         sample_models
+        seeded_noise
         tensor_values)

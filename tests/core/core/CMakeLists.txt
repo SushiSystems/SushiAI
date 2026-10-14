@@ -10,7 +10,9 @@ sushiai_add_test_program(OWNER core
     SOURCES
         test_ops.cpp
         test_result.cpp
+        test_seam.cpp
         test_shape.cpp
         test_status.cpp
     DEPENDS
-        failure_expectations)
+        failure_expectations
+        tensor_values)

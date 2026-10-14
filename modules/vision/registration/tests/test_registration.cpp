@@ -186,7 +186,7 @@ namespace
     /** @brief Returns the path of the YOLO26 reference manifest under @p root. */
     std::filesystem::path manifest_path(const std::filesystem::path& root)
     {
-        return root / "tests" / "fixtures" / Test::K_YOLO26_FIXTURE_FOLDER / "MANIFEST.json";
+        return root / "tests" / "fixtures" / "yolo26" / "MANIFEST.json";
     }
 
     /** @brief Returns the entry of the manifest's "files" whose name is @p name. */

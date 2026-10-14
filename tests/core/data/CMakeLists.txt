@@ -13,4 +13,5 @@ sushiai_add_test_program(OWNER data
         test_target.cpp
         test_threaded_loader.cpp
     DEPENDS
-        failure_expectations)
+        failure_expectations
+        model_text)

@@ -210,8 +210,7 @@ namespace
     /** @brief Returns the path of weights.sushi in the fixture directory. */
     std::filesystem::path weights_path()
     {
-        return std::filesystem::path(SaTest::fixture_directory()) /
-               SaTest::K_YOLO26_FIXTURE_FOLDER / "weights.sushi";
+        return std::filesystem::path(SaTest::fixture_directory()) / "yolo26" / "weights.sushi";
     }
 
     /** @brief Loads the YOLO26n model file as it is written. */
@@ -503,9 +502,9 @@ namespace
  * @pre Used as statements in a TEST_F of Integration_Yolo26Forward.
  */
 #define SA_RUN_FORWARD_OR_SKIP(ours, reference)                                        \
-    SA_OPEN_REFERENCE_OR_SKIP(reference, "forward.sacp");                              \
-    SA_OPEN_REFERENCE_OR_SKIP(reference##_weights, "weights.sushi");                    \
-    SA_OPEN_REFERENCE_OR_SKIP(reference##_input, "input.sacp");                        \
+    SA_OPEN_REFERENCE_OR_SKIP(reference, "yolo26/forward.sacp");                       \
+    SA_OPEN_REFERENCE_OR_SKIP(reference##_weights, "yolo26/weights.sushi");            \
+    SA_OPEN_REFERENCE_OR_SKIP(reference##_input, "yolo26/input.sacp");                 \
     SA_READ_REFERENCE_OR_FAIL(reference##_image, reference##_input, "image");          \
     SA_ASSERT_OK_AND_ASSIGN(const ForwardOutputs* const ours,                          \
                             shared_forward(*engine, reference##_image.floats()))
@@ -535,8 +534,8 @@ TEST_F(Integration_Yolo26Forward, TheInnerRowsMatchTheReferenceRows)
  */
 TEST_F(Integration_Yolo26Forward, C2PSAAloneMapsTheReferenceRow9ToRow10)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
-    SA_OPEN_REFERENCE_OR_SKIP(weights, "weights.sushi");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(weights, "yolo26/weights.sushi");
     SA_READ_REFERENCE_OR_FAIL(input, forward, record_of(K_C2PSA_ROW - 1));
     ASSERT_EQ(input.shape.rank(), 4);
 
