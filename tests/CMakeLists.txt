@@ -16,7 +16,7 @@
 #
 # THE PREFIX IS THE ONLY THING THAT ASSIGNS A CTEST LABEL to a GTest case. A
 # suite named without one is discovered by none of the gtest_discover_tests
-# blocks below, so it never runs under `sa test` and never runs in CI - it is
+# calls (cmake/SushiAITestProgram.cmake and the blocks below), so it never runs under `sa test` and never runs in CI - it is
 # invisible rather than failing. Adding a fourth tier means a fourth block here
 # AND a matching entry in cli/sushiai/services/project.py's Suite enum and
 # _SUITE_LABEL_REGEX.
@@ -38,94 +38,6 @@ include(SushiAITestProgram)
 # One test program per module, under tests/<tier>/<module>/.
 add_subdirectory(core)
 add_subdirectory(layers)
-
-# The tests of a module sit in its own tests/ folder and reach this binary
-# through sushiai_add_module(); the files listed here cross module boundaries.
-get_property(SUSHIAI_MODULE_TESTS GLOBAL PROPERTY SUSHIAI_TESTS_sushiai)
-
-add_executable(sushiai_tests
-    ${SUSHIAI_MODULE_TESTS}
-
-    unit/test_backward.cpp
-    unit/test_conv2d.cpp
-    unit/test_diagnostics.cpp
-    unit/test_layer_registry.cpp
-    unit/test_loss_roots.cpp
-    unit/test_loss_scaling.cpp
-    unit/test_seam.cpp
-    integration/test_arena.cpp
-    integration/test_max_pool_trailing.cpp
-    integration/test_mish_values.cpp
-    integration/test_attention_operations.cpp
-    integration/test_autograd_numeric.cpp
-    integration/test_buffer_update_recorder.cpp
-    integration/test_checkpoint.cpp
-    integration/test_engine_smoke.cpp
-    integration/test_evaluation_step.cpp
-    integration/test_forward.cpp
-    integration/test_gather_rows.cpp
-    integration/test_dropout.cpp
-    integration/test_layer_norm.cpp
-    integration/test_run_checkpoint.cpp
-    integration/test_token_feed.cpp
-    integration/test_dense_objectives.cpp
-    integration/test_import_weights.cpp
-    integration/test_init_state.cpp
-    integration/test_lowered_operations.cpp
-    integration/test_mixed_precision.cpp
-    integration/test_model_state.cpp
-    integration/test_registries.cpp
-    integration/test_rematerialise.cpp
-    integration/test_resilience.cpp
-    integration/test_state_checkpoint.cpp
-    integration/test_training.cpp
-    regression/test_argmax_lifetime.cpp
-    regression/test_compile_once.cpp
-    regression/test_determinism.cpp
-    regression/test_fused_optimizer.cpp
-    regression/test_fusion_numerics.cpp
-    regression/test_learning_curve.cpp
-    regression/test_log_softmax_stability.cpp
-    regression/test_loss_scaling.cpp
-    regression/test_mixed_precision.cpp
-    regression/test_static_memory.cpp
-)
-
-# The integration and regression folders include each other by path; see tests/README.md.
-target_include_directories(sushiai_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-
-# GTest::gtest_main is deliberately absent: the internal module engine_fixture supplies main()
-# so the Runtime is built once per binary rather than once per test.
-# Linking both is a duplicate-symbol error at link time.
-target_link_libraries(sushiai_tests PRIVATE
-    sushiai
-    GTest::gtest
-    sushiai_module_engine_fixture sushiai_module_failure_expectations sushiai_module_tensor_values sushiai_module_seeded_noise sushiai_module_scratch_files sushiai_module_model_text sushiai_module_layer_rows sushiai_module_layer_traces sushiai_module_sample_models sushiai_module_reference_files sushiai_module_classifier_objective
-)
-
-# Where the reference tensors live; a test that needs one reports itself skipped
-# when the file is absent (SushiAI/reference_files/reference_file.hpp).
-target_compile_definitions(sushiai_tests PRIVATE
-    SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-)
-
-sushiai_apply_build_policy(sushiai_tests)
-
-gtest_discover_tests(sushiai_tests
-    DISCOVERY_MODE PRE_TEST
-    TEST_FILTER "Unit_*"
-    PROPERTIES LABELS "unit"
-)
-gtest_discover_tests(sushiai_tests
-    DISCOVERY_MODE PRE_TEST
-    TEST_FILTER "Integration_*"
-    PROPERTIES LABELS "integration"
-)
-gtest_discover_tests(sushiai_tests
-    DISCOVERY_MODE PRE_TEST
-    TEST_FILTER "Regression_*"
-    PROPERTIES LABELS "regression"
-)
 
 # --- The `sa demo mlp` smoke test ---
 # A demo whose output nobody checks rots into a lie, and this one's output is
@@ -203,16 +115,6 @@ set_tests_properties(Integration_App.InferenceLoadsACheckpointAndReportsOneCompi
     DEPENDS Integration_App.TrainRunsAndReportsOneCompile
     PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
 )
-
-# --- Post-Build: Copy the runtime DLL ---
-if(WIN32)
-    add_custom_command(TARGET sushiai_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
-            $<TARGET_FILE_DIR:sushiai_tests>
-        COMMENT "Copying runtime DLL to test directory..."
-    )
-endif()
 
 # --- The vision domain's suite ---
 # Its cases keep the Unit_, Integration_ and Regression_ prefixes, so the

@@ -2227,3 +2227,681 @@ A `BuiltRows` over a `ModelGraph` of one node has the size 1 and `node(0)` is th
 
 `node(0)` on a default `BuiltRows` stops the process with a report containing
 "BuiltRows::node" and "row 0".
+
+## test_conv2d.cpp
+
+Suites: `Unit_Conv2d`.
+
+Tests the 2-D convolution layer's trace, parameters, shape inference and rejections.
+
+This file needs no device. `NN::Conv2d` in `modules/layers/nn/include/SushiAI/nn/conv2d.hpp` declares a weight
+and a bias on its first trace and hands the node sequence to `GraphBuilder::conv2d`, so every
+case reads a host-side graph, the layer's two parameters or the result of `output_shape()`.
+`test_spatial_shapes.cpp` covers the nodes the builder emits; this file covers the layer.
+
+Two `static_assert` lines at file scope require `Conv2d` to be a `Module` and not a
+`ModuleContainer`.
+
+### K_EXACT_TOLERANCE
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged.
+
+### make_conv
+
+`make_conv` builds a layer with a square window and one stride and one padding for both axes.
+The stride defaults to 1 and the padding to 0. A case that needs an anisotropic window or a
+dilation sets the geometry field afterwards.
+
+### with_batch
+
+`with_batch` prepends a batch extent to a per-sample [H, W, C] shape.
+
+### traced_shape
+
+`traced_shape` traces a copy of a layer over a batch of the given per-sample shape and returns
+the result's shape. It takes the layer by value, so a const layer can be traced although
+`forward()` declares parameters.
+
+### walk
+
+`walk` returns the parameter walk's output as "name:extents" strings.
+
+### count_op
+
+`count_op` counts the nodes of one operation in the whole graph.
+
+### ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents
+
+A 3x3 window with padding 1, one input channel and eight filters traces a [4, 28, 28, 1]
+input to a [4, 28, 28, 8] value tagged NHWC.
+
+### TheParametersAndTheResultTakeTheInputElementType
+
+With a FLOAT64 input the weight, the bias and the result are FLOAT64.
+
+### TheParameterWalkNamesTheWeightAndTheBias
+
+The walk is empty before the trace. After it the walk yields "weight:[8, 3, 3, 1]" then
+"bias:[8]", the names `Linear` uses, and `parameter_elements` is 8 * 3 * 3 * 1 + 8.
+
+### TheWeightOfAnAnisotropicWindowIsOutHeightWidthIn
+
+A 2x4 window with three input channels and five filters gives a weight of shape [5, 2, 4, 3].
+The four extents differ, so a weight with two axes swapped fails the comparison.
+
+### ALayerWithABiasTracesOneBiasAdd
+
+The traced graph holds exactly one K_BIAS_ADD node.
+
+### ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd
+
+With `use_bias` false the walk yields the weight alone, the bias is not declared, the graph
+holds no K_BIAS_ADD node, and the result shape is still [4, 28, 28, 8].
+
+### TheWeightAndTheBiasRecordTheirFans
+
+For a 3x5 window with four input channels and six filters, both parameters record a fan-in of
+3 * 5 * 4 and a fan-out of 3 * 5 * 6. The bias carries the same pair as the weight.
+
+### TheParametersRecordTheirRoles
+
+The weight has role WEIGHT and the bias has role BIAS.
+
+### TracingTwiceDoesNotDuplicateParameters
+
+After a second trace into the same graph the weight and the bias keep their value ids and
+`parameter_count` is 2.
+
+### OutputShapeAgreesWithForwardForAStridedWindow
+
+A 3x3 stride-2 unpadded window with sixteen filters maps [9, 12, 3] to [4, 5, 16], and the
+traced shape of a batch of two equals that shape with the batch extent in front. The four
+cases from here assert the literal and the agreement together.
+
+### OutputShapeAgreesWithForwardForAPaddedWindow
+
+A 5x5 window with padding 2 maps [7, 10, 2] to [7, 10, 4].
+
+### OutputShapeAgreesWithForwardForADilatedStridedWindow
+
+A 3x3 window with stride 2, padding 1 and dilations 2 by 3 maps [11, 13, 2] to [5, 5, 3].
+
+### OutputShapeAgreesWithForwardForAPointwiseWindow
+
+A 1x1 window with six filters maps [5, 7, 4] to [5, 7, 6]. This is the geometry for which
+`GraphBuilder::conv2d` emits no K_IM2COL.
+
+### SamePaddedPadsByHalfTheKernelAndDropsTheBias
+
+`Conv2d::same_padded(3, 16, 5, 2)` has 3 input and 16 output channels, a 5x5 kernel, stride 2
+on both axes, a pad of 2 on top and left, dilation 1 and `use_bias` false.
+
+### SamePaddedAtStrideOneKeepsTheSpatialExtents
+
+`same_padded(4, 4, 3, 1)` maps [7, 10, 4] to [7, 10, 4] in `output_shape()` and traces
+[2, 7, 10, 4] over a batch of two.
+
+### SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiveKernel
+
+Over [9, 6, 2], `same_padded(2, 8, 1, 1)` and `same_padded(2, 8, 5, 1)` both report [9, 6, 8].
+
+### SamePaddedAtStrideTwoHalvesAnEvenExtent
+
+`same_padded(3, 16, 3, 2)` maps [640, 320, 3] to [320, 160, 16] in `output_shape()` and in the
+trace.
+
+### SamePaddedTracesNoBias
+
+A traced `same_padded(2, 8, 3, 1)` layer walks as "weight:[8, 3, 3, 2]" alone. Its bias is not
+declared and the graph holds no K_BIAS_ADD node.
+
+### ANonZeroBiasInitReachesTheBiasParameter
+
+A layer with `bias_init` set to -4.5 traces a bias whose `init()` is a constant of -4.5 and
+whose role is `ParameterRole::Bias`. -4.5 is exact in binary.
+
+### TheDefaultBiasInitIsTheConstantZero
+
+A layer left at the default traces a bias whose `init()` is a constant of 0.0.
+
+### BiasInitLeavesTheWeightFanScaled
+
+With `bias_init` set to 1.25 the weight's `init()` is still `ParameterInit::Kind::FanScaled`
+and its role is `WEIGHT`.
+
+### OutputShapeRejectsANonPositiveInputChannelCount
+
+A layer with `in_channels` 0 throws with a message containing "Conv2d", "in=0" and "out=8".
+
+### OutputShapeRejectsANonPositiveOutputChannelCount
+
+A layer with `out_channels` -1 throws with a message containing "Conv2d", "in=3" and "out=-1".
+
+### OutputShapeRejectsAWrongChannelCount
+
+A three-channel layer given [8, 8, 4] throws. The message contains "Conv2d(3, 8)", the shape
+"[8, 8, 4]" and the expected form "[H, W, 3]".
+
+### OutputShapeRejectsAFeatureVector
+
+`output_shape([3])` throws with a message containing "Conv2d(3, 8)", "[3]" and "[H, W, 3]".
+
+### OutputShapeRejectsABatchedShape
+
+`output_shape([2, 8, 3, 3])` throws with a message containing the shape and "[H, W, 3]". The
+third extent equals `in_channels`, so only the rank check can refuse this shape.
+
+### OutputShapeRejectsAWindowThatDoesNotFit
+
+A 5x5 window over [4, 4, 3] throws with a message containing "Conv2d(3, 8)", "[4, 4, 3]" and
+"5x5".
+
+### OutputShapeRejectsAZeroStride
+
+A stride of 0 throws with a message containing "Conv2d(3, 8)" and "stride 0,0".
+
+### OutputShapeRejectsANegativePadding
+
+A padding of -1 throws with a message containing "Conv2d(3, 8)" and "padding -1,-1".
+
+### ForwardRejectsAWrongChannelCount
+
+`forward()` on a [2, 8, 8, 4] input throws with a message containing "Conv2d(3, 8)",
+"[8, 8, 4]" and "[H, W, 3]", the three strings OutputShapeRejectsAWrongChannelCount expects.
+The weight is not declared afterwards.
+
+### ForwardRejectsAnInputThatIsNotRankFour
+
+`forward()` on a [2, 3] input throws with a message containing "Conv2d(3, 8)", "rank-4" and
+"[2, 3]", and the weight is not declared afterwards.
+
+### ForwardRejectsNonPositiveChannelCounts
+
+`forward()` on a layer with `out_channels` 0 throws with a message containing "Conv2d",
+"in=3" and "out=0".
+
+### ForwardRejectsAWindowThatDoesNotFit
+
+`forward()` with a 5x5 window over a [2, 4, 4, 3] input throws with a message containing
+"Conv2d(3, 8)", "[4, 4, 3]" and "5x5".
+
+### ForwardRejectsAnNCHWInput
+
+The input is [2, 3, 3, 3] converted to NCHW. Every extent is 3, so the permuted shape passes
+every check but the one on the layout tag. The message contains "Conv2d" and "NHWC". The node
+count and the value count are unchanged and neither parameter is declared, so the layer
+refuses before it writes anything to the graph.
+
+### DifferentiatingALossYieldsAGradientForTheWeightAndTheBias
+
+The layer's result is reduced with `spatial_mean` and passed to `NN::CrossEntropyLoss`.
+`Autograd::differentiate` returns two gradients, neither is `K_NO_VALUE`, and each has the shape
+of its parameter. The case checks that a gradient exists and has the right shape; it computes
+no number.
+
+## test_layer_registry.cpp
+
+Suites: `Unit_LayerRegistry`.
+
+Tests the layer registry: each row's factory, the keys it reads and the model it builds.
+
+This file needs no device. `NN::K_LAYER_REGISTRY` in `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` is
+a constant table of fourteen rows, and a factory turns a per-sample input shape and a parsed
+JSON object into an `NN::Layer`. A case therefore needs a `Shape`, a string of JSON and, for
+the model cases, a host-side graph.
+
+The cases fall into three groups, in file order:
+
+- every row of the table: that it has a factory, builds its own layer type and refuses an
+  unknown key
+- the keys of each factory, their defaults and the values they refuse
+- the convolutional classifier of `K_CONV_MODEL`, built, traced, named and differentiated
+
+### K_CONV_MODEL
+
+`K_CONV_MODEL` is a model file as a string: 784 input features, then `unflatten` to
+28 x 28 x 1, `conv2d` with 8 filters, `relu`, `maxpool2d`, `conv2d` with 16 filters, `relu`,
+`maxpool2d`, `flatten` and `linear` with 10 units. Both convolutions have kernel 3 and
+padding 1, and both pools have kernel 2. The layers of
+`applications/examples/mnist_cnn/model.json` are the same nine, with the optional keys spelled out.
+
+### K_CONV_MODEL_PARAMETERS
+
+`K_CONV_MODEL_PARAMETERS` lists the six parameters that model declares, as "name:extents":
+a weight and a bias under the indices 1, 4 and 8. The two tests that compare names read the
+expected list from here.
+
+### MinimalCase
+
+`MinimalCase` holds one registry key, a layer object without its "type", the per-sample shape
+that enters the layer and the per-sample shape the layer must report.
+
+### K_MINIMAL_CASES
+
+`K_MINIMAL_CASES` holds one `MinimalCase` per registry row, in registry order. Each object
+carries the required keys of its row and no other.
+
+### attributes_from
+
+`attributes_from` parses a string as the attributes of one layer.
+
+### make_layer
+
+`make_layer` looks a type up in `NN::K_LAYER_REGISTRY` with `Config::find_entry` and calls the
+row's factory with the context "layer 0 '<type>'". The cases that assert a message expect that
+context in it.
+
+### wrapped
+
+`wrapped<L>` returns the layer of type `L` inside an `NN::LayerAdapter<L>`, or null when the
+`Layer` wraps another type. The `dynamic_cast` is how a case tells which layer type a factory
+built and reads the fields the factory set.
+
+### square_window
+
+`square_window` returns a geometry with a square kernel and one stride and one padding for
+both axes.
+
+### make_conv
+
+`make_conv` returns a `Conv2d` with the given channel counts and geometry, its parameters
+undeclared.
+
+### expect_pool_window_spellings_agree
+
+`expect_pool_window_spellings_agree<Pool>` builds a pool from `"kernel": 3` and from
+`"kernel": [3, 3]`. It expects both to wrap a `Pool`, the first to hold a 3x3 kernel, and the
+two to hold the same kernel and the same stride.
+
+### make_conv_stack
+
+`make_conv_stack` parses `K_CONV_MODEL` and returns the `LayerStack` that `build_layer_stack`
+makes of it.
+
+### traced_names
+
+`traced_names` traces a model over a [4, 784] input and returns its parameters as
+"name:extents" strings. It is a template, so it takes a `LayerStack` and a `Sequential`.
+
+### EveryRowHasAMinimalCase
+
+`K_MINIMAL_CASES` has as many entries as `NN::K_LAYER_REGISTRY`, and entry `i` names the type of
+row `i`. A row added to the registry without a case here fails this test, so the two tests
+that loop over the cases cover every factory.
+
+### TheTypeStringsAreTheOnesModelFilesSpell
+
+The `type` fields of `NN::K_LAYER_REGISTRY` are, in order, "linear", "gelu", "relu", "tanh",
+"sigmoid", "leaky_relu", "unflatten", "conv2d", "maxpool2d", "avgpool2d", "global_avgpool",
+"flatten", "upsample" and "silu". A model file names a layer by one of these strings, so a
+renamed row fails here.
+
+### EachFactoryBuildsFromAMinimalObject
+
+For every case the factory returns a layer whose `output_shape()` is the shape the case lists.
+
+### EachKeyBuildsItsOwnLayerType
+
+Each of the fourteen keys builds an adapter over the layer type it names: `wrapped<L>` is not
+null for the expected `L`. Two rows that pointed at one factory would fail for one of them.
+
+### EachFactoryRejectsAnUnknownKey
+
+For every case, an object holding only `"no_such_key"` throws with a message containing the
+layer's context and "'no_such_key'".
+
+### Conv2dTakesItsInputChannelsFromTheInputShape
+
+A `conv2d` built over a [8, 8, 7] input has `in_channels` 7 and `out_channels` 5. An object
+that sets `"in_channels"` is refused by name, so a model file cannot state a channel count
+that disagrees with the layer before it.
+
+### Conv2dRefusesAnInputThatIsNotAnImage
+
+A `conv2d` given the per-sample shape [784] throws. The message contains the context, "[784]",
+"[H, W, C]" and "'unflatten'", the layer that gives a feature vector its image shape.
+
+### Conv2dDefaultsItsOptionalKeys
+
+With only "filters" and "kernel" set, the layer has stride 1, padding 0 and dilation 1 on both
+axes, and `use_bias` is true.
+
+### Conv2dReadsEveryKeyItAccepts
+
+The object sets all six keys, four of them as [h, w] pairs with unequal entries. The layer
+holds kernel 3 by 5, stride 2 by 1, padding 1 by 2, dilation 1 by 2 and `use_bias` false, and
+over a [16, 16, 2] input it reports [8, 12, 5].
+
+### AKernelAsAnIntegerAndAsAPairAgree
+
+For `conv2d`, `maxpool2d` and `avgpool2d`, `"kernel": 3` and `"kernel": [3, 3]` give the same
+output shape. The case then reads the stored window: the two convolutions both hold a 3x3
+kernel, and `expect_pool_window_spellings_agree` checks the two pools. Equal output shapes
+alone would also hold for two layers that both stored a wrong window.
+
+### AWindowSettingOfTheWrongFormIsRefused
+
+A one-entry array, a three-entry array, a string and the real number 1.5 are each refused.
+Every message names the layer and the key, as in "layer 0 'maxpool2d' 'kernel'", and contains
+"two-entry [h, w]". The two array messages also give the entry count, "1 entries" and
+"3 entries".
+
+### APoolStrideDefaultsToItsKernel
+
+A `maxpool2d` with `"kernel": [2, 3]` and no stride holds stride 2 by 3 and padding 0, and
+maps [12, 12, 2] to [6, 4, 2]. An `avgpool2d` with kernel 3, stride 1 and padding 1 holds
+those values and keeps [12, 12, 2].
+
+### Conv2dRejectsANonPositiveExtent
+
+Eight objects are refused: a filter count of 0 and of -4, a kernel of 0, of [3, 0] and of -3,
+a stride of 0 and of [1, -1], and a dilation of 0. Each message contains the context, "Conv2d"
+and "positive".
+
+### ThePoolsRejectANonPositiveExtent
+
+For both pools, a kernel of 0, of [2, 0] and of -2 and a stride of 0 and of [-1, 2] are
+refused with a message containing the context and "positive".
+
+### AWindowedLayerRejectsANegativePadding
+
+For `conv2d` and both pools, a padding of -1, of [0, -1] and of [-1, 0] is refused with a
+message containing the context and "padding". The two pairs put the negative entry on each
+axis in turn.
+
+### AFactoryRejectsAMissingRequiredKey
+
+A `conv2d` without "filters", a `conv2d` without "kernel", each pool without "kernel" and a
+`linear` without "units" are refused. Each message contains the context and "has no" followed
+by the quoted key.
+
+### LeakyReLURejectsASlopeOutsideItsRange
+
+Slopes of 0, 1 and -0.1 are refused when the layer is built, with a message containing the
+context and "slope".
+
+### UpsampleRejectsAScaleBelowOne
+
+A scale of 0 is refused when the layer is built, with a message containing the context,
+"Upsample2d" and "scale".
+
+### LeakyReLUAndUpsampleReadTheirOptionalKey
+
+A `leaky_relu` built from an empty object has slope 0.01, and one built with `"slope": 0.25`
+has 0.25. An `upsample` built from an empty object maps [4, 4, 2] to [8, 8, 2], and one built
+with `"scale": 3` maps it to [12, 12, 2].
+
+### UnflattenRefusesAnInputOfAnotherSize
+
+A 28 x 28 x 1 `unflatten` given [783] throws with a message containing the context, "[783]"
+and "[784]". An object without "channels" throws with a message containing the context and
+"channels".
+
+### TheConvModelBuildsAndReportsItsOutputShape
+
+The stack has nine layers and its output shape is [10]. The shapes after layers 1, 3, 6 and 7
+are [28, 28, 8], [14, 14, 8], [7, 7, 16] and [784], so each factory received the shape its
+predecessor reported.
+
+### TheConvModelTracesToTheShapeItReports
+
+The stack traces a [4, 784] input to a [4, 10] value.
+
+### TheConvModelNamesItsParametersByLayerPosition
+
+The traced stack's parameters are `K_CONV_MODEL_PARAMETERS`: indices 1, 4 and 8, with gaps at
+the layers that own no parameter.
+
+### ASequentialOfTheSameLayersYieldsTheSameNames
+
+An `NN::Sequential` of the same nine layer types is traced over the same input. Its names
+equal `K_CONV_MODEL_PARAMETERS`, and the stack's names equal the `Sequential`'s. A checkpoint
+written from one model therefore names its parameters as the other reads them.
+
+### CrossEntropyDifferentiatesToEveryParameterOfTheConvModel
+
+The stack's output goes into `NN::CrossEntropyLoss`, and the loss is differentiated against
+the six parameters the walk yields. Every gradient is a value other than `K_NO_VALUE` with the
+shape of its parameter. The case checks that the graph differentiates; it computes no number.
+
+### ASiLURowTracesOneSiLUNode
+
+The layer of a `silu` row over [8, 8, 2], traced over [4, 8, 8, 2], adds one node. Its
+operation is `Ops::K_SILU` and the result keeps the shape [4, 8, 8, 2].
+
+### AVersionTwoChainStartsFromTheInputShape
+
+A version 2 document over the input shape [8, 8, 2] holds a `conv2d` of 5 filters and kernel
+3, a `silu` and a `flatten`. `NN::build_layer_stack` builds three layers. Layer 0 reports
+[6, 6, 5], which requires the factory to have received the rank-3 shape and not the count 128,
+and the stack reports [180].
+
+### AChainRefusesARowThatReadsTwoRows
+
+Row 2 with `"from": [-1, 0]` makes `build_layer_stack` throw with a message containing "layer
+2 'relu'", "the row before it" and "build_model".
+
+### AChainRefusesARowThatSkipsBack
+
+Row 2 with `"from": 0` throws with "layer 2 'relu'" and "the row before it".
+
+### AChainRefusesALaterRowThatReadsTheInput
+
+Row 1 with `"from": "input"` throws with "layer 1 'tanh'" and "the row before it".
+
+### AChainRefusesOutputsThatPublishAnEarlierRow
+
+A two-row document whose `outputs` is `[{"node": 0}]` throws with a message containing
+"'outputs'", "last row" and "build_model".
+
+### AChainAcceptsOutputsThatPublishTheLastRow
+
+The same document with `[{"node": 1}]` builds a stack of two layers.
+
+### AChainRefusesARowThatReadsANamedPort
+
+Row 1 with `"from": {"node": 0, "port": "output"}` throws with "layer 1 'tanh'" and "the row
+before it". The row it names is the row above; the port is what the chain refuses.
+
+## test_embedding.cpp
+
+Suites: `Integration_GatherRows`.
+
+The file runs GATHER_ROWS, SCATTER_ADD_ROWS and the `Embedding` layer on an engine. The tables hold
+the dyadic values 0.25, 0.5, 0.75 and so on, whose copies and sums are exact, so results are
+compared with a host loop at a tolerance of 0. Indices are written into INT32 leaves.
+
+### GatherCopiesTheRowsItsIndexNames
+
+A `[2, 3]` index over a `[5, 3]` table, with row 2 named three times, gives the rows a host loop
+copies.
+
+### AReplayReadsTheIndexOfItsOwnRun
+
+One compiled step over a FLOAT64 `[6, 2]` table is run with two different indices of four. Each run
+returns the rows of the index written before it.
+
+### ScatterAddSumsTheRowsOfARepeatedIndex
+
+Six FLOAT64 rows are scattered into five table rows with the index `{3, 1, 3, 3, 0, 1}`, and the
+step is run twice. The result equals the host sums, and rows 2 and 4, which no index names, are
+zero.
+
+### TheTableGradientIsBitIdenticalAcrossReplays
+
+A FLOAT32 `[13, 8]` table is gathered with 256 indices, so each row is named about twenty times, and
+the loss is differentiated at the table. The bytes of the gradient are the same after each of four
+runs.
+
+### AnEmbeddingYieldsTheRowsOfItsTable
+
+An `Embedding` of 7 rows and width 4 over a `[2, 3]` batch of ids has the output shape `[2, 3, 4]`,
+and its output holds the table rows the ids name.
+
+## test_init.cpp
+
+Suites: `Integration_InitState`.
+
+The cases check the fill that `NN::initialize()` writes over a `NN::ModelState`: the constants of a
+batch norm, the zeroed final layer, and the determinism of the default seed.
+
+### AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialValue
+
+A training trace of a batch norm named `bn` is initialised. Afterwards `bn.weight` holds only ones,
+`bn.bias` and `bn.running_mean` hold only zeros, and `bn.running_var` holds only ones.
+
+### ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry
+
+A convolution named `conv`, followed by a batch norm named `bn`, is initialised with the default
+policy. Every element of `conv.weight` is zero, and `bn.weight` is still one.
+
+### WithoutZeroFinalLayerTheLastWeightIsNotZero
+
+An MLP initialised with `zero_final_layer` set to false has at least one nonzero element in
+`2.weight`.
+
+### TheSameSeedGivesTheSameBits
+
+Two MLPs of the same architecture are each created as a state and initialised with the default
+policy. Every entry has the same bytes in both states.
+
+### ANormalFillHasTheDeviationItStates
+
+The table of an `Embedding` of 64 rows and width 32 is initialised with the default policy. Over its
+2048 values the mean is within 0.0025 of zero and the deviation within 0.002 of
+`NN::K_EMBEDDING_DEVIATION`.
+
+### ANormalFillOfNoDeviationIsRefused
+
+An `Embedding` whose weight asks for `ParameterInit::normal(0.0)` is refused by `NN::initialize` as
+`InvalidDescription`, with "positive, finite deviation" in the message.
+
+## test_layer_norm.cpp
+
+Suites: `Integration_LayerNorm`.
+
+The file runs LAYER_NORM and the `LayerNorm` layer on an engine with an epsilon of 1e-5 and compares
+with a host loop in double: FLOAT32 results within 2e-5 and FLOAT64 results within 1e-12. The
+gradient cases normalise a FLOAT64 `[2, 3, 4]` value, reshape it to `[6, 4]`, and compare the
+analytic gradient of one leaf with central differences while the other leaves hold seeded noise.
+
+### EachRowIsNormalisedByItsOwnStatistics
+
+A FLOAT32 `[2, 3, 5]` value with a gain and a bias of five elements is normalised and the step is
+run twice. The output equals the host's rows.
+
+### TheSavedStatisticsAreTheRowMeanAndInverseDeviation
+
+For the FLOAT64 rows `{1, 2, 3, 4}` and `{-4, -2, 0, 2}` the saved means are 2.5 and -1, and the
+saved inverse deviations are `1 / sqrt(1.25 + eps)` and `1 / sqrt(5 + eps)`.
+
+### TheInputGradientMatchesCentralDifferences
+
+The gradient at the `[2, 3, 4]` input.
+
+### TheGainGradientMatchesCentralDifferences
+
+The gradient at the gain of four elements.
+
+### TheBiasGradientMatchesCentralDifferences
+
+The gradient at the bias of four elements.
+
+### ALayerNormalisesWithItsGainAndItsBias
+
+A `LayerNorm` of width 4 over a FLOAT32 `[2, 3, 4]` value keeps the shape, and with its weight and
+bias written from noise its output equals the host's rows.
+
+Suites: `Integration_MaxPoolTrailing`.
+
+A `MaxPool2d` with a 2x2 window, a stride of one and one trailing row and column of padding pools a
+`[1, 3, 3, 1]` input into nine values. Each is compared with the maximum of its truncated window
+within 1e-6.
+
+### TrailingWindowsTakeTheMaximaOfTheirTruncatedTaps
+
+The input `[[5, -1, 2], [-3, 8, 0], [4, -7, 6]]` pools to `[[8, 8, 2], [8, 8, 6], [4, 6, 6]]`.
+
+### AllNegativeTrailingWindowsKeepTheirTrueMaximum
+
+The input runs from -18 to -10. The result is `[[-14, -13, -13], [-11, -10, -10], [-11, -10, -10]]`;
+a pad that took part in the maximum as zero would show as 0.
+
+Suites: `Integration_MishValues`.
+
+The `Mish` layer runs over one FLOAT32 row on the engine. Each result is compared with `x *
+tanh(log1p(exp(x)))`, computed in double, within 1e-6 of the exact value's magnitude. A zero must be
+matched exactly.
+
+### MatchesTheExactFormAtTheAcceptancePoints
+
+The inputs are -20, -1, 0, 1 and 20.
+
+### SweepMatchesTheExactFormAndStatesTheDarknetDifference
+
+The inputs run from -30 to 30 in steps of 0.5, 121 values. The engine's results match the exact
+form. The test also evaluates, on the host in double, the form with a softplus cut-off at a
+magnitude of 20, records its largest difference from the exact form as the property
+`darknet_cut_off_largest_difference`, and expects that difference to be at most 1e-12.
+
+## test_model_state.cpp
+
+Suites: `Integration_ModelState`, `Integration_ModelStateDeathTest`.
+
+`NN::ModelState` lists a model's parameters and buffers in walk order, finds them by name or by
+identity, refuses two entries with one name, stops on an entry with no identity, and attaches its
+storage to a graph and a pool. The cases pin each of those.
+
+### CreateListsParametersInWalkOrder
+
+A traced `Sequential` of Linear, GELU and Linear lists four parameters in order: `0.weight` [8, 6],
+`0.bias` [8], `2.weight` [4, 8] and `2.bias` [4].
+
+### CreateListsBuffersAfterATrainingTrace
+
+A `ModelGraph` holding a batch norm named `bn`, traced in training mode, lists `bn.weight` and
+`bn.bias` as parameters. It then lists `bn.running_mean`, with constant initial value 0, and
+`bn.running_var`, with constant initial value 1, as buffers.
+
+### AnUntracedModelGivesAnEmptyState
+
+A model that was never traced gives a valid state with no entries.
+
+### APrefixIsJoinedToEveryName
+
+A prefix of "model" passed to `create()` makes the first entry `model.0.weight`.
+
+### TwoEntriesWithOneNameAreRefused
+
+`from_entries` with two entries named "shared" is refused as `InvalidDescription`, and the message
+names "shared".
+
+### AnEntryWithNoIdentityIsFatal
+
+`from_entries` with an entry whose identity is 0 stops the process, as the death test expects. The
+message contains "'orphan'", the entry's name, and "no identity".
+
+### TensorByNameAndByStateAreTheSameStorage
+
+`tensor()` called with the name and with the identity of one entry returns the same tensor object.
+
+### AnUnknownNameIsRefusedAndNamed
+
+`tensor("missing.weight")` is refused as `InvalidDescription`. The message contains the name and
+"4 entries".
+
+### AttachBindsEveryStateLeafToTheStatesStorage
+
+`attach()` records four state leaves on the graph. For each leaf, the pool tensor's data pointer is
+the same as the state tensor's.
+
+### AttachRefusesAGraphOfAnotherModel
+
+A graph traced from a second instance of the same architecture is refused by `attach()` as
+`Incompatible`.
+
+### TwoPoolsAttachedToOneStateShareStorage
+
+Two pools attached to one state read the same numbers. A value written through a leaf of the first
+pool is read back through the second.

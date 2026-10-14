@@ -494,3 +494,193 @@ With `decay_all` true, one step of SGD and one step of AdamW each leave both par
 For the types `sgd` and `adamw`, an optimizer from `make_optimizer` without the key `decay_all`
 leaves the weight at 1.5 and the bias at 2 after one step. With `"decay_all": true` it leaves
 both at 1.5.
+
+## test_loss_scaler.cpp
+
+Suites: `Unit_LossScaling`.
+
+Tests the dynamic loss-scaling rule on LossScaleState, with no device involved.
+
+This file tests the dynamic-scaling rule with no device in the measurement.
+
+LossScaleState is split out of LossScaler so that this file can exist. "The scale doubles after
+exactly N clean steps" is a property of the rule, not of a kernel. Asserting it through a
+training run would make every one of these cases cost a compile and a replay while proving less.
+
+The control matters as much as the case. A growth test that only ran N clean steps and saw a
+doubling would pass against an implementation that doubled after every step, so each growth
+assertion in this file is paired with the N-1 run that must not double.
+
+### TheScaleStartsWhereItWasAsked
+
+A state made with the initial scale 65536 reports that scale, its inverse 1 / 65536, no
+skipped last step and 0 skipped steps.
+
+### AnOverflowHalvesTheScaleAndSkipsTheStep
+
+From the initial scale 1024, `observe(true)` gives the scale 512. The last step counts as
+skipped, and the state reports 1 skipped step, 1 backoff and 0 growths.
+
+### TheScaleDoublesAfterExactlyTheGrowthInterval
+
+From the initial scale 1024 with a growth interval of 4, four clean steps give the scale
+2048, 1 growth and no skipped last step.
+
+### OneStepShortOfTheIntervalTheScaleDoesNotMove
+
+This case is the control for TheScaleDoublesAfterExactlyTheGrowthInterval. Without it, "the
+scale doubled after four clean steps" is equally true of an implementation that doubles after
+one.
+
+### AnOverflowRestartsTheRunOfCleanSteps
+
+Three clean steps since the overflow is one short of the interval, so nothing has grown back.
+The scale is still the backed-off one.
+
+### GrowthStopsAtTheCeilingWithoutCountingAGrowth
+
+With an interval of 1, the initial scale 1024 and the maximum 2048, one clean step gives 2048.
+A second leaves the scale at 2048 and the growth count at 1.
+
+### BackoffStopsAtTheFloorButStillSkipsTheStep
+
+At the floor the scale cannot go lower. The step is still garbage and must still be thrown
+away, or an overflowed gradient reaches the weights the moment the backoff bottoms out.
+
+### ANonDyadicConstantIsRefusedByName
+
+Every constant is a power of two so that scaling and unscaling change only the exponent field.
+A scale of 3 would work and would quietly make every gradient in the model carry a rounding
+error, so it is refused.
+
+### IncoherentBoundsAreRefused
+
+`LossScaleState::make` fails with `InvalidDescription` for an initial scale of 65536 above a
+maximum of 1024 ("outside the bounds") and for a growth interval of 0
+("growth interval must be positive").
+
+### EveryReachableScaleHasAnExactReciprocal
+
+The loss-scaling design is arranged around this property, and the test asserts it on the rule
+itself. Whatever sequence of backoffs and growths the machine takes, the scale is a power of
+two, so the reciprocal is exact and the round trip is lossless.
+
+Suites: `Regression_LossScaling`.
+
+Every failure of loss scaling is silent, which is what puts this part of mixed precision in the
+regression tier.
+
+- A scale that never backs off keeps overflowing, and every overflowed step is thrown away, so the
+  loop stops learning while reporting an ordinary loss.
+- A skip spelled as "multiply the step by zero" writes NaN into AdamW's first moment, because
+  0 * inf is NaN and the gradient on a skipped step is an infinity by definition. Nothing throws;
+  the loss goes NaN a step later, three layers from the cause. That is why the assertions in
+  ASkippedStepLeavesTheParametersAndMomentsBitIdentical read the moments and not only the
+  parameters. A test that checked the parameters alone would pass on this bug.
+- An unscale that is off by a rounding is invisible against any tolerance, which is why
+  UnscalingByAPowerOfTwoIsExact uses EXPECT_EQ.
+- A device-resident scale that someone moved into Attributes would recompile the step on every
+  backoff, converge identically, and cost the compile-once guarantee the architecture is built on.
+
+The tests fall into five groups, in file order. AnFP16OverflowIsDetectedAndBacksTheScaleOff and
+TheSameScaleInFloat32OverflowsNothing cover the overflow itself.
+ASkippedStepLeavesTheParametersAndMomentsBitIdentical and
+ACleanStepUnderTheSameScalerStillMovesEverything cover what a skipped step must leave behind.
+UnscalingByAPowerOfTwoIsExact covers exactness. TheStepIsCompiledOnceThoughTheScaleChanges and
+ABackingOffScaleStillCompilesOnce cover the compile-once guarantee with a scale that moves.
+TheSeparateUpdateKernelRefusesAScaler covers what is refused.
+
+### On constructing the overflow
+
+This workload does not overflow on its own. Measured on this machine, fp16 without loss scaling
+neither stalls nor diverges on it: both arms converge to the same loss. There is no natural
+overflow to wait for, and a test that ran the demo with scaling on would prove nothing, since the
+demo converged without scaling too. The tests therefore build the overflow. The run starts at a
+scale of 2^20, which puts the fp32 logit gradient just past binary16's largest finite value of
+65504. The cast into the backward matmul then produces infinities, which are real overflow and not
+a simulation of it.
+
+### K_OVERFLOWING_SCALE
+
+The logit gradient is about 1/K_BATCH, so a scale of 2^20 puts it at roughly 65536 in fp32, just past
+binary16's largest finite 65504. The backward matmul that sums over the batch takes it further. The
+scale was chosen to be recoverable as well as overflowing. The run in
+AnFP16OverflowIsDetectedAndBacksTheScaleOff has to reach a clean scale within its step budget,
+because "the backoff never helped" and "the backoff was never given enough steps" are the same
+observation and only one of them is a defect.
+
+### train_scaled
+
+The helper sets the scaler on the optimizer before it constructs the trainer, which records the
+update into the plan. The screens have to be recorded ahead of the updates, and the optimizer owns
+that ordering only once it knows about the scaler.
+
+### AnFP16OverflowIsDetectedAndBacksTheScaleOff
+
+This is the end-to-end case. A scale chosen to overflow binary16 produces infinities in the fp32
+gradient buffers, count_nonfinite sees them, and the state machine backs the scale off until the
+overflow stops.
+
+The test then asserts that the run recovers. The backed-off scale has to reach the device, or every
+step overflows for ever and the loop learns nothing while reporting a healthy loss. This assertion
+pins the scale as a value the host rewrites between replays and not as a constant: a scaler whose
+before_replay() did nothing would still back off on the host and would fail here.
+
+The test asserts that the step counter does not advance through a thrown-away step. SGD's
+first-step flag and AdamW's bias corrections are both derived from the counter.
+
+The last assertion is that the final loss is finite. A loop that went NaN would report NaN there,
+and no comparison against a threshold would catch a NaN.
+
+### TheSameScaleInFloat32OverflowsNothing
+
+This test is the control for AnFP16OverflowIsDetectedAndBacksTheScaleOff. Without it, "steps were
+skipped" says nothing about fp16: an implementation that skipped every step would pass that test.
+The same scale under the fp32 policy is nowhere near float32's range, so nothing may overflow and
+nothing may be thrown away.
+
+### ASkippedStepLeavesTheParametersAndMomentsBitIdentical
+
+The gate exists for this assertion. A skip spelled through the existing scalars (step size zero,
+beta1 one) looks like an identity and is not one: `m = 1*m + 0*inf` is NaN, and the optimizer never
+recovers. So the test reads the moments as raw bytes before and after, and not only the parameters.
+
+The test takes one healthy step first. The moments are then non-zero, and a NaN written into them
+can be told apart from the zero they started at.
+
+The poisoned gradient is non-finite, which is what an overflowed fp16 backward pass hands the
+optimizer.
+
+The test also asserts that the step counter did not move, so the next step's bias corrections are
+the ones the skipped step would have used.
+
+### ACleanStepUnderTheSameScalerStillMovesEverything
+
+This test is the control for ASkippedStepLeavesTheParametersAndMomentsBitIdentical. With a finite
+gradient the same machinery must move what the skipped step left alone, and the test asserts that
+the parameter, the first moment and the step counter all changed. Otherwise an optimizer that had
+stopped working altogether would satisfy "nothing changed".
+
+### UnscalingByAPowerOfTwoIsExact
+
+Scaling by a power of two changes only the exponent field, so the round trip is lossless and the
+comparison is EXPECT_EQ. A tolerance would hide the defects this test exists to catch: a scale that
+is not dyadic, or an unscale folded in after the moments when it belongs before them.
+
+### TheStepIsCompiledOnceThoughTheScaleChanges
+
+This test is the reason the scale is a device-resident value and not an Attributes slot. An
+attribute is a compile-time constant baked into the recorded task, so every backoff and every
+growth would recompile the step, and the loop would converge the same way while paying graph
+analysis on each of them. The test's run is arranged so that the scale changes during it.
+
+### ABackingOffScaleStillCompilesOnce
+
+This test is the overflowing arm of the same guarantee. Backoffs are the direction that happens
+under load, and they must not recompile either.
+
+### TheSeparateUpdateKernelRefusesAScaler
+
+The separate spelling has no branch to take, so it would unscale correctly and then apply every
+overflowed step anyway. The optimizer refuses the combination by name and does not downgrade it
+silently.

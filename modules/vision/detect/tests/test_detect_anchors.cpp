@@ -123,7 +123,7 @@ TEST(Unit_DetectAnchors, RejectsOutputsOfTheWrongSize)
 /** @brief Tests that the pixel anchor points equal the reference's "anchors.points" exactly. */
 TEST(Unit_DetectAnchors, MatchesTheReferenceAnchorPoints)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(loss, "loss.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(loss, "yolo26/loss.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference, loss, "anchors.points");
 
     std::vector<float> points(8400 * 2);

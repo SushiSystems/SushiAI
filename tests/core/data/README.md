@@ -160,3 +160,85 @@ workers ("0 threads") and for a prefetch of 0 ("0 batches ahead").
 
 `Data::begin_epoch` on a dataset that does not implement `EpochAware` returns, and the
 dataset's batch count is still 1.
+
+Suites: `Integration_Registries`.
+
+Two registries need an Engine to exercise: datasets allocate device tensors, and optimizers
+allocate their state buffers. The layer and objective registries are host-lane and live in the
+unit tier.
+
+Rings is tested on its defining property, that it is not linearly separable, and not only on
+its shape. The dataset exists because a single Linear layer cannot solve it, so a test should
+fail if it ever becomes solvable.
+
+The fixture fills a `Data::DatasetRegistry` through `Data::register_datasets`, which adds the
+"rings" row the dataset cases name. The optimizer cases call `Optim::make_optimizer` with the types
+"adamw" and "sgd".
+
+### RingsIsBalancedAndCarriesItsDistractors
+
+Labels are assigned round-robin, so every batch is exactly balanced and accuracy needs no
+class weighting to read correctly.
+
+### RingsPublishesItsLabelsAsOneIndexPerSample
+
+With three classes and a batch of eight, the dataset describes one target: the labels role, one
+int32 per sample, over 3 classes. The batch holds one target tensor of rank 1 and length 8 whose
+labels are `{0, 1, 2, 0, 1, 2, 0, 1}`.
+
+### RingsReportItsSampleShape
+
+The default options add four distractors, so a sample has shape [6]. A batch of eight samples is
+rank 2 with shape [8, 6].
+
+### RingsPlacesEachClassInItsOwnRadiusBand
+
+The whole problem rests on this property. The class is a function of x^2 + y^2, which is
+degree 2 in the inputs and therefore not a half-space. If a change made the radius bands
+overlap or the labels track something linear, this test fails, where otherwise the accuracy
+would rise in some other test and nobody would see why.
+
+### TheDatasetRegistryBuildsRingsFromAConfigValue
+
+`make_dataset` for "rings" with a batch size of 16, 2 batches, 3 classes and one distractor returns
+a dataset with those extents and the sample shape `[3]`.
+
+### TheSameSeedGivesTheSameData
+
+The dataset draws from a host RNG and not from the engine's Philox stream, so reproducibility
+is a property of the seed alone. The device stream mixes in a monotonic offset counter, which
+is why `dataset.hpp` warns about `set_seed`.
+
+### AnUnknownDatasetTypeListsEveryTypeThisBuildHas
+
+The type "coco" is refused as `InvalidDescription`. The message contains "coco", "dataset type" and
+'rings'.
+
+### AnUnknownDatasetKeyIsRejectedByItsOwnFactory
+
+The key "batch_sizes" raises an error whose message contains the context "data", 'batch_sizes' and
+'batch_size'.
+
+### ANonPositiveRingsExtentIsRefused
+
+A batch size of 0 is refused as `InvalidDescription` with "positive" in the message.
+
+### TheOptimizerRegistryBuildsBothRulesFromAConfigValue
+
+The test passes one real parameter and gradient pair, so the optimizers allocate their state
+against something and not against an empty list.
+
+### AnUnknownOptimizerTypeListsEveryTypeThisBuildHas
+
+The type "lion" raises an error whose message contains "lion", "optimizer type", 'adamw' and 'sgd'.
+
+### AnUnknownOptimizerKeyIsRejectedByItsOwnFactory
+
+"momentum" is SGD's key, not AdamW's. Asking AdamW for it must fail; it must not be a line
+that does nothing.
+
+### AConfigurationCannotReachTheReferenceUpdateKernel
+
+`UpdateKernel` selects the spelling a byte-for-byte regression test compares the fused kernel
+against. SEPARATE also cannot join the compiled plan. A config file that could set it would
+be able to change what a run is, so "kernel" is not an accepted key.

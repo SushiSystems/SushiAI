@@ -201,7 +201,7 @@ TEST(Unit_DetectBoxes, RejectsRowsThatDoNotCoverTheAnchors)
 /** @brief Tests that decoding the reference's raw one-to-many boxes gives its xywh decode. */
 TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToManyDecode)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference, forward, "one2many.decoded.boxes");
     std::vector<float> raw;
     const std::string missing = join_raw_boxes(forward, "one2many", raw);
@@ -218,7 +218,7 @@ TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToManyDecode)
 /** @brief Tests that decoding the reference's raw one-to-one boxes gives its xyxy decode. */
 TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference, forward, "one2one.decoded.boxes");
     std::vector<float> raw;
     const std::string missing = join_raw_boxes(forward, "one2one", raw);
@@ -235,7 +235,7 @@ TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
 /** @brief Tests that encoding the decode of the reference's raw boxes returns the raw boxes. */
 TEST(Unit_DetectBoxes, EncodeInvertsTheDecodeOfTheReferenceBoxes)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     std::vector<float> raw;
     const std::string missing = join_raw_boxes(forward, "one2one", raw);
     ASSERT_TRUE(missing.empty()) << missing;

@@ -22,24 +22,28 @@
 
 /**
  * @file test_builder.cpp
- * @brief Tests GraphBuilder: the shape, layout and dtype of every operation it emits, and what it
- *        refuses.
+ * @brief Tests GraphBuilder: the nodes each emitter writes and the operands it refuses, with the
+ *        values that disagree.
  * @author Mustafa Garip
  */
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -1481,4 +1485,116 @@ TEST(Unit_LogSoftmaxOps, TheGradientRefusesOperandsThatDoNotFit)
     expect_refused(graph, builder.log_softmax_backward(wide, log_probs), nodes, "[4, 5]");
     expect_refused(graph, builder.log_softmax_backward(doubled, log_probs), nodes,
                    "a gradient like them");
+}
+
+TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID a = builder.input(Shape{4, 5}, "a");
+    const ValueID b = builder.input(Shape{7, 3}, "b");
+
+    SA_EXPECT_ERROR((void)builder.matmul(a, b),
+                    "MATMUL contracts 5 against 7", "[4, 5]", "[7, 3]");
+}
+
+TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
+{
+    // The message shows both operand shapes; see tests/unit/README.md.
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID vector = builder.input(Shape{5}, "v");
+    const ValueID matrix = builder.input(Shape{5, 3}, "m");
+
+    SA_EXPECT_ERROR((void)builder.matmul(vector, matrix),
+                    "MATMUL needs two rank-2 operands", "[5]", "[5, 3]");
+    SA_EXPECT_ERROR((void)builder.matmul(matrix, vector),
+                    "MATMUL needs two rank-2 operands", "[5, 3]", "[5]");
+}
+
+TEST(Unit_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID a = builder.input(Shape{4, 5}, "a", DType::Float32);
+    const ValueID b = builder.input(Shape{5, 3}, "b", DType::Float64);
+
+    SA_EXPECT_ERROR((void)builder.matmul(a, b),
+                    "MATMUL needs operands of one element type", "float32", "float64");
+}
+
+TEST(Unit_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID wrong_length = builder.input(Shape{5}, "b5");
+    const ValueID rank_two_bias = builder.input(Shape{1, 3}, "b13");
+    const ValueID vector = builder.input(Shape{3}, "v");
+
+    SA_EXPECT_ERROR((void)builder.bias_add(x, wrong_length),
+                    "BIAS_ADD bias has 5 entries", "[4, 3]", "3 columns");
+    SA_EXPECT_ERROR((void)builder.bias_add(x, rank_two_bias),
+                    "BIAS_ADD needs a rank-1 bias", "[1, 3]");
+    SA_EXPECT_ERROR((void)builder.bias_add(vector, vector),
+                    "BIAS_ADD needs a rank-2 left operand", "[3]");
+}
+
+TEST(Unit_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID vector = builder.input(Shape{6}, "v");
+
+    SA_EXPECT_ERROR((void)builder.sum_rows(vector), "SUM_ROWS needs a rank-2 operand", "[6]");
+    SA_EXPECT_ERROR((void)builder.log_softmax(vector), "LOG_SOFTMAX needs a rank-2 operand", "[6]");
+}
+
+TEST(Unit_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 2}, "b");
+    const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+
+    SA_EXPECT_ERROR((void)builder.add(a, b), "ADD needs equally shaped operands",
+                    "[4, 3]", "[4, 2]");
+    SA_EXPECT_ERROR((void)builder.sub(a, b), "SUB needs equally shaped operands");
+    SA_EXPECT_ERROR((void)builder.mul(a, b), "MUL needs equally shaped operands");
+    SA_EXPECT_ERROR((void)builder.mul(a, wide), "MUL needs operands of one element type",
+                    "float32", "float64");
+    SA_EXPECT_ERROR((void)builder.accumulate(a, b), "ACCUMULATE needs equally shaped operands");
+}
+
+TEST(Unit_Diagnostics, NLLLossNamesTheShapeItCannotServe)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID log_probs = builder.input(Shape{4, 3}, "logp");
+    const ValueID mismatched = builder.input(Shape{4, 5}, "targets");
+    const ValueID vector = builder.input(Shape{4}, "v");
+
+    SA_EXPECT_ERROR((void)builder.nll_loss(log_probs, mismatched),
+                    "NLL_LOSS needs equally shaped operands", "[4, 3]", "[4, 5]");
+    SA_EXPECT_ERROR((void)builder.nll_loss(vector, vector),
+                    "NLL_LOSS needs rank-2 operands", "[4]");
+}
+
+TEST(Unit_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID dy = builder.input(Shape{4, 3}, "dy");
+
+    SA_EXPECT_ERROR((void)builder.activation_backward(Ops::K_RELU.id, dy, dy),
+                    "sushiai.relu", "is not an activation gradient");
 }

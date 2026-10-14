@@ -194,7 +194,7 @@ TEST(Unit_DetectPostprocess, RejectsADetectionArrayOfTheWrongSize)
 /** @brief Tests that the top-k path reproduces the reference detections up to tied scores. */
 TEST(Unit_DetectPostprocess, ReproducesTheReferenceDetections)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2one.decoded.boxes");
     SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2one.decoded.scores");
     SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2one.detections");
@@ -279,7 +279,7 @@ TEST(Unit_DetectPostprocess, TheConfidenceFilterRejectsRowsTheBatchDoesNotDivide
 /** @brief Tests that the confidence filter keeps the reference's rows as its validator does. */
 TEST(Unit_DetectPostprocess, TheConfidenceFilterKeepsTheRowsTheReferenceValidatorKeeps)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2one.detections");
 
     const std::vector<float> reference = reference_tensor.floats();
@@ -301,7 +301,7 @@ TEST(Unit_DetectPostprocess, TheConfidenceFilterKeepsTheRowsTheReferenceValidato
 /** @brief Tests that the suppression path reproduces the reference rows up to tied scores. */
 TEST(Unit_DetectPostprocess, SuppressionReproducesTheReferenceRows)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
     SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2many.decoded.scores");
     SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2many.suppressed.detections");
@@ -335,7 +335,7 @@ TEST(Unit_DetectPostprocess, SuppressionReproducesTheReferenceRows)
 /** @brief Tests that no reference score passes the validation confidence, as the manifest says. */
 TEST(Unit_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
 {
-    SA_OPEN_REFERENCE_OR_SKIP(forward, "forward.sacp");
+    SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
     SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2many.decoded.scores");
 

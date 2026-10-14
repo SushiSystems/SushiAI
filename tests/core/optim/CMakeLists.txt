@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER optim
         test_apply_step_schedule.cpp
         test_cosine_schedule.cpp
         test_gradient_clip.cpp
+        test_loss_scaler.cpp
         test_optimizer.cpp
         test_rate_schedule.cpp
         test_run_schedule.cpp
