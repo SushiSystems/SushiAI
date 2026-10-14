@@ -39,6 +39,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -55,16 +56,17 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Lowers @p graph into a new step that records and compiles it.
-                 * @param engine Must outlive the step.
-                 * @param pool Holds the tensor of each value; must outlive the step.
-                 * @param trailing Records extra work behind the graph's; must outlive the step.
+                 * @brief Lowers the nodes @p nodes of @p graph into a step and compiles it.
+                 * @param engine Must outlive the step, as must @p pool and @p trailing.
+                 * @param trailing Records extra work behind the graph's.
                  * @param selector Picks the form of a fusible node; null selects by device.
+                 * @param nodes The nodes the step is made of; every node by default.
                  * @return The step, or the first refusal from lowering, recording or compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
                     SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
-                    StepRecorder* trailing = nullptr, const FusionSelector* selector = nullptr);
+                    StepRecorder* trailing = nullptr, const FusionSelector* selector = nullptr,
+                    NodeRange nodes = {});
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;

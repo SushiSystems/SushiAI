@@ -21,7 +21,7 @@
 
 /**
  * @file anchor_training_step.cpp
- * @brief Implements AnchorTrainingStep: the forward-only pass, the host deltas and the replay.
+ * @brief Implements AnchorTrainingStep: the step up to its heads, the host deltas and the rest.
  * @author Mustafa Garip
  */
 
@@ -82,24 +82,15 @@ namespace SushiAI::Vision::Training
 
     Result<std::unique_ptr<AnchorTrainingStep>> AnchorTrainingStep::make(
         SushiBLAS::Engine& engine, const AnchorObjective& objective,
-        const Train::TracedStep& probe, Graph::TensorPool& probe_pool,
         const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
-        const NN::ModelState& state, Optim::Optimizer& optimizer,
-        std::vector<Train::BufferUpdateSlot> updates, Train::TrainingStepOptions options)
+        Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
+        Train::TrainingStepOptions options)
     {
         SA_FAIL_IF(built.spec.inputs == Graph::K_NO_VALUE
                        || !training_pool.is_bound(built.spec.inputs),
                    StatusCode::InvalidDescription,
                    "The anchor step needs the input leaf of its training graph bound in the "
                    "training pool; call Train::bind_parameters() on that pool first");
-
-        // The probe has run before the replay starts, so its pool borrows the replay's arenas.
-        SA_TRY_ASSIGN(std::unique_ptr<Train::EvaluationStep> evaluation,
-                      Train::EvaluationStep::make(engine, probe, state, probe_pool,
-                                                  options.fusion_selector, &training_pool));
-        SA_TRY_ASSIGN(std::unique_ptr<Train::TrainingStep> training,
-                      Train::TrainingStep::make(engine, built.graph, training_pool, optimizer,
-                                                std::move(updates), options));
 
         SushiBLAS::Tensor& input = training_pool.tensor(built.spec.inputs);
         const std::size_t head_count = objective.heads().size();
@@ -109,27 +100,34 @@ namespace SushiAI::Vision::Training
                                                      [&]()
         {
             std::unique_ptr<AnchorTrainingStep> made(new AnchorTrainingStep(
-                engine, objective, std::move(evaluation), std::move(training), input));
+                engine, objective, built.outputs, training_pool, input));
             made->heads_.reserve(head_count);
             made->leaves_.reserve(head_count);
             made->deltas_.resize(head_count);
             return made;
         }));
 
+        SA_TRY_ASSIGN(options.host_stage, step->describe_host_stage(built));
+        const Train::HostStage stage = options.host_stage;
+
+        SA_TRY_ASSIGN(step->training_,
+                      Train::TrainingStep::make(engine, built.graph, training_pool, optimizer,
+                                                std::move(updates), std::move(options)));
+
         for (std::size_t head = 0; head < head_count; ++head)
-            SA_TRY(step->resolve_head(head, built, training_pool));
+            SA_TRY(step->resolve_head(head, stage));
 
         return std::move(step);
     }
 
     AnchorTrainingStep::AnchorTrainingStep(SushiBLAS::Engine& engine, AnchorObjective objective,
-                                           std::unique_ptr<Train::EvaluationStep> evaluation,
-                                           std::unique_ptr<Train::TrainingStep> training,
+                                           NN::ModelOutputs outputs, Graph::TensorPool& pool,
                                            SushiBLAS::Tensor& input) noexcept
         : engine_(&engine),
           objective_(std::move(objective)),
-          evaluation_(std::move(evaluation)),
-          training_(std::move(training)),
+          outputs_(std::move(outputs)),
+          pool_(&pool),
+          training_(),
           input_(&input),
           heads_(),
           leaves_(),
@@ -138,38 +136,53 @@ namespace SushiAI::Vision::Training
 
     }
 
-    Status AnchorTrainingStep::resolve_head(std::size_t head, const Train::TrainingGraph& built,
-                                            Graph::TensorPool& training_pool)
+    Result<Train::HostStage> AnchorTrainingStep::describe_host_stage(
+        const Train::TrainingGraph& built) const
+    {
+        Train::HostStage stage;
+        SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+                                        [this, &built, &stage]() -> Status
+        {
+            const std::vector<AnchorHead>& heads = objective_.heads();
+            for (std::size_t head = 0; head < heads.size(); ++head)
+            {
+                SA_TRY_ASSIGN(const Graph::ValueID output, outputs_.at(heads[head].output));
+
+                const std::string role = objective_.leaf_role(head);
+                SA_FAIL_IF(!built.leaves.has(role), StatusCode::InvalidDescription,
+                           "The training graph declares no leaf '{}'; build it with the "
+                           "objective the anchor step is given",
+                           role);
+
+                stage.reads.push_back(output);
+                stage.writes.push_back(built.leaves.at(role));
+            }
+
+            return Status();
+        }));
+
+        return stage;
+    }
+
+    Status AnchorTrainingStep::resolve_head(std::size_t head, const Train::HostStage& stage)
     {
         const AnchorHead& described = objective_.heads()[head];
         const std::int64_t elements = count_head_elements(objective_, head);
 
-        SA_TRY_ASSIGN(const SushiBLAS::Tensor* const output,
-                      evaluation_->output(described.output));
-        SA_TRY(check_host_floats(*output, elements, described.output));
-
-        SA_TRY_ASSIGN(const std::string role,
-                      ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,
-                                                     [this, head]()
-        {
-            return objective_.leaf_role(head);
-        }));
-        SA_FAIL_IF(!built.leaves.has(role), StatusCode::InvalidDescription,
-                   "The training graph declares no leaf '{}'; build it with the objective the "
-                   "anchor step is given",
-                   role);
-
-        const Graph::ValueID leaf_id = built.leaves.at(role);
-        SA_FAIL_IF(!training_pool.is_bound(leaf_id), StatusCode::InvalidDescription,
-                   "The leaf '{}' has no tensor in the training pool; call "
+        const Graph::ValueID leaf_id = stage.writes[head];
+        SA_FAIL_IF(!pool_->is_bound(leaf_id), StatusCode::InvalidDescription,
+                   "The delta leaf of head '{}' has no tensor in the training pool; call "
                    "Train::bind_parameters() on that pool first",
-                   role);
+                   described.output);
 
-        SushiBLAS::Tensor& leaf = training_pool.tensor(leaf_id);
-        SA_TRY(check_host_floats(leaf, elements, role));
+        const SushiBLAS::Tensor& output = pool_->tensor(stage.reads[head]);
+        SA_TRY(check_host_floats(output, elements, described.output));
+
+        SushiBLAS::Tensor& leaf = pool_->tensor(leaf_id);
+        SA_TRY(check_host_floats(leaf, elements, described.output));
 
         // make() reserved both lists, so neither push allocates.
-        heads_.push_back(output);
+        heads_.push_back(&output);
         leaves_.push_back(&leaf);
 
         return Status();
@@ -213,16 +226,9 @@ namespace SushiAI::Vision::Training
         return Status();
     }
 
-    Result<Detect::Anchor::HeadCost> AnchorTrainingStep::run(
-        const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth)
+    Status AnchorTrainingStep::feed_deltas(const Detect::GroundTruthBatch& truth)
     {
-        SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
-        SA_TRY(check_truth(truth));
-
-        // The probe graph drops the buffer updates, so only the replay moves a running value.
-        SA_TRY(evaluation_->run(inputs));
-
-        SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
+        return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                         [this, &truth]() -> Status
         {
             const std::vector<AnchorHead>& heads = objective_.heads();
@@ -247,7 +253,14 @@ namespace SushiAI::Vision::Training
             }
 
             return Status();
-        }));
+        });
+    }
+
+    Result<Detect::Anchor::HeadCost> AnchorTrainingStep::run(
+        const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth)
+    {
+        SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
+        SA_TRY(check_truth(truth));
 
         SA_TRY(::SushiAI::Detail::record_and_run(*engine_, [this, &inputs]() -> Status
         {
@@ -255,10 +268,19 @@ namespace SushiAI::Vision::Training
             blas.copy(inputs, *input_);
             return Status();
         }));
-        SA_TRY(training_->run());
+
+        // The deltas come from the heads of the pass the rest of the step differentiates.
+        SA_TRY(training_->run([this, &truth]() { return feed_deltas(truth); }));
 
         return objective_.measure_cost(SushiRuntime::span<const Detect::Anchor::HeadDelta>(
             deltas_.data(), deltas_.size()));
+    }
+
+    Result<const SushiBLAS::Tensor*> AnchorTrainingStep::output(std::string_view name) const
+    {
+        SA_TRY_ASSIGN(const Graph::ValueID id, outputs_.at(name));
+
+        return &pool_->tensor(id);
     }
 
     SushiRuntime::span<const Detect::Anchor::HeadDelta> AnchorTrainingStep::deltas()
@@ -266,11 +288,6 @@ namespace SushiAI::Vision::Training
     {
         return SushiRuntime::span<const Detect::Anchor::HeadDelta>(deltas_.data(),
                                                                    deltas_.size());
-    }
-
-    const Train::EvaluationStep& AnchorTrainingStep::evaluation() const noexcept
-    {
-        return *evaluation_;
     }
 
     const Train::TrainingStep& AnchorTrainingStep::training() const noexcept
@@ -285,8 +302,7 @@ namespace SushiAI::Vision::Training
 
     Status AnchorTrainingStep::restore_run_count(std::size_t count)
     {
-        SA_TRY(evaluation_->restore_run_count(count));
-        return training_->step().restore_run_count(count);
+        return training_->restore_run_count(count);
     }
 
     const AnchorObjective& AnchorTrainingStep::objective() const noexcept

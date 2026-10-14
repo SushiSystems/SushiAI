@@ -28,6 +28,7 @@
 
 #include <SushiAI/train/training_step.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -59,6 +60,49 @@ namespace SushiAI
 
                 return Status();
             }
+
+            /**
+             * @brief Returns the node the part behind @p stage starts at.
+             * @return The node behind the last producer of a value the stage reads;
+             *         InvalidDescription for a read that names no value of the graph or one
+             *         no node produces, or for a node before the stage that reads a leaf the
+             *         stage writes.
+             */
+            [[nodiscard]] Result<Graph::NodeID> find_stage_cut(const Graph::Graph& graph,
+                                                               const HostStage& stage)
+            {
+                Graph::NodeID cut = 0;
+                for (const Graph::ValueID read : stage.reads)
+                {
+                    SA_FAIL_IF(read >= graph.value_count(), StatusCode::InvalidDescription,
+                               "The host stage reads value {}, but the graph of the step "
+                               "holds {} values",
+                               read, graph.value_count());
+
+                    const Graph::NodeID producer = graph.value(read).producer;
+                    SA_FAIL_IF(producer == Graph::K_NO_NODE, StatusCode::InvalidDescription,
+                               "The host stage reads value {}, which no node of the step "
+                               "produces",
+                               read);
+                    cut = std::max(cut, producer + 1);
+                }
+
+                for (Graph::NodeID id = 0; id < cut; ++id)
+                {
+                    for (const Graph::ValueID input : graph.node(id).inputs)
+                    {
+                        const bool is_written = std::find(stage.writes.begin(),
+                                                          stage.writes.end(), input)
+                                             != stage.writes.end();
+                        SA_FAIL_IF(is_written, StatusCode::InvalidDescription,
+                                   "Node {} runs before the host stage but reads value {}, "
+                                   "which the stage writes",
+                                   id, input);
+                    }
+                }
+
+                return cut;
+            }
         } // namespace
 
         TrainingStep::TrainingStep(Optim::Optimizer& optimizer,
@@ -68,6 +112,7 @@ namespace SushiAI
               optimizer_in_plan_(optimizer_in_plan),
               updates_(std::move(updates)),
               recorders_(),
+              lead_(),
               step_()
         {
 
@@ -102,15 +147,53 @@ namespace SushiAI
             Graph::StepRecorder* const trailing =
                 step->recorders_.empty() ? nullptr : &step->recorders_;
 
+            Graph::NodeRange rest;
+            if (!options.host_stage.reads.empty())
+            {
+                SA_TRY_ASSIGN(const Graph::NodeID cut,
+                              find_stage_cut(graph, options.host_stage));
+                SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> lead,
+                              Graph::CompiledStep::compile(engine, graph, pool, nullptr,
+                                                           options.fusion_selector,
+                                                           Graph::NodeRange{0, cut}));
+                step->lead_ = std::move(lead);
+                rest.first = cut;
+            }
+
             SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> compiled,
                           Graph::CompiledStep::compile(engine, graph, pool, trailing,
-                                                       options.fusion_selector));
+                                                       options.fusion_selector, rest));
             step->step_ = std::move(compiled);
 
             return std::move(step);
         }
 
         Status TrainingStep::run()
+        {
+            if (lead_)
+                SA_TRY(lead_->run());
+
+            return run_rest();
+        }
+
+        Status TrainingStep::restore_run_count(std::size_t count)
+        {
+            if (lead_)
+                SA_TRY(lead_->restore_run_count(count));
+
+            return step_->restore_run_count(count);
+        }
+
+        Status TrainingStep::run_lead()
+        {
+            SA_FAIL_IF(!lead_, StatusCode::InvalidDescription,
+                       "This training step was compiled without a host stage; name what the "
+                       "host reads in TrainingStepOptions::host_stage");
+
+            return lead_->run();
+        }
+
+        Status TrainingStep::run_rest()
         {
             SA_TRY(step_->run());
 

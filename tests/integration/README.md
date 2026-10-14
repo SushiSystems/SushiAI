@@ -21,13 +21,13 @@ The model reads `[8, 8, 3]` images through two normalised stride-2 convolutions 
 followed by a LeakyReLU of 0.1 and a 1x1 head convolution of 14 channels. It publishes `head.0` on a
 4 by 4 grid, `head.1` on a 2 by 2 grid and `stem`, the first convolution before its normalisation.
 The layout holds four anchors, two for each head, over two classes. The batch is two seeded images
-with three truths, two assigned to head 0 and one to head 1. An `AnchorTrainingStep` runs a
-forward-only graph and a training graph over one state, with plain SGD at a rate of 0.1.
+with three truths, two assigned to head 0 and one to head 1. An `AnchorTrainingStep` runs the
+training graph around its host stage, with plain SGD at a rate of 0.1.
 
-### TheLeavesFedAreTheDeltasOfTheForwardOnlyHeads
+### TheLeavesFedAreTheDeltasOfTheHeads
 
-After one run, the delta of each head is computed on the host from the forward-only output with
-`compute_head_delta`. The leaf the training graph was fed equals that delta element for element,
+After one run, the delta of each head is computed on the host from the head the step published
+with `compute_head_delta`. The leaf the training graph was fed equals that delta element for element,
 with a tolerance of 0, and the assignments are 2 and 1. The stored cost is the sum of the squared
 deltas and the total is that sum over the batch of two, both to 1e-9 relative.
 
@@ -62,6 +62,24 @@ as `InvalidDescription`, and the message contains "truth row 0 of image 1" and "
 
 An objective that names `head.9` is given to `AnchorTrainingStep::make` over a model that publishes
 `head.0` and `head.1`. The step is refused as `InvalidDescription`, and the message names "head.9".
+
+### AHostStageThatReadsAValueTheGraphLacksIsRefused
+
+`Train::TrainingStep::make` over the training graph, with a host stage that reads the id one
+behind the last value, fails with `InvalidDescription`, "The host stage reads value" and
+"values".
+
+### AHostStageBehindAReaderOfItsLeafIsRefused
+
+The stage reads the loss and writes the delta leaf of head 0. The loss is computed from that
+leaf, so `make` fails with `InvalidDescription`, "before the host stage" and "which the stage
+writes".
+
+### AStepWithoutAHostStageRefusesHostWork
+
+A `Train::TrainingStep` made with no host stage reports `has_host_stage()` false and a null
+`lead()`. `run` with host work fails with `InvalidDescription` and "without a host stage",
+the work is not called and the run count stays 0.
 
 ## test_arena.cpp
 

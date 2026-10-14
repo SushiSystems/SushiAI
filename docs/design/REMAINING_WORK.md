@@ -304,35 +304,32 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   `Residency::Device` change nothing.
   `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md` has how both sides were timed.
 
-  `AnchorTrainingStep::run` was timed in three parts the same day, 60 steps a model, while
-  another process held 28 % of the GPU, so a step took 1.2 s where the quiet run took 0.84 s.
-  The shares:
+  Since 2026-10-14 `AnchorTrainingStep` runs the forward pass once: the training step stops
+  after its heads, the host computes the deltas, and the rest of the step follows. Over 200
+  steps YOLOv4 then takes 0.76 s a step and YOLOv7 0.70 s; YOLOv4-tiny varies between 0.06 s
+  and 0.07 s from run to run. The stored costs are the ones the two-pass step gave, digit for
+  digit.
 
-  | Part | YOLOv4-tiny | YOLOv4 | YOLOv7 |
-  | --- | --- | --- | --- |
-  | Probe: a forward pass that only yields the heads | 25 ms | 240 ms | 204 ms |
-  | Head deltas on the host, between the two plans | 28 ms | 230 ms | 250 ms |
-  | Copy of the inputs | 2 ms | 12 ms | 13 ms |
-  | Training plan: forward, backward, update | 60 ms | 720 ms | 625 ms |
+  The host stage is the largest part left that Darknet does not have. Timed on YOLOv4, per
+  step: 115 ms for the first read of the heads, 3.5 ms in `compute_head_delta`, 120 ms to
+  write the deltas into their leaves. Heads and leaves are `Residency::Shared`, so the read
+  moves 15 MB of pages from the device to the host and the write moves the leaves the other
+  way; the backward pass then reads the heads and moves them back, which the timer did not
+  cover. YOLOv4-tiny gives 14 ms, 0.3 ms and 16 ms.
 
-  Darknet runs one forward pass and computes its deltas inside it, so the first two rows,
-  two fifths of a step, have no counterpart there. The host part grows with the elements of
-  the heads, about 60 ns an element; whether that is `compute_head_delta` or the pages of a
-  shared allocation moving between device and host was not separated.
+  Inside the training plan of YOLOv4, with profiling on and before the step was split: 5308
+  nodes and 1017 ms of device time, 319 ms of it in 326 `gemm` nodes, none above 4.4 ms. The
+  other 698 ms is spread over about 4980 nodes at 0.14 ms each: `math.ew.mul` 145 ms in 971
+  nodes, `spatial.channel_affine` 105 ms in 535, `blas.lvl1.scal` 85 ms in 862,
+  `math.sum_along` 77 ms in 428, `blas.lvl1.axpy` 71 ms in 537, `sushiai.optim.sgd` 70 ms in
+  327. Batch normalisation, lowered to primitives in `lowering/norm.cpp`, and its gradient
+  are most of those nodes; each is one kernel launch over a tensor that one fused kernel
+  could cover.
 
-  Inside the training plan of YOLOv4, with profiling on: 5308 nodes and 1017 ms of device
-  time, 319 ms of it in 326 `gemm` nodes, none above 4.4 ms. The other 698 ms is spread over
-  about 4980 nodes at 0.14 ms each: `math.ew.mul` 145 ms in 971 nodes,
-  `spatial.channel_affine` 105 ms in 535, `blas.lvl1.scal` 85 ms in 862, `math.sum_along`
-  77 ms in 428, `blas.lvl1.axpy` 71 ms in 537, `sushiai.optim.sgd` 70 ms in 327. Batch
-  normalisation, lowered to primitives in `lowering/norm.cpp`, and its gradient are most of
-  those nodes; each is one kernel launch over a tensor that one fused kernel could cover.
-
-  Left, in the order of what each would return: drop the probe, which needs either the
-  deltas computed on the device inside the training plan or that plan split into a forward
-  and a backward half around the host; find which of the two causes the host part has and
-  remove it; lower batch normalisation and its gradient to a few fused kernels. The first
-  changes how a step is built and is the owner's decision.
+  Left, in the order of what each would return: keep the host off shared pages, by copying
+  each head into a `Residency::Host` tensor on the device and each delta back the same way,
+  which needs an allocation of that residency in `core/allocation.hpp`; lower batch
+  normalisation and its gradient to a few fused kernels; compute the deltas on the device.
 - **Make the one-batch overfit of YOLOv7 hold.**
   `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails since
   2026-10-13: the stored cost is 11.1 at step 199 against a bound of 3.56. It reached 1.27

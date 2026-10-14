@@ -570,10 +570,10 @@ the epoch 1 and the batch 2, and the second the epoch 2 and the batch 0.
 fails with `Incompatible`, "batch 3", "'truths'" and "3 batches". The optimizer's step count
 stays 0.
 
-### ARestoredRunCountIsTheCountOfBothPasses
+### ARestoredRunCountIsTheCountOfBothParts
 
 The step's run count starts at 0. After `restore_run_count(4)` it is 4, and so is the run
-count of the evaluation step. After a run of three batches both are 7. A second
+count of the part before the host stage. After a run of three batches both are 7. A second
 `restore_run_count` then fails with `InvalidDescription`, "before its first run" and "run 7".
 
 ### ACallbackThatThrowsEndsTheRunAsAFailure
@@ -3746,7 +3746,7 @@ A file one pixel wide and 16385 high fails with `Unsupported`, "16385x1" and "16
 
 Suites: `Unit_CompiledStep`.
 
-Tests `CompiledStep::restore_run_count` in
+Tests `CompiledStep::restore_run_count` and the node range of `CompiledStep::compile` in
 `modules/core/graph/include/SushiAI/graph/compiled_step.hpp`. The fixture is an `EngineTest`.
 Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
 the step's output is the mask: 4/3 where `dropout_keeps` keeps an element and 0 elsewhere,
@@ -3767,6 +3767,18 @@ and "run 1", and the run count stays 1.
 
 `restore_run_count(0)` and then `restore_run_count(5)` succeed. A third call with 7 fails with
 `InvalidDescription` and "run 5", and the run count stays 5.
+
+### TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst
+
+A graph scales a leaf of four elements by 2 and the result by 3. The nodes up to the producer
+of the doubled value and the nodes behind it compile into two steps over one pool, each with
+at least one task. After the first step the doubled value holds 2, 4, 6, 8. The host then writes 10 into every element of it, and
+after the second step the tripled value holds 30 four times.
+
+### ARangeOutsideTheGraphIsRefused
+
+A range that ends one node behind the last fails with `InvalidDescription` and "does not lie
+in a graph", and the range [1, 0) with `InvalidDescription` and "[1, 0)".
 
 ## modules/layers/nn/tests/test_concat.cpp
 

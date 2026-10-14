@@ -229,7 +229,7 @@ namespace
 
         // The run is a row or the fallback run; see applications/programs/README.md.
         sa::Apps::PreparedRun prepared{
-            engine, spec, *dataset, given, *objective, probe, built, state, pool, *optimizer,
+            engine, spec, *dataset, given, *objective, built, state, pool, *optimizer,
             std::move(updates), schedule, start,
         };
         SA_TRY_ASSIGN(const sa::Apps::RunSummary summary,

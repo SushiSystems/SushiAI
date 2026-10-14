@@ -48,6 +48,7 @@
 #include <SushiAI/train/buffer_update_recorder.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_step.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/head_cost.hpp>
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
@@ -232,7 +233,6 @@ namespace
             SA_ASSERT_OK_AND_ASSIGN(
                 objective, AnchorObjective::make(NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE},
                                                  two_head_layout(), std::move(heads)));
-            SA_ASSERT_OK_AND_ASSIGN(probe, Train::build_probe_graph(*model, batch_shape));
 
             // The graph is built with the names the model publishes, whatever @p heads says.
             SA_ASSERT_OK_AND_ASSIGN(
@@ -243,7 +243,6 @@ namespace
                                     Train::build_training_graph(*model, trained, batch_shape));
             SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(engine, *model));
 
-            probe_pool = std::make_unique<TensorPool>(engine);
             training_pool = std::make_unique<TensorPool>(engine);
             SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
                                     Train::bind_parameters(built, *state, *training_pool));
@@ -267,15 +266,14 @@ namespace
         void make_step(SushiBLAS::Engine& engine)
         {
             SA_ASSERT_OK_AND_ASSIGN(
-                step, AnchorTrainingStep::make(engine, *objective, probe, *probe_pool, built,
-                                               *training_pool, *state, *optimizer,
-                                               std::move(updates)));
+                step, AnchorTrainingStep::make(engine, *objective, built, *training_pool,
+                                               *optimizer, std::move(updates)));
         }
 
-        /** @brief Returns the float32 elements of the forward-only output @p name. */
+        /** @brief Returns the float32 elements of the output the step published as @p name. */
         std::vector<float> forward_output(const std::string& name) const
         {
-            const Result<const SushiBLAS::Tensor*> found = step->evaluation().output(name);
+            const Result<const SushiBLAS::Tensor*> found = step->output(name);
             SA_EXPECT_OK(found);
             if (!found.has_value())
                 return {};
@@ -295,10 +293,8 @@ namespace
 
         std::optional<NN::ModelGraph> model;        /**< @brief Holds the two-head model. */
         std::optional<AnchorObjective> objective;   /**< @brief Holds what the step is given. */
-        Train::TracedStep probe;                    /**< @brief Holds the forward-only graph. */
         Train::TrainingGraph built;                 /**< @brief Holds the training graph. */
         std::optional<NN::ModelState> state;        /**< @brief Holds the one shared state. */
-        std::unique_ptr<TensorPool> probe_pool;     /**< @brief Holds the forward-only values. */
         std::unique_ptr<TensorPool> training_pool;  /**< @brief Holds the training values. */
         std::vector<Train::BufferUpdateSlot> updates; /**< @brief Holds the running updates. */
         std::unique_ptr<Optim::SGD> optimizer;      /**< @brief Holds the plain SGD. */
@@ -308,7 +304,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each leaf holds the delta of its forward-only head, element for element. */
-TEST_F(Integration_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheForwardOnlyHeads)
+TEST_F(Integration_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -487,8 +483,67 @@ TEST_F(Integration_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefus
     ASSERT_TRUE(model.ready);
 
     SA_EXPECT_FAILURE(
-        AnchorTrainingStep::make(*engine, *model.objective, model.probe, *model.probe_pool,
-                                 model.built, *model.training_pool, *model.state,
+        AnchorTrainingStep::make(*engine, *model.objective, model.built, *model.training_pool,
                                  *model.optimizer, std::move(model.updates)),
         StatusCode::InvalidDescription, "head.9");
+}
+
+/** @brief Tests that a host stage reading a value the graph lacks is refused with the count. */
+TEST_F(Integration_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefused)
+{
+    TwoHeadCase model;
+    model.prepare(*engine, two_heads("head.0", "head.1"));
+    ASSERT_TRUE(model.ready);
+
+    Train::TrainingStepOptions options;
+    options.host_stage.reads = {
+        static_cast<Graph::ValueID>(model.built.graph.value_count())};
+    SA_EXPECT_FAILURE(Train::TrainingStep::make(*engine, model.built.graph,
+                                                *model.training_pool, *model.optimizer,
+                                                std::move(model.updates), options),
+                      StatusCode::InvalidDescription, "The host stage reads value",
+                      "values");
+}
+
+/** @brief Tests that a stage placed behind a reader of a leaf it writes is refused. */
+TEST_F(Integration_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
+{
+    TwoHeadCase model;
+    model.prepare(*engine, two_heads("head.0", "head.1"));
+    ASSERT_TRUE(model.ready);
+
+    // The loss reads the delta leaf, so a stage that waits for the loss comes too late.
+    Train::TrainingStepOptions options;
+    options.host_stage.reads = {model.built.spec.loss};
+    options.host_stage.writes = {model.built.leaves.at(model.objective->leaf_role(0))};
+    SA_EXPECT_FAILURE(Train::TrainingStep::make(*engine, model.built.graph,
+                                                *model.training_pool, *model.optimizer,
+                                                std::move(model.updates), options),
+                      StatusCode::InvalidDescription, "before the host stage",
+                      "which the stage writes");
+}
+
+/** @brief Tests that a step compiled without a host stage refuses host work and calls none. */
+TEST_F(Integration_AnchorTrainingStep, AStepWithoutAHostStageRefusesHostWork)
+{
+    TwoHeadCase model;
+    model.prepare(*engine, two_heads("head.0", "head.1"));
+    ASSERT_TRUE(model.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Train::TrainingStep> step,
+        Train::TrainingStep::make(*engine, model.built.graph, *model.training_pool,
+                                  *model.optimizer, std::move(model.updates)));
+    EXPECT_FALSE(step->has_host_stage());
+    EXPECT_EQ(step->lead(), nullptr);
+
+    bool is_called = false;
+    SA_EXPECT_FAILURE(step->run([&is_called]()
+    {
+        is_called = true;
+        return Status();
+    }),
+                      StatusCode::InvalidDescription, "without a host stage");
+    EXPECT_FALSE(is_called);
+    EXPECT_EQ(step->step().run_count(), 0u);
 }

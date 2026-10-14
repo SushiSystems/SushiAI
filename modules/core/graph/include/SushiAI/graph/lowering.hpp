@@ -37,6 +37,7 @@
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
+#include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 
@@ -71,10 +72,12 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Records every node of @p graph, in node order.
-                 * @return Success, or the first refusal, annotated with the node's operation.
+                 * @brief Records the nodes of @p graph that @p nodes names, in node order.
+                 * @return Success, or the first refusal, annotated with the node's operation;
+                 *         InvalidDescription for a range that ends before it starts or
+                 *         behind the last node.
                  */
-                [[nodiscard]] Status record(const Graph& graph);
+                [[nodiscard]] Status record(const Graph& graph, NodeRange nodes = {});
 
                 /** @brief Returns the number of tasks recorded by the last record(). */
                 [[nodiscard]] std::size_t emitted_operations() const noexcept

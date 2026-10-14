@@ -28,8 +28,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/core/result.hpp>
@@ -37,6 +39,7 @@
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/optim/optimizer.hpp>
@@ -62,6 +65,22 @@ namespace SushiAI
             PerStep,
         };
 
+        /**
+         * @brief Names what the host reads and writes between two parts of one step.
+         *
+         * A step with a host stage is compiled in two parts. The first ends at the node that
+         * produces the last value of @c reads; the second holds every other node and the
+         * trailing work.
+         */
+        struct HostStage
+        {
+            /** @brief The values the host reads; an empty list declares no host stage. */
+            std::vector<Graph::ValueID> reads;
+
+            /** @brief The leaves the host writes; no node of the first part reads one. */
+            std::vector<Graph::ValueID> writes;
+        };
+
         /** @brief States how a training step is compiled. */
         struct TrainingStepOptions
         {
@@ -70,6 +89,9 @@ namespace SushiAI
 
             /** @brief Picks the kernel variant of a fused node; null selects by device. */
             const Graph::FusionSelector* fusion_selector = nullptr;
+
+            /** @brief Names what the host reads and writes inside the step, if anything. */
+            HostStage host_stage{};
         };
 
         /**
@@ -80,12 +102,12 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Compiles @p graph with the optimizer and the buffer updates recorded
-                 *        behind it, as the options place them.
+                 * @brief Compiles @p graph with the trailing work the options place behind it.
                  * @param engine Must outlive the step, as must @p pool and @p optimizer.
                  * @param updates The buffer updates to blend on every replay; may be empty.
-                 * @return The step, InvalidDescription when InPlan is asked of an optimizer that
-                 *         is not replay invariant, or the first refusal of the compilation.
+                 * @return The step; InvalidDescription for InPlan with an optimizer that is not
+                 *         replay invariant or for a host stage the graph cannot be cut at; or
+                 *         the first refusal of the compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<TrainingStep>> make(
                     SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
@@ -105,6 +127,41 @@ namespace SushiAI
                  */
                 [[nodiscard]] Status run();
 
+                /**
+                 * @brief Replays the part before the host stage, calls @p host_work, then
+                 *        replays the rest as run() does.
+                 * @param host_work Called as host_work() and returns Status; it may read what
+                 *        HostStage::reads names and write what HostStage::writes names.
+                 * @return Success, InvalidDescription for a step with no host stage, or the
+                 *         failure of a replay, of @p host_work or of the optimizer's step.
+                 */
+                template<typename HostWork>
+                [[nodiscard]] Status run(HostWork&& host_work)
+                {
+                    SA_TRY(run_lead());
+                    SA_TRY(std::forward<HostWork>(host_work)());
+                    return run_rest();
+                }
+
+                /** @brief Returns whether the step was compiled around a host stage. */
+                [[nodiscard]] bool has_host_stage() const noexcept
+                {
+                    return lead_ != nullptr;
+                }
+
+                /**
+                 * @brief Sets the run count of every part to that of a saved run.
+                 * @param count What step().run_count() of the saved run returned.
+                 * @return What Graph::CompiledStep::restore_run_count() returns for a part.
+                 */
+                [[nodiscard]] Status restore_run_count(std::size_t count);
+
+                /** @brief Returns the part before the host stage, or null for a step with none. */
+                [[nodiscard]] const Graph::CompiledStep* lead() const noexcept
+                {
+                    return lead_.get();
+                }
+
                 /** @brief Returns whether the optimizer's update is recorded into the step. */
                 [[nodiscard]] bool optimizer_is_in_plan() const noexcept
                 {
@@ -117,13 +174,13 @@ namespace SushiAI
                     return *optimizer_;
                 }
 
-                /** @brief Returns the compiled step. */
+                /** @brief Returns the compiled step; behind a host stage, the part after it. */
                 [[nodiscard]] Graph::CompiledStep& step() noexcept
                 {
                     return *step_;
                 }
 
-                /** @brief Returns the compiled step. */
+                /** @brief Returns the compiled step; behind a host stage, the part after it. */
                 [[nodiscard]] const Graph::CompiledStep& step() const noexcept
                 {
                     return *step_;
@@ -139,6 +196,16 @@ namespace SushiAI
                 TrainingStep(Optim::Optimizer& optimizer, std::vector<BufferUpdateSlot> updates,
                              bool optimizer_in_plan) noexcept;
 
+                /**
+                 * @brief Replays the part before the host stage.
+                 * @return Success, InvalidDescription for a step with no host stage, or the
+                 *         failure of the replay.
+                 */
+                [[nodiscard]] Status run_lead();
+
+                /** @brief Replays step(), then steps an optimizer that is not in the plan. */
+                [[nodiscard]] Status run_rest();
+
                 /// @brief The update rule; not owned.
                 Optim::Optimizer* optimizer_;
 
@@ -150,6 +217,9 @@ namespace SushiAI
 
                 /// @brief The trailing work of the step, in order: optimizer, then updates.
                 Graph::StepRecorderList recorders_;
+
+                /// @brief The part before the host stage, or null; dies after step_.
+                std::unique_ptr<Graph::CompiledStep> lead_;
 
                 /// @brief The compiled step, declared last so it dies first; never null.
                 std::unique_ptr<Graph::CompiledStep> step_;

@@ -73,9 +73,6 @@ namespace SushiAI
             /** @brief The objective the training graph was built with. */
             const Train::Objective& objective;
 
-            /** @brief The forward-only trace of the model, with every buffer update dropped. */
-            const Train::TracedStep& probe;
-
             /** @brief The training graph, bound into @c pool by bind_parameters(). */
             const Train::TrainingGraph& built;
 

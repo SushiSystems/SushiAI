@@ -37,6 +37,7 @@
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <common/test_status.hpp>
 #include <common/test_utils.hpp>
@@ -168,4 +169,59 @@ TEST_F(Unit_CompiledStep, ASecondRestoreIsRefused)
     SA_EXPECT_FAILURE(made->step->restore_run_count(7), StatusCode::InvalidDescription,
                       "run 5");
     EXPECT_EQ(made->step->run_count(), 5u);
+}
+
+/** @brief Tests that two ranges of a graph run as two steps over the tensors of one pool. */
+TEST_F(Unit_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
+    const ValueID doubled = builder.scale(leaf, 2.0);
+    const ValueID tripled = builder.scale(doubled, 3.0);
+    const Graph::NodeID cut = graph.value(doubled).producer + 1;
+    ASSERT_LT(cut, graph.node_count());
+
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<CompiledStep> first,
+        CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+                              Graph::NodeRange{0, cut}));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<CompiledStep> second,
+        CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+                              Graph::NodeRange{cut, Graph::K_NO_NODE}));
+    EXPECT_GE(first->operation_count(), 1u);
+    EXPECT_GE(second->operation_count(), 1u);
+
+    SaTest::write_tensor(pool.tensor(leaf), std::vector<double>{1.0, 2.0, 3.0, 4.0});
+    SA_EXPECT_OK(first->run());
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(doubled)),
+              (std::vector<double>{2.0, 4.0, 6.0, 8.0}));
+
+    // The host writes between the two steps, and the second reads what it wrote.
+    SaTest::write_tensor(pool.tensor(doubled), std::vector<double>(4, 10.0));
+    SA_EXPECT_OK(second->run());
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(tripled)),
+              (std::vector<double>{30.0, 30.0, 30.0, 30.0}));
+}
+
+/** @brief Tests that a range that ends behind the last node is refused with its bounds. */
+TEST_F(Unit_CompiledStep, ARangeOutsideTheGraphIsRefused)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
+    static_cast<void>(builder.scale(leaf, 2.0));
+
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    const Graph::NodeID count = static_cast<Graph::NodeID>(graph.node_count());
+    SA_EXPECT_FAILURE(CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+                                            Graph::NodeRange{0, count + 1}),
+                      StatusCode::InvalidDescription, "does not lie in a graph");
+    SA_EXPECT_FAILURE(
+        CompiledStep::compile(*engine, graph, pool, nullptr, nullptr, Graph::NodeRange{1, 0}),
+        StatusCode::InvalidDescription, "[1, 0)");
 }

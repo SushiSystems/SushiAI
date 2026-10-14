@@ -55,6 +55,7 @@
 #include <SushiAI/graph/arena.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
+#include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/lowering/rule.hpp>
 #include <SushiAI/graph/lowering/unlowered.hpp>

@@ -76,7 +76,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<CompiledStep>> CompiledStep::compile(
             SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
-            StepRecorder* trailing, const FusionSelector* selector)
+            StepRecorder* trailing, const FusionSelector* selector, NodeRange nodes)
         {
             SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
                        "This graph holds a refused operation and cannot be compiled; the builder "
@@ -92,7 +92,7 @@ namespace SushiAI
             Lowering lowering(step->recorder_, engine.rng(), pool,
                               selector ? *selector : device);
 
-            Status recorded = lowering.record(graph);
+            Status recorded = lowering.record(graph, nodes);
             step->operations_ = lowering.emitted_operations();
 
             const Status copied = SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,

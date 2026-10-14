@@ -30,6 +30,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/fusion_selector.hpp` | `FusionQuery`, `FusionChoice`, `FusionSelector`, `DeviceFusionSelector`, `FusionSelection` |
 | `SushiAI/graph/ir.hpp` | `ValueID`, `NodeID`, `Lifetime`, `lifetime_name`, `is_persistent`, `Attributes`, `TensorLayout`, `Value`, `Node`, `Graph` |
 | `SushiAI/graph/lowering.hpp` | `Lowering`, with its `record` |
+| `SushiAI/graph/node_range.hpp` | `NodeRange` |
 | `SushiAI/graph/memory_plan.hpp` | `ArenaID`, `K_NO_ARENA`, `Arena`, `Placement`, `PlanOptions`, `MemoryPlan` |
 | `SushiAI/graph/precision.hpp` | `PrecisionQuery`, `PrecisionChoice`, `PrecisionPolicy`, `UniformPrecisionPolicy`, `MixedPrecisionPolicy`, `narrows_under_mixed_precision` |
 | `SushiAI/graph/rematerialise.hpp` | `rematerialise_im2col` |
@@ -130,6 +131,16 @@ where an entry is kept and a scale of zero and a shift of the fill where it is n
 `[T * T]` vectors are FLOAT32 scratch of the node, filled on the host when the node is lowered,
 and converted once when the operand is not FLOAT32. Its backward rule emits the same node over
 the gradient with a fill of zero. Neither operation narrows under `MixedPrecisionPolicy`.
+
+## A step over part of a graph
+
+`Lowering::record` and `CompiledStep::compile` take a `NodeRange`, the nodes from `first` up to
+and without `end`; an `end` of `K_NO_NODE` stands for the node count, and the default range is
+the whole graph. A range that ends before it starts or behind the last node is
+`InvalidDescription`. Two steps compiled over two ranges of one graph share its `TensorPool`,
+so the second reads what the first left in the pool and what the host wrote there between
+the two runs. Each step has its own run count and its own preludes. `Train::TrainingStep`
+uses this to stop a step for work on the host.
 
 ## Host work before each replay
 

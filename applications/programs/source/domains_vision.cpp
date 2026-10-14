@@ -92,12 +92,11 @@ namespace SushiAI
                               Vision::Training::build_anchor_objective(
                                   run.given, run.spec.objective_attributes));
 
-                Graph::TensorPool probe_pool(run.engine);
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Vision::Training::AnchorTrainingStep> step,
                     Vision::Training::AnchorTrainingStep::make(
-                        run.engine, objective, run.probe, probe_pool, run.built, run.pool,
-                        run.state, run.optimizer, std::move(run.updates)));
+                        run.engine, objective, run.built, run.pool, run.optimizer,
+                        std::move(run.updates)));
 
                 SA_TRY(check_start_batch(run));
                 SA_TRY(step->restore_run_count(static_cast<std::size_t>(run.start.step_runs)));
@@ -123,9 +122,10 @@ namespace SushiAI
                 SA_TRY(Vision::Training::run_anchor_training(*step, run.dataset, options)
                            .status());
 
-                const std::size_t forward_compiles = step->evaluation().step().compile_count();
+                const std::size_t forward_compiles = step->training().lead()->compile_count();
                 SA_FAIL_IF(forward_compiles != 1, StatusCode::InvalidDescription,
-                           "the forward-only pass was compiled {} times", forward_compiles);
+                           "the part of the step before its heads was compiled {} times",
+                           forward_compiles);
 
                 RunSummary summary;
                 summary.compile_count = step->training().step().compile_count();
