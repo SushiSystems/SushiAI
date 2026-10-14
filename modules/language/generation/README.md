@@ -30,6 +30,9 @@ keys and the values of the positions before it. Everything is in namespace
 | `<SushiAI/language/generation/generator.hpp>` | `Generator` |
 | `<SushiAI/language/generation/window_generator.hpp>` | `WindowGenerator` |
 | `<SushiAI/language/generation/cached_generator.hpp>` | `CachedStepLeaves`, `RingStepLeaves`, `AngleRows`, `CachedGenerator` |
+| `<SushiAI/language/generation/position_feed.hpp>` | `Detail::PositionFeed`, `Detail::make_position_feed` |
+| `<SushiAI/language/generation/ring_position_feed.hpp>` | `Detail::RingPositionFeed` |
+| `<SushiAI/language/generation/table_position_feed.hpp>` | `Detail::TablePositionFeed` |
 
 ## Samplers
 
@@ -137,8 +140,8 @@ logits. A context of `T` ids drops its first id before it takes the new one, as
 | `CachedGenerator`, cache slot | `T`, so the window slides | 1 | 1 |
 | `WindowGenerator` | Any length | 1 | `T` |
 
-The two feeds are `source/table_position_feed.hpp` and `source/ring_position_feed.hpp`
-behind `Detail::PositionFeed` of `source/position_feed.hpp`: `place(position)` writes the
+The two feeds are `table_position_feed.hpp` and `ring_position_feed.hpp` behind
+`Detail::PositionFeed` of `position_feed.hpp`: `place(position)` writes the
 leaves of one token, `feeds()` lists them for the run, and `keeps_rows_on_slide()` is the one
 thing the loop asks before it decides between a run and a restart.
 

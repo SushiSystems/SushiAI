@@ -10,6 +10,4 @@ sushiai_add_module(NAME registration TIER language
     SOURCES
         source/registration.cpp
     PUBLIC_DEPENDS core data nn train
-    PRIVATE_DEPENDS language/blocks language/datasets language/training
-    TESTS
-        tests/test_registration.cpp)
+    PRIVATE_DEPENDS language/blocks language/datasets language/training)

@@ -41,6 +41,17 @@ K_FIXTURE_CEILING_BYTES = 64 * 1024 * 1024
 K_MANIFEST_NAME = "MANIFEST.json"
 K_MANIFEST_FORMAT_VERSION = 1
 K_WEIGHTS_FILE = "weights.sushi"
+K_REGISTRATION_FIXTURES = "vision/registration/fixtures/yolo26"
+K_DETECT_FIXTURES = "vision/detect/fixtures/yolo26"
+K_BATCHNORM_FIXTURES = "layers/nn/fixtures/batch_norm2d"
+K_DESTINATIONS = {
+    K_MANIFEST_NAME: (K_REGISTRATION_FIXTURES,),
+    K_WEIGHTS_FILE: (K_REGISTRATION_FIXTURES,),
+    "input.sacp": (K_REGISTRATION_FIXTURES,),
+    "forward.sacp": (K_DETECT_FIXTURES, K_REGISTRATION_FIXTURES),
+    "loss.sacp": (K_DETECT_FIXTURES,),
+    "batchnorm.sacp": (K_BATCHNORM_FIXTURES,),
+}
 K_BRANCHES = ("one2many", "one2one")
 K_GAIN_NAMES = ("box", "cls", "dfl")
 K_ASSIGNER_INPUTS = ("scores", "boxes")
@@ -288,7 +299,7 @@ def build_manifest(
         entries.append(
             {
                 "name": reference.name,
-                "location": "external" if is_external else "output_directory",
+                "location": "external" if is_external else "fixture_folder",
                 "sha256": hashlib.sha256(data).hexdigest(),
                 "size_bytes": len(data),
                 "context": reference.context,
@@ -317,27 +328,31 @@ def _describe_tensor(tensor: ExportedTensor) -> dict[str, Any]:
 def write_reference_files(
     payloads: dict[str, bytes],
     manifest: str,
-    output_dir: Path,
+    tests_dir: Path,
     external_weights: Path | None,
 ) -> dict[str, int]:
-    """Writes the SACP files and the manifest and returns each written size by file name.
+    """Writes each file to the fixture folders K_DESTINATIONS names below tests_dir.
+
+    Returns each written size by file name.
 
     Raises:
-        FixtureTooLargeError: The output directory would exceed the fixture ceiling.
+        FixtureTooLargeError: The files of one fixture folder would exceed the fixture ceiling.
     """
     contents = {**payloads, K_MANIFEST_NAME: manifest.encode("utf-8")}
-    targets = {name: output_dir / name for name in contents}
+    targets = [
+        (name, tests_dir / folder / name) for name in contents for folder in K_DESTINATIONS[name]
+    ]
     if external_weights is not None:
-        targets[K_WEIGHTS_FILE] = external_weights / K_WEIGHTS_FILE
-    in_output = sum(
-        len(contents[name]) for name, path in targets.items() if path.parent == output_dir
-    )
-    if in_output > K_FIXTURE_CEILING_BYTES:
-        raise FixtureTooLargeError(
-            f"{in_output} bytes exceed the {K_FIXTURE_CEILING_BYTES} byte ceiling; "
-            "pass --external-weights DIR to keep weights.sushi outside the output directory",
-        )
-    for name, path in targets.items():
+        targets = [(name, path) for name, path in targets if name != K_WEIGHTS_FILE]
+        targets.append((K_WEIGHTS_FILE, external_weights / K_WEIGHTS_FILE))
+    for folder in {tests_dir / folder for folders in K_DESTINATIONS.values() for folder in folders}:
+        in_folder = sum(len(contents[name]) for name, path in targets if path.parent == folder)
+        if in_folder > K_FIXTURE_CEILING_BYTES:
+            raise FixtureTooLargeError(
+                f"{in_folder} bytes in {folder} exceed the {K_FIXTURE_CEILING_BYTES} byte "
+                "ceiling; pass --external-weights DIR to keep weights.sushi outside it",
+            )
+    for name, path in targets:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(contents[name])
     return {name: len(data) for name, data in contents.items()}
@@ -1094,7 +1109,7 @@ def produce_references(seed: int, bn_state: str) -> tuple[dict[str, Any], list[R
     return collect_run_facts(seed, commit), files
 
 
-def run(output_dir: Path, seed: int, bn_state: str, external_weights: Path | None) -> None:
+def run(tests_dir: Path, seed: int, bn_state: str, external_weights: Path | None) -> None:
     """Produces the references, writes them and prints one line per written file.
 
     Raises:
@@ -1113,7 +1128,7 @@ def run(output_dir: Path, seed: int, bn_state: str, external_weights: Path | Non
     payloads = encode_files(files)
     manifest = build_manifest(facts, files, payloads, external_weights is not None)
     try:
-        sizes = write_reference_files(payloads, manifest, output_dir, external_weights)
+        sizes = write_reference_files(payloads, manifest, tests_dir, external_weights)
     except OSError as error:
         raise ExportError(f"cannot write the references: {error}") from error
     for reference in files:
@@ -1125,7 +1140,7 @@ def run(output_dir: Path, seed: int, bn_state: str, external_weights: Path | Non
 def parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     """Returns the parsed command line."""
     parser = argparse.ArgumentParser(description="Exports YOLO26n reference tensors as SACP files.")
-    parser.add_argument("output_dir", type=Path, help="directory of the SACP files and manifest")
+    parser.add_argument("tests_dir", type=Path, help="tests/ folder holding the fixture folders")
     parser.add_argument("--seed", type=int, default=K_DEFAULT_SEED, help="seed of weights, input")
     parser.add_argument(
         "--bn-state",
@@ -1137,7 +1152,7 @@ def parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         "--external-weights",
         type=Path,
         default=None,
-        help=f"directory for {K_WEIGHTS_FILE} when it must stay outside the output directory",
+        help=f"directory for {K_WEIGHTS_FILE} when it must stay outside the fixture folders",
     )
     return parser.parse_args(argv)
 
@@ -1146,7 +1161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Runs the export and returns the process exit code."""
     arguments = parse_arguments(argv)
     try:
-        run(arguments.output_dir, arguments.seed, arguments.bn_state, arguments.external_weights)
+        run(arguments.tests_dir, arguments.seed, arguments.bn_state, arguments.external_weights)
     except ExportError as error:
         print(f"export_yolo26_reference: {error}", file=sys.stderr)
         return 1

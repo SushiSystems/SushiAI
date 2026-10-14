@@ -47,27 +47,4 @@ sushiai_add_module(NAME datasets TIER vision
         source/xml_element.cpp
         source/yolo_txt.cpp
     PUBLIC_DEPENDS core config data vision/imaging vision/codecs
-    PRIVATE_DEPENDS vision/segment
-    TESTS
-        tests/test_datasets_cifar.cpp
-        tests/test_datasets_coco_json.cpp
-        tests/test_datasets_collators.cpp
-        tests/test_datasets_csv.cpp
-        tests/test_datasets_fit_mask.cpp
-        tests/test_datasets_fit_sample.cpp
-        tests/test_datasets_idx.cpp
-        tests/test_datasets_idx_file.cpp
-        tests/test_datasets_image_folder.cpp
-        tests/test_datasets_load_sample_image.cpp
-        tests/test_datasets_mask_png.cpp
-        tests/test_datasets_pipelines.cpp
-        tests/test_datasets_polygon_mask.cpp
-        tests/test_datasets_reader_dataset.cpp
-        tests/test_datasets_reader_section.cpp
-        tests/test_datasets_sample_cache.cpp
-        tests/test_datasets_stored_pixels.cpp
-        tests/test_datasets_table_dataset.cpp
-        tests/test_datasets_task_collators.cpp
-        tests/test_datasets_voc_xml.cpp
-        tests/test_datasets_xml_element.cpp
-        tests/test_datasets_yolo_txt.cpp)
+    PRIVATE_DEPENDS vision/segment)

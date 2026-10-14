@@ -23,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from reference.export_yolo26_reference import (  # noqa: E402
     K_FEATURE_ROWS,
+    K_DETECT_FIXTURES,
     K_FIXTURE_CEILING_BYTES,
+    K_REGISTRATION_FIXTURES,
     K_LAYOUT_CONV,
     K_LAYOUT_DEPTHWISE,
     K_LAYOUT_UNSPECIFIED,
@@ -183,12 +185,30 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(manifest["seed"], 3)
         self.assertEqual(entry["sha256"], hashlib.sha256(payloads["forward.sacp"]).hexdigest())
         self.assertEqual(entry["size_bytes"], len(payloads["forward.sacp"]))
-        self.assertEqual(entry["location"], "output_directory")
+        self.assertEqual(entry["location"], "fixture_folder")
         self.assertEqual(entry["tensors"][0]["shape"], [2])
         self.assertEqual(entry["tensors"][0]["max"], 6.0)
 
+    def test_write_puts_each_file_in_the_fixture_folders_of_its_owners(self) -> None:
+        """Checks that forward.sacp lands in two fixture folders and the manifest in one."""
+        files = [
+            _reference_file("forward.sacp", _float_record("x", (1,), [1.0])),
+            _reference_file("loss.sacp", _float_record("y", (1,), [2.0])),
+        ]
+        payloads = encode_files(files)
+        manifest = build_manifest({}, files, payloads, external=False)
+        with tempfile.TemporaryDirectory() as folder:
+            tests = Path(folder)
+            write_reference_files(payloads, manifest, tests, None)
+            detect = sorted(path.name for path in (tests / K_DETECT_FIXTURES).iterdir())
+            registration = sorted(
+                path.name for path in (tests / K_REGISTRATION_FIXTURES).iterdir()
+            )
+            self.assertEqual(detect, ["forward.sacp", "loss.sacp"])
+            self.assertEqual(registration, ["MANIFEST.json", "forward.sacp"])
+
     def test_write_puts_weights_in_the_external_directory(self) -> None:
-        """Checks that only weights.sushi leaves the output directory."""
+        """Checks that only weights.sushi leaves the fixture folders."""
         files = [
             _reference_file("weights.sushi", _float_record("w", (1,), [1.0])),
             _reference_file("input.sacp", _float_record("image", (1,), [1.0])),
@@ -196,9 +216,9 @@ class ManifestTest(unittest.TestCase):
         payloads = encode_files(files)
         manifest = build_manifest({}, files, payloads, external=True)
         with tempfile.TemporaryDirectory() as folder:
-            output, external = Path(folder) / "out", Path(folder) / "external"
-            write_reference_files(payloads, manifest, output, external)
-            written = sorted(path.name for path in output.iterdir())
+            tests, external = Path(folder) / "tests", Path(folder) / "external"
+            write_reference_files(payloads, manifest, tests, external)
+            written = sorted(path.name for path in (tests / K_REGISTRATION_FIXTURES).iterdir())
             self.assertEqual(written, ["MANIFEST.json", "input.sacp"])
             self.assertEqual((external / "weights.sushi").read_bytes(), payloads["weights.sushi"])
         self.assertEqual(json.loads(manifest)["files"][0]["location"], "external")

@@ -61,6 +61,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `anchor/anchor_plan.hpp` | `AnchorPlanOptions`, `AnchorPlan`, `plan_anchors` |
 | `anchor/anchor_task.hpp` | `K_ANCHOR_TASK_TYPE`, `AnchorTaskHead`, `AnchorTask`, `read_anchor_task`, `write_anchor_task` |
 | `anchor/head_training_section.hpp` | `K_ANCHOR_OBJECTIVE_TYPE`, `read_head_training_section`, `write_head_training_section` |
+| `anchor/seeded_sequence.hpp` | `Detail::SeededSequence` |
 
 ## free/anchors.hpp
 

@@ -25,7 +25,7 @@
  * @author Mustafa Garip
  */
 
-#include "seeded_sequence.hpp"
+#include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
 
 namespace SushiAI::Vision::Detect::Anchor::Detail
 {

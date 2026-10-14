@@ -134,6 +134,7 @@
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
+#include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
 
 #include <SushiAI/vision/importers/darknet_config.hpp>

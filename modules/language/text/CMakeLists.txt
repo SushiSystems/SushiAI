@@ -14,10 +14,4 @@ sushiai_add_module(NAME text TIER language
         source/stream_encoder.cpp
         source/vocabulary.cpp
         source/vocabulary_file.cpp
-    PUBLIC_DEPENDS core
-    TESTS
-        tests/test_text_bpe_trainer.cpp
-        tests/test_text_codec.cpp
-        tests/test_text_stream_encoder.cpp
-        tests/test_text_vocabulary.cpp
-        tests/test_text_vocabulary_file.cpp)
+    PUBLIC_DEPENDS core)

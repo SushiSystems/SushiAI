@@ -23,13 +23,4 @@ sushiai_add_module(NAME training TIER vision
         source/segmentation_metrics.cpp
         source/truth_from_roles.cpp
     PUBLIC_DEPENDS core graph config data optim nn train vision/detect vision/segment
-    PRIVATE_DEPENDS autograd
-    TESTS
-        tests/test_anchor_objective.cpp
-        tests/test_anchor_objective_factory.cpp
-        tests/test_anchor_training_loop.cpp
-        tests/test_head_delta_loss.cpp
-        tests/test_pixel_objectives.cpp
-        tests/test_pixel_targets.cpp
-        tests/test_segmentation_metrics.cpp
-        tests/test_truth_from_roles.cpp)
+    PRIVATE_DEPENDS autograd)
