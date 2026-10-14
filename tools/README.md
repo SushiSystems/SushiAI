@@ -6,10 +6,12 @@ A rule is fixed there first and copied here; `K_` settings are the only local ch
 | Path | Checks | Takes |
 | --- | --- | --- |
 | `common/checker.py` | Nothing itself; runs a checker's rule table and prints findings | |
+| `common/ignored_paths.py` | Nothing itself; names the files and folders git ignores, which no checker reads | |
 | `documentation/check_source_comments.py` | C++, GLSL, TypeScript and Python: license block, file header, block ceiling, `//` and `#` runs, separators, history words, `@date` | Files or folders |
 | `documentation/check_docs_layout.py` | `docs/` entries, required documents, document names, work folders, status lines, design ceiling, links under `docs/`, reachability from `docs/README.md`, READMEs under `modules/<tier>/<module>/`, archive candidates | Repository root |
 | `documentation/check_changelog.py` | Headings and entry shape, releases kept live, length, one sentence, nesting, cited places | Repository root |
 | `layering/check_layering.py` | Declared tiers, upward includes, reaches into another module's `source/` | Repository root |
+| `testing/check_test_mirror.py` | `tests/` mirrors the source: one `test_<name>` file per header, no test without a unit, no folder without a counterpart | Repository root |
 | `licensing/write_license_block.py` | Nothing; writes the license block of `source-comments` into every tracked source file, or lists the files that lack it with `--report` | Repository root, `--project` |
 | `contract/check_contract.py` | `SA_THROW_IF` and `throw` sites of `modules/*/*/include`, `modules/*/*/source` and `applications/` against `contract/site_classes.tsv`: table shape, no file with more sites than rows, every site a row, every row a site; prints the open questions of the table and the `Detail::bridge(` count per module as notes | Repository root |
 | `naming/build_rename_map.py` | Nothing; lists the constants, enumerators, interfaces, enums and macros the naming ruling changes, writes `naming/rename_map.tsv` and prints the tokens the rename could not resolve | Repository root, `--output` |
