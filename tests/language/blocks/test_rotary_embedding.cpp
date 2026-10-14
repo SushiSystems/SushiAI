@@ -59,7 +59,7 @@
 using namespace SushiAI;
 using Language::Blocks::RotaryEmbedding;
 using NN::Trace;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/blocks/README.md.
 namespace SaTest = SushiAI::Test;
 using Language::Blocks::rotary_angle;
 

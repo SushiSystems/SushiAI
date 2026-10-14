@@ -461,22 +461,23 @@ sa test --suite integration
 sa test --suite regression
 sa test --suite all
 
-sa run sushiai_tests                                   # every case in one process
-sa run sushiai_tests -- --gtest_filter='Unit_Version.*'
+sa run sushiai_core_graph_tests                        # one module's cases in one process
+sa run sushiai_core_version_tests -- --gtest_filter='Unit_Version.*'
 
 ctest --test-dir build -L unit
 ctest --test-dir build -L regression
 ```
 
-`sushiai_tests` is one binary holding all three tiers: 1803 cases in 121 suites
-on 2026-10-09. `sa test` runs the same cases through CTest, one process per
-case. SushiBLAS builds its own suite only when it is the top-level project
+Each module builds its own test program, `sushiai_<tier>_<module>_tests`, from
+the files under `tests/<tier>/<module>/`; `tests/README.md` describes the tree.
+`sa test` runs the cases of every program through CTest, one process per case.
+SushiBLAS builds its own suite only when it is the top-level project
 (`SB_BUILD_TESTS`), so none of its tests are compiled or counted here.
 
 The `regression` tier pins guarantees whose failure is silent — today
 `compile_count() == 1` across repeated `fit()` calls, and the fact that every
 replay actually dispatches instead of reporting complete over an unarmed plan
-(see `tests/regression/test_compile_once.cpp`).
+(see `tests/layers/train/test_trainer/test_compile_once.cpp`).
 
 ## How it works (today)
 

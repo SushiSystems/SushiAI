@@ -100,10 +100,11 @@ section 8 and the staged plan in section 7; what has been written is in `PLAN.md
 reference exporter is `tools/reference/export_yolo26_reference.py`.
 
 The forward pass is built and equals the reference. On 2026-10-09 the 24 rows of
-`applications/examples/yolo26/model.json` built, the weights of `tests/fixtures/yolo26/` loaded
-through `import_weights`, and `Integration_Yolo26Forward` matched the Ultralytics reference: the
-feature maps of rows 16, 19 and 22 and the twelve raw head outputs within 1e-4, the decoded
-boxes within 1.3e-4, the scores within 1e-6.
+`applications/examples/yolo26/model.json` built, the weights of
+`tests/vision/registration/fixtures/yolo26/` loaded through `import_weights`, and
+`Integration_Yolo26Forward` matched the Ultralytics reference: the feature maps of rows 16, 19 and
+22 and the twelve raw head outputs within 1e-4, the decoded boxes within 1.3e-4, the scores within
+1e-6.
 
 - **A detection report in `sushiai inference`**, which refuses a model with several outputs.
 - **The detection objective.** No code builds the loss graph of SPEC section 4 from the
@@ -138,8 +139,6 @@ The design and the owner's rulings are in [`DOMAIN_MODULES.md`](DOMAIN_MODULES.m
   tests, install).
 - **One home for the join that lists type names**, in `node_registry.cpp`,
   `layer_registry.cpp` and `dataset_registry.cpp`.
-- **Give each module's tests their own README**, and take their sections out of
-  `tests/unit/README.md`.
 
 ## Darknet-era YOLO
 
@@ -265,10 +264,11 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   `ARefusedDiceFillChangesNothing` reads back four of the five leaves.
 - **`TheYOLO26FileNamesEachMissingBlock` has no successor** since the YOLO26 cases moved to
   `vision/registration`; decide whether a model file with a missing block still needs a case.
-- **The older sections of `tests/unit/README.md`**: about 190 were checked for headings and
-  suites only, not sentence by sentence against their sources; 106 lines pass 100 columns.
-- **The Darknet sections of `tests/integration/README.md`** were written from the case briefs
-  and model descriptions, not from the bodies of the shared check helpers.
+- **The older sections of the test READMEs under `tests/`**: about 190 were checked for
+  headings and suites only, not sentence by sentence against their sources; 106 lines pass 100
+  columns.
+- **The Darknet sections of `tests/vision/importers/README.md`** were written from the case
+  briefs and model descriptions, not from the bodies of the shared check helpers.
 - **Check a token id against the table's rows before a step.** An index outside the table reads
   or writes out of bounds in the sparse product; nothing validates it yet.
 - **An int32 input in the model file.** `Config::ModelSpec` states no input type, so an
@@ -430,6 +430,81 @@ v1, to revisit for PINN and GNN work.
 - **Tie the CLI version to the library version**, or state that they move apart
   (`CMakeLists.txt`, `cli/pyproject.toml`).
 - **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
+
+## Test tree
+
+The tests mirror the source (`tests/README.md`); one program per module.
+
+- **The four headers at a tier root.** `SushiAI/vision/registration.hpp`,
+  `SushiAI/language/registration.hpp`, `SushiAI/vision/vision.h` and
+  `SushiAI/language/language.h` sit directly under their tier, not under
+  `<tier>/<module>/`. The mirror checker expects their tests at a doubled path such as
+  `tests/vision/registration/vision/test_registration.cpp`; the two registration tests sit at
+  `tests/<tier>/registration/test_registration.cpp` and are reported as orphans. The headers
+  stay where they are until the owner rules on the include paths.
+- **The darknet parity scenarios of YOLOv3, YOLOv4 and YOLOv7** in
+  `tests/vision/importers/test_darknet_training/` and `test_darknet_import/` did not run after
+  the move; the tiny models and every other case did.
+- **Suite names that do not start with their unit**, such as `Unit_Diagnostics` in
+  `tests/core/graph/test_builder.cpp` and the `Unit_<Module><Header>` suites of the domain
+  tests.
+- **Write the tests of the 121 units that have none.** `tools/testing/check_test_mirror.py`
+  lists them; by module:
+  - `applications/programs`: `source/domains.hpp`, `source/registries.hpp`,
+    `source/trainer_run.hpp`.
+  - `core/autograd`: `rule.hpp`, `rules/activation.hpp`, `rules/elementwise.hpp`, `rules/loss.hpp`,
+    `rules/shape.hpp`, `tape.hpp`.
+  - `core/config`: `registry.hpp`.
+  - `core/core`: `allocation.hpp`, `check.hpp`, `common.hpp`, `tensor_shape.hpp`.
+  - `core/darknet_reference`: `darknet_reference.hpp`.
+  - `core/data`: `dataset.hpp`, `epoch.hpp`, `input.hpp`, `materialised_dataset.hpp`, `roles.hpp`.
+  - `core/eager`: `partition.hpp`, `region_names.hpp`, `region_partitioner.hpp`, `scope.hpp`,
+    `segment.hpp`, `step.hpp`, `step_executor.hpp`, `storage_id.hpp`.
+  - `core/engine_fixture`: `engine_test.hpp`, `test_environment.hpp`.
+  - `core/failure_expectations`: `status_expectations.hpp`, `throw_expectations.hpp`.
+  - `core/graph`: `cast_insertion.hpp`, `fusion_selector.hpp`, `lowering/activation.hpp`,
+    `lowering/context.hpp`, `lowering/elementwise.hpp`, `lowering/fused.hpp`, `lowering/norm.hpp`,
+    `lowering/rule.hpp`, `lowering/shape.hpp`, `lowering/spatial.hpp`, `lowering/unlowered.hpp`,
+    `node_range.hpp`, `precision.hpp`, `replay_prelude.hpp`, `state_id.hpp`, `tensor_pool.hpp`.
+  - `core/model_text`: `model_text.hpp`.
+  - `core/optim`: `adamw.hpp`, `cosine_schedule_section.hpp`, `optimizer_registry.hpp`,
+    `rate_schedule_section.hpp`, `sgd.hpp`, `step_scalars.hpp`.
+  - `core/scratch_files`: `scratch_file.hpp`.
+  - `core/seeded_noise`: `host_noise.hpp`.
+  - `core/tensor_values`: `tensor_values.hpp`.
+  - `language/blocks`: `expert_projection.hpp`, `expert_trace.hpp`, `incremental.hpp`.
+  - `language/datasets`: `collator.hpp`.
+  - `language/decoder_models`: `decoder_model.hpp`.
+  - `language/generation`: `generator.hpp`, `sampler.hpp`.
+  - `language/registration`: `language/registration.hpp`.
+  - `language/text`: `token.hpp`.
+  - `language/training`: `perplexity.hpp`.
+  - `language/umbrella`: `language/language.h`.
+  - `layers/classifier_objective`: `classifier_objective.hpp`.
+  - `layers/io`: `imported_model.hpp`.
+  - `layers/layer_rows`: `layer_registry.hpp`, `minimal_case.hpp`.
+  - `layers/layer_traces`: `trace_summary.hpp`.
+  - `layers/nn`: `layer.hpp`, `layer_node.hpp`, `loss.hpp`, `module_node.hpp`,
+    `node_attributes.hpp`.
+  - `layers/reference_files`: `reference_file.hpp`.
+  - `layers/sample_models`: `two_output_model.hpp`.
+  - `layers/train`: `batch_role.hpp`, `decision_threshold.hpp`, `feed.hpp`, `host_values.hpp`,
+    `parameter_groups.hpp`, `step_view.hpp`, `training_graph.hpp`, `training_step.hpp`.
+  - `vision/codecs`: `decode_options.hpp`.
+  - `vision/darknet_forward_cases`: `darknet_forward.hpp`.
+  - `vision/darknet_import_cases`: `darknet_import.hpp`.
+  - `vision/darknet_training_cases`: `darknet_training.hpp`.
+  - `vision/datasets`: `collator.hpp`, `fitted_sample.hpp`, `image_extensions.hpp`,
+    `load_sample_mask.hpp`, `mnist.hpp`, `reader_table.hpp`, `sample.hpp`, `sample_pipeline.hpp`,
+    `task_table.hpp`, `value_table.hpp`.
+  - `vision/detect`: `anchor/anchor_size.hpp`, `anchor/seeded_sequence.hpp`, `detection_row.hpp`,
+    `free/anchor_leaves.hpp`, `free/assigner_config.hpp`, `free/assignment.hpp`,
+    `free/level_rows.hpp`, `free/target_leaves.hpp`, `ground_truth.hpp`, `prediction_shape.hpp`.
+  - `vision/imaging`: `affine_nearest.hpp`, `partner_source.hpp`.
+  - `vision/registration`: `vision/registration.hpp`.
+  - `vision/segment`: `ignore_index.hpp`.
+  - `vision/training`: `dice_targets.hpp`, `pixel_labels.hpp`, `pixel_losses.hpp`.
+  - `vision/umbrella`: `vision/vision.h`.
 
 ## Estate programmes
 

@@ -143,7 +143,7 @@ and for three files (".cfg", "3 files").
 `import_darknet_files` of a `.cfg` path that does not exist fails with `FileNotFound` and the
 path's name.
 
-Suites: `Integration_DarknetImport`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetImport`, in `sushiai_vision_importers_tests`.
 
 The suite runs once for each model of the parity table in `vision_support/darknet_forward.cpp`:
 `yolov3-tiny`, `yolov3`, `yolov4-tiny`, `yolov4`, `yolov7-tiny` and `yolov7`. The fixture
@@ -618,7 +618,7 @@ A path that does not exist fails with `FileNotFound` and "could not open".
 
 ## test_darknet_import/test_decode.cpp
 
-Suites: `Integration_DarknetDecode`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetDecode`, in `sushiai_vision_importers_tests`.
 
 The suite is parameterised over six models: `yolov3-tiny`, `yolov7-tiny`, `yolov7`, `yolov3`,
 `yolov4-tiny` and `yolov4`. For each it reads the `.cfg` from the directory `SA_REFERENCE_DATA_DIR`
@@ -637,7 +637,7 @@ naming the variable or the first missing file, when the reference data is absent
 ## test_darknet_import/test_yolov3_tiny_layers.cpp
 
 Suites: `Integration_DarknetYolov3TinyLayers`, `Integration_DarknetLayers`, in
-`sushiai_vision_tests`.
+`sushiai_vision_importers_tests`.
 
 The file compares the body of a model layer by layer. It covers two models that have a dump of every
 layer: `yolov3-tiny` in the run `yolov3_tiny` and `yolov7-tiny` in the run
@@ -662,7 +662,7 @@ outside the bound, the layers that layer reads, and how many later layers are ou
 
 ## test_darknet_import/test_yolov3_forward.cpp
 
-Suites: `Integration_DarknetYolov3Forward`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov3Forward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv3 from `yolov3.cfg` and `yolov3.weights` in the
 directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 416 pixel input with
@@ -696,7 +696,7 @@ each head is printed.
 
 ## test_darknet_import/test_yolov3_tiny_forward.cpp
 
-Suites: `Integration_DarknetYolov3TinyForward`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov3TinyForward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv3-tiny from `yolov3-tiny.cfg` and `yolov3-tiny.weights`
 in the directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 416 pixel input
@@ -731,7 +731,7 @@ each head is printed.
 
 ## test_darknet_import/test_yolov4_forward.cpp
 
-Suites: `Integration_DarknetYolov4Forward`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov4Forward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv4 from `yolov4.cfg` and `yolov4.weights` in the
 directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 608 pixel input with
@@ -767,7 +767,7 @@ each head is printed.
 
 ## test_darknet_import/test_yolov4_tiny_forward.cpp
 
-Suites: `Integration_DarknetYolov4TinyForward`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov4TinyForward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv4-tiny from `yolov4-tiny.cfg` and `yolov4-tiny.weights`
 in the directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 416 pixel input
@@ -803,7 +803,7 @@ each head is printed.
 
 ## test_darknet_import/test_yolov7_forward.cpp
 
-Suites: `Integration_DarknetYolov7Forward`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov7Forward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv7 from `yolov7.cfg` and `yolov7.weights` in the
 directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 640 pixel input with
@@ -838,7 +838,7 @@ each head is printed.
 
 ## test_darknet_import/test_yolov7_tiny_forward.cpp
 
-Suites: `Integration_DarknetYolov7TinyForward`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov7TinyForward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv7-tiny from `yolov7-tiny.cfg` and `yolov7-tiny.weights`
 in the directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 416 pixel input
@@ -873,7 +873,7 @@ each head is printed.
 
 ## test_darknet_training/test_yolov3.cpp
 
-Suites: `Integration_DarknetYolov3Training`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov3Training`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov3.cfg`, `yolov3.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov3`, one image of YOLOv3 with its
@@ -945,7 +945,7 @@ model below 0.1 of the first step's.
 
 ## test_darknet_training/test_yolov3_tiny.cpp
 
-Suites: `Integration_DarknetYolov3TinyTraining`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov3TinyTraining`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov3-tiny.cfg`, `yolov3-tiny.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov3_tiny`, one image of
@@ -1038,7 +1038,7 @@ entries of a CIoU delta do not shrink as the boxes fit: on YOLOv4-tiny their squ
 
 ## test_darknet_training/test_yolov4.cpp
 
-Suites: `Integration_DarknetYolov4Training`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov4Training`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov4.cfg`, `yolov4.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov4_plain_pool`, one image of
@@ -1109,7 +1109,7 @@ model below 0.1 of the first step's.
 
 ## test_darknet_training/test_yolov4_tiny.cpp
 
-Suites: `Integration_DarknetYolov4TinyTraining`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov4TinyTraining`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov4-tiny.cfg`, `yolov4-tiny.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov4_tiny`, one image of
@@ -1179,7 +1179,7 @@ Separate model below 0.1 of the first step's.
 
 ## test_darknet_training/test_yolov7.cpp
 
-Suites: `Integration_DarknetYolov7Training`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov7Training`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov7.cfg`, `yolov7.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov7_plain_pool_thresh_0p01`, one
@@ -1249,7 +1249,7 @@ model below 0.1 of the first step's.
 
 ## test_darknet_training/test_yolov7_tiny.cpp
 
-Suites: `Integration_DarknetYolov7TinyTraining`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetYolov7TinyTraining`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov7-tiny.cfg`, `yolov7-tiny.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov7_tiny_plain_pool_thresh_0p01`,
@@ -1326,7 +1326,7 @@ stops there is not known.
 
 ## test_darknet_store.cpp
 
-Suites: `Integration_DarknetStore`, in `sushiai_vision_tests`.
+Suites: `Integration_DarknetStore`, in `sushiai_vision_importers_tests`.
 
 The file needs an engine and no reference data. The state is built with `ModelState::from_entries`
 for a model of two convolutions: layer 0 with 2 filters, 3 channels and a kernel side of 2, and

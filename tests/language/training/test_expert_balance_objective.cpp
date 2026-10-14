@@ -59,7 +59,7 @@ using namespace SushiAI;
 using Language::Training::ExpertBalanceObjective;
 using Language::Training::ExpertUsageOutput;
 using Language::Training::make_expert_balance_objective;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/training/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

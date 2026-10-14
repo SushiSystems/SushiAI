@@ -23,7 +23,7 @@
  * @file eager_run_support.hpp
  * @brief Declares the model, the update and the batches the device tests of the eager module share.
  * @author Mustafa Garip
- * @see tests/unit/README.md
+ * @see tests/core/eager/README.md
  */
 
 #pragma once

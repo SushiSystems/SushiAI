@@ -222,7 +222,7 @@ force. A test that reaches it fails with `out_of_memory` and the size it asked f
 ceiling is enforced on Windows only.
 
 ```
-sa run sushiai_vision_tests --memory-limit 6 -- --gtest_filter=Integration_Darknet*
+sa run sushiai_vision_importers_tests --memory-limit 6 -- --gtest_filter=Integration_Darknet*
 ```
 
 ## `sa run`
@@ -235,7 +235,7 @@ sa run                                # run the default target
 sa run sushiai_example
 sa run --sort                         # interactively pick from the list of executables
 
-sa run sushiai_tests -- --gtest_filter='Unit_Version.*'
+sa run sushiai_core_version_tests -- --gtest_filter='Unit_Version.*'
 ```
 
 ## `sa demo` — the AI-7 showcase

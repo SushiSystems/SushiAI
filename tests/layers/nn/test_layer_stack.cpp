@@ -127,14 +127,14 @@ TEST(Unit_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
     const std::vector<std::string> expected = traced_names(compile_time, 4, 6);
     EXPECT_EQ(traced_names(run_time, 4, 6), expected);
 
-    // Literals keep both paths from going empty together; see tests/unit/README.md.
+    // Literals keep both paths from going empty together; see tests/layers/nn/README.md.
     EXPECT_EQ(expected, (std::vector<std::string>{
         "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]", "2.bias:[4]"}));
 }
 
 TEST(Unit_LayerStack, KeepsTheIndexGapAParameterlessActivationLeaves)
 {
-    // Indices track layer positions, not parameter positions; see tests/unit/README.md.
+    // Indices track layer positions, not parameter positions; see tests/layers/nn/README.md.
     LayerStack stack = make_stack();
     const std::vector<std::string> names = traced_names(stack, 4, 6);
 
@@ -193,7 +193,7 @@ TEST(Unit_LayerStack, ReportsAnOutOfRangeLayerIndex)
 
 TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 {
-    // Both traces go into one graph; see tests/unit/README.md.
+    // Both traces go into one graph; see tests/layers/nn/README.md.
     LayerStack stack = make_stack();
 
     Graph::Graph graph;
@@ -352,7 +352,7 @@ TEST(Unit_LayerStack, ChainsLayerWidthsFromTheInputFeatures)
     EXPECT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.output_features(), 4);
 
-    // An activation keeps the width it was handed; see tests/unit/README.md.
+    // An activation keeps the width it was handed; see tests/layers/nn/README.md.
     EXPECT_EQ(stack.layer(0).output_features(), 8);
     EXPECT_EQ(stack.layer(1).output_features(), 8);
 }
@@ -391,7 +391,7 @@ TEST(Unit_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
     SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), typo),
                     "layer 0 'linear'", "'unitss'");
 
-    // An activation accepts no attribute; see tests/unit/README.md.
+    // An activation accepts no attribute; see tests/layers/nn/README.md.
     const SushiAI::Config::ModelSpec stray = model_from(R"({
         "sushiai_model": 1,
         "input": {"features": 6},

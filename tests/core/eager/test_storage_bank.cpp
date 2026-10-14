@@ -41,7 +41,7 @@
 using namespace SushiAI;
 using Eager::StorageBank;
 using Eager::StorageID;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/core/eager/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

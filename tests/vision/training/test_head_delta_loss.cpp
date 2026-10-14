@@ -53,7 +53,7 @@ using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::ValueID;
 using Vision::Training::emit_head_delta_loss;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::TensorPool;

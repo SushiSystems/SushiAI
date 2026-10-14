@@ -64,8 +64,8 @@ one is SushiAI's own: SushiBLAS is still compiled from source via
 `add_subdirectory`, but it builds its tests only when it is the top-level
 project (`SB_BUILD_TESTS`), so none of them enter this tree.
 
-`sa test` starts one process per case through CTest. `sa run sushiai_tests`
-runs the same 1803 cases in one process.
+`sa test` starts one process per case through CTest. Each module builds one test
+program, `sushiai_<tier>_<module>_tests`, and `sa run` runs one of them in one process.
 
 > **A warning about `--clean`.** It exists, and on most machines you should not
 > reach for it. Because SushiBLAS is compiled from source here, a clean build of
@@ -488,7 +488,7 @@ sa test --suite integration   # several units together
 sa test --suite regression    # guarantees whose failure is SILENT
 sa test --suite all
 sa test --filter 'Unit_Precision.*'
-sa run sushiai_tests -- --gtest_filter='Unit_Precision.*'   # the same, in one process
+sa run sushiai_core_autograd_tests -- --gtest_filter='Unit_Precision.*'   # in one process
 ```
 
 The tiers come from the GTest suite-name prefix and nothing else. `regression`

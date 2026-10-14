@@ -34,7 +34,7 @@
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;
 
-// SushiAI links and runs one SushiBLAS op end to end; see tests/integration/README.md.
+// SushiAI links and runs one SushiBLAS op end to end; see tests/layers/umbrella/README.md.
 TEST(Integration_EngineSmoke, AXPYThroughSushiBLAS)
 {
     sr::Runtime runtime = sr::Runtime::create().value();

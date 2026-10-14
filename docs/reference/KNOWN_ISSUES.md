@@ -24,9 +24,9 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 
 | Issue | Where |
 | --- | --- |
-| The step bounds of YOLOv4 hold a head to 0.31 of the dump and those of YOLOv7 to 0.0079, 1.5 times the one measured difference; no layer before the heads is compared and the cause is not known | `tests/integration/test_darknet_yolov4_training.cpp`, `tests/integration/test_darknet_yolov7_training.cpp` |
-| `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails: the cost is 11.1 at step 199 against a bound of 3.56; the run is unstable on its batch and the order of one sum decides the outcome | `tests/integration/test_darknet_yolov7_training.cpp` |
-| The step bounds of YOLOv3 hold a head to 0.36 of the dump, 1.5 times the one measured difference; no layer before the heads is compared | `tests/integration/test_darknet_yolov3_training.cpp:56-61` |
+| The step bounds of YOLOv4 hold a head to 0.31 of the dump and those of YOLOv7 to 0.0079, 1.5 times the one measured difference; no layer before the heads is compared and the cause is not known | `tests/vision/importers/test_darknet_training/test_yolov4.cpp`, `tests/vision/importers/test_darknet_training/test_yolov7.cpp` |
+| `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails: the cost is 11.1 at step 199 against a bound of 3.56; the run is unstable on its batch and the order of one sum decides the outcome | `tests/vision/importers/test_darknet_training/test_yolov7.cpp` |
+| The step bounds of YOLOv3 hold a head to 0.36 of the dump, 1.5 times the one measured difference; no layer before the heads is compared | `tests/vision/importers/test_darknet_training/test_yolov3.cpp:56-61` |
 
 ## Documentation
 

@@ -56,16 +56,16 @@ the step is compiled exactly once no matter how many batches run
 (`CompiledStep::compile_count()`), and the steady state allocates nothing
 (`TensorPool::allocated_bytes()` stops moving after the first step). The
 first of those is additionally pinned in the `regression` tier
-(`tests/regression/test_compile_once.cpp`) and in the demo's own
+(`tests/layers/train/test_trainer/test_compile_once.cpp`) and in the demo's own
 CTest smoke test, because a recompile-per-step still converges — it just
 quietly pays graph analysis every step, and nothing else would notice.
 
 Alongside the core there is the scaffolding a real library needs from day
 one: a `find_package(SushiAI)`-able target verified by an out-of-tree
 consumer, a three-tier test suite with CTest labels (`unit` / `integration` /
-`regression`), and the `sa` CLI. The suite is one binary, `sushiai_tests`, of
-1803 cases: `sa run sushiai_tests` runs them in one process and `sa test` runs
-them through CTest. `sa demo mlp` runs the showcase —
+`regression`), and the `sa` CLI. Each module builds one test program,
+`sushiai_<tier>_<module>_tests`: `sa run` runs one in one process and `sa test`
+runs every case through CTest. `sa demo mlp` runs the showcase —
 `applications/examples/source/demo_mlp.cpp`, a flag-driven training program, deliberately a
 separate binary from the `applications/examples/source/example.cpp` teaching file.
 
@@ -418,7 +418,7 @@ This is only safe because SushiBLAS now honours `storage_offset` everywhere
 and `Tensor::region()` reports a view's own byte interval rather than the
 bare allocation base; two disjoint tensors in one arena therefore produce
 non-overlapping `ResourceRegion`s and do not falsely serialise. That claim is
-checked directly in `tests/integration/test_arena.cpp`.
+checked directly in `tests/core/graph/test_arena.cpp`.
 
 The two reduction operands of `K_LOG_SOFTMAX` and `K_NLL_LOSS` are planned like
 any other value. SushiBLAS builds the regions of `execute_reduction` and
@@ -527,7 +527,7 @@ writes, so the tracker already sees that the update reads the gradients the
 backward pass wrote and writes the parameters the forward pass read.
 
 Two guarantees hold this down, both in the regression tier
-(`tests/regression/test_fused_optimizer.cpp`): the fused kernel and
+(`tests/layers/train/test_trainer/test_fused_optimizer.cpp`): the fused kernel and
 the separate operations agree **byte for byte** (they can, because the whole
 stack builds with `-ffp-contract=off` and every expression keeps the operand
 order of the kernel it replaced), and folding the update into the plan changes
@@ -697,7 +697,7 @@ graph: the first layer's `gemm+bias+relu` replaces five calls with one, the
 second layer's `gemm+bias` replaces three with one, and the cross-entropy
 gradient's `exp/sub/scale` tail replaces five with one. Every fused form is
 compared byte for byte against the unfused spelling in
-`tests/regression/test_fusion_numerics.cpp`, and
+`tests/layers/train/test_trainer/test_fusion_numerics.cpp`, and
 `FusionOptions::enabled = false` keeps that reference reachable, exactly as
 `Optim::UpdateKernel::Separate` does for the optimizer. The demo's loss
 trajectory is identical to the last printed digit with the pass on and off.

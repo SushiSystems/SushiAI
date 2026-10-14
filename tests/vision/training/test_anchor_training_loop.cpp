@@ -72,7 +72,7 @@
 #include <SushiAI/vision/training/truth_from_roles.hpp>
 
 using namespace SushiAI;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::TensorPool;
 using Vision::Training::AnchorHead;

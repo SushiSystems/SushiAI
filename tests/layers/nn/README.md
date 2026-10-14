@@ -157,7 +157,7 @@ compares every per-sample axis, so it serves a feature vector and an image alike
 ### is_slope_rejected
 
 `is_slope_rejected` traces a layer of the given slope over a [2, 4] input and reports whether
-the trace throws `Error`. It uses `Test::capture_error` from `tests/common/test_throws.hpp`,
+the trace throws `Error`. It uses `Test::capture_error` from `modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp`,
 so an exception of another type does not count as a rejection.
 
 ### TheDefaultSlopeIsOneHundredth
@@ -1404,7 +1404,7 @@ the rows `register_layers` adds. The file needs no device. `make_node` looks a t
 the registry's node rows and then among its layer rows, and wraps a layer in an
 `NN::LayerNode`. `build_model` turns a `Config::ModelSpec` into an `NN::ModelGraph`. Each
 returns a `Result`. `MinimalCase`, `TraceSummary`, `span_of`, `make_minimal` and
-`trace_summary` come from `tests/common/test_utils.hpp`.
+`trace_summary` come from `modules/core/engine_fixture/include/SushiAI/engine_fixture/engine_test.hpp`.
 
 ### K_NORM
 
@@ -2905,3 +2905,2078 @@ A graph traced from a second instance of the same architecture is refused by `at
 
 Two pools attached to one state read the same numbers. A value written through a leaf of the first
 pool is read back through the second.
+
+## test_add.cpp
+
+That the Add node takes exactly two rank-3 inputs of one shape, emits one ADD reading them in order, returns a failure for values that do not add, and what its factory refuses.
+
+Suites: `Unit_Add`.
+
+Tests `NN::Add` in `modules/layers/nn/include/SushiAI/nn/add.hpp` and its factory
+`NN::make_add_node`. Unless a case says otherwise, the node is built over two [8, 6, 3] shapes
+and traced over two [2, 8, 6, 3] inputs.
+
+### CreateKeepsTheSharedShapeAsThePort
+
+The node has one port, named "output", of the shape [8, 6, 3].
+
+### CreateRejectsOneInput
+
+`create` over one shape fails with `InvalidDescription`, and the message holds "takes 2 inputs"
+and "was given 1".
+
+### CreateRejectsThreeInputs
+
+`create` over three shapes fails with "takes 2 inputs" and "was given 3".
+
+### CreateRejectsNoInput
+
+`create` over an empty list fails with "takes 2 inputs" and "was given 0".
+
+### CreateRejectsUnequalChannels
+
+[8, 6, 3] with [8, 6, 5] fails with `InvalidDescription` and "share one shape".
+
+### CreateRejectsUnequalHeight
+
+[8, 6, 3] with [4, 6, 3] fails with "share one shape".
+
+### CreateRejectsUnequalWidth
+
+[8, 6, 3] with [8, 12, 3] fails with "share one shape".
+
+### CreateRejectsAnInputThatIsNotAFeatureMap
+
+[8, 6, 3] with [144] fails with a message holding "add input 1" and "rank-3".
+
+### CreateRejectsAFirstInputThatIsNotAFeatureMap
+
+[144] with [144] fails with a message holding "add input 0" and "rank-3".
+
+### TheInputCountIsTwo
+
+`input_count()` is 2.
+
+### ForwardEmitsOneAddReadingBothInputsInOrder
+
+`forward` over the inputs b and a adds one node. Its operation is `Ops::K_ADD`, its inputs are
+b then a, and its one output is the one value `forward` returned.
+
+### ForwardResultIsThePortShapeWithABatchAxis
+
+The traced value has the shape [2, 8, 6, 3], and the port's shape stays [8, 6, 3].
+
+### ForwardRejectsAnInputCountItWasNotBuiltOver
+
+`forward` over one input fails with `InvalidDescription`, "input count is 2" and "given is 1".
+It returns no output and adds no node.
+
+### ForwardReturnsTheFailureOfValuesThatDoNotAdd
+
+`forward` over a [2, 8, 6, 3] value and a [2, 8, 6, 5] value returns an `InvalidDescription`
+status, no output, and adds no node.
+
+### TheFactoryBuildsANodeFromARowWithNoKey
+
+`make_add_node` over two [8, 6, 3] shapes and an empty row returns an `Add` with two inputs and
+one port of the shape [8, 6, 3].
+
+### TheFactoryRefusesAKeyAndShapesThatDoNotMatch
+
+A row with the key "alpha" fails with a message holding "layer 3 'add'", "'alpha'" and
+"no key". An empty row over [8, 6, 3] and [8, 6, 5] fails with "layer 3 'add'" and
+"share one shape".
+
+### TheStateWalkVisitsNothing
+
+After a trace, `walk_state` calls neither the parameter visitor nor the buffer visitor.
+
+## test_avg_pool2d.cpp
+
+The shapes the AvgPool2d layer traces and reports, and the inputs it refuses.
+
+Suites: `Unit_AvgPool2d`.
+
+Tests the shapes the AvgPool2d layer traces and reports, and the inputs it refuses.
+
+This file needs no device. `NN::AvgPool2d` in `modules/layers/nn/include/SushiAI/nn/avg_pool2d.hpp` holds a
+`Graph::ConvGeometry` and no parameter, so a case either traces the layer into a host-side
+graph or calls `output_shape()` on a per-sample shape.
+
+### window
+
+`window` returns a geometry with the given kernel and stride on each axis, dilation 1 and no
+padding. A case that needs padding or dilation sets the field afterwards.
+
+### traced_shape
+
+`traced_shape` traces a layer over a batch of two images of the given per-sample shape and
+returns the shape of the result, batch axis included.
+
+### per_sample
+
+`per_sample` drops the batch axis of a rank-4 shape.
+
+### SatisfiesTheModuleTrait
+
+Four `static_assert` lines hold the layer's place in the layer library: `AvgPool2d` is a
+`Module`, `const AvgPool2d` is one too, which requires a const `forward()`, it is not a
+`ModuleContainer`, and it has no parameter walk of its own, so the walk reaches it through
+`fields()`.
+
+### ForwardTracesThePooledShapeInNHWC
+
+A 3x3 window with stride 3 over a [2, 6, 6, 3] input traces a [2, 2, 2, 3] value tagged NHWC.
+
+### OutputShapeAgreesWithTheTracedShapeForASquareWindow
+
+`output_shape([6, 6, 3])` is [2, 2, 3], and it equals the traced shape with the batch axis
+dropped. The literal is asserted beside the comparison so the two cannot agree on a wrong
+shape. The next two cases have the same form.
+
+### OutputShapeAgreesWithTheTracedShapeForAPaddedUnevenWindow
+
+A 3x2 window with stride 2 by 1 and one pixel of padding on each axis maps [7, 5, 4] to
+[4, 6, 4].
+
+### OutputShapeAgreesWithTheTracedShapeForADilatedWindow
+
+A 3x3 unit-stride window dilated by 2 on the height axis maps [9, 8, 1] to [5, 6, 1]. The two
+axes have different dilations, so an implementation that applied one axis's dilation to both
+gives another shape.
+
+### OutputShapeRejectsAFeatureVector
+
+`output_shape([8])` throws, because a per-sample shape must be rank 3.
+
+### OutputShapeRejectsABatchedShape
+
+`output_shape([2, 4, 4, 3])` throws. A shape that still carries the batch axis is rank 4.
+
+### OutputShapeRejectsAWindowLargerThanTheImage
+
+A 5x5 window over a [4, 4, 3] sample throws.
+
+### OutputShapeRejectsAZeroStride
+
+A geometry with stride 0 on both axes throws.
+
+### OutputShapeNamesAZeroStride
+
+The message for the same geometry contains "AvgPool2d" and "stride 0,0". The case holds the
+message to the stride, where a check ordered differently would report a window that does not
+fit.
+
+### OutputShapeRejectsANegativePadding
+
+A top padding of -1 throws with a message containing "AvgPool2d" and "padding -1,0".
+
+### ForwardRejectsARankTwoInput
+
+`forward()` throws on a [2, 8] input.
+
+### ForwardRejectsAnNCHWInput
+
+A [1, 6, 6, 3] input is converted with `layout_convert` to NCHW, and `forward()` throws on the
+converted value.
+
+### ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow
+
+A [1, 8, 8, 2] input converted to NCHW has 2 on the axis an NHWC reader takes for the height,
+which a 3x3 window does not fit. The message contains "NHWC", so the layout check runs before
+the window is fitted.
+
+### ForwardRejectsAZeroStride
+
+`forward()` with stride 0 on both axes throws with a message containing "AvgPool2d" and
+"stride 0,0".
+
+### ForwardRejectsANegativePadding
+
+`forward()` with a top padding of -1 throws with a message containing "AvgPool2d" and
+"padding -1,0".
+
+### ForwardRejectsAWindowLargerThanTheImage
+
+`forward()` throws for a 5x5 window over a [2, 4, 4, 3] input.
+
+### ATracedLayerHasNoParameter
+
+After a trace the parameter walk visits nothing and `parameter_count` is 0. The graph holds
+two values, the input and the pooled result.
+
+## test_batch_norm2d.cpp
+
+BatchNorm2d's two trace forms and the running-statistic update.
+
+Suites: `Unit_BatchNorm2d`, `Unit_BatchNorm2dDeathTest`.
+
+Tests BatchNorm2d's two trace forms and the running-statistic update.
+
+This file needs no device. `NN::BatchNorm2d` in `modules/layers/nn/include/SushiAI/nn/batch_norm2d.hpp` is a
+modal layer. `trace_training` emits one K_BATCHNORM2D node and requests two buffer updates
+through the trace. `trace_evaluation` reads the two running statistics as buffer leaves and
+emits a K_BATCHNORM_FOLD and a K_CHANNEL_AFFINE. Both forms record a refusal on the trace and
+return their input.
+
+The last two cases read `tests/layers/nn/fixtures/batch_norm2d/batchnorm.sacp` through
+`modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp` and report themselves skipped when the file is absent.
+They compute the updated statistics on the host from the momentum and the source scale the
+trace requested. No device runs the update.
+
+Two `static_assert` lines after the helpers hold that `BatchNorm2d` is a `ModalModule` and
+neither a `Module` nor a `TraceModule`, and that `Sequential<Conv2d, BatchNorm2d>` is a
+`TraceModule` and not a `Module`.
+
+### Constants
+
+`K_REFERENCE_EPSILON` is 1e-3 and `K_REFERENCE_MOMENTUM` is 0.03, the two values the reference
+layers ran with. `K_UNIT_CASE_TOLERANCE` is 5.3e-7 and `K_MODEL_CASE_TOLERANCE` is 7.0e-7. Each
+is four float32 epsilons of the case's largest running variance, 1.1086 and 1.4578.
+`K_EXACT_TOLERANCE` is 1e-15, for a double computed the same way on both sides.
+
+### count_nodes
+
+`count_nodes` counts the nodes of a graph that carry one operation.
+
+### only_node
+
+`only_node` returns the first node of a graph that carries one operation. Each caller has
+asserted a count of one before it.
+
+### count_buffer_leaves
+
+`count_buffer_leaves` counts the values of a graph whose lifetime is `BUFFER`.
+
+### ChannelStatistics
+
+`ChannelStatistics` holds the per-channel mean and biased variance of one NHWC activation.
+
+### batch_statistics
+
+`batch_statistics` computes a `ChannelStatistics` over batch, height and width from a flat
+NHWC array, in double.
+
+### updated_vector
+
+`updated_vector` applies `NN::updated_statistic` per channel and rounds each result to
+float32.
+
+### view
+
+`view` returns a `SushiRuntime::span<const float>` over a vector, the argument
+`Test::near_reference` takes.
+
+### expect_reference_case
+
+`expect_reference_case` reads one case of `batchnorm.sacp`: an input and the running mean and
+variance before and after one torch training step. It traces a layer of the input's channel
+count with the reference epsilon and momentum, and applies the two requested updates to the
+"before" statistics on the host. The results must be within the tolerance of the "after"
+statistics. The variance recomputed with a source scale of 1.0 must not be, so the fixture
+tells the unbiased update from the biased one.
+
+### refused_training
+
+`refused_training` traces the training form, expects the input id back and returns the trace's
+`status()`.
+
+### refused_evaluation
+
+`refused_evaluation` does the same for the evaluation form.
+
+### train_under_an_evaluation_trace
+
+`train_under_an_evaluation_trace` calls `trace_training` with an evaluation trace. It is the
+statement of a death test.
+
+### evaluate_over_a_value_the_graph_lacks
+
+`evaluate_over_a_value_the_graph_lacks` calls `trace_evaluation` over value 7 in a graph of
+one value. It is the statement of a death test.
+
+### ATrainingTraceEmitsOneBatchNorm
+
+A training trace over [2, 2, 2, 3] emits one K_BATCHNORM2D node and no K_BATCHNORM_FOLD or
+K_CHANNEL_AFFINE. The graph gains three nodes: the two parameter leaves and the K_BATCHNORM2D. The
+node reads the input, the weight's leaf and the bias's leaf, has four outputs of which the
+first is the returned value, and carries the epsilon 1e-3 in attribute 0.
+
+### ATrainingTraceReadsNoBuffer
+
+After a training trace the graph holds no value of lifetime `BUFFER`, and neither running
+statistic has a leaf in it.
+
+### ATrainingTraceRequestsTheTwoRunningUpdates
+
+The list holds two updates. The first reads output 1 of the node and targets the running
+mean's state, and the second reads output 3 and targets the running variance's state. The two
+states are distinct and neither is `K_NO_STATE`. Both momenta are 0.03 and the mean's source
+scale is 1.0.
+
+### TheVarianceUpdateCarriesTheUnbiasedFactor
+
+The variance update's source scale is n / (n - 1), where n is the number of values per channel.
+For [2, 2, 2, 3] it is 8/7, and for [1, 20, 20, 128] it is 400/399.
+
+### AnEvaluationTraceFoldsTheRunningStatistics
+
+An evaluation trace over [2, 4, 4, 3] emits one K_BATCHNORM_FOLD, one K_CHANNEL_AFFINE and no
+K_BATCHNORM2D, and the graph holds two buffer leaves. It gains six nodes: two parameter leaves,
+two buffer leaves, the fold and the affine. The fold reads the weight, the bias, the running
+mean and the running variance in that order and carries the epsilon 1e-3. The affine reads the
+input and the fold's two outputs, and its output is the returned value of shape [2, 4, 4, 3].
+
+### BothFormsNameTheSameState
+
+One layer is traced in training form into one graph and in evaluation form into another. In
+the evaluation graph, `state_leaf` of each update's target is the leaf of the matching running
+statistic. The weight's and the bias's states are unchanged by the second trace, and each has
+a leaf in the evaluation graph.
+
+### TheWalkYieldsTwoParametersThenTwoBuffers
+
+`NN::walk_state(layer, "bn", visitor)` over a traced five-channel layer yields "bn.weight",
+"bn.bias", "bn.running_mean" and "bn.running_var" in that order, each of shape [5]. Both
+parameters have a constant fill. The starting values are 1.0 for the weight, 0.0 for the bias,
+0.0 for the running mean and 1.0 for the running variance.
+
+### TrainingOverOneValuePerChannelFails
+
+A training trace over [1, 1, 1, 3] records `InvalidDescription` with a message containing
+"BatchNorm2d(3)", "more than one value per channel" and "got 1". The graph gains no value and
+no node, the list holds no update, the weight is not declared, and the graph is marked refused.
+
+### AnIntegerInputFails
+
+Over an INT32 input, both forms record `InvalidDescription` with a message containing
+"BatchNorm2d(3)", "half, float32 or float64 input" and "int32". Nothing is added to the graph
+or the list, and neither the weight nor the running mean is declared.
+
+### EvaluationOverOneValuePerChannelTraces
+
+An evaluation trace over [1, 1, 1, 3] returns a value of that shape. The limit that
+TrainingOverOneValuePerChannelFails holds belongs to the training form.
+
+### AnInputThatDoesNotFitFails
+
+Over a [2, 2, 2, 4] input both forms fail with a message containing "BatchNorm2d(3)" and
+"[N, H, W, 3]". Over a [2, 3] input both fail with "rank-4". The graph gains no value and the
+list no update.
+
+### AnNCHWInputFails
+
+Over a value converted to NCHW both forms fail with a message containing "BatchNorm2d(3)" and
+"NHWC", and the graph gains no value.
+
+### ALayerDescribedWrongFails
+
+A default-constructed layer fails with "positive channel count" and "got 0". A layer with
+epsilon 0.0 fails with "positive epsilon". A layer with momentum 1.5 fails with "momentum in
+[0, 1]" and "1.5". The graph gains no value.
+
+### ASecondTraceUnderAnotherElementTypeFails
+
+A layer traced over a FLOAT32 input and then, in a second graph, over a FLOAT64 input fails
+the second time with a message containing "'weight'" and both type names. The running mean's
+type stays FLOAT32.
+
+### TheScaleStartsAtOneAndTheShiftAtZero
+
+After a trace the weight has the role `ParameterRole::Scale` and a constant fill of 1.0, and
+the bias has the role `BIAS` and a constant fill of 0.0.
+
+### TheFactoryReadsTheChannelsAndTheTwoConstants
+
+`NN::make_batch_norm2d_node` over the shape [8, 8, 6] with `bn_epsilon` 0.001 and `bn_momentum`
+0.03 returns a `ModuleNode<BatchNorm2d>` whose layer has 6 channels and those two options. The
+node has one port of the input's shape and an input count of 1.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+The key `channels` fails with a message containing the context, "'channels'" and "bn_epsilon".
+The input shape [48] fails with "[48]" and "[H, W, C]". A `bn_epsilon` of -1.0 fails with
+"'bn_epsilon'" and "positive".
+
+### TheTrainingFormUnderAnEvaluationTraceIsFatal
+
+The case is in the suite `Unit_BatchNorm2dDeathTest`. `trace_training` given an evaluation
+trace stops the process with a report containing "trace_training" and "was given an evaluation
+trace".
+
+### ATraceOverAValueTheGraphLacksIsFatal
+
+The case is in the suite `Unit_BatchNorm2dDeathTest`. `trace_evaluation` over value 7 stops the
+process with a report containing "BatchNorm2d(3)", "value 7" and "holds 1 values".
+
+### TraceLayerPicksTheFormOfTheMode
+
+`NN::trace_layer` under a training trace leaves one K_BATCHNORM2D and no K_BATCHNORM_FOLD in its
+graph. Under an evaluation trace it leaves one K_BATCHNORM_FOLD and no K_BATCHNORM2D.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([7, 5, 3])` is [7, 5, 3]. A three-channel layer also returns [7, 5, 4] for
+[7, 5, 4]: `output_shape` does not check the channel count.
+
+### UpdatedStatisticBlendsTheScaledBatchValue
+
+`NN::updated_statistic(running, batch, momentum, scale)` is
+(1 - momentum) * running + momentum * scale * batch. (1.0, 3.0, 0.25, 2.0) gives 2.25 and
+(4.0, 8.0, 0.5, 1.0) gives 6.0. A momentum of 0 returns the running value 4.0 and a momentum
+of 1 returns the batch value 8.0. Every operand and result is exact in a double.
+
+### TheUpdatesReproduceTheUnitReferenceCase
+
+`expect_reference_case("unit", K_UNIT_CASE_TOLERANCE)` checks the [2, 2, 2, 3] case. The
+test's own comment gives the miss of the unscaled variance on this case as 8.3e-3.
+
+### TheUpdatesReproduceTheModelReferenceCase
+
+`expect_reference_case("model.9.cv1.bn", K_MODEL_CASE_TOLERANCE)` checks the case recorded at
+that layer of the reference model. The test's own comment gives the miss of the unscaled
+variance on this case as 1.4e-5.
+
+## test_buffer.cpp
+
+Buffer: its description, its one leaf per graph and its identity.
+
+Suites: `Unit_Buffer`, `Unit_BufferDeathTest`.
+
+Tests Buffer: its description, its one leaf per graph and its identity.
+
+This file needs no device. `NN::Buffer` in `modules/layers/nn/include/SushiAI/nn/buffer.hpp` is state a model
+owns that takes no gradient. `define()` records its shape, starting value and element type and
+returns a `Status`. `read()` declares a leaf of lifetime `Graph::Lifetime::Buffer` in the graph
+of the builder it is given.
+
+### K_EXACT_TOLERANCE
+
+`K_EXACT_TOLERANCE` is 1e-15, the absolute tolerance for a double that is stored and read back
+unchanged.
+
+### read_undefined
+
+`read_undefined` calls `read()` on a buffer under the name "running_mean" with a builder over
+a fresh graph. It is the statement of the death test.
+
+### ANewBufferIsUndefined
+
+A default-constructed buffer reports `declared()` false and the state `Graph::K_NO_STATE`.
+
+### DefineRecordsTheDescription
+
+After `define([8], 1.0, FLOAT64)` the buffer is declared and returns that shape, that element
+type and the starting value 1.0.
+
+### DefineDefaultsToFloat32
+
+`define([8], 0.0)` with no element type records `DType::Float32`.
+
+### ADefinedBufferAddsNoLeafUntilItIsRead
+
+After `define()` alone a graph holds no value and `id_in(graph)` is `Graph::K_NO_VALUE`.
+
+### DefineDrawsTheIdentity
+
+Two buffers that were only defined have states other than `K_NO_STATE`, and the two states
+differ. A second identical `define()` and a `read()` leave the first buffer's state unchanged.
+
+### ReadDeclaresABufferLeaf
+
+`read()` adds one value to the graph. It has the lifetime `BUFFER`, `requires_grad` false and
+the shape [8] and type FLOAT64 that were defined. `id_in(graph)` and
+`graph.state_leaf(buffer.state())` both return it.
+
+### ASecondReadInOneGraphReturnsTheFirstLeaf
+
+A second `read()` through the same builder returns the first leaf. The graph's value count
+does not grow and `state_leaves()` holds one pair.
+
+### ABufferReadInTwoGraphsHasALeafInEach
+
+The first graph holds a padding input, so the buffer's leaf there is value 1, and in the
+second graph it is value 0. `id_in` returns each graph's own leaf, and the buffer's state is
+the same after both reads.
+
+### ACopiedBufferHasANewStateID
+
+A copy of a defined and read buffer has the original's shape and starting value and a state
+that is neither `K_NO_STATE` nor the original's. `copy.id_in(graph)` is `K_NO_VALUE` until the
+copy is read, and its leaf then differs from the original's, which keeps its own.
+
+### AMovedBufferKeepsItsStateID
+
+A buffer move-constructed from a read one has the same state and the same leaf in the graph.
+Reading it again returns that leaf and adds no value.
+
+### AMovedFromBufferIsUndefined
+
+After a move construction and after a move assignment the source reports `declared()` false
+and the state `K_NO_STATE`. The assigned target is declared and has a state.
+
+### ACopyAssignedBufferHasANewStateID
+
+A defined [2] buffer copy-assigned from a [8] FLOAT64 one takes that shape and type. Its state
+differs from the state it had before and from the source's.
+
+### ACopyOfAnUndefinedBufferHasNoIdentity
+
+A copy of a buffer that was never defined is not declared and has the state `K_NO_STATE`.
+
+### DefiningTwiceWithOneDescriptionIsAccepted
+
+A second `define()` with the same shape, value and type returns ok and leaves the description
+as it was.
+
+### DefiningWithAnotherShapeFails
+
+`define([4], 0.0)` after `define([8], 0.0)` returns `InvalidDescription` with a message
+containing "Buffer was defined as", "[8]" and "[4]". The shape stays [8].
+
+### DefiningWithAnotherElementTypeFails
+
+`define([8], 0.0, FLOAT64)` after a FLOAT32 definition returns `InvalidDescription` with a
+message naming both types. The type stays FLOAT32.
+
+### DefiningWithAnotherStartingValueFails
+
+`define([8], 1.0)` after `define([8], 0.0)` returns `InvalidDescription` with a message
+containing "Buffer was defined as" and "is now defined as". The starting value stays 0.0.
+
+### ReadingBeforeDefineIsFatal
+
+The case is in the suite `Unit_BufferDeathTest`. `read()` on an undefined buffer stops the
+process with a report containing "'running_mean'" and "before define()".
+
+## test_channel_slice.cpp
+
+The ChannelSlice layer's shape inference, the one SLICE_CHANNELS node it emits with its offset, the offsets, counts and ranks it rejects, and its empty state.
+
+Suites: `Unit_ChannelSlice`.
+
+Tests `NN::ChannelSlice` in `modules/layers/nn/include/SushiAI/nn/channel_slice.hpp`, which
+keeps `count` channels of an image batch from `offset` on.
+
+Two `static_assert` lines at the top of the file hold that `ChannelSlice` is a `Module` and is
+not a `ModuleContainer`.
+
+### TheOffsetAndCountFieldsAreSetInOrder
+
+`ChannelSlice{32, 16}` has `offset` 32 and `count` 16.
+
+### OutputShapeKeepsHeightAndWidthAndTakesTheRange
+
+With offset 32 and count 32, `output_shape([5, 3, 64])` is [5, 3, 32].
+
+### OutputShapeAcceptsTheFirstLastAndWholeRanges
+
+Over [4, 2, 4], the ranges {0, 1} and {3, 1} give [4, 2, 1], {1, 3} gives [4, 2, 3] and {0, 4}
+gives [4, 2, 4].
+
+### TheResultIsTaggedNHWC
+
+The traced result over a [2, 5, 3, 64] input has rank 4 and the layout `TensorLayout::NHWC`.
+
+### ForwardEmitsOneSliceNodeCarryingTheOffset
+
+`forward` with offset 32 and count 32 adds one node. Its operation is `Ops::K_SLICE_CHANNELS`,
+its one input is the value passed in, its attribute 0 is 32, and the result has the shape
+[2, 5, 3, 32].
+
+### TheWholeChannelRangeTracesToTheInputShape
+
+`ChannelSlice{0, 64}` over a [2, 5, 3, 64] input traces to [2, 5, 3, 64].
+
+### OutputShapeAgreesWithTheTracedShape
+
+For {32, 32} over 64 channels and for {1, 2} over 6 channels, `output_shape` equals the traced
+shape with its batch axis dropped.
+
+### OutputShapeRejectsANegativeOffset
+
+Offset -1 with count 4 throws an error naming "ChannelSlice", "offset=-1, count=4" and
+"64 channels".
+
+### OutputShapeRejectsAZeroCount
+
+Offset 0 with count 0 throws an error naming "ChannelSlice", "offset=0, count=0" and
+"64 channels".
+
+### OutputShapeRejectsANegativeCount
+
+Offset 8 with count -2 throws an error naming "ChannelSlice", "offset=8, count=-2" and
+"64 channels".
+
+### OutputShapeRejectsARangePastTheChannels
+
+Offset 32 with count 40 over 64 channels throws an error naming "offset=32, count=40" and
+"64 channels".
+
+### OutputShapeRejectsAnOffsetAtTheChannelCount
+
+Offset 64 with count 1 over 64 channels throws an error naming "offset=64, count=1".
+
+### OutputShapeRejectsExtremeValuesWithoutOverflow
+
+An offset of the largest `int64_t` with count 1, and offset 1 with a count of the largest
+`int64_t`, each throw an error naming "ChannelSlice" and "64 channels".
+
+### OutputShapeRejectsARankOnePerSampleShape
+
+`output_shape([16])` throws an error naming "ChannelSlice", "[H, W, C]" and "[16]".
+
+### OutputShapeRejectsARankFourShape
+
+`output_shape([2, 3, 5, 7])` throws `Error`.
+
+### ForwardRejectsARankTwoInput
+
+`forward` over a [2, 12] input throws an error naming "ChannelSlice", "rank-4" and "[2, 12]".
+
+### ForwardRejectsARangePastTheChannels
+
+`forward` with offset 2 and count 2 over a three-channel input throws an error naming
+"ChannelSlice", "offset=2, count=2" and "3 channels".
+
+### ForwardRejectsAnNCHWInput
+
+`forward` over a value converted to NCHW throws an error naming "slice_channels" and "NHWC".
+
+### TheParameterWalkVisitsNothing
+
+After a trace, `NN::for_each_parameter` calls its visitor zero times and
+`NN::parameter_count` is 0.
+
+## test_concat.cpp
+
+The Concat node's shape check, its port and the node it traces.
+
+Suites: `Unit_Concat`.
+
+Tests the Concat node's shape check, its port and the node it traces.
+
+This file needs no device. `NN::Concat` in `modules/layers/nn/include/SushiAI/nn/concat.hpp` is an `NN::Node`
+that joins several feature maps along the channel axis. `Concat::create` takes one per-sample
+shape per input and returns a `Result`, and `forward` returns a `Status`.
+
+### create_over
+
+`create_over` calls `Concat::create` over a vector of shapes viewed as an `NN::ShapeSpan`.
+
+### span_of
+
+`span_of` views a vector of ids as the `NN::ValueSpan` one `forward` call takes.
+
+### CreateSumsTheChannelsOfItsInputs
+
+Over [8, 6, 3], [8, 6, 5] and [8, 6, 1] the node has one port named "output" of shape
+[8, 6, 9].
+
+### CreateAcceptsOneInput
+
+Over the one shape [8, 6, 3] the port's shape is [8, 6, 3].
+
+### CreateRejectsUnequalHeight
+
+[8, 6, 3] with [4, 6, 3] fails with `InvalidDescription` and a message containing "concat
+input 1" and "H and W".
+
+### CreateRejectsUnequalWidth
+
+A third input of [8, 12, 3] fails with a message containing "concat input 2" and "H and W".
+
+### CreateRejectsAnInputThatIsNotAFeatureMap
+
+[8, 6, 3] with [144] fails with a message containing "concat input 1" and "rank-3".
+
+### CreateRejectsAFirstInputThatIsNotAFeatureMap
+
+[144] with [8, 6, 3] fails with a message containing "concat input 0" and "rank-3".
+
+### CreateRejectsNoInput
+
+No shape at all fails with a message containing "at least one input".
+
+### ForwardEmitsOneConcatChannelsReadingEveryInputInOrder
+
+`forward` over the values b and a adds one `Ops::K_CONCAT_CHANNELS` node whose inputs are b then
+a. It appends one id to `outputs`, the node's one output.
+
+### ForwardResultIsThePortShapeWithABatchAxis
+
+Over [2, 8, 6, 3] and [2, 8, 6, 5] the traced value has the shape [2, 8, 6, 8], and the port
+reports [8, 6, 8].
+
+### ForwardRejectsAnInputCountItWasNotBuiltOver
+
+A node built over two shapes and given one value fails with a message containing "input count
+is 2" and "given is 1". `outputs` stays empty and the graph gains no node.
+
+### TheInputCountIsTheNumberOfShapesItWasBuiltOver
+
+`input_count()` is 1 for a node built over one shape and 3 for a node built over three.
+
+### ForwardReturnsTheFailureOfValuesThatDoNotJoin
+
+A node built over two [8, 6, 3] shapes is given a [2, 8, 6, 3] value and a [2, 4, 6, 3] value.
+`forward` returns an `InvalidDescription` failure, appends nothing to `outputs` and adds no
+node.
+
+### TheFactoryBuildsANodeFromARowWithNoKey
+
+`NN::make_concat_node` over [8, 6, 3] and [8, 6, 5] with the attributes `{}` returns a
+`Concat` with an input count of 2 and one port of shape [8, 6, 8].
+
+### TheFactoryRefusesAKeyAndShapesThatDoNotJoin
+
+The attributes `{"axis": 3}` fail with a message containing the context "layer 2 'concat'",
+"'axis'" and "no key". The shapes [8, 6, 3] and [4, 6, 5] with no attribute fail with the
+context and "H and W".
+
+### TheStateWalkVisitsNothing
+
+After a trace, `walk_state("merge", visitor)` calls neither the parameter callback nor the
+buffer callback.
+
+## test_layer_stack.cpp, tests/core/config/test_value.cpp, tests/core/config/test_train_config.cpp, tests/core/config/test_model_config.cpp
+
+How the config layer parses its JSON documents and which ones it refuses.
+
+Suites: `Unit_Config`.
+
+Tests how the config layer parses its JSON documents and which ones it refuses.
+
+This file needs no device. The config layer is host-lane by construction: it turns text into a
+typed tree and never touches an Engine.
+
+Most of what the cases assert is a diagnostic, not a value. That is deliberate. A config
+layer's job is to refuse a wrong file loudly, and a test that only checked "it threw" would keep
+passing after a refactor collapsed five specific messages into one generic complaint.
+`modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp` gives the argument in full.
+
+The cases fall into two groups, in file order:
+
+- the model document in both of its versions, and the layer registry it selects through
+- the train and eval documents
+
+### ParsesEveryScalarKind
+
+An object with a whole number, a real, a string, a boolean, a null and an array of two parses
+to `Kind::Object`, and each member reads back through `as_int`, `as_real`, `as_string`,
+`as_bool`, `is_null` and `as_array`.
+
+### KeepsTheKeyOrderTheFileSpelled
+
+Key order is what lets a "this object carries ..." diagnostic read the way the file does, so
+the test treats it as a property and not as an accident.
+
+### AnIntegerReadsAsARealButARealIsNotAWholeNumber
+
+JSON's grammar distinguishes 3 from 3.0 and the config layer keeps that, so `"units": 2.5` is
+refused, not truncated. The widening goes one way only.
+
+### AWrongKindNamesBothTheContextAndTheKindFound
+
+`as_int("layer 0 'units'")` on a string raises an error holding "layer 0 'units'" and
+"a string".
+
+### AMissingKeyNamesTheKeyAndListsWhatIsPresent
+
+`at("gamma", "model.json")` on an object of `alpha` and `beta` raises an error holding
+"model.json", "'gamma'", "'alpha'" and "'beta'".
+
+### ReadingAKeyOffANonObjectSaysWhatItActuallyIs
+
+`at("units", "the model")` on an array raises an error holding "the model" and "an array".
+
+### AnUnknownKeyIsAnErrorThatListsWhatIsAllowed
+
+`reject_unknown_keys` with the allowed keys `type` and `units` over an object holding `unitss`
+raises an error holding "layer 0 'linear'", "'unitss'", "'units'" and "'type'".
+
+### AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything
+
+A layer that takes no attributes, such as gelu, passes an empty list. Any key at all is then an
+error and is not quietly dropped.
+
+### WithoutRemovesTheDiscriminatorAndLeavesTheRest
+
+Removing a key that is absent is not an error, because a layer spelled with no attributes still
+goes through the same call.
+
+### AtOrFallsBackWithoutThrowing
+
+A non-object falls back and does not throw. A layer spelled `{"type": "gelu"}`, whose attributes
+are an empty object, therefore reads its optional keys through the same call as any other layer.
+
+### MalformedJSONNamesTheOriginAndTheComplaint
+
+`parse_json("{ not json", "train.json")` raises an error holding "train.json" and
+"not valid JSON".
+
+### AnObjectBuiltFromMismatchedVectorsIsRefused
+
+`Value::object` of two keys and one value raises an error holding "2 keys" and "1 value".
+
+### ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes
+
+"type" is gone from the attributes, so no factory has to allow the key that selected it.
+
+### ChainsLayerWidthsFromTheInputFeatures
+
+The activation preserves the width it was handed, which is why the file never states a width
+for it.
+
+### AConfiguredStackTracesToTheDeclaredOutputWidth
+
+The stack `build_layer_stack` makes from `K_GOOD_MODEL` traces a [4, 6] input to a [4, 4]
+value.
+
+### AnUnknownLayerTypeListsEveryTypeThisBuildHas
+
+The model names a layer type "hologram", which no row of `NN::K_LAYER_REGISTRY` carries. The
+message contains "hologram", "layer type", "'linear'" and "'gelu'". The unknown type has to
+be a name the registry does not hold, and "conv2d" is a row of the table.
+
+### AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory
+
+The `stray` document writes a width onto an activation. An activation takes no attributes, so
+that width is an error and not a line that does nothing.
+
+### The version 2 model document
+
+The cases from AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite to
+AMalformedOutputIsAnError cover the two versions of the model document that
+`Config::parse_model` reads. `Config::K_MODEL_VERSION` is 2. A version 1 document carries the key
+`sushiai_model` and an `input` of `features`. A version 2 document carries `format_version`,
+an `input` of `shape`, an optional `from` on each row, and the optional top-level keys
+`defaults` and `outputs`. Both parse to one `Config::ModelSpec`, in which every row holds its
+sources as absolute row indices and the model input is `Config::K_MODEL_INPUT`, which is -1.
+
+### K_FIRST_VERSION_MODEL
+
+`K_FIRST_VERSION_MODEL` is a version 1 document of five rows over 784 features: `unflatten` to
+28 by 28 by 1, `conv2d` of 8 filters and kernel 3 with a bias, `relu`, `flatten` and `linear`
+of 10 units.
+
+### K_REWRITTEN_MODEL
+
+`K_REWRITTEN_MODEL` is the same model written as version 2, with the input shape [784] and
+`"from": -1` on every row.
+
+### scalar_text
+
+`scalar_text` renders one scalar attribute as "int n", "bool true", "bool false" or "string
+s", and any other kind as its kind name.
+
+### spec_text
+
+`spec_text` renders a `ModelSpec` as text: one line for the input shape and feature count, one
+line per row with its type, its sources as `node:'port'` and its attributes, and one line per
+output. Two specs compare equal as text when every one of those fields agrees.
+
+### current_model_from
+
+`current_model_from` wraps a `layers` array, and optionally more top-level keys, in a version
+2 document whose input shape is [6].
+
+### ALayerFactoryRefusesANonPositiveWidth
+
+A `linear` row with `units` 0 makes `build_layer_stack` raise an error holding
+"layer 0 'linear'" and "'units'".
+
+### UseBiasDefaultsToTrueAndCanBeTurnedOff
+
+After a trace, a `linear` row has two parameters, and one with `use_bias` false has one.
+
+### AMissingModelVersionIsAnErrorThatSaysWhy
+
+A model document without `sushiai_model` raises an error holding "sushiai_model" and
+"misread".
+
+### AFutureModelVersionIsAnError
+
+`sushiai_model` 2 raises an error holding "version 2" and "version 1".
+
+### AnUnknownTopLevelModelKeyIsAnError
+
+A version 1 document with the key `optimizer` raises an error holding "'optimizer'" and
+"'layers'".
+
+### AModelWithNoLayersIsAnError
+
+An empty `layers` array raises an error holding "no layers".
+
+### ANonPositiveInputWidthIsAnError
+
+`features` 0 raises an error holding "'features'" and "positive".
+
+### ALayerThatIsNotAnObjectIsAnError
+
+A layer given as the string "linear" raises an error holding "layer 0" and "a string".
+
+### AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite
+
+`spec_text` of the two documents is equal. The expected text is asserted as a literal too: the
+input is [784] with 784 features, row 0 reads -1, each later row reads the row above it, and
+the one output is row 4 with no port and no name.
+
+### AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount
+
+`K_GOOD_MODEL`, a version 1 document of 6 features, parses to `input_shape` [6],
+whose `num_elements()` is 6. The case also asserts that `Config::K_MODEL_VERSION` is 2.
+
+### AVersionTwoInputShapeKeepsItsRankAndCountsItsElements
+
+The input shape [28, 28, 1] is kept at rank 3 and its `num_elements()` is 784.
+
+### AnEmptyOrNonPositiveInputShapeIsAnError
+
+An empty `shape` throws with a message containing "'input' 'shape'" and "empty". The shape
+[28, 0, 1] throws with "'shape' entry 1" and "positive". A version 2 input that states
+`features` throws with "'features'" and "'shape'".
+
+### TheInputElementTypeIsFloat32UnlessTheFileStatesInt32
+
+A version 2 document without `dtype`, and one with `dtype` "float32", both parse to an input
+of `Float32`. One with "int32" parses to `Int32`.
+
+### AnInputElementTypeOutsideTheListIsAnError
+
+The `dtype` "int64" raises an error holding "'input' 'dtype'", "'int64'" and
+"'float32', 'int32'". The `dtype` 32 raises one holding "'input' 'dtype'".
+
+### AnInputShapeAboveTheRankOrTheElementLimitIsAnError
+
+A shape of `K_MAX_RANK` + 1 extents throws with "'shape'" and "at most". The shape
+[4294967296, 4294967296], whose product is 2^64, throws with "'shape'", "entry 1" and "more
+elements".
+
+### AModelRootThatIsNotAnObjectIsAnError
+
+The document `[1]` throws with a message containing "model.json", "'format_version'" and "an
+array".
+
+### AVersionAboveTheNewestIsRefusedWithBothNumbers
+
+`"format_version": 3` throws with a message containing "model.json", "version 3" and "version
+2".
+
+### FormatVersionOneIsRefusedAndNamesTheVersionOneKey
+
+`"format_version": 1` throws with a message containing "'format_version'" and
+"'sushiai_model'". Version 1 files carry the second key and never the first.
+
+### AVersionOneDocumentRefusesTheVersionTwoKeys
+
+A version 1 document with a `from` on row 1 throws with "layer 1", "'from'" and "version 1".
+One with a top-level `defaults` throws with "'defaults'" and "'layers'".
+
+### EachFromFormResolvesToAnAbsoluteRow
+
+Six rows use every form of `from`. An absent `from` on row 0 and the string "input" resolve to
+-1. The number -1 resolves to the row above. An array `[-1, 0]` on row 3 resolves to rows 2
+and 0. An object `{"node": 3, "port": "boxes"}` resolves to row 3 with that port. An array may
+mix objects, "input" and a relative object. The whole spec is compared as text. Row 0's source
+is `K_MODEL_INPUT`, and "from" is not among row 3's attributes.
+
+### ANegativeFromOtherThanMinusOneNamesTheRow
+
+`"from": -2` on row 2 throws with a message containing "layer 2 of 'model.json'", "'from'" and
+"row -2". `{"node": -3}` inside an array throws with the layer and "row -3".
+
+### AForwardReferenceNamesTheRow
+
+`"from": 2` on row 1 throws with "layer 1 of 'model.json'", "row 2" and "above row 1".
+`"from": [0, 1]` on row 1, which names the row itself, throws with the layer and "row 1".
+
+### AnUnknownKeyOrFormInAFromEntryNamesTheRow
+
+Each of five `from` entries on row 1 throws with "layer 1 of 'model.json'" and one more
+needle: the key `prot` with "'prot'" and "'port'"; the string "previous" with "'previous'" and
+"'input'"; an empty array with "empty"; the number 0.5 with "it is a number"; and an empty
+`port` string with "'port'" and "empty string".
+
+### AnUnknownTopLevelKeyOfAVersionTwoDocumentIsAnError
+
+A top-level key `output` throws with a message containing "'output'", "'outputs'" and
+"'defaults'".
+
+### DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne
+
+The `defaults` block gives `conv` rows `bn_momentum` 3 and `kernel` 5. Row 0 states only
+`filters` and ends with the keys `filters`, `bn_momentum`, `kernel` and the values 3 and 5.
+Row 1 states `bn_momentum` 7 and keeps it. Row 2 is a `relu` and receives no key.
+
+### AMalformedDefaultsBlockIsAnError
+
+A `defaults` that is an array throws with "'defaults'" and "an array". A type whose default is
+the number 3 throws with "'defaults' for 'conv'" and "object". A default that sets `from`
+throws with that context and "'from'", and one that sets `type` with "'type'".
+
+### ADefaultsEntryForATypeNoLayerStatesIsAnError
+
+A default for "covn" in a model of `conv` and `relu` rows throws with a message containing
+"'defaults'", "'covn'" and "'conv', 'relu'".
+
+### OutputsDefaultToTheLastRowAndKeepWhatTheFileStates
+
+A document with no `outputs` gets one output: the last row, with an empty port and an empty
+name. A document that states three outputs keeps each as written: row 0 alone, row 1 with the
+port "boxes", and row 1 with the port "boxes" and the name "predictions".
+
+### AMalformedOutputIsAnError
+
+Seven `outputs` values each throw. Row 1 in a one-row model: "'outputs' entry 0", "row 1" and
+"0 to 0". The key `nme`: "'nme'" and "'name'". A `name` without a `port`: "'name'" and
+"'port'". An empty array: "'outputs'" and "empty". The number 3 as an entry: "a whole number".
+An empty `port` string: "'outputs' entry 0 'port'" and "empty string". An empty `name` string:
+"'outputs' entry 0 'name'" and "empty string".
+
+### Path resolution in the train and eval documents
+
+Path resolution is the one thing in this file that needs real files on disk. The property is
+that a relative path resolves against the config file's own directory and not against the
+process working directory, and that cannot be asserted without a config file that exists
+somewhere.
+
+### AModelWithoutATaskHoldsANullTask
+
+A version 2 document without `task`, and `K_FIRST_VERSION_MODEL`, both parse to a null task.
+
+### ATaskIsKeptWholeWithItsKeysInFileOrder
+
+A task stating `classes`, `type` and `heads` in that order parses to an object with those
+keys in that order, the type "anchor_detection", 80 classes and one head.
+
+### AMalformedTaskIsAnError
+
+The parse raises an error for a task given as an array ("'model.json's 'task'", "an array"),
+as null ("'model.json's 'task'", "null"), without a type ("'model.json's 'task'",
+"no 'type'", "'classes'") and with the type 3 ("'task' 'type'", "a whole number").
+
+### AVersionOneDocumentRefusesATask
+
+A version 1 document with a `task` raises an error holding "'task'" and "'layers'".
+
+### ParsesATrainDocumentIntoItsFourTypedBlocks
+
+`K_GOOD_TRAIN` parses to the objective type "cross_entropy", the data type "rings", the
+optimizer type "adamw" and 3 epochs. The optimizer attributes hold no `type` and a
+`learning_rate` of 0.003, and the data attributes hold a `batch_size` of 8.
+
+### ResolvesRelativePathsAgainstTheConfigsOwnDirectory
+
+`load_train` of a `train.json` written under the system's temporary directory gives a model
+path of `model.json` and a checkpoint of `out/model.sushi`, both under that directory.
+
+### LeavesAnAbsolutePathAlone
+
+`generic_string()` spells separators as '/', which JSON does not need to escape. The test
+therefore builds the document by concatenation and needs no second, test-only escaper that
+nobody would maintain.
+
+### EpochsDefaultsToOneAndMustBePositive
+
+A train document without `epochs` parses to 1 epoch and an empty checkpoint path. `epochs` 0
+raises an error holding "'epochs'" and "positive".
+
+### AnUnknownTopLevelTrainKeyIsAnError
+
+The key `epochz` raises an error holding "'epochz'" and "'epochs'".
+
+### AMissingTrainBlockNamesIt
+
+A train document without `data` raises an error holding "'data'".
+
+### ATypedBlockThatIsNotAnObjectIsAnError
+
+An `objective` given as a string raises an error holding "'objective'" and "a string".
+
+### AFutureTrainVersionIsAnError
+
+`sushiai_train` 2 raises an error holding "version 2" and "version 1".
+
+### ParsesAnEvalDocument
+
+`parse_data` of a `sushiai_data` 1 document gives the data type "rings", a `batch_size` of
+512 and a `seed` of 3735928575.
+
+### AnEvalDocumentCarriesNoModelBlock
+
+The architecture is a separate file that inference is handed separately. Naming one in an eval
+document is an error; it is not silently preferred over the one on the command line.
+
+### LoadingAnAbsentFileNamesThePath
+
+`load_train("no/such/train.json")` raises an error holding that path.
+
+## test_depthwise_conv2d.cpp
+
+The DepthwiseConv2d layer's one DEPTHWISE_CONV2D node, its [kernel_h, kernel_w, channels] weight with role and fans, shape inference against the trace, `same_padded`, and the inputs it rejects.
+
+Suites: `Unit_DepthwiseConv2d`.
+
+Tests `NN::DepthwiseConv2d`. Most cases use four channels, a 3x3 window and one pixel of
+padding.
+
+Two `static_assert` lines at the top of the file hold that `DepthwiseConv2d` is a `Module` and
+is not a `ModuleContainer`.
+
+### ForwardEmitsOneDepthwiseNodeAndNoBiasAdd
+
+After `forward` over a [2, 8, 8, 4] input the graph holds one `Ops::K_DEPTHWISE_CONV2D` node
+and no `Ops::K_BIAS_ADD` node.
+
+### TheEmittedNodeReadsTheInputAndTheWeight
+
+The depthwise node has two inputs: the value passed in, and a value of the shape [3, 3, 4]. Its
+one output is the value `forward` returned.
+
+### ForwardKeepsTheSpatialExtentsAndTagsNHWC
+
+A padded 3x3 window at stride 1 over [2, 8, 8, 4] yields [2, 8, 8, 4], tagged
+`TensorLayout::NHWC`.
+
+### StrideTwoHalvesAnEvenExtent
+
+At stride 2 a [2, 8, 6, 4] input yields [2, 4, 3, 4].
+
+### TheWeightOfAnAnisotropicWindowIsHeightWidthChannels
+
+With a window 2 high and 4 wide over three channels, the weight's shape after `forward` is
+[2, 4, 3].
+
+### TheParameterWalkNamesOnlyTheWeight
+
+The parameter walk is empty before `forward`. After it the walk yields "weight:[3, 3, 4]"
+alone, and `NN::parameter_elements` is 36.
+
+### TheWeightRecordsTheWeightRole
+
+After `forward`, `weight.role()` is `ParameterRole::Weight`.
+
+### TheWeightRecordsItsWindowAsBothFans
+
+After `forward` with a 3x3 window, `weight.fan_in()` and `weight.fan_out()` are both 9.
+
+### TheWeightAndTheResultTakeTheInputElementType
+
+Over a `Float64` input, the weight's element type and the result's element type are `Float64`.
+
+### OutputShapeAtStrideOneKeepsTheExtents
+
+`output_shape([8, 6, 4])` is [8, 6, 4] for a padded 3x3 window at stride 1.
+
+### OutputShapeAtStrideTwoHalvesTheExtents
+
+`output_shape([8, 6, 4])` is [4, 3, 4] for a padded 3x3 window at stride 2.
+
+### OutputShapeAgreesWithForwardAtStrideOneAndTwo
+
+For the sample [8, 6, 4] in a batch of 3, the traced shape equals `output_shape` with the batch
+extent in front, at stride 1 and at stride 2.
+
+### OutputShapeAgreesWithForwardOverAnOddExtent
+
+At stride 2, `output_shape([7, 9, 4])` is [4, 5, 4], and the traced shape of a batch of 2 is
+that shape with the batch extent in front.
+
+### SamePaddedBuildsAPaddedLayerOfTheGivenStride
+
+`same_padded(4, 4, 5, 2)` gives 4 channels, a 5x5 window, stride 2 on both axes, a top and left
+padding of 2, and dilation 1 on both axes.
+
+### SamePaddedRefusesUnequalChannelCounts
+
+`same_padded(4, 8, 3, 1)` throws an error naming "keeps its channel count".
+
+### ForwardRejectsAnInputThatIsNotRankFour
+
+`forward` over a [2, 16] input throws an error naming "rank-4".
+
+### ForwardRejectsAnNCHWInput
+
+`forward` over a value converted to NCHW throws an error naming "NHWC".
+
+### ForwardRejectsAChannelCountThatDiffersFromTheLayer
+
+A four-channel layer over a [2, 8, 8, 3] input throws an error naming "[H, W, 4]".
+
+### ForwardRejectsANonPositiveChannelCount
+
+A layer with `channels` 0 throws an error naming "positive channel count".
+
+### ForwardRejectsAWindowThatDoesNotFit
+
+An unpadded 5x5 window over a [2, 4, 4, 4] input throws `Error`.
+
+### OutputShapeRejectsAChannelCountThatDiffersFromTheLayer
+
+`output_shape([8, 8, 5])` on a four-channel layer throws an error naming "[H, W, 4]".
+
+### OutputShapeRejectsASampleOfTheWrongRank
+
+`output_shape([8, 8])` throws an error naming "[H, W, 4]".
+
+## test_dropout.cpp
+
+That Dropout emits one DROPOUT node in training with its rate and site seed, returns its input in evaluation and at rate 0, gives each site its own seed, its rate check and its factory.
+
+Suites: `Unit_Dropout`.
+
+Tests `NN::Dropout` in `modules/layers/nn/include/SushiAI/nn/dropout.hpp` and its factory
+`NN::make_dropout_node`. A `static_assert` at the top of the file holds that `Dropout` is a
+`ModalModule` and is neither a `Module` nor a `TraceModule`. The training traces state the
+seed 5.
+
+### TheTrainingFormEmitsOneDropoutNode
+
+A layer of rate 0.25 over a [2, 3, 4] input adds one DROPOUT node that reads the input. The
+node holds 0.25 in `K_DROPOUT_RATE_SLOT`, its seed is `dropout_site_seed(5, 0)`, and the result
+has the input's shape. The layer has no parameter and no buffer.
+
+### TheEvaluationFormReturnsItsInputAndEmitsNothing
+
+Under `Trace::evaluation` the layer returns its input, the trace is ok, and the node count and
+the value count do not change.
+
+### ARateOfZeroEmitsNothingInTraining
+
+A default `Dropout` under a training trace returns its input and adds no node. The next
+`claim_random_site()` of the trace returns 0.
+
+### EachSiteOfATraceGetsItsOwnSeed
+
+Two layers traced one after the other get the seeds `dropout_site_seed(5, 0)` and
+`dropout_site_seed(5, 1)`. A second graph traced the same way gets the same two seeds.
+
+### ATraceWithoutAStatedSeedHasSeedZero
+
+`Trace::training` without a seed and `Trace::evaluation` report the seed 0. `Trace::training`
+given 5 reports 5.
+
+### ARateOutsideItsIntervalFails
+
+For the rates 1, -0.1 and NaN, `trace_training` and `trace_evaluation` return their input and
+both traces fail with `InvalidDescription` and a message containing "rate in [0, 1)". The graph
+has a refusal.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([6, 4])` is [6, 4].
+
+### TheFactoryReadsTheRate
+
+`make_dropout_node` over one [6, 4] input and `{"rate": 0.1}` returns a `ModuleNode<Dropout>`
+whose layer has the rate 0.1 and whose one port has the shape [6, 4].
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+Four rows fail with `InvalidDescription` and a message naming "layer 3": no rate ("'rate'",
+"absent"), a rate of 1 ("'rate'", "[0, 1)"), a `seed` key ("'seed'") and two inputs ("reads
+one input", "given 2").
+
+## test_embedding.cpp
+
+The Embedding layer's trace over an int32 index, its table parameter, its shape rule and its factory.
+
+Suites: `Unit_Embedding`, `Unit_EmbeddingDeathTest`.
+
+Tests `NN::Embedding` in `modules/layers/nn/include/SushiAI/nn/embedding.hpp` and its factory
+`NN::make_embedding_node`. Every layer has a table of 7 rows of length 3. A `static_assert`
+holds that `Embedding` is a `TraceModule` and is neither a `Module` nor a `ModalModule`.
+
+### ATraceDeclaresTheTableAndEmitsOneGather
+
+Over a [2, 5] int32 input the trace is ok and adds two nodes, one of them GATHER_ROWS. That node
+reads the weight and then the indices, and its result is a float32 value of shape [2, 5, 3].
+
+### TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation
+
+After a trace of a float64 layer the weight is declared with the shape [7, 3], the type float64
+and the role `ParameterRole::Embedding`. Its initialiser is `Normal` with the deviation
+`K_EMBEDDING_DEVIATION`, which is 0.02, and its fan-in and fan-out are both 3. The weight's
+value has the lifetime `Parameter` and requires a gradient, and the result is float64.
+
+### TheWalkYieldsTheTable
+
+`NN::walk_state` under the prefix `tokens` visits one name, `tokens.weight`, as a parameter of
+shape [7, 3], and visits no buffer.
+
+### TwoGraphsNameTheSameTable
+
+After traces of one layer into two graphs, `weight.state()` is the same `StateID` and is not
+`K_NO_STATE`, and `weight.id_in` returns a value in each graph.
+
+### AnInputThatIsNotInt32Fails
+
+A float32 input and an int64 input each fail with `InvalidDescription` and a message containing
+"Embedding(7, 3)", "int32 input of indices" and the type given. `forward` returns its input,
+the graph gains no value and no node, the weight stays undeclared and the graph has a refusal.
+
+### AnInputOfTheHighestRankFails
+
+A rank-6 int32 input fails with `InvalidDescription`, "rank 1 to 5" and
+"[1, 1, 1, 1, 1, 1]", and the weight stays undeclared.
+
+### ALayerDescribedWrongFails
+
+`num_embeddings` 0 and `embedding_dim` -1 each fail with "positive extents" and the field with
+its value. An int32 table fails with "half, float32 or float64 table" and "int32". The weights
+of the first and the third layer stay undeclared.
+
+### OutputShapeAppendsTheRowLength
+
+`output_shape` maps [5] to [5, 3], [4, 2] to [4, 2, 3] and [1, 1, 1, 1] to [1, 1, 1, 1, 3].
+
+### TheFactoryReadsTheTwoExtents
+
+`make_embedding_node` over one [5] input with `num_embeddings` 11 and `embedding_dim` 4 returns
+a `ModuleNode<Embedding>` whose layer holds 11, 4 and float32. The node reads one input and its
+one port has the shape [5, 4].
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+Five rows fail with `InvalidDescription` and a message naming "layer 3": a `padding` key, an
+absent `embedding_dim`, a `num_embeddings` of 0 ("positive"), two inputs ("reads one input",
+"given 2") and a rank-5 input ("[1, 1, 1, 1, 1]", "rank 1 to 4").
+
+### ATraceOverAValueTheGraphLacksIsFatal
+
+`forward` over value id 7 in a graph of one value stops the process with a report containing
+"Embedding(7, 3)", "value 7" and "holds 1 values".
+
+### OutputShapeOverARankFiveSampleIsFatal
+
+`output_shape([1, 1, 1, 1, 1])` stops the process with a report containing
+"Embedding::output_shape" and "at most 4".
+
+## test_flatten.cpp
+
+The Flatten layer's trace, shape rule, rejections and parameter walk.
+
+Suites: `Unit_Flatten`.
+
+Tests the Flatten layer's trace, shape rule, rejections and parameter walk.
+
+This file needs no device. `NN::Flatten` in `modules/layers/nn/include/SushiAI/nn/flatten.hpp` has no field and
+no parameter. It folds every axis after the batch axis into one.
+
+### traced_shape
+
+`traced_shape` traces a `Flatten` over a new input of the given batched shape and returns the
+result's shape.
+
+### SatisfiesTheModuleTrait
+
+Two `static_assert` lines require `Flatten` to be a `Module` and not a `ModuleContainer`.
+
+### ARank4InputTracesToOneReshape
+
+A [2, 4, 5, 3] input traces to a [2, 60] value. The trace adds exactly one node, a K_RESHAPE
+with the input as its one operand and the result as its one output.
+
+### ARank3InputFoldsItsTwoInnerAxes
+
+A [2, 3, 4] input traces to [2, 12].
+
+### ARank2InputPassesThroughWithNoNode
+
+For a [2, 7] input `forward()` returns the id it was given. The node count and the value count
+are unchanged, so a flatten placed after a layer that already yields feature vectors adds
+nothing to the step.
+
+### AnNHWCInputYieldsAnNHWCResult
+
+The input is asserted to be NHWC first, and the flattened result is NHWC too.
+
+### ForwardRejectsAnNCHWInput
+
+The layout tag of a [2, 3, 4, 5] input is set to NCHW by hand, and `forward()` throws.
+
+### OutputShapeAgreesWithTheTracedShape
+
+`output_shape()` maps [4, 5, 3] to [60], [3, 4] to [12] and [7] to [7]. For each, the traced
+shape of a batch equals the batch extent followed by that one extent.
+
+### ForwardRejectsARank1Input
+
+`forward()` throws on a [6] input, which has a batch axis and no per-sample axis.
+
+### OutputShapeRejectsARank0Shape
+
+`output_shape()` throws on an empty shape.
+
+### TheParameterWalkVisitsNothing
+
+`parameter_count` is 0 before a trace. After one the walk visits nothing and
+`parameter_elements` is 0.
+
+## test_global_avg_pool.cpp
+
+The shapes GlobalAvgPool traces and reports, and the inputs it refuses.
+
+Suites: `Unit_GlobalAvgPool`.
+
+Tests the shapes GlobalAvgPool traces and reports, and the inputs it refuses.
+
+This file needs no device. `NN::GlobalAvgPool` in `modules/layers/nn/include/SushiAI/nn/global_avg_pool.hpp` has
+no field and no parameter. It reduces the two spatial axes of an image to their mean.
+
+### traced_shape
+
+`traced_shape` traces the layer over an [N, H, W, C] input built from its four arguments and
+returns the result's shape.
+
+### SatisfiesTheModuleTrait
+
+Three `static_assert` lines require `GlobalAvgPool` to be a `Module`, not to be a
+`ModuleContainer`, and to have a `forward()` that is callable on a const object and returns
+`Graph::ValueID`.
+
+### ForwardReducesTheSpatialAxes
+
+A [4, 7, 5, 16] input traces to [4, 16].
+
+### ForwardEmitsOneSpatialMeanNode
+
+The trace adds exactly one node, a K_SPATIAL_MEAN with the input as its one operand and the
+result as its one output.
+
+### ForwardKeepsTheNHWCLayoutTag
+
+The result of an NHWC input is tagged NHWC, and `finalise()` accepts the graph.
+
+### OutputShapeKeepsOnlyTheChannels
+
+`output_shape([7, 5, 16])` is [16].
+
+### OutputShapeAgreesWithForward
+
+For a square [7, 7, 512] sample and an oblong [3, 9, 2] one, `output_shape()` is rank 1 and
+the traced shape is the batch extent followed by its one extent.
+
+### OutputShapeRejectsAFeatureVector
+
+`output_shape([16])` throws.
+
+### OutputShapeRejectsARankTwoShape
+
+`output_shape([7, 16])` throws.
+
+### OutputShapeRejectsAShapeWithTheBatchAxis
+
+`output_shape([4, 7, 5, 16])` throws.
+
+### ForwardRejectsAFeatureMatrix
+
+`forward()` throws on a [4, 16] input.
+
+### ForwardRejectsAnInputWithoutTheBatchAxis
+
+`forward()` throws on a [7, 5, 16] input.
+
+### ForwardRejectsAnNCHWInput
+
+A [1, 4, 4, 3] input is converted to NCHW, and `forward()` throws on the converted value.
+
+### TheParameterWalkVisitsNothing
+
+`parameter_count` is 0 before and after a trace, and `parameter_elements` is 0 after it.
+
+## test_host_table.cpp
+
+`Trace::host_table`: a table is a buffer leaf listed with its values, two declarations are two leaves, and a trace without a sink, a wrong type or a wrong count is refused.
+
+Suites: `Unit_HostTable`.
+
+Tests `NN::Trace::host_table` and the `NN::HostTableList` a trace collects into with
+`collect_tables`.
+
+### ATableIsALeafListedWithItsValues
+
+A [2, 3] float32 table of six values adds one node. Its leaf has that shape and type, the
+lifetime `Buffer` and no gradient, and `graph.state_leaves()` stays empty. The list holds one
+table with that leaf and the six values, and the trace is ok.
+
+### EveryDeclarationIsItsOwnLeaf
+
+Two float64 tables declared on a training trace return two different leaves, and the list
+holds them in the order they were declared.
+
+### ATableThatNoStepCanFillIsRefused
+
+`host_table` fails with `InvalidDescription` and a message naming `'angles'` three times: on a
+trace without `collect_tables` ("collect_tables"), for the type int32 ("float32 or a float64")
+and for two values under the shape [2, 3] ("6 elements", "2 values"). The graph gains no node
+and the list stays empty.
+
+## test_identity.cpp
+
+That the Identity layer returns its input, emits nothing and holds no state.
+
+Suites: `Unit_Identity`.
+
+Tests that the Identity layer returns its input, emits nothing and holds no state.
+
+This file needs no device. `NN::Identity` is in `modules/layers/nn/include/SushiAI/nn/identity.hpp`.
+
+Three `static_assert` lines at the top of the file hold that `Identity` is a `Module`, is not
+a `ModuleContainer`, and that `Identity::fields()` is an empty tuple.
+
+### ForwardReturnsItsInput
+
+`forward` over a [2, 8, 6, 3] input returns the id it was given.
+
+### ForwardEmitsNothing
+
+The graph's node count and value count are the same before and after `forward`.
+
+### OutputShapeReturnsItsInput
+
+`output_shape([7])` is [7] and `output_shape([8, 6, 4])` is [8, 6, 4].
+
+### TheParameterWalkVisitsNothing
+
+After a trace, `NN::for_each_parameter` calls its visitor zero times.
+
+## test_layer_norm.cpp
+
+The LayerNorm layer's trace, its gain and bias, its refusals and its factory.
+
+Suites: `Unit_LayerNorm`, `Unit_LayerNormDeathTest`.
+
+Tests `NN::LayerNorm` in `modules/layers/nn/include/SushiAI/nn/layer_norm.hpp` and its factory
+`NN::make_layer_norm_node`. Every layer normalises over a last extent of 4. A `static_assert`
+holds that `LayerNorm` is a `TraceModule` and is neither a `Module` nor a `ModalModule`.
+
+### ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode
+
+Over a [2, 3, 4] input a training trace is ok and adds three nodes. The node that writes the
+result is LAYER_NORM, reads the input, the weight and the bias in that order and holds
+`K_LAYER_NORM_EPSILON` in attribute slot 0. The result is a float32 value of shape [2, 3, 4].
+
+### TheGainIsAScaleAndTheBiasABias
+
+After a trace over a [5, 4] float64 input, the weight and the bias are declared with the shape
+[4] and the type float64, with the roles `ParameterRole::Scale` and `ParameterRole::Bias`. A
+layer whose `epsilon` is 1e-3 puts 1e-3 in the node's attribute slot 0.
+
+### TheWalkYieldsTheGainThenTheBias
+
+`NN::walk_state` under the prefix `norm` visits `norm.weight` and then `norm.bias`.
+
+### AnInputThatDoesNotFitFails
+
+A [2, 5] input fails with `InvalidDescription`, "LayerNorm(4)", "[..., 4] input" and "[2, 5]".
+An int32 input fails with "half, float32 or float64 input" and "int32". `forward` returns its
+input, the graph gains no node, the weight stays undeclared and the graph has a refusal.
+
+### ALayerDescribedWrongFails
+
+A default layer, whose `dim` is 0, fails with "positive dim" and "got 0". An `epsilon` of 0
+fails with "LayerNorm(4)" and "positive epsilon", and that layer's weight stays undeclared.
+
+### OutputShapeIsTheInputShape
+
+`output_shape([4])` is [4] and `output_shape([6, 4])` is [6, 4].
+
+### TheFactoryReadsTheWidthAndTheEpsilon
+
+`make_layer_norm_node` over one [6, 4] input and `{}` returns a `ModuleNode<LayerNorm>` whose
+layer has the `dim` 4 and the epsilon `K_LAYER_NORM_EPSILON`, and whose one port has the shape
+[6, 4]. With `{"ln_epsilon": 0.001}` the layer's epsilon is 0.001.
+
+### TheFactoryRefusesARowThatDoesNotFit
+
+Five rows fail with `InvalidDescription` and a message naming "layer 3": a `momentum` key, an
+`ln_epsilon` of -1 ("positive"), an `ln_epsilon` of "small" ("a number"), two inputs ("reads
+one input", "given 2") and a rank-6 input ("rank 1 to 5").
+
+### ATraceOverAValueTheGraphLacksIsFatal
+
+`forward` over value id 7 in a graph of one value stops the process with a report containing
+"LayerNorm(4)", "value 7" and "holds 1 values".
+
+## test_layers.cpp, tests/core/autograd/test_backward.cpp
+
+Suites: `Unit_Backward`.
+
+Tests the graph that differentiation emits and the coverage of the backward rule table.
+
+This file needs no device. Differentiation is an IR-to-IR transform, so what it produces is a
+graph that can be inspected node by node with no hardware involved. That is why
+`modules/core/graph/include/SushiAI/graph/ir.hpp` insists that a backward rule emits IR and never device work.
+
+The cases from DivReadsItsDivisorAndItsOwnQuotient on each put one operation under an K_NLL_LOSS
+root and compare the appended nodes with a literal list of operation names. The first appended
+node is always the K_SCALE that K_NLL_LOSS's rule emits, and its result is the gradient the tested
+operation receives. The cases then check which operands each appended node reads, since a rule
+that emits the right operations over the wrong operands gives a graph of the same shape.
+
+### K_ATTRIBUTE_TOLERANCE
+
+`K_ATTRIBUTE_TOLERANCE` is 1e-12, the error allowed on an attribute a rule writes as an exact
+constant.
+
+### K_UNPROVEN_RULES
+
+`K_UNPROVEN_RULES` is 8, the number of rules no finite-difference case names.
+EveryRuleInTheTableIsNamedByANumericTest compares the size of its `unproven` list with it, so
+adding a rule to that list takes an edit in two places.
+
+### ForwardCase
+
+`ForwardCase` holds a failure label and a function that emits one forward operation over two
+parameters.
+
+### Appended
+
+`Appended` holds what one differentiation appended: the index of the first appended node, the
+gradient the tested operation receives, and one gradient per requested value.
+
+### differentiate_through
+
+`differentiate_through` declares a `targets` input in the shape of a rank-2 result, puts
+`nll_loss(result, targets)` over it and differentiates. It returns an `Appended` whose `seed`
+is the first result of the first appended node.
+
+### appended_node
+
+`appended_node` returns the node a given number of places after the first appended one.
+
+### EveryImplementedOperationHasARule
+
+`has_backward_rule` is true for K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and K_SILU.
+
+`has_backward_rule` is false for K_LESS_EQUAL, K_CONSTANT and K_STOP_GRADIENT. Each is a gradient
+barrier: the reverse walk steps over it, so no rule is ever asked of it.
+
+`has_backward_rule` is false for K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD. An activation gradient
+has no rule, so a second differentiation over one throws.
+
+`has_backward_rule(K_BATCHNORM_UPDATE_STATS)` is false, and that is decision CV-7, not an
+omission. A running mean is a buffer the training step writes beside the graph. No gradient
+flows through it.
+
+`has_backward_rule(K_BATCHNORM_FOLD)` is false too. The fold is the node an evaluation trace of
+`NN::BatchNorm2d` emits, and DifferentiatingThroughBatchNormFoldFails holds what a gradient
+request through it does.
+
+`has_backward_rule` is false for K_LEAF and K_ZERO because both produce values from nothing. There
+is nothing upstream to hand a gradient to, so there is no rule to write.
+
+`has_backward_rule(K_CAST)` is false because of the order of the pipeline. Casts are inserted
+after differentiation (`modules/core/graph/include/SushiAI/graph/cast_insertion.hpp` says why), so no graph this
+transform sees can contain one. A graph that somehow did would fail loudly and name the
+operation. It would not differentiate a conversion whose precision the pass had not established
+yet.
+
+### EveryRuleInTheTableIsNamedByANumericTest
+
+The `ledger` vector records coverage; the test is not a tautology. "Every operation has a rule"
+is the easy half. The half that rots is "every rule has been checked against a finite
+difference". `differentiate()` picks up a rule added to a `modules/core/autograd/source/rules/<domain>.cpp`
+table automatically, so a wrong rule produces a model that trains slightly worse and nothing
+anywhere fails. Listing the proof beside the rule makes the omission visible: the test's second
+loop, the one over `Ops::K_ALL`, fails when an operation gains a rule that nobody added a ledger
+line for.
+
+The named tests live in `tests/core/autograd/rules/test_all.cpp` and all run in
+FLOAT64, for the reason `modules/core/autograd/include/SushiAI/autograd/gradcheck.hpp` derives.
+
+The K_LOG_SOFTMAX entries name the cases of `tests/language/blocks/test_causal_self_attention.cpp`:
+the unfused rule against its closed form, a softmax, and a causal attention block.
+
+The `unproven` vector lists the eight rules no finite-difference case names: K_DIV, K_MINIMUM,
+K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and K_SILU. Its size must equal `K_UNPROVEN_RULES`, every
+entry must have a rule, and no operation may appear in both the ledger and this list. The loop
+over `Ops::K_ALL` accepts a rule that either list names. An entry leaves `unproven` when a
+finite-difference case names its rule in the ledger.
+
+### TwoLayerMLPProducesTheExpectedBackwardTopology
+
+The `op_names` comparison expects the cross-entropy pair to be differentiated as one fused
+rule: exp of the log-probabilities, minus the one-hot targets, scaled by 1/N. The chain then
+walks back through the second linear layer, the activation and the first linear layer.
+
+`count_op(graph, K_ACCUMULATE)` is 0 because every value in a plain feed-forward stack has
+exactly one contributor, so the tiered accumulation emits nothing.
+
+### TheInputIsNotDifferentiatedWhenItDoesNotRequireOne
+
+The backward pass holds one K_MATMUL, the weight gradient, which with the forward one makes the
+two the test counts. The input gradient would have been another K_MATMUL. It is skipped, not
+computed and discarded.
+
+### FanOutEmitsAnAccumulateChain
+
+`x` feeds two branches, so its gradient has two contributors and the tiered accumulation drops
+to its ordered K_ACCUMULATE form.
+
+### ThreeContributorsChainTwoAccumulates
+
+A parameter feeds a ReLU, a tanh and a sigmoid whose sum is the loss operand. After
+`differentiate` the graph holds two ACCUMULATE nodes.
+
+### ADisconnectedParameterGetsASymbolicZeroNotABuffer
+
+A zero gradient must cost nothing: no K_ZERO node, no allocation, no wasted kernel. Only the live
+path emitted anything, and what it emitted is the loss gradient and the activation gradient.
+
+### ADeadLossPathEmitsNothingAtAll
+
+Nothing in this graph requires a gradient, so the reverse walk visits every node and writes
+none of them. A frozen model costs zero nodes. It does not cost a set of nodes computing
+gradients nobody reads.
+
+### AnOperationWithNoRuleThrowsAndNamesItself
+
+The `mystery` value is produced by a synthetic identity that no rule covers. It stands in for a
+future operation added to the lowering but not to the rule table.
+
+### ANonScalarRootIsRejected
+
+`differentiate` from a [4, 3] ReLU output throws `Error`.
+
+### LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity
+
+A RELU between LOG_SOFTMAX and NLL_LOSS keeps the fusion away. The walk appends SCALE,
+RELU_BACKWARD and one LOG_SOFTMAX_BACKWARD over the incoming gradient and the forward result.
+
+### TheFusedPairAppendsNoLogSoftmaxGradient
+
+NLL_LOSS directly over LOG_SOFTMAX appends EXP, SUB and SCALE, and no LOG_SOFTMAX_BACKWARD.
+
+### ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode
+
+A log-softmax over an input, multiplied by a parameter, appends no gradient node of its own.
+
+### ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax
+
+The LOG_SOFTMAX_BACKWARD of a softmax reads the MUL that the rule of EXP emitted and the
+forward log-probabilities.
+
+### DivReadsItsDivisorAndItsOwnQuotient
+
+For `c = a / b` with both operands parameters, the appended nodes are K_SCALE, K_DIV, K_MUL, K_SCALE.
+The K_DIV reads the seed and `b` and is the gradient of `a`. The K_MUL reads that quotient and the
+forward result `c`, and the last K_SCALE negates it with the factor -1 and is the gradient of
+`b`. The rule reuses `c` and does not divide by `b` a second time.
+
+### DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient
+
+With `b` an input, the appended nodes are K_SCALE and K_DIV.
+
+### DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone
+
+With `a` an input, the appended nodes are still K_SCALE, K_DIV, K_MUL, K_SCALE, because the divisor's
+gradient is computed from the quotient. The one returned gradient is the result of the last
+K_SCALE.
+
+### MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand
+
+For `minimum(a, b)` the appended nodes are K_SCALE, K_LESS_EQUAL, K_ZERO, K_SELECT, K_SELECT. The mask
+reads `a` then `b`. The first K_SELECT reads the mask, the seed and the zero and is the gradient
+of `a`; the second reads the mask, the zero and the seed and is the gradient of `b`. Where the
+operands are equal the mask holds, so the first operand takes the gradient.
+
+### MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand
+
+For `maximum(a, b)` the node list is the same and the mask reads `b` then `a`. The two K_SELECT
+nodes read the same operands as in the K_MINIMUM case, so a tie again goes to the first operand.
+
+### MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient
+
+With `a` an input, one K_SELECT is appended, and it reads the mask, the zero and the seed.
+
+### MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient
+
+With `b` an input, one K_SELECT is appended. The mask reads `b` then `a`, and the K_SELECT reads
+the mask, the seed and the zero.
+
+### AbsMultipliesByASignThatIsZeroAtZero
+
+For `abs(x)` the appended nodes are K_SCALE, K_ZERO, K_LESS_EQUAL, K_LESS_EQUAL, K_SUB, K_MUL. The K_ZERO has
+the shape of `x`. The first mask reads the zero then `x`, the second reads `x` then the zero,
+the K_SUB reads the first mask then the second, and the K_MUL reads the seed and the difference.
+The sign is `[0 <= x] - [x <= 0]`, which is 0 at x = 0.
+
+### AtanDividesByOnePlusTheSquaredInput
+
+For `atan(x)` the appended nodes are K_SCALE, K_MUL, K_CONSTANT, K_ADD, K_DIV. The K_MUL reads `x` twice.
+The K_CONSTANT has no input, holds 1 and has the shape and element type of `x`. The K_ADD reads the
+square and the one, and the K_DIV reads the seed and that sum.
+
+### SoftplusBackwardReadsTheForwardInputNotTheOutput
+
+For `softplus(x)` one K_SOFTPLUS_BACKWARD is appended after the K_SCALE, and it reads the seed and
+`x`. The case asserts that `x` and the forward result are different values first, so the
+operand check distinguishes the input from the output.
+
+### SiLUBackwardReadsTheForwardInputNotTheOutput
+
+For `silu(x)` one K_SILU_BACKWARD is appended after the K_SCALE, and it reads the seed and `x`.
+
+### SelectRoutesItsGradientByItsOwnCondition
+
+For `select(condition, a, b)` the appended nodes are K_SCALE, K_ZERO, K_SELECT, K_SELECT. The first
+K_SELECT reads the condition, the seed and the zero and is the gradient of `a`. The second reads
+the condition, the zero and the seed and is the gradient of `b`.
+
+### SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient
+
+With `a` an input, the appended nodes are K_SCALE, K_ZERO, K_SELECT, and the K_SELECT reads the
+condition, the zero and the seed.
+
+### SelectGivesItsConditionNoGradient
+
+With the condition a parameter and both branches inputs, only the K_SCALE is appended and the
+condition's gradient is `K_NO_VALUE`.
+
+### AComparisonUnderASelectLeavesItsOperandsWithoutAGradient
+
+The condition is `less_equal(p, q)` with `p` a parameter. The gradient of `p` is `K_NO_VALUE`,
+the gradient of the branch `a` exists, and the appended nodes are K_SCALE, K_ZERO, K_SELECT.
+
+### AComparisonMultipliedIntoAProductEmitsNothingForTheMask
+
+For `mul(less_equal(p, q), a)` differentiation does not throw. The mask does not require a
+gradient, the gradient of `p` is `K_NO_VALUE`, and the appended nodes are K_SCALE and one K_MUL that
+reads the seed and the mask and is the gradient of `a`. K_MUL's rule emits no node for its mask
+operand.
+
+### AConstantAddedToAParameterPathEmitsNothingForTheConstant
+
+For `(x + epsilon) * epsilon`, with `epsilon` a `constant_like` of `x`, differentiation does
+not throw. The constant does not require a gradient, and the appended nodes are K_SCALE and one
+K_MUL that reads the seed and the constant and is the gradient of `x`.
+
+### MaximumOfXAndAZeroConstantRoutesATieToX
+
+For `maximum(x, floor)` with `floor` a zero K_CONSTANT, the mask reads `floor` then `x`, and the
+K_SELECT reads the mask, the seed and the zero. The mask `[floor <= x]` holds at x = 0, so `x`
+takes the gradient there.
+
+### MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATie
+
+For `maximum(floor, x)` the mask reads `x` then `floor`, and the K_SELECT reads the mask, the
+zero and the seed. The mask `[x <= floor]` holds at x = 0, so `x` takes the zero branch there.
+The operand order of a clamp therefore decides its gradient at the bound. The case also checks
+that no node of the graph, forward or appended, narrows under the mixed-precision policy, so
+the clamp stays in the loss's precision.
+
+### NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows
+
+For each of `div`, `minimum`, `maximum`, `abs`, `atan`, `softplus`, `silu` and a `select` on a
+`less_equal` mask, the case differentiates the operation over two parameters. The rule appends
+a node beyond the K_SCALE, and `Graph::narrows_under_mixed_precision` is false for every appended
+node.
+
+### AGradientOnTheBatchVarianceOfBatchNormThrows
+
+`GraphBuilder::batchnorm2d` returns four values, and `batch_variance` is output 3 of the node.
+A loss built on a K_SCALE of that value is differentiated against gamma. `differentiate` throws
+with a message containing "K_BATCHNORM2D" and "saved statistics received a gradient".
+
+### BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst
+
+A loss built on `sum_channels` of output 0 is differentiated against gamma and beta. Both
+gradients are values other than `K_NO_VALUE` and the graph holds one K_BATCHNORM2D_BACKWARD node.
+Inputs 3 and 4 of that node are the saved mean and the saved inverse deviation. The batch
+variance is not among its operands.
+
+### DifferentiatingThroughBatchNormFoldFails
+
+A loss built on a K_CHANNEL_AFFINE over the two results of `batchnorm_fold` is differentiated
+against gamma, a parameter. `differentiate` throws with a message containing "No backward
+rule" and "sushiai.batchnorm_fold".
+
+### ABufferInWrtIsRefusedAndAppendsNoNode
+
+A request that lists a weight and a buffer named "running_shift" throws with a message
+containing "differentiate()", "running_shift" and "buffer", and the graph's node count is
+unchanged. The same graph then differentiates against the weight alone: the one gradient has
+the lifetime `GRADIENT`, and the buffer keeps the lifetime `BUFFER`.
+
+## test_layers.cpp, tests/core/autograd/test_backward.cpp
+
+Suites: `Unit_LossRoots`.
+
+Tests which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT
+barrier.
+
+This file needs no device. Every case in `Unit_LossRoots` builds a host-side graph, calls
+`Autograd::differentiate` and reads the appended nodes or the error. A root produced by
+K_NLL_LOSS is seeded by that operation's own rule. Any other one-element root of a real floating
+type whose producer has a rule gets a K_CONSTANT of 1 as its gradient. Most refusal cases also
+check that the node count is unchanged, so a refused call leaves the graph as it was.
+
+### Constants
+
+`K_ATTRIBUTE_TOLERANCE` is 1e-12, the error allowed on an attribute a rule copies from the
+forward node. `K_TERM_WEIGHT` is 2.0, the factor of the K_SCALE term in `WeightedSum`.
+`K_ROOT_WEIGHT` is 0.5, the factor of the K_SCALE that ends a loss in the cases that need one.
+
+### op_names
+
+`op_names` returns the operation names of the nodes from a given index to the end. A case
+passes the forward node count, so the list covers the appended nodes.
+
+### count_op
+
+`count_op` counts the nodes of one operation in the whole graph.
+
+### differentiate
+
+The file-local `differentiate` wraps `Autograd::differentiate` so that a case passes its `wrt`
+list as a vector. The seed factor defaults to `K_NO_VALUE` and the provenance to null.
+
+### WeightedSum
+
+`WeightedSum` holds the loss `K_TERM_WEIGHT * a + b * c` over three one-element parameters:
+a K_SCALE, a K_MUL and the K_ADD of the two. It keeps the ids of the parameters and of the three
+results.
+
+### ASumOfTwoTermsEndingInAddReachesEveryParameter
+
+The root is the K_ADD. Four nodes are appended: K_CONSTANT, K_MUL, K_MUL, K_SCALE. The K_CONSTANT is the
+seed. The two K_MUL nodes read the seed with `c` and with `b`, and produce the gradients of `b`
+and `c`. The K_SCALE reads the seed with the factor `K_TERM_WEIGHT` and produces the gradient of
+`a`. All three gradients have the lifetime GRADIENT.
+
+### ASumOfTwoTermsEndingInScaleReachesEveryParameter
+
+The root is a K_SCALE of the sum by `K_ROOT_WEIGHT`. The appended nodes are K_CONSTANT, K_SCALE, K_MUL,
+K_MUL, K_SCALE. The first K_SCALE reads the seed with the factor `K_ROOT_WEIGHT`, and the three nodes
+after it read that K_SCALE's result, so both terms under the root receive the scaled seed. No
+gradient is `K_NO_VALUE`.
+
+### TheSeedIsAConstantOneShapedAndTypedLikeTheRoot
+
+The root is a FLOAT64 [1, 1, 1, 1] value tagged NCHW. The first appended node is a K_CONSTANT
+with no input and the value 1 in attribute slot 0, and its result is [1, 1, 1, 1], FLOAT64 and
+NCHW. The graph holds one K_CONSTANT, no K_ZERO and no K_EXP.
+
+### TheSeedFactorMultipliesTheSeedOnce
+
+With a seed factor, the appended nodes are K_CONSTANT, K_DYNAMIC_SCALE, K_MUL, K_MUL, K_SCALE. The
+K_DYNAMIC_SCALE reads the K_CONSTANT and the factor, the graph holds one K_DYNAMIC_SCALE, and the
+three rule nodes read its result.
+
+### ANonScalarRootThrowsNamingItsShape
+
+A [4, 3] root throws with a message containing "needs a scalar to differentiate" and "[4, 3]".
+
+### ALeafRootThrowsNamingTheLeaf
+
+A parameter passed as the root throws with a message containing "it is a leaf" and
+"sushiai.leaf".
+
+### ARootThatNeedsNoGradientThrowsNamingTheCause
+
+The root is an K_ADD of two inputs and the requested parameter is not read by it. The message
+contains "requires no gradient" and "sushiai.add".
+
+### ARootWhoseProducerHasNoRuleThrowsNamingTheOperation
+
+The root is a K_DYNAMIC_SCALE of a parameter. The message contains "no backward rule" and
+"sushiai.dynamic_scale".
+
+### ARootThatIsNotTheFirstResultThrowsNamingTheProducer
+
+The root is the index result of a K_MAXPOOL2D, its second output. The message contains "not the
+first result" and "sushiai.maxpool2d".
+
+### ARootThatIsNotRealFloatingThrowsNamingItsType
+
+The root is a K_SCALE of an INT32 parameter. The message contains "element type is int32" and
+"sushiai.scale".
+
+### AFusedCrossEntropyRootEmitsNoSeedNode
+
+A two-layer `NN::Sequential` under `NN::CrossEntropyLoss` appends K_EXP, K_SUB, K_SCALE, K_SUM_ROWS,
+K_MATMUL, K_MATMUL, K_RELU_BACKWARD, K_SUM_ROWS, K_MATMUL. The graph holds no K_ZERO and no K_CONSTANT: the
+fused rule starts from the root's implicit gradient and needs no seed node.
+
+### AnUnfusedNLLLossRootEmitsNoSeedNode
+
+K_NLL_LOSS over a K_RELU result appends K_SCALE then K_RELU_BACKWARD. The K_SCALE reads the targets
+alone, so no seed node precedes it.
+
+### AnNLLLossRootAppliesTheSeedFactorInItsOwnRule
+
+With a seed factor, a K_LOG_SOFTMAX and K_NLL_LOSS pair appends K_EXP, K_SUB, K_SCALE, K_DYNAMIC_SCALE, and
+the result of the K_DYNAMIC_SCALE is the gradient of `x`.
+
+### StopGradientEmitsAnIdentityShapedLikeItsOperand
+
+`stop_gradient` of a FLOAT64 NCHW value writes one K_STOP_GRADIENT node that reads the operand.
+The result has the operand's shape and is FLOAT64 and NCHW, and `finalise()` accepts the graph.
+
+### StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable
+
+`Ops::K_STOP_GRADIENT` has `blocks_gradient` true and `differentiable` false.
+`Ops::is_gradient_barrier` is true for it and false for K_RESHAPE, and its name is
+"sushiai.stop_gradient".
+
+### RequiresGradDoesNotCrossStopGradient
+
+After `finalise()`, a parameter requires a gradient and so does a K_SCALE that reads it. The
+K_STOP_GRADIENT result and a K_SCALE that reads that result do not.
+
+### StopGradientBlocksAParameterReachableOnlyThroughIt
+
+The loss is `stop_gradient(scale(blocked)) * open`. Differentiation does not throw and appends
+K_CONSTANT and K_MUL. The gradient of `blocked` is `K_NO_VALUE`, and the gradient of `open` is the
+K_MUL of the seed and the stopped value.
+
+### AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradient
+
+The loss is `stop_gradient(x) * x`. The appended nodes are K_CONSTANT and K_MUL, the K_MUL reads the
+seed and the stopped value, and its result is the gradient of `x`. The graph holds no
+K_ACCUMULATE, so the stopped path contributes nothing to the sum.
+
+### ALossReachableOnlyThroughStopGradientThrowsNamingTheBarrier
+
+The root is a K_SCALE of `stop_gradient(x)`. The message contains "requires no gradient" and
+"sushiai.scale".
+
+### AStopGradientRootThrowsForRequiringNoGradient
+
+The root is the K_STOP_GRADIENT result. The message contains "requires no gradient" and
+"sushiai.stop_gradient".
+
+### AContributionToAStopGradientResultIsDroppedWithoutAskingForARule
+
+The graph is that of StopGradientBlocksAParameterReachableOnlyThroughIt, with `requires_grad`
+of the stopped value set by hand after the graph is built. `finalise()` only sets the flag, so
+the hand-set value survives it and K_MUL's rule contributes a gradient to the stopped value.
+Differentiation does not throw. It appends K_CONSTANT, K_MUL, K_MUL, the gradient of `blocked` is
+`K_NO_VALUE`, and no appended node has the K_STOP_GRADIENT node as its origin in the `Provenance`.
+The reverse walk steps over the barrier and asks no rule of it.
+
+### TheSeedNodesHaveTheRootProducerAsOrigin
+
+`WeightedSum` is differentiated with a seed factor and a `Provenance`. Five nodes are appended.
+The origin of the K_CONSTANT and of the K_DYNAMIC_SCALE is the K_ADD that produces the root. The
+origin of the two K_MUL nodes is the forward K_MUL, and the origin of the K_SCALE is the forward
+K_SCALE.
+
+### AConstantRootThrowsForRequiringNoGradient
+
+The root is a `constant_like` of a parameter. The message contains "requires no gradient" and
+"sushiai.constant".
+
+### AComparisonRootThrowsForRequiringNoGradient
+
+The root is `less_equal(x, bound)` over a parameter. The message contains "requires no
+gradient" and "sushiai.less_equal".
+
+### RequiresGradCrossesNoGradientBarrier
+
+After `finalise()`, a K_LESS_EQUAL mask over a parameter, a K_CONSTANT, a K_ZERO and the K_MUL of the
+mask with the K_CONSTANT require no gradient. The K_MUL of the mask with the parameter does,
+through its second operand.

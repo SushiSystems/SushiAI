@@ -148,7 +148,7 @@ TEST(Unit_ModelConfig, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
     EXPECT_EQ(model.layers[1].type, "gelu");
     EXPECT_EQ(model.layers[2].type, "linear");
 
-    // The attributes no longer carry "type"; see tests/unit/README.md.
+    // The attributes no longer carry "type"; see tests/core/config/README.md.
     EXPECT_FALSE(model.layers[0].attributes.has("type"));
     EXPECT_TRUE(model.layers[0].attributes.has("units"));
     EXPECT_EQ(model.layers[1].attributes.keys().size(), 0u);

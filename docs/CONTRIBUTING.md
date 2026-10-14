@@ -72,30 +72,29 @@ sa test --suite unit              # fast, run this often
 sa test --suite integration
 sa test --suite regression
 sa test --suite all
-sa run sushiai_tests -- --gtest_brief=1   # the test binary, one process; args after -- go to it
+sa run sushiai_core_graph_tests -- --gtest_brief=1   # one module's program; args after -- go to it
 
 sa demo mlp --epochs 1 --batches 2   # the showcase, in a couple of seconds
 ```
 
-`sa test` runs the CTest labels that the GTest suite prefixes assign.
-`sa run sushiai_tests` runs the same cases in one process. At the last recorded
-run it held 1803 cases, all passing (`docs/agent/2026_10_08_SUSHIBLAS_MIGRATION/REPORT.md`).
+`sa test` runs the CTest labels that the GTest suite prefixes assign. Each module builds one
+test program, `sushiai_<tier>_<module>_tests`, and `sa run` runs one of them in one process.
 SushiBLAS's own test suite does not enter this tree: its `SB_BUILD_TESTS` option
 defaults to off when SushiBLAS is added as a subdirectory, as this tree does.
 
 Expectations for a mergeable change:
 
 1. **The full test suite passes** (`sa test --suite all`).
-2. **A new symbol ships with a test.** A test of one module goes in that module's `tests/`
-   folder and is listed in the `TESTS` argument of its `CMakeLists.txt`. A test that runs
-   several modules together goes in `tests/unit/` for fast, deterministic cases, in
-   `tests/integration/` for anything exercising the real Engine and sibling chain (see
-   `test_engine_smoke.cpp` for the shape), or in `tests/regression/` for a guarantee whose
-   failure would be *silent* — the loop still converges, the run still reports success (see
-   `test_compile_once.cpp`). **The GTest suite-name prefix is the only thing that assigns a CTest
-   label**, so a suite named without `Unit_`/`Integration_`/`Regression_` is invisible rather than
-   failing. A file of the root `tests/` is also listed in the `add_executable` list of
-   `tests/CMakeLists.txt`; a file that is not listed is not compiled.
+2. **A new symbol ships with a test.** The test of a header
+   `modules/<tier>/<module>/include/SushiAI/.../<name>.hpp` is
+   `tests/<tier>/<module>/.../test_<name>.cpp`, listed in the `SOURCES` of
+   `tests/<tier>/<module>/CMakeLists.txt`. A test that uses several modules belongs to the
+   highest-tier one, in the test file of the unit whose behaviour it checks;
+   `tests/README.md` has the rest of the tree. **The GTest suite-name prefix is the only thing
+   that assigns a CTest label**, so a suite named without `Unit_`/`Integration_`/`Regression_`
+   is invisible rather than failing. A guarantee whose failure would be silent, such as the
+   compile count in `tests/layers/train/test_trainer/test_compile_once.cpp`, takes the
+   `Regression_` prefix.
 3. **A CMake or CLI change is verified end to end** — configure, build,
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
@@ -310,13 +309,12 @@ doubled, so the compiler lists what is left.
    the graph (the two optimizer updates and the batch-statistics update), so a graph
    operation takes a row there, never a place.
 
-5. **Test.** Add a unit test in the `tests/` folder of the module the rule lives in, for the
-   shape rule, and one case per row under `tests/integration/` that runs the operation through a
-   compiled step. `tests/integration/test_lowered_operations.cpp` shows the shape: twelve forward
-   cases in FLOAT32 and, for two gradient rows, a FLOAT64 case against the closed form. List a new
-   file of the root `tests/` in the `add_executable` list of `tests/CMakeLists.txt`, or a new file
-   of a module's `tests/` in that module's `TESTS` list. Build and run the change as §3 says, and
-   add the CHANGELOG line as §5 says.
+5. **Test.** Add a unit test of the shape rule to the test file of the header the rule lives
+   in, and one `Integration_` case per row that runs the operation through a compiled step.
+   `tests/core/graph/test_lowering/test_host_values.cpp` shows the shape: twelve forward cases
+   in FLOAT32 and, for two gradient rows, a FLOAT64 case against the closed form. List a new
+   test file in the `SOURCES` of its folder's `CMakeLists.txt`. Build and run the change as §3
+   says, and add the CHANGELOG line as §5 says.
 
 ---
 

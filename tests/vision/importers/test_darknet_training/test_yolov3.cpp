@@ -41,7 +41,7 @@ namespace
      * The model has no stride-1 pool (REPORT section 25), so `yolov3` is valid.
      * `yolov3_train_step` is a training-mode run, which the defect does not reach.
      * A delta from a dumped head is held to 1e-6 absolute (PLAN 4.7).
-     * Bounds are 1.5 times the 2026-10-12 run's largest difference (tests/integration/README.md).
+     * Bounds are 1.5 times the 2026-10-12 run's largest difference (tests/vision/importers/README.md).
      */
     SaTest::DarknetTrainingCase describe_model()
     {
@@ -140,7 +140,7 @@ TEST_F(Integration_DarknetYolov3Training, TheUpdatesOfTheHeadConvolutionsMatchDa
  *        finite gradient that is not zero after one step.
  *
  * The dumped updates of that layer are not the gradient and are not compared; see
- * tests/integration/README.md.
+ * tests/vision/importers/README.md.
  */
 TEST_F(Integration_DarknetYolov3Training, TheFirstConvolutionReceivesAGradient)
 {

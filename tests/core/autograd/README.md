@@ -1046,7 +1046,7 @@ derives one precision per node from `outputs[0]`, which makes the argmax look li
 the wrong type and not like a value with no precision to choose.
 
 `x` is a parameter and not an input for the reason
-`tests/regression/test_argmax_lifetime.cpp` gives: K_MAXPOOL2D_BACKWARD is only emitted
+`tests/core/graph/test_memory_plan.cpp` gives: K_MAXPOOL2D_BACKWARD is only emitted
 when something upstream of the pool needs a gradient.
 
 ### AnIndexBufferHasNoPrecisionToChoose
@@ -1095,7 +1095,7 @@ produces is a graph that can be inspected node by node.
 The unit tier proves the structure: that a clone appears, that it reads the same operands and
 carries the same attributes as the node it copies, that it is inserted ahead of its consumers
 and not after them, and that an inference graph is left alone. It cannot prove the numbers are
-unchanged. Integration_Rematerialise in `tests/integration/test_rematerialise.cpp`
+unchanged. Integration_Rematerialise in `tests/core/graph/test_rematerialise.cpp`
 does that by running the same graph twice.
 
 The brief's three cases are all in this file, with two deviations that the library forced:

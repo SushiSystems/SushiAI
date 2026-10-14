@@ -23,7 +23,7 @@
  * @file eager_test_support.hpp
  * @brief Declares the traced steps the host-lane tests of the eager module share.
  * @author Mustafa Garip
- * @see tests/unit/README.md
+ * @see tests/core/eager/README.md
  */
 
 #pragma once

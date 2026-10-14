@@ -61,7 +61,7 @@ namespace
 
     /**
      * @brief Holds 2^20, a loss scale high enough that the fp16 backward pass overflows.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     constexpr double K_OVERFLOWING_SCALE = 1048576.0;
 
@@ -94,7 +94,7 @@ namespace
     /**
      * @brief Trains the fixed model under @p precision with a scaler built from @p scale_options.
      * @return The run's figures, or the first failure of a library call.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     [[nodiscard]] Result<ScaledRun> train_scaled(SushiBLAS::Engine& engine,
                                                  const Graph::PrecisionPolicy* precision,
@@ -123,7 +123,7 @@ namespace
                       LossScaler::make(engine, pool.tensor(built.loss_scale), slots.size(),
                                        scale_options));
 
-        // The scaler is set before the trainer records; see tests/regression/README.md.
+        // The scaler is set before the trainer records; see tests/layers/train/README.md.
         SA_TRY(optimizer->set_loss_scaler(scaler.get()));
 
         Train::TrainerOptions options;
@@ -194,7 +194,7 @@ namespace
 
 /**
  * @brief Tests that an fp16 overflow is detected, backs the scale off and lets the run recover.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
 {
@@ -216,22 +216,22 @@ TEST_F(Regression_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
     EXPECT_LT(run.final_scale, K_OVERFLOWING_SCALE);
     EXPECT_EQ(run.growths, 0u);
 
-    // The backed-off scale must reach the device; see tests/regression/README.md.
+    // The backed-off scale must reach the device; see tests/layers/train/README.md.
     EXPECT_LT(run.skipped, static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES))
         << "every step was thrown away, so the new scale never reached the graph";
     EXPECT_GT(run.optimizer_steps, 0u);
 
-    // A thrown-away step does not advance the counter; see tests/regression/README.md.
+    // A thrown-away step does not advance the counter; see tests/layers/train/README.md.
     EXPECT_EQ(run.optimizer_steps,
               static_cast<std::uint64_t>(K_OVERFLOW_EPOCHS * K_BATCHES) - run.skipped);
 
-    // A loop that went NaN reports NaN here; see tests/regression/README.md.
+    // A loop that went NaN reports NaN here; see tests/layers/train/README.md.
     EXPECT_TRUE(std::isfinite(run.last_loss));
 }
 
 /**
  * @brief Tests that the same scale under the fp32 policy overflows nothing and skips nothing.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 {
@@ -253,7 +253,7 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 
 /**
  * @brief Tests that a skipped step leaves the parameter and both AdamW moments byte-identical.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical)
 {
@@ -282,7 +282,7 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
                             LossScaler::make(engine, factor, slots.size(), options));
     SA_EXPECT_OK(optimizer->set_loss_scaler(scaler.get()));
 
-    // The moments are non-zero before the poison; see tests/regression/README.md.
+    // The moments are non-zero before the poison; see tests/layers/train/README.md.
     SaTest::write_tensor(gradient, finite_gradient());
     SA_EXPECT_OK(optimizer->step());
     ASSERT_FALSE(scaler->last_step_skipped());
@@ -294,7 +294,7 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
     const std::vector<unsigned char> v_before =
         SaTest::read_tensor_bytes(optimizer->second_moment(0));
 
-    // The gradient holds real infinities and a NaN; see tests/regression/README.md.
+    // The gradient holds real infinities and a NaN; see tests/layers/train/README.md.
     std::vector<double> poisoned = finite_gradient();
     poisoned[5] = std::numeric_limits<double>::infinity();
     poisoned[9] = -std::numeric_limits<double>::infinity();
@@ -306,7 +306,7 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
     EXPECT_TRUE(scaler->last_step_skipped());
     EXPECT_EQ(scaler->scale(), 512.0);
 
-    // The step counter did not move; see tests/regression/README.md.
+    // The step counter did not move; see tests/layers/train/README.md.
     EXPECT_EQ(optimizer->step_count(), 1u);
 
     EXPECT_EQ(SaTest::read_tensor_bytes(parameter), theta_before);
@@ -323,7 +323,7 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
 /**
  * @brief Tests that a finite gradient under the same scaler moves the parameter and the first
  *        moment.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 {
@@ -365,7 +365,7 @@ TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 
 /**
  * @brief Tests that a run scaled by 1024 and unscaled matches the unscaled run bit for bit.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
 {
@@ -432,7 +432,7 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
 
 /**
  * @brief Tests that the step compiles once while the loss scale grows.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 {
@@ -454,7 +454,7 @@ TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 
 /**
  * @brief Tests that the step compiles once while the loss scale backs off.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
 {
@@ -474,7 +474,7 @@ TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
 
 /**
  * @brief Tests that an AdamW with the separate kernel refuses a loss scaler.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
 {

@@ -76,7 +76,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, EveryValueIsNHWCUnlessSaidOtherwise)
         {
-            // A value that states no layout is NHWC; see tests/unit/README.md.
+            // A value that states no layout is NHWC; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 4}, "x");
@@ -97,7 +97,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, FinaliseRejectsAMixedGraphAndNamesTheValue)
         {
-            // A mixed graph fails finalise(); see tests/unit/README.md.
+            // A mixed graph fails finalise(); see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 4}, "x");
@@ -111,7 +111,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, LayoutConvertIsAllowedToChangeIt)
         {
-            // LAYOUT_CONVERT alone may change the layout; see tests/unit/README.md.
+            // LAYOUT_CONVERT alone may change the layout; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 3, 4, 5}, "x");
@@ -123,7 +123,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, DeclareLikeInheritsTheSourceValuesLayout)
         {
-            // declare_like carries the layout forward; see tests/unit/README.md.
+            // declare_like carries the layout forward; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 3, 4, 5}, "x");
@@ -140,7 +140,7 @@ namespace SushiAI
         {
             /**
              * @brief Holds a graph that crosses layouts, with the NCHW side named.
-             * @see tests/unit/README.md
+             * @see tests/core/autograd/README.md
              */
             struct Crossed
             {
@@ -164,7 +164,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, FusionCarriesTheLayoutTagAcrossItsRebuild)
         {
-            // fuse() copies the layout tag of every value; see tests/unit/README.md.
+            // fuse() copies the layout tag of every value; see tests/core/autograd/README.md.
             Crossed c = make_crossed();
 
             (void)Graph::fuse(c.graph, Graph::FusionOptions{});
@@ -177,7 +177,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, CastInsertionCarriesTheLayoutTagAcrossItsRebuild)
         {
-            // Cast insertion copies the layout tag as well; see tests/unit/README.md.
+            // Cast insertion copies the layout tag as well; see tests/core/autograd/README.md.
             Crossed c = make_crossed();
 
             (void)Graph::insert_casts(c.graph, Graph::CastOptions{});
@@ -189,7 +189,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, ARebuiltGraphStillProvesUniform)
         {
-            // The proof is re-run on tags that survived; see tests/unit/README.md.
+            // The proof is re-run on tags that survived; see tests/core/autograd/README.md.
             Crossed c = make_crossed();
 
             (void)Graph::insert_casts(c.graph, Graph::CastOptions{});
@@ -201,7 +201,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, TheThreeRulesThatEmitZerosCannotBeReachedWithAnNCHWOperand)
         {
-            // Rank-4 emitters refuse an NCHW operand (CV-3); see tests/unit/README.md.
+            // Rank-4 emitters refuse an NCHW operand (CV-3); see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
 
@@ -211,7 +211,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.slice_channels(nchw, 0, 1), Error);
             EXPECT_THROW((void)builder.channel_affine(nchw, x, x), Error);
 
-            // finalise() rejects the node ahead of the rule; see tests/unit/README.md.
+            // finalise() rejects the node ahead of the rule; see tests/core/autograd/README.md.
             const ValueID rows = builder.reshape(nchw, Shape{1, 8});
             EXPECT_EQ(graph.value(rows).layout, TensorLayout::NCHW);
 
@@ -227,7 +227,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, ZerosLikeCarriesTheTagAndPlainZerosCannot)
         {
-            // zeros_like() inherits its operand's layout; see tests/unit/README.md.
+            // zeros_like() inherits its operand's layout; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
 
@@ -244,7 +244,7 @@ namespace SushiAI
 
         TEST(Unit_Layout, FinaliseStillPropagatesRequiresGrad)
         {
-            // finalise() still propagates requires_grad; see tests/unit/README.md.
+            // finalise() still propagates requires_grad; see tests/core/autograd/README.md.
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 4}, "x");
@@ -268,7 +268,7 @@ namespace
     /**
      * @struct Traced
      * @brief Holds a one-hidden-layer classifier, differentiated, with the ids named.
-     * @see tests/unit/README.md
+     * @see tests/core/autograd/README.md
      */
     struct Traced
     {
@@ -350,7 +350,7 @@ TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 
 TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
 {
-    // Every narrowing operation is listed here; see tests/unit/README.md.
+    // Every narrowing operation is listed here; see tests/core/autograd/README.md.
     const OpID narrows[] = {
         Ops::K_MATMUL.id,
         Ops::K_GEMM_BIAS.id, Ops::K_GEMM_BIAS_RELU.id,
@@ -358,7 +358,7 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
         Ops::K_BIAS_ADD.id,
         Ops::K_RELU.id, Ops::K_SIGMOID.id, Ops::K_TANH.id,
         Ops::K_RELU_BACKWARD.id, Ops::K_SIGMOID_BACKWARD.id, Ops::K_TANH_BACKWARD.id,
-        // LEAKY_RELU narrows, as RELU does; see tests/unit/README.md.
+        // LEAKY_RELU narrows, as RELU does; see tests/core/autograd/README.md.
         Ops::K_LEAKY_RELU.id, Ops::K_LEAKY_RELU_BACKWARD.id,
     };
 
@@ -366,18 +366,18 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
         EXPECT_TRUE(Graph::narrows_under_mixed_precision(op))
             << Ops::name_of(op) << " should compute low";
 
-    // Reductions stay wide; fp16 has ~11 significand bits; see tests/unit/README.md.
+    // Reductions stay wide; fp16 has ~11 significand bits; see tests/core/autograd/README.md.
     const OpID stays[] = {
         Ops::K_SUM_ROWS.id, Ops::K_LOG_SOFTMAX.id, Ops::K_NLL_LOSS.id, Ops::K_ACCUMULATE.id,
         Ops::K_EXP.id, Ops::K_SUB.id, Ops::K_SCALE.id, Ops::K_EXP_SUB_SCALE.id,
-        // DYNAMIC_SCALE applies the loss scale and stays wide; see tests/unit/README.md.
+        // DYNAMIC_SCALE applies the loss scale and stays wide; see tests/core/autograd/README.md.
         Ops::K_DYNAMIC_SCALE.id,
         Ops::K_ADD.id, Ops::K_MUL.id, Ops::K_ZERO.id,
-        // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/unit/README.md.
+        // GELU's x*x*x overflows fp16 at |x| ~ 40.3; see tests/core/autograd/README.md.
         Ops::K_GELU.id, Ops::K_GELU_BACKWARD.id, Ops::K_GEMM_BIAS_GELU.id,
         Ops::K_LEAF.id, Ops::K_CAST.id,
         Ops::K_ADAMW_UPDATE.id, Ops::K_SGD_UPDATE.id, Ops::K_CLIP_SCALE.id,
-        // The twenty-three spatial identities keep the default; see tests/unit/README.md.
+        // The twenty-three spatial identities keep the default; see tests/core/autograd/README.md.
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
         Ops::K_DEPTHWISE_CONV2D.id, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id,
@@ -409,7 +409,7 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
         EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
             << Ops::name_of(op) << " should stay in the graph's own precision";
 
-    // The two lists account for every identity; see tests/unit/README.md.
+    // The two lists account for every identity; see tests/core/autograd/README.md.
     EXPECT_EQ(sizeof(narrows) / sizeof(narrows[0]) + sizeof(stays) / sizeof(stays[0]),
               Ops::K_ALL.size());
 }
@@ -436,14 +436,14 @@ TEST(Unit_Precision, TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecis
 
 TEST(Unit_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
-    // The catalog folds GELU and the policy keeps it wide; see tests/unit/README.md.
+    // The catalog folds GELU and the policy keeps it wide; see tests/core/autograd/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id))
         << "the catalog no longer folds GELU, so rule 5's first reason is back and this "
            "test is guarding nothing";
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::K_GELU.id));
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::K_GELU.id));
 
-    // The fused GELU form stays wide with it; see tests/unit/README.md.
+    // The fused GELU form stays wide with it; see tests/core/autograd/README.md.
     EXPECT_FALSE(Graph::narrows_under_mixed_precision(Ops::K_GEMM_BIAS_GELU.id));
     EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::K_GEMM_BIAS_RELU.id));
 
@@ -453,7 +453,7 @@ TEST(Unit_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
 
 TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
 {
-    // choose() is idempotent for every operation; see tests/unit/README.md.
+    // choose() is idempotent for every operation; see tests/core/autograd/README.md.
     const MixedPrecisionPolicy policy;
 
     for (const Ops::OpName& entry : Ops::K_ALL)
@@ -469,7 +469,7 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
 {
     const MixedPrecisionPolicy policy;
 
-    // An fp16 graph is already at the floor; see tests/unit/README.md.
+    // An fp16 graph is already at the floor; see tests/core/autograd/README.md.
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Half);
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Float64}).dtype,
@@ -479,7 +479,7 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Half}).dtype,
               DType::Half);
 
-    // A policy may narrow to fp32; see tests/unit/README.md.
+    // A policy may narrow to fp32; see tests/core/autograd/README.md.
     const MixedPrecisionPolicy to_single(DType::Float32);
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Float32);
@@ -505,7 +505,7 @@ TEST(Unit_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
 
 TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
 {
-    // The fp32 policy inserts zero casts; see tests/unit/README.md.
+    // The fp32 policy inserts zero casts; see tests/core/autograd/README.md.
     Traced traced = trace();
 
     const std::size_t nodes_before = traced.graph.node_count();
@@ -543,7 +543,7 @@ TEST(Unit_CastInsertion, NoPolicyMeansTheUniformPolicy)
 
 TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 {
-    // Every operand agrees with its node's computing type; see tests/unit/README.md.
+    // Every operand agrees with its node's computing type; see tests/core/autograd/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -564,7 +564,7 @@ TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 
 TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 {
-    // Fusion runs after the casts and keeps the invariant; see tests/unit/README.md.
+    // Fusion runs after the casts and keeps the invariant; see tests/core/autograd/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -604,7 +604,7 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 
 TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 {
-    // The checker reports a graph that is wrong; see tests/unit/README.md.
+    // The checker reports a graph that is wrong; see tests/core/autograd/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -615,7 +615,7 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     const MixedPrecisionPolicy policy;
     const std::vector<DTypeMismatch> mismatches = Graph::find_dtype_mismatches(graph, policy);
 
-    // Two operands and one result are float32, not half; see tests/unit/README.md.
+    // Two operands and one result are float32, not half; see tests/core/autograd/README.md.
     ASSERT_EQ(mismatches.size(), 3u);
     for (const DTypeMismatch& mismatch : mismatches)
     {
@@ -646,7 +646,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
             << "a master weight was retyped in place";
         EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
 
-        // The GEMM reads a derived fp16 copy of the parameter; see tests/unit/README.md.
+        // The GEMM reads a derived fp16 copy of the parameter; see tests/core/autograd/README.md.
         const auto casts = report.casts();
         const auto found = std::find_if(casts.begin(), casts.end(),
             [parameter](const InsertedCast& cast) { return cast.source == parameter; });
@@ -662,7 +662,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 
 TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 {
-    // An fp16 gradient is widened into its fp32 buffer; see tests/unit/README.md.
+    // An fp16 gradient is widened into its fp32 buffer; see tests/core/autograd/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -674,7 +674,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 
     const CastReport report = Graph::insert_casts(traced.graph, options);
 
-    // Only the weight gradients come from a low MATMUL; see tests/unit/README.md.
+    // Only the weight gradients come from a low MATMUL; see tests/core/autograd/README.md.
     for (ValueID weight_gradient : {traced.gradients[0], traced.gradients[2]})
     {
         ASSERT_NE(weight_gradient, K_NO_VALUE);
@@ -690,7 +690,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
         EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::K_MATMUL.id);
     }
 
-    // The bias gradients come from a wide reduction; see tests/unit/README.md.
+    // The bias gradients come from a wide reduction; see tests/core/autograd/README.md.
     for (ValueID bias_gradient : {traced.gradients[1], traced.gradients[3]})
     {
         EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::Float32);
@@ -703,7 +703,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 
 TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
 {
-    // ACCUMULATE's result aliases its accumulator's buffer; see tests/unit/README.md.
+    // ACCUMULATE's result aliases its accumulator's buffer; see tests/core/autograd/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -746,7 +746,7 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
 
 TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 {
-    // An observed activation keeps its dtype; see tests/unit/README.md.
+    // An observed activation keeps its dtype; see tests/core/autograd/README.md.
     Traced pinned = trace();
     Traced loose = trace();
 
@@ -776,7 +776,7 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 
 TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
 {
-    // w2 has two readers and one conversion; see tests/unit/README.md.
+    // w2 has two readers and one conversion; see tests/core/autograd/README.md.
     Traced traced = trace();
 
     const MixedPrecisionPolicy policy;
@@ -900,7 +900,7 @@ TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
 
 TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
 {
-    // A conversion sits immediately before its consumer; see tests/unit/README.md.
+    // A conversion sits immediately before its consumer; see tests/core/autograd/README.md.
     Graph::Graph graph;
 
     const ValueID a = graph.add_value(Shape{K_ROWS}, DType::Float32, Lifetime::Activation, "a");
@@ -921,7 +921,7 @@ namespace
     /**
      * @struct Pooled
      * @brief Holds a maxpool graph, differentiated, with the index buffer named.
-     * @see tests/unit/README.md
+     * @see tests/core/autograd/README.md
      */
     struct Pooled
     {
@@ -975,7 +975,7 @@ namespace
 
 TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
 {
-    // The INT64 argmax is not converted; see tests/unit/README.md.
+    // The INT64 argmax is not converted; see tests/core/autograd/README.md.
     Pooled p = trace_pool();
 
     ASSERT_EQ(p.graph.value(p.indices).dtype, DType::Int64);
@@ -1009,7 +1009,7 @@ TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
 
 TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 {
-    // A pinned argmax keeps its id and its INT64 buffer; see tests/unit/README.md.
+    // A pinned argmax keeps its id and its INT64 buffer; see tests/core/autograd/README.md.
     Pooled p = trace_pool();
 
     const std::vector<ValueID> observed{p.indices};
@@ -1148,7 +1148,7 @@ namespace
 
 TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 {
-    // The column buffer's lifetime drops to SCRATCH; see tests/unit/README.md.
+    // The column buffer's lifetime drops to SCRATCH; see tests/core/autograd/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{2, 5, 5, 3}, Shape{27, 8});
 
@@ -1167,7 +1167,7 @@ TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 
 TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 {
-    // The clone reads the same operands and attributes; see tests/unit/README.md.
+    // The clone reads the same operands and attributes; see tests/core/autograd/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
 
@@ -1193,7 +1193,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
             EXPECT_EQ(n.attributes.get(slot), original.attributes.get(slot))
                 << "the clone lost attribute slot " << slot;
 
-        // The clone keeps the description and the layout; see tests/unit/README.md.
+        // The clone keeps the description and the layout; see tests/core/autograd/README.md.
         const Graph::Value& copy = c.graph.value(n.outputs.front());
         const Graph::Value& stored = c.graph.value(c.cols);
         EXPECT_EQ(copy.shape, stored.shape);
@@ -1206,7 +1206,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 
 TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 {
-    // A clone precedes every consumer it serves; see tests/unit/README.md.
+    // A clone precedes every consumer it serves; see tests/core/autograd/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
     Graph::rematerialise_im2col(c.graph);
@@ -1229,7 +1229,7 @@ TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 
 TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 {
-    // An inference graph has no second consumer; see tests/unit/README.md.
+    // An inference graph has no second consumer; see tests/core/autograd/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
@@ -1249,7 +1249,7 @@ TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 
 TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 {
-    // A column matrix with one reader is not cloned; see tests/unit/README.md.
+    // A column matrix with one reader is not cloned; see tests/core/autograd/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
@@ -1272,7 +1272,7 @@ TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 
 TEST(Unit_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
 {
-    // The clone has one consumer, so a second run adds none; see tests/unit/README.md.
+    // The clone has one consumer, so a second run adds none; see tests/core/autograd/README.md.
     ConvGraph c;
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
 
@@ -1388,21 +1388,21 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_SILU_BACKWARD.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_SOFTPLUS_BACKWARD.id));
 
-    // Running statistics are a buffer, not a gradient path; see tests/unit/README.md.
+    // Running statistics are a buffer, not a gradient path; see tests/core/autograd/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_UPDATE_STATS.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_BATCHNORM_FOLD.id));
 
-    // LEAF and ZERO have no operand to hand a gradient to; see tests/unit/README.md.
+    // LEAF and ZERO have no operand to hand a gradient to; see tests/core/autograd/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_LEAF.id));
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_ZERO.id));
 
-    // Casts are inserted after differentiation; see tests/unit/README.md.
+    // Casts are inserted after differentiation; see tests/core/autograd/README.md.
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CAST.id));
 }
 
 TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
 {
-    // Every rule names the numeric test that proves it; see tests/unit/README.md.
+    // Every rule names the numeric test that proves it; see tests/core/autograd/README.md.
     struct Proven
     {
         OpID op;
@@ -1535,7 +1535,7 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
     const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    // x has two contributors, so ACCUMULATE is emitted; see tests/unit/README.md.
+    // x has two contributors, so ACCUMULATE is emitted; see tests/core/autograd/README.md.
     const ValueID left = builder.relu(x);
     const ValueID right = builder.tanh(x);
     const ValueID sum = builder.add(left, right);
@@ -1590,14 +1590,14 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
     EXPECT_EQ(grads[0], K_NO_VALUE) << "a disconnected parameter has no gradient value at all";
     EXPECT_NE(grads[1], K_NO_VALUE);
 
-    // A zero gradient emits no ZERO node; see tests/unit/README.md.
+    // A zero gradient emits no ZERO node; see tests/core/autograd/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
     EXPECT_EQ(graph.node_count(), before + 2);
 }
 
 TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
 {
-    // A graph with no gradient request emits no node; see tests/unit/README.md.
+    // A graph with no gradient request emits no node; see tests/core/autograd/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
@@ -1624,7 +1624,7 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
     const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    // An identity that no rule covers stands in for a new op; see tests/unit/README.md.
+    // An identity that no rule covers stands in for a new op; see tests/core/autograd/README.md.
     const ValueID mystery = graph.add_value(Shape{4, 3}, DType::Float32,
                                             Graph::Lifetime::Activation, "mystery");
     graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
@@ -1660,7 +1660,7 @@ TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity)
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
     const ValueID log_probs = builder.log_softmax(x);
 
-    // A RELU consumer keeps the cross-entropy fusion away; see tests/unit/README.md.
+    // A RELU consumer keeps the cross-entropy fusion away; see tests/core/autograd/README.md.
     const Appended appended = differentiate_through(graph, builder.relu(log_probs), {x});
 
     EXPECT_EQ(op_names(graph, appended.first), (std::vector<std::string>{
@@ -3063,7 +3063,7 @@ TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    // A loss with no producer has no operation to name; see tests/unit/README.md.
+    // A loss with no producer has no operation to name; see tests/core/autograd/README.md.
     const ValueID orphan = graph.add_value(Shape{1}, DType::Float32,
                                            Graph::Lifetime::Activation, "orphan");
     SA_EXPECT_ERROR(differentiate_wrt(graph, orphan, orphan), "nothing produces it", "NLL_LOSS");
@@ -3087,14 +3087,14 @@ TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
 
     const ValueID loss = builder.nll_loss(mystery, targets);
 
-    // A foreign identity prints as sushiai.unknown; see tests/unit/README.md.
+    // A foreign identity prints as sushiai.unknown; see tests/core/autograd/README.md.
     SA_EXPECT_ERROR(differentiate_wrt(graph, loss, x),
                     "No backward rule for", "sushiai.unknown", "node 2");
 }
 
 TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
 {
-    // A SUB with a mis-shaped result provokes the error; see tests/unit/README.md.
+    // A SUB with a mis-shaped result provokes the error; see tests/core/autograd/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 

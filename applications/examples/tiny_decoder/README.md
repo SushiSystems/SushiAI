@@ -72,7 +72,7 @@ shapes below leave out the batch axis.
 ## The parameter count
 
 10 544 256, counted by hand with `V = 4096`, `T = 256`, `D = 384`, a feed-forward width of
-`4 D` and 5 blocks. `tests/integration/test_decoder_from_files.cpp` checks the same formula
+`4 D` and 5 blocks. `tests/language/registration/test_registration.cpp` checks the same formula
 against `NN::parameter_elements` on a model of `D = 16`; no run has counted this model.
 
 | Part | Elements | Formula |

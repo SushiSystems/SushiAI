@@ -1157,3 +1157,243 @@ A split with no list and no folder fails with `FileNotFound`, "train.txt" and "i
 ### ASplitWithoutAnImageIsRefused
 
 An image folder holding only `readme.txt` fails with `InvalidFile`, "'train'" and "no image".
+
+## test_batch_inputs.cpp, test_classification_collator.cpp, test_detection_collator.cpp
+
+The scaled inputs and the roles the classification and detection collators write, and the batches they refuse. Needs an engine.
+
+Suites: `Unit_DatasetsCollators`.
+
+Tests `write_batch_inputs`, `ClassificationCollator` and `DetectionCollator` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/`. The fixture is an `EngineTest`. It
+holds two gray samples of one row and two columns, the first of level 51 from `first.png` and
+the second of level 255 from `crowded.png`, and allocates batches of two such images.
+
+### InputsAreBytesDividedBy255
+
+`write_batch_inputs` writes 0.2, 0.2, 1.0, 1.0, each within 1e-6.
+
+### AnImageOfAnotherSizeIsRefused
+
+With the second image 2 by 2, `write_batch_inputs` fails with `Incompatible`,
+"write_batch_inputs", "image 1" and "2 by 2".
+
+### ATensorOfAnotherImageCountIsRefused
+
+With one sample and a tensor for two, `write_batch_inputs` fails with `Incompatible`,
+"write_batch_inputs" and "holds 2 images".
+
+### ClassificationPublishesLabels
+
+`ClassificationCollator::make(0)` fails with `InvalidDescription`, "ClassificationCollator" and
+"0 classes". A collator of 7 classes reports the task `K_TASK_CLASSIFICATION` and one target:
+the role `K_ROLE_LABELS`, an empty sample shape, `Int32` and 7 classes.
+
+### ClassificationWritesTheClassOfEachSample
+
+With the class indices 6 and 0, `collate` writes the labels 6 and 0, and the third input value
+is 1.0.
+
+### ClassificationNamesTheFileOfASampleWithoutAClass
+
+With no class index on the second sample, `collate` fails with `InvalidDescription`,
+"crowded.png", "ClassificationCollator" and "no class index". With the class index 7 over 7
+classes it fails with "crowded.png", "class index 7" and "[0, 7)".
+
+### ABatchWithoutTheRoleIsRefused
+
+Over a batch allocated without targets, `collate` fails with `Incompatible`,
+"ClassificationCollator" and "no role 'labels'".
+
+### DetectionPublishesThreeRoles
+
+`DetectionCollator::make` fails with `InvalidDescription` for 0 classes ("0 classes") and for
+0 objects ("0 objects"). A collator of 3 classes and 4 objects reports the task
+`K_TASK_DETECTION` and three targets: `K_ROLE_BOXES` of shape [4, 4] and `Float32`,
+`K_ROLE_CLASSES` of shape [4], `Int32` and 3 classes, and `K_ROLE_VALID` of shape [4] and
+`Float32`.
+
+### DetectionWritesCornersAndPadsWithZero
+
+Every target slot is first filled with 9. With one object of class 2 and the box (0.25, 0.5,
+1.5, 1.0) on the second image and two slots per image, `collate` writes that box, the class 2
+and the valid flag 1 into the third slot and zero into every other slot.
+
+### DetectionNamesTheFileOfAnImageWithTooManyObjects
+
+Three objects on the second image with two slots fail with `InvalidDescription`,
+"crowded.png", "DetectionCollator", "3 objects" and "at most 2".
+
+### DetectionRefusesAClassOutsideTheSet
+
+An object of class 3 on the first image, over 3 classes, fails with `InvalidDescription`,
+"first.png", "object 0", "class 3" and "[0, 3)".
+
+## test_pipeline_table.cpp, test_fit_pipeline.cpp, test_augment_pipeline.cpp
+
+The pipeline table, the fit the same in every epoch, a training sample identical alone, in a batch and reversed, the mosaic epochs, masks, and the refusals.
+
+Suites: `Unit_DatasetsPipelineTable`, `Unit_DatasetsFitPipeline`,
+`Unit_DatasetsAugmentPipeline`.
+
+Tests `pipeline_table` and `find_pipeline`, `FitPipeline` and `AugmentPipeline` in
+`modules/vision/datasets/include/SushiAI/vision/datasets/`. The pipeline cases read four raw
+RGB images of the sizes 20 by 16, 16 by 20, 16 by 16 and 10 by 20, written under the system's
+temporary directory; sample i holds one object of class i. The training pipelines have a size
+of 16 and the seed 20261011.
+
+### ItListsNoneThenDefault
+
+`pipeline_table` has two rows named "none" and "default". `find_pipeline` returns each row for
+its name and null for "mixup".
+
+### ARowBuildsThePipelineOfItsName
+
+For a request of 16 by 16 and three channels, each row's `make` gives a pipeline whose `name`
+is the row's name.
+
+### DefaultRefusesAnInputItDoesNotMake
+
+The "default" row fails with `InvalidDescription` and "'default'" for a size of 4 by 6
+("square", "4 by 6") and for one channel ("3 channels", "has 1").
+
+### FitsEachSampleTheSameInEveryEpoch
+
+A `FitPipeline` that letterboxes to 8 by 8 is named "none". For the samples 3 and 0 it gives
+images of 8 by 8 and three channels with one object each, of the classes 3 and 0. Epoch 7
+gives the same image, mask, file, classes and boxes as epoch 0.
+
+### RefusesWhatItCannotFit
+
+`FitPipeline::make` with a size of 0 by 8 fails with `InvalidDescription`, "FitPipeline" and
+"0 by 8". `produce` with two sample indices and one fitted slot fails with
+`InvalidDescription`, "2 samples" and "1 fitted".
+
+### MakesSquareSamplesOfThreeChannels
+
+An `AugmentPipeline` with 1000 mosaic epochs is named "default". In epoch 0 each of the four
+samples is 16 by 16 with three channels and an empty mask, and every box lies within
+[0, 16] on both axes.
+
+### ASampleDependsOnItsIndexAndItsEpochAlone
+
+In epoch 2, each sample comes out the same when the four are produced twice, when they are
+produced in reverse order and when sample 2 is produced alone. In epoch 3 the image of at
+least one sample differs from its image in epoch 2.
+
+### PastTheMosaicEpochsASampleHoldsItsOwnObjects
+
+With 0 mosaic epochs, in the epochs 0, 1 and 2 every object of sample i has the class i.
+
+### AMaskTakesTheSizeOfItsSample
+
+Each sample is given a mask of its image's size that holds its index. In epoch 1 every
+produced mask is 16 by 16 with one channel, and each byte is below 4 or is `K_MASK_VOID`.
+
+### AnImageThatCannotBeReadIsTheFailure
+
+With the file of sample 1 replaced by a path that does not exist, `produce` fails with
+`FileNotFound` and "gone.saim".
+
+### RefusesWhatItCannotMake
+
+`AugmentPipeline::make` fails with `InvalidDescription` for a size of 0 ("AugmentPipeline",
+"a training size of 0") and for -1 mosaic epochs ("-1 epochs of mosaic"). `produce` fails
+with `InvalidDescription` for the epoch -1 ("epoch -1") and for an empty list
+("a list of 0 samples").
+
+## test_binary_collator.cpp, test_multi_label_collator.cpp, test_regression_collator.cpp, test_segmentation_collator.cpp
+
+The roles the binary, multi-label, regression and segmentation collators write, and the samples they refuse. Needs an engine.
+
+Suites: `Unit_DatasetsTaskCollators`.
+
+Tests `BinaryCollator`, `MultiLabelCollator`, `RegressionCollator` and `SegmentationCollator`
+in `modules/vision/datasets/include/SushiAI/vision/datasets/`. The fixture is an `EngineTest`.
+It holds two gray samples of one row and two columns, from `first.png` and `second.png`, and
+allocates batches of two samples.
+
+### BinaryPublishesLabels
+
+`BinaryCollator::make` fails with `InvalidDescription` for the positive class 2
+("BinaryCollator", "the positive class is 2") and for -1 ("the positive class is -1"). A
+collator of the positive class 1 reports the task `K_TASK_BINARY` and one target: the role
+`K_ROLE_LABELS`, an empty sample shape, `Float32` and 0 classes.
+
+### BinaryWritesOneForThePositiveClass
+
+With the class indices 1 and 0, a collator of the positive class 1 writes the labels 1, 0 and
+a collator of the positive class 0 writes 0, 1.
+
+### BinaryNamesTheFileOfASampleItCannotLabel
+
+With no class index on the second sample, `collate` fails with `InvalidDescription`,
+"second.png", "BinaryCollator" and "no class index". With the class index 2 it fails with
+"second.png", "class index 2" and "[0, 2)".
+
+### MultiLabelWritesTheSetOfClassesPresent
+
+`MultiLabelCollator::make(0)` fails with `InvalidDescription`, "MultiLabelCollator" and
+"0 classes". A collator of 4 classes reports the task `K_TASK_MULTI_LABEL` and one target of
+the role `K_ROLE_LABELS`, the sample shape [4] and `Float32`. The first sample has objects of
+the classes 2, 0 and 2 and the class index 3; the second has neither. Over a target first
+filled with 9, `collate` writes 1, 0, 1, 1 for the first sample and four zeros for the second.
+
+### MultiLabelRefusesAClassOutsideTheSet
+
+An object of class 4 on the second sample, over 4 classes, fails with `InvalidDescription`,
+"second.png", "MultiLabelCollator", "the class 4" and "[0, 4)".
+
+### RegressionCopiesFeaturesAndTargets
+
+`RegressionCollator::make` fails with `InvalidDescription` for 0 features ("0 features") and
+for 0 targets ("0 targets"), each with "RegressionCollator". A collator of 3 features and 2
+targets reports the task `K_TASK_REGRESSION` and one target of the role `K_ROLE_VALUES`, the
+sample shape [2] and `Float32`. For samples with the features 1, 2, 3 and 4, 5, 6 and the
+targets 10, 20 and 40, 50, `collate` writes the inputs 1 to 6 and the values 10, 20, 40, 50.
+
+### RegressionRefusesWhatHoldsNoRow
+
+Over samples that hold images and no row, `collate` fails with `InvalidDescription`,
+"first.png", "RegressionCollator" and "0 features and 0 targets". Over inputs of the sample
+shape [2] it fails with `Incompatible`, "RegressionCollator" and "float32 of [2, 3]".
+
+### SegmentationPublishesTheMask
+
+`SegmentationCollator::make` fails with `InvalidDescription` for 0 classes
+("SegmentationCollator", "0 classes"), for 256 classes ("256 classes", "1 to 255"), for the
+ignore index 2 over 3 classes ("the ignore index 2 is one of the 3 classes") and for a size
+of 0 by 2 ("0 by 2 pixels"). A collator of 3 classes reports the task `K_TASK_SEGMENTATION`
+and one target of the role `K_ROLE_MASK`, the sample shape [1, 2], `Int32` and 3 classes.
+
+### SegmentationWritesClassesAndTheIgnoreIndex
+
+For the masks 2, `K_MASK_VOID` and 0, 1, `collate` writes 2, the ignore index, 0, 1, with the
+ignore index `K_DEFAULT_IGNORE_INDEX` and with -100.
+
+### SegmentationRefusesAByteThatIsNoClass
+
+A mask byte of 3 over 3 classes fails with `InvalidDescription`, "second.png",
+"SegmentationCollator", "holds 3 at row 0, column 1" and "below 3 and 255 names none".
+
+### SegmentationRefusesASampleWithoutAMask
+
+With no mask on the second sample, `collate` fails with `InvalidDescription`, "second.png",
+"SegmentationCollator" and "the sample's mask is 0 by 0".
+
+### SegmentationPaintsThePolygonsOfASample
+
+With `MaskOrigin::Polygons` and the ignore index -1, the first sample has a polygon of class 2
+over its second pixel and the second sample one of class 0 over its first pixel. `collate`
+writes -1, 2, 0, -1. With `background` 1 it writes 1, 2, 0, 1.
+
+### SegmentationRefusesAnObjectWithoutAPolygon
+
+With `MaskOrigin::Polygons`, an object with a box and no polygon on the second sample fails
+with `InvalidDescription`, "second.png", "paint_polygon_mask" and "no polygon".
+
+### SegmentationRefusesABackgroundItCannotWrite
+
+`SegmentationCollator::make` fails with `InvalidDescription` for `background` 1 without
+`MaskOrigin::Polygons` ("a background of 1", "masks come from files") and for `background` 3
+over 3 classes with it ("the background 3 is none of the 3 classes").

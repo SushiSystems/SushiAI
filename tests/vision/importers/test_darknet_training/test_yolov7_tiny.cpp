@@ -41,7 +41,7 @@ namespace
      * Of the inference-mode runs only the `*_plain_pool*` ones are valid (REPORT 25 and 28).
      * `yolov7_tiny_train_step` is a training-mode run, which the defect does not reach.
      * A delta is held to 1e-6 absolute (PLAN 4.7), a box entry to 1e-4 besides (REPORT 11).
-     * Bounds are 1.5 times the 2026-10-12 run's largest difference (tests/integration/README.md).
+     * Bounds are 1.5 times the 2026-10-12 run's largest difference (tests/vision/importers/README.md).
      */
     SaTest::DarknetTrainingCase describe_model()
     {
@@ -140,7 +140,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMat
  *        finite gradient that is not zero after one step.
  *
  * The dumped updates of that layer are not the gradient and are not compared; see
- * tests/integration/README.md.
+ * tests/vision/importers/README.md.
  */
 TEST_F(Integration_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradient)
 {
@@ -160,7 +160,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMa
  * @brief Tests that 200 steps on the batch and truth of the step run bring the stored cost of
  *        the Separate model below 0.33 of the first step's.
  *
- * Darknet ends the same 200 steps at 0.226 of its first cost; see tests/integration/README.md.
+ * Darknet ends the same 200 steps at 0.226 of its first cost; see tests/vision/importers/README.md.
  */
 TEST_F(Integration_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAThird)
 {

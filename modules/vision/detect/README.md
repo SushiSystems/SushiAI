@@ -644,7 +644,7 @@ The validation metric: detections are matched to ground truth at ten IoU thresho
 of every image are accumulated, and one table comes out with precision, recall, AP50 and AP50-95
 per class and their means. The reference computes this part in numpy float64, so the unit works
 in `double`; only the IoU and the thresholds are float32. `Unit_AveragePrecision` in
-`modules/vision/detect/tests/test_detect_average_precision.cpp` holds its tests. No fixture carries a
+`tests/vision/detect/test_average_precision.cpp` holds its tests. No fixture carries a
 reference metric table, so those tests compare with values derived by hand.
 
 ### K_IOU_THRESHOLDS
@@ -1220,7 +1220,8 @@ depend on the order `argsort` gives equal scores.
 
 ## Fixture location
 
-`tests/common/reference_fixture.hpp` finds the files through the compile definition
-`SA_TEST_FIXTURE_DIR`, the absolute path of `tests/fixtures`. Without the definition or without a
-file, a fixture test is reported as skipped with the missing name. With the file present, every
+`SushiAI/reference_files/reference_file.hpp` names a file by its path below
+`SA_TEST_FIXTURE_DIR`, the `fixtures/` folder of the test program, here
+`tests/vision/detect/fixtures/`. Without the file, a fixture test is reported as skipped with the
+missing name. With the file present, every
 tensor is read with `SA_READ_REFERENCE_OR_FAIL`, so a missing or renamed tensor fails the test.

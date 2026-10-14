@@ -62,7 +62,7 @@
 using namespace SushiAI;
 using Eager::Direction;
 using Graph::ValueID;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/core/eager/README.md.
 namespace SaTest = SushiAI::Test;
 namespace Support = SushiAI::Eager::Support;
 using Eager::StepCost;

@@ -197,14 +197,14 @@ TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
 
 TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack)
 {
-    // Both spellings of the model swap a checkpoint; see tests/integration/README.md.
+    // Both spellings of the model swap a checkpoint; see tests/layers/io/README.md.
     const ScratchFile from_sequential("sushiai_equivalence_a.sushi");
     const ScratchFile from_stack("sushiai_equivalence_b.sushi");
 
     Materialised<MLP> compile_time(*engine, make_sequential(), 7);
     Materialised<NN::LayerStack> run_time(*engine, make_stack(), 99);
 
-    // Names must match before any load is compared; see tests/integration/README.md.
+    // Names must match before any load is compared; see tests/layers/io/README.md.
     ASSERT_EQ(compile_time.names(), run_time.names());
     ASSERT_EQ(compile_time.names(),
               (std::vector<std::string>{"0.weight", "0.bias", "2.weight", "2.bias"}));
@@ -217,7 +217,7 @@ TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerSt
     SA_EXPECT_OK(IO::load_checkpoint(from_sequential.path(), run_time.state()));
     EXPECT_EQ(run_time.bits(), sequential_bits);
 
-    // The return trip loads into a third model; see tests/integration/README.md.
+    // The return trip loads into a third model; see tests/layers/io/README.md.
     Materialised<MLP> third(*engine, make_sequential(), 123);
     ASSERT_NE(third.bits(), sequential_bits);
 
@@ -257,7 +257,7 @@ TEST_F(Integration_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
 {
     const ScratchFile file("sushiai_shape.sushi");
 
-    // Shapes are compared, not element counts; see tests/integration/README.md.
+    // Shapes are compared, not element counts; see tests/layers/io/README.md.
     using OneLayer = NN::Sequential<NN::Linear>;
     Materialised<OneLayer> wide(*engine, OneLayer(NN::Linear{6, 8}), 5);
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.state(), *engine));
@@ -271,7 +271,7 @@ TEST_F(Integration_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
 {
     const ScratchFile file("sushiai_duplicate.sushi");
 
-    // save_checkpoint cannot write a duplicated name; see tests/integration/README.md.
+    // save_checkpoint cannot write a duplicated name; see tests/layers/io/README.md.
     Materialised<MLP> model(*engine, make_sequential(), 5);
 
     {

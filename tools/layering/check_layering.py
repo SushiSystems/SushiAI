@@ -73,7 +73,6 @@ K_MODULE_TIERS: dict[str, str] = {
     "language/decoder_models": "language",
 }
 K_SCOPED_ROOTS: dict[str, str | None] = {
-    "tests/common": "layers",
     "tests": None,
     "applications": None,
 }

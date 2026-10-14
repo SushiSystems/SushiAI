@@ -1328,7 +1328,7 @@ namespace SushiAI
             const DarknetWeightTarget* const targets = find_targets(run, layer);
             ASSERT_NE(targets, nullptr) << "the cfg has no convolution at layer " << layer;
 
-            // The dumped updates of this layer are no reference; see tests/integration/README.md.
+            // The dumped updates of this layer are no reference; see the importers' test README.
             for (const std::string* const name :
                  {&targets->weight, &targets->scale, &targets->bias})
             {
@@ -1495,7 +1495,7 @@ namespace SushiAI
             EXPECT_TRUE(within_tolerance("rolling mean after", read_state(run, targets->mean),
                                          mean_after.values, bound, 0.0));
 
-            // The two variances differ by more than the bound; see tests/integration/README.md.
+            // The two variances differ by more than the bound; see the importers' test README.
             EXPECT_TRUE(within_tolerance("rolling variance after, against the sum in double",
                                          read_state(run, targets->variance), host.exact, bound,
                                          0.0));

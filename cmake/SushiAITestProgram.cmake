@@ -24,7 +24,7 @@ set(SUSHIAI_TEST_LABELS
 
 # sushiai_add_test_program(OWNER <module key> | APPLICATION <name>
 #     SOURCES test_<name>.cpp ... [DEPENDS <module key> ...]
-#     [LINKS <target> ...])
+#     [LINKS <target> ...] [INCLUDES <folder> ...])
 #
 # Called from tests/<tier>/<module>/CMakeLists.txt with the key the module has
 # in SUSHIAI_MODULE_TIERS, or from tests/applications/<name>/CMakeLists.txt.
@@ -36,7 +36,7 @@ set(SUSHIAI_TEST_LABELS
 # fixtures/ folder beside its CMakeLists.txt, and SA_REPOSITORY_ROOT names the
 # root of the repository.
 function(sushiai_add_test_program)
-    cmake_parse_arguments(ARG "" "OWNER;APPLICATION" "SOURCES;DEPENDS;LINKS" ${ARGN})
+    cmake_parse_arguments(ARG "" "OWNER;APPLICATION" "SOURCES;DEPENDS;LINKS;INCLUDES" ${ARGN})
 
     if(NOT ARG_SOURCES OR (NOT ARG_OWNER AND NOT ARG_APPLICATION))
         message(FATAL_ERROR
@@ -80,6 +80,10 @@ function(sushiai_add_test_program)
     foreach(link IN LISTS ARG_LINKS)
         target_link_libraries(${program} PRIVATE ${link})
     endforeach()
+
+    if(ARG_INCLUDES)
+        target_include_directories(${program} PRIVATE ${ARG_INCLUDES})
+    endif()
 
     target_compile_definitions(${program} PRIVATE
         SA_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"

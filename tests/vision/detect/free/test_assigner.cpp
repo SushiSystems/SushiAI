@@ -341,7 +341,7 @@ TEST(Unit_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
     const AssignerConfig config =
         SushiAI::Vision::Detect::Free::one_to_many_assigner_config(80, strides);
 
-    // The values are "assigner.one2many" of loss.sacp in tests/fixtures/yolo26/MANIFEST.json.
+    // The values are "assigner.one2many" of loss.sacp in the registration MANIFEST.json.
     EXPECT_EQ(config.topk, 10);
     EXPECT_EQ(config.topk2, 10);
     EXPECT_EQ(config.num_classes, 80);
@@ -358,7 +358,7 @@ TEST(Unit_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
     const AssignerConfig config =
         SushiAI::Vision::Detect::Free::one_to_one_assigner_config(80, strides);
 
-    // The values are "assigner.one2one" of loss.sacp in tests/fixtures/yolo26/MANIFEST.json.
+    // The values are "assigner.one2one" of loss.sacp in the registration MANIFEST.json.
     EXPECT_EQ(config.topk, 7);
     EXPECT_EQ(config.topk2, 1);
     EXPECT_NEAR(config.alpha, 0.5f, K_EXACT);

@@ -47,7 +47,7 @@ TEST(Unit_Ops, EveryIdentityHashesDistinctly)
 
 TEST(Unit_Ops, EveryNameCarriesTheLibraryPrefix)
 {
-    // rfind(prefix, 0) matches at position 0 only (C++17); see tests/unit/README.md.
+    // rfind(prefix, 0) matches at position 0 only (C++17); see tests/core/core/README.md.
     constexpr std::string_view K_PREFIX = "sushiai.";
     for (const Ops::OpName& entry : Ops::K_ALL)
         EXPECT_EQ(entry.name.rfind(K_PREFIX, 0), 0u) << entry.name;
@@ -67,7 +67,7 @@ TEST(Unit_Ops, NameOfReportsUnknownForAForeignIdentity)
 
 TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
 {
-    // Membership in ALL is checked by name; see tests/unit/README.md.
+    // Membership in ALL is checked by name; see tests/core/core/README.md.
     const std::array expected = {
         std::string_view("sushiai.leaf"),
         std::string_view("sushiai.accumulate"),
@@ -160,7 +160,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
 
 TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
 {
-    // ALL is what the collision proof and name_of() read; see tests/unit/README.md.
+    // ALL is what the collision proof and name_of() read; see tests/core/core/README.md.
     const std::array<SushiAI::OpID, 23> declared = {
         Ops::K_RESHAPE.id, Ops::K_LAYOUT_CONVERT.id,
         Ops::K_IM2COL.id, Ops::K_COL2IM.id,
@@ -184,13 +184,13 @@ TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
 
 TEST(Unit_Ops, ThereIsNoConv2dIdentity)
 {
-    // Convolution is IM2COL + MATMUL in the IR (CV-1); see tests/unit/README.md.
+    // Convolution is IM2COL + MATMUL in the IR (CV-1); see tests/core/core/README.md.
     EXPECT_EQ(Ops::name_of(Ops::op("sushiai.conv2d").id), "sushiai.unknown");
 }
 
 TEST(Unit_Ops, LeakyReLUDifferentiatesAtItsOutput)
 {
-    // For alpha > 0 the output's sign equals the input's; see tests/unit/README.md.
+    // For alpha > 0 the output's sign equals the input's; see tests/core/core/README.md.
     const Ops::Activation* entry = Ops::activation_of(Ops::K_LEAKY_RELU.id);
     ASSERT_NE(entry, nullptr);
     EXPECT_EQ(entry->backward, Ops::K_LEAKY_RELU_BACKWARD.id);

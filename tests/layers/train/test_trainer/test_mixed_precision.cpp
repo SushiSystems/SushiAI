@@ -74,7 +74,7 @@ namespace
 
     /**
      * @brief Returns AdamW options at the 3e-3 rate `sa demo mlp` uses; see
-     *        tests/integration/README.md.
+     *        tests/layers/train/README.md.
      */
     Optim::AdamWOptions optimizer_options()
     {
@@ -86,7 +86,7 @@ namespace
 
 TEST_F(Integration_MixedPrecision, AModelWithFP16ProductsStillLearns)
 {
-    // Correctness is asserted; speed is not; see tests/integration/README.md.
+    // Correctness is asserted; speed is not; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
@@ -122,7 +122,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFP16ProductsStillLearns)
     EXPECT_TRUE(std::isfinite(report.first_loss));
     EXPECT_TRUE(std::isfinite(report.last_loss));
 
-    // ln(4) is where a zeroed classifier starts; see tests/integration/README.md.
+    // ln(4) is where a zeroed classifier starts; see tests/layers/train/README.md.
     EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(K_CLASSES)), 1e-4);
     EXPECT_LT(report.last_loss, 0.5 * report.first_loss);
     ASSERT_NE(report.last_metrics.find("accuracy"), nullptr);
@@ -131,7 +131,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFP16ProductsStillLearns)
 
 TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 {
-    // Tensors must carry the dtypes the IR claims; see tests/integration/README.md.
+    // Tensors must carry the dtypes the IR claims; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
 
     const MixedPrecisionPolicy precision;
@@ -176,7 +176,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
     EXPECT_GT(half_buffers, 0u);
 
-    // SushiBLAS refuses a mixed-dtype gemm by name; see tests/integration/README.md.
+    // SushiBLAS refuses a mixed-dtype gemm by name; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(*engine, data_options()));
     Data::Batch dataset_batch;
@@ -188,7 +188,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
 
 TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
-    // The graph skipped the cast pass on purpose; see tests/integration/README.md.
+    // The graph skipped the cast pass on purpose; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
@@ -221,7 +221,7 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 
 TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
-    // A half buffer must not be read as float; see tests/integration/README.md.
+    // A half buffer must not be read as float; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                             Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
@@ -282,7 +282,7 @@ namespace
 
     /**
      * @brief Trains the same model, data and seed under @p precision.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     [[nodiscard]] Result<TrainingRun> train(SushiBLAS::Engine& engine,
                                             const Graph::PrecisionPolicy* precision)
@@ -332,7 +332,7 @@ namespace
                 result.accuracy = metrics.metrics.value_or("accuracy", 0.0);
             }
 
-        // Dtypes are read after the run, not before; see tests/regression/README.md.
+        // Dtypes are read after the run, not before; see tests/layers/train/README.md.
         for (const Optim::ParameterSlot& slot : slots)
         {
             result.master_dtypes.push_back(slot.parameter.dtype);
@@ -345,7 +345,7 @@ namespace
 
 /**
  * @brief Tests that every master weight and gradient is float32 after a mixed-precision run.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
 {
@@ -367,7 +367,7 @@ TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
 
 /**
  * @brief Tests that the fp32 policy adds no cast and matches no policy bit for bit.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_MixedPrecision, TheFP32PolicyIsIndistinguishableFromNoPolicyAtAll)
 {
@@ -387,7 +387,7 @@ TEST_F(Regression_MixedPrecision, TheFP32PolicyIsIndistinguishableFromNoPolicyAt
 
 /**
  * @brief Tests that mixed precision adds exactly as many operations as casts.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructural)
 {
@@ -402,7 +402,7 @@ TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructu
 
 /**
  * @brief Tests that mixed and single precision losses stay within 2e-2 relative at every step.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
 {
@@ -414,7 +414,7 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
     ASSERT_EQ(fp32.losses.size(), mixed.losses.size());
     ASSERT_GT(mixed.casts, 0u);
 
-    // Both runs learned before they are compared; see tests/regression/README.md.
+    // Both runs learned before they are compared; see tests/layers/train/README.md.
     EXPECT_LT(fp32.losses.back(), 0.5 * fp32.losses.front());
     EXPECT_LT(mixed.losses.back(), 0.5 * mixed.losses.front());
     EXPECT_GT(mixed.accuracy, 0.75);
@@ -432,7 +432,7 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
 
 /**
  * @brief Tests that a narrowing policy leaves GELU unfolded and in float32.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_MixedPrecision, AGELULayerIsNotFoldedUnderANarrowingPolicy)
 {
@@ -463,12 +463,12 @@ TEST_F(Regression_MixedPrecision, AGELULayerIsNotFoldedUnderANarrowingPolicy)
            "approximation's x*x*x into fp16 - see graph/precision.hpp rule 5\n"
         << narrow.fusion.to_string();
 
-    // The bias still folds on both layers; see tests/regression/README.md.
+    // The bias still folds on both layers; see tests/layers/train/README.md.
     EXPECT_EQ(narrow.fusion.count(Graph::FusedForm::GEMMBias), 2u)
         << narrow.fusion.to_string();
     EXPECT_GT(narrow.casts.count(), 0u) << "this arm narrowed nothing, so it proves nothing";
 
-    // The GELU stays in the graph, in the master type; see tests/regression/README.md.
+    // The GELU stays in the graph, in the master type; see tests/layers/train/README.md.
     for (const Graph::Node& node : narrow.graph.nodes())
         if (node.op == Ops::K_GELU.id)
             EXPECT_EQ(narrow.graph.value(node.outputs[0]).dtype, DType::Float32);

@@ -65,7 +65,7 @@
 #include <SushiAI/train/training_graph.hpp>
 
 using namespace SushiAI;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace

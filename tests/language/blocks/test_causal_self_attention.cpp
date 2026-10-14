@@ -69,7 +69,7 @@ using Language::Blocks::AttentionMask;
 using Language::Blocks::AttentionPositions;
 using Language::Blocks::CausalSelfAttention;
 using NN::Trace;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/blocks/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;

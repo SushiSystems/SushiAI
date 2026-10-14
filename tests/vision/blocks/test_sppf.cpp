@@ -297,7 +297,7 @@ TEST(Unit_BlockSppf, StateMatchesManifestRow9)
     BufferUpdateList list;
     static_cast<void>(block.forward(Trace::training(builder, list), x));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 2680.
+    // MANIFEST.json of the registration fixtures, weights.sushi tensors, from line 2680.
     const std::vector<std::string> expected = {
         record("model.9.cv1.conv.weight", Shape{128, 1, 1, 256}, StateKind::Parameter),
         record("model.9.cv1.bn.weight", Shape{128}, StateKind::Parameter),

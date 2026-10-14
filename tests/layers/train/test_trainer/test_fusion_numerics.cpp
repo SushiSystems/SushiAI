@@ -45,7 +45,7 @@
 
 using namespace SushiAI;
 
-// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/regression/README.md.
+// SaTest keeps SushiAI::Test reachable inside TEST_F; see tests/layers/train/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::FusedForm;
 using Graph::FusionOptions;
@@ -95,7 +95,7 @@ namespace
      * @brief Trains one model end to end and writes everything comparable into @p run.
      * @param run Left partly filled when a step of the run fails, which fails the test.
      * @param selector Null selects this machine's own device.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     template<typename M>
     void train(M& model, FusionOptions fusion, TrainedRun& run,
@@ -191,7 +191,7 @@ namespace
 
     /**
      * @brief Returns a device profile that is not this machine's.
-     * @see tests/regression/README.md
+     * @see tests/layers/train/README.md
      */
     SushiBLAS::Device::Profile pretend_device(bool fp64)
     {
@@ -209,7 +209,7 @@ namespace
 
 /**
  * @brief Tests that a ReLU MLP trains to identical bytes with fusion on and off.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
 {
@@ -231,7 +231,7 @@ TEST_F(Regression_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
 
 /**
  * @brief Tests that a tanh MLP trains to identical bytes with fusion on and off.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, ATanhMLPTrainsIdenticallyFusedAndUnfused)
 {
@@ -267,7 +267,7 @@ TEST_F(Regression_Fusion, ASigmoidMLPTrainsIdenticallyFusedAndUnfused)
 
 /**
  * @brief Tests that a GELU MLP trains to identical bytes with fusion on and off.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
 {
@@ -281,14 +281,14 @@ TEST_F(Regression_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
     TrainedRun plain;
     ASSERT_NO_FATAL_FAILURE(train(plain_model, off(), plain));
 
-    // Two layers and the gradient tail fuse; see tests/regression/README.md.
+    // Two layers and the gradient tail fuse; see tests/layers/train/README.md.
     EXPECT_EQ(fused.fused_subtrees, 3u)
         << "expected gemm+bias+gelu, gemm+bias and the cross-entropy gradient tail";
     ASSERT_EQ(plain.fused_subtrees, 0u);
 
     expect_runs_agree(fused, plain, "a GELU epilogue spilling its pre-activation");
 
-    // The loss fell, so both runs really trained; see tests/regression/README.md.
+    // The loss fell, so both runs really trained; see tests/layers/train/README.md.
     ASSERT_GE(fused.losses.size(), 2u);
     EXPECT_LT(fused.losses.back(), fused.losses.front())
         << "the GELU model did not train at all, so agreeing with the control proves nothing";
@@ -308,7 +308,7 @@ TEST_F(Regression_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
         EXPECT_NE(decline.reason, Graph::FusionDecline::GradientNeedsPreActivation)
             << built.fusion.to_string();
 
-    // gelu_backward must read the spilled value; see tests/regression/README.md.
+    // gelu_backward must read the spilled value; see tests/layers/train/README.md.
     const Graph::FusedSubtree* gelu = nullptr;
     for (const Graph::FusedSubtree& subtree : built.fusion.fused())
         if (subtree.form == FusedForm::GEMMBiasGELU) gelu = &subtree;
@@ -332,7 +332,7 @@ TEST_F(Regression_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
 
 /**
  * @brief Tests that the spill buffer holds the host-computed pre-activation.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
 {
@@ -351,7 +351,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
     const Graph::ValueID pre = builder.bias_add(builder.matmul(x, w, false, true), b);
     const Graph::ValueID out = builder.gelu(pre);
 
-    // `pre` is unobserved; the fold rests on the spill; see tests/regression/README.md.
+    // `pre` is unobserved; the fold rests on the spill; see tests/layers/train/README.md.
     const std::vector<Graph::ValueID> observed{out};
     FusionOptions options;
     options.observed = SushiRuntime::span<const Graph::ValueID>(observed.data(), observed.size());
@@ -392,7 +392,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
 
     ASSERT_EQ(spilled.size(), static_cast<std::size_t>(K_ROWS * K_OUT_DIM));
 
-    // The reference is computed on the host; see tests/regression/README.md.
+    // The reference is computed on the host; see tests/layers/train/README.md.
     std::size_t separated = 0;
 
     for (int64_t row = 0; row < K_ROWS; ++row)
@@ -407,7 +407,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
             EXPECT_NEAR(spilled[index], expected, 1e-5)
                 << "the spill at (" << row << ", " << col << ") is not the pre-activation";
 
-            // Only a negative element separates them; see tests/regression/README.md.
+            // Only a negative element separates them; see tests/layers/train/README.md.
             if (expected < -0.5)
             {
                 ++separated;
@@ -424,7 +424,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
 
 /**
  * @brief Tests that a refused GELU epilogue still fills the spill and trains to identical bytes.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
 {
@@ -457,7 +457,7 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
 
 /**
  * @brief Tests that disabling the GELU form trains to the same bytes as folding it.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
 {
@@ -478,7 +478,7 @@ TEST_F(Regression_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
     EXPECT_EQ(folded.fused_subtrees, separate.fused_subtrees)
         << "switching the three-node form off must fall back to gemm+bias, not to nothing";
 
-    // Disabling the form costs exactly two kernels; see tests/regression/README.md.
+    // Disabling the form costs exactly two kernels; see tests/layers/train/README.md.
     EXPECT_EQ(separate.operations_per_step, folded.operations_per_step + 2u);
 
     expect_runs_agree(folded, separate, "switching the fused GELU epilogue off");
@@ -486,7 +486,7 @@ TEST_F(Regression_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
 
 /**
  * @brief Tests that the fused ReLU MLP step issues ten fewer operations than the unfused one.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 {
@@ -502,14 +502,14 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 
     EXPECT_EQ(plain.operations_per_step, fused.operations_per_step + 10u);
 
-    // Fusing adds no ordering node and no compile; see tests/regression/README.md.
+    // Fusing adds no ordering node and no compile; see tests/layers/train/README.md.
     EXPECT_EQ(fused.compiles, 1u);
     EXPECT_EQ(plain.compiles, 1u);
 }
 
 /**
  * @brief Tests that a fused GEMM depends on the task that writes the bias its epilogue reads.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 {
@@ -532,7 +532,7 @@ TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
     SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::runtime());
     SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, engine.mode());
 
-    // Recorded first: the edge can only run to the GEMM; see tests/regression/README.md.
+    // Recorded first: the edge can only run to the GEMM; see tests/layers/train/README.md.
     SushiBLAS::Tensor& bias = pool.tensor(b);
     SushiBLAS::ElementwiseOps(recorder).mul(bias, bias, bias);
 
@@ -555,7 +555,7 @@ TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 
 /**
  * @brief Tests that the reader of the spill depends on the fused GEMM that fills it.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
 {
@@ -569,7 +569,7 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt
     const Graph::ValueID pre = builder.bias_add(builder.matmul(x, w, false, true), b);
     const Graph::ValueID out = builder.gelu(pre);
 
-    // Emitted after the GELU, as gelu_backward is; see tests/regression/README.md.
+    // Emitted after the GELU, as gelu_backward is; see tests/layers/train/README.md.
     const Graph::ValueID dy = builder.input(Shape{K_BATCH, K_HIDDEN}, "dy");
     (void)builder.activation_backward(Ops::K_GELU_BACKWARD.id, dy, pre);
 
@@ -607,7 +607,7 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt
 
 /**
  * @brief Tests that disabling GEMM_BIAS_RELU falls back to GEMM_BIAS and moves no byte.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
 {
@@ -625,14 +625,14 @@ TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
     TrainedRun some;
     ASSERT_NO_FATAL_FAILURE(train(narrowed_model, narrowed, some));
 
-    // A catalog refusal costs two kernels, not one; see tests/regression/README.md.
+    // A catalog refusal costs two kernels, not one; see tests/layers/train/README.md.
     EXPECT_EQ(some.operations_per_step, whole.operations_per_step + 2u);
     expect_runs_agree(whole, some, "switching the fused ReLU epilogue off");
 }
 
 /**
  * @brief Tests that a selector refusing every form yields an unfused plan with identical bytes.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
 {
@@ -690,7 +690,7 @@ TEST_F(Regression_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKe
 
 /**
  * @brief Tests that host-executing modes are refused a GEMM epilogue and keep the zip form.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
 {
@@ -705,7 +705,7 @@ TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferences
         EXPECT_EQ(selector.choose(gemm).form, FusedForm::None)
             << "mode " << static_cast<int>(mode);
 
-        // The zip form runs no host arm; see tests/regression/README.md.
+        // The zip form runs no host arm; see tests/layers/train/README.md.
         Graph::FusionQuery zip;
         zip.matched = FusedForm::ExpSubScale;
         zip.rows = 32;
@@ -730,7 +730,7 @@ TEST_F(Regression_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirect
 
 /**
  * @brief Tests that every selector choice carries a non-empty reason.
- * @see tests/regression/README.md
+ * @see tests/layers/train/README.md
  */
 TEST_F(Regression_Fusion, EveryChoiceCarriesAReasonSomebodyCanRead)
 {

@@ -59,7 +59,7 @@
 using namespace SushiAI;
 using NN::Embedding;
 using NN::Trace;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/layers/nn/README.md.
 namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;

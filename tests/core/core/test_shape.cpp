@@ -130,7 +130,7 @@ TEST(Unit_Shape, EqualityComparesRankAndEveryExtent)
 
 TEST(Unit_Shape, HashSeparatesShapesThatDifferOnlyByRank)
 {
-    // The tensor pool keys constant operands on this hash; see tests/unit/README.md.
+    // The tensor pool keys constant operands on this hash; see tests/core/core/README.md.
     EXPECT_NE(Shape({4, 1}).hash(), Shape({4}).hash());
     EXPECT_EQ(Shape({4, 1}).hash(), Shape({4, 1}).hash());
 }
@@ -149,14 +149,14 @@ TEST(Unit_Shape, WorksAsAnUnorderedMapKey)
 
 TEST(Unit_Shape, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
 {
-    // The limit in the message is SushiBLAS's MAX_RANK; see tests/unit/README.md.
+    // The limit in the message is SushiBLAS's MAX_RANK; see tests/core/core/README.md.
     SA_EXPECT_ERROR((void)Shape({1, 1, 1, 1, 1, 1, 1}),
                     "Shape rank 7", "exceeds the maximum of 6");
 }
 
 TEST(Unit_Shape, ShapeNonPositiveExtentNamesTheOffendingExtent)
 {
-    // Shape itself refuses a zero-element tensor; see tests/unit/README.md.
+    // Shape itself refuses a zero-element tensor; see tests/core/core/README.md.
     SA_EXPECT_ERROR((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
     SA_EXPECT_ERROR((void)Shape({-3}), "Shape extents must be positive", "got -3");
 }

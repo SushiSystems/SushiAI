@@ -339,7 +339,7 @@ TEST(Unit_TrainConfig, LeavesAnAbsolutePathAlone)
     const std::filesystem::path absolute =
         std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
 
-    // generic_string() writes '/', which JSON does not escape; see tests/unit/README.md.
+    // generic_string() writes '/', which JSON does not escape; see tests/core/config/README.md.
     const std::string text =
         R"({"sushiai_train": 1, "model": ")" + absolute.generic_string() +
         R"(", "objective": {"type": "cross_entropy"},
@@ -426,7 +426,7 @@ TEST(Unit_TrainConfig, ParsesAnEvalDocument)
 
 TEST(Unit_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
 {
-    // An eval document naming a model is an error; see tests/unit/README.md.
+    // An eval document naming a model is an error; see tests/core/config/README.md.
     SA_EXPECT_ERROR((void)SushiAI::Config::parse_data(
         parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"}, "model": "m.json"})",
                    "eval.json"), "eval.json"), "'model'", "'data'");

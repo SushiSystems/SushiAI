@@ -93,7 +93,7 @@
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST body, where Test names the fixture base.
 namespace SaTest = SushiAI::Test;
-// SaTest stays reachable inside a TEST_F body; see tests/integration/README.md.
+// SaTest stays reachable inside a TEST_F body; see tests/language/registration/README.md.
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;

@@ -264,7 +264,7 @@ TEST(Unit_BlockDetectHead, ThePortsCarryTheFixtureNamesAndShapes)
     EXPECT_EQ(head->input_count(), K_LEVELS);
     ASSERT_EQ(head->ports().size(), 4 * K_LEVELS);
 
-    // tests/fixtures/yolo26/MANIFEST.json, forward.sacp tensors, from line 9856.
+    // MANIFEST.json of the registration fixtures, forward.sacp tensors, from line 9856.
     const std::array<std::string_view, 2> copies = {"one2many", "one2one"};
     const std::array<std::string_view, 2> roles = {"boxes", "scores"};
     const std::array<int64_t, 2> channels = {4, K_CLASSES};
@@ -300,7 +300,7 @@ TEST(Unit_BlockDetectHead, StateMatchesManifestRecords390To593)
     std::vector<Graph::ValueID> outputs;
     SA_EXPECT_OK(head->forward(Trace::training(traced.builder, list), traced.inputs(), outputs));
 
-    // tests/fixtures/yolo26/MANIFEST.json, weights.sushi tensors, from line 6485.
+    // MANIFEST.json of the registration fixtures, weights.sushi tensors, from line 6485.
     std::vector<std::string> expected;
     append_box_branches(expected, "model.23.cv2");
     append_class_branches(expected, "model.23.cv3");
