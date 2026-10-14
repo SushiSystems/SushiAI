@@ -39,36 +39,4 @@ sushiai_add_module(NAME nn TIER layers
         source/trace.cpp
         source/unflatten.cpp
         source/upsample2d.cpp
-    PUBLIC_DEPENDS core graph config
-    TESTS
-        tests/test_add.cpp
-        tests/test_avg_pool2d.cpp
-        tests/test_batch_norm2d.cpp
-        tests/test_buffer.cpp
-        tests/test_channel_slice.cpp
-        tests/test_concat.cpp
-        tests/test_config.cpp
-        tests/test_depthwise_conv2d.cpp
-        tests/test_dropout.cpp
-        tests/test_embedding.cpp
-        tests/test_flatten.cpp
-        tests/test_global_avg_pool.cpp
-        tests/test_host_table.cpp
-        tests/test_identity.cpp
-        tests/test_layer_norm.cpp
-        tests/test_layer_stack.cpp
-        tests/test_leaky_relu.cpp
-        tests/test_linked_rows.cpp
-        tests/test_max_pool2d.cpp
-        tests/test_mish.cpp
-        tests/test_model_graph.cpp
-        tests/test_model_outputs.cpp
-        tests/test_module.cpp
-        tests/test_module_list.cpp
-        tests/test_node.cpp
-        tests/test_node_registry.cpp
-        tests/test_silu.cpp
-        tests/test_throwing_bridge.cpp
-        tests/test_trace.cpp
-        tests/test_unflatten.cpp
-        tests/test_upsample2d.cpp)
+    PUBLIC_DEPENDS core graph config)

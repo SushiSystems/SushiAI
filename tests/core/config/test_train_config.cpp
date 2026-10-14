@@ -22,24 +22,37 @@
 
 /**
  * @file test_train_config.cpp
- * @brief Tests that a training file carries its schedule section as an opaque value.
+ * @brief Tests how train and eval documents parse into their typed blocks and which ones they
+ *        refuse.
  * @author Mustafa Garip
  */
 
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/model_text/model_text.hpp>
 
 using namespace SushiAI;
 using Config::Kind;
 using Config::TrainSpec;
 using Config::Value;
+using SushiAI::Config::Kind;
+using SushiAI::Config::Value;
+using SushiAI::Config::parse_json;
 
 namespace
 {
@@ -234,4 +247,193 @@ TEST(Unit_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
 TEST(Unit_TrainConfig, ADataBlockWithNeitherKeyIsRefused)
 {
     SA_EXPECT_ERROR((void)parse_with_data(R"({"root": "data"})"), "'type'");
+}
+
+namespace
+{
+    /** @brief Parses @p text as a train document, resolving paths against ".". */
+    SushiAI::Config::TrainSpec train_from(std::string_view text)
+    {
+        return SushiAI::Config::parse_train(parse_json(text, "train.json"), "train.json", ".");
+    }
+
+    constexpr std::string_view K_GOOD_TRAIN = R"({
+        "sushiai_train": 1,
+        "model": "model.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings", "batch_size": 8, "batches": 2, "classes": 4},
+        "optimizer": {"type": "adamw", "learning_rate": 0.003},
+        "epochs": 3,
+        "checkpoint": "out/model.sushi"
+    })";
+
+    /**
+     * @class TemporaryDirectory
+     * @brief A directory that removes itself, so a failing test leaves nothing behind.
+     */
+    class TemporaryDirectory
+    {
+        public:
+            explicit TemporaryDirectory(const char* name)
+                : path_(std::filesystem::temp_directory_path() / name)
+            {
+                std::filesystem::remove_all(path_);
+                std::filesystem::create_directories(path_);
+            }
+
+            ~TemporaryDirectory()
+            {
+                std::error_code ignored;
+                std::filesystem::remove_all(path_, ignored);
+            }
+
+            TemporaryDirectory(const TemporaryDirectory&) = delete;
+            TemporaryDirectory& operator=(const TemporaryDirectory&) = delete;
+
+            const std::filesystem::path& path() const noexcept { return path_; }
+
+            /** @brief Writes @p text into this directory as @p name. */
+            std::filesystem::path write(const char* name, std::string_view text) const
+            {
+                const std::filesystem::path file = path_ / name;
+                std::ofstream out(file, std::ios::binary);
+                out.write(text.data(), static_cast<std::streamsize>(text.size()));
+                return file;
+            }
+
+        private:
+            std::filesystem::path path_;
+    };
+
+} // namespace
+
+TEST(Unit_TrainConfig, ParsesATrainDocumentIntoItsFourTypedBlocks)
+{
+    const SushiAI::Config::TrainSpec spec = train_from(K_GOOD_TRAIN);
+
+    EXPECT_EQ(spec.objective_type, "cross_entropy");
+    EXPECT_EQ(spec.data.type, "rings");
+    EXPECT_EQ(spec.optimizer_type, "adamw");
+    EXPECT_EQ(spec.epochs, 3);
+
+    // Each block's "type" is separated out, so no factory has to allow it.
+    EXPECT_FALSE(spec.optimizer_attributes.has("type"));
+    EXPECT_DOUBLE_EQ(spec.optimizer_attributes.at("learning_rate", "optimizer")
+                                              .as_real("learning_rate"), 0.003);
+    EXPECT_EQ(spec.data.attributes.at("batch_size", "data").as_int("batch_size"), 8);
+}
+
+TEST(Unit_TrainConfig, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
+{
+    const TemporaryDirectory directory("sushiai_config_paths");
+    const std::filesystem::path config = directory.write("train.json", K_GOOD_TRAIN);
+
+    const SushiAI::Config::TrainSpec spec = SushiAI::Config::load_train(config);
+
+    EXPECT_EQ(spec.model_path, directory.path() / "model.json");
+    EXPECT_EQ(spec.checkpoint, directory.path() / "out" / "model.sushi");
+}
+
+TEST(Unit_TrainConfig, LeavesAnAbsolutePathAlone)
+{
+    const std::filesystem::path absolute =
+        std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
+
+    // generic_string() writes '/', which JSON does not escape; see tests/unit/README.md.
+    const std::string text =
+        R"({"sushiai_train": 1, "model": ")" + absolute.generic_string() +
+        R"(", "objective": {"type": "cross_entropy"},
+            "data": {"type": "rings"}, "optimizer": {"type": "adamw"}})";
+
+    const SushiAI::Config::TrainSpec spec =
+        SushiAI::Config::parse_train(parse_json(text, "train.json"), "train.json",
+                                     "/some/other/place");
+    EXPECT_EQ(spec.model_path, absolute);
+}
+
+TEST(Unit_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
+{
+    const SushiAI::Config::TrainSpec defaulted = train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })");
+    EXPECT_EQ(defaulted.epochs, 1);
+    EXPECT_TRUE(defaulted.checkpoint.empty());
+
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "epochs": 0
+    })"), "'epochs'", "positive");
+}
+
+TEST(Unit_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "epochz": 3
+    })"), "'epochz'", "'epochs'");
+}
+
+TEST(Unit_TrainConfig, AMissingTrainBlockNamesIt)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "optimizer": {"type": "adamw"}
+    })"), "'data'");
+}
+
+TEST(Unit_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": "cross_entropy",
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })"), "'objective'", "a string");
+}
+
+TEST(Unit_TrainConfig, AFutureTrainVersionIsAnError)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 2, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })"), "version 2", "version 1");
+}
+
+TEST(Unit_TrainConfig, ParsesAnEvalDocument)
+{
+    const SushiAI::Config::DataSpec data = SushiAI::Config::parse_data(
+        parse_json(R"({
+            "sushiai_data": 1,
+            "data": {"type": "rings", "batch_size": 512, "batches": 1, "seed": 3735928575}
+        })", "eval.json"), "eval.json");
+
+    EXPECT_EQ(data.type, "rings");
+    EXPECT_EQ(data.attributes.at("batch_size", "data").as_int("batch_size"), 512);
+    EXPECT_EQ(data.attributes.at("seed", "data").as_int("seed"), 3735928575);
+}
+
+TEST(Unit_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
+{
+    // An eval document naming a model is an error; see tests/unit/README.md.
+    SA_EXPECT_ERROR((void)SushiAI::Config::parse_data(
+        parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"}, "model": "m.json"})",
+                   "eval.json"), "eval.json"), "'model'", "'data'");
+}
+
+TEST(Unit_TrainConfig, LoadingAnAbsentFileNamesThePath)
+{
+    SA_EXPECT_ERROR((void)SushiAI::Config::load_train("no/such/train.json"),
+                    "no/such/train.json");
 }
