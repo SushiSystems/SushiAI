@@ -42,8 +42,9 @@
 #include <SushiAI/language/training/next_token_targets.hpp>
 #include <SushiAI/language/training/perplexity.hpp>
 #include <SushiAI/train/objective.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 
 using namespace SushiAI;
 using Language::Training::fill_next_token_targets;

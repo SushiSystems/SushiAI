@@ -35,7 +35,7 @@
 #include <SushiAI/language/generation/sampler_section.hpp>
 #include <SushiAI/language/generation/temperature_sampler.hpp>
 #include <SushiAI/language/generation/top_k_sampler.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Generation;

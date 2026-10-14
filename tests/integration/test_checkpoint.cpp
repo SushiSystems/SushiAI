@@ -34,8 +34,11 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/nn/node_registry.hpp>
-#include <common/test_utils.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/scratch_files/scratch_file.hpp>
+#include <SushiAI/layer_rows/layer_registry.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

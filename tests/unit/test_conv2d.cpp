@@ -41,7 +41,7 @@
 #include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using NN::Conv2d;

@@ -48,7 +48,7 @@
 #include <SushiAI/vision/training/dice_objective.hpp>
 #include <SushiAI/vision/training/pixel_cross_entropy_objective.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Training::DiceObjective;

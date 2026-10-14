@@ -57,9 +57,12 @@
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
+#include <SushiAI/sample_models/two_output_model.hpp>
 
 using namespace SushiAI;
 using Train::CrossEntropyObjective;

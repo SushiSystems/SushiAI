@@ -57,6 +57,28 @@ function(sushiai_module_target key output_variable)
     set(${output_variable} "sushiai_module_${flat}" PARENT_SCOPE)
 endfunction()
 
+# Sets `output_variable` to the key of module `name` of `tier` in
+# SUSHIAI_MODULE_TIERS, and fails the configure when the table lists it under
+# another tier. A module of a domain tier is keyed <tier>/<name>.
+function(sushiai_module_key name tier output_variable)
+    list(FIND SUSHIAI_DOMAIN_TIERS "${tier}" domain_position)
+    if(domain_position EQUAL -1)
+        set(key "${name}")
+    else()
+        set(key "${tier}/${name}")
+    endif()
+
+    sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${key}" listed_tier)
+    if(NOT "${listed_tier}" STREQUAL "${tier}")
+        message(FATAL_ERROR
+            "Module ${key}: SUSHIAI_MODULE_TIERS lists it in tier '${listed_tier}', and its "
+            "CMakeLists.txt says '${tier}'. Add or correct its row in "
+            "cmake/SushiAILayers.cmake.")
+    endif()
+
+    set(${output_variable} "${key}" PARENT_SCOPE)
+endfunction()
+
 # Fails the configure when `consumer` may not depend on `dependency`.
 function(sushiai_check_module_edge consumer dependency)
     sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${dependency}" dependency_tier)
@@ -138,20 +160,7 @@ function(sushiai_add_module)
         message(FATAL_ERROR "sushiai_add_module: NAME and TIER are required.")
     endif()
 
-    list(FIND SUSHIAI_DOMAIN_TIERS "${ARG_TIER}" domain_position)
-    if(domain_position EQUAL -1)
-        set(key "${ARG_NAME}")
-    else()
-        set(key "${ARG_TIER}/${ARG_NAME}")
-    endif()
-
-    sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${key}" listed_tier)
-    if(NOT "${listed_tier}" STREQUAL "${ARG_TIER}")
-        message(FATAL_ERROR
-            "sushiai_add_module(${key}): SUSHIAI_MODULE_TIERS lists it in tier "
-            "'${listed_tier}', and this file says '${ARG_TIER}'. Add or correct its row in "
-            "cmake/SushiAILayers.cmake.")
-    endif()
+    sushiai_module_key("${ARG_NAME}" "${ARG_TIER}" key)
 
     sushiai_lookup_pair(SUSHIAI_TIER_LIBRARY "${ARG_TIER}" library)
     sushiai_module_target("${key}" target)
@@ -226,6 +235,70 @@ function(sushiai_add_module)
     endforeach()
 
     install(DIRECTORY "${include_root}/" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+endfunction()
+
+# sushiai_add_internal_module(NAME <module> TIER <tier>
+#     [SOURCES source/<file>.cpp ...] [DEPENDS <module key> ...]
+#     [EXTERNAL_PUBLIC <target> ...])
+#
+# Called from modules/<tier>/<module>/CMakeLists.txt for a module only the
+# tests use. It joins no tier library and installs nothing: with SOURCES it is
+# a STATIC library of its own, without them an INTERFACE one. A dependency is a
+# key of SUSHIAI_MODULE_TIERS, checked against the tier order. The module
+# compiles against the include roots of its dependencies alone; it links an
+# internal dependency itself and a library module through the library of its
+# tier, so no object is linked twice.
+function(sushiai_add_internal_module)
+    cmake_parse_arguments(ARG "" "NAME;TIER" "SOURCES;DEPENDS;EXTERNAL_PUBLIC" ${ARGN})
+
+    if(NOT ARG_NAME OR NOT ARG_TIER)
+        message(FATAL_ERROR "sushiai_add_internal_module: NAME and TIER are required.")
+    endif()
+
+    sushiai_module_key("${ARG_NAME}" "${ARG_TIER}" key)
+    sushiai_module_target("${key}" target)
+    set(include_root "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+    if(ARG_SOURCES)
+        add_library(${target} STATIC ${ARG_SOURCES})
+        set(public_scope PUBLIC)
+        target_include_directories(${target}
+            PUBLIC "${include_root}"
+            PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/source")
+        set_target_properties(${target} PROPERTIES
+            CXX_STANDARD 17
+            CXX_STANDARD_REQUIRED ON)
+        sushiai_apply_build_policy(${target})
+        sushiai_apply_sycl(${target} SOURCES ${ARG_SOURCES})
+    else()
+        add_library(${target} INTERFACE)
+        set(public_scope INTERFACE)
+        target_include_directories(${target} INTERFACE "${include_root}")
+    endif()
+
+    set_property(GLOBAL APPEND PROPERTY SUSHIAI_INTERNAL_MODULES "${key}")
+    get_property(internal_modules GLOBAL PROPERTY SUSHIAI_INTERNAL_MODULES)
+
+    foreach(dependency IN LISTS ARG_DEPENDS)
+        sushiai_check_module_edge("${key}" "${dependency}")
+        sushiai_module_target("${dependency}" dependency_target)
+
+        list(FIND internal_modules "${dependency}" internal_position)
+        if(NOT internal_position EQUAL -1)
+            target_link_libraries(${target} ${public_scope} ${dependency_target})
+            continue()
+        endif()
+
+        sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${dependency}" dependency_tier)
+        sushiai_lookup_pair(SUSHIAI_TIER_LIBRARY "${dependency_tier}" dependency_library)
+        target_link_libraries(${target} ${public_scope}
+            "$<COMPILE_ONLY:${dependency_target}>"
+            "$<LINK_ONLY:${dependency_library}>")
+    endforeach()
+
+    foreach(external IN LISTS ARG_EXTERNAL_PUBLIC)
+        target_link_libraries(${target} ${public_scope} ${external})
+    endforeach()
 endfunction()
 
 # Fails the configure when a header under the include roots of `library` is

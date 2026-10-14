@@ -34,7 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/status.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::FatalHandler;
 using SushiAI::Status;

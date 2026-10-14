@@ -32,7 +32,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Text;

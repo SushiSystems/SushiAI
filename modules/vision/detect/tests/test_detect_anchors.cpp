@@ -32,8 +32,8 @@
 #include <SushiAI/vision/detect/free/anchor_leaves.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 namespace
 {

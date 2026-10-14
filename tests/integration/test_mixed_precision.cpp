@@ -30,9 +30,10 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <common/classifier_objective.hpp>
-#include <common/test_utils.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

@@ -29,7 +29,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/imaging/labels.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 

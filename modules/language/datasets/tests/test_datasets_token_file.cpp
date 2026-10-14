@@ -34,7 +34,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>
 #include <SushiAI/language/text/token.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "datasets_test_support.hpp"
 

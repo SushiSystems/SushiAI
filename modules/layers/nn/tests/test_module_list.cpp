@@ -38,7 +38,7 @@
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/module_list.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using NN::Linear;

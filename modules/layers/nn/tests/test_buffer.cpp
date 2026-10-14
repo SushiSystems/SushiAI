@@ -34,7 +34,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/buffer.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using NN::Buffer;

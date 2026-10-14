@@ -33,7 +33,7 @@
 
 #include <SushiAI/vision/imaging/label_set.hpp>
 
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;

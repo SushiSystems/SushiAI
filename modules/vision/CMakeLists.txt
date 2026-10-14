@@ -17,3 +17,10 @@ add_subdirectory(blocks)
 add_subdirectory(datasets)
 add_subdirectory(registration)
 add_subdirectory(umbrella)
+
+# The modules only the tests use; see cmake/SushiAITestProgram.cmake.
+if(SA_BUILD_TESTS)
+    add_subdirectory(darknet_forward_cases)
+    add_subdirectory(darknet_import_cases)
+    add_subdirectory(darknet_training_cases)
+endif()

@@ -35,7 +35,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/io/importer_registry.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

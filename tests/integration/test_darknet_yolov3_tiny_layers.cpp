@@ -40,10 +40,11 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
-#include <vision_support/darknet_forward.hpp>
-#include <vision_support/darknet_reference.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
+#include <SushiAI/darknet_reference/darknet_reference.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 
 using namespace SushiAI;
 

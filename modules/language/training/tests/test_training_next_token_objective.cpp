@@ -53,7 +53,7 @@
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Language::Training::make_next_token_objective;

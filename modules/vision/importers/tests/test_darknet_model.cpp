@@ -51,9 +51,11 @@
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
-#include <vision_support/darknet_forward.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/layer_traces/trace_summary.hpp>
 
 using namespace SushiAI;
 

@@ -39,7 +39,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/threaded_loader.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

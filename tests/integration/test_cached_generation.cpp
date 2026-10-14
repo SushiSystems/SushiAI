@@ -50,9 +50,11 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
-#include "decoder_model.hpp"
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/layer_rows/minimal_case.hpp>
+#include <SushiAI/language/decoder_models/decoder_model.hpp>
 
 using namespace SushiAI;
 using Language::Generation::CachedGenerator;

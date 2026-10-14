@@ -41,9 +41,10 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/node_attributes.hpp>
 #include <SushiAI/nn/node_registry.hpp>
-#include <common/model_text.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/layer_rows/layer_registry.hpp>
 
 using namespace SushiAI;
 

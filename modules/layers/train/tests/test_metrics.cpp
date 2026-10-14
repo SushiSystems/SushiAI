@@ -34,7 +34,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/step_view.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Train::Metric;

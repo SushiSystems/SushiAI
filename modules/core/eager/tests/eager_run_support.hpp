@@ -54,7 +54,9 @@
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 
-#include <common/test_utils.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 
 /** @brief Holds what the tests of the eager module share. */
 namespace SushiAI::Eager::Support

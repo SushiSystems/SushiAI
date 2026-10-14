@@ -44,7 +44,7 @@
 #include <SushiAI/nn/host_table.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Language::Blocks::RotaryEmbedding;

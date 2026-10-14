@@ -37,7 +37,7 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_truth.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace
 {

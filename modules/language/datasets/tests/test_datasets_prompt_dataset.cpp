@@ -41,8 +41,9 @@
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>
 #include <SushiAI/language/text/vocabulary_file.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 #include "datasets_test_support.hpp"
 
 using namespace SushiAI;

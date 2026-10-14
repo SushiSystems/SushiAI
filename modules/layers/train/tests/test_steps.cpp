@@ -57,8 +57,9 @@
 #include <SushiAI/train/parameter_groups.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/sample_models/two_output_model.hpp>
 
 using namespace SushiAI;
 using NN::BatchNorm2d;

@@ -10,6 +10,12 @@
 
 include(SushiAIModule)
 
+# The internal modules of the tests link GTest.
+if(SA_BUILD_TESTS)
+    find_package(GTest CONFIG REQUIRED)
+    sushiai_promote_imported(GTest::gtest)
+endif()
+
 add_subdirectory(core)
 add_subdirectory(layers)
 

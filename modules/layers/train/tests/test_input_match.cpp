@@ -40,7 +40,7 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/train/input_match.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Data::InputDescription;

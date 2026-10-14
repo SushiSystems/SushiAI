@@ -1,0 +1,21 @@
+# vision/darknet_training_cases
+
+An internal module: only the test programs link it, its headers are never installed, and it is built only when `SA_BUILD_TESTS` is on.
+
+## Owns
+
+The training step of a Darknet model checked against its dump: the deltas of the heads,
+the updates of the convolutions, the rolling statistics, the memory plan of the step and the
+one-batch overfit.
+
+## Depends on
+
+`umbrella`, `vision/detect`, `vision/importers`, `vision/training`, `vision/darknet_forward_cases`, `darknet_reference`, `engine_fixture`, `failure_expectations` and `tensor_values`.
+
+## Public entry points
+
+Each header is named by its include path under `include/`.
+
+| Header | Declares |
+| --- | --- |
+| `SushiAI/vision/darknet_training_cases/darknet_training.hpp` | The training cases; see the header |

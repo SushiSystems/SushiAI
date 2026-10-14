@@ -37,7 +37,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 #include <SushiAI/optim/step_schedule_section.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace
 {

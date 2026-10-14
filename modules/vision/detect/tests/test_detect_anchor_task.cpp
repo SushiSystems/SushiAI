@@ -44,7 +44,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace
 {

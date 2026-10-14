@@ -44,7 +44,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/segment_head.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;

@@ -35,7 +35,7 @@
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>
 #include <SushiAI/language/text/vocabulary_file.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "text_test_support.hpp"
 

@@ -43,7 +43,7 @@
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using IO::ImportedModel;

@@ -48,8 +48,8 @@
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
-#include <common/test_status.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;

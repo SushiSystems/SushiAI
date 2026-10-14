@@ -29,8 +29,8 @@
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
-#include <vision_support/darknet_forward.hpp>
-#include <vision_support/darknet_import.hpp>
+#include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
+#include <SushiAI/vision/darknet_import_cases/darknet_import.hpp>
 
 namespace SaTest = SushiAI::Test;
 

@@ -38,7 +38,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
 #include <SushiAI/graph/lowering/random.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::DropoutResult;

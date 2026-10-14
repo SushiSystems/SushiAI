@@ -41,7 +41,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 #include "eager_test_support.hpp"
 

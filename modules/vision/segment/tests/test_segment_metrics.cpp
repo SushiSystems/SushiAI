@@ -36,7 +36,7 @@
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 #include <SushiAI/vision/segment/intersection_over_union.hpp>
 #include <SushiAI/vision/segment/pixel_accuracy.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Segment::ConfusionMatrix;

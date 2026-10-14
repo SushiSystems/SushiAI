@@ -43,9 +43,11 @@
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/objective_context.hpp>
-#include <common/classifier_objective.hpp>
-#include <common/test_status.hpp>
-#include <common/test_utils.hpp>
+#include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/SushiAI.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/scratch_files/scratch_file.hpp>
 
 #include "inference_run.hpp"
 #include "run_start.hpp"

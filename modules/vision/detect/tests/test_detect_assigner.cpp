@@ -37,8 +37,8 @@
 #include <SushiAI/vision/detect/free/assignment.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/detect/free/target_leaves.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 namespace
 {

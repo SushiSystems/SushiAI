@@ -36,7 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/config/json_events.hpp>
 #include <SushiAI/core/status.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 

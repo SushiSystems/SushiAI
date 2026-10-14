@@ -40,9 +40,9 @@
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/core/status.hpp>
-#include <common/model_text.hpp>
-#include <common/reference_fixture.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/reference_files/reference_file.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Config::Kind;

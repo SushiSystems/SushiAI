@@ -32,7 +32,7 @@
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::StatusCode;
 using SushiAI::Graph::ValueID;

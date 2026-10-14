@@ -32,7 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/language/generation/temperature_sampler.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include "generation_test_support.hpp"
 
 using namespace SushiAI;

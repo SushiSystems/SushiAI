@@ -35,7 +35,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <common/test_throws.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 using namespace SushiAI;
 using NN::MaxPool2d;

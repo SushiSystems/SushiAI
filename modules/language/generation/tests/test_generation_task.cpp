@@ -32,7 +32,7 @@
 #include <SushiAI/language/generation/generation_task.hpp>
 #include <SushiAI/language/generation/greedy_sampler.hpp>
 #include <SushiAI/language/generation/top_k_sampler.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Language::Generation;

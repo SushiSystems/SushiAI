@@ -31,7 +31,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
-#include <common/test_status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Vision::Segment::ConfusionMatrix;
