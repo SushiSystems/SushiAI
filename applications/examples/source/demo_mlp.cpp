@@ -43,7 +43,7 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
 

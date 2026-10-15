@@ -28,7 +28,7 @@
 
 #include <cstdio>
 #include <SushiAI/SushiAI.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;
