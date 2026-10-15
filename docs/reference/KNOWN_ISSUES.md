@@ -1,4 +1,4 @@
-﻿# Known issues
+# Known issues
 
 Defects that exist today, each with where it sits. Planned work is in
 [`REMAINING_WORK.md`](../design/REMAINING_WORK.md).
