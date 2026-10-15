@@ -57,12 +57,7 @@ compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 ## TheRollingStatisticsAfterOneStepMatchDarknet
 
-The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
-is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
-same 1e-5, each time against a variance the test computes on the host from the batch and the
-convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
-in double on YOLOv3-tiny, so the two are not compared directly.
+The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this model.
 
 ## TheCostOfOneBatchFallsUnderAThird
 

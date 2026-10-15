@@ -166,7 +166,7 @@ This is a **SushiStack-wide convention**: `sushiruntime_`, `sushiblas_`,
 repo's `cmake/` directory on. A name defined twice in one configure (e.g. two
 repos both defining a bare `sushi_apply_build_policy`) is a hard CMake error
 with no scoping to fall back on: see
-[ARCHITECTURE.md §6](architecture/ARCHITECTURE.md#6-packaging) for the exact collision this
+[ARCHITECTURE.md §6](architecture/MODELS_AND_PACKAGING.md#6-packaging) for the exact collision this
 prevents. `Vcpkg.cmake` and `Toolchain.cmake` are the deliberate exception:
 their logic is idempotent regardless of which sibling's copy loads first, so
 they stay unprefixed.

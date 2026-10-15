@@ -6,8 +6,14 @@ the manual.
 | Document | Holds |
 | --- | --- |
 | [Tutorial](getting_started/TUTORIAL.md) | An empty checkout to a trained model, then what each pipeline stage did with it |
-| [Architecture](architecture/ARCHITECTURE.md) | The IR, autograd, memory planning, fusion, mixed precision, lowering and packaging |
-| [CLI guide](guides/CLI_GUIDE.md) | Every `sa` command and its options |
+| [How it works](getting_started/HOW_IT_WORKS.md) | One training program written against the library, step by step |
+| [Architecture](architecture/ARCHITECTURE.md) | What SushiAI is, the sibling chain, the library target, the IR and autograd |
+| [Lowering](architecture/LOWERING.md) | Memory planning, the lowering table, the compiled step and the optimizer inside it |
+| [Fusion and precision](architecture/FUSION_AND_PRECISION.md) | Fusion over a catalog and mixed precision in the IR |
+| [Models and packaging](architecture/MODELS_AND_PACKAGING.md) | The model file, its driver, the registries, checkpoints and packaging |
+| [CLI guide](guides/CLI_GUIDE.md) | The `sa` commands that build, test, run and diagnose |
+| [Running models](guides/RUNNING_MODELS.md) | `sushiai train`, `inference`, `import` and `tokenize` |
+| [Demo](guides/DEMO.md) | What `sa demo mlp` prints and what each number means |
 | [Integration guide](guides/INTEGRATION.md) | Consuming SushiAI from another CMake project |
 | [Model file](guides/MODEL_FILE.md) | The JSON model description, version 2, and the upgrade from version 1 |
 | [FAQ](guides/FAQ.md) | The questions a newcomer asks, each answered from this manual |

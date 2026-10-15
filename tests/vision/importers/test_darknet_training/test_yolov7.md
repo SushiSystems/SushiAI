@@ -38,10 +38,7 @@ within 1e-3 absolute plus 1e-4 relative of the dump.
 
 ## TheDeltasOfTheStepMatchDarknet
 
-The deltas the step fed are compared with the dumped ones: a box entry within 1.5e-3 absolute plus
-1.5e-4 relative, any other entry within 1e-3. The summed cost and its mean over the heads are
-compared with the layer costs and the network cost to 1e-3 relative. The bounds do not cover a slot
-that crosses the ignore threshold.
+The check is the one [`test_yolov4.md`](test_yolov4.md) describes, run on this model.
 
 ## TheUpdatesOfTheHeadConvolutionsMatchDarknet
 
@@ -60,9 +57,7 @@ compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 The rolling mean and variance of the first batch norm equal the dump before the step, and the mean
 is within 1e-5 of the dump after one blend. The variance after the blend is checked twice at the
 same 1e-5, each time against a variance the test computes on the host from the batch and the
-convolution's weight: ours against the sum in double, and the dump's against the sum taken term by
-term in float32. The dump's variance is the float32 sum, which sits 1.0e-4 to 2.3e-4 below the sum
-in double on YOLOv3-tiny, so the two are not compared directly.
+The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this model.
 
 ## TheCostOfOneBatchFallsUnderATenth
 

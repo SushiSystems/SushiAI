@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-15 — docs: Split the long manual pages and test READMEs into pages beside what they describe, and installed only headers (`SushiAIModule.cmake`, `LOWERING.md`, `DEMO.md`).
+- 2026-10-15 — docs: Brought the manual to check_docs_truth: paths, names, examples, history words and em dashes (`.docs_truth_allow`, `ARCHITECTURE.md`).
 - 2026-10-15 — build: Declared every module dependency the includes use and marked test-only modules `INTERNAL` (`SushiAIModule.cmake`, `sushiai_add_module`, `settings.py`).
 - 2026-10-15 — build: Followed the SushiBLAS layout refactor to its umbrella and its split support headers (`SushiBLAS/SushiBLAS.hpp`, `fusion_selector.hpp`, `fused.cpp`, `spatial.cpp`).
 - 2026-10-15 — tools: Copied the SushiSkills layering checker, listed the same-tier module edges and removed tools/common (`check_layering.py`, `settings.py`, `K_SAME_TIER_EDGES`).
