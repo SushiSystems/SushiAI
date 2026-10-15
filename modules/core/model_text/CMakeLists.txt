@@ -6,5 +6,5 @@
 
 # model_text: the JSON text of a test parsed into config values.
 
-sushiai_add_internal_module(NAME model_text TIER core
-    DEPENDS config)
+sushiai_add_module(NAME model_text TIER core INTERNAL
+    PUBLIC_DEPENDS config)

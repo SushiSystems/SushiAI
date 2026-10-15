@@ -9,7 +9,10 @@ weights it stores and the model it rebuilds.
 
 ## Depends on
 
-`umbrella`, `vision/detect`, `vision/importers`, `vision/darknet_forward_cases`, `darknet_reference`, `engine_fixture`, `failure_expectations` and `tensor_values`.
+- `core`, `io`, `nn`, `umbrella`, `vision/importers`, `engine_fixture` and `failure_expectations`
+  (`PUBLIC_DEPENDS`).
+- `config`, `train`, `vision/detect`, `vision/darknet_forward_cases` and `darknet_reference`
+  (`PRIVATE_DEPENDS`).
 
 ## Public entry points
 

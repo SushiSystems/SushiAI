@@ -163,6 +163,10 @@ the moment it touched a SushiBLAS kernel. One list, both consumers. `sushiai_add
 each library the same `PUBLIC` links to `SushiRuntime::SushiRuntime` and `SushiBLAS::sushiblas`,
 and the vision library adds `DEPENDS sushiai`.
 
+A module only the tests use passes `INTERNAL` to `sushiai_add_module()`. It joins no library and
+installs nothing. `tools/layering/check_layering.py` compares every include of a module with
+the `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` its `CMakeLists.txt` lists.
+
 Both dependencies are linked `PUBLIC` — the lowering needs SushiBLAS, and
 every consumer needs it to construct an `Engine` anyway. SushiAI therefore
 inherits SushiRuntime's `sushiruntime_deterministic_fp` floating-point

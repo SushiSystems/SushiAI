@@ -6,16 +6,22 @@
 
 # darknet_training_cases: the training step of a Darknet model against its dump.
 
-sushiai_add_internal_module(NAME darknet_training_cases TIER vision
+sushiai_add_module(NAME darknet_training_cases TIER vision INTERNAL
     SOURCES
         source/darknet_training.cpp
-    DEPENDS
-        umbrella
-        vision/detect
-        vision/importers
-        vision/training
-        vision/darknet_forward_cases
+    PUBLIC_DEPENDS
+        config
+        core
         darknet_reference
         engine_fixture
         failure_expectations
-        tensor_values)
+        umbrella
+        vision/detect
+    PRIVATE_DEPENDS
+        graph
+        nn
+        optim
+        train
+        vision/darknet_forward_cases
+        vision/importers
+        vision/training)

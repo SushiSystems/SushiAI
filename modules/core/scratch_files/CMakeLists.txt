@@ -6,4 +6,4 @@
 
 # scratch_files: a named file under the temporary directory that removes itself.
 
-sushiai_add_internal_module(NAME scratch_files TIER core)
+sushiai_add_module(NAME scratch_files TIER core INTERNAL)

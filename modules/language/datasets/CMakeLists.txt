@@ -15,4 +15,4 @@ sushiai_add_module(NAME datasets TIER language
         source/token_file.cpp
         source/tokens_section.cpp
         source/window_layout.cpp
-    PUBLIC_DEPENDS core config data language/text)
+    PUBLIC_DEPENDS config core data language/text)

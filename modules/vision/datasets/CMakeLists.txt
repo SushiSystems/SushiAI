@@ -46,5 +46,5 @@ sushiai_add_module(NAME datasets TIER vision
         source/voc_xml.cpp
         source/xml_element.cpp
         source/yolo_txt.cpp
-    PUBLIC_DEPENDS core config data vision/imaging vision/codecs
+    PUBLIC_DEPENDS config core data vision/codecs vision/imaging
     PRIVATE_DEPENDS vision/segment)

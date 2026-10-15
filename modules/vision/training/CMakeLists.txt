@@ -22,5 +22,4 @@ sushiai_add_module(NAME training TIER vision
         source/pixel_targets.cpp
         source/segmentation_metrics.cpp
         source/truth_from_roles.cpp
-    PUBLIC_DEPENDS core graph config data optim nn train vision/detect vision/segment
-    PRIVATE_DEPENDS autograd)
+    PUBLIC_DEPENDS config core data graph nn optim train vision/detect vision/segment)

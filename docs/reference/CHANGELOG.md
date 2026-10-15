@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-15 — build: Declared every module dependency the includes use and marked test-only modules `INTERNAL` (`SushiAIModule.cmake`, `sushiai_add_module`, `settings.py`).
 - 2026-10-15 — build: Followed the SushiBLAS layout refactor to its umbrella and its split support headers (`SushiBLAS/SushiBLAS.hpp`, `fusion_selector.hpp`, `fused.cpp`, `spatial.cpp`).
 - 2026-10-15 — tools: Copied the SushiSkills layering checker, listed the same-tier module edges and removed tools/common (`check_layering.py`, `settings.py`, `K_SAME_TIER_EDGES`).
 - 2026-10-15 — tools: Copied the shared tools again with copy_shared_tools.py and moved the repository settings into settings.py (`settings.py`, `checking/`, `check_docs_truth.py`, `check_all.py`).

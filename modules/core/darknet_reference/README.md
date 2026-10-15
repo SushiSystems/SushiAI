@@ -11,7 +11,7 @@ of its source enters it.
 
 ## Depends on
 
-`config`, for the settings read as `Config::Value`, and GTest.
+`config`, for the settings read as `Config::Value`, `core`, and GTest.
 
 ## Public entry points
 

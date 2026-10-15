@@ -22,7 +22,7 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 - `vision/detect`, for the anchor layout, the head options, the delta, the cost and
   `GroundTruthBatch`.
 - `vision/segment`, for the confusion matrix, the two metrics read from it, the class pick
-  and `K_DEFAULT_IGNORE_INDEX`. `CMakeLists.txt` does not list it yet.
+  and `K_DEFAULT_IGNORE_INDEX`.
 - `data`, for `Batch`, `TargetDescription` and the role names.
 - `graph`, `nn`, `optim` and `core`, as `train` names them.
 

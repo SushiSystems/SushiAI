@@ -6,6 +6,6 @@
 
 # failure_expectations: assertions over a failed Status and a thrown Error.
 
-sushiai_add_internal_module(NAME failure_expectations TIER core
-    DEPENDS core
+sushiai_add_module(NAME failure_expectations TIER core INTERNAL
+    PUBLIC_DEPENDS core
     EXTERNAL_PUBLIC GTest::gtest)

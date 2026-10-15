@@ -6,5 +6,5 @@
 
 # classifier_objective: the objective of a graph build_classifier() traced.
 
-sushiai_add_internal_module(NAME classifier_objective TIER layers
-    DEPENDS train)
+sushiai_add_module(NAME classifier_objective TIER layers INTERNAL
+    PUBLIC_DEPENDS graph train)

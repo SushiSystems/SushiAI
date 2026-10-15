@@ -33,5 +33,5 @@ sushiai_add_module(NAME train TIER layers
         source/sum_objective.cpp
         source/trainer.cpp
         source/training_step.cpp
-    PUBLIC_DEPENDS core graph config data optim nn
+    PUBLIC_DEPENDS config core data graph nn optim
     PRIVATE_DEPENDS autograd)

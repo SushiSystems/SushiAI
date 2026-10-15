@@ -46,8 +46,7 @@ table gives the pipeline.
   `Codecs::load_image`.
 - `config`, also for `read_coco_json`, which streams its file through `Config::read_json_events`.
 - `vision/segment`, for `paint_polygon_mask`, which calls `Segment::rasterise_outlines`. No
-  header of this module names a type of it, so the edge can be private. `modules/vision/datasets/CMakeLists.txt`
-  does not declare it yet.
+  header of this module names a type of it, so the edge is private (`PRIVATE_DEPENDS`).
 - `data`, also for `Data::EpochAware`, `Data::EpochPermutation` and `Data::ThreadedLoader`.
 
 The readers do not depend on `vision/codecs`. `has_image_extension` holds the extensions of the

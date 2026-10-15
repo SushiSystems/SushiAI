@@ -17,5 +17,5 @@ sushiai_add_module(NAME data TIER core
         source/epoch_permutation.cpp
         source/materialised_dataset.cpp
         source/threaded_loader.cpp
-    PUBLIC_DEPENDS core config
+    PUBLIC_DEPENDS config core
     EXTERNAL_PUBLIC Threads::Threads)

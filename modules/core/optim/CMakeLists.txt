@@ -23,4 +23,4 @@ sushiai_add_module(NAME optim TIER core
         source/step_scalars.cpp
         source/step_schedule.cpp
         source/step_schedule_section.cpp
-    PUBLIC_DEPENDS core graph config)
+    PUBLIC_DEPENDS config core graph)

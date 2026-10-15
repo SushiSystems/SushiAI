@@ -6,6 +6,6 @@
 
 # reference_files: the YOLO26 reference tensors and the comparisons against them.
 
-sushiai_add_internal_module(NAME reference_files TIER layers
-    DEPENDS io
+sushiai_add_module(NAME reference_files TIER layers INTERNAL
+    PUBLIC_DEPENDS core io
     EXTERNAL_PUBLIC GTest::gtest)

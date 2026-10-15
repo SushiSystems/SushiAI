@@ -6,5 +6,5 @@
 
 # layer_traces: the operations, outputs and state one training trace leaves.
 
-sushiai_add_internal_module(NAME layer_traces TIER layers
-    DEPENDS nn)
+sushiai_add_module(NAME layer_traces TIER layers INTERNAL
+    PUBLIC_DEPENDS core graph nn)

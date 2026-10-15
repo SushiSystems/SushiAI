@@ -6,6 +6,6 @@
 
 # tensor_values: host reads and writes of the elements of a tensor.
 
-sushiai_add_internal_module(NAME tensor_values TIER core
-    DEPENDS core
+sushiai_add_module(NAME tensor_values TIER core INTERNAL
+    PUBLIC_DEPENDS core
     EXTERNAL_PUBLIC GTest::gtest)

@@ -9,8 +9,8 @@ not included here.
 
 ## Depends on
 
-From `CMakeLists.txt`: `PUBLIC_DEPENDS core version graph config autograd optim data eager nn io
-train`. The header includes a header of each of these modules.
+From `CMakeLists.txt`: `PUBLIC_DEPENDS autograd config core data eager graph io nn optim train
+version`. The header includes a header of each of these modules.
 
 ## Public entry points
 

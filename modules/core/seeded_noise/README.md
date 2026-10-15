@@ -10,7 +10,7 @@ generator.
 
 ## Depends on
 
-`core`, for `SushiRuntime::span`.
+SushiRuntime, for `SushiRuntime::span` (`EXTERNAL_PUBLIC`).
 
 ## Public entry points
 

@@ -138,8 +138,9 @@ endfunction()
 #     [PUBLIC_DEPENDS <module key> ...] [PRIVATE_DEPENDS <module key> ...]
 #     [EXTERNAL_PUBLIC <target> ...] [EXTERNAL_PRIVATE_INCLUDES <target> ...]
 #     [EXTERNAL_PRIVATE_LINKS <target> ...]
-#     [TESTS tests/<file>.cpp ...])
+#     [TESTS tests/<file>.cpp ...] [INTERNAL])
 #
+# INTERNAL declares a module only the tests use; see sushiai_add_internal_module.
 # Called from modules/<tier>/<module>/CMakeLists.txt. With SOURCES the module
 # is an OBJECT library, without them an INTERFACE one. Its public headers are
 # include/ and its private ones source/. A dependency is a key of
@@ -152,12 +153,25 @@ endfunction()
 # library inherits the link and nothing else. The objects, the include root
 # and the test files are handed to the library of the module's tier.
 function(sushiai_add_module)
-    cmake_parse_arguments(ARG "" "NAME;TIER"
+    cmake_parse_arguments(ARG "INTERNAL" "NAME;TIER"
         "SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC;EXTERNAL_PRIVATE_INCLUDES;EXTERNAL_PRIVATE_LINKS;TESTS"
         ${ARGN})
 
     if(NOT ARG_NAME OR NOT ARG_TIER)
         message(FATAL_ERROR "sushiai_add_module: NAME and TIER are required.")
+    endif()
+
+    if(ARG_INTERNAL)
+        if(ARG_EXTERNAL_PRIVATE_INCLUDES OR ARG_EXTERNAL_PRIVATE_LINKS OR ARG_TESTS)
+            message(FATAL_ERROR "sushiai_add_module(${ARG_NAME}): an INTERNAL module takes "
+                "no EXTERNAL_PRIVATE_INCLUDES, EXTERNAL_PRIVATE_LINKS or TESTS.")
+        endif()
+        sushiai_add_internal_module(NAME ${ARG_NAME} TIER ${ARG_TIER}
+            SOURCES ${ARG_SOURCES}
+            PUBLIC_DEPENDS ${ARG_PUBLIC_DEPENDS}
+            PRIVATE_DEPENDS ${ARG_PRIVATE_DEPENDS}
+            EXTERNAL_PUBLIC ${ARG_EXTERNAL_PUBLIC})
+        return()
     endif()
 
     sushiai_module_key("${ARG_NAME}" "${ARG_TIER}" key)
@@ -237,23 +251,33 @@ function(sushiai_add_module)
     install(DIRECTORY "${include_root}/" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 endfunction()
 
-# sushiai_add_internal_module(NAME <module> TIER <tier>
-#     [SOURCES source/<file>.cpp ...] [DEPENDS <module key> ...]
-#     [EXTERNAL_PUBLIC <target> ...])
-#
-# Called from modules/<tier>/<module>/CMakeLists.txt for a module only the
-# tests use. It joins no tier library and installs nothing: with SOURCES it is
-# a STATIC library of its own, without them an INTERFACE one. A dependency is a
-# key of SUSHIAI_MODULE_TIERS, checked against the tier order. The module
-# compiles against the include roots of its dependencies alone; it links an
-# internal dependency itself and a library module through the library of its
-# tier, so no object is linked twice.
-function(sushiai_add_internal_module)
-    cmake_parse_arguments(ARG "" "NAME;TIER" "SOURCES;DEPENDS;EXTERNAL_PUBLIC" ${ARGN})
+# Links one dependency of an internal module: an internal dependency itself, a
+# library module for compiling only and its tier library for linking, so no
+# object is linked twice.
+function(sushiai_link_internal_dependency target scope dependency)
+    get_property(internal_modules GLOBAL PROPERTY SUSHIAI_INTERNAL_MODULES)
+    sushiai_module_target("${dependency}" dependency_target)
 
-    if(NOT ARG_NAME OR NOT ARG_TIER)
-        message(FATAL_ERROR "sushiai_add_internal_module: NAME and TIER are required.")
+    list(FIND internal_modules "${dependency}" internal_position)
+    if(NOT internal_position EQUAL -1)
+        target_link_libraries(${target} ${scope} ${dependency_target})
+        return()
     endif()
+
+    sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${dependency}" dependency_tier)
+    sushiai_lookup_pair(SUSHIAI_TIER_LIBRARY "${dependency_tier}" dependency_library)
+    target_link_libraries(${target} ${scope}
+        "$<COMPILE_ONLY:${dependency_target}>"
+        "$<LINK_ONLY:${dependency_library}>")
+endfunction()
+
+# The INTERNAL form of sushiai_add_module: a module only the tests use. It
+# joins no tier library and installs nothing: with SOURCES it is a STATIC
+# library of its own, without them an INTERFACE one. It compiles against the
+# include roots of its dependencies alone.
+function(sushiai_add_internal_module)
+    cmake_parse_arguments(ARG "" "NAME;TIER"
+        "SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC" ${ARGN})
 
     sushiai_module_key("${ARG_NAME}" "${ARG_TIER}" key)
     sushiai_module_target("${key}" target)
@@ -277,23 +301,20 @@ function(sushiai_add_internal_module)
     endif()
 
     set_property(GLOBAL APPEND PROPERTY SUSHIAI_INTERNAL_MODULES "${key}")
-    get_property(internal_modules GLOBAL PROPERTY SUSHIAI_INTERNAL_MODULES)
 
-    foreach(dependency IN LISTS ARG_DEPENDS)
+    if(ARG_PRIVATE_DEPENDS AND NOT ARG_SOURCES)
+        message(FATAL_ERROR
+            "sushiai_add_module(${key}): a module without SOURCES has no private side.")
+    endif()
+
+    foreach(dependency IN LISTS ARG_PUBLIC_DEPENDS)
         sushiai_check_module_edge("${key}" "${dependency}")
-        sushiai_module_target("${dependency}" dependency_target)
+        sushiai_link_internal_dependency(${target} ${public_scope} "${dependency}")
+    endforeach()
 
-        list(FIND internal_modules "${dependency}" internal_position)
-        if(NOT internal_position EQUAL -1)
-            target_link_libraries(${target} ${public_scope} ${dependency_target})
-            continue()
-        endif()
-
-        sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${dependency}" dependency_tier)
-        sushiai_lookup_pair(SUSHIAI_TIER_LIBRARY "${dependency_tier}" dependency_library)
-        target_link_libraries(${target} ${public_scope}
-            "$<COMPILE_ONLY:${dependency_target}>"
-            "$<LINK_ONLY:${dependency_library}>")
+    foreach(dependency IN LISTS ARG_PRIVATE_DEPENDS)
+        sushiai_check_module_edge("${key}" "${dependency}")
+        sushiai_link_internal_dependency(${target} PRIVATE "${dependency}")
     endforeach()
 
     foreach(external IN LISTS ARG_EXTERNAL_PUBLIC)
