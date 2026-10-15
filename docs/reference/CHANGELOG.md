@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-16 — eager: Made find_boundaries return a Result, InvalidDescription for an ACCUMULATE into a leaf, and made the region checks fatal (`region_boundary.hpp`, `region_table.cpp`).
+- 2026-10-16 — graph: Made a scratch request that names a missing node fatal (`memory_plan.cpp`).
 - 2026-10-15 — ci: Ran CI in stages through sa behind one gate job, with sanitizer lanes, a lane against upstream main and nightly.yml (`ci.yml`, `nightly.yml`, `setup-sa`).
 - 2026-10-15 — tests: Named every suite by its size, Small_, Medium_ or Large_, which sets its CTest label and timeout; sa test takes --label and --cli (`SushiAITestProgram.cmake`, `sa test`).
 - 2026-10-15 — build: Added sa build --sanitize, which sets SA_SANITIZE for host code (`SushiAISanitizers.cmake`, `sanitizer.py`).

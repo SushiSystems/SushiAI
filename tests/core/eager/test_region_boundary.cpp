@@ -36,7 +36,7 @@
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -83,8 +83,9 @@ TEST(Small_RegionBoundary, AnObservedValueIsExportedWithNoReader)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const BoundaryMap observed = Support::boundaries_of(step);
-    const BoundaryMap unobserved = Eager::find_boundaries(
-        step.graph, step.partition, SushiRuntime::span<const ValueID>());
+    const BoundaryMap unobserved =
+        Eager::find_boundaries(step.graph, step.partition, SushiRuntime::span<const ValueID>())
+            .value();
 
     ASSERT_EQ(observed.regions.size(), 1u);
     EXPECT_EQ(observed.regions[0].exports, std::vector<ValueID>{step.hidden});
@@ -173,7 +174,7 @@ TEST(Small_RegionBoundary, AnAccumulateSharesTheBufferOfItsFirstOperand)
     EXPECT_FALSE(holds(map.regions[0].exports, second));
 }
 
-TEST(Small_RegionBoundary, AnAccumulateIntoALeafThrows)
+TEST(Small_RegionBoundary, AnAccumulateIntoALeafIsAnInvalidDescription)
 {
     Support::TracedStep step;
     const Graph::GraphBuilder builder(step.graph);
@@ -183,13 +184,14 @@ TEST(Small_RegionBoundary, AnAccumulateIntoALeafThrows)
     step.hidden = builder.accumulate(x, builder.relu(x));
     Support::finish_forward(step, trace);
 
-    SA_EXPECT_ERROR((void)Support::boundaries_of(step), "ACCUMULATE", "leaf");
+    SA_EXPECT_FAILURE(Support::try_boundaries_of(step), StatusCode::InvalidDescription,
+                      "ACCUMULATE", "leaf");
 }
 
-TEST(Small_RegionBoundary, APartitionOfAnotherGraphThrows)
+TEST(Small_RegionBoundary, APartitionOfAnotherGraphIsFatal)
 {
     Support::TracedStep step = Support::linear_then_relu(false);
     step.partition.region_of_node.pop_back();
 
-    SA_EXPECT_ERROR((void)Support::boundaries_of(step), "partition assigns");
+    SA_EXPECT_FATAL((void)Support::try_boundaries_of(step), "partition assigns");
 }

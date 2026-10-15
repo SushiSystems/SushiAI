@@ -427,13 +427,6 @@ v1, to revisit for PINN and GNN work.
 - **Test the 119 untested units.** `python tools/testing/check_test_mirror.py .` lists 119 public
   headers with no `tests/<tier>/<module>/test_<name>.cpp`; each needs its test file, sized by what
   it uses. Planned as its own work; until it lands, `gate` is red.
-- **Bring `tests/core/autograd/test_backward.md` under 800 lines and true.** It is 804 lines, and
-  its `Suites:` lines name `Small_Layout`, which `test_backward.cpp` does not hold; the file holds
-  `Small_Backward`, `Small_CastInsertion`, `Small_Diagnostics`, `Small_LossRoots`, `Small_Precision` and
-  `Small_Rematerialise`. `check_docs_truth.py` reports the length.
-- **Give the unlisted `SA_THROW_IF` sites their rows.** `python tools/contract/check_contract.py .`
-  reports sites in `modules/core/eager/source/region_*.cpp`, `modules/core/graph/source/memory_plan.cpp`
-  and `reference_file.hpp` with no row in `tools/contract/site_classes.tsv`.
 
 ## Test tree
 

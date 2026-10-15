@@ -34,7 +34,7 @@
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/eager/region_program.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -167,12 +167,12 @@ TEST(Small_RegionProgram, SwitchingFusionOffLeavesTheNodesAsTraced)
     EXPECT_EQ(count_op(program.graph, Ops::K_RELU.id), 1u);
 }
 
-TEST(Small_RegionProgram, AKeyThatNamesNoRegionThrows)
+TEST(Small_RegionProgram, AKeyThatNamesNoRegionIsFatal)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const Eager::BoundaryMap boundaries = Support::boundaries_of(step);
 
-    SA_EXPECT_ERROR((void)Eager::compile_region(step.graph, step.partition, Eager::K_NO_REGION,
+    SA_EXPECT_FATAL((void)Eager::compile_region(step.graph, step.partition, Eager::K_NO_REGION,
                                                 boundaries.regions[0]),
                     "names no region");
 }

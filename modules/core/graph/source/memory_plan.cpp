@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 #include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/core/check.hpp>
 
 namespace SushiAI
 {
@@ -409,7 +410,7 @@ namespace SushiAI
             for (std::size_t index = 0; index < scratch.size(); ++index)
             {
                 const ScratchRequest& request = scratch[index];
-                SA_THROW_IF(request.node >= node_count,
+                SA_FATAL_IF(request.node >= node_count,
                             "A scratch request names node {}, which this graph does not have",
                             request.node);
 

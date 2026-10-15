@@ -227,7 +227,7 @@ lowering gives the first value of a chain its own tensor unless one is bound, an
 to alias the next value onto it, so every member has to be bound to the shared storage up front.
 
 An accumulate whose first operand is a leaf would add into storage the session does not own, and
-`find_boundaries` throws for it.
+`find_boundaries` returns `StatusCode::InvalidDescription` for it.
 
 #### RegionBoundary
 
