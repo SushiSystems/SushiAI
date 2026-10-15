@@ -1,7 +1,7 @@
 # tests/layers/nn/test_built_rows.cpp
 
 
-Suites: `Unit_LinkedRows`, `Unit_LinkedRowsDeathTest`.
+Suites: `Small_LinkedRows`, `Small_LinkedRowsDeathTest`.
 
 Tests `NN::Detail::read_row_above`, `NN::LinkedNodeEntry` rows of `NN::NodeRegistry` and
 `NN::BuiltRows`. The file registers a linked type `follower` whose factory reads a row number

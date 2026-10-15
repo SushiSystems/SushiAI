@@ -84,12 +84,12 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingResize, WeightBitsGiveAWeightSumOf2048)
+TEST(Small_ImagingResize, WeightBitsGiveAWeightSumOf2048)
 {
     EXPECT_EQ(1 << SushiAI::Vision::Imaging::K_BILINEAR_WEIGHT_BITS, 2048);
 }
 
-TEST(Unit_ImagingResize, TwoByTwoToFourByFourMatchesTheHandComputedImage)
+TEST(Small_ImagingResize, TwoByTwoToFourByFourMatchesTheHandComputedImage)
 {
     // Along an axis the outputs of a pair (a, b) are a, (3a + b) / 4, (a + 3b) / 4 and b.
     const Bytes source{  0, 100,
@@ -104,7 +104,7 @@ TEST(Unit_ImagingResize, TwoByTwoToFourByFourMatchesTheHandComputedImage)
     EXPECT_EQ(resized_bytes(ImageSize{2, 2}, source, ImageSize{4, 4}), expected);
 }
 
-TEST(Unit_ImagingResize, FourByFourToTwoByTwoAveragesEachTwoByTwoBlock)
+TEST(Small_ImagingResize, FourByFourToTwoByTwoAveragesEachTwoByTwoBlock)
 {
     // Each output reads position 0.5 or 2.5 on both axes, so all four weights are 1024.
     const Bytes source{ 12,  20,  30,  40,
@@ -119,7 +119,7 @@ TEST(Unit_ImagingResize, FourByFourToTwoByTwoAveragesEachTwoByTwoBlock)
     EXPECT_EQ(resized_bytes(ImageSize{4, 4}, source, ImageSize{2, 2}), expected);
 }
 
-TEST(Unit_ImagingResize, ResizeToTheSameSizeCopiesEveryPixel)
+TEST(Small_ImagingResize, ResizeToTheSameSizeCopiesEveryPixel)
 {
     const Bytes source{  0, 255,  17,
                        114,   1, 254,
@@ -128,7 +128,7 @@ TEST(Unit_ImagingResize, ResizeToTheSameSizeCopiesEveryPixel)
     EXPECT_EQ(resized_bytes(ImageSize{3, 3}, source, ImageSize{3, 3}), source);
 }
 
-TEST(Unit_ImagingResize, AnEnlargedRowClampsAtBothEdges)
+TEST(Small_ImagingResize, AnEnlargedRowClampsAtBothEdges)
 {
     // Columns 0 and 3 read positions -0.25 and 1.25, outside the centres 0 and 1.
     const Bytes row = resized_bytes(ImageSize{1, 2}, Bytes{10, 250}, ImageSize{1, 4});
@@ -138,7 +138,7 @@ TEST(Unit_ImagingResize, AnEnlargedRowClampsAtBothEdges)
     EXPECT_EQ(row.back(), 250);
 }
 
-TEST(Unit_ImagingResize, AReducedRowUsesWeightsRoundedToElevenBits)
+TEST(Small_ImagingResize, AReducedRowUsesWeightsRoundedToElevenBits)
 {
     const Bytes source{0, 3, 10, 40, 41, 90, 200, 255};
 
@@ -151,7 +151,7 @@ TEST(Unit_ImagingResize, AReducedRowUsesWeightsRoundedToElevenBits)
     EXPECT_EQ(resized_bytes(ImageSize{1, 8}, source, ImageSize{1, 3}), expected);
 }
 
-TEST(Unit_ImagingResize, EachChannelIsInterpolatedOnItsOwn)
+TEST(Small_ImagingResize, EachChannelIsInterpolatedOnItsOwn)
 {
     const Image source = make_image(ImageSize{1, 2}, 3, Bytes{0, 40, 255, 100, 80, 3});
     Image destination;
@@ -165,7 +165,7 @@ TEST(Unit_ImagingResize, EachChannelIsInterpolatedOnItsOwn)
     EXPECT_EQ(bytes_of(destination), expected);
 }
 
-TEST(Unit_ImagingResize, AConstantImageStaysConstantWhenEnlarged)
+TEST(Small_ImagingResize, AConstantImageStaysConstantWhenEnlarged)
 {
     Image source(ImageSize{5, 7}, 3);
 
@@ -189,7 +189,7 @@ TEST(Unit_ImagingResize, AConstantImageStaysConstantWhenEnlarged)
     }
 }
 
-TEST(Unit_ImagingResize, AConstantImageStaysConstantWhenReduced)
+TEST(Small_ImagingResize, AConstantImageStaysConstantWhenReduced)
 {
     Image source(ImageSize{31, 17}, 1);
     source.fill(201);
@@ -203,7 +203,7 @@ TEST(Unit_ImagingResize, AConstantImageStaysConstantWhenReduced)
         ASSERT_EQ(destination.data()[i], 201) << "byte " << i;
 }
 
-TEST(Unit_ImagingResize, AHorizontalGradientStaysMonotoneAtEveryWidth)
+TEST(Small_ImagingResize, AHorizontalGradientStaysMonotoneAtEveryWidth)
 {
     const Bytes source{0, 3, 10, 40, 41, 90, 200, 255};
 
@@ -218,7 +218,7 @@ TEST(Unit_ImagingResize, AHorizontalGradientStaysMonotoneAtEveryWidth)
     }
 }
 
-TEST(Unit_ImagingResize, AnEnlargedGradientKeepsItsEndValues)
+TEST(Small_ImagingResize, AnEnlargedGradientKeepsItsEndValues)
 {
     const Bytes source{0, 3, 10, 40, 41, 90, 200, 255};
     const Bytes row = resized_bytes(ImageSize{1, 8}, source, ImageSize{1, 20});
@@ -228,7 +228,7 @@ TEST(Unit_ImagingResize, AnEnlargedGradientKeepsItsEndValues)
     EXPECT_EQ(row.back(), 255);
 }
 
-TEST(Unit_ImagingResize, AVerticalGradientStaysMonotoneAndRowsStayUniform)
+TEST(Small_ImagingResize, AVerticalGradientStaysMonotoneAndRowsStayUniform)
 {
     // Every row of the source is one level, so every row of the result must be one level.
     const Bytes source{  5,   5,   5,
@@ -253,7 +253,7 @@ TEST(Unit_ImagingResize, AVerticalGradientStaysMonotoneAndRowsStayUniform)
     }
 }
 
-TEST(Unit_ImagingResize, TheDestinationIsResetToTheRequestedSizeAndChannels)
+TEST(Small_ImagingResize, TheDestinationIsResetToTheRequestedSizeAndChannels)
 {
     const Image source = make_image(ImageSize{1, 2}, 3, Bytes{1, 2, 3, 4, 5, 6});
     Image destination(ImageSize{9, 9}, 1);
@@ -266,7 +266,7 @@ TEST(Unit_ImagingResize, TheDestinationIsResetToTheRequestedSizeAndChannels)
     EXPECT_EQ(bytes_of(destination), (Bytes{1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6}));
 }
 
-TEST(Unit_ImagingResize, ResizeRejectsASourceWithoutPixels)
+TEST(Small_ImagingResize, ResizeRejectsASourceWithoutPixels)
 {
     Image destination;
 
@@ -274,7 +274,7 @@ TEST(Unit_ImagingResize, ResizeRejectsASourceWithoutPixels)
                     "resize_bilinear", "source", "no pixels");
 }
 
-TEST(Unit_ImagingResize, ResizeRejectsASizeOutsideTheImageBounds)
+TEST(Small_ImagingResize, ResizeRejectsASizeOutsideTheImageBounds)
 {
     const Image source(ImageSize{2, 2}, 1);
     Image destination;
@@ -287,7 +287,7 @@ TEST(Unit_ImagingResize, ResizeRejectsASizeOutsideTheImageBounds)
                     "resize_bilinear", "destination size", "2x16385");
 }
 
-TEST(Unit_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
+TEST(Small_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
 {
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
@@ -303,7 +303,7 @@ TEST(Unit_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
                     "resize_bilinear", "source channel count", "5");
 }
 
-TEST(Unit_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
+TEST(Small_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
 {
     Image image(ImageSize{2, 2}, 1);
     image.fill(9);
@@ -316,21 +316,21 @@ TEST(Unit_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
     EXPECT_EQ(bytes_of(image), (Bytes{9, 9, 9, 9}));
 }
 
-TEST(Unit_ImagingResize, FitLongSideLeavesAnImageWhoseLongSideAlreadyFits)
+TEST(Small_ImagingResize, FitLongSideLeavesAnImageWhoseLongSideAlreadyFits)
 {
     EXPECT_EQ(fit_long_side(ImageSize{480, 640}, 640), (ImageSize{480, 640}));
     EXPECT_EQ(fit_long_side(ImageSize{640, 427}, 640), (ImageSize{640, 427}));
     EXPECT_EQ(fit_long_side(ImageSize{640, 640}, 640), (ImageSize{640, 640}));
 }
 
-TEST(Unit_ImagingResize, FitLongSideReducesALargeImage)
+TEST(Small_ImagingResize, FitLongSideReducesALargeImage)
 {
     // 640 / 1920 is one third, and 1080 / 3 is 360.
     EXPECT_EQ(fit_long_side(ImageSize{1080, 1920}, 640), (ImageSize{360, 640}));
     EXPECT_EQ(fit_long_side(ImageSize{1920, 1080}, 640), (ImageSize{640, 360}));
 }
 
-TEST(Unit_ImagingResize, FitLongSideEnlargesASmallImage)
+TEST(Small_ImagingResize, FitLongSideEnlargesASmallImage)
 {
     // 640 / 100 is 6.4, and 50 * 6.4 is 320.
     EXPECT_EQ(fit_long_side(ImageSize{100, 50}, 640), (ImageSize{640, 320}));
@@ -339,7 +339,7 @@ TEST(Unit_ImagingResize, FitLongSideEnlargesASmallImage)
     EXPECT_EQ(fit_long_side(ImageSize{500, 375}, 640), (ImageSize{640, 480}));
 }
 
-TEST(Unit_ImagingResize, FitLongSideRoundsTheShortSideUp)
+TEST(Small_ImagingResize, FitLongSideRoundsTheShortSideUp)
 {
     // 333 * 1.28 is 426.24, which the ceiling takes to 427.
     EXPECT_EQ(fit_long_side(ImageSize{333, 500}, 640), (ImageSize{427, 640}));
@@ -351,13 +351,13 @@ TEST(Unit_ImagingResize, FitLongSideRoundsTheShortSideUp)
     EXPECT_EQ(fit_long_side(ImageSize{3, 1000}, 640), (ImageSize{2, 640}));
 }
 
-TEST(Unit_ImagingResize, FitLongSideCapsBothSidesAtTheImageSize)
+TEST(Small_ImagingResize, FitLongSideCapsBothSidesAtTheImageSize)
 {
     // 1280 * 640 / 1281 is 639.5, whose ceiling is the image size itself.
     EXPECT_EQ(fit_long_side(ImageSize{1281, 1280}, 640), (ImageSize{640, 640}));
 }
 
-TEST(Unit_ImagingResize, FitLongSideAlwaysPutsTheLongSideAtTheImageSize)
+TEST(Small_ImagingResize, FitLongSideAlwaysPutsTheLongSideAtTheImageSize)
 {
     for (std::int32_t height = 1; height < 1500; height += 7)
     {
@@ -374,7 +374,7 @@ TEST(Unit_ImagingResize, FitLongSideAlwaysPutsTheLongSideAtTheImageSize)
     }
 }
 
-TEST(Unit_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
+TEST(Small_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
 {
     const Bytes bytes{0, 255, 17, 114, 1, 254, 63, 128};
     const Image source = make_image(ImageSize{2, 4}, 1, bytes);
@@ -388,7 +388,7 @@ TEST(Unit_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
     EXPECT_EQ(bytes_of(destination), bytes);
 }
 
-TEST(Unit_ImagingResize, ResizeLongSideEnlargesToTheFittedSize)
+TEST(Small_ImagingResize, ResizeLongSideEnlargesToTheFittedSize)
 {
     const Image source = make_image(ImageSize{1, 2}, 1, Bytes{0, 100});
     Image destination;
@@ -400,7 +400,7 @@ TEST(Unit_ImagingResize, ResizeLongSideEnlargesToTheFittedSize)
     EXPECT_EQ(bytes_of(destination), (Bytes{0, 25, 75, 100, 0, 25, 75, 100}));
 }
 
-TEST(Unit_ImagingResize, ResizeLongSideReducesToTheFittedSize)
+TEST(Small_ImagingResize, ResizeLongSideReducesToTheFittedSize)
 {
     const Bytes bytes{ 12,  20,  30,  40,
                        50,  60,  70,  80,
@@ -415,7 +415,7 @@ TEST(Unit_ImagingResize, ResizeLongSideReducesToTheFittedSize)
     EXPECT_EQ(bytes_of(destination), (Bytes{36, 55, 115, 135}));
 }
 
-TEST(Unit_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
+TEST(Small_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
 {
     const Image source(ImageSize{2, 2}, 1);
     Image destination;
@@ -425,7 +425,7 @@ TEST(Unit_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
                     "resize_long_side", "16385");
 }
 
-TEST(Unit_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
+TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
 {
     Image destination;
 
@@ -433,7 +433,7 @@ TEST(Unit_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
                     "resize_long_side", "no pixels");
 }
 
-TEST(Unit_ImagingResize, ResizeLongSideRejectsADestinationThatHoldsTheSource)
+TEST(Small_ImagingResize, ResizeLongSideRejectsADestinationThatHoldsTheSource)
 {
     Image image(ImageSize{2, 4}, 1);
 
@@ -442,7 +442,7 @@ TEST(Unit_ImagingResize, ResizeLongSideRejectsADestinationThatHoldsTheSource)
 }
 
 /** @brief Tests that both resizes refuse a view of some rows of the destination, unwritten. */
-TEST(Unit_ImagingResize, ResizesRejectAViewInsideTheDestination)
+TEST(Small_ImagingResize, ResizesRejectAViewInsideTheDestination)
 {
     Image image(ImageSize{3, 2}, 1);
     image.fill(7);
@@ -458,7 +458,7 @@ TEST(Unit_ImagingResize, ResizesRejectAViewInsideTheDestination)
 }
 
 /** @brief Tests that resize_long_side refuses a source size outside the image bounds. */
-TEST(Unit_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds)
+TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds)
 {
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
@@ -470,7 +470,7 @@ TEST(Unit_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageB
 }
 
 /** @brief Tests that an enlargement repeats each source pixel over its block. */
-TEST(Unit_ImagingResize, NearestRepeatsEachPixelWhenEnlarged)
+TEST(Small_ImagingResize, NearestRepeatsEachPixelWhenEnlarged)
 {
     const Image source = make_image(ImageSize{2, 2}, 1, Bytes{1, 2, 3, 4});
     Image destination;
@@ -484,7 +484,7 @@ TEST(Unit_ImagingResize, NearestRepeatsEachPixelWhenEnlarged)
 }
 
 /** @brief Tests that a reduction reads the pixel under each destination centre. */
-TEST(Unit_ImagingResize, NearestReadsThePixelUnderEachCentreWhenReduced)
+TEST(Small_ImagingResize, NearestReadsThePixelUnderEachCentreWhenReduced)
 {
     // Centres 0.5 and 1.5 of two columns fall at 1.25 and 3.75 of five: columns 1 and 3.
     const Image source = make_image(ImageSize{1, 5}, 1, Bytes{10, 11, 12, 13, 14});
@@ -496,7 +496,7 @@ TEST(Unit_ImagingResize, NearestReadsThePixelUnderEachCentreWhenReduced)
 }
 
 /** @brief Tests that seven columns read from two hold the two source values alone. */
-TEST(Unit_ImagingResize, NearestKeepsClassIndicesUnblended)
+TEST(Small_ImagingResize, NearestKeepsClassIndicesUnblended)
 {
     const Image source = make_image(ImageSize{1, 2}, 1, Bytes{0, 255});
     Image destination;
@@ -507,7 +507,7 @@ TEST(Unit_ImagingResize, NearestKeepsClassIndicesUnblended)
 }
 
 /** @brief Tests that the channels of a pixel are copied together. */
-TEST(Unit_ImagingResize, NearestCopiesEveryChannelOfAPixel)
+TEST(Small_ImagingResize, NearestCopiesEveryChannelOfAPixel)
 {
     const Image source = make_image(ImageSize{1, 2}, 3, Bytes{1, 2, 3, 4, 5, 6});
     Image destination(ImageSize{9, 9}, 1);
@@ -520,7 +520,7 @@ TEST(Unit_ImagingResize, NearestCopiesEveryChannelOfAPixel)
 }
 
 /** @brief Tests that resize_nearest refuses what check_source and Image::reset refuse. */
-TEST(Unit_ImagingResize, NearestRejectsABadSourceABadSizeAndAnAliasedDestination)
+TEST(Small_ImagingResize, NearestRejectsABadSourceABadSizeAndAnAliasedDestination)
 {
     Image image(ImageSize{2, 2}, 1);
     image.fill(9);

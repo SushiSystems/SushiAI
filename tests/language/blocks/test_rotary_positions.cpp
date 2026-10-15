@@ -59,7 +59,7 @@ namespace
 } // namespace
 
 /** @brief Tests that pair i of n turns by position * 10000^(-i / n). */
-TEST(Unit_BlockRotaryPositions, AnAngleIsThePositionTimesTheFrequencyOfThePair)
+TEST(Small_BlockRotaryPositions, AnAngleIsThePositionTimesTheFrequencyOfThePair)
 {
     EXPECT_DOUBLE_EQ(Language::Blocks::K_ROTARY_BASE, 10000.0);
     EXPECT_NEAR(rotary_angle(0, 1, 4), 0.0, K_TOLERANCE);
@@ -71,7 +71,7 @@ TEST(Unit_BlockRotaryPositions, AnAngleIsThePositionTimesTheFrequencyOfThePair)
 }
 
 /** @brief Tests that position 0 writes a cosine of 1 and a sine of 0 for every pair. */
-TEST(Unit_BlockRotaryPositions, PositionZeroTurnsNothing)
+TEST(Small_BlockRotaryPositions, PositionZeroTurnsNothing)
 {
     std::vector<float> cosines;
     std::vector<float> sines;
@@ -85,7 +85,7 @@ TEST(Unit_BlockRotaryPositions, PositionZeroTurnsNothing)
 }
 
 /** @brief Tests a row against the cosine and the sine of each angle. */
-TEST(Unit_BlockRotaryPositions, ARowHoldsTheCosineAndTheSineOfEachAngle)
+TEST(Small_BlockRotaryPositions, ARowHoldsTheCosineAndTheSineOfEachAngle)
 {
     std::vector<float> cosines;
     std::vector<float> sines;
@@ -104,7 +104,7 @@ TEST(Unit_BlockRotaryPositions, ARowHoldsTheCosineAndTheSineOfEachAngle)
 }
 
 /** @brief Tests that a position past the int32 range still writes a row of unit length. */
-TEST(Unit_BlockRotaryPositions, ALargePositionWritesAPointOfTheUnitCircle)
+TEST(Small_BlockRotaryPositions, ALargePositionWritesAPointOfTheUnitCircle)
 {
     std::vector<float> cosines;
     std::vector<float> sines;
@@ -119,7 +119,7 @@ TEST(Unit_BlockRotaryPositions, ALargePositionWritesAPointOfTheUnitCircle)
 }
 
 /** @brief Tests that a row of no pair and two rows of different lengths are fatal. */
-TEST(Unit_BlockRotaryPositionsDeathTest, ARowWithoutMatchingSpansIsFatal)
+TEST(Small_BlockRotaryPositionsDeathTest, ARowWithoutMatchingSpansIsFatal)
 {
     std::vector<float> two(2, 0.0f);
     std::vector<float> three(3, 0.0f);

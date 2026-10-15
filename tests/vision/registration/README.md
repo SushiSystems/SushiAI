@@ -4,12 +4,12 @@ The tests of the module `vision/registration`, one file per header of `modules/v
 
 ## test_registration.cpp
 
-Suites: `Unit_VisionRegistration`, `Unit_VisionRegistrationData`.
+Suites: `Medium_VisionRegistration`, `Medium_VisionRegistrationData`.
 
 Tests the four registration entry points of the vision module and what builds from their rows. The
 YOLO26n cases read `applications/examples/yolo26/model.json` and
 `tests/vision/registration/fixtures/yolo26/MANIFEST.json` and report themselves skipped when the
-repository root is not found. `Unit_VisionRegistrationData` is an engine fixture.
+repository root is not found. `Medium_VisionRegistrationData` is an engine fixture.
 
 ### RegisterNodesAddsTheEightBlocks
 
@@ -118,7 +118,7 @@ holds "'darknet'", ".cfg" and "0 files".
 an absent root fails with `InvalidDescription`. The message holds "the data block 'reader'",
 "'coco_json'" and "'yolo_txt'".
 
-Suites: `Integration_Yolo26Forward`, in `sushiai_vision_registration_tests`.
+Suites: `Medium_Yolo26Forward`, in `sushiai_vision_registration_tests`.
 
 The model is built from `applications/examples/yolo26/model.json`, with rows 9, 10, 16, 19, 21 and
 22 published beside the head. The weights and the references come from the `yolo26` folder of the
@@ -162,7 +162,7 @@ the scores equal the `decoded.boxes` and `decoded.scores` records of the branch.
 
 The "mnist" row of the vision module's dataset registry: the keys, splits and layouts it refuses, the files it names when they are absent, and the rank-4 batches of the "image" layout. Needs an engine.
 
-Suites: `Integration_VisionMnist`.
+Suites: `Medium_VisionMnist`.
 
 Tests the "mnist" dataset row the vision module registers, through `Data::make_dataset`, and
 `Vision::Datasets::try_load_mnist`. The suite's fixture is an `EngineTest`, so every case

@@ -70,7 +70,7 @@ namespace
     }
 }
 
-TEST(Unit_GradCheck, AcceptsAnExactGradient)
+TEST(Small_GradCheck, AcceptsAnExactGradient)
 {
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6};
     const GradCheckResult result = check_full_jacobian(cubic, cubic_gradient, x);
@@ -80,7 +80,7 @@ TEST(Unit_GradCheck, AcceptsAnExactGradient)
     EXPECT_EQ(result.probes, x.size());
 }
 
-TEST(Unit_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
+TEST(Small_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
 {
     // A 1e-3 relative error is above the FLOAT64 noise floor; see tests/core/autograd/README.md.
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6};
@@ -91,7 +91,7 @@ TEST(Unit_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
     EXPECT_GT(result.max_relative_error, 1e-4);
 }
 
-TEST(Unit_GradCheck, LeavesTheProbePointUnchanged)
+TEST(Small_GradCheck, LeavesTheProbePointUnchanged)
 {
     std::vector<double> x = {0.7, -1.3, 2.1};
     const std::vector<double> before = x;
@@ -103,7 +103,7 @@ TEST(Unit_GradCheck, LeavesTheProbePointUnchanged)
     EXPECT_EQ(x, before);
 }
 
-TEST(Unit_GradCheck, DirectionalModeAgreesWithTheFullJacobian)
+TEST(Small_GradCheck, DirectionalModeAgreesWithTheFullJacobian)
 {
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6, 3.3, -2.7};
 
@@ -115,14 +115,14 @@ TEST(Unit_GradCheck, DirectionalModeAgreesWithTheFullJacobian)
     EXPECT_EQ(directional.probes, 12u);
 }
 
-TEST(Unit_GradCheck, DirectionalModeCatchesAWrongGradientToo)
+TEST(Small_GradCheck, DirectionalModeCatchesAWrongGradientToo)
 {
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6, 3.3, -2.7};
     const GradCheckResult result = check_directional(cubic, slightly_wrong_gradient, x, 16);
     EXPECT_FALSE(result.passed) << result.to_string();
 }
 
-TEST(Unit_GradCheck, DirectionalModeIsReproducibleForAGivenSeed)
+TEST(Small_GradCheck, DirectionalModeIsReproducibleForAGivenSeed)
 {
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45};
 
@@ -136,7 +136,7 @@ TEST(Unit_GradCheck, DirectionalModeIsReproducibleForAGivenSeed)
     EXPECT_EQ(first.worst_index, second.worst_index);
 }
 
-TEST(Unit_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
+TEST(Small_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
 {
     GradCheckOptions options;
     std::vector<double> x = {0.0, 1e-12, -1e-12, 5.0, -5.0};
@@ -153,7 +153,7 @@ TEST(Unit_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
         EXPECT_GE(std::abs(v), options.kink_margin * options.min_step * 0.999);
 }
 
-TEST(Unit_GradCheck, AReLUFamilyFunctionNeedsToBeSampledOffTheKink)
+TEST(Small_GradCheck, AReLUFamilyFunctionNeedsToBeSampledOffTheKink)
 {
     // The step keeps the pushed coordinates at 1e-3; see tests/core/autograd/README.md.
     GradCheckOptions options;
@@ -174,7 +174,7 @@ TEST(Unit_GradCheck, AReLUFamilyFunctionNeedsToBeSampledOffTheKink)
     EXPECT_TRUE(clear.passed) << clear.to_string();
 }
 
-TEST(Unit_GradCheck, AnEmptyProbePointIsRejected)
+TEST(Small_GradCheck, AnEmptyProbePointIsRejected)
 {
     std::vector<double> empty;
     EXPECT_THROW((void)check_full_jacobian(cubic, cubic_gradient, empty), SushiAI::Error);

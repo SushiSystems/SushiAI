@@ -71,7 +71,7 @@ namespace
 } // namespace
 
 /** @brief Tests that AvgPool2d satisfies the Module trait, through a const reference too. */
-TEST(Unit_AvgPool2d, SatisfiesTheModuleTrait)
+TEST(Small_AvgPool2d, SatisfiesTheModuleTrait)
 {
     static_assert(NN::Module<AvgPool2d>, "AvgPool2d must be a Module");
     static_assert(NN::Module<const AvgPool2d>, "AvgPool2d::forward must be const");
@@ -81,7 +81,7 @@ TEST(Unit_AvgPool2d, SatisfiesTheModuleTrait)
 }
 
 /** @brief Tests that forward() yields the pooled [N, out_h, out_w, C] value tagged NHWC. */
-TEST(Unit_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
+TEST(Small_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -95,7 +95,7 @@ TEST(Unit_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
 }
 
 /** @brief Tests that output_shape() equals the traced per-sample shape for a square window. */
-TEST(Unit_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForASquareWindow)
+TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForASquareWindow)
 {
     const AvgPool2d layer{window(3, 3, 3, 3)};
     const Shape sample{6, 6, 3};
@@ -105,7 +105,7 @@ TEST(Unit_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForASquareWindow)
 }
 
 /** @brief Tests that output_shape() equals the traced shape for a padded, uneven window. */
-TEST(Unit_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForAPaddedUnevenWindow)
+TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForAPaddedUnevenWindow)
 {
     AvgPool2d layer{window(3, 2, 2, 1)};
     layer.geometry.pad_top = 1;
@@ -117,7 +117,7 @@ TEST(Unit_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForAPaddedUnevenWindow)
 }
 
 /** @brief Tests that output_shape() equals the traced shape for a window dilated on one axis. */
-TEST(Unit_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForADilatedWindow)
+TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForADilatedWindow)
 {
     AvgPool2d layer{window(3, 3, 1, 1)};
     layer.geometry.dilation_h = 2;
@@ -129,7 +129,7 @@ TEST(Unit_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForADilatedWindow)
 }
 
 /** @brief Tests that output_shape() throws for a per-sample shape that is not rank 3. */
-TEST(Unit_AvgPool2d, OutputShapeRejectsAFeatureVector)
+TEST(Small_AvgPool2d, OutputShapeRejectsAFeatureVector)
 {
     const AvgPool2d layer{window(2, 2, 2, 2)};
 
@@ -137,7 +137,7 @@ TEST(Unit_AvgPool2d, OutputShapeRejectsAFeatureVector)
 }
 
 /** @brief Tests that output_shape() throws for a shape that still carries the batch axis. */
-TEST(Unit_AvgPool2d, OutputShapeRejectsABatchedShape)
+TEST(Small_AvgPool2d, OutputShapeRejectsABatchedShape)
 {
     const AvgPool2d layer{window(2, 2, 2, 2)};
 
@@ -145,7 +145,7 @@ TEST(Unit_AvgPool2d, OutputShapeRejectsABatchedShape)
 }
 
 /** @brief Tests that output_shape() throws when the window is larger than the image. */
-TEST(Unit_AvgPool2d, OutputShapeRejectsAWindowLargerThanTheImage)
+TEST(Small_AvgPool2d, OutputShapeRejectsAWindowLargerThanTheImage)
 {
     const AvgPool2d layer{window(5, 5, 1, 1)};
 
@@ -153,7 +153,7 @@ TEST(Unit_AvgPool2d, OutputShapeRejectsAWindowLargerThanTheImage)
 }
 
 /** @brief Tests that output_shape() throws when the geometry has a zero stride. */
-TEST(Unit_AvgPool2d, OutputShapeRejectsAZeroStride)
+TEST(Small_AvgPool2d, OutputShapeRejectsAZeroStride)
 {
     const AvgPool2d layer{window(2, 2, 0, 0)};
 
@@ -161,7 +161,7 @@ TEST(Unit_AvgPool2d, OutputShapeRejectsAZeroStride)
 }
 
 /** @brief Tests that output_shape() names the stride it refuses, not the window's fit. */
-TEST(Unit_AvgPool2d, OutputShapeNamesAZeroStride)
+TEST(Small_AvgPool2d, OutputShapeNamesAZeroStride)
 {
     const AvgPool2d layer{window(2, 2, 0, 0)};
 
@@ -169,7 +169,7 @@ TEST(Unit_AvgPool2d, OutputShapeNamesAZeroStride)
 }
 
 /** @brief Tests that output_shape() refuses a negative padding and names it. */
-TEST(Unit_AvgPool2d, OutputShapeRejectsANegativePadding)
+TEST(Small_AvgPool2d, OutputShapeRejectsANegativePadding)
 {
     AvgPool2d layer{window(2, 2, 2, 2)};
     layer.geometry.pad_top = -1;
@@ -178,7 +178,7 @@ TEST(Unit_AvgPool2d, OutputShapeRejectsANegativePadding)
 }
 
 /** @brief Tests that forward() throws for an input that is not rank 4. */
-TEST(Unit_AvgPool2d, ForwardRejectsARankTwoInput)
+TEST(Small_AvgPool2d, ForwardRejectsARankTwoInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -190,7 +190,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsARankTwoInput)
 }
 
 /** @brief Tests that forward() throws for a rank-4 input in NCHW layout. */
-TEST(Unit_AvgPool2d, ForwardRejectsAnNCHWInput)
+TEST(Small_AvgPool2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -203,7 +203,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
-TEST(Unit_AvgPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
+TEST(Small_AvgPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -216,7 +216,7 @@ TEST(Unit_AvgPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
 }
 
 /** @brief Tests that forward() refuses a zero stride in the layer's own message. */
-TEST(Unit_AvgPool2d, ForwardRejectsAZeroStride)
+TEST(Small_AvgPool2d, ForwardRejectsAZeroStride)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -228,7 +228,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsAZeroStride)
 }
 
 /** @brief Tests that forward() refuses a negative padding in the layer's own message. */
-TEST(Unit_AvgPool2d, ForwardRejectsANegativePadding)
+TEST(Small_AvgPool2d, ForwardRejectsANegativePadding)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -241,7 +241,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsANegativePadding)
 }
 
 /** @brief Tests that forward() throws when the window is larger than the image. */
-TEST(Unit_AvgPool2d, ForwardRejectsAWindowLargerThanTheImage)
+TEST(Small_AvgPool2d, ForwardRejectsAWindowLargerThanTheImage)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -253,7 +253,7 @@ TEST(Unit_AvgPool2d, ForwardRejectsAWindowLargerThanTheImage)
 }
 
 /** @brief Tests that a traced AvgPool2d has no parameter and adds one value to the graph. */
-TEST(Unit_AvgPool2d, ATracedLayerHasNoParameter)
+TEST(Small_AvgPool2d, ATracedLayerHasNoParameter)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

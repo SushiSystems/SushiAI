@@ -3,7 +3,7 @@
 
 `Trace::host_table`: a table is a buffer leaf listed with its values, two declarations are two leaves, and a trace without a sink, a wrong type or a wrong count is refused.
 
-Suites: `Unit_HostTable`.
+Suites: `Small_HostTable`.
 
 Tests `NN::Trace::host_table` and the `NN::HostTableList` a trace collects into with
 `collect_tables`.

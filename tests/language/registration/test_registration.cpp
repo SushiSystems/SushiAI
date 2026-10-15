@@ -104,7 +104,7 @@ using SaTest::read_tensor;
 using SaTest::write_tensor;
 
 /** @brief Tests that the five block rows and the linked head row are added in order. */
-TEST(Unit_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
+TEST(Medium_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
 {
     NN::NodeRegistry registry;
     SA_EXPECT_OK(Language::register_nodes(registry));
@@ -121,7 +121,7 @@ TEST(Unit_LanguageRegistration, RegisterNodesAddsTheSixBlockRows)
 }
 
 /** @brief Tests that the tokens row and the prompt row are added. */
-TEST(Unit_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
+TEST(Medium_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Language::register_datasets(registry));
@@ -132,7 +132,7 @@ TEST(Unit_LanguageRegistration, RegisterDatasetsAddsTokensAndPrompt)
 }
 
 /** @brief Tests that the next_token row and the expert_balance row are added. */
-TEST(Unit_LanguageRegistration, RegisterObjectivesAddsNextTokenAndExpertBalance)
+TEST(Medium_LanguageRegistration, RegisterObjectivesAddsNextTokenAndExpertBalance)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Language::register_objectives(registry));
@@ -143,7 +143,7 @@ TEST(Unit_LanguageRegistration, RegisterObjectivesAddsNextTokenAndExpertBalance)
 }
 
 /** @brief Tests that the row joins the rows of train once and builds through the registry. */
-TEST(Unit_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
+TEST(Medium_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
@@ -167,7 +167,7 @@ TEST(Unit_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
 }
 
 /** @brief Tests that a decoder written as a model file builds from the rows of nn and language. */
-TEST(Unit_LanguageRegistration, ADecoderModelFileBuilds)
+TEST(Medium_LanguageRegistration, ADecoderModelFileBuilds)
 {
     NN::NodeRegistry registry = SaTest::make_layer_registry();
     SA_EXPECT_OK(Language::register_nodes(registry));
@@ -200,7 +200,7 @@ TEST(Unit_LanguageRegistration, ADecoderModelFileBuilds)
 }
 
 /** @brief Tests that a block with experts publishes the outputs the balance row reads. */
-TEST(Unit_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowReads)
+TEST(Medium_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowReads)
 {
     NN::NodeRegistry nodes = SaTest::make_layer_registry();
     SA_EXPECT_OK(Language::register_nodes(nodes));
@@ -264,7 +264,7 @@ TEST(Unit_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowRea
 namespace
 {
     /** @brief Provides the Engine every case records on. */
-    class Integration_Moe : public SaTest::EngineTest
+    class Medium_Moe : public SaTest::EngineTest
     {
 
     };
@@ -814,27 +814,27 @@ namespace
 } // namespace
 
 /** @brief Tests that a mixture of every expert equals the sum the host computes per expert. */
-TEST_F(Integration_Moe, ADenseMixtureEqualsTheHostComputation)
+TEST_F(Medium_Moe, ADenseMixtureEqualsTheHostComputation)
 {
     ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(*engine, 0, 9100));
 }
 
 /** @brief Tests that keeping one and two experts equals the renormalised gate of the host. */
-TEST_F(Integration_Moe, AMixtureOfTheTopExpertsEqualsTheHostComputation)
+TEST_F(Medium_Moe, AMixtureOfTheTopExpertsEqualsTheHostComputation)
 {
     ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(*engine, 1, 9200));
     ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(*engine, 2, 9300));
 }
 
 /** @brief Tests the gradient of the fit and the balance at the weight of the router. */
-TEST_F(Integration_Moe, ADenseMixtureDifferentiatesAtItsRouter)
+TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsRouter)
 {
     ASSERT_NO_FATAL_FAILURE(
         expect_gradient_matches(*engine, 0, RoutedVariable::RouterWeight, 9400));
 }
 
 /** @brief Tests the gradient of the fit and the balance at the sequence the block reads. */
-TEST_F(Integration_Moe, ADenseMixtureDifferentiatesAtItsInput)
+TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsInput)
 {
     ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(*engine, 0, RoutedVariable::Input, 9500));
 }
@@ -845,7 +845,7 @@ TEST_F(Integration_Moe, ADenseMixtureDifferentiatesAtItsInput)
  * The mask is constant around the point, so the gradient is that of the kept gate and of
  * the balance, which reads every score.
  */
-TEST_F(Integration_Moe, AMixtureOfTheTopExpertDifferentiatesAtItsRouter)
+TEST_F(Medium_Moe, AMixtureOfTheTopExpertDifferentiatesAtItsRouter)
 {
     RoutedProbe counted(*engine, 1, RoutedVariable::RouterWeight, 9600);
     std::size_t pool_gradients = 0;
@@ -862,7 +862,7 @@ TEST_F(Integration_Moe, AMixtureOfTheTopExpertDifferentiatesAtItsRouter)
 }
 
 /** @brief Tests that the fit alone lowers the loss; nothing is asserted about the usage. */
-TEST_F(Integration_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
+TEST_F(Medium_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
                             fit_decoder(*engine, "next_token", K_FIT_ALONE));
@@ -874,7 +874,7 @@ TEST_F(Integration_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
 }
 
 /** @brief Tests that the balance term keeps every expert of both blocks in use. */
-TEST_F(Integration_Moe, TheBalanceTermKeepsEveryExpertInUse)
+TEST_F(Medium_Moe, TheBalanceTermKeepsEveryExpertInUse)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
                             fit_decoder(*engine, "sum", K_FIT_AND_BALANCE));
@@ -915,14 +915,14 @@ namespace
     }
 
     /** @brief Provides the engine the state is created on. */
-    class Integration_DecoderFromFiles : public SaTest::EngineTest
+    class Medium_DecoderFromFiles : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
 /** @brief Tests that the model file states an int32 input and a task this build can read. */
-TEST(Integration_DecoderModelFile, TheFileStatesAnInt32Input)
+TEST(Small_DecoderModelFile, TheFileStatesAnInt32Input)
 {
     const Config::ModelSpec spec = SaTest::decoder_spec();
 
@@ -932,7 +932,7 @@ TEST(Integration_DecoderModelFile, TheFileStatesAnInt32Input)
 }
 
 /** @brief Tests that the tied head adds no weight and that the element count is the hand's. */
-TEST_F(Integration_DecoderFromFiles, TheTiedHeadSharesTheTokenTable)
+TEST_F(Medium_DecoderFromFiles, TheTiedHeadSharesTheTokenTable)
 {
     const Config::ModelSpec spec = SaTest::decoder_spec();
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, SaTest::build_decoder(spec));
@@ -964,7 +964,7 @@ TEST_F(Integration_DecoderFromFiles, TheTiedHeadSharesTheTokenTable)
 }
 
 /** @brief Tests that the next-token training graph of the file binds one slot per parameter. */
-TEST_F(Integration_DecoderFromFiles, TheTrainingGraphBindsEveryParameterOnce)
+TEST_F(Medium_DecoderFromFiles, TheTrainingGraphBindsEveryParameterOnce)
 {
     const Config::ModelSpec spec = SaTest::decoder_spec();
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, SaTest::build_decoder(spec));

@@ -1,7 +1,7 @@
 # tests/layers/train/test_role_match.cpp
 
 
-Suites: `Unit_RoleMatch`.
+Suites: `Small_RoleMatch`.
 
 Tests `Train::match_roles`. The dataset is a local `Published` class named "published" that
 publishes the roles it is built with and holds no batch. The cases use two roles: `labels`,

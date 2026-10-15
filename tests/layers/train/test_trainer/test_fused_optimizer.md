@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_fused_optimizer.cpp
 
 
-Suites: `Regression_FusedOptimizer`, `Regression_FusedOptimizerDeathTest`.
+Suites: `Medium_FusedOptimizer`, `Medium_FusedOptimizerDeathTest`.
 
 This file is the gate on collapsing eleven launches per parameter into one.
 

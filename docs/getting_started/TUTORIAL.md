@@ -56,7 +56,7 @@ instead. `sa config` is the first thing to run when that happens.
 
 ```bash
 sa build --type release
-sa test --suite all
+sa test --label all
 ```
 
 On 2026-10-09 the suite held **1803 cases in 121 suites, all passing**. Every
@@ -281,7 +281,7 @@ So the list is the thing to get right. Its virtue is not that omissions are
 detected; it is that there is exactly one list, in the struct, next to the
 member it names.
 
-> The layer above is not just quoted here: it is compiled. `Unit_Module`'s
+> The layer above is not just quoted here: it is compiled. `Small_Module`'s
 > `TheTutorialsCustomLayerTracesAndIsWalkable` and
 > `TheTutorialIsRightThatMulWouldNotBroadcast` hold the same code and assert
 > both claims this section makes about it, so this sample cannot rot into
@@ -485,17 +485,16 @@ of them in your way, it is usually right.
 ## 11. Testing your change
 
 ```bash
-sa test --suite unit          # a single unit's behaviour
-sa test --suite integration   # several units together
-sa test --suite regression    # guarantees whose failure is SILENT
-sa test --suite all
-sa test --filter 'Unit_Precision.*'
-sa run sushiai_core_autograd_tests -- --gtest_filter='Unit_Precision.*'   # in one process
+sa test --label small         # one process, no device
+sa test --label medium        # a CPU SYCL device, threads or files
+sa test                       # both, as CI runs them
+sa test --label all
+sa test --filter 'Small_Precision.*'
+sa run sushiai_core_autograd_tests -- --gtest_filter='Small_Precision.*'   # in one process
 ```
 
-The tiers come from the GTest suite-name prefix and nothing else. `regression`
-is the important one to understand: it holds the guarantees whose failure would
-otherwise be invisible: `compiles == 1`, byte-for-byte fused/unfused agreement,
+The sizes come from the GTest suite-name prefix and nothing else. Some tests hold
+guarantees whose failure would otherwise be invisible: `compiles == 1`, byte-for-byte fused/unfused agreement,
 the numerical stability of log-softmax.
 
 The bar this project holds itself to, learned the hard way:

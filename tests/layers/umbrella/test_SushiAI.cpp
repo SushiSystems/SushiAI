@@ -35,7 +35,7 @@
 namespace sb = SushiBLAS;
 
 // SushiAI links and runs one SushiBLAS op end to end; see tests/layers/umbrella/README.md.
-TEST(Integration_EngineSmoke, AXPYThroughSushiBLAS)
+TEST(Medium_EngineSmoke, AXPYThroughSushiBLAS)
 {
     sr::Runtime runtime = sr::Runtime::create().value();
     sb::Engine engine(runtime);

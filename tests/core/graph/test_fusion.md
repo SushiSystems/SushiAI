@@ -1,7 +1,7 @@
 # tests/core/graph/test_fusion.cpp
 
 
-Suites: `Unit_Fusion`.
+Suites: `Small_Fusion`.
 
 Tests the matches and the refusals of the static fusion pass on synthetic graphs.
 

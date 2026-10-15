@@ -493,7 +493,7 @@ and liveness on the **reachability partial order**, which is the difference betw
 no ordering and reuse that silently serialises two parallel branches. The closure is O(V²/64)
 memory, so above `PlanOptions::reuse_node_limit` nodes the planner declines to overlap anything and
 says so instead of falling back to the linear approximation. Gate met:
-`Regression_StaticMemory.ATrainingLoopAllocatesNothingAfterTheFirstStep` counts live allocations
+`Medium_StaticMemory.ATrainingLoopAllocatesNothingAfterTheFirstStep` counts live allocations
 through the allocator's reference count. `sa demo mlp` reports 112.6 KiB against 130.9 KiB.
 
 Two things the sketch assumed and the implementation does not do: the lowering's own temporaries
@@ -644,7 +644,7 @@ width, features, classes, lr, optimizer, seed, MNIST directory) that trains end 
 reports the compile count, the per-epoch loss trajectory, the final accuracy and the wall clock.
 It is a separate binary from `sushiai_example` on purpose: a demo is a supported entry point with
 an output contract, an example is a teaching file people edit. Pinned by the
-`Integration_Demo.MLPRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
+`Medium_Demo.MLPRunsAndReportsOneCompile` CTest entry and `cli/tests/test_demo.py`.
 
 Still open against the hard-gate list above:
 - **AI-2 and AI-3 are both in it now** (2026-08-03). AI-2: `graph/memory_plan.hpp` +

@@ -90,7 +90,7 @@ namespace
     }
 
     /** @brief Provides the engine the outputs, the roles and the leaves are allocated on. */
-    class Unit_MeanSquaredErrorObjective : public SaTest::EngineTest
+    class Medium_MeanSquaredErrorObjective : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a float32 tensor of @p shape that holds @p values. */
@@ -150,7 +150,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the regression objective declares an [N, K] leaf and the values role. */
-TEST(Unit_MeanSquaredErrorObjectiveGraph, MeanSquaredErrorDeclaresTheValuesRole)
+TEST(Small_MeanSquaredErrorObjectiveGraph, MeanSquaredErrorDeclaresTheValuesRole)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MeanSquaredErrorObjective> objective,
                             MeanSquaredErrorObjective::make(K_BATCH, 2));
@@ -171,7 +171,7 @@ TEST(Unit_MeanSquaredErrorObjectiveGraph, MeanSquaredErrorDeclaresTheValuesRole)
 }
 
 /** @brief Tests that the regression feed reads the values role and names it when absent. */
-TEST_F(Unit_MeanSquaredErrorObjective, MeanSquaredErrorFeedReadsTheValuesRole)
+TEST_F(Medium_MeanSquaredErrorObjective, MeanSquaredErrorFeedReadsTheValuesRole)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MeanSquaredErrorObjective> objective,
                             MeanSquaredErrorObjective::make(2, 2));
@@ -196,7 +196,7 @@ TEST_F(Unit_MeanSquaredErrorObjective, MeanSquaredErrorFeedReadsTheValuesRole)
 }
 
 /** @brief Tests that the regression metric is the mean absolute error of every element. */
-TEST_F(Unit_MeanSquaredErrorObjective, MeanSquaredErrorMeasuresTheMeanAbsoluteError)
+TEST_F(Medium_MeanSquaredErrorObjective, MeanSquaredErrorMeasuresTheMeanAbsoluteError)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor predicted,
                             tensor_of(Shape{2, 2}, {1.0, 2.0, 3.0, 4.0}));

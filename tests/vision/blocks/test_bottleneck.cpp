@@ -147,7 +147,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the block keeps H and W and yields the output width. */
-TEST(Unit_BlockBottleneck, OutputShapeKeepsTheExtentsAndSetsTheWidth)
+TEST(Small_BlockBottleneck, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const Bottleneck block(16, 24, 8, true, K_YOLO_NORM);
 
@@ -158,7 +158,7 @@ TEST(Unit_BlockBottleneck, OutputShapeKeepsTheExtentsAndSetsTheWidth)
  * @brief Tests that a shortcut over equal widths traces two Conv blocks and one ADD of the
  *        input and the second convolution's result, in that operand order.
  */
-TEST(Unit_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
+TEST(Small_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -183,7 +183,7 @@ TEST(Unit_BlockBottleneck, AShortcutOverEqualWidthsAddsTheInput)
 }
 
 /** @brief Tests that a block built without a shortcut traces no ADD over equal widths. */
-TEST(Unit_BlockBottleneck, NoShortcutTracesNoAdd)
+TEST(Small_BlockBottleneck, NoShortcutTracesNoAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -200,7 +200,7 @@ TEST(Unit_BlockBottleneck, NoShortcutTracesNoAdd)
 }
 
 /** @brief Tests that a shortcut over unequal widths is dropped, so no ADD is traced. */
-TEST(Unit_BlockBottleneck, AShortcutOverUnequalWidthsTracesNoAdd)
+TEST(Small_BlockBottleneck, AShortcutOverUnequalWidthsTracesNoAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -219,7 +219,7 @@ TEST(Unit_BlockBottleneck, AShortcutOverUnequalWidthsTracesNoAdd)
  * @brief Tests that a traced Bottleneck(16, 16, 8) yields the ten records MANIFEST.json lists
  *        under model.2.m.0, names, NHWC shapes and order.
  */
-TEST(Unit_BlockBottleneck, StateMatchesManifestRow2Inner)
+TEST(Small_BlockBottleneck, StateMatchesManifestRow2Inner)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -246,7 +246,7 @@ TEST(Unit_BlockBottleneck, StateMatchesManifestRow2Inner)
 }
 
 /** @brief Tests that each kernel argument sets the window of its own convolution. */
-TEST(Unit_BlockBottleneck, EachKernelSetsItsOwnConvolution)
+TEST(Small_BlockBottleneck, EachKernelSetsItsOwnConvolution)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -262,7 +262,7 @@ TEST(Unit_BlockBottleneck, EachKernelSetsItsOwnConvolution)
  * @brief Tests that make_bottleneck_node builds the block of model.2.m.0 and that a row
  *        without "shortcut" adds its input.
  */
-TEST(Unit_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue)
+TEST(Small_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue)
 {
     const Shape input{4, 4, 16};
     const Config::Value attributes = attributes_of(R"({"filters": 16, "hidden": 8})");
@@ -292,7 +292,7 @@ TEST(Unit_BlockBottleneck, TheFactoryBuildsTheBlockAndDefaultsTheShortcutToTrue)
 }
 
 /** @brief Tests that a row stating "shortcut": false builds a block that traces no ADD. */
-TEST(Unit_BlockBottleneck, TheFactoryReadsTheShortcut)
+TEST(Small_BlockBottleneck, TheFactoryReadsTheShortcut)
 {
     const Shape input{4, 4, 16};
     const Config::Value attributes =
@@ -312,7 +312,7 @@ TEST(Unit_BlockBottleneck, TheFactoryReadsTheShortcut)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing width and a text flag. */
-TEST(Unit_BlockBottleneck, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockBottleneck, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{4, 4, 16};
     const Config::Value unknown = attributes_of(R"({"filters": 16, "hidden": 8, "kernel": 3})");
@@ -329,7 +329,7 @@ TEST(Unit_BlockBottleneck, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that the factory refuses an input that is not one rank-3 feature map. */
-TEST(Unit_BlockBottleneck, TheFactoryRefusesAnInputThatIsNotAFeatureMap)
+TEST(Small_BlockBottleneck, TheFactoryRefusesAnInputThatIsNotAFeatureMap)
 {
     const Shape flat{256};
     const Config::Value attributes = attributes_of(R"({"filters": 16, "hidden": 8})");
@@ -339,7 +339,7 @@ TEST(Unit_BlockBottleneck, TheFactoryRefusesAnInputThatIsNotAFeatureMap)
 }
 
 /** @brief Tests that the factory hands "bn_epsilon" and "bn_momentum" to both norms. */
-TEST(Unit_BlockBottleneck, TheFactoryHandsTheNormOptionsToBothNorms)
+TEST(Small_BlockBottleneck, TheFactoryHandsTheNormOptionsToBothNorms)
 {
     const Shape input{4, 4, 16};
     const Config::Value attributes = attributes_of(

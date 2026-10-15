@@ -1,11 +1,11 @@
 # tests/vision/detect/test_average_precision.cpp
 
 
-Suites: `Unit_AveragePrecision`.
+Suites: `Small_AveragePrecision`.
 
 Tests detection matching, the 101-point average precision and the validation table.
 
-This file needs no device and reads no fixture. Every case in `Unit_AveragePrecision` builds
+This file needs no device and reads no fixture. Every case in `Small_AveragePrecision` builds
 detection rows and ground-truth boxes by hand and calls `match_detections`,
 `integrate_precision` or the `AveragePrecision` accumulator of
 `modules/vision/detect/include/SushiAI/vision/detect/average_precision.hpp`. A comment in each case derives the expected

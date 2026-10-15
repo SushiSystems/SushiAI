@@ -152,7 +152,7 @@ the dataset in `Train::match_input`.
 
 `tests/language/datasets/test_token_file.cpp`, `test_datasets_window_layout.cpp`,
 `test_datasets_next_token_collator.cpp` and `test_datasets_token_dataset.cpp`, in the suites
-`Unit_LanguageDatasetsTokenFile`, `Unit_LanguageDatasetsWindowLayout`,
-`Unit_LanguageDatasetsNextTokenCollator` and `Unit_LanguageDatasetsTokenDataset`. The last two
+`Small_LanguageDatasetsTokenFile`, `Small_LanguageDatasetsWindowLayout`,
+`Medium_LanguageDatasetsNextTokenCollator` and `Medium_LanguageDatasetsTokenDataset`. The last two
 allocate tensors on an engine. The files they write are under the system's temporary directory
 and are removed when the test ends.

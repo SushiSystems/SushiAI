@@ -90,7 +90,7 @@ namespace
     }
 
     /** @brief Provides the engine the outputs, the roles and the leaves are allocated on. */
-    class Unit_MultiLabelObjective : public SaTest::EngineTest
+    class Medium_MultiLabelObjective : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a float32 tensor of @p shape that holds @p values. */
@@ -150,7 +150,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the multi-label objective declares an [N, C] leaf and [N, C] labels. */
-TEST(Unit_MultiLabelObjectiveGraph, MultiLabelDeclaresOneLabelPerClass)
+TEST(Small_MultiLabelObjectiveGraph, MultiLabelDeclaresOneLabelPerClass)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MultiLabelObjective> objective,
                             MultiLabelObjective::make(K_BATCH, 3));
@@ -171,7 +171,7 @@ TEST(Unit_MultiLabelObjectiveGraph, MultiLabelDeclaresOneLabelPerClass)
 }
 
 /** @brief Tests that the multi-label metric is the mean of the F1 of each class. */
-TEST_F(Unit_MultiLabelObjective, MultiLabelMeasuresTheMeanF1OfTheClasses)
+TEST_F(Medium_MultiLabelObjective, MultiLabelMeasuresTheMeanF1OfTheClasses)
 {
     // Class 0 is right twice, class 1 misses once and raises one false alarm, class 2 raises one.
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
@@ -193,7 +193,7 @@ TEST_F(Unit_MultiLabelObjective, MultiLabelMeasuresTheMeanF1OfTheClasses)
 }
 
 /** @brief Tests that a metric refuses an output of another element count and adds nothing. */
-TEST_F(Unit_MultiLabelObjective, AMetricRefusesAnOutputOfAnotherCount)
+TEST_F(Medium_MultiLabelObjective, AMetricRefusesAnOutputOfAnotherCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
                             tensor_of(Shape{2, 3}, {3.0, -3.0, 3.0, 3.0, 3.0, -3.0}));

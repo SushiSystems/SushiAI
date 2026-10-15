@@ -139,7 +139,7 @@ namespace
 } // namespace
 
 /** @brief Tests the first eight numbers of seed 0 against the published SplitMix64 sequence. */
-TEST(Unit_DetectAnchorClustering, SequenceOfSeedZeroMatchesThePublishedNumbers)
+TEST(Small_DetectAnchorClustering, SequenceOfSeedZeroMatchesThePublishedNumbers)
 {
     const std::uint64_t published[8] = {
         0xE220A8397B1DCDAFull, 0x6E789E6AA1B965F4ull, 0x06C45D188009454Full,
@@ -153,7 +153,7 @@ TEST(Unit_DetectAnchorClustering, SequenceOfSeedZeroMatchesThePublishedNumbers)
 }
 
 /** @brief Tests that the unit draw is the upper 53 bits of the next number over 2^53. */
-TEST(Unit_DetectAnchorClustering, UnitDrawIsTheUpperBitsOfTheNextNumber)
+TEST(Small_DetectAnchorClustering, UnitDrawIsTheUpperBitsOfTheNextNumber)
 {
     SeededSequence sequence(0);
 
@@ -167,7 +167,7 @@ TEST(Unit_DetectAnchorClustering, UnitDrawIsTheUpperBitsOfTheNextNumber)
 }
 
 /** @brief Tests that the default seed recovers every rung of the ladder within 5 %. */
-TEST(Unit_DetectAnchorClustering, LadderIsRecoveredWithinFivePercent)
+TEST(Small_DetectAnchorClustering, LadderIsRecoveredWithinFivePercent)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     ClusteringOptions options;
@@ -188,7 +188,7 @@ TEST(Unit_DetectAnchorClustering, LadderIsRecoveredWithinFivePercent)
 }
 
 /** @brief Tests that the anchors come back in ascending area. */
-TEST(Unit_DetectAnchorClustering, AnchorsAreInAscendingArea)
+TEST(Small_DetectAnchorClustering, AnchorsAreInAscendingArea)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
 
@@ -205,7 +205,7 @@ TEST(Unit_DetectAnchorClustering, AnchorsAreInAscendingArea)
 }
 
 /** @brief Tests that another seed still recovers every rung within 5 %. */
-TEST(Unit_DetectAnchorClustering, AnotherSeedStillRecoversTheLadder)
+TEST(Small_DetectAnchorClustering, AnotherSeedStillRecoversTheLadder)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
 
@@ -217,7 +217,7 @@ TEST(Unit_DetectAnchorClustering, AnotherSeedStillRecoversTheLadder)
 }
 
 /** @brief Tests that 1 % of the boxes at 0.9 x 0.9 leave every centre within 5 %. */
-TEST(Unit_DetectAnchorClustering, OutliersLeaveEveryCentreWithinFivePercent)
+TEST(Small_DetectAnchorClustering, OutliersLeaveEveryCentreWithinFivePercent)
 {
     std::vector<AnchorSize> boxes = make_ladder();
     boxes.insert(boxes.end(), boxes.size() / 100, AnchorSize{0.9f, 0.9f});
@@ -232,7 +232,7 @@ TEST(Unit_DetectAnchorClustering, OutliersLeaveEveryCentreWithinFivePercent)
 }
 
 /** @brief Tests that two runs on the same boxes and options agree in every bit. */
-TEST(Unit_DetectAnchorClustering, TwoRunsAreBitIdentical)
+TEST(Small_DetectAnchorClustering, TwoRunsAreBitIdentical)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const ClusteringOptions options = make_ladder_options(0x5355534849ull);
@@ -258,7 +258,7 @@ TEST(Unit_DetectAnchorClustering, TwoRunsAreBitIdentical)
 }
 
 /** @brief Tests that no refinement sweep leaves the fit of the settled centres. */
-TEST(Unit_DetectAnchorClustering, ZeroSweepsKeepTheFitBeforeRefinement)
+TEST(Small_DetectAnchorClustering, ZeroSweepsKeepTheFitBeforeRefinement)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     ClusteringOptions options = make_ladder_options(0x5355534849ull);
@@ -273,7 +273,7 @@ TEST(Unit_DetectAnchorClustering, ZeroSweepsKeepTheFitBeforeRefinement)
 }
 
 /** @brief Tests that an empty box list is Incompatible. */
-TEST(Unit_DetectAnchorClustering, RefusesAnEmptyBoxList)
+TEST(Small_DetectAnchorClustering, RefusesAnEmptyBoxList)
 {
     const std::vector<AnchorSize> boxes;
     ClusteringOptions options;
@@ -286,7 +286,7 @@ TEST(Unit_DetectAnchorClustering, RefusesAnEmptyBoxList)
 }
 
 /** @brief Tests that count - 1 distinct boxes are Incompatible however often they repeat. */
-TEST(Unit_DetectAnchorClustering, RefusesFewerDistinctBoxesThanAnchors)
+TEST(Small_DetectAnchorClustering, RefusesFewerDistinctBoxesThanAnchors)
 {
     const AnchorSize distinct[2] = {{0.1f, 0.2f}, {0.4f, 0.3f}};
     std::vector<AnchorSize> boxes;
@@ -302,7 +302,7 @@ TEST(Unit_DetectAnchorClustering, RefusesFewerDistinctBoxesThanAnchors)
 }
 
 /** @brief Tests that a zero side and a NaN side are left out and counted. */
-TEST(Unit_DetectAnchorClustering, LeavesOutAZeroAndANaNSide)
+TEST(Small_DetectAnchorClustering, LeavesOutAZeroAndANaNSide)
 {
     const AnchorSize kept[3] = {{0.0625f, 0.125f}, {0.25f, 0.25f}, {0.5f, 0.75f}};
     std::vector<AnchorSize> boxes;
@@ -330,7 +330,7 @@ TEST(Unit_DetectAnchorClustering, LeavesOutAZeroAndANaNSide)
 }
 
 /** @brief Tests that a box with a side at min_side is left out and one above it is kept. */
-TEST(Unit_DetectAnchorClustering, LeavesOutABoxAtTheSmallestSide)
+TEST(Small_DetectAnchorClustering, LeavesOutABoxAtTheSmallestSide)
 {
     const std::vector<AnchorSize> boxes = {{0.125f, 0.5f}, {0.25f, 0.5f}, {0.5f, 0.125f}};
     ClusteringOptions options;
@@ -348,7 +348,7 @@ TEST(Unit_DetectAnchorClustering, LeavesOutABoxAtTheSmallestSide)
 }
 
 /** @brief Tests that each option outside its range is InvalidDescription. */
-TEST(Unit_DetectAnchorClustering, RefusesOptionsOutsideTheirRange)
+TEST(Small_DetectAnchorClustering, RefusesOptionsOutsideTheirRange)
 {
     const std::vector<AnchorSize> boxes = {{0.25f, 0.5f}, {0.5f, 0.25f}};
     ClusteringOptions valid;

@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_head_delta.cpp
 
 
-Suites: `Unit_DetectAnchorDeltaIou`.
+Suites: `Small_DetectAnchorDeltaIou`.
 
 Tests the delta of one anchor head when more than one anchor may take a truth and the box
 deltas come from the IoU gradient. Truths are given in pixels of a 64-pixel network side. A box
@@ -63,7 +63,7 @@ is not.
 With a width logit of 200, which decodes to infinity, the width delta is exactly 0, all four
 box deltas are finite and the objectness delta is 0.5.
 
-Suites: `Unit_DetectAnchorDeltaActivated`.
+Suites: `Small_DetectAnchorDeltaActivated`.
 
 Tests the delta of one anchor head whose entries arrive activated. The case holds two slots
 and two classes over a 64-pixel network side. Slot 0 is assigned the truth. Slot 1 overlaps the
@@ -107,7 +107,7 @@ expected width entry is above 0.01 in magnitude. Slot 1's four box deltas are ex
 
 Slot 0's class deltas are 1 - 0.6 and 0 - 0.2. Slot 1's class deltas are exactly 0.
 
-Suites: `Unit_DetectAnchorDeltaGradient`.
+Suites: `Small_DetectAnchorDeltaGradient`.
 
 Tests the two forms of the box gradient a head's training options select. Each case decodes
 one slot to a chosen box against one truth on a 20-pixel network side and reads the four box
@@ -152,7 +152,7 @@ cell's by more than 10 % of the cell's value.
 
 The delta an anchor head with Logit coding receives: the assigned cell and slot, the IoU sum, the ignore rule and its class gate, two truths in one slot, padding rows, and the training options refused.
 
-Suites: `Unit_DetectAnchorDelta`.
+Suites: `Small_DetectAnchorDelta`.
 
 Tests the delta of one anchor head with the Logit coding, and `validate_head_training`. The
 cases place truths in pixels of a 64-pixel network side and compare the whole delta with an

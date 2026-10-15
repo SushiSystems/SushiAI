@@ -111,7 +111,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingHsv, PlanDrawsHueThenSaturationThenValueAndNothingMore)
+TEST(Small_ImagingHsv, PlanDrawsHueThenSaturationThenValueAndNothingMore)
 {
     const HSVSettings settings;
     Random random(7);
@@ -130,7 +130,7 @@ TEST(Unit_ImagingHsv, PlanDrawsHueThenSaturationThenValueAndNothingMore)
     EXPECT_EQ(random, replay);
 }
 
-TEST(Unit_ImagingHsv, DrawnGainsStayInsideTheConfiguredRangesOverManySeeds)
+TEST(Small_ImagingHsv, DrawnGainsStayInsideTheConfiguredRangesOverManySeeds)
 {
     const HSVSettings settings;
     HSVPlan lowest{settings.hue_gain, settings.saturation_gain, settings.value_gain};
@@ -165,7 +165,7 @@ TEST(Unit_ImagingHsv, DrawnGainsStayInsideTheConfiguredRangesOverManySeeds)
     EXPECT_GT(highest.value, 0.9f * settings.value_gain);
 }
 
-TEST(Unit_ImagingHsv, ZeroGainsDrawThreeTimesAndGiveAZeroPlan)
+TEST(Small_ImagingHsv, ZeroGainsDrawThreeTimesAndGiveAZeroPlan)
 {
     HSVSettings settings;
     settings.hue_gain = 0.0f;
@@ -186,7 +186,7 @@ TEST(Unit_ImagingHsv, ZeroGainsDrawThreeTimesAndGiveAZeroPlan)
     EXPECT_EQ(random, replay);
 }
 
-TEST(Unit_ImagingHsv, PlanRejectsANegativeGain)
+TEST(Small_ImagingHsv, PlanRejectsANegativeGain)
 {
     Random random(1);
     HSVSettings settings;
@@ -197,7 +197,7 @@ TEST(Unit_ImagingHsv, PlanRejectsANegativeGain)
     EXPECT_EQ(random, Random(1)) << "a rejected plan makes no draw";
 }
 
-TEST(Unit_ImagingHsv, PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw)
+TEST(Small_ImagingHsv, PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw)
 {
     Random random(2);
 
@@ -212,7 +212,7 @@ TEST(Unit_ImagingHsv, PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw)
     EXPECT_EQ(random, Random(2));
 }
 
-TEST(Unit_ImagingHsv, SourceWithoutPixelsIsRejected)
+TEST(Small_ImagingHsv, SourceWithoutPixelsIsRejected)
 {
     Image destination;
     SA_EXPECT_ERROR(Vision::Imaging::apply_hsv(Vision::Imaging::ImageView{}, HSVPlan{},
@@ -220,7 +220,7 @@ TEST(Unit_ImagingHsv, SourceWithoutPixelsIsRejected)
                     "apply_hsv", "no pixels");
 }
 
-TEST(Unit_ImagingHsv, DestinationThatIsTheSourceIsRejected)
+TEST(Small_ImagingHsv, DestinationThatIsTheSourceIsRejected)
 {
     Image image = make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180}});
     const HSVPlan plan{0.25f, 0.5f, 0.5f};
@@ -232,7 +232,7 @@ TEST(Unit_ImagingHsv, DestinationThatIsTheSourceIsRejected)
 }
 
 /** @brief Tests that a view of the destination's second pixel is refused before any write. */
-TEST(Unit_ImagingHsv, ViewInsideTheDestinationIsRejected)
+TEST(Small_ImagingHsv, ViewInsideTheDestinationIsRejected)
 {
     Image image = make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180}});
     const Vision::Imaging::ImageView second_pixel(image.data() + 3, ImageSize{1, 1}, 3);
@@ -245,7 +245,7 @@ TEST(Unit_ImagingHsv, ViewInsideTheDestinationIsRejected)
     expect_rgb(pixel_at(image, 1), RGBPixel{250, 3, 180});
 }
 
-TEST(Unit_ImagingHsv, ZeroPlanGivesIdentityTables)
+TEST(Small_ImagingHsv, ZeroPlanGivesIdentityTables)
 {
     const HSVTables tables = Vision::Imaging::make_hsv_tables(HSVPlan{});
 
@@ -259,7 +259,7 @@ TEST(Unit_ImagingHsv, ZeroPlanGivesIdentityTables)
     }
 }
 
-TEST(Unit_ImagingHsv, HueTableShiftsByAFractionOfATurnAndWrapsBothWays)
+TEST(Small_ImagingHsv, HueTableShiftsByAFractionOfATurnAndWrapsBothWays)
 {
     // 0.25 of a turn is 45 steps; 0.25f * 180 is exact.
     const HSVTables forward = Vision::Imaging::make_hsv_tables(HSVPlan{0.25f, 0.0f, 0.0f});
@@ -281,7 +281,7 @@ TEST(Unit_ImagingHsv, HueTableShiftsByAFractionOfATurnAndWrapsBothWays)
     }
 }
 
-TEST(Unit_ImagingHsv, SaturationAndValueTablesScaleTruncateAndClamp)
+TEST(Small_ImagingHsv, SaturationAndValueTablesScaleTruncateAndClamp)
 {
     // Saturation times 1.5 and value times 1.25.
     const HSVTables raised = Vision::Imaging::make_hsv_tables(HSVPlan{0.0f, 0.5f, 0.25f});
@@ -303,21 +303,21 @@ TEST(Unit_ImagingHsv, SaturationAndValueTablesScaleTruncateAndClamp)
     EXPECT_EQ(lowered.value[255], 0);
 }
 
-TEST(Unit_ImagingHsv, PrimaryColoursHaveHuesSixtyStepsApart)
+TEST(Small_ImagingHsv, PrimaryColoursHaveHuesSixtyStepsApart)
 {
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{255, 0, 0}), HSVPixel{0, 255, 255});
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{0, 255, 0}), HSVPixel{60, 255, 255});
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{0, 0, 255}), HSVPixel{120, 255, 255});
 }
 
-TEST(Unit_ImagingHsv, GreyHasHueZeroAndBlackHasSaturationZero)
+TEST(Small_ImagingHsv, GreyHasHueZeroAndBlackHasSaturationZero)
 {
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{0, 0, 0}), HSVPixel{0, 0, 0});
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{90, 90, 90}), HSVPixel{0, 0, 90});
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{255, 255, 255}), HSVPixel{0, 0, 255});
 }
 
-TEST(Unit_ImagingHsv, MixedColourConvertsToTheHandComputedLevels)
+TEST(Small_ImagingHsv, MixedColourConvertsToTheHandComputedLevels)
 {
     // (100, 50, 50): saturation (255 * 50 + 50) / 100 = 128, hue 0.
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{100, 50, 50}), HSVPixel{0, 128, 100});
@@ -326,7 +326,7 @@ TEST(Unit_ImagingHsv, MixedColourConvertsToTheHandComputedLevels)
     expect_hsv(Vision::Imaging::to_hsv(RGBPixel{200, 100, 50}), HSVPixel{10, 191, 200});
 }
 
-TEST(Unit_ImagingHsv, EachSectorConvertsBackToTheHandComputedColour)
+TEST(Small_ImagingHsv, EachSectorConvertsBackToTheHandComputedColour)
 {
     expect_rgb(Vision::Imaging::to_rgb(HSVPixel{0, 255, 255}), RGBPixel{255, 0, 0});
     expect_rgb(Vision::Imaging::to_rgb(HSVPixel{45, 255, 255}), RGBPixel{128, 255, 0});
@@ -342,7 +342,7 @@ TEST(Unit_ImagingHsv, EachSectorConvertsBackToTheHandComputedColour)
     expect_rgb(Vision::Imaging::to_rgb(HSVPixel{10, 153, 200}), RGBPixel{200, 120, 80});
 }
 
-TEST(Unit_ImagingHsv, PureHueShiftOnRedGivesTheHandComputedColours)
+TEST(Small_ImagingHsv, PureHueShiftOnRedGivesTheHandComputedColours)
 {
     // Red is hue 0. Plus 45 steps is hue 45, minus 45 is hue 135, plus 90 is hue 90.
     expect_rgb(jitter(RGBPixel{255, 0, 0}, HSVPlan{0.25f, 0.0f, 0.0f}), RGBPixel{128, 255, 0});
@@ -350,7 +350,7 @@ TEST(Unit_ImagingHsv, PureHueShiftOnRedGivesTheHandComputedColours)
     expect_rgb(jitter(RGBPixel{255, 0, 0}, HSVPlan{0.5f, 0.0f, 0.0f}), RGBPixel{0, 255, 255});
 }
 
-TEST(Unit_ImagingHsv, ValueGainClampsAtFullAndAtZero)
+TEST(Small_ImagingHsv, ValueGainClampsAtFullAndAtZero)
 {
     // (100, 50, 50) is hue 0, saturation 128, value 100; value 300 clamps to 255.
     expect_rgb(jitter(RGBPixel{100, 50, 50}, HSVPlan{0.0f, 0.0f, 2.0f}),
@@ -358,7 +358,7 @@ TEST(Unit_ImagingHsv, ValueGainClampsAtFullAndAtZero)
     expect_rgb(jitter(RGBPixel{100, 50, 50}, HSVPlan{0.0f, 0.0f, -2.0f}), RGBPixel{0, 0, 0});
 }
 
-TEST(Unit_ImagingHsv, SaturationGainClampsAtFullAndAtZero)
+TEST(Small_ImagingHsv, SaturationGainClampsAtFullAndAtZero)
 {
     // Saturation 128 times 3 clamps to 255; times -1 clamps to 0, which is grey.
     expect_rgb(jitter(RGBPixel{100, 50, 50}, HSVPlan{0.0f, 2.0f, 0.0f}), RGBPixel{100, 0, 0});
@@ -366,13 +366,13 @@ TEST(Unit_ImagingHsv, SaturationGainClampsAtFullAndAtZero)
                RGBPixel{100, 100, 100});
 }
 
-TEST(Unit_ImagingHsv, WhiteStaysWhiteUnderASaturationGain)
+TEST(Small_ImagingHsv, WhiteStaysWhiteUnderASaturationGain)
 {
     expect_rgb(jitter(RGBPixel{255, 255, 255}, HSVPlan{0.3f, 0.7f, 0.0f}),
                RGBPixel{255, 255, 255});
 }
 
-TEST(Unit_ImagingHsv, ZeroPlanIsTheIdentityOnGreysPrimariesAndSecondaries)
+TEST(Small_ImagingHsv, ZeroPlanIsTheIdentityOnGreysPrimariesAndSecondaries)
 {
     const Image source = make_row({RGBPixel{0, 0, 0}, RGBPixel{255, 255, 255},
                                    RGBPixel{37, 37, 37}, RGBPixel{255, 0, 0},
@@ -390,7 +390,7 @@ TEST(Unit_ImagingHsv, ZeroPlanIsTheIdentityOnGreysPrimariesAndSecondaries)
 }
 
 /** @brief Tests that a zero plan copies colours the hexcone round trip would change. */
-TEST(Unit_ImagingHsv, ZeroPlanCopiesColoursTheRoundTripWouldChange)
+TEST(Small_ImagingHsv, ZeroPlanCopiesColoursTheRoundTripWouldChange)
 {
     // to_rgb(to_hsv(.)) gives (12, 200, 100) and (250, 3, 176) for these two colours.
     const Image source = make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180}});
@@ -407,7 +407,7 @@ TEST(Unit_ImagingHsv, ZeroPlanCopiesColoursTheRoundTripWouldChange)
 }
 
 /** @brief Tests that a plan from three zero gains is an identity plan and copies the image. */
-TEST(Unit_ImagingHsv, PlanOfZeroGainsCopiesTheImage)
+TEST(Small_ImagingHsv, PlanOfZeroGainsCopiesTheImage)
 {
     HSVSettings settings;
     settings.hue_gain = 0.0f;
@@ -429,7 +429,7 @@ TEST(Unit_ImagingHsv, PlanOfZeroGainsCopiesTheImage)
 }
 
 /** @brief Tests that one gain away from zero is enough to send the image through the tables. */
-TEST(Unit_ImagingHsv, PlanWithOneGainAwayFromZeroIsNotAnIdentity)
+TEST(Small_ImagingHsv, PlanWithOneGainAwayFromZeroIsNotAnIdentity)
 {
     const float tiny = 1e-6f;
 
@@ -444,7 +444,7 @@ TEST(Unit_ImagingHsv, PlanWithOneGainAwayFromZeroIsNotAnIdentity)
 }
 
 /** @brief Tests that validate_hsv accepts zero gains and the defaults. */
-TEST(Unit_ImagingHsv, ValidateAcceptsZeroGainsAndTheDefaults)
+TEST(Small_ImagingHsv, ValidateAcceptsZeroGainsAndTheDefaults)
 {
     HSVSettings zero;
     zero.hue_gain = 0.0f;
@@ -455,7 +455,7 @@ TEST(Unit_ImagingHsv, ValidateAcceptsZeroGainsAndTheDefaults)
     EXPECT_NO_THROW(Vision::Imaging::validate_hsv(HSVSettings{}));
 }
 
-TEST(Unit_ImagingHsv, RoundTripMovesNoLevelByMoreThanItsBound)
+TEST(Small_ImagingHsv, RoundTripMovesNoLevelByMoreThanItsBound)
 {
     std::int32_t worst = 0;
     for (std::int32_t red = 0; red < 256; red += K_SWEEP_STEP)
@@ -479,7 +479,7 @@ TEST(Unit_ImagingHsv, RoundTripMovesNoLevelByMoreThanItsBound)
     EXPECT_LE(worst, K_ROUND_TRIP_LEVELS);
 }
 
-TEST(Unit_ImagingHsv, ImageWithoutThreeChannelsIsCopiedUnchanged)
+TEST(Small_ImagingHsv, ImageWithoutThreeChannelsIsCopiedUnchanged)
 {
     Image source(ImageSize{2, 3}, 1);
     for (std::size_t i = 0; i < source.byte_count(); ++i)
@@ -494,7 +494,7 @@ TEST(Unit_ImagingHsv, ImageWithoutThreeChannelsIsCopiedUnchanged)
         EXPECT_EQ(destination.data()[i], source.data()[i]) << "byte " << i;
 }
 
-TEST(Unit_ImagingHsv, SamePlanGivesTheSameImageTwice)
+TEST(Small_ImagingHsv, SamePlanGivesTheSameImageTwice)
 {
     const Image source = make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180},
                                    RGBPixel{77, 77, 80}});

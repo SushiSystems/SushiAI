@@ -80,7 +80,7 @@ using Train::MultiLabelObjective;
 namespace
 {
     /** @brief Provides the engine the scored tensors are allocated on. */
-    class Unit_ObjectiveScore : public SaTest::EngineTest
+    class Medium_ObjectiveScore : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns [3, 2] logits whose rows have their largest value at 1, 0, 1. */
@@ -173,7 +173,7 @@ namespace
     using Test::build_two_output_model;
 }
 
-TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIR)
+TEST(Small_Objective, BuildGraphAndBuildClassifierProduceTheSameIR)
 {
     const int64_t batch = 4;
     const int64_t features = 6;
@@ -201,7 +201,7 @@ TEST(Unit_Objective, BuildGraphAndBuildClassifierProduceTheSameIR)
     EXPECT_EQ(a.spec.loss, b.spec.loss);
 }
 
-TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
+TEST(Small_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 {
     // The target leaf sits between the input and the model; see tests/layers/train/README.md.
     MLP model = make_model(6, 8, 3);
@@ -216,7 +216,7 @@ TEST(Unit_Objective, TheTargetLeafIsDeclaredWhereItAlwaysWas)
 }
 
 /** @brief Tests that cross-entropy requires the labels role, one int32 per sample. */
-TEST(Unit_Objective, CrossEntropyRequiresTheLabelsRole)
+TEST(Small_Objective, CrossEntropyRequiresTheLabelsRole)
 {
     MLP model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
@@ -232,7 +232,7 @@ TEST(Unit_Objective, CrossEntropyRequiresTheLabelsRole)
 }
 
 /** @brief Tests that the leaves keep every required role, in the order they were required. */
-TEST(Unit_Objective, LeavesKeepEveryRequiredRoleInOrder)
+TEST(Small_Objective, LeavesKeepEveryRequiredRoleInOrder)
 {
     ObjectiveLeaves leaves;
     EXPECT_TRUE(leaves.required().empty());
@@ -250,7 +250,7 @@ TEST(Unit_Objective, LeavesKeepEveryRequiredRoleInOrder)
 }
 
 /** @brief Tests that accuracy is the fraction of rows whose label is the largest logit. */
-TEST_F(Unit_ObjectiveScore, AccuracyIsReadFromTheLabelsRole)
+TEST_F(Medium_ObjectiveScore, AccuracyIsReadFromTheLabelsRole)
 {
     const CrossEntropyObjective objective(3, 2);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
@@ -268,7 +268,7 @@ TEST_F(Unit_ObjectiveScore, AccuracyIsReadFromTheLabelsRole)
 }
 
 /** @brief Tests that a batch without the labels role is refused and adds no metric. */
-TEST_F(Unit_ObjectiveScore, ABatchWithoutTheLabelsRoleIsRefused)
+TEST_F(Medium_ObjectiveScore, ABatchWithoutTheLabelsRoleIsRefused)
 {
     const CrossEntropyObjective objective(3, 2);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
@@ -282,7 +282,7 @@ TEST_F(Unit_ObjectiveScore, ABatchWithoutTheLabelsRoleIsRefused)
 }
 
 /** @brief Tests that accuracy refuses a step that published two outputs. */
-TEST_F(Unit_ObjectiveScore, AccuracyReadsOneOutput)
+TEST_F(Medium_ObjectiveScore, AccuracyReadsOneOutput)
 {
     const CrossEntropyObjective objective(3, 2);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor output, logits());
@@ -296,7 +296,7 @@ TEST_F(Unit_ObjectiveScore, AccuracyReadsOneOutput)
 }
 
 /** @brief Tests that feed writes the one-hot row of every label into the target leaf. */
-TEST_F(Unit_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
+TEST_F(Medium_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
 {
     const CrossEntropyObjective objective(3, 2);
     Graph::Graph graph;
@@ -316,7 +316,7 @@ TEST_F(Unit_ObjectiveScore, FeedWritesTheOneHotRowsOfTheLabels)
 }
 
 /** @brief Tests that the base refuses to feed a batch and measures nothing. */
-TEST_F(Unit_ObjectiveScore, AnObjectiveFedByItsOwnStepRefusesABatch)
+TEST_F(Medium_ObjectiveScore, AnObjectiveFedByItsOwnStepRefusesABatch)
 {
     const StepFedObjective objective;
     const ObjectiveLeaves leaves;
@@ -332,7 +332,7 @@ TEST_F(Unit_ObjectiveScore, AnObjectiveFedByItsOwnStepRefusesABatch)
 }
 
 /** @brief Tests that a leaf the objective did not declare, or the pool does not hold, is named. */
-TEST_F(Unit_ObjectiveScore, ALeafWithoutATensorIsNamed)
+TEST_F(Medium_ObjectiveScore, ALeafWithoutATensorIsNamed)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -346,7 +346,7 @@ TEST_F(Unit_ObjectiveScore, ALeafWithoutATensorIsNamed)
                       StatusCode::InvalidDescription, "no tensor", "'targets'");
 }
 
-TEST(Unit_Objective, TheObjectiveOwnsTheOutputShapeCheck)
+TEST(Small_Objective, TheObjectiveOwnsTheOutputShapeCheck)
 {
     // The objective owns the output shape message; see tests/layers/train/README.md.
     MLP model = make_model(6, 8, 3);
@@ -356,7 +356,7 @@ TEST(Unit_Objective, TheObjectiveOwnsTheOutputShapeCheck)
                       StatusCode::InvalidDescription, "[4, 3]", "[4, 5]");
 }
 
-TEST(Unit_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
+TEST(Small_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -374,7 +374,7 @@ TEST(Unit_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
 }
 
 /** @brief Tests that the loss is computed from the value the model published as "output". */
-TEST(Unit_Objective, CrossEntropyReadsTheOnlyOutput)
+TEST(Small_Objective, CrossEntropyReadsTheOnlyOutput)
 {
     MLP model = make_model(6, 8, 3);
     const CrossEntropyObjective objective(4, 3);
@@ -398,7 +398,7 @@ TEST(Unit_Objective, CrossEntropyReadsTheOnlyOutput)
 }
 
 /** @brief Tests that cross-entropy refuses a model with two outputs and names both. */
-TEST(Unit_Objective, CrossEntropyRefusesTwoOutputs)
+TEST(Small_Objective, CrossEntropyRefusesTwoOutputs)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, build_two_output_model());
     const CrossEntropyObjective objective(4, 3);
@@ -407,14 +407,14 @@ TEST(Unit_Objective, CrossEntropyRefusesTwoOutputs)
                       StatusCode::InvalidDescription, "features", "logits");
 }
 
-TEST(Unit_Objective, AnEmptyLeafSetSaysSoRatherThanListingNothing)
+TEST(Small_Objective, AnEmptyLeafSetSaysSoRatherThanListingNothing)
 {
     const ObjectiveLeaves leaves;
     SA_EXPECT_ERROR((void)leaves.at("targets"), "'targets'", "(none)");
 }
 
 /** @brief Tests that the factory builds cross-entropy over the batch and classes it is given. */
-TEST(Unit_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
+TEST(Small_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
 {
     const Config::Value empty = Config::parse_json("{}", "<test>");
     Train::ObjectiveContext given;
@@ -433,7 +433,7 @@ TEST(Unit_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
 }
 
 /** @brief Tests that cross-entropy refuses every key, naming the one it met. */
-TEST(Unit_Objective, CrossEntropyTakesNoKeysAtAll)
+TEST(Small_Objective, CrossEntropyTakesNoKeysAtAll)
 {
     // Cross-entropy accepts no key; see tests/layers/train/README.md.
     const Config::Value stray = Config::parse_json(R"({"label_smoothing": 0.1})", "<test>");
@@ -446,7 +446,7 @@ TEST(Unit_Objective, CrossEntropyTakesNoKeysAtAll)
 }
 
 /** @brief Tests that data which states no class count cannot build cross-entropy. */
-TEST(Unit_Objective, CrossEntropyNeedsTheClassCountOfTheData)
+TEST(Small_Objective, CrossEntropyNeedsTheClassCountOfTheData)
 {
     const Config::Value empty = Config::parse_json("{}", "<test>");
     Train::ObjectiveContext given;
@@ -483,7 +483,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each make refuses an extent below 1, a bound threshold and int32. */
-TEST(Unit_ObjectiveGraph, MakeRefusesWhatNoLeafCanHold)
+TEST(Small_ObjectiveGraph, MakeRefusesWhatNoLeafCanHold)
 {
     SA_EXPECT_FAILURE(BinaryCrossEntropyObjective::make(0), StatusCode::InvalidDescription,
                       "binary_cross_entropy", "at least 1");
@@ -500,7 +500,7 @@ TEST(Unit_ObjectiveGraph, MakeRefusesWhatNoLeafCanHold)
 }
 
 /** @brief Tests that each factory takes its extents from the one output of the model. */
-TEST(Unit_ObjectiveGraph, TheFactoriesReadTheOneOutput)
+TEST(Small_ObjectiveGraph, TheFactoriesReadTheOneOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> binary,
@@ -523,7 +523,7 @@ TEST(Unit_ObjectiveGraph, TheFactoriesReadTheOneOutput)
 }
 
 /** @brief Tests that each factory refuses a model whose output it cannot read, and a stray key. */
-TEST(Unit_ObjectiveGraph, TheFactoriesRefuseAnotherOutputAndAStrayKey)
+TEST(Small_ObjectiveGraph, TheFactoriesRefuseAnotherOutputAndAStrayKey)
 {
     SA_EXPECT_FAILURE(
         Train::make_binary_cross_entropy(context_of(Shape{K_BATCH, 2}), keys("{}"), "objective"),

@@ -66,7 +66,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_ClassificationCollator : public SaTest::EngineTest
+    class Medium_ClassificationCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -111,7 +111,7 @@ namespace
 } // namespace
 
 /** @brief Tests that classification publishes labels as one int32 index over the classes. */
-TEST_F(Unit_ClassificationCollator, ClassificationPublishesLabels)
+TEST_F(Medium_ClassificationCollator, ClassificationPublishesLabels)
 {
     SA_EXPECT_FAILURE(ClassificationCollator::make(0), StatusCode::InvalidDescription,
                       "ClassificationCollator", "0 classes");
@@ -128,7 +128,7 @@ TEST_F(Unit_ClassificationCollator, ClassificationPublishesLabels)
 }
 
 /** @brief Tests that classification writes the inputs and each sample's class index. */
-TEST_F(Unit_ClassificationCollator, ClassificationWritesTheClassOfEachSample)
+TEST_F(Medium_ClassificationCollator, ClassificationWritesTheClassOfEachSample)
 {
     samples[0].class_index = 6;
     samples[1].class_index = 0;
@@ -145,7 +145,7 @@ TEST_F(Unit_ClassificationCollator, ClassificationWritesTheClassOfEachSample)
 }
 
 /** @brief Tests that classification names the file of a sample it cannot label. */
-TEST_F(Unit_ClassificationCollator, ClassificationNamesTheFileOfASampleWithoutAClass)
+TEST_F(Medium_ClassificationCollator, ClassificationNamesTheFileOfASampleWithoutAClass)
 {
     samples[0].class_index = 1;
 
@@ -161,7 +161,7 @@ TEST_F(Unit_ClassificationCollator, ClassificationNamesTheFileOfASampleWithoutAC
 }
 
 /** @brief Tests that a batch allocated over other roles is refused with the missing role. */
-TEST_F(Unit_ClassificationCollator, ABatchWithoutTheRoleIsRefused)
+TEST_F(Medium_ClassificationCollator, ABatchWithoutTheRoleIsRefused)
 {
     samples[0].class_index = 1;
     samples[1].class_index = 1;

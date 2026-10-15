@@ -38,7 +38,7 @@ using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
 
 /** @brief Tests that elements, their text, their order and their lines are read. */
-TEST(Unit_DatasetsXmlElement, ElementsTextAndLinesAreRead)
+TEST(Small_DatasetsXmlElement, ElementsTextAndLinesAreRead)
 {
     SA_ASSERT_OK_AND_ASSIGN(const XMLElement root,
                             parse_xml("<a>\n  <b> one </b>\n  <c><d>two</d></c>\n  <b/>\n</a>\n"));
@@ -60,7 +60,7 @@ TEST(Unit_DatasetsXmlElement, ElementsTextAndLinesAreRead)
 }
 
 /** @brief Tests that each of the five entities becomes its character. */
-TEST(Unit_DatasetsXmlElement, TheFiveEntitiesAreReplaced)
+TEST(Small_DatasetsXmlElement, TheFiveEntitiesAreReplaced)
 {
     SA_ASSERT_OK_AND_ASSIGN(const XMLElement root,
                             parse_xml("<n>a &amp; b &lt;c&gt; &quot;d&quot; &apos;e&apos;</n>"));
@@ -69,7 +69,7 @@ TEST(Unit_DatasetsXmlElement, TheFiveEntitiesAreReplaced)
 }
 
 /** @brief Tests that a declaration, a byte order mark, comments and attributes are passed. */
-TEST(Unit_DatasetsXmlElement, TheDeclarationCommentsAndAttributesAreSkipped)
+TEST(Small_DatasetsXmlElement, TheDeclarationCommentsAndAttributesAreSkipped)
 {
     const std::string text = "\xEF\xBB\xBF<?xml version=\"1.0\"?>\n<!-- head -->\n"
                              "<a verified=\"yes\" note='x > y'><!-- in --><b k=\"v\"/>t</a>\n"
@@ -85,14 +85,14 @@ TEST(Unit_DatasetsXmlElement, TheDeclarationCommentsAndAttributesAreSkipped)
 }
 
 /** @brief Tests that a closing tag of another name is refused with both lines. */
-TEST(Unit_DatasetsXmlElement, AClosingTagOfAnotherNameIsRefused)
+TEST(Small_DatasetsXmlElement, AClosingTagOfAnotherNameIsRefused)
 {
     SA_EXPECT_FAILURE(parse_xml("<a>\n<b>\n</a>\n"), StatusCode::InvalidFile, "line 3",
                       "parse_xml", "'</a>' closes '<b>'", "line 2");
 }
 
 /** @brief Tests that an element left open is refused with the line it opened on. */
-TEST(Unit_DatasetsXmlElement, AnElementLeftOpenIsRefused)
+TEST(Small_DatasetsXmlElement, AnElementLeftOpenIsRefused)
 {
     SA_EXPECT_FAILURE(parse_xml("<a>\n<b>text\n"), StatusCode::InvalidFile, "line 3",
                       "the element 'b', opened on line 2, is not closed");
@@ -102,7 +102,7 @@ TEST(Unit_DatasetsXmlElement, AnElementLeftOpenIsRefused)
 }
 
 /** @brief Tests that an entity outside the five is refused with its line. */
-TEST(Unit_DatasetsXmlElement, AnUnknownEntityIsRefused)
+TEST(Small_DatasetsXmlElement, AnUnknownEntityIsRefused)
 {
     SA_EXPECT_FAILURE(parse_xml("<a>\n\n&nbsp;</a>"), StatusCode::InvalidFile, "line 3",
                       "'&' opens none of");
@@ -110,7 +110,7 @@ TEST(Unit_DatasetsXmlElement, AnUnknownEntityIsRefused)
 }
 
 /** @brief Tests that markup outside the subset is refused with its line. */
-TEST(Unit_DatasetsXmlElement, MarkupOutsideTheSubsetIsRefused)
+TEST(Small_DatasetsXmlElement, MarkupOutsideTheSubsetIsRefused)
 {
     SA_EXPECT_FAILURE(parse_xml("<a>\n<![CDATA[x]]></a>"), StatusCode::InvalidFile, "line 2",
                       "CDATA");
@@ -121,7 +121,7 @@ TEST(Unit_DatasetsXmlElement, MarkupOutsideTheSubsetIsRefused)
 }
 
 /** @brief Tests that an attribute without a quoted value is refused with its name. */
-TEST(Unit_DatasetsXmlElement, AMalformedAttributeIsRefused)
+TEST(Small_DatasetsXmlElement, AMalformedAttributeIsRefused)
 {
     SA_EXPECT_FAILURE(parse_xml("<a>\n<b k=v/></a>"), StatusCode::InvalidFile, "line 2",
                       "attribute 'k'", "not quoted");
@@ -130,7 +130,7 @@ TEST(Unit_DatasetsXmlElement, AMalformedAttributeIsRefused)
 }
 
 /** @brief Tests that a document with no element, or with two roots, is refused. */
-TEST(Unit_DatasetsXmlElement, ADocumentNeedsExactlyOneRoot)
+TEST(Small_DatasetsXmlElement, ADocumentNeedsExactlyOneRoot)
 {
     SA_EXPECT_FAILURE(parse_xml("\n\n"), StatusCode::InvalidFile, "line 3", "holds no element");
     SA_EXPECT_FAILURE(parse_xml("text"), StatusCode::InvalidFile, "line 1",
@@ -142,7 +142,7 @@ TEST(Unit_DatasetsXmlElement, ADocumentNeedsExactlyOneRoot)
 }
 
 /** @brief Tests that elements open at once beyond K_XML_MAX_DEPTH are refused. */
-TEST(Unit_DatasetsXmlElement, NestingBeyondTheDepthIsRefused)
+TEST(Small_DatasetsXmlElement, NestingBeyondTheDepthIsRefused)
 {
     std::string deep;
     for (std::int32_t level = 0; level <= K_XML_MAX_DEPTH; ++level)

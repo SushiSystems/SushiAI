@@ -55,25 +55,27 @@ configure_file(
 # The trailing [^0-9] is load-bearing: CMake's regex has no multiline mode, so
 # `$` would anchor to the end of the whole output rather than the end of the
 # line, and without it "compiles: 12" would satisfy a bare "...: 1".
-add_test(NAME Integration_App.TrainRunsAndReportsOneCompile
+add_test(NAME Medium_App.TrainRunsAndReportsOneCompile
     COMMAND sushiai_train "${SUSHIAI_TINY_RUN_BINARY}/tiny_train.json"
 )
-set_tests_properties(Integration_App.TrainRunsAndReportsOneCompile PROPERTIES
-    LABELS "integration"
+set_tests_properties(Medium_App.TrainRunsAndReportsOneCompile PROPERTIES
+    LABELS "medium"
+    TIMEOUT 300
     PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
 )
 
 # DEPENDS is a CTest ordering constraint, not a chained assertion: inference
 # needs a checkpoint to exist, and the training test is what writes one. Each
 # still asserts its own contract on its own output.
-add_test(NAME Integration_App.InferenceLoadsACheckpointAndReportsOneCompile
+add_test(NAME Medium_App.InferenceLoadsACheckpointAndReportsOneCompile
     COMMAND sushiai_inference
         "${SUSHIAI_TEST_MODEL_JSON}"
         "${SUSHIAI_TEST_CHECKPOINT}"
         "${SUSHIAI_TINY_RUN_SOURCE}/tiny_eval.json"
 )
-set_tests_properties(Integration_App.InferenceLoadsACheckpointAndReportsOneCompile PROPERTIES
-    LABELS "integration"
-    DEPENDS Integration_App.TrainRunsAndReportsOneCompile
+set_tests_properties(Medium_App.InferenceLoadsACheckpointAndReportsOneCompile PROPERTIES
+    LABELS "medium"
+    TIMEOUT 300
+    DEPENDS Medium_App.TrainRunsAndReportsOneCompile
     PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
 )

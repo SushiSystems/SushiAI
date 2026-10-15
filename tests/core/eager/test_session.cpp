@@ -70,7 +70,7 @@ using Eager::StepCost;
 namespace
 {
     /** @brief Provides the Engine every case runs on. */
-    class Unit_EagerSession : public SaTest::EngineTest
+    class Medium_EagerSession : public SaTest::EngineTest
     {
 
     };
@@ -193,7 +193,7 @@ namespace
     }
 } // namespace
 
-TEST_F(Unit_EagerSession, AnUnscopedStepGivesTheLossBytesOfTheCompiledStep)
+TEST_F(Medium_EagerSession, AnUnscopedStepGivesTheLossBytesOfTheCompiledStep)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Compiled> compiled, make_compiled(*engine));
     Support::Loop loop(*engine, K_RATE);
@@ -215,7 +215,7 @@ TEST_F(Unit_EagerSession, AnUnscopedStepGivesTheLossBytesOfTheCompiledStep)
     EXPECT_EQ(loop.session.step_count(), 4u);
 }
 
-TEST_F(Unit_EagerSession, ASettledLoopComposesOnceAndAllocatesNothingMore)
+TEST_F(Medium_EagerSession, ASettledLoopComposesOnceAndAllocatesNothingMore)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_THREE_LAYERS));
@@ -246,7 +246,7 @@ TEST_F(Unit_EagerSession, ASettledLoopComposesOnceAndAllocatesNothingMore)
     EXPECT_EQ(loop.update.replay_count(), 5u);
 }
 
-TEST_F(Unit_EagerSession, FlippingABranchRebuildsThatScopesTwoRegionsAndNoOther)
+TEST_F(Medium_EagerSession, FlippingABranchRebuildsThatScopesTwoRegionsAndNoOther)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -271,7 +271,7 @@ TEST_F(Unit_EagerSession, FlippingABranchRebuildsThatScopesTwoRegionsAndNoOther)
     EXPECT_EQ(loop.update.record_count(), 1u);
 }
 
-TEST_F(Unit_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToTheSameLoss)
+TEST_F(Medium_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToTheSameLoss)
 {
     Support::Loop plain(*engine, K_RATE);
     Support::Loop scoped(*engine, K_RATE);
@@ -299,7 +299,7 @@ TEST_F(Unit_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToTheSa
     EXPECT_GT(scoped.executor.region_count(), plain.executor.region_count());
 }
 
-TEST_F(Unit_EagerSession, AScopeThatAppearsAndDisappearsRecordsTheRegionsItRenumbers)
+TEST_F(Medium_EagerSession, AScopeThatAppearsAndDisappearsRecordsTheRegionsItRenumbers)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -324,7 +324,7 @@ TEST_F(Unit_EagerSession, AScopeThatAppearsAndDisappearsRecordsTheRegionsItRenum
     EXPECT_EQ(loop.emit_count("encoder#0", Direction::Backward), 3u);
 }
 
-TEST_F(Unit_EagerSession, AParameterNoStepTracesKeepsAZeroGradientAndItsValue)
+TEST_F(Medium_EagerSession, AParameterNoStepTracesKeepsAZeroGradientAndItsValue)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -343,7 +343,7 @@ TEST_F(Unit_EagerSession, AParameterNoStepTracesKeepsAZeroGradientAndItsValue)
     EXPECT_EQ(SaTest::read_tensor_bytes(unused[0].weight), before);
 }
 
-TEST_F(Unit_EagerSession, AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsRead)
+TEST_F(Medium_EagerSession, AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsRead)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -361,7 +361,7 @@ TEST_F(Unit_EagerSession, AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsRea
     EXPECT_EQ(loop.update.record_count(), 0u);
 }
 
-TEST_F(Unit_EagerSession, AValueTheStepDidNotKeepCannotBeReadAfterTheRun)
+TEST_F(Medium_EagerSession, AValueTheStepDidNotKeepCannotBeReadAfterTheRun)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -379,7 +379,7 @@ TEST_F(Unit_EagerSession, AValueTheStepDidNotKeepCannotBeReadAfterTheRun)
     SA_EXPECT_FAILURE(step.keep(interior), StatusCode::Unsupported, "has run");
 }
 
-TEST_F(Unit_EagerSession, TracingAfterTheStepRanIsRefused)
+TEST_F(Medium_EagerSession, TracingAfterTheStepRanIsRefused)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -393,7 +393,7 @@ TEST_F(Unit_EagerSession, TracingAfterTheStepRanIsRefused)
     SA_EXPECT_FAILURE(step.read_scalar(loss), StatusCode::Unsupported, "after the step");
 }
 
-TEST_F(Unit_EagerSession, AStateTheSessionDoesNotHoldIsRefused)
+TEST_F(Medium_EagerSession, AStateTheSessionDoesNotHoldIsRefused)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -406,7 +406,7 @@ TEST_F(Unit_EagerSession, AStateTheSessionDoesNotHoldIsRefused)
                       "not bound as trainable");
 }
 
-TEST_F(Unit_EagerSession, BindingAStateTwiceIsRefused)
+TEST_F(Medium_EagerSession, BindingAStateTwiceIsRefused)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -416,7 +416,7 @@ TEST_F(Unit_EagerSession, BindingAStateTwiceIsRefused)
         StatusCode::InvalidDescription, "already bound");
 }
 
-TEST_F(Unit_EagerSession, ASecondLiveStepStopsTheProcess)
+TEST_F(Medium_EagerSession, ASecondLiveStepStopsTheProcess)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -428,7 +428,7 @@ TEST_F(Unit_EagerSession, ASecondLiveStepStopsTheProcess)
 namespace
 {
     /** @brief Provides the Engine every case runs on. */
-    class Unit_EagerStepCost : public SaTest::EngineTest
+    class Medium_EagerStepCost : public SaTest::EngineTest
     {
 
     };
@@ -528,7 +528,7 @@ namespace
     }
 } // namespace
 
-TEST_F(Unit_EagerStepCost, AnUnchangedStepOfTheTwoLayerModel)
+TEST_F(Medium_EagerStepCost, AnUnchangedStepOfTheTwoLayerModel)
 {
     SA_EXPECT_OK(measure_settled(*engine, "two layers, no scope", {6, 4, 3},
                                  Support::Scoping::None));
@@ -536,7 +536,7 @@ TEST_F(Unit_EagerStepCost, AnUnchangedStepOfTheTwoLayerModel)
                                  Support::Scoping::PerLayer));
 }
 
-TEST_F(Unit_EagerStepCost, AnUnchangedStepOfAFiftyLayerModel)
+TEST_F(Medium_EagerStepCost, AnUnchangedStepOfAFiftyLayerModel)
 {
     SA_EXPECT_OK(measure_settled(*engine, "fifty layers, no scope", widths_of(K_DEEP_LAYERS),
                                  Support::Scoping::None));
@@ -544,7 +544,7 @@ TEST_F(Unit_EagerStepCost, AnUnchangedStepOfAFiftyLayerModel)
                                  widths_of(K_DEEP_LAYERS), Support::Scoping::PerLayer));
 }
 
-TEST_F(Unit_EagerStepCost, AScopeThatAppearsAndDisappears)
+TEST_F(Medium_EagerStepCost, AScopeThatAppearsAndDisappears)
 {
     Support::Loop loop(*engine, K_COST_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, widths_of(K_DEEP_LAYERS)));

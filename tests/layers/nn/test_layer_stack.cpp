@@ -119,7 +119,7 @@ namespace
     }
 }
 
-TEST(Unit_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
+TEST(Small_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
 {
     Sequential compile_time{Linear{6, 8}, GELU{}, Linear{8, 4}};
     LayerStack run_time = make_stack();
@@ -132,7 +132,7 @@ TEST(Unit_LayerStack, NamesItsParametersExactlyAsSequentialDoes)
         "0.weight:[8, 6]", "0.bias:[8]", "2.weight:[4, 8]", "2.bias:[4]"}));
 }
 
-TEST(Unit_LayerStack, KeepsTheIndexGapAParameterlessActivationLeaves)
+TEST(Small_LayerStack, KeepsTheIndexGapAParameterlessActivationLeaves)
 {
     // Indices track layer positions, not parameter positions; see tests/layers/nn/README.md.
     LayerStack stack = make_stack();
@@ -142,7 +142,7 @@ TEST(Unit_LayerStack, KeepsTheIndexGapAParameterlessActivationLeaves)
     EXPECT_EQ(names[2].substr(0, 2), "2.");
 }
 
-TEST(Unit_LayerStack, ReportsTheLastLayersOutputWidth)
+TEST(Small_LayerStack, ReportsTheLastLayersOutputWidth)
 {
     LayerStack stack = make_stack();
     EXPECT_EQ(stack.size(), 3u);
@@ -150,7 +150,7 @@ TEST(Unit_LayerStack, ReportsTheLastLayersOutputWidth)
     EXPECT_EQ(stack.output_features(), 4);
 }
 
-TEST(Unit_LayerStack, TracesTheLayersInOrder)
+TEST(Small_LayerStack, TracesTheLayersInOrder)
 {
     LayerStack stack = make_stack();
 
@@ -162,7 +162,7 @@ TEST(Unit_LayerStack, TracesTheLayersInOrder)
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 4}));
 }
 
-TEST(Unit_LayerStack, RefusesToTraceWhenEmpty)
+TEST(Small_LayerStack, RefusesToTraceWhenEmpty)
 {
     LayerStack stack;
     Graph::Graph graph;
@@ -172,26 +172,26 @@ TEST(Unit_LayerStack, RefusesToTraceWhenEmpty)
     SA_EXPECT_ERROR((void)stack.forward(builder, x), "no layers", "identity");
 }
 
-TEST(Unit_LayerStack, RefusesAnOutputWidthWhenEmpty)
+TEST(Small_LayerStack, RefusesAnOutputWidthWhenEmpty)
 {
     const LayerStack stack;
     SA_EXPECT_ERROR((void)stack.output_features(), "no layers");
 }
 
-TEST(Unit_LayerStack, RefusesANullLayer)
+TEST(Small_LayerStack, RefusesANullLayer)
 {
     LayerStack stack;
     SA_EXPECT_ERROR(stack.push(nullptr), "null layer", "index 0");
 }
 
-TEST(Unit_LayerStack, ReportsAnOutOfRangeLayerIndex)
+TEST(Small_LayerStack, ReportsAnOutOfRangeLayerIndex)
 {
     const LayerStack stack = make_stack();
     EXPECT_NO_THROW((void)stack.layer(2));
     SA_EXPECT_ERROR((void)stack.layer(3), "layer 3", "holds 3");
 }
 
-TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
+TEST(Small_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 {
     // Both traces go into one graph; see tests/layers/nn/README.md.
     LayerStack stack = make_stack();
@@ -208,14 +208,14 @@ TEST(Unit_LayerStack, TracingTwiceDoesNotDuplicateParameters)
 }
 
 /** @brief Tests that an adapter built from a Shape reports that shape unchanged. */
-TEST(Unit_LayerStack, AnAdapterBuiltFromAShapeReportsIt)
+TEST(Small_LayerStack, AnAdapterBuiltFromAShapeReportsIt)
 {
     const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
     EXPECT_EQ(adapter.output_shape(), (Shape{4, 5, 3}));
 }
 
 /** @brief Tests that an adapter built from a width reports the rank-1 shape of that width. */
-TEST(Unit_LayerStack, AnAdapterBuiltFromAWidthReportsARankOneShape)
+TEST(Small_LayerStack, AnAdapterBuiltFromAWidthReportsARankOneShape)
 {
     const LayerAdapter<Linear> adapter(Linear{6, 8}, 8);
     EXPECT_EQ(adapter.output_shape(), (Shape{8}));
@@ -223,7 +223,7 @@ TEST(Unit_LayerStack, AnAdapterBuiltFromAWidthReportsARankOneShape)
 }
 
 /** @brief Tests that output_features() is the element count of output_shape(). */
-TEST(Unit_LayerStack, OutputFeaturesEqualsTheElementCountOfTheOutputShape)
+TEST(Small_LayerStack, OutputFeaturesEqualsTheElementCountOfTheOutputShape)
 {
     const LayerAdapter<GELU> adapter(GELU{}, Shape{4, 5, 3});
     const NN::Layer& layer = adapter;
@@ -233,7 +233,7 @@ TEST(Unit_LayerStack, OutputFeaturesEqualsTheElementCountOfTheOutputShape)
 }
 
 /** @brief Tests that a stack reports the last layer's per-sample shape and its element count. */
-TEST(Unit_LayerStack, ReportsTheLastLayersOutputShape)
+TEST(Small_LayerStack, ReportsTheLastLayersOutputShape)
 {
     EXPECT_EQ(make_stack().output_shape(), (Shape{4}));
 
@@ -244,14 +244,14 @@ TEST(Unit_LayerStack, ReportsTheLastLayersOutputShape)
 }
 
 /** @brief Tests that an empty stack refuses to report an output shape. */
-TEST(Unit_LayerStack, RefusesAnOutputShapeWhenEmpty)
+TEST(Small_LayerStack, RefusesAnOutputShapeWhenEmpty)
 {
     const LayerStack stack;
     SA_EXPECT_ERROR((void)stack.output_shape(), "no layers", "output shape");
 }
 
 /** @brief Tests that build_layer_stack hands each layer's output shape to the next factory. */
-TEST(Unit_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
+TEST(Small_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
 {
     const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
 
@@ -265,7 +265,7 @@ TEST(Unit_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
 }
 
 /** @brief Tests that a hand-built spec seeds the chain from its input shape. */
-TEST(Unit_LayerStack, BuildLayerStackSeedsTheChainFromTheInputShape)
+TEST(Small_LayerStack, BuildLayerStackSeedsTheChainFromTheInputShape)
 {
     Config::ModelSpec model = hand_built_chain();
     model.input_shape = Shape{5};
@@ -277,7 +277,7 @@ TEST(Unit_LayerStack, BuildLayerStackSeedsTheChainFromTheInputShape)
 }
 
 /** @brief Tests that a hand-built row that names no source is refused with its index and type. */
-TEST(Unit_LayerStack, BuildLayerStackRefusesAHandBuiltRowWithoutASource)
+TEST(Small_LayerStack, BuildLayerStackRefusesAHandBuiltRowWithoutASource)
 {
     Config::ModelSpec model = hand_built_chain();
     model.layers[1].from.clear();
@@ -287,7 +287,7 @@ TEST(Unit_LayerStack, BuildLayerStackRefusesAHandBuiltRowWithoutASource)
 }
 
 /** @brief Tests that output_shape over an input shape is the last layer's output shape. */
-TEST(Unit_LayerStack, OutputShapeOfAnInputIsTheLastLayersOutputShape)
+TEST(Small_LayerStack, OutputShapeOfAnInputIsTheLastLayersOutputShape)
 {
     const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
 
@@ -296,14 +296,14 @@ TEST(Unit_LayerStack, OutputShapeOfAnInputIsTheLastLayersOutputShape)
 }
 
 /** @brief Tests that an empty stack refuses an output shape in the layer form too. */
-TEST(Unit_LayerStack, RefusesAnOutputShapeOfAnInputWhenEmpty)
+TEST(Small_LayerStack, RefusesAnOutputShapeOfAnInputWhenEmpty)
 {
     const LayerStack stack;
     SA_EXPECT_ERROR((void)stack.output_shape(Shape{6}), "no layers", "output shape");
 }
 
 /** @brief Tests that a factory hands a rank-3 per-sample shape to its layer with no axis merged. */
-TEST(Unit_LayerStack, AnActivationFactoryKeepsARankThreeInputShape)
+TEST(Small_LayerStack, AnActivationFactoryKeepsARankThreeInputShape)
 {
     const Config::Value attributes = Config::parse_json("{}", "<test>");
     const std::unique_ptr<NN::Layer> layer =
@@ -314,7 +314,7 @@ TEST(Unit_LayerStack, AnActivationFactoryKeepsARankThreeInputShape)
 }
 
 /** @brief Tests that a linear layer after a rank-3 input throws and tells the reader to flatten. */
-TEST(Unit_LayerStack, ALinearFactoryRefusesARankThreeInputAndNamesFlatten)
+TEST(Small_LayerStack, ALinearFactoryRefusesARankThreeInputAndNamesFlatten)
 {
     const Config::Value attributes = Config::parse_json(R"({"units": 8})", "<test>");
 
@@ -344,7 +344,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_LayerStack, ChainsLayerWidthsFromTheInputFeatures)
+TEST(Small_LayerStack, ChainsLayerWidthsFromTheInputFeatures)
 {
     SushiAI::NN::LayerStack stack =
         SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL));
@@ -357,7 +357,7 @@ TEST(Unit_LayerStack, ChainsLayerWidthsFromTheInputFeatures)
     EXPECT_EQ(stack.layer(1).output_features(), 8);
 }
 
-TEST(Unit_LayerStack, AConfiguredStackTracesToTheDeclaredOutputWidth)
+TEST(Small_LayerStack, AConfiguredStackTracesToTheDeclaredOutputWidth)
 {
     SushiAI::NN::LayerStack stack =
         SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL));
@@ -369,7 +369,7 @@ TEST(Unit_LayerStack, AConfiguredStackTracesToTheDeclaredOutputWidth)
     EXPECT_EQ(graph.value(stack.forward(builder, x)).shape, (SushiAI::Shape{4, 4}));
 }
 
-TEST(Unit_LayerStack, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
+TEST(Small_LayerStack, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
 {
     const SushiAI::Config::ModelSpec model = model_from(R"({
         "sushiai_model": 1,
@@ -381,7 +381,7 @@ TEST(Unit_LayerStack, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
                     "hologram", "layer type", "'linear'", "'gelu'");
 }
 
-TEST(Unit_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
+TEST(Small_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
 {
     const SushiAI::Config::ModelSpec typo = model_from(R"({
         "sushiai_model": 1,
@@ -401,7 +401,7 @@ TEST(Unit_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
                     "layer 0 'gelu'", "'units'");
 }
 
-TEST(Unit_LayerStack, ALayerFactoryRefusesANonPositiveWidth)
+TEST(Small_LayerStack, ALayerFactoryRefusesANonPositiveWidth)
 {
     const SushiAI::Config::ModelSpec model = model_from(R"({
         "sushiai_model": 1,
@@ -412,7 +412,7 @@ TEST(Unit_LayerStack, ALayerFactoryRefusesANonPositiveWidth)
                     "layer 0 'linear'", "'units'");
 }
 
-TEST(Unit_LayerStack, UseBiasDefaultsToTrueAndCanBeTurnedOff)
+TEST(Small_LayerStack, UseBiasDefaultsToTrueAndCanBeTurnedOff)
 {
     const SushiAI::NN::NodeRegistry registry = make_layer_registry();
     SushiAI::NN::LayerStack with_bias = SushiAI::NN::build_layer_stack(registry, model_from(R"({

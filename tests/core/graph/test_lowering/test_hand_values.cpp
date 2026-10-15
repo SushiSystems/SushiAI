@@ -52,10 +52,10 @@ using SaTest::write_tensor;
 
 namespace
 {
-    class Integration_Forward : public SaTest::EngineTest {};
+    class Medium_Forward : public SaTest::EngineTest {};
 
     /** @brief Names the suite of the cases that expect the process to stop. */
-    using Integration_ForwardDeathTest = Integration_Forward;
+    using Medium_ForwardDeathTest = Medium_Forward;
 
     /** @brief Lowers a graph, runs it once, and hands back the pool. */
     class OneShot
@@ -84,7 +84,7 @@ namespace
     };
 }
 
-TEST_F(Integration_Forward, LinearLayerMatchesHandComputedValues)
+TEST_F(Medium_Forward, LinearLayerMatchesHandComputedValues)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -118,7 +118,7 @@ TEST_F(Integration_Forward, LinearLayerMatchesHandComputedValues)
         EXPECT_NEAR(post[i], expected_post[i], 1e-5) << "at " << i;
 }
 
-TEST_F(Integration_Forward, SumRowsProducesColumnSums)
+TEST_F(Medium_Forward, SumRowsProducesColumnSums)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -138,7 +138,7 @@ TEST_F(Integration_Forward, SumRowsProducesColumnSums)
     EXPECT_NEAR(result[1], 12.0, 1e-5);
 }
 
-TEST_F(Integration_Forward, ReshapeReinterpretsRowMajorLinearOrder)
+TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -158,7 +158,7 @@ TEST_F(Integration_Forward, ReshapeReinterpretsRowMajorLinearOrder)
         EXPECT_NEAR(result[i], static_cast<double>(i), 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
+TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -183,7 +183,7 @@ TEST_F(Integration_Forward, LayoutConvertPermutesChannelsToTheFront)
         EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
 }
 
-TEST_F(Integration_Forward, ElementwiseAndScaleMatchTheirDefinitions)
+TEST_F(Medium_Forward, ElementwiseAndScaleMatchTheirDefinitions)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -229,7 +229,7 @@ TEST_F(Integration_Forward, ElementwiseAndScaleMatchTheirDefinitions)
     EXPECT_NEAR(got_exponent[3], 1.0, 1e-5);
 }
 
-TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
+TEST_F(Medium_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -268,7 +268,7 @@ TEST_F(Integration_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlon
     }
 }
 
-TEST_F(Integration_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
+TEST_F(Medium_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -302,7 +302,7 @@ TEST_F(Integration_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     }
 }
 
-TEST_F(Integration_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
+TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -324,7 +324,7 @@ TEST_F(Integration_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
     EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], std::log(5.0), 1e-5);
 }
 
-TEST_F(Integration_Forward, CrossEntropyMatchesAHandComputedSingleRow)
+TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -344,7 +344,7 @@ TEST_F(Integration_Forward, CrossEntropyMatchesAHandComputedSingleRow)
     EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], lse - 3.0, 1e-5);
 }
 
-TEST_F(Integration_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
+TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -370,7 +370,7 @@ TEST_F(Integration_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
     }
 }
 
-TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
+TEST_F(Medium_Forward, ZeroFillsItsBufferExactlyOnce)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -394,7 +394,7 @@ TEST_F(Integration_Forward, ZeroFillsItsBufferExactlyOnce)
         EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
 }
 
-TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
+TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 {
     // One 2x2 window covers the whole image; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -419,7 +419,7 @@ TEST_F(Integration_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
+TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 {
     // A pixel receives the sum of its windows; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -444,7 +444,7 @@ TEST_F(Integration_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
+TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
 {
     // out_h is 5 and out_w is 4, not the transpose; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -494,7 +494,7 @@ TEST_F(Integration_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGiven
             << "at row " << (i / 9) << " tap " << (i % 9);
 }
 
-TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
+TEST_F(Medium_Forward, MaxPool2dTakesEachWindowsMaximum)
 {
     // One 2x2 window over 0..3 has maximum 3; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -517,7 +517,7 @@ TEST_F(Integration_Forward, MaxPool2dTakesEachWindowsMaximum)
     EXPECT_NEAR(result[0], 3.0, 1e-9);
 }
 
-TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
+TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 {
     // The permuted intermediate is the real test; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -558,7 +558,7 @@ TEST_F(Integration_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
         EXPECT_NEAR(result[i], original[i], 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
+TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
 {
     // Passes run in Trainer::build order; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -613,7 +613,7 @@ TEST_F(Integration_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesIts
     EXPECT_GT(std::abs(dx[7]), 1e-6) << "the c=1 maximum received no gradient at all";
 }
 
-TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
+TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
 {
     // Same window as the max-pool case above; the average of 0,1,2,3 is 1.5.
     Graph::Graph graph;
@@ -636,7 +636,7 @@ TEST_F(Integration_Forward, AvgPool2dDividesByTheFullWindowArea)
     EXPECT_NEAR(result[0], 1.5, 1e-9);
 }
 
-TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
+TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
 {
     // One pixel at scale 2x2 becomes a 2x2 block of the same value.
     Graph::Graph graph;
@@ -658,7 +658,7 @@ TEST_F(Integration_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
+TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
 {
     // N=1, H=2, W=2, C=1, values 0,1,2,3: the mean of the whole plane is 1.5.
     Graph::Graph graph;
@@ -678,7 +678,7 @@ TEST_F(Integration_Forward, SpatialMeanAveragesEveryHWPlane)
     EXPECT_NEAR(result[0], 1.5, 1e-9);
 }
 
-TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
+TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
 {
     // Left [10] and right [20] must land as [10, 20].
     Graph::Graph graph;
@@ -704,7 +704,7 @@ TEST_F(Integration_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
+TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
 {
     // Slicing [1, 3) of [1, 2, 3, 4] must return [2, 3].
     Graph::Graph graph;
@@ -726,7 +726,7 @@ TEST_F(Integration_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
         EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
 }
 
-TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
+TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 {
     // Two pixels share one pair of parameters; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -753,7 +753,7 @@ TEST_F(Integration_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
         EXPECT_NEAR(result[i], expected[i], 1e-6) << "at " << i;
 }
 
-TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
+TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
 {
     // Variance is biased, divided by N*H*W; see tests/core/graph/README.md.
     constexpr double K_EPSILON = 1e-5;
@@ -803,7 +803,7 @@ TEST_F(Integration_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
         EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
 }
 
-TEST_F(Integration_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
+TEST_F(Medium_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -816,7 +816,7 @@ TEST_F(Integration_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithG
                     "Leaf value", "'x'", "has no tensor bound");
 }
 
-TEST_F(Integration_ForwardDeathTest, AnUnimplementedOperationNamesItself)
+TEST_F(Medium_ForwardDeathTest, AnUnimplementedOperationNamesItself)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

@@ -115,7 +115,7 @@ namespace
 } // namespace
 
 /** @brief Tests that forward() emits one K_DEPTHWISE_CONV2D node and no BIAS_ADD node. */
-TEST(Unit_DepthwiseConv2d, ForwardEmitsOneDepthwiseNodeAndNoBiasAdd)
+TEST(Small_DepthwiseConv2d, ForwardEmitsOneDepthwiseNodeAndNoBiasAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -129,7 +129,7 @@ TEST(Unit_DepthwiseConv2d, ForwardEmitsOneDepthwiseNodeAndNoBiasAdd)
 }
 
 /** @brief Tests that the emitted node reads the input and the [3, 3, 4] taps. */
-TEST(Unit_DepthwiseConv2d, TheEmittedNodeReadsTheInputAndTheWeight)
+TEST(Small_DepthwiseConv2d, TheEmittedNodeReadsTheInputAndTheWeight)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -148,7 +148,7 @@ TEST(Unit_DepthwiseConv2d, TheEmittedNodeReadsTheInputAndTheWeight)
 }
 
 /** @brief Tests that a padded 3x3 stride-1 convolution keeps the spatial extents and tags NHWC. */
-TEST(Unit_DepthwiseConv2d, ForwardKeepsTheSpatialExtentsAndTagsNHWC)
+TEST(Small_DepthwiseConv2d, ForwardKeepsTheSpatialExtentsAndTagsNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -162,7 +162,7 @@ TEST(Unit_DepthwiseConv2d, ForwardKeepsTheSpatialExtentsAndTagsNHWC)
 }
 
 /** @brief Tests that a stride-2 convolution over an even extent halves both spatial extents. */
-TEST(Unit_DepthwiseConv2d, StrideTwoHalvesAnEvenExtent)
+TEST(Small_DepthwiseConv2d, StrideTwoHalvesAnEvenExtent)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -175,7 +175,7 @@ TEST(Unit_DepthwiseConv2d, StrideTwoHalvesAnEvenExtent)
 }
 
 /** @brief Tests that the weight is [kernel_h, kernel_w, channels] under an anisotropic window. */
-TEST(Unit_DepthwiseConv2d, TheWeightOfAnAnisotropicWindowIsHeightWidthChannels)
+TEST(Small_DepthwiseConv2d, TheWeightOfAnAnisotropicWindowIsHeightWidthChannels)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -189,7 +189,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightOfAnAnisotropicWindowIsHeightWidthChannels)
 }
 
 /** @brief Tests that the walk yields the weight alone, and that it is empty before forward(). */
-TEST(Unit_DepthwiseConv2d, TheParameterWalkNamesOnlyTheWeight)
+TEST(Small_DepthwiseConv2d, TheParameterWalkNamesOnlyTheWeight)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -204,7 +204,7 @@ TEST(Unit_DepthwiseConv2d, TheParameterWalkNamesOnlyTheWeight)
 }
 
 /** @brief Tests that the weight is declared with the WEIGHT role. */
-TEST(Unit_DepthwiseConv2d, TheWeightRecordsTheWeightRole)
+TEST(Small_DepthwiseConv2d, TheWeightRecordsTheWeightRole)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -217,7 +217,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightRecordsTheWeightRole)
 }
 
 /** @brief Tests that the weight records its window as both fans, since each channel is its own. */
-TEST(Unit_DepthwiseConv2d, TheWeightRecordsItsWindowAsBothFans)
+TEST(Small_DepthwiseConv2d, TheWeightRecordsItsWindowAsBothFans)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -231,7 +231,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightRecordsItsWindowAsBothFans)
 }
 
 /** @brief Tests that a FLOAT64 input gives a FLOAT64 weight and a FLOAT64 result. */
-TEST(Unit_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
+TEST(Small_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -245,7 +245,7 @@ TEST(Unit_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
 }
 
 /** @brief Tests that output_shape() keeps the extents of a padded 3x3 window at stride 1. */
-TEST(Unit_DepthwiseConv2d, OutputShapeAtStrideOneKeepsTheExtents)
+TEST(Small_DepthwiseConv2d, OutputShapeAtStrideOneKeepsTheExtents)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 
@@ -253,7 +253,7 @@ TEST(Unit_DepthwiseConv2d, OutputShapeAtStrideOneKeepsTheExtents)
 }
 
 /** @brief Tests that output_shape() halves the extents of a padded 3x3 window at stride 2. */
-TEST(Unit_DepthwiseConv2d, OutputShapeAtStrideTwoHalvesTheExtents)
+TEST(Small_DepthwiseConv2d, OutputShapeAtStrideTwoHalvesTheExtents)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
 
@@ -261,7 +261,7 @@ TEST(Unit_DepthwiseConv2d, OutputShapeAtStrideTwoHalvesTheExtents)
 }
 
 /** @brief Tests that output_shape() matches the traced shape at stride 1 and at stride 2. */
-TEST(Unit_DepthwiseConv2d, OutputShapeAgreesWithForwardAtStrideOneAndTwo)
+TEST(Small_DepthwiseConv2d, OutputShapeAgreesWithForwardAtStrideOneAndTwo)
 {
     const Shape sample{8, 6, 4};
 
@@ -273,7 +273,7 @@ TEST(Unit_DepthwiseConv2d, OutputShapeAgreesWithForwardAtStrideOneAndTwo)
 }
 
 /** @brief Tests that output_shape() drops the remainder of an odd extent at stride 2 and agrees. */
-TEST(Unit_DepthwiseConv2d, OutputShapeAgreesWithForwardOverAnOddExtent)
+TEST(Small_DepthwiseConv2d, OutputShapeAgreesWithForwardOverAnOddExtent)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
     const Shape sample{7, 9, 4};
@@ -283,7 +283,7 @@ TEST(Unit_DepthwiseConv2d, OutputShapeAgreesWithForwardOverAnOddExtent)
 }
 
 /** @brief Tests that same_padded() sets the kernel, the stride, kernel / 2 pads and dilation 1. */
-TEST(Unit_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
+TEST(Small_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
 {
     const DepthwiseConv2d layer = DepthwiseConv2d::same_padded(4, 4, 5, 2);
 
@@ -299,13 +299,13 @@ TEST(Unit_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
 }
 
 /** @brief Tests that same_padded() throws when the input and output channel counts differ. */
-TEST(Unit_DepthwiseConv2d, SamePaddedRefusesUnequalChannelCounts)
+TEST(Small_DepthwiseConv2d, SamePaddedRefusesUnequalChannelCounts)
 {
     SA_EXPECT_ERROR((void)DepthwiseConv2d::same_padded(4, 8, 3, 1), "keeps its channel count");
 }
 
 /** @brief Tests that forward() throws on a rank-2 input, naming the rank-4 requirement. */
-TEST(Unit_DepthwiseConv2d, ForwardRejectsAnInputThatIsNotRankFour)
+TEST(Small_DepthwiseConv2d, ForwardRejectsAnInputThatIsNotRankFour)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -317,7 +317,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAnInputThatIsNotRankFour)
 }
 
 /** @brief Tests that forward() throws on a rank-4 input tagged NCHW, naming NHWC. */
-TEST(Unit_DepthwiseConv2d, ForwardRejectsAnNCHWInput)
+TEST(Small_DepthwiseConv2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -330,7 +330,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that forward() throws when the input's channel count differs from the layer's. */
-TEST(Unit_DepthwiseConv2d, ForwardRejectsAChannelCountThatDiffersFromTheLayer)
+TEST(Small_DepthwiseConv2d, ForwardRejectsAChannelCountThatDiffersFromTheLayer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -342,7 +342,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAChannelCountThatDiffersFromTheLayer)
 }
 
 /** @brief Tests that forward() throws on a non-positive channel count, naming it. */
-TEST(Unit_DepthwiseConv2d, ForwardRejectsANonPositiveChannelCount)
+TEST(Small_DepthwiseConv2d, ForwardRejectsANonPositiveChannelCount)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -354,7 +354,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsANonPositiveChannelCount)
 }
 
 /** @brief Tests that forward() throws when the window is larger than the input. */
-TEST(Unit_DepthwiseConv2d, ForwardRejectsAWindowThatDoesNotFit)
+TEST(Small_DepthwiseConv2d, ForwardRejectsAWindowThatDoesNotFit)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -366,7 +366,7 @@ TEST(Unit_DepthwiseConv2d, ForwardRejectsAWindowThatDoesNotFit)
 }
 
 /** @brief Tests that output_shape() throws when the sample's channel count differs. */
-TEST(Unit_DepthwiseConv2d, OutputShapeRejectsAChannelCountThatDiffersFromTheLayer)
+TEST(Small_DepthwiseConv2d, OutputShapeRejectsAChannelCountThatDiffersFromTheLayer)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 
@@ -374,7 +374,7 @@ TEST(Unit_DepthwiseConv2d, OutputShapeRejectsAChannelCountThatDiffersFromTheLaye
 }
 
 /** @brief Tests that output_shape() throws on a sample that is not an [H, W, C] shape. */
-TEST(Unit_DepthwiseConv2d, OutputShapeRejectsASampleOfTheWrongRank)
+TEST(Small_DepthwiseConv2d, OutputShapeRejectsASampleOfTheWrongRank)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 

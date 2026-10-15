@@ -170,6 +170,6 @@ whole, and refuses a larger one before reading it.
 ## Tests
 
 `tests/language/text/test_vocabulary.cpp`, `test_text_bpe_trainer.cpp`, `test_text_codec.cpp` and
-`test_text_vocabulary_file.cpp`, in the suites `Unit_TextVocabulary`, `Unit_TextBpeTrainer`,
-`Unit_TextCodec` and `Unit_TextVocabularyFile`. None needs a device. The files they write are
+`test_text_vocabulary_file.cpp`, in the suites `Small_TextVocabulary`, `Small_TextBpeTrainer`,
+`Small_TextCodec` and `Small_TextVocabularyFile`. None needs a device. The files they write are
 under the system's temporary directory and are removed when the test ends.

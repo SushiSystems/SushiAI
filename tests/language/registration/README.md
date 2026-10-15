@@ -4,7 +4,7 @@ The tests of the module `language/registration`, one file per header of `modules
 
 ## test_registration.cpp
 
-Suites: `Unit_LanguageRegistration`.
+Suites: `Medium_LanguageRegistration`.
 
 Tests the three registration entry points of the language module, `Language::register_nodes`,
 `Language::register_datasets` and `Language::register_objectives`, and that model files using
@@ -50,7 +50,7 @@ publishes five outputs. Traced over a [2, 8] `Int32` input, the logits have the 
 `Training::K_USAGE_OUTPUT_PREFIX`, and a "sum" objective of a "next_token" term and an
 "expert_balance" term builds over the published shapes.
 
-Suites: `Integration_Moe`, in `sushiai_language_registration_tests`.
+Suites: `Medium_Moe`, in `sushiai_language_registration_tests`.
 
 The block cases run a FLOAT64 mixture-of-experts block of three experts with a hidden width of 3
 over a `[1, 3, 4]` sequence, with every parameter filled from seeded noise. The mixture is compared
@@ -93,12 +93,12 @@ compile and a last loss below half the first. `expert_usage_min` is above 0.10 a
 1e-5, `expert_usage_max` is at least 0.25 minus 1e-5, and the report's text names
 `expert_usage_min`.
 
-Suites: `Integration_DecoderModelFile`, `Integration_DecoderFromFiles`, in
+Suites: `Small_DecoderModelFile`, `Medium_DecoderFromFiles`, in
 `sushiai_language_registration_tests`.
 
 The cases build the decoder that `decoder_model.hpp` states as a model file: a vocabulary of 32, a
 window of 8, a width of 16 and two blocks, with a head tied to the token table. The graphs are
-traced for a batch of 2. `Integration_DecoderModelFile` needs no engine.
+traced for a batch of 2. `Small_DecoderModelFile` needs no engine.
 
 ### TheFileStatesAnInt32Input
 

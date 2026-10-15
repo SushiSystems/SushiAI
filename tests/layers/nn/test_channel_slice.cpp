@@ -61,7 +61,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the offset and count fields are the two values an aggregate list sets. */
-TEST(Unit_ChannelSlice, TheOffsetAndCountFieldsAreSetInOrder)
+TEST(Small_ChannelSlice, TheOffsetAndCountFieldsAreSetInOrder)
 {
     const ChannelSlice layer{32, 16};
 
@@ -70,7 +70,7 @@ TEST(Unit_ChannelSlice, TheOffsetAndCountFieldsAreSetInOrder)
 }
 
 /** @brief Tests the acceptance case: [H, W, 64] with offset 32 and count 32 gives [H, W, 32]. */
-TEST(Unit_ChannelSlice, OutputShapeKeepsHeightAndWidthAndTakesTheRange)
+TEST(Small_ChannelSlice, OutputShapeKeepsHeightAndWidthAndTakesTheRange)
 {
     const ChannelSlice layer{32, 32};
 
@@ -78,7 +78,7 @@ TEST(Unit_ChannelSlice, OutputShapeKeepsHeightAndWidthAndTakesTheRange)
 }
 
 /** @brief Tests that the first channel, the last channel and the whole range are all accepted. */
-TEST(Unit_ChannelSlice, OutputShapeAcceptsTheFirstLastAndWholeRanges)
+TEST(Small_ChannelSlice, OutputShapeAcceptsTheFirstLastAndWholeRanges)
 {
     EXPECT_EQ((ChannelSlice{0, 1}.output_shape(Shape{4, 2, 4})), (Shape{4, 2, 1}));
     EXPECT_EQ((ChannelSlice{3, 1}.output_shape(Shape{4, 2, 4})), (Shape{4, 2, 1}));
@@ -87,7 +87,7 @@ TEST(Unit_ChannelSlice, OutputShapeAcceptsTheFirstLastAndWholeRanges)
 }
 
 /** @brief Tests that the traced result carries the NHWC layout tag. */
-TEST(Unit_ChannelSlice, TheResultIsTaggedNHWC)
+TEST(Small_ChannelSlice, TheResultIsTaggedNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -104,7 +104,7 @@ TEST(Unit_ChannelSlice, TheResultIsTaggedNHWC)
  * @brief Tests the acceptance case at trace level: one K_SLICE_CHANNELS node reads x and
  * carries the offset, and the result is [N, H, W, 32].
  */
-TEST(Unit_ChannelSlice, ForwardEmitsOneSliceNodeCarryingTheOffset)
+TEST(Small_ChannelSlice, ForwardEmitsOneSliceNodeCarryingTheOffset)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -123,7 +123,7 @@ TEST(Unit_ChannelSlice, ForwardEmitsOneSliceNodeCarryingTheOffset)
 }
 
 /** @brief Tests that a range covering every channel traces to the input's own shape. */
-TEST(Unit_ChannelSlice, TheWholeChannelRangeTracesToTheInputShape)
+TEST(Small_ChannelSlice, TheWholeChannelRangeTracesToTheInputShape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -136,7 +136,7 @@ TEST(Unit_ChannelSlice, TheWholeChannelRangeTracesToTheInputShape)
 }
 
 /** @brief Tests that output_shape equals the traced shape without its batch axis. */
-TEST(Unit_ChannelSlice, OutputShapeAgreesWithTheTracedShape)
+TEST(Small_ChannelSlice, OutputShapeAgreesWithTheTracedShape)
 {
     const ChannelSlice acceptance{32, 32};
     EXPECT_EQ(acceptance.output_shape(Shape{5, 3, 64}),
@@ -148,7 +148,7 @@ TEST(Unit_ChannelSlice, OutputShapeAgreesWithTheTracedShape)
 }
 
 /** @brief Tests that output_shape rejects a negative offset in a message naming the values. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsANegativeOffset)
+TEST(Small_ChannelSlice, OutputShapeRejectsANegativeOffset)
 {
     const ChannelSlice layer{-1, 4};
 
@@ -157,7 +157,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsANegativeOffset)
 }
 
 /** @brief Tests that output_shape rejects a zero count in a message naming the values. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsAZeroCount)
+TEST(Small_ChannelSlice, OutputShapeRejectsAZeroCount)
 {
     const ChannelSlice layer{0, 0};
 
@@ -166,7 +166,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsAZeroCount)
 }
 
 /** @brief Tests that output_shape rejects a negative count in a message naming the values. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsANegativeCount)
+TEST(Small_ChannelSlice, OutputShapeRejectsANegativeCount)
 {
     const ChannelSlice layer{8, -2};
 
@@ -175,7 +175,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsANegativeCount)
 }
 
 /** @brief Tests that output_shape rejects a range that runs past the channels. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsARangePastTheChannels)
+TEST(Small_ChannelSlice, OutputShapeRejectsARangePastTheChannels)
 {
     const ChannelSlice layer{32, 40};
 
@@ -184,7 +184,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsARangePastTheChannels)
 }
 
 /** @brief Tests that output_shape rejects an offset at the channel count, even with count 1. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsAnOffsetAtTheChannelCount)
+TEST(Small_ChannelSlice, OutputShapeRejectsAnOffsetAtTheChannelCount)
 {
     const ChannelSlice layer{64, 1};
 
@@ -193,7 +193,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsAnOffsetAtTheChannelCount)
 }
 
 /** @brief Tests that extreme offsets and counts are refused without overflowing the range test. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsExtremeValuesWithoutOverflow)
+TEST(Small_ChannelSlice, OutputShapeRejectsExtremeValuesWithoutOverflow)
 {
     const int64_t largest = std::numeric_limits<int64_t>::max();
     const ChannelSlice far_offset{largest, 1};
@@ -206,7 +206,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsExtremeValuesWithoutOverflow)
 }
 
 /** @brief Tests that output_shape rejects a feature vector in a message naming layer and shape. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsARankOnePerSampleShape)
+TEST(Small_ChannelSlice, OutputShapeRejectsARankOnePerSampleShape)
 {
     const ChannelSlice layer{0, 1};
 
@@ -214,7 +214,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsARankOnePerSampleShape)
 }
 
 /** @brief Tests that output_shape throws for a shape that still carries its batch axis. */
-TEST(Unit_ChannelSlice, OutputShapeRejectsARankFourShape)
+TEST(Small_ChannelSlice, OutputShapeRejectsARankFourShape)
 {
     const ChannelSlice layer{0, 1};
 
@@ -222,7 +222,7 @@ TEST(Unit_ChannelSlice, OutputShapeRejectsARankFourShape)
 }
 
 /** @brief Tests that forward rejects a rank-2 input in a message naming layer and shape. */
-TEST(Unit_ChannelSlice, ForwardRejectsARankTwoInput)
+TEST(Small_ChannelSlice, ForwardRejectsARankTwoInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -234,7 +234,7 @@ TEST(Unit_ChannelSlice, ForwardRejectsARankTwoInput)
 }
 
 /** @brief Tests that forward rejects a range past the channels in the layer's own message. */
-TEST(Unit_ChannelSlice, ForwardRejectsARangePastTheChannels)
+TEST(Small_ChannelSlice, ForwardRejectsARangePastTheChannels)
 {
     const ChannelSlice layer{2, 2};
 
@@ -243,7 +243,7 @@ TEST(Unit_ChannelSlice, ForwardRejectsARangePastTheChannels)
 }
 
 /** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
-TEST(Unit_ChannelSlice, ForwardRejectsAnNCHWInput)
+TEST(Small_ChannelSlice, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -256,7 +256,7 @@ TEST(Unit_ChannelSlice, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Unit_ChannelSlice, TheParameterWalkVisitsNothing)
+TEST(Small_ChannelSlice, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

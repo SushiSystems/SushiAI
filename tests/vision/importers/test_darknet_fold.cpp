@@ -109,7 +109,7 @@ namespace
  *
  * The tolerance is 1e-6 relative plus 1e-9 absolute, one float32 rounding of slack.
  */
-TEST(Unit_DarknetFold, OneFilterFoldMatchesTheFormulaInLongDouble)
+TEST(Small_DarknetFold, OneFilterFoldMatchesTheFormulaInLongDouble)
 {
     const std::vector<float> original_weights = {0.5f, -1.25f, 2.0f, 0.125f,
                                                  -0.75f, 1.0f, 0.3f, -2.5f};
@@ -149,7 +149,7 @@ TEST(Unit_DarknetFold, OneFilterFoldMatchesTheFormulaInLongDouble)
  *
  * The seed is fixed at 20261009; the tolerance is 1e-5 absolute on every output pixel.
  */
-TEST(Unit_DarknetFold, FoldedAndUnfoldedConvolutionsAgreeOnTheHost)
+TEST(Small_DarknetFold, FoldedAndUnfoldedConvolutionsAgreeOnTheHost)
 {
     std::mt19937 engine(K_SEED);
     const std::vector<float> weights =
@@ -191,7 +191,7 @@ TEST(Unit_DarknetFold, FoldedAndUnfoldedConvolutionsAgreeOnTheHost)
 /**
  * @brief Tests that folding a convolution twice, which is a misuse, stops the process.
  */
-TEST(Unit_DarknetFold, FoldingTwiceStopsTheProcess)
+TEST(Small_DarknetFold, FoldingTwiceStopsTheProcess)
 {
     DarknetConvolution convolution;
     convolution.biases = {0.5f};
@@ -207,7 +207,7 @@ TEST(Unit_DarknetFold, FoldingTwiceStopsTheProcess)
 /**
  * @brief Tests that a variance whose epsilon-shifted value is not positive stops the process.
  */
-TEST(Unit_DarknetFold, NonPositiveVarianceStopsTheProcess)
+TEST(Small_DarknetFold, NonPositiveVarianceStopsTheProcess)
 {
     DarknetConvolution convolution;
     convolution.biases = {0.5f};

@@ -83,7 +83,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingFlip, PlanRecordsTheSizeAndMakesExactlyOneDraw)
+TEST(Small_ImagingFlip, PlanRecordsTheSizeAndMakesExactlyOneDraw)
 {
     Random random(42);
     Random replay(42);
@@ -95,7 +95,7 @@ TEST(Unit_ImagingFlip, PlanRecordsTheSizeAndMakesExactlyOneDraw)
     EXPECT_EQ(random, replay);
 }
 
-TEST(Unit_ImagingFlip, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)
+TEST(Small_ImagingFlip, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)
 {
     FlipSettings never;
     never.probability = 0.0f;
@@ -112,7 +112,7 @@ TEST(Unit_ImagingFlip, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)
     }
 }
 
-TEST(Unit_ImagingFlip, DefaultProbabilityFlipsAboutHalfOfTheSeeds)
+TEST(Small_ImagingFlip, DefaultProbabilityFlipsAboutHalfOfTheSeeds)
 {
     std::uint64_t flipped = 0;
     for (std::uint64_t seed = 0; seed < K_SEED_COUNT; ++seed)
@@ -126,7 +126,7 @@ TEST(Unit_ImagingFlip, DefaultProbabilityFlipsAboutHalfOfTheSeeds)
     EXPECT_NEAR(frequency, 0.5, K_FREQUENCY_TOLERANCE);
 }
 
-TEST(Unit_ImagingFlip, PlanRejectsAProbabilityOutsideZeroToOne)
+TEST(Small_ImagingFlip, PlanRejectsAProbabilityOutsideZeroToOne)
 {
     Random random(1);
     FlipSettings settings;
@@ -142,7 +142,7 @@ TEST(Unit_ImagingFlip, PlanRejectsAProbabilityOutsideZeroToOne)
     EXPECT_EQ(random, Random(1)) << "a rejected plan makes no draw";
 }
 
-TEST(Unit_ImagingFlip, PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw)
+TEST(Small_ImagingFlip, PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw)
 {
     Random random(3);
     FlipSettings settings;
@@ -153,7 +153,7 @@ TEST(Unit_ImagingFlip, PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw)
     EXPECT_EQ(random, Random(3));
 }
 
-TEST(Unit_ImagingFlip, PlanRejectsASideThatIsNotPositiveBeforeAnyDraw)
+TEST(Small_ImagingFlip, PlanRejectsASideThatIsNotPositiveBeforeAnyDraw)
 {
     Random random(5);
 
@@ -164,7 +164,7 @@ TEST(Unit_ImagingFlip, PlanRejectsASideThatIsNotPositiveBeforeAnyDraw)
     EXPECT_EQ(random, Random(5));
 }
 
-TEST(Unit_ImagingFlip, SourceWithoutPixelsIsRejected)
+TEST(Small_ImagingFlip, SourceWithoutPixelsIsRejected)
 {
     const FlipPlan plan{ImageSize{2, 3}, true};
 
@@ -173,7 +173,7 @@ TEST(Unit_ImagingFlip, SourceWithoutPixelsIsRejected)
                     "apply_flip", "no pixels");
 }
 
-TEST(Unit_ImagingFlip, DestinationThatIsTheSourceIsRejected)
+TEST(Small_ImagingFlip, DestinationThatIsTheSourceIsRejected)
 {
     Image image = make_counted_image(ImageSize{2, 3}, 3);
     const Image untouched = make_counted_image(ImageSize{2, 3}, 3);
@@ -185,7 +185,7 @@ TEST(Unit_ImagingFlip, DestinationThatIsTheSourceIsRejected)
 }
 
 /** @brief Tests that a view of some rows of the destination is refused before any write. */
-TEST(Unit_ImagingFlip, ViewInsideTheDestinationIsRejected)
+TEST(Small_ImagingFlip, ViewInsideTheDestinationIsRejected)
 {
     Image image = make_counted_image(ImageSize{4, 3}, 3);
     const Image untouched = make_counted_image(ImageSize{4, 3}, 3);
@@ -197,7 +197,7 @@ TEST(Unit_ImagingFlip, ViewInsideTheDestinationIsRejected)
     expect_same_image(image, untouched);
 }
 
-TEST(Unit_ImagingFlip, FlippedImageHoldsEachRowInReverseColumnOrder)
+TEST(Small_ImagingFlip, FlippedImageHoldsEachRowInReverseColumnOrder)
 {
     const Image source = make_counted_image(ImageSize{2, 3}, 3);
     const FlipPlan plan{ImageSize{2, 3}, true};
@@ -219,7 +219,7 @@ TEST(Unit_ImagingFlip, FlippedImageHoldsEachRowInReverseColumnOrder)
     EXPECT_EQ(destination.row(0)[2], 8);
 }
 
-TEST(Unit_ImagingFlip, UnflippedImageIsCopiedUnchanged)
+TEST(Small_ImagingFlip, UnflippedImageIsCopiedUnchanged)
 {
     const Image source = make_counted_image(ImageSize{3, 5}, 3);
     const FlipPlan plan{ImageSize{3, 5}, false};
@@ -230,7 +230,7 @@ TEST(Unit_ImagingFlip, UnflippedImageIsCopiedUnchanged)
     expect_same_image(destination, source);
 }
 
-TEST(Unit_ImagingFlip, FlippingAnImageTwiceRestoresIt)
+TEST(Small_ImagingFlip, FlippingAnImageTwiceRestoresIt)
 {
     const Image wide = make_counted_image(ImageSize{4, 7}, 3);
     const Image gray = make_counted_image(ImageSize{3, 4}, 1);
@@ -247,7 +247,7 @@ TEST(Unit_ImagingFlip, FlippingAnImageTwiceRestoresIt)
     }
 }
 
-TEST(Unit_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
+TEST(Small_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
 {
     const Image source = make_counted_image(ImageSize{2, 3}, 3);
     const FlipPlan wider{ImageSize{2, 4}, true};
@@ -260,7 +260,7 @@ TEST(Unit_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
                     "plan was made for a 5x3 source", "2x3");
 }
 
-TEST(Unit_ImagingFlip, FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder)
+TEST(Small_ImagingFlip, FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder)
 {
     const FlipPlan plan{ImageSize{640, 640}, true};
 
@@ -276,7 +276,7 @@ TEST(Unit_ImagingFlip, FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder)
     EXPECT_LE(mirrored.boxes()[0].x1, mirrored.boxes()[0].x2);
 }
 
-TEST(Unit_ImagingFlip, UnflippedBoxesAreReturnedUnchanged)
+TEST(Small_ImagingFlip, UnflippedBoxesAreReturnedUnchanged)
 {
     const FlipPlan plan{ImageSize{640, 640}, false};
 
@@ -289,7 +289,7 @@ TEST(Unit_ImagingFlip, UnflippedBoxesAreReturnedUnchanged)
     expect_box(same.boxes()[0], labels.boxes()[0]);
 }
 
-TEST(Unit_ImagingFlip, FlippingBoxesTwiceRestoresThem)
+TEST(Small_ImagingFlip, FlippingBoxesTwiceRestoresThem)
 {
     const FlipPlan plan{ImageSize{640, 640}, true};
 
@@ -306,7 +306,7 @@ TEST(Unit_ImagingFlip, FlippingBoxesTwiceRestoresThem)
 }
 
 /** @brief Tests that a flipped polygon has every x mirrored about the width and every y kept. */
-TEST(Unit_ImagingFlip, FlippedPolygonMirrorsEveryVertexAboutTheWidth)
+TEST(Small_ImagingFlip, FlippedPolygonMirrorsEveryVertexAboutTheWidth)
 {
     const FlipPlan plan{ImageSize{480, 640}, true};
     Labels labels;
@@ -330,7 +330,7 @@ TEST(Unit_ImagingFlip, FlippedPolygonMirrorsEveryVertexAboutTheWidth)
 }
 
 /** @brief Tests that an unflipped plan returns the polygons as they were. */
-TEST(Unit_ImagingFlip, UnflippedPolygonIsReturnedUnchanged)
+TEST(Small_ImagingFlip, UnflippedPolygonIsReturnedUnchanged)
 {
     const FlipPlan plan{ImageSize{480, 640}, false};
     Labels labels;
@@ -346,7 +346,7 @@ TEST(Unit_ImagingFlip, UnflippedPolygonIsReturnedUnchanged)
 }
 
 /** @brief Tests that validate_flip accepts both ends of the probability range. */
-TEST(Unit_ImagingFlip, ValidateAcceptsZeroAndOne)
+TEST(Small_ImagingFlip, ValidateAcceptsZeroAndOne)
 {
     FlipSettings never;
     never.probability = 0.0f;

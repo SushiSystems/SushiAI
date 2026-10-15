@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_compile_once.cpp
 
 
-Suites: `Regression_CompileOnce`.
+Suites: `Medium_CompileOnce`.
 
 This file was the regression tier's first. It pins the two claims in this library whose failure is
 completely silent.

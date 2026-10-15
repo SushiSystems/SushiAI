@@ -217,28 +217,28 @@ namespace
 } // namespace
 
 /** @brief Tests the analytic form on boxes that overlap without one holding the other. */
-TEST(Unit_DetectIouGradient, AnalyticMatchesTheDifferenceOnOverlappingBoxes)
+TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnOverlappingBoxes)
 {
     expect_analytic_matches_difference({0.45f, 0.55f, 0.3f, 0.2f}, {0.55f, 0.52f, 0.42f, 0.6f});
     expect_analytic_matches_difference({0.6f, 0.4f, 0.25f, 0.35f}, {0.5f, 0.5f, 0.3f, 0.3f});
 }
 
 /** @brief Tests the analytic form on boxes apart along one axis and along both. */
-TEST(Unit_DetectIouGradient, AnalyticMatchesTheDifferenceOnDisjointBoxes)
+TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnDisjointBoxes)
 {
     expect_analytic_matches_difference({0.2f, 0.45f, 0.2f, 0.3f}, {0.7f, 0.5f, 0.25f, 0.22f});
     expect_analytic_matches_difference({0.2f, 0.2f, 0.15f, 0.25f}, {0.7f, 0.75f, 0.3f, 0.2f});
 }
 
 /** @brief Tests the analytic form on a box inside its truth and on one around it. */
-TEST(Unit_DetectIouGradient, AnalyticMatchesTheDifferenceOnNestedBoxes)
+TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnNestedBoxes)
 {
     expect_analytic_matches_difference({0.52f, 0.47f, 0.2f, 0.1f}, {0.5f, 0.5f, 0.4f, 0.45f});
     expect_analytic_matches_difference({0.5f, 0.5f, 0.6f, 0.5f}, {0.52f, 0.47f, 0.2f, 0.3f});
 }
 
 /** @brief Tests the analytic form on 100 seeded pairs that sit on no kink of the measure. */
-TEST(Unit_DetectIouGradient, AnalyticMatchesTheDifferenceOnSeededPairs)
+TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnSeededPairs)
 {
     UnitSequence sequence;
     int checked = 0;
@@ -260,7 +260,7 @@ TEST(Unit_DetectIouGradient, AnalyticMatchesTheDifferenceOnSeededPairs)
 }
 
 /** @brief Tests the compatible form against the twelve dumped deltas of the report. */
-TEST(Unit_DetectIouGradient, DarknetCompatibleMatchesTheDumpedDeltas)
+TEST(Small_DetectIouGradient, DarknetCompatibleMatchesTheDumpedDeltas)
 {
     for (const DumpedCell& cell : K_DUMPED_CELLS)
     {
@@ -276,7 +276,7 @@ TEST(Unit_DetectIouGradient, DarknetCompatibleMatchesTheDumpedDeltas)
 }
 
 /** @brief Tests that the compatible form doubles the overlap part of width and height. */
-TEST(Unit_DetectIouGradient, DarknetCompatibleDoublesTheSizeSlopeOfTheOverlap)
+TEST(Small_DetectIouGradient, DarknetCompatibleDoublesTheSizeSlopeOfTheOverlap)
 {
     // A 0.2 square centred in a 0.4 square: IoU = w * h / 0.16, so its slope by w is 1.25.
     const Box box{0.5f, 0.5f, 0.2f, 0.2f};
@@ -293,7 +293,7 @@ TEST(Unit_DetectIouGradient, DarknetCompatibleDoublesTheSizeSlopeOfTheOverlap)
 }
 
 /** @brief Tests that the compatible form flips the enclosing-box term of the centre. */
-TEST(Unit_DetectIouGradient, DarknetCompatibleFlipsTheEnclosingTermOfTheCentre)
+TEST(Small_DetectIouGradient, DarknetCompatibleFlipsTheEnclosingTermOfTheCentre)
 {
     // Disjoint equal squares: S = 0.25, Cw = 0.7, C = 0.53; x is (0.53 -+ 0.35) / 0.2809.
     const Box box{0.2f, 0.5f, 0.2f, 0.2f};
@@ -310,7 +310,7 @@ TEST(Unit_DetectIouGradient, DarknetCompatibleFlipsTheEnclosingTermOfTheCentre)
 }
 
 /** @brief Tests that the compatible form holds the trade-off fixed and drops a divisor. */
-TEST(Unit_DetectIouGradient, DarknetCompatibleSimplifiesTheAspectTerm)
+TEST(Small_DetectIouGradient, DarknetCompatibleSimplifiesTheAspectTerm)
 {
     // A 0.2 by 0.1 box centred in a 0.4 square: IoU 0.125, w^2 + h^2 = 0.05, no distance part.
     const Box box{0.5f, 0.5f, 0.2f, 0.1f};
@@ -332,7 +332,7 @@ TEST(Unit_DetectIouGradient, DarknetCompatibleSimplifiesTheAspectTerm)
 }
 
 /** @brief Tests that both forms write zeros for two boxes that are one point. */
-TEST(Unit_DetectIouGradient, BothFormsAreZeroForTwoBoxesAtOnePoint)
+TEST(Small_DetectIouGradient, BothFormsAreZeroForTwoBoxesAtOnePoint)
 {
     const Box point{0.5f, 0.5f, 0.0f, 0.0f};
     for (const Detect::BoxGradient form :

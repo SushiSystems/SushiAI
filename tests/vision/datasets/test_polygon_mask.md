@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_polygon_mask.cpp
 
 
-Suites: `Unit_DatasetsPolygonMask`.
+Suites: `Small_DatasetsPolygonMask`.
 
 Tests `paint_polygon_mask` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/polygon_mask.hpp` over masks of 4 by

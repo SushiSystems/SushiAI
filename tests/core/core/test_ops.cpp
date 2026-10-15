@@ -35,7 +35,7 @@
 
 namespace Ops = SushiAI::Ops;
 
-TEST(Unit_Ops, EveryIdentityHashesDistinctly)
+TEST(Small_Ops, EveryIdentityHashesDistinctly)
 {
     std::set<std::uint32_t> seen;
     for (const Ops::OpName& entry : Ops::K_ALL)
@@ -45,7 +45,7 @@ TEST(Unit_Ops, EveryIdentityHashesDistinctly)
     EXPECT_EQ(seen.size(), Ops::K_ALL.size());
 }
 
-TEST(Unit_Ops, EveryNameCarriesTheLibraryPrefix)
+TEST(Small_Ops, EveryNameCarriesTheLibraryPrefix)
 {
     // rfind(prefix, 0) matches at position 0 only (C++17); see tests/core/core/README.md.
     constexpr std::string_view K_PREFIX = "sushiai.";
@@ -53,19 +53,19 @@ TEST(Unit_Ops, EveryNameCarriesTheLibraryPrefix)
         EXPECT_EQ(entry.name.rfind(K_PREFIX, 0), 0u) << entry.name;
 }
 
-TEST(Unit_Ops, NameOfRoundTripsEveryIdentity)
+TEST(Small_Ops, NameOfRoundTripsEveryIdentity)
 {
     for (const Ops::OpName& entry : Ops::K_ALL)
         EXPECT_EQ(Ops::name_of(entry.id), entry.name);
 }
 
-TEST(Unit_Ops, NameOfReportsUnknownForAForeignIdentity)
+TEST(Small_Ops, NameOfReportsUnknownForAForeignIdentity)
 {
     const SushiAI::OpID foreign(0xDEADBEEFu);
     EXPECT_EQ(Ops::name_of(foreign), "sushiai.unknown");
 }
 
-TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
+TEST(Small_Ops, TheTableContainsEveryDeclaredIdentity)
 {
     // Membership in ALL is checked by name; see tests/core/core/README.md.
     const std::array expected = {
@@ -158,7 +158,7 @@ TEST(Unit_Ops, TheTableContainsEveryDeclaredIdentity)
     }
 }
 
-TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
+TEST(Small_Ops, EverySpatialIdentityIsListedInAll)
 {
     // ALL is what the collision proof and name_of() read; see tests/core/core/README.md.
     const std::array<SushiAI::OpID, 23> declared = {
@@ -182,13 +182,13 @@ TEST(Unit_Ops, EverySpatialIdentityIsListedInAll)
             << "an identity was declared but not added to Ops::ALL";
 }
 
-TEST(Unit_Ops, ThereIsNoConv2dIdentity)
+TEST(Small_Ops, ThereIsNoConv2dIdentity)
 {
     // Convolution is IM2COL + MATMUL in the IR (CV-1); see tests/core/core/README.md.
     EXPECT_EQ(Ops::name_of(Ops::op("sushiai.conv2d").id), "sushiai.unknown");
 }
 
-TEST(Unit_Ops, LeakyReLUDifferentiatesAtItsOutput)
+TEST(Small_Ops, LeakyReLUDifferentiatesAtItsOutput)
 {
     // For alpha > 0 the output's sign equals the input's; see tests/core/core/README.md.
     const Ops::Activation* entry = Ops::activation_of(Ops::K_LEAKY_RELU.id);
@@ -199,7 +199,7 @@ TEST(Unit_Ops, LeakyReLUDifferentiatesAtItsOutput)
 }
 
 /** @brief Tests that every elementwise, selection and SiLU identity resolves through ALL. */
-TEST(Unit_Ops, EveryElementwiseAndSelectionIdentityIsListedInAll)
+TEST(Small_Ops, EveryElementwiseAndSelectionIdentityIsListedInAll)
 {
     const std::array<SushiAI::OpID, 11> declared = {
         Ops::K_DIV.id, Ops::K_MINIMUM.id, Ops::K_MAXIMUM.id,
@@ -215,7 +215,7 @@ TEST(Unit_Ops, EveryElementwiseAndSelectionIdentityIsListedInAll)
 }
 
 /** @brief Tests that the eight forward identities are flagged differentiable and three are not. */
-TEST(Unit_Ops, TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable)
+TEST(Small_Ops, TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable)
 {
     for (const Ops::OpName& entry : {Ops::K_DIV, Ops::K_MINIMUM, Ops::K_MAXIMUM, Ops::K_ABS, Ops::K_ATAN,
                                      Ops::K_SOFTPLUS, Ops::K_SELECT, Ops::K_SILU})
@@ -227,7 +227,7 @@ TEST(Unit_Ops, TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable
 }
 
 /** @brief Tests that exactly ZERO, CONSTANT, LESS_EQUAL and STOP_GRADIENT are gradient barriers. */
-TEST(Unit_Ops, TheGradientBarriersAreTheFourIdentitiesThatPassNoGradient)
+TEST(Small_Ops, TheGradientBarriersAreTheFourIdentitiesThatPassNoGradient)
 {
     const std::array<SushiAI::OpID, 4> barriers = {
         Ops::K_ZERO.id, Ops::K_CONSTANT.id, Ops::K_LESS_EQUAL.id, Ops::K_STOP_GRADIENT.id,
@@ -247,14 +247,14 @@ TEST(Unit_Ops, TheGradientBarriersAreTheFourIdentitiesThatPassNoGradient)
 }
 
 /** @brief Tests that no identity is flagged both differentiable and a gradient barrier. */
-TEST(Unit_Ops, NoGradientBarrierIsFlaggedDifferentiable)
+TEST(Small_Ops, NoGradientBarrierIsFlaggedDifferentiable)
 {
     for (const Ops::OpName& entry : Ops::K_ALL)
         EXPECT_FALSE(entry.differentiable && entry.blocks_gradient) << entry.name;
 }
 
 /** @brief Tests that the identities that pass a gradient or throw on one are not barriers. */
-TEST(Unit_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
+TEST(Small_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
 {
     for (const Ops::OpName& entry : {Ops::K_LEAF, Ops::K_CAST, Ops::K_DYNAMIC_SCALE, Ops::K_LOG_SOFTMAX,
                                      Ops::K_LOG_SOFTMAX_BACKWARD,
@@ -269,7 +269,7 @@ TEST(Unit_Ops, LeafCastAndTheGradientOperationsAreNotGradientBarriers)
 }
 
 /** @brief Tests that SILU's table row differentiates at the forward input and does not fold. */
-TEST(Unit_Ops, SiLUDifferentiatesAtItsInput)
+TEST(Small_Ops, SiLUDifferentiatesAtItsInput)
 {
     const Ops::Activation* entry = Ops::activation_of(Ops::K_SILU.id);
     ASSERT_NE(entry, nullptr);
@@ -279,7 +279,7 @@ TEST(Unit_Ops, SiLUDifferentiatesAtItsInput)
 }
 
 /** @brief Tests that SOFTPLUS's table row differentiates at the forward input and does not fold. */
-TEST(Unit_Ops, SoftplusDifferentiatesAtItsInput)
+TEST(Small_Ops, SoftplusDifferentiatesAtItsInput)
 {
     const Ops::Activation* entry = Ops::activation_of(Ops::K_SOFTPLUS.id);
     ASSERT_NE(entry, nullptr);
@@ -289,7 +289,7 @@ TEST(Unit_Ops, SoftplusDifferentiatesAtItsInput)
 }
 
 /** @brief Tests that is_activation_backward accepts exactly the gradient column of ACTIVATIONS. */
-TEST(Unit_Ops, IsActivationBackwardAcceptsOnlyTheTablesGradientColumn)
+TEST(Small_Ops, IsActivationBackwardAcceptsOnlyTheTablesGradientColumn)
 {
     for (const Ops::Activation& entry : Ops::K_ACTIVATIONS)
     {
@@ -307,7 +307,7 @@ TEST(Unit_Ops, IsActivationBackwardAcceptsOnlyTheTablesGradientColumn)
 }
 
 /** @brief Tests that BATCHNORM_FOLD is in the table and claims neither a rule nor a barrier. */
-TEST(Unit_Ops, BatchNormFoldIsListedAndClaimsNoRule)
+TEST(Small_Ops, BatchNormFoldIsListedAndClaimsNoRule)
 {
     EXPECT_EQ(Ops::name_of(Ops::K_BATCHNORM_FOLD.id), "sushiai.batchnorm_fold");
     EXPECT_FALSE(Ops::K_BATCHNORM_FOLD.differentiable);

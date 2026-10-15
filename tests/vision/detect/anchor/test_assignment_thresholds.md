@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_assignment_thresholds.cpp
 
 
-Suites: `Unit_DetectAnchorThresholds`.
+Suites: `Small_DetectAnchorThresholds`.
 
 Tests `AssignmentThresholds` and `derive_assignment_thresholds`. Each fit in the file is given
 by its tenth percentile and its mean best IoU, and thresholds are compared to 1e-6.

@@ -54,7 +54,7 @@ namespace
 } // namespace
 
 /** @brief Tests that an order holds every sample once, for counts on both sides of 4^k. */
-TEST(Unit_EpochPermutation, EverySampleIsReadOnce)
+TEST(Small_EpochPermutation, EverySampleIsReadOnce)
 {
     for (std::uint64_t count : {1u, 2u, 3u, 7u, 16u, 17u, 1000u, 4097u})
     {
@@ -72,7 +72,7 @@ TEST(Unit_EpochPermutation, EverySampleIsReadOnce)
 }
 
 /** @brief Tests the values of three orders, which a change of the mapping would move. */
-TEST(Unit_EpochPermutation, AnOrderIsAFunctionOfTheSeedAndTheEpoch)
+TEST(Small_EpochPermutation, AnOrderIsAFunctionOfTheSeedAndTheEpoch)
 {
     const std::vector<std::uint64_t> first = {4, 9, 5, 2, 1, 3, 8, 7, 6, 0};
     const std::vector<std::uint64_t> next_epoch = {2, 5, 9, 1, 4, 3, 6, 7, 8, 0};
@@ -85,7 +85,7 @@ TEST(Unit_EpochPermutation, AnOrderIsAFunctionOfTheSeedAndTheEpoch)
 }
 
 /** @brief Tests that count() returns the count the order was built over. */
-TEST(Unit_EpochPermutation, CountIsTheCountItWasBuiltOver)
+TEST(Small_EpochPermutation, CountIsTheCountItWasBuiltOver)
 {
     EXPECT_EQ(Data::EpochPermutation(K_SEED, 0, 17).count(), 17u);
 }

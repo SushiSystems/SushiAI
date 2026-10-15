@@ -191,7 +191,7 @@ namespace
     };
 
     /** @brief Provides an engine, a one-head model with its step, and datasets of truths. */
-    class Unit_AnchorTrainingLoop : public SaTest::EngineTest
+    class Medium_AnchorTrainingLoop : public SaTest::EngineTest
     {
         protected:
             /** @brief Builds the model, both graphs, the optimizer and the step. */
@@ -320,7 +320,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each update takes the schedule's rate at its number, across epochs. */
-TEST_F(Unit_AnchorTrainingLoop, EachUpdateTakesTheRateOfItsIteration)
+TEST_F(Medium_AnchorTrainingLoop, EachUpdateTakesTheRateOfItsIteration)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -355,7 +355,7 @@ TEST_F(Unit_AnchorTrainingLoop, EachUpdateTakesTheRateOfItsIteration)
 }
 
 /** @brief Tests that a cosine schedule drives the rate of each update of an anchor run. */
-TEST_F(Unit_AnchorTrainingLoop, ACosineScheduleSetsTheRateOfEachUpdate)
+TEST_F(Medium_AnchorTrainingLoop, ACosineScheduleSetsTheRateOfEachUpdate)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -386,7 +386,7 @@ TEST_F(Unit_AnchorTrainingLoop, ACosineScheduleSetsTheRateOfEachUpdate)
 }
 
 /** @brief Tests that a run without a schedule leaves the optimizer's rate as it was made. */
-TEST_F(Unit_AnchorTrainingLoop, ARunWithoutAScheduleKeepsTheOptimizersRate)
+TEST_F(Medium_AnchorTrainingLoop, ARunWithoutAScheduleKeepsTheOptimizersRate)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -400,7 +400,7 @@ TEST_F(Unit_AnchorTrainingLoop, ARunWithoutAScheduleKeepsTheOptimizersRate)
 }
 
 /** @brief Tests that a dataset the step cannot read is refused before any update. */
-TEST_F(Unit_AnchorTrainingLoop, ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdate)
+TEST_F(Medium_AnchorTrainingLoop, ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdate)
 {
     ASSERT_NE(step_, nullptr);
 
@@ -424,7 +424,7 @@ TEST_F(Unit_AnchorTrainingLoop, ADatasetTheStepCannotReadIsRefusedBeforeAnyUpdat
 }
 
 /** @brief Tests that the options of a run are checked: the epochs and the schedule. */
-TEST_F(Unit_AnchorTrainingLoop, OptionsARunCannotUseAreRefused)
+TEST_F(Medium_AnchorTrainingLoop, OptionsARunCannotUseAreRefused)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -446,7 +446,7 @@ TEST_F(Unit_AnchorTrainingLoop, OptionsARunCannotUseAreRefused)
 }
 
 /** @brief Tests that a run goes on at the epoch index and the batch its options state. */
-TEST_F(Unit_AnchorTrainingLoop, ARunStartsAtTheEpochAndTheBatchItsOptionsState)
+TEST_F(Medium_AnchorTrainingLoop, ARunStartsAtTheEpochAndTheBatchItsOptionsState)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset held = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -473,7 +473,7 @@ TEST_F(Unit_AnchorTrainingLoop, ARunStartsAtTheEpochAndTheBatchItsOptionsState)
 }
 
 /** @brief Tests that a start the run cannot take is refused before any update. */
-TEST_F(Unit_AnchorTrainingLoop, AStartTheDatasetLacksIsRefused)
+TEST_F(Medium_AnchorTrainingLoop, AStartTheDatasetLacksIsRefused)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -492,7 +492,7 @@ TEST_F(Unit_AnchorTrainingLoop, AStartTheDatasetLacksIsRefused)
 }
 
 /** @brief Tests that a restored count is the count of both parts, and is restored once. */
-TEST_F(Unit_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothParts)
+TEST_F(Medium_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothParts)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());
@@ -511,7 +511,7 @@ TEST_F(Unit_AnchorTrainingLoop, ARestoredRunCountIsTheCountOfBothParts)
 }
 
 /** @brief Tests that a callback that throws ends the run as a failure after its update. */
-TEST_F(Unit_AnchorTrainingLoop, ACallbackThatThrowsEndsTheRunAsAFailure)
+TEST_F(Medium_AnchorTrainingLoop, ACallbackThatThrowsEndsTheRunAsAFailure)
 {
     ASSERT_NE(step_, nullptr);
     const Data::MaterialisedDataset dataset = make_dataset(K_BATCHES, K_BATCH, truth_roles());

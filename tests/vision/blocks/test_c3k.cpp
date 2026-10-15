@@ -147,7 +147,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the block keeps H and W and yields the output width. */
-TEST(Unit_BlockC3k, OutputShapeKeepsTheExtentsAndSetsTheWidth)
+TEST(Small_BlockC3k, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C3k block(64, 96, 2, true, K_YOLO_NORM);
 
@@ -155,7 +155,7 @@ TEST(Unit_BlockC3k, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 }
 
 /** @brief Tests that the block holds as many bottlenecks as the repeat count asks for. */
-TEST(Unit_BlockC3k, TheChainHoldsOneBottleneckPerRepeat)
+TEST(Small_BlockC3k, TheChainHoldsOneBottleneckPerRepeat)
 {
     const C3k block(64, 64, 3, true, K_YOLO_NORM);
 
@@ -166,7 +166,7 @@ TEST(Unit_BlockC3k, TheChainHoldsOneBottleneckPerRepeat)
  * @brief Tests that C3k(64, 64, 2) with a shortcut traces seven Conv blocks, two ADDs, one
  *        CONCAT_CHANNELS and no slice.
  */
-TEST(Unit_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
+TEST(Small_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -190,7 +190,7 @@ TEST(Unit_BlockC3k, ATrainingTraceEmitsSevenConvBlocksTwoAddsAndOneConcat)
  * @brief Tests that the join reads the chain's result first and the second branch's result
  *        second, each [N, H, W, hidden].
  */
-TEST(Unit_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
+TEST(Small_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -212,7 +212,7 @@ TEST(Unit_BlockC3k, TheJoinReadsTheChainThenTheSecondBranch)
 }
 
 /** @brief Tests that a block built without a shortcut traces no ADD. */
-TEST(Unit_BlockC3k, NoShortcutTracesNoAdd)
+TEST(Small_BlockC3k, NoShortcutTracesNoAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -226,7 +226,7 @@ TEST(Unit_BlockC3k, NoShortcutTracesNoAdd)
 }
 
 /** @brief Tests that an odd output width leaves a hidden width of half of it, rounded down. */
-TEST(Unit_BlockC3k, TheHiddenWidthIsHalfTheOutputWidthRoundedDown)
+TEST(Small_BlockC3k, TheHiddenWidthIsHalfTheOutputWidthRoundedDown)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -247,7 +247,7 @@ TEST(Unit_BlockC3k, TheHiddenWidthIsHalfTheOutputWidthRoundedDown)
  * @brief Tests that a traced C3k(64, 64, 2) yields the 35 records MANIFEST.json lists under
  *        model.6.m.0, names, NHWC shapes and order.
  */
-TEST(Unit_BlockC3k, StateMatchesManifestRow6Inner)
+TEST(Small_BlockC3k, StateMatchesManifestRow6Inner)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -302,7 +302,7 @@ TEST(Unit_BlockC3k, StateMatchesManifestRow6Inner)
  * @brief Tests that make_c3k_node builds a block and that a row stating neither "repeats"
  *        nor "shortcut" gets one bottleneck that adds its input.
  */
-TEST(Unit_BlockC3k, TheFactoryDefaultsToOneBottleneckWithAShortcut)
+TEST(Small_BlockC3k, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes = attributes_of(R"({"filters": 32})");
@@ -325,7 +325,7 @@ TEST(Unit_BlockC3k, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 }
 
 /** @brief Tests that the factory reads "repeats" and "shortcut" and names state as row 6 does. */
-TEST(Unit_BlockC3k, TheFactoryReadsRepeatsAndShortcut)
+TEST(Small_BlockC3k, TheFactoryReadsRepeatsAndShortcut)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes =
@@ -350,7 +350,7 @@ TEST(Unit_BlockC3k, TheFactoryReadsRepeatsAndShortcut)
 }
 
 /** @brief Tests that the factory refuses a width of one, which leaves no hidden channel. */
-TEST(Unit_BlockC3k, TheFactoryRefusesAWidthThatLeavesNoHiddenChannel)
+TEST(Small_BlockC3k, TheFactoryRefusesAWidthThatLeavesNoHiddenChannel)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes = attributes_of(R"({"filters": 1})");
@@ -361,7 +361,7 @@ TEST(Unit_BlockC3k, TheFactoryRefusesAWidthThatLeavesNoHiddenChannel)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing width and zero repeats. */
-TEST(Unit_BlockC3k, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockC3k, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{4, 4, 64};
     const Config::Value unknown = attributes_of(R"({"filters": 64, "hidden": 32})");
@@ -377,7 +377,7 @@ TEST(Unit_BlockC3k, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that the factory refuses two inputs. */
-TEST(Unit_BlockC3k, TheFactoryRefusesTwoInputs)
+TEST(Small_BlockC3k, TheFactoryRefusesTwoInputs)
 {
     const Shape two[] = {Shape{4, 4, 64}, Shape{4, 4, 64}};
     const Config::Value attributes = attributes_of(R"({"filters": 64})");
@@ -390,7 +390,7 @@ TEST(Unit_BlockC3k, TheFactoryRefusesTwoInputs)
  * @brief Tests that the factory hands "bn_epsilon" and "bn_momentum" to all seven norms, the
  *        bottlenecks' included.
  */
-TEST(Unit_BlockC3k, TheFactoryHandsTheNormOptionsToEveryNorm)
+TEST(Small_BlockC3k, TheFactoryHandsTheNormOptionsToEveryNorm)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes = attributes_of(

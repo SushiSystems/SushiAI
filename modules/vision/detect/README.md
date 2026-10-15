@@ -310,10 +310,10 @@ arguments of each call into `loss.sacp`, beside the five outputs:
 | `one2one.assignment.input.boxes` | `[1, 8400, 4]` | the same, one-to-one branch |
 | `anchors.points` | `[8400, 2]` | third argument, the same for both branches |
 
-`Unit_DetectAssigner.ReproducesTheReferenceOneToManyAssignment` and
+`Medium_DetectAssigner.ReproducesTheReferenceOneToManyAssignment` and
 `ReproducesTheReferenceOneToOneAssignment` run the assigner on them and compare all five outputs.
 The padded ground truth is rebuilt from `batch.batch_idx`, `batch.cls` and `batch.bboxes` through
-`pad_ground_truth`, and `Unit_DetectGroundTruth.PadsTheReferenceLabelsToItsTargetBoxes` checks
+`pad_ground_truth`, and `Medium_DetectGroundTruth.PadsTheReferenceLabelsToItsTargetBoxes` checks
 that rebuild against the target boxes and labels the reference wrote.
 
 The fixture's fourth ground-truth box is 9.6 by 8 px, below `stride_val`. Enlarged, it contains
@@ -331,7 +331,7 @@ For a comparison with rows in it the exporter runs `non_max_suppression` on the 
 a second time, with the validator's arguments and the confidence lowered to `1.8e-4`, and writes
 the result as `one2many.suppressed.detections`, `[300, 6]`, in `forward.sacp`. `suppression` in
 `MANIFEST.json` records the arguments and the counts: 1542 anchor and class pairs pass, and 300
-rows are kept. `Unit_DetectPostprocess.SuppressionReproducesTheReferenceRows` runs
+rows are kept. `Medium_DetectPostprocess.SuppressionReproducesTheReferenceRows` runs
 `select_nms_detections` at that confidence and compares.
 
 Twelve kept rows share the last score with nine candidates the limit cut, and the reference's

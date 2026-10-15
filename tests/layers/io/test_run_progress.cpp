@@ -42,7 +42,7 @@ namespace
 }
 
 /** @brief Tests that a progress nobody filled is the start of a run under the seed 0. */
-TEST(Unit_RunProgress, ADefaultProgressIsTheStartOfARun)
+TEST(Small_RunProgress, ADefaultProgressIsTheStartOfARun)
 {
     const RunProgress progress;
 
@@ -53,7 +53,7 @@ TEST(Unit_RunProgress, ADefaultProgressIsTheStartOfARun)
 }
 
 /** @brief Tests that the four records have four names, none of them an optimizer's. */
-TEST(Unit_RunProgress, TheRecordsHaveDistinctNames)
+TEST(Small_RunProgress, TheRecordsHaveDistinctNames)
 {
     EXPECT_EQ(SushiAI::IO::K_RUN_SEED_STATE, "run.seed");
     EXPECT_EQ(SushiAI::IO::K_RUN_STEP_RUNS_STATE, "run.step_runs");
@@ -62,7 +62,7 @@ TEST(Unit_RunProgress, TheRecordsHaveDistinctNames)
 }
 
 /** @brief Tests that the seed a checkpoint holds is accepted and any other is refused. */
-TEST(Unit_RunProgress, AResumeUnderAnotherSeedIsRefusedWithBothSeeds)
+TEST(Small_RunProgress, AResumeUnderAnotherSeedIsRefusedWithBothSeeds)
 {
     RunProgress saved;
     saved.seed = K_SAVED_SEED;

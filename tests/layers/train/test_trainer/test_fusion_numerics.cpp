@@ -53,7 +53,7 @@ using Graph::TensorPool;
 
 namespace
 {
-    class Regression_Fusion : public ::testing::Test {};
+    class Medium_Fusion : public ::testing::Test {};
 
     constexpr int64_t K_BATCH = 8;
     constexpr int64_t K_FEATURES = 6;
@@ -211,7 +211,7 @@ namespace
  * @brief Tests that a ReLU MLP trains to identical bytes with fusion on and off.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
+TEST_F(Medium_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
 {
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -233,7 +233,7 @@ TEST_F(Regression_Fusion, AReLUMLPTrainsIdenticallyFusedAndUnfused)
  * @brief Tests that a tanh MLP trains to identical bytes with fusion on and off.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, ATanhMLPTrainsIdenticallyFusedAndUnfused)
+TEST_F(Medium_Fusion, ATanhMLPTrainsIdenticallyFusedAndUnfused)
 {
     using MLP = NN::Sequential<NN::Linear, NN::Tanh, NN::Linear>;
 
@@ -249,7 +249,7 @@ TEST_F(Regression_Fusion, ATanhMLPTrainsIdenticallyFusedAndUnfused)
     expect_runs_agree(fused, plain, "a fused tanh epilogue");
 }
 
-TEST_F(Regression_Fusion, ASigmoidMLPTrainsIdenticallyFusedAndUnfused)
+TEST_F(Medium_Fusion, ASigmoidMLPTrainsIdenticallyFusedAndUnfused)
 {
     using MLP = NN::Sequential<NN::Linear, NN::Sigmoid, NN::Linear>;
 
@@ -269,7 +269,7 @@ TEST_F(Regression_Fusion, ASigmoidMLPTrainsIdenticallyFusedAndUnfused)
  * @brief Tests that a GELU MLP trains to identical bytes with fusion on and off.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
+TEST_F(Medium_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
 {
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
@@ -294,7 +294,7 @@ TEST_F(Regression_Fusion, AGELUMLPTrainsIdenticallyFusedAndUnfused)
         << "the GELU model did not train at all, so agreeing with the control proves nothing";
 }
 
-TEST_F(Regression_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
+TEST_F(Medium_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
 {
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
@@ -334,7 +334,7 @@ TEST_F(Regression_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
  * @brief Tests that the spill buffer holds the host-computed pre-activation.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
+TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -426,7 +426,7 @@ TEST_F(Regression_Fusion, TheSpillHoldsThePreActivationItself)
  * @brief Tests that a refused GELU epilogue still fills the spill and trains to identical bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
+TEST_F(Medium_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
 {
     class RefuseEverything final : public Graph::FusionSelector
     {
@@ -459,7 +459,7 @@ TEST_F(Regression_Fusion, ASelectorRefusalStillFillsTheSpillAndMovesNoBit)
  * @brief Tests that disabling the GELU form trains to the same bytes as folding it.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
+TEST_F(Medium_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
 {
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
@@ -488,7 +488,7 @@ TEST_F(Regression_Fusion, DisablingTheGELUFormTrainsToTheSamePlaceAsFoldingIt)
  * @brief Tests that the fused ReLU MLP step issues ten fewer operations than the unfused one.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
+TEST_F(Medium_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 {
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -511,7 +511,7 @@ TEST_F(Regression_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
  * @brief Tests that a fused GEMM depends on the task that writes the bias its epilogue reads.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
+TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -557,7 +557,7 @@ TEST_F(Regression_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
  * @brief Tests that the reader of the spill depends on the fused GEMM that fills it.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
+TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -609,7 +609,7 @@ TEST_F(Regression_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt
  * @brief Tests that disabling GEMM_BIAS_RELU falls back to GEMM_BIAS and moves no byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
+TEST_F(Medium_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
 {
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -634,7 +634,7 @@ TEST_F(Regression_Fusion, DisablingOneCatalogEntryLeavesTheRestAlone)
  * @brief Tests that a selector refusing every form yields an unfused plan with identical bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
+TEST_F(Medium_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
 {
     class RefuseEverything final : public Graph::FusionSelector
     {
@@ -667,7 +667,7 @@ TEST_F(Regression_Fusion, ASelectorMayRefuseAMatchedFormAndTheNumbersDoNotMove)
     expect_runs_agree(taken, refused, "a selector that refuses every form");
 }
 
-TEST_F(Regression_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKernel)
+TEST_F(Medium_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKernel)
 {
     const Graph::DeviceFusionSelector without(pretend_device(false),
                                               SushiBLAS::ExecutionMode::Auto);
@@ -692,7 +692,7 @@ TEST_F(Regression_Fusion, ADeviceWithoutDoublePrecisionIsNotHandedAFusedDoubleKe
  * @brief Tests that host-executing modes are refused a GEMM epilogue and keep the zip form.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
+TEST_F(Medium_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferencesDeviceMemory)
 {
     Graph::FusionQuery gemm;
     gemm.matched = FusedForm::GEMMBias;
@@ -714,7 +714,7 @@ TEST_F(Regression_Fusion, AHostExecutingModeDoesNotGetAnEpilogueThatDereferences
     }
 }
 
-TEST_F(Regression_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirectly)
+TEST_F(Medium_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirectly)
 {
     const Graph::DeviceFusionSelector selector(pretend_device(true),
                                                SushiBLAS::ExecutionMode::Auto);
@@ -732,7 +732,7 @@ TEST_F(Regression_Fusion, AStridedBiasIsNotHandedToAnEpilogueThatIndexesItDirect
  * @brief Tests that every selector choice carries a non-empty reason.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Fusion, EveryChoiceCarriesAReasonSomebodyCanRead)
+TEST_F(Medium_Fusion, EveryChoiceCarriesAReasonSomebodyCanRead)
 {
     const Graph::DeviceFusionSelector selector(pretend_device(true),
                                                SushiBLAS::ExecutionMode::Auto);

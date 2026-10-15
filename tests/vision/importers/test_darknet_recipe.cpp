@@ -95,7 +95,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the solver becomes "sgd" with its momentum and its decay. */
-TEST(Unit_DarknetRecipe, WritesTheSolverAsSGD)
+TEST(Small_DarknetRecipe, WritesTheSolverAsSGD)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
                             write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
@@ -111,7 +111,7 @@ TEST(Unit_DarknetRecipe, WritesTheSolverAsSGD)
 }
 
 /** @brief Tests that the schedule section reads back as the rate, burn-in, steps and scales. */
-TEST(Unit_DarknetRecipe, WritesTheRateAsAStepSchedule)
+TEST(Small_DarknetRecipe, WritesTheRateAsAStepSchedule)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
                             write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
@@ -128,7 +128,7 @@ TEST(Unit_DarknetRecipe, WritesTheRateAsAStepSchedule)
 }
 
 /** @brief Tests that the objective section is "anchor" and reads back as the head's options. */
-TEST(Unit_DarknetRecipe, WritesTheSharedHeadOptionsAsTheAnchorObjective)
+TEST(Small_DarknetRecipe, WritesTheSharedHeadOptionsAsTheAnchorObjective)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetRecipe recipe,
@@ -144,7 +144,7 @@ TEST(Unit_DarknetRecipe, WritesTheSharedHeadOptionsAsTheAnchorObjective)
 }
 
 /** @brief Tests that the recipe holds the three sections and no other key. */
-TEST(Unit_DarknetRecipe, HoldsTheObjectiveTheOptimizerAndTheSchedule)
+TEST(Small_DarknetRecipe, HoldsTheObjectiveTheOptimizerAndTheSchedule)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
                             write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
@@ -154,7 +154,7 @@ TEST(Unit_DarknetRecipe, HoldsTheObjectiveTheOptimizerAndTheSchedule)
 }
 
 /** @brief Tests that a key no training file holds becomes a note with its line and value. */
-TEST(Unit_DarknetRecipe, NotesEveryKeyWithoutAPlace)
+TEST(Small_DarknetRecipe, NotesEveryKeyWithoutAPlace)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
                             write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
@@ -167,7 +167,7 @@ TEST(Unit_DarknetRecipe, NotesEveryKeyWithoutAPlace)
 }
 
 /** @brief Tests that a .cfg whose keys all have a place leaves no note. */
-TEST(Unit_DarknetRecipe, LeavesNoNoteWhenEveryKeyHasAPlace)
+TEST(Small_DarknetRecipe, LeavesNoNoteWhenEveryKeyHasAPlace)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetRecipe recipe,
@@ -177,7 +177,7 @@ TEST(Unit_DarknetRecipe, LeavesNoNoteWhenEveryKeyHasAPlace)
 }
 
 /** @brief Tests that heads with different options are refused with both heads and the key. */
-TEST(Unit_DarknetRecipe, HeadsThatDifferAreRefused)
+TEST(Small_DarknetRecipe, HeadsThatDifferAreRefused)
 {
     SA_EXPECT_FAILURE(
         write_recipe_of(std::string(K_SOLVER) + head_section(".7") + head_section(".5")),
@@ -186,7 +186,7 @@ TEST(Unit_DarknetRecipe, HeadsThatDifferAreRefused)
 }
 
 /** @brief Tests that settings without a head are refused, since they state no objective. */
-TEST(Unit_DarknetRecipe, AFileWithoutAHeadIsRefused)
+TEST(Small_DarknetRecipe, AFileWithoutAHeadIsRefused)
 {
     SA_EXPECT_FAILURE(write_recipe_of(std::string(K_SOLVER)), StatusCode::InvalidDescription,
                       "[yolo]", "no objective");

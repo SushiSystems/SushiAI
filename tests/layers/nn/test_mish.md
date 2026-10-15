@@ -1,7 +1,7 @@
 # tests/layers/nn/test_mish.cpp
 
 
-Suites: `Unit_Mish`.
+Suites: `Medium_Mish`.
 
 Tests `NN::Mish` in `modules/layers/nn/include/SushiAI/nn/mish.hpp`, which has no parameter and
 no attribute.

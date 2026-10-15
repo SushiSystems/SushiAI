@@ -109,7 +109,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the suppression path reproduces the reference rows up to tied scores. */
-TEST(Unit_DetectPostprocess, SuppressionReproducesTheReferenceRows)
+TEST(Medium_DetectPostprocess, SuppressionReproducesTheReferenceRows)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
@@ -143,7 +143,7 @@ TEST(Unit_DetectPostprocess, SuppressionReproducesTheReferenceRows)
 }
 
 /** @brief Tests that no reference score passes the validation confidence, as the manifest says. */
-TEST(Unit_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
+TEST(Medium_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2many.decoded.boxes");
@@ -160,7 +160,7 @@ TEST(Unit_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
 }
 
 /** @brief Tests that the suppression settings default to what the reference validator passes. */
-TEST(Unit_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
+TEST(Medium_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
 {
     const NMSConfig config;
 
@@ -174,7 +174,7 @@ TEST(Unit_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
 }
 
 /** @brief Tests that the lower-scoring of two overlapping boxes is suppressed. */
-TEST(Unit_DetectPostprocess, SuppressesTheLowerOfTwoOverlappingBoxes)
+TEST(Medium_DetectPostprocess, SuppressesTheLowerOfTwoOverlappingBoxes)
 {
     const std::vector<float> boxes{0.0f,  0.0f,  10.0f, 10.0f, 1.0f,  1.0f,
                                    11.0f, 11.0f, 20.0f, 20.0f, 30.0f, 30.0f};
@@ -187,7 +187,7 @@ TEST(Unit_DetectPostprocess, SuppressesTheLowerOfTwoOverlappingBoxes)
 }
 
 /** @brief Tests that survivors are listed by descending score, equal scores by index. */
-TEST(Unit_DetectPostprocess, ListsSurvivorsByDescendingScore)
+TEST(Medium_DetectPostprocess, ListsSurvivorsByDescendingScore)
 {
     const std::vector<float> boxes{0.0f,  0.0f,  1.0f,  1.0f,  10.0f, 10.0f, 11.0f, 11.0f,
                                    20.0f, 20.0f, 21.0f, 21.0f, 30.0f, 30.0f, 31.0f, 31.0f};
@@ -199,7 +199,7 @@ TEST(Unit_DetectPostprocess, ListsSurvivorsByDescendingScore)
 }
 
 /** @brief Tests that an IoU equal to the threshold survives and one above it does not. */
-TEST(Unit_DetectPostprocess, KeepsABoxWhoseIoUEqualsTheThreshold)
+TEST(Medium_DetectPostprocess, KeepsABoxWhoseIoUEqualsTheThreshold)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 2.0f, 1.0f};
     const std::vector<float> scores{0.9f, 0.8f};
@@ -214,7 +214,7 @@ TEST(Unit_DetectPostprocess, KeepsABoxWhoseIoUEqualsTheThreshold)
 }
 
 /** @brief Tests that overlapping boxes of one class collapse to the higher score. */
-TEST(Unit_DetectPostprocess, OverlappingBoxesOfOneClassCollapse)
+TEST(Medium_DetectPostprocess, OverlappingBoxesOfOneClassCollapse)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.9f, 0.0f, 0.8f, 0.0f};
@@ -228,7 +228,7 @@ TEST(Unit_DetectPostprocess, OverlappingBoxesOfOneClassCollapse)
 }
 
 /** @brief Tests that overlapping boxes of different classes both survive a class-aware pass. */
-TEST(Unit_DetectPostprocess, OverlappingBoxesOfDifferentClassesBothSurvive)
+TEST(Medium_DetectPostprocess, OverlappingBoxesOfDifferentClassesBothSurvive)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.9f, 0.0f, 0.0f, 0.8f};
@@ -247,7 +247,7 @@ TEST(Unit_DetectPostprocess, OverlappingBoxesOfDifferentClassesBothSurvive)
 }
 
 /** @brief Tests that a score equal to the confidence threshold is dropped. */
-TEST(Unit_DetectPostprocess, DropsAScoreEqualToTheConfidenceThreshold)
+TEST(Medium_DetectPostprocess, DropsAScoreEqualToTheConfidenceThreshold)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 25.0f, 25.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.25f, 0.0f, 0.5f, 0.0f};
@@ -260,7 +260,7 @@ TEST(Unit_DetectPostprocess, DropsAScoreEqualToTheConfidenceThreshold)
 }
 
 /** @brief Tests that an anchor contributes every passing class, or only its best one. */
-TEST(Unit_DetectPostprocess, AnAnchorContributesEveryPassingClassOrItsBest)
+TEST(Medium_DetectPostprocess, AnAnchorContributesEveryPassingClassOrItsBest)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.6f, 0.1f, 0.7f};
@@ -279,7 +279,7 @@ TEST(Unit_DetectPostprocess, AnAnchorContributesEveryPassingClassOrItsBest)
 }
 
 /** @brief Tests that the detection limit keeps the highest-scoring survivors. */
-TEST(Unit_DetectPostprocess, LimitsDetectionsToTheHighestScores)
+TEST(Medium_DetectPostprocess, LimitsDetectionsToTheHighestScores)
 {
     const std::vector<float> boxes{5.0f,  5.0f,  10.0f, 10.0f, 25.0f, 25.0f,
                                    10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
@@ -294,7 +294,7 @@ TEST(Unit_DetectPostprocess, LimitsDetectionsToTheHighestScores)
 }
 
 /** @brief Tests that the candidate limit drops the lowest scores before suppression. */
-TEST(Unit_DetectPostprocess, LimitsCandidatesBeforeSuppression)
+TEST(Medium_DetectPostprocess, LimitsCandidatesBeforeSuppression)
 {
     const std::vector<float> boxes{5.0f,  5.0f,  10.0f, 10.0f, 25.0f, 25.0f,
                                    10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
@@ -308,7 +308,7 @@ TEST(Unit_DetectPostprocess, LimitsCandidatesBeforeSuppression)
 }
 
 /** @brief Tests that a threshold outside [0, 1] is refused with its value. */
-TEST(Unit_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
+TEST(Medium_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.6f};
@@ -320,7 +320,7 @@ TEST(Unit_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
 }
 
 /** @brief Tests that an image whose scores all stay at or below the threshold yields no rows. */
-TEST(Unit_DetectPostprocess, AnImageBelowTheThresholdYieldsNoRows)
+TEST(Medium_DetectPostprocess, AnImageBelowTheThresholdYieldsNoRows)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 25.0f, 25.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.25f, 0.1f, 0.2f, 0.0f};
@@ -332,7 +332,7 @@ TEST(Unit_DetectPostprocess, AnImageBelowTheThresholdYieldsNoRows)
 }
 
 /** @brief Tests that each image of a batch is suppressed from its own boxes and scores. */
-TEST(Unit_DetectPostprocess, SuppressesEachImageFromItsOwnRows)
+TEST(Medium_DetectPostprocess, SuppressesEachImageFromItsOwnRows)
 {
     const std::vector<float> boxes{5.0f,  5.0f,  10.0f, 10.0f, 5.0f,  5.0f,  10.0f, 10.0f,
                                    25.0f, 25.0f, 10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
@@ -352,7 +352,7 @@ TEST(Unit_DetectPostprocess, SuppressesEachImageFromItsOwnRows)
 }
 
 /** @brief Tests that scores that do not fill the shape are refused, not read as other classes. */
-TEST(Unit_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
+TEST(Medium_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
 {
     const std::vector<float> boxes(8, 0.0f);
     const std::vector<float> scores(6, 0.5f);

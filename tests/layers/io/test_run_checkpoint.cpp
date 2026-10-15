@@ -67,7 +67,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_RunCheckpoint : public SaTest::EngineTest {};
+    class Medium_RunCheckpoint : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -495,19 +495,19 @@ namespace
 } // namespace
 
 /** @brief Tests the resume of SGD with momentum across a change of the scheduled rate. */
-TEST_F(Integration_RunCheckpoint, AResumedSGDRunMatchesTheUninterruptedOneBitForBit)
+TEST_F(Medium_RunCheckpoint, AResumedSGDRunMatchesTheUninterruptedOneBitForBit)
 {
     expect_resume_is_bit_identical(*engine, Kind::SGD, "sushiai_run_checkpoint_sgd.sushi");
 }
 
 /** @brief Tests the resume of AdamW across a change of the scheduled rate. */
-TEST_F(Integration_RunCheckpoint, AResumedAdamWRunMatchesTheUninterruptedOneBitForBit)
+TEST_F(Medium_RunCheckpoint, AResumedAdamWRunMatchesTheUninterruptedOneBitForBit)
 {
     expect_resume_is_bit_identical(*engine, Kind::AdamW, "sushiai_run_checkpoint_adamw.sushi");
 }
 
 /** @brief Tests that a file with model state alone loads as weights and refuses a resume. */
-TEST_F(Integration_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
+TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_weights.sushi");
 
@@ -523,7 +523,7 @@ TEST_F(Integration_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
 }
 
 /** @brief Tests that a version 1 file still loads as weights and refuses a resume. */
-TEST_F(Integration_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
+TEST_F(Medium_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_version_one.sushi");
 
@@ -545,7 +545,7 @@ TEST_F(Integration_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
 }
 
 /** @brief Tests that a version above the newest is refused with the versions read. */
-TEST_F(Integration_RunCheckpoint, AFutureVersionIsRefusedByBothLoaders)
+TEST_F(Medium_RunCheckpoint, AFutureVersionIsRefusedByBothLoaders)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_future.sushi");
 
@@ -564,7 +564,7 @@ TEST_F(Integration_RunCheckpoint, AFutureVersionIsRefusedByBothLoaders)
 }
 
 /** @brief Tests that run state another optimizer type wrote is refused with both types. */
-TEST_F(Integration_RunCheckpoint, RunStateOfAnotherOptimizerTypeIsRefused)
+TEST_F(Medium_RunCheckpoint, RunStateOfAnotherOptimizerTypeIsRefused)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_other_type.sushi");
 
@@ -580,7 +580,7 @@ TEST_F(Integration_RunCheckpoint, RunStateOfAnotherOptimizerTypeIsRefused)
 }
 
 /** @brief Tests that a missing and a surplus run-state record are each refused by name. */
-TEST_F(Integration_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName)
+TEST_F(Medium_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName)
 {
     const SaTest::ScratchFile plain_file("sushiai_run_checkpoint_plain.sushi");
     const SaTest::ScratchFile momentum_file("sushiai_run_checkpoint_momentum.sushi");
@@ -604,7 +604,7 @@ TEST_F(Integration_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName
 }
 
 /** @brief Tests that the progress of a run is written and read back, field for field. */
-TEST_F(Integration_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
+TEST_F(Medium_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_progress.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(*engine, Kind::SGD, 11));
@@ -639,7 +639,7 @@ TEST_F(Integration_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsR
 }
 
 /** @brief Tests a resume in the middle of an epoch, with dropout and a shuffled order. */
-TEST_F(Integration_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitForBit)
+TEST_F(Medium_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitForBit)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_dropout.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(*engine));
@@ -673,7 +673,7 @@ TEST_F(Integration_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatches
 }
 
 /** @brief Tests that a resume without the run count, or without the position, diverges. */
-TEST_F(Integration_RunCheckpoint, AResumeThatDropsTheRunCountOrThePositionDiverges)
+TEST_F(Medium_RunCheckpoint, AResumeThatDropsTheRunCountOrThePositionDiverges)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_dropped.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(*engine));
@@ -706,7 +706,7 @@ TEST_F(Integration_RunCheckpoint, AResumeThatDropsTheRunCountOrThePositionDiverg
 }
 
 /** @brief Tests that run state without the progress records is refused and still is weights. */
-TEST_F(Integration_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnResume)
+TEST_F(Medium_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_no_progress.sushi");
 
@@ -731,7 +731,7 @@ TEST_F(Integration_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnRe
 }
 
 /** @brief Tests that a progress record of another type, or an epoch too large, is refused. */
-TEST_F(Integration_RunCheckpoint, AProgressRecordOfAnotherTypeOrRangeIsRefused)
+TEST_F(Medium_RunCheckpoint, AProgressRecordOfAnotherTypeOrRangeIsRefused)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_bad_progress.sushi");
 

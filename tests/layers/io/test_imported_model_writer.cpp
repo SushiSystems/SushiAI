@@ -135,7 +135,7 @@ namespace
 } // namespace
 
 /** @brief Tests the keys of the composed training file, in the order the writer states them. */
-TEST(Unit_ImportedModelWriter, ComposesTheTrainingFileAroundTheRecipe)
+TEST(Small_ImportedModelWriter, ComposesTheTrainingFileAroundTheRecipe)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value training,
                             IO::compose_training_file(make_imported()));
@@ -151,7 +151,7 @@ TEST(Unit_ImportedModelWriter, ComposesTheTrainingFileAroundTheRecipe)
 }
 
 /** @brief Tests that the data block is null, since no foreign file names a dataset. */
-TEST(Unit_ImportedModelWriter, LeavesTheDataBlockNull)
+TEST(Small_ImportedModelWriter, LeavesTheDataBlockNull)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Config::Value training,
                             IO::compose_training_file(make_imported()));
@@ -161,7 +161,7 @@ TEST(Unit_ImportedModelWriter, LeavesTheDataBlockNull)
 }
 
 /** @brief Tests that a model without tensors states no "weights" key. */
-TEST(Unit_ImportedModelWriter, StatesNoWeightsKeyWithoutTensors)
+TEST(Small_ImportedModelWriter, StatesNoWeightsKeyWithoutTensors)
 {
     ImportedModel imported = make_imported();
     imported.weights.clear();
@@ -171,7 +171,7 @@ TEST(Unit_ImportedModelWriter, StatesNoWeightsKeyWithoutTensors)
 }
 
 /** @brief Tests that a recipe stating a key of the writer is refused by that key. */
-TEST(Unit_ImportedModelWriter, ARecipeThatStatesAWriterKeyIsRefused)
+TEST(Small_ImportedModelWriter, ARecipeThatStatesAWriterKeyIsRefused)
 {
     ImportedModel imported = make_imported();
     imported.training = SushiAI::Test::attributes_from(R"({ "model": "other.json" })");
@@ -181,7 +181,7 @@ TEST(Unit_ImportedModelWriter, ARecipeThatStatesAWriterKeyIsRefused)
 }
 
 /** @brief Tests that a recipe that is no object is refused by its kind. */
-TEST(Unit_ImportedModelWriter, ARecipeThatIsNoObjectIsRefused)
+TEST(Small_ImportedModelWriter, ARecipeThatIsNoObjectIsRefused)
 {
     ImportedModel imported = make_imported();
     imported.training = Config::Value::integer(3);
@@ -191,7 +191,7 @@ TEST(Unit_ImportedModelWriter, ARecipeThatIsNoObjectIsRefused)
 }
 
 /** @brief Tests that the three files are written and named in the order model, weights, train. */
-TEST(Unit_ImportedModelWriter, WritesTheThreeFiles)
+TEST(Small_ImportedModelWriter, WritesTheThreeFiles)
 {
     const ScratchDirectory scratch("sushiai_import_three_files");
     SA_ASSERT_OK_AND_ASSIGN(
@@ -207,7 +207,7 @@ TEST(Unit_ImportedModelWriter, WritesTheThreeFiles)
 }
 
 /** @brief Tests that the model file reads back to the rows and the task it was given. */
-TEST(Unit_ImportedModelWriter, TheModelFileReadsBack)
+TEST(Small_ImportedModelWriter, TheModelFileReadsBack)
 {
     const ScratchDirectory scratch("sushiai_import_model_file");
     const ImportedModel imported = make_imported();
@@ -223,7 +223,7 @@ TEST(Unit_ImportedModelWriter, TheModelFileReadsBack)
 }
 
 /** @brief Tests that the weight file holds each tensor's record and bytes, in order. */
-TEST(Unit_ImportedModelWriter, TheWeightFileHoldsEveryTensor)
+TEST(Small_ImportedModelWriter, TheWeightFileHoldsEveryTensor)
 {
     const ScratchDirectory scratch("sushiai_import_weight_file");
     const ImportedModel imported = make_imported();
@@ -250,7 +250,7 @@ TEST(Unit_ImportedModelWriter, TheWeightFileHoldsEveryTensor)
 }
 
 /** @brief Tests that `train` refuses the written training file by its "data" key. */
-TEST(Unit_ImportedModelWriter, TheTrainingFileIsRefusedUntilItsDataIsFilled)
+TEST(Small_ImportedModelWriter, TheTrainingFileIsRefusedUntilItsDataIsFilled)
 {
     const ScratchDirectory scratch("sushiai_import_training_file");
     SA_ASSERT_OK_AND_ASSIGN(
@@ -262,7 +262,7 @@ TEST(Unit_ImportedModelWriter, TheTrainingFileIsRefusedUntilItsDataIsFilled)
 }
 
 /** @brief Tests that a model without tensors writes two files and no weight file. */
-TEST(Unit_ImportedModelWriter, WritesNoWeightFileWithoutTensors)
+TEST(Small_ImportedModelWriter, WritesNoWeightFileWithoutTensors)
 {
     const ScratchDirectory scratch("sushiai_import_no_weights");
     ImportedModel imported = make_imported();
@@ -277,7 +277,7 @@ TEST(Unit_ImportedModelWriter, WritesNoWeightFileWithoutTensors)
 }
 
 /** @brief Tests that an existing file is refused by name and left as it was. */
-TEST(Unit_ImportedModelWriter, AnExistingFileIsRefusedAndLeftAlone)
+TEST(Small_ImportedModelWriter, AnExistingFileIsRefusedAndLeftAlone)
 {
     const ScratchDirectory scratch("sushiai_import_existing");
     std::filesystem::create_directories(scratch.path());
@@ -295,7 +295,7 @@ TEST(Unit_ImportedModelWriter, AnExistingFileIsRefusedAndLeftAlone)
 }
 
 /** @brief Tests that Replace overwrites a file that is already in the directory. */
-TEST(Unit_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
+TEST(Small_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
 {
     const ScratchDirectory scratch("sushiai_import_replace");
     std::filesystem::create_directories(scratch.path());
@@ -312,7 +312,7 @@ TEST(Unit_ImportedModelWriter, ReplaceOverwritesAnExistingFile)
 }
 
 /** @brief Tests that a tensor whose bytes differ from its record stops the write of any file. */
-TEST(Unit_ImportedModelWriter, ATensorOfTheWrongSizeWritesNothing)
+TEST(Small_ImportedModelWriter, ATensorOfTheWrongSizeWritesNothing)
 {
     const ScratchDirectory scratch("sushiai_import_wrong_size");
     ImportedModel imported = make_imported();
@@ -326,7 +326,7 @@ TEST(Unit_ImportedModelWriter, ATensorOfTheWrongSizeWritesNothing)
 }
 
 /** @brief Tests that a tensor name stated twice is refused by that name. */
-TEST(Unit_ImportedModelWriter, ATensorNamedTwiceIsRefused)
+TEST(Small_ImportedModelWriter, ATensorNamedTwiceIsRefused)
 {
     const ScratchDirectory scratch("sushiai_import_named_twice");
     ImportedModel imported = make_imported();

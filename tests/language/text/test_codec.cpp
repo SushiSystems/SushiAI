@@ -75,7 +75,7 @@ namespace
 } // namespace
 
 /** @brief Tests that random bytes of every value, invalid UTF-8 among them, come back. */
-TEST(Unit_TextCodec, RandomBytesSurviveARoundTrip)
+TEST(Small_TextCodec, RandomBytesSurviveARoundTrip)
 {
     std::mt19937 generator(K_SEED);
     const std::string corpus = Support::drawn_bytes(generator, 20000, "abcdef  \n");
@@ -96,7 +96,7 @@ TEST(Unit_TextCodec, RandomBytesSurviveARoundTrip)
 }
 
 /** @brief Tests that a run of 5000 bytes without a blank, cut into chunks, comes back. */
-TEST(Unit_TextCodec, ATextLongerThanOneChunkSurvivesARoundTrip)
+TEST(Small_TextCodec, ATextLongerThanOneChunkSurvivesARoundTrip)
 {
     std::vector<Merge> merges = {Merge{97, 97}};
     for (TokenID id = 257; id < 264; ++id)
@@ -116,7 +116,7 @@ TEST(Unit_TextCodec, ATextLongerThanOneChunkSurvivesARoundTrip)
 }
 
 /** @brief Tests that the merge learned first is applied first, from the left. */
-TEST(Unit_TextCodec, MergesAreAppliedInTheOrderTheyWereLearned)
+TEST(Small_TextCodec, MergesAreAppliedInTheOrderTheyWereLearned)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary doubled,
                             Vocabulary::make({Merge{97, 98}, Merge{257, 257}}));
@@ -133,7 +133,7 @@ TEST(Unit_TextCodec, MergesAreAppliedInTheOrderTheyWereLearned)
 }
 
 /** @brief Tests that a text encodes to the tokens its training left it in. */
-TEST(Unit_TextCodec, ATrainedCorpusEncodesToItsTrainedTokens)
+TEST(Small_TextCodec, ATrainedCorpusEncodesToItsTrainedTokens)
 {
     BPETrainerOptions options;
     options.vocabulary_size = 300;
@@ -145,7 +145,7 @@ TEST(Unit_TextCodec, ATrainedCorpusEncodesToItsTrainedTokens)
 }
 
 /** @brief Tests that the encoder appends to the ids it is given. */
-TEST(Unit_TextCodec, EncodeAppendsToTheIDsItIsGiven)
+TEST(Small_TextCodec, EncodeAppendsToTheIDsItIsGiven)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 
@@ -155,7 +155,7 @@ TEST(Unit_TextCodec, EncodeAppendsToTheIDsItIsGiven)
 }
 
 /** @brief Tests that a special token decodes to no byte. */
-TEST(Unit_TextCodec, ASpecialTokenDecodesToNoByte)
+TEST(Small_TextCodec, ASpecialTokenDecodesToNoByte)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 
@@ -166,7 +166,7 @@ TEST(Unit_TextCodec, ASpecialTokenDecodesToNoByte)
 }
 
 /** @brief Tests that an id the vocabulary does not hold is a failure naming its index. */
-TEST(Unit_TextCodec, DecodeRefusesAnIDOutsideTheVocabulary)
+TEST(Small_TextCodec, DecodeRefusesAnIDOutsideTheVocabulary)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 

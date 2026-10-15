@@ -1,7 +1,7 @@
 # tests/layers/train/test_steps.cpp
 
 
-Suites: `Unit_Steps`.
+Suites: `Small_Steps`.
 
 Tests the builders that trace a model into a training, probe or evaluation graph, and the batch
 shape function.

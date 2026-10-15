@@ -1,7 +1,7 @@
 # tests/layers/nn/test_node.cpp
 
 
-Suites: `Unit_Node`, `Unit_NodeDeathTest`.
+Suites: `Small_Node`, `Small_NodeDeathTest`.
 
 Tests ModuleNode, LayerNode and the buffer check LayerAdapter makes at compile time.
 
@@ -158,5 +158,5 @@ is 0".
 
 ## LayerNodeOverANullLayerIsFatal
 
-The case is in the suite `Unit_NodeDeathTest`. Constructing a `LayerNode` from a null pointer
+The case is in the suite `Small_NodeDeathTest`. Constructing a `LayerNode` from a null pointer
 stops the process with a report containing "LayerNode" and "null layer".

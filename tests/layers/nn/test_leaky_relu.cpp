@@ -78,13 +78,13 @@ namespace
 } // namespace
 
 /** @brief Tests that the default slope is 0.01. */
-TEST(Unit_LeakyReLU, TheDefaultSlopeIsOneHundredth)
+TEST(Small_LeakyReLU, TheDefaultSlopeIsOneHundredth)
 {
     EXPECT_DOUBLE_EQ(LeakyReLU{}.slope, 0.01);
 }
 
 /** @brief Tests that tracing emits one LEAKY_RELU node reading the input with the slope. */
-TEST(Unit_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
+TEST(Small_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -105,7 +105,7 @@ TEST(Unit_LeakyReLU, ForwardEmitsOneLeakyReLUNodeCarryingTheSlope)
 }
 
 /** @brief Tests that a feature-vector batch keeps its shape and element type. */
-TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
+TEST(Small_LeakyReLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -119,7 +119,7 @@ TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 }
 
 /** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
+TEST(Small_LeakyReLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -133,7 +133,7 @@ TEST(Unit_LeakyReLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
-TEST(Unit_LeakyReLU, ForwardCarriesTheLayoutOfItsInput)
+TEST(Small_LeakyReLU, ForwardCarriesTheLayoutOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -148,7 +148,7 @@ TEST(Unit_LeakyReLU, ForwardCarriesTheLayoutOfItsInput)
 }
 
 /** @brief Tests that output_shape() matches the traced shape of a feature-vector batch. */
-TEST(Unit_LeakyReLU, OutputShapeAgreesWithForwardForAFeatureVector)
+TEST(Small_LeakyReLU, OutputShapeAgreesWithForwardForAFeatureVector)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -163,7 +163,7 @@ TEST(Unit_LeakyReLU, OutputShapeAgreesWithForwardForAFeatureVector)
 }
 
 /** @brief Tests that output_shape() matches the traced shape of an image batch. */
-TEST(Unit_LeakyReLU, OutputShapeAgreesWithForwardForAnImage)
+TEST(Small_LeakyReLU, OutputShapeAgreesWithForwardForAnImage)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -178,44 +178,44 @@ TEST(Unit_LeakyReLU, OutputShapeAgreesWithForwardForAnImage)
 }
 
 /** @brief Tests that a slope of exactly 0 is rejected. */
-TEST(Unit_LeakyReLU, ForwardRejectsASlopeOfZero)
+TEST(Small_LeakyReLU, ForwardRejectsASlopeOfZero)
 {
     EXPECT_TRUE(is_slope_rejected(0.0));
 }
 
 /** @brief Tests that a slope of exactly 1 is rejected. */
-TEST(Unit_LeakyReLU, ForwardRejectsASlopeOfOne)
+TEST(Small_LeakyReLU, ForwardRejectsASlopeOfOne)
 {
     EXPECT_TRUE(is_slope_rejected(1.0));
 }
 
 /** @brief Tests that a negative slope is rejected. */
-TEST(Unit_LeakyReLU, ForwardRejectsANegativeSlope)
+TEST(Small_LeakyReLU, ForwardRejectsANegativeSlope)
 {
     EXPECT_TRUE(is_slope_rejected(-0.01));
 }
 
 /** @brief Tests that a slope above 1 is rejected. */
-TEST(Unit_LeakyReLU, ForwardRejectsASlopeAboveOne)
+TEST(Small_LeakyReLU, ForwardRejectsASlopeAboveOne)
 {
     EXPECT_TRUE(is_slope_rejected(1.5));
 }
 
 /** @brief Tests that a NaN slope is rejected. */
-TEST(Unit_LeakyReLU, ForwardRejectsANaNSlope)
+TEST(Small_LeakyReLU, ForwardRejectsANaNSlope)
 {
     EXPECT_TRUE(is_slope_rejected(std::numeric_limits<double>::quiet_NaN()));
 }
 
 /** @brief Tests that slopes a float32 step inside each end of the open range are accepted. */
-TEST(Unit_LeakyReLU, ForwardAcceptsSlopesJustInsideTheOpenRange)
+TEST(Small_LeakyReLU, ForwardAcceptsSlopesJustInsideTheOpenRange)
 {
     EXPECT_FALSE(is_slope_rejected(std::numeric_limits<float>::min()));
     EXPECT_FALSE(is_slope_rejected(1.0 - std::numeric_limits<float>::epsilon()));
 }
 
 /** @brief Tests that output_shape() refuses each slope forward() refuses and names it. */
-TEST(Unit_LeakyReLU, OutputShapeRejectsASlopeOutsideTheOpenRange)
+TEST(Small_LeakyReLU, OutputShapeRejectsASlopeOutsideTheOpenRange)
 {
     for (double slope : {0.0, 1.0, -0.01, 1.5, std::numeric_limits<double>::quiet_NaN()})
     {
@@ -225,7 +225,7 @@ TEST(Unit_LeakyReLU, OutputShapeRejectsASlopeOutsideTheOpenRange)
 }
 
 /** @brief Tests that forward() refuses a slope in the layer's own message. */
-TEST(Unit_LeakyReLU, ForwardNamesTheLayerAndTheSlopeItRefuses)
+TEST(Small_LeakyReLU, ForwardNamesTheLayerAndTheSlopeItRefuses)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -237,7 +237,7 @@ TEST(Unit_LeakyReLU, ForwardNamesTheLayerAndTheSlopeItRefuses)
 }
 
 /** @brief Tests that a rejected slope leaves no node in the graph. */
-TEST(Unit_LeakyReLU, ARejectedSlopeEmitsNothing)
+TEST(Small_LeakyReLU, ARejectedSlopeEmitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -253,7 +253,7 @@ TEST(Unit_LeakyReLU, ARejectedSlopeEmitsNothing)
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Unit_LeakyReLU, TheParameterWalkVisitsNothing)
+TEST(Small_LeakyReLU, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

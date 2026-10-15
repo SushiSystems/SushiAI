@@ -4,7 +4,7 @@ The tests of the module `core/optim`, one file per header of `modules/core/optim
 
 ## test_apply_step_schedule.cpp
 
-Suites: `Unit_ApplyStepSchedule`.
+Suites: `Medium_ApplyStepSchedule`.
 
 Tests `Optim::apply_step_schedule` and `Optimizer::set_learning_rate`. The fixture needs an
 engine and gives each optimizer one float32 parameter of three zeros whose gradient is 2 in
@@ -40,7 +40,7 @@ gives 0.125 and the held cosine gives 0.25.
 
 ## test_cosine_schedule.cpp
 
-Suites: `Unit_CosineSchedule`.
+Suites: `Small_CosineSchedule`.
 
 Tests `Optim::CosineSchedule::rate_at`, `Optim::validate_cosine_schedule` and the section
 reader and writer of `cosine_schedule_section.hpp`. The schedule most cases start from has the
@@ -106,7 +106,7 @@ and a message containing "schedule 'base_rate'" and "finite".
 
 ## test_gradient_clip.cpp
 
-Suites: `Unit_GradientClip`.
+Suites: `Medium_GradientClip`.
 
 Tests the gradient clip of `Optim::Optimizer`: `enable_gradient_clip`, `set_clip_norm`, the
 `clip_norm` key of `Optim::make_optimizer` and the update a clipped step applies. The fixture
@@ -170,7 +170,7 @@ and finite".
 
 ## test_rate_schedule.cpp
 
-Suites: `Unit_RateSchedule`.
+Suites: `Small_RateSchedule`.
 
 Tests `Optim::RateSchedule`, the variant of `StepSchedule` and `CosineSchedule`: its section
 reader and writer, `rate_at`, `base_rate_of`, `validate_rate_schedule` and
@@ -228,7 +228,7 @@ rate 0.5 and a total of 10.
 
 ## test_run_schedule.cpp
 
-Suites: `Unit_RunSchedule`.
+Suites: `Small_RunSchedule`.
 
 Tests `Optim::read_rate_schedule`, which takes the schedule section and the optimizer section
 of a training file. The schedule section of the cases is a step schedule with the base rate
@@ -263,10 +263,10 @@ string in place of the section fails with "schedule" and "object".
 
 ## test_run_state.cpp
 
-Suites: `Unit_OptimizerRunState`, `Unit_LossScaleStateRestore`.
+Suites: `Medium_OptimizerRunState`, `Small_LossScaleStateRestore`.
 
 Tests `Optimizer::run_state`, `restore_scalars` and `check_state_owner`, and
-`Optim::LossScaleState::restore`. The `Unit_OptimizerRunState` fixture needs an engine and
+`Optim::LossScaleState::restore`. The `Medium_OptimizerRunState` fixture needs an engine and
 makes the slots `weight` and `bias`, each three float32 zeros with a gradient of ones.
 
 ### SGDListsItsMomentumBuffersAndItsStepCount
@@ -311,7 +311,7 @@ One `observe(false)` then gives the scale 8192 and the count 0. `restore` fails 
 
 ## test_step_schedule.cpp
 
-Suites: `Unit_StepSchedule`.
+Suites: `Small_StepSchedule`.
 
 Tests `Optim::StepSchedule::rate_at` and `Optim::validate_step_schedule`. Every case starts from
 the base rate 0.001, and the warm-up cases use 1000 warm-up updates at the default power 4. A
@@ -382,7 +382,7 @@ A `warmup_power` of -1 fails with `InvalidDescription`.
 
 ## test_step_schedule_section.cpp
 
-Suites: `Unit_StepScheduleSection`.
+Suites: `Small_StepScheduleSection`.
 
 Tests `Optim::read_step_schedule_section` and `Optim::write_step_schedule_section`. The full
 section states `type`, `base_rate`, `warmup_iterations`, `warmup_power`, `steps` and `scales`.
@@ -463,7 +463,7 @@ steps", "1 scales") and for steps 450000 then 400000 ("strictly ascend").
 
 ## test_optimizer.cpp
 
-Suites: `Unit_ParameterDecay`.
+Suites: `Medium_ParameterDecay`.
 
 Tests `ParameterSlot::decays` and the `decay_all` option of SGD and AdamW. The fixture needs an
 engine and makes two slots of three float32 elements, each starting at 2 with a zero gradient:
@@ -497,7 +497,7 @@ both at 1.5.
 
 ## test_loss_scaler.cpp
 
-Suites: `Unit_LossScaling`.
+Suites: `Small_LossScaling`.
 
 Tests the dynamic loss-scaling rule on LossScaleState, with no device involved.
 
@@ -565,7 +565,7 @@ The loss-scaling design is arranged around this property, and the test asserts i
 itself. Whatever sequence of backoffs and growths the machine takes, the scale is a power of
 two, so the reciprocal is exact and the round trip is lossless.
 
-Suites: `Regression_LossScaling`.
+Suites: `Medium_LossScaling`.
 
 Every failure of loss scaling is silent, which is what puts this part of mixed precision in the
 regression tier.

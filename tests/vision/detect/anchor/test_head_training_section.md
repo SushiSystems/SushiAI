@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_head_training_section.cpp
 
 
-Suites: `Unit_DetectAnchorTrainingSection`.
+Suites: `Small_DetectAnchorTrainingSection`.
 
 Tests `read_head_training_section` and `write_head_training_section` in
 `modules/vision/detect/include/SushiAI/vision/detect/anchor/head_training_section.hpp`.

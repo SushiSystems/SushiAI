@@ -74,7 +74,7 @@ namespace
     }
 }
 
-TEST(Unit_JsonWriter, WritesEveryKindOnOneLineInTheOrderOfTheKeys)
+TEST(Small_JsonWriter, WritesEveryKindOnOneLineInTheOrderOfTheKeys)
 {
     const Value root = parse_json(
         R"({"zebra": 1, "apple": 2.5, "c": "text", "d": true, "e": null, "f": [1, 2],
@@ -86,7 +86,7 @@ TEST(Unit_JsonWriter, WritesEveryKindOnOneLineInTheOrderOfTheKeys)
               "\"f\": [1, 2], \"g\": {}, \"h\": [], \"i\": { \"nested\": [false] } }\n");
 }
 
-TEST(Unit_JsonWriter, ExpandsTheFirstTwoLevelsAndKeepsDeeperOnesOnOneLine)
+TEST(Small_JsonWriter, ExpandsTheFirstTwoLevelsAndKeepsDeeperOnesOnOneLine)
 {
     const Value root = parse_json(
         R"({"format_version": 2, "input": {"shape": [28, 28, 1]},
@@ -108,7 +108,7 @@ TEST(Unit_JsonWriter, ExpandsTheFirstTwoLevelsAndKeepsDeeperOnesOnOneLine)
               "}\n");
 }
 
-TEST(Unit_JsonWriter, EndsEveryLineWithALineFeedAndTheTextWithOne)
+TEST(Small_JsonWriter, EndsEveryLineWithALineFeedAndTheTextWithOne)
 {
     const Value root = parse_json(R"({"a": {"b": [1, 2]}, "c": "text"})", "<test>");
 
@@ -119,13 +119,13 @@ TEST(Unit_JsonWriter, EndsEveryLineWithALineFeedAndTheTextWithOne)
     EXPECT_EQ(text.find('\r'), std::string::npos);
 }
 
-TEST(Unit_JsonWriter, WritesARootScalarAlone)
+TEST(Small_JsonWriter, WritesARootScalarAlone)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(Value::integer(-3)));
     EXPECT_EQ(text, "-3\n");
 }
 
-TEST(Unit_JsonWriter, SpellsNumbersInTheShortestFormThatReadsBack)
+TEST(Small_JsonWriter, SpellsNumbersInTheShortestFormThatReadsBack)
 {
     const Value root = parse_json("[7, -3, 0, 0.001, 1e-3, 2.5, 1.0, 1e300]", "<test>");
 
@@ -133,7 +133,7 @@ TEST(Unit_JsonWriter, SpellsNumbersInTheShortestFormThatReadsBack)
     EXPECT_EQ(text, "[7, -3, 0, 0.001, 0.001, 2.5, 1.0, 1e+300]\n");
 }
 
-TEST(Unit_JsonWriter, AnIntegerReadsBackAsTheSameInteger)
+TEST(Small_JsonWriter, AnIntegerReadsBackAsTheSameInteger)
 {
     const std::vector<std::int64_t> integers = {
         7, -3, 0, 1, -1, 9007199254740993,
@@ -157,7 +157,7 @@ TEST(Unit_JsonWriter, AnIntegerReadsBackAsTheSameInteger)
     }
 }
 
-TEST(Unit_JsonWriter, ARealReadsBackAsTheSameBits)
+TEST(Small_JsonWriter, ARealReadsBackAsTheSameBits)
 {
     // Each real is compared bit for bit: the tolerance is zero, absolute and relative.
     const std::vector<double> reals = {
@@ -188,7 +188,7 @@ TEST(Unit_JsonWriter, ARealReadsBackAsTheSameBits)
     }
 }
 
-TEST(Unit_JsonWriter, EscapesQuotesBackslashesAndControlCharacters)
+TEST(Small_JsonWriter, EscapesQuotesBackslashesAndControlCharacters)
 {
     const std::string raw = std::string("q\" b\\ s/ \b\f\n\r\t \x01\x1f \x7f") + '\0' + "end";
 
@@ -200,7 +200,7 @@ TEST(Unit_JsonWriter, EscapesQuotesBackslashesAndControlCharacters)
     EXPECT_EQ(read.as_string("<written>"), raw);
 }
 
-TEST(Unit_JsonWriter, WritesUTF8AsItsOwnBytes)
+TEST(Small_JsonWriter, WritesUTF8AsItsOwnBytes)
 {
     // U+011F, U+65E5 and U+1F363, as two, three and four bytes.
     const std::string raw = std::string("\xC4\x9F") + " " + "\xE6\x97\xA5" + " "
@@ -214,7 +214,7 @@ TEST(Unit_JsonWriter, WritesUTF8AsItsOwnBytes)
     EXPECT_EQ(read.as_string("<written>"), raw);
 }
 
-TEST(Unit_JsonWriter, EscapesAKeyAsItEscapesAString)
+TEST(Small_JsonWriter, EscapesAKeyAsItEscapesAString)
 {
     const Value root = Value::object({"a \"quoted\"\tkey"}, {Value::integer(1)});
 
@@ -226,7 +226,7 @@ TEST(Unit_JsonWriter, EscapesAKeyAsItEscapesAString)
     EXPECT_EQ(read.keys(), root.keys());
 }
 
-TEST(Unit_JsonWriter, RefusesANumberThatIsNotFinite)
+TEST(Small_JsonWriter, RefusesANumberThatIsNotFinite)
 {
     SA_EXPECT_FAILURE(write_json(Value::real(std::numeric_limits<double>::quiet_NaN())),
                       StatusCode::InvalidDescription, "not a number");
@@ -236,7 +236,7 @@ TEST(Unit_JsonWriter, RefusesANumberThatIsNotFinite)
                       StatusCode::InvalidDescription, "infinite");
 }
 
-TEST(Unit_JsonWriter, RefusesAStringThatIsNotUTF8)
+TEST(Small_JsonWriter, RefusesAStringThatIsNotUTF8)
 {
     const std::vector<std::pair<std::string_view, std::string>> malformed = {
         {"a byte that leads no form", "\xFF"},
@@ -257,7 +257,7 @@ TEST(Unit_JsonWriter, RefusesAStringThatIsNotUTF8)
     }
 }
 
-TEST(Unit_JsonWriter, RefusesAnObjectThatStatesAKeyTwice)
+TEST(Small_JsonWriter, RefusesAnObjectThatStatesAKeyTwice)
 {
     const Value root = Value::object({"rate", "units", "rate"},
                                      {Value::integer(1), Value::integer(2), Value::integer(3)});
@@ -265,7 +265,7 @@ TEST(Unit_JsonWriter, RefusesAnObjectThatStatesAKeyTwice)
     SA_EXPECT_FAILURE(write_json(root), StatusCode::InvalidDescription, "'rate'", "twice");
 }
 
-TEST(Unit_JsonWriter, ARefusalNamesTheWayToTheValue)
+TEST(Small_JsonWriter, ARefusalNamesTheWayToTheValue)
 {
     const Value row = Value::object(
         {"rate"}, {Value::real(std::numeric_limits<double>::quiet_NaN())});

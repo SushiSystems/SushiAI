@@ -1,7 +1,7 @@
 # tests/layers/train/test_dense_targets.cpp
 
 
-Suites: `Unit_DenseTargets`.
+Suites: `Medium_DenseTargets`.
 
 Tests `Train::fill_dense_targets` and `Train::fill_binary_targets`. The fixture needs an engine.
 A leaf holds 7 in every element before a fill.

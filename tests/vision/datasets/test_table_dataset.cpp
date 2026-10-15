@@ -52,7 +52,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides an engine and the builders of the lists these tests read. */
-    class Unit_DatasetsTableDataset : public SaTest::EngineTest
+    class Medium_DatasetsTableDataset : public SaTest::EngineTest
     {
         protected:
             /**
@@ -93,7 +93,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the dataset reports the batch size, the shapes and the whole batches. */
-TEST_F(Unit_DatasetsTableDataset, ItDescribesItsBatches)
+TEST_F(Medium_DatasetsTableDataset, ItDescribesItsBatches)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
@@ -109,7 +109,7 @@ TEST_F(Unit_DatasetsTableDataset, ItDescribesItsBatches)
 }
 
 /** @brief Tests that a batch holds its rows in list order, read through Data::Dataset. */
-TEST_F(Unit_DatasetsTableDataset, ABatchHoldsItsRowsInListOrder)
+TEST_F(Medium_DatasetsTableDataset, ABatchHoldsItsRowsInListOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> made,
@@ -133,7 +133,7 @@ TEST_F(Unit_DatasetsTableDataset, ABatchHoldsItsRowsInListOrder)
 }
 
 /** @brief Tests that make refuses a null collator, a list with no table and bad counts. */
-TEST_F(Unit_DatasetsTableDataset, MakeRefusesWhatItCannotBatch)
+TEST_F(Medium_DatasetsTableDataset, MakeRefusesWhatItCannotBatch)
 {
     SA_EXPECT_FAILURE(TableDataset::make(*engine, table_list(4), nullptr, options()),
                       StatusCode::InvalidDescription, "TableDataset", "'rows' has no collator");
@@ -159,7 +159,7 @@ TEST_F(Unit_DatasetsTableDataset, MakeRefusesWhatItCannotBatch)
 }
 
 /** @brief Tests that a batch index past the last batch stops the process. */
-TEST_F(Unit_DatasetsTableDataset, ABatchOutsideTheEpochStopsTheProcess)
+TEST_F(Medium_DatasetsTableDataset, ABatchOutsideTheEpochStopsTheProcess)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TableDataset> dataset,
@@ -170,7 +170,7 @@ TEST_F(Unit_DatasetsTableDataset, ABatchOutsideTheEpochStopsTheProcess)
 }
 
 /** @brief Tests that the failure of the collator reaches the caller of read. */
-TEST_F(Unit_DatasetsTableDataset, TheFailureOfTheCollatorIsReturned)
+TEST_F(Medium_DatasetsTableDataset, TheFailureOfTheCollatorIsReturned)
 {
     Result<std::unique_ptr<RegressionCollator>> wide = RegressionCollator::make(2, 2);
     ASSERT_TRUE(wide.status().is_ok());

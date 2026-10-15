@@ -133,7 +133,7 @@ builds its own epilogue and access set, because the access set belongs to the
 spelling: the row that spills a pre-activation declares a write the others do
 not. The edge lands on the GEMM task itself, so
 `operations_per_step` is the plan's node count again.
-`Regression_Fusion.AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias` asserts
+`Medium_Fusion.AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias` asserts
 that edge on `in_degree` rather than on a loss: with no edge the tasks may still
 come out in the right order on any given run, so a loss that falls proves
 nothing.
@@ -219,7 +219,7 @@ matches no entry. Under a narrowing policy a GELU layer therefore folds to
 `gemm+bias` and the activation runs on its own: exactly as it did before the
 entry existed, and `narrows_under_mixed_precision` answers false for both
 `K_GELU` and `K_GEMM_BIAS_GELU` so the two halves cannot drift.
-`Regression_MixedPrecision.AGELULayerIsNotFoldedUnderANarrowingPolicy` pins it.
+`Medium_MixedPrecisionRegressions.AGELULayerIsNotFoldedUnderANarrowingPolicy` pins it.
 
 **Where the pass runs, and why exactly there.** Between `differentiate()` and
 `fuse()`. After differentiation, because a backward node needs casting as much

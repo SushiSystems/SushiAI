@@ -3,11 +3,11 @@
 
 The two sources of a mosaic's three partner images.
 
-Suites: `Unit_ImagingPartners`.
+Suites: `Small_ImagingPartners`.
 
 Tests the two sources of a mosaic's three partner images.
 
-This file needs no device. `Unit_ImagingPartners` covers `DatasetPartners` of
+This file needs no device. `Small_ImagingPartners` covers `DatasetPartners` of
 `modules/vision/imaging/include/SushiAI/vision/imaging/dataset_partners.hpp`, which draws partners from the whole dataset,
 and `RecentPartners` of `modules/vision/imaging/include/SushiAI/vision/imaging/recent_partners.hpp`, which draws them from a
 buffer of recently seen indices.

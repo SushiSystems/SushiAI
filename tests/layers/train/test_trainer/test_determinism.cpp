@@ -46,7 +46,7 @@ using Graph::TensorPool;
 
 namespace
 {
-    class Regression_Determinism : public ::testing::Test {};
+    class Medium_Determinism : public ::testing::Test {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -180,7 +180,7 @@ namespace
  * @brief Tests that two SGD-with-momentum runs of two epochs agree byte for byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
+TEST_F(Medium_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
 {
     SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(2, false));
     SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(2, false));
@@ -193,7 +193,7 @@ TEST_F(Regression_Determinism, TwoIdenticalTrainingRunsAgreeByteForByte)
  * @brief Tests that two AdamW runs of two epochs agree byte for byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
+TEST_F(Medium_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
 {
     SA_ASSERT_OK_AND_ASSIGN(const RunResult first, train_once(2, true));
     SA_ASSERT_OK_AND_ASSIGN(const RunResult second, train_once(2, true));
@@ -205,7 +205,7 @@ TEST_F(Regression_Determinism, TwoIdenticalAdamWRunsAgreeByteForByte)
  * @brief Tests that two initialisations from one seed produce identical parameter bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
+TEST_F(Medium_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 {
     using Weights = std::vector<std::vector<unsigned char>>;
 
@@ -243,7 +243,7 @@ TEST_F(Regression_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
  * @brief Tests that two synthetic datasets built from one seed hold identical bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
+TEST_F(Medium_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 {
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::runtime());
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::runtime());
@@ -281,7 +281,7 @@ TEST_F(Regression_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
  * @brief Tests that replaying one compiled step on fixed inputs yields identical gradient bytes.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
+TEST_F(Medium_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 

@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_voc_xml.cpp
 
 
-Suites: `Unit_DatasetsVocXml`.
+Suites: `Small_DatasetsVocXml`.
 
 Tests `read_voc_xml` in `modules/vision/datasets/include/SushiAI/vision/datasets/voc_xml.hpp`
 over files the cases write under the system's temporary directory. Unless a case says

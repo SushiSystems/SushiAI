@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_sppf.cpp
 
 
-Suites: `Unit_BlockSppf`.
+Suites: `Small_BlockSppf`.
 
 Tests SPPF's trace, its state names against YOLO26n row 9, and its factory.
 

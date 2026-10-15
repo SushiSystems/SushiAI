@@ -226,7 +226,7 @@ namespace
 } // namespace
 
 /** @brief Tests that 128 channels over two heads give a head of 64 and a key of 32. */
-TEST(Unit_BlockAttention, TwoHeadsOver128ChannelsGiveAHeadOf64AndAKeyOf32)
+TEST(Small_BlockAttention, TwoHeadsOver128ChannelsGiveAHeadOf64AndAKeyOf32)
 {
     const Attention block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
 
@@ -239,7 +239,7 @@ TEST(Unit_BlockAttention, TwoHeadsOver128ChannelsGiveAHeadOf64AndAKeyOf32)
 }
 
 /** @brief Tests that the block keeps the per-sample shape. */
-TEST(Unit_BlockAttention, OutputShapeIsTheInputShape)
+TEST(Small_BlockAttention, OutputShapeIsTheInputShape)
 {
     const Attention block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
 
@@ -250,7 +250,7 @@ TEST(Unit_BlockAttention, OutputShapeIsTheInputShape)
  * @brief Tests that two heads trace 6 slices, 2 scales, 4 batched products, 2 softmax groups,
  *        1 add, 1 depthwise convolution and 2 joins, and keep the input's shape.
  */
-TEST(Unit_BlockAttention, TwoHeadsEmitSixSlicesTwoScalesFourProductsTwoSoftmaxesAndOneAdd)
+TEST(Small_BlockAttention, TwoHeadsEmitSixSlicesTwoScalesFourProductsTwoSoftmaxesAndOneAdd)
 {
     const TracedAttention traced;
     const Graph::Graph& graph = traced.graph;
@@ -272,7 +272,7 @@ TEST(Unit_BlockAttention, TwoHeadsEmitSixSlicesTwoScalesFourProductsTwoSoftmaxes
  * @brief Tests that each head's score product reads its scaled queries, then its keys with
  *        the second operand transposed, and yields [B, N, N].
  */
-TEST(Unit_BlockAttention, TheScoreProductReadsScaledQueriesThenTransposedKeys)
+TEST(Small_BlockAttention, TheScoreProductReadsScaledQueriesThenTransposedKeys)
 {
     const TracedAttention traced;
     const Graph::Graph& graph = traced.graph;
@@ -304,7 +304,7 @@ TEST(Unit_BlockAttention, TheScoreProductReadsScaledQueriesThenTransposedKeys)
  * @brief Tests that each head's value product reads the softmax of its scores, then its
  *        values, with neither operand transposed, and yields [B, N, head_dim].
  */
-TEST(Unit_BlockAttention, TheValueProductReadsTheSoftmaxOfTheScoresThenTheValues)
+TEST(Small_BlockAttention, TheValueProductReadsTheSoftmaxOfTheScoresThenTheValues)
 {
     const TracedAttention traced;
     const Graph::Graph& graph = traced.graph;
@@ -342,7 +342,7 @@ TEST(Unit_BlockAttention, TheValueProductReadsTheSoftmaxOfTheScoresThenTheValues
 }
 
 /** @brief Tests that both scales carry 1 / sqrt(32), to 1e-15 absolute. */
-TEST(Unit_BlockAttention, TheQueriesAreScaledByTheInverseRootOfTheKeyWidth)
+TEST(Small_BlockAttention, TheQueriesAreScaledByTheInverseRootOfTheKeyWidth)
 {
     const TracedAttention traced;
     std::size_t scales = 0;
@@ -364,7 +364,7 @@ TEST(Unit_BlockAttention, TheQueriesAreScaledByTheInverseRootOfTheKeyWidth)
  * @brief Tests that the add reads the attended heads joined, then pe's result over the values
  *        of both heads joined, and that proj reads the add.
  */
-TEST(Unit_BlockAttention, TheAddReadsTheAttendedHeadsThenThePositionalConvolution)
+TEST(Small_BlockAttention, TheAddReadsTheAttendedHeadsThenThePositionalConvolution)
 {
     const TracedAttention traced;
     const Graph::Graph& graph = traced.graph;
@@ -422,7 +422,7 @@ TEST(Unit_BlockAttention, TheAddReadsTheAttendedHeadsThenThePositionalConvolutio
  * @brief Tests that a traced Attention(128, 2) yields the fifteen records MANIFEST.json lists
  *        under model.10.m.0.attn, records 175 to 189: names, shapes and order.
  */
-TEST(Unit_BlockAttention, StateMatchesManifestRecords175To189)
+TEST(Small_BlockAttention, StateMatchesManifestRecords175To189)
 {
     TracedAttention traced;
 
@@ -437,7 +437,7 @@ TEST(Unit_BlockAttention, StateMatchesManifestRecords175To189)
 }
 
 /** @brief Tests that an evaluation trace folds the three norms and keeps the four products. */
-TEST(Unit_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
+TEST(Small_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -453,7 +453,7 @@ TEST(Unit_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
 }
 
 /** @brief Tests that a width the head count does not divide is refused, naming both. */
-TEST(Unit_BlockAttention, AWidthTheHeadCountDoesNotDivideIsRefused)
+TEST(Small_BlockAttention, AWidthTheHeadCountDoesNotDivideIsRefused)
 {
     SA_EXPECT_ERROR(static_cast<void>(Attention(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");
@@ -462,7 +462,7 @@ TEST(Unit_BlockAttention, AWidthTheHeadCountDoesNotDivideIsRefused)
 }
 
 /** @brief Tests that one channel per head is refused, since it leaves no key channel. */
-TEST(Unit_BlockAttention, OneChannelPerHeadIsRefused)
+TEST(Small_BlockAttention, OneChannelPerHeadIsRefused)
 {
     SA_EXPECT_ERROR(static_cast<void>(Attention(2, 2, K_YOLO_NORM)),
                     "at least 2 channels per head", "2 channels", "2 heads");

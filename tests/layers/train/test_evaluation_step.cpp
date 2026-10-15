@@ -130,7 +130,7 @@ namespace
     static_assert(NN::TraceModule<Accumulator>, "Accumulator must be a TraceModule");
 
     /** @brief Builds the carrying step of the accumulator and the two tensors a run feeds. */
-    class Unit_CarryingStep : public SaTest::EngineTest
+    class Medium_CarryingStep : public SaTest::EngineTest
     {
         protected:
             /** @brief Traces the model, compiles the step and fills x and the gain. */
@@ -219,14 +219,14 @@ namespace
     };
 
     /** @brief Provides the engine an ordinary evaluation step is built on. */
-    class Unit_PlainEvaluationStep : public SaTest::EngineTest
+    class Medium_PlainEvaluationStep : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
 /** @brief Tests that the step lists the model input first and the fed leaf behind it. */
-TEST_F(Unit_CarryingStep, TheStepNamesTheModelInputThenTheFedLeaves)
+TEST_F(Medium_CarryingStep, TheStepNamesTheModelInputThenTheFedLeaves)
 {
     ASSERT_EQ(step->input_names().size(), 2u);
     EXPECT_EQ(step->input_names()[0], Train::K_MODEL_INPUT_NAME);
@@ -241,7 +241,7 @@ TEST_F(Unit_CarryingStep, TheStepNamesTheModelInputThenTheFedLeaves)
 }
 
 /** @brief Tests that each run adds x * gain to what the run before left. */
-TEST_F(Unit_CarryingStep, ARunReadsWhatTheRunBeforeCarried)
+TEST_F(Medium_CarryingStep, ARunReadsWhatTheRunBeforeCarried)
 {
     SA_EXPECT_OK(run_once());
     expect_sum_after(1);
@@ -255,7 +255,7 @@ TEST_F(Unit_CarryingStep, ARunReadsWhatTheRunBeforeCarried)
 }
 
 /** @brief Tests that a reset puts the carried value back to its initial value. */
-TEST_F(Unit_CarryingStep, AResetRestoresTheInitialValue)
+TEST_F(Medium_CarryingStep, AResetRestoresTheInitialValue)
 {
     SA_EXPECT_OK(run_once());
     SA_EXPECT_OK(run_once());
@@ -267,7 +267,7 @@ TEST_F(Unit_CarryingStep, AResetRestoresTheInitialValue)
 }
 
 /** @brief Tests that the feeds in the order of the step give what the named feeds give. */
-TEST_F(Unit_CarryingStep, ARunInOrderFeedsTheLeavesAsTheStepListsThem)
+TEST_F(Medium_CarryingStep, ARunInOrderFeedsTheLeavesAsTheStepListsThem)
 {
     const SushiBLAS::Tensor* const feeds[] = {&x, &gain};
     SA_EXPECT_OK(step->run_in_order(Train::FeedSpan(feeds, 2)));
@@ -276,14 +276,14 @@ TEST_F(Unit_CarryingStep, ARunInOrderFeedsTheLeavesAsTheStepListsThem)
 }
 
 /** @brief Tests that a run with one tensor is refused by a step that is fed two leaves. */
-TEST_F(Unit_CarryingStep, ARunOfOneTensorIsRefusedByAStepFedTwoLeaves)
+TEST_F(Medium_CarryingStep, ARunOfOneTensorIsRefusedByAStepFedTwoLeaves)
 {
     SA_EXPECT_FAILURE(step->run(x), StatusCode::Incompatible, "1 tensors", "fed 2", "'gain'");
     EXPECT_EQ(step->step().run_count(), 0u);
 }
 
 /** @brief Tests that an unknown name, a repeated name and a missing leaf are each refused. */
-TEST_F(Unit_CarryingStep, NamedFeedsThatDoNotCoverTheLeavesAreRefused)
+TEST_F(Medium_CarryingStep, NamedFeedsThatDoNotCoverTheLeavesAreRefused)
 {
     const Train::NamedFeed unknown[] = {{"scale", &gain}, {Train::K_MODEL_INPUT_NAME, &x}};
     const Train::NamedFeed twice[] = {{K_GAIN_LEAF, &gain}, {K_GAIN_LEAF, &gain}};
@@ -299,7 +299,7 @@ TEST_F(Unit_CarryingStep, NamedFeedsThatDoNotCoverTheLeavesAreRefused)
 }
 
 /** @brief Tests that a fed tensor of another shape than its leaf is refused by name. */
-TEST_F(Unit_CarryingStep, AFeedOfAnotherShapeIsRefusedUnderItsName)
+TEST_F(Medium_CarryingStep, AFeedOfAnotherShapeIsRefusedUnderItsName)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor wide,
                             allocate_tensor(*engine, Shape{1, K_WIDTH + 1}));
@@ -310,7 +310,7 @@ TEST_F(Unit_CarryingStep, AFeedOfAnotherShapeIsRefusedUnderItsName)
 }
 
 /** @brief Tests that an ordinary evaluation step has one input, no state and no trailing work. */
-TEST_F(Unit_PlainEvaluationStep, AnOrdinaryStepFeedsOneLeafAndCarriesNothing)
+TEST_F(Medium_PlainEvaluationStep, AnOrdinaryStepFeedsOneLeafAndCarriesNothing)
 {
     NN::Linear model{K_WIDTH, K_WIDTH};
     SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep traced,
@@ -330,7 +330,7 @@ TEST_F(Unit_PlainEvaluationStep, AnOrdinaryStepFeedsOneLeafAndCarriesNothing)
 
 namespace
 {
-    class Integration_EvaluationStep : public SaTest::EngineTest {};
+    class Medium_EvaluationStep : public SaTest::EngineTest {};
 
     /** @brief The model the cases without a buffer run. */
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
@@ -406,7 +406,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a step compiles in make() and not again over three runs. */
-TEST_F(Integration_EvaluationStep, TheStepCompilesOnce)
+TEST_F(Medium_EvaluationStep, TheStepCompilesOnce)
 {
     MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(
@@ -432,7 +432,7 @@ TEST_F(Integration_EvaluationStep, TheStepCompilesOnce)
  * @brief Tests that an evaluation step over its own pool reads the weights a training step
  *        over another pool wrote into the shared state.
  */
-TEST_F(Integration_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJustMoved)
+TEST_F(Medium_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJustMoved)
 {
     MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -491,7 +491,7 @@ TEST_F(Integration_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJus
 }
 
 /** @brief Tests that a run of a probe step writes neither running vector of a batch norm. */
-TEST_F(Integration_EvaluationStep, AProbeRunLeavesBothRunningVectorsUnchanged)
+TEST_F(Medium_EvaluationStep, AProbeRunLeavesBothRunningVectorsUnchanged)
 {
     NN::BatchNorm2d model(K_CHANNELS, NN::NormOptions{});
     const Shape image{K_BATCH, K_SIDE, K_SIDE, K_CHANNELS};
@@ -523,7 +523,7 @@ TEST_F(Integration_EvaluationStep, AProbeRunLeavesBothRunningVectorsUnchanged)
 }
 
 /** @brief Tests that run() refuses an input of another batch and prints both shapes. */
-TEST_F(Integration_EvaluationStep, AnInputOfAnotherShapeIsRefusedWithBothShapes)
+TEST_F(Medium_EvaluationStep, AnInputOfAnotherShapeIsRefusedWithBothShapes)
 {
     MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(
@@ -543,7 +543,7 @@ TEST_F(Integration_EvaluationStep, AnInputOfAnotherShapeIsRefusedWithBothShapes)
 }
 
 /** @brief Tests that output() refuses a name the model did not publish and lists what it did. */
-TEST_F(Integration_EvaluationStep, AnUnknownOutputNameListsTheNames)
+TEST_F(Medium_EvaluationStep, AnUnknownOutputNameListsTheNames)
 {
     MLP model = make_mlp();
     SA_ASSERT_OK_AND_ASSIGN(

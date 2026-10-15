@@ -63,7 +63,7 @@ namespace
 } // namespace
 
 /** @brief Tests that an enlarged mask repeats each class and blends none. */
-TEST(Unit_DatasetsFitMask, AResizeRepeatsTheNearestClass)
+TEST(Small_DatasetsFitMask, AResizeRepeatsTheNearestClass)
 {
     const Image mask = Support::gray_image(ImageSize{2, 2}, {0, 1, 2, 3});
 
@@ -78,7 +78,7 @@ TEST(Unit_DatasetsFitMask, AResizeRepeatsTheNearestClass)
 }
 
 /** @brief Tests that a reduced mask takes the pixel each centre falls in. */
-TEST(Unit_DatasetsFitMask, AReductionTakesThePixelUnderEachCentre)
+TEST(Small_DatasetsFitMask, AReductionTakesThePixelUnderEachCentre)
 {
     const Image mask = Support::gray_image(ImageSize{4, 4}, Support::rising_bytes(16, 0));
 
@@ -91,7 +91,7 @@ TEST(Unit_DatasetsFitMask, AReductionTakesThePixelUnderEachCentre)
 }
 
 /** @brief Tests that a letterbox places the mask as its image and pads with K_MASK_VOID. */
-TEST(Unit_DatasetsFitMask, ALetterboxPadsWithTheVoidByte)
+TEST(Small_DatasetsFitMask, ALetterboxPadsWithTheVoidByte)
 {
     const Image mask = Support::gray_image(ImageSize{2, 4}, {0, 1, 2, 3, 4, 5, 6, 7});
 
@@ -106,7 +106,7 @@ TEST(Unit_DatasetsFitMask, ALetterboxPadsWithTheVoidByte)
 }
 
 /** @brief Tests that a letterbox that halves the mask samples it by nearest neighbour. */
-TEST(Unit_DatasetsFitMask, ALetterboxThatReducesSamplesTheNearestPixel)
+TEST(Small_DatasetsFitMask, ALetterboxThatReducesSamplesTheNearestPixel)
 {
     const Image mask = Support::gray_image(ImageSize{4, 8}, Support::rising_bytes(32, 0));
 
@@ -121,7 +121,7 @@ TEST(Unit_DatasetsFitMask, ALetterboxThatReducesSamplesTheNearestPixel)
 }
 
 /** @brief Tests that a mask of several channels or of another size than its image fails. */
-TEST(Unit_DatasetsFitMask, AMaskMustMatchItsImage)
+TEST(Small_DatasetsFitMask, AMaskMustMatchItsImage)
 {
     const SampleFitOptions options = options_of(SampleFit::Resize, ImageSize{4, 4});
     Image fitted;
@@ -141,7 +141,7 @@ TEST(Unit_DatasetsFitMask, AMaskMustMatchItsImage)
 }
 
 /** @brief Tests that the mask file of a sample is decoded as the bytes it stores. */
-TEST(Unit_DatasetsLoadSampleMask, TheMaskFileIsDecoded)
+TEST(Small_DatasetsLoadSampleMask, TheMaskFileIsDecoded)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_mask");
     const std::vector<std::uint8_t> classes = {0, 3, 255, 1, 2, 0};
@@ -162,7 +162,7 @@ TEST(Unit_DatasetsLoadSampleMask, TheMaskFileIsDecoded)
 }
 
 /** @brief Tests that a sample without a mask and indices outside the list are refused. */
-TEST(Unit_DatasetsLoadSampleMask, ASampleMustNameAMaskOfTheList)
+TEST(Small_DatasetsLoadSampleMask, ASampleMustNameAMaskOfTheList)
 {
     SampleList list;
     list.files.push_back("image.jpg");
@@ -180,7 +180,7 @@ TEST(Unit_DatasetsLoadSampleMask, ASampleMustNameAMaskOfTheList)
 }
 
 /** @brief Tests that an absent mask file is reported with its path. */
-TEST(Unit_DatasetsLoadSampleMask, AnAbsentMaskFileIsReported)
+TEST(Small_DatasetsLoadSampleMask, AnAbsentMaskFileIsReported)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_mask_absent");
 

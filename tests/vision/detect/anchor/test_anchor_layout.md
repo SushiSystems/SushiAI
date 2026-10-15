@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_layout.cpp
 
 
-Suites: `Unit_DetectAnchorLayout`.
+Suites: `Small_DetectAnchorLayout`.
 
 Tests `shape_iou` over two `AnchorSize` values and `validate_anchor_layout` over a layout of
 six anchors split between two heads.

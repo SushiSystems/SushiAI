@@ -334,7 +334,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the settings default to the reference's training run. */
-TEST(Unit_ImagingPipeline, SettingsDefaultToTheReferenceRun)
+TEST(Small_ImagingPipeline, SettingsDefaultToTheReferenceRun)
 {
     const TrainingSettings settings;
 
@@ -348,7 +348,7 @@ TEST(Unit_ImagingPipeline, SettingsDefaultToTheReferenceRun)
 }
 
 /** @brief Tests that the mosaic closes exactly when the epoch reaches epochs minus close_mosaic. */
-TEST(Unit_ImagingPipeline, MosaicClosesForTheLastTenEpochsOfAHundred)
+TEST(Small_ImagingPipeline, MosaicClosesForTheLastTenEpochsOfAHundred)
 {
     EXPECT_FALSE(is_mosaic_closed(0, 100, 10));
     EXPECT_FALSE(is_mosaic_closed(89, 100, 10));
@@ -359,7 +359,7 @@ TEST(Unit_ImagingPipeline, MosaicClosesForTheLastTenEpochsOfAHundred)
 }
 
 /** @brief Tests that a sample's generator is the seed derived by the epoch, then by the index. */
-TEST(Unit_ImagingPipeline, SampleRandomDerivesFromTheSeedTheEpochAndTheIndex)
+TEST(Small_ImagingPipeline, SampleRandomDerivesFromTheSeedTheEpochAndTheIndex)
 {
     const Random random = make_sample_random(2026u, 3, 17);
 
@@ -371,7 +371,7 @@ TEST(Unit_ImagingPipeline, SampleRandomDerivesFromTheSeedTheEpochAndTheIndex)
 }
 
 /** @brief Tests that a sample draws partners, gate and centre, then affine, jitter and flip. */
-TEST(Unit_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
+TEST(Small_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
 {
     MemorySource source;
     fill_source(source);
@@ -402,7 +402,7 @@ TEST(Unit_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
 }
 
 /** @brief Tests that the sample's image is loaded first, then its partners in draw order. */
-TEST(Unit_ImagingPipeline, TrainingLoadsTheSampleThenItsPartnersInDrawOrder)
+TEST(Small_ImagingPipeline, TrainingLoadsTheSampleThenItsPartnersInDrawOrder)
 {
     MemorySource source;
     fill_source(source);
@@ -420,7 +420,7 @@ TEST(Unit_ImagingPipeline, TrainingLoadsTheSampleThenItsPartnersInDrawOrder)
 }
 
 /** @brief Tests that the sample equals the transforms applied by hand in the reference order. */
-TEST(Unit_ImagingPipeline, TrainingAppliesItsPlansInTheReferenceOrder)
+TEST(Small_ImagingPipeline, TrainingAppliesItsPlansInTheReferenceOrder)
 {
     MemorySource source;
     fill_source(source);
@@ -444,7 +444,7 @@ TEST(Unit_ImagingPipeline, TrainingAppliesItsPlansInTheReferenceOrder)
 }
 
 /** @brief Tests that a flip probability of one mirrors the sample a probability of zero gives. */
-TEST(Unit_ImagingPipeline, TrainingAppliesAForcedFlipAndSkipsAForbiddenOne)
+TEST(Small_ImagingPipeline, TrainingAppliesAForcedFlipAndSkipsAForbiddenOne)
 {
     MemorySource source;
     fill_source(source);
@@ -482,7 +482,7 @@ TEST(Unit_ImagingPipeline, TrainingAppliesAForcedFlipAndSkipsAForbiddenOne)
 }
 
 /** @brief Tests that a sample has the training size, three channels and its own image's sizes. */
-TEST(Unit_ImagingPipeline, TrainingProducesTheTrainingSizeAndTheSizesOfItsOwnImage)
+TEST(Small_ImagingPipeline, TrainingProducesTheTrainingSizeAndTheSizesOfItsOwnImage)
 {
     MemorySource source;
     fill_source(source);
@@ -500,7 +500,7 @@ TEST(Unit_ImagingPipeline, TrainingProducesTheTrainingSizeAndTheSizesOfItsOwnIma
 }
 
 /** @brief Tests that the quadrant of at least 16 by 16 pixels keeps its box in the output. */
-TEST(Unit_ImagingPipeline, MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTrainingSize)
+TEST(Small_ImagingPipeline, MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTrainingSize)
 {
     MemorySource source;
     for (std::int32_t i = 0; i < 4; ++i)
@@ -555,7 +555,7 @@ TEST(Unit_ImagingPipeline, MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTraini
 }
 
 /** @brief Tests that a closed epoch loads one image and draws affine, jitter and flip only. */
-TEST(Unit_ImagingPipeline, ClosedEpochSkipsTheMosaicAndItsDraws)
+TEST(Small_ImagingPipeline, ClosedEpochSkipsTheMosaicAndItsDraws)
 {
     MemorySource source;
     fill_source(source);
@@ -587,7 +587,7 @@ TEST(Unit_ImagingPipeline, ClosedEpochSkipsTheMosaicAndItsDraws)
 }
 
 /** @brief Tests that a sample without a mosaic carries the box of its own image. */
-TEST(Unit_ImagingPipeline, SampleWithoutMosaicKeepsTheBoxOfItsOwnImage)
+TEST(Small_ImagingPipeline, SampleWithoutMosaicKeepsTheBoxOfItsOwnImage)
 {
     MemorySource source;
     fill_source(source);
@@ -612,7 +612,7 @@ TEST(Unit_ImagingPipeline, SampleWithoutMosaicKeepsTheBoxOfItsOwnImage)
 }
 
 /** @brief Tests that the last open epoch still composes a mosaic of four loads. */
-TEST(Unit_ImagingPipeline, EpochBeforeTheClosedOnesStillMakesAMosaic)
+TEST(Small_ImagingPipeline, EpochBeforeTheClosedOnesStillMakesAMosaic)
 {
     MemorySource source;
     fill_source(source);
@@ -630,7 +630,7 @@ TEST(Unit_ImagingPipeline, EpochBeforeTheClosedOnesStillMakesAMosaic)
 }
 
 /** @brief Tests that a gate that stays shut in an open epoch warps the loaded image alone. */
-TEST(Unit_ImagingPipeline, ClosedGateInAnOpenEpochWarpsTheLoadedImage)
+TEST(Small_ImagingPipeline, ClosedGateInAnOpenEpochWarpsTheLoadedImage)
 {
     MemorySource source;
     fill_source(source);
@@ -652,7 +652,7 @@ TEST(Unit_ImagingPipeline, ClosedGateInAnOpenEpochWarpsTheLoadedImage)
 }
 
 /** @brief Tests that one seed repeats a sample and that another seed, epoch or index changes it. */
-TEST(Unit_ImagingPipeline, SampleDependsOnTheSeedTheEpochAndTheIndexAlone)
+TEST(Small_ImagingPipeline, SampleDependsOnTheSeedTheEpochAndTheIndexAlone)
 {
     MemorySource source;
     fill_source(source);
@@ -683,7 +683,7 @@ TEST(Unit_ImagingPipeline, SampleDependsOnTheSeedTheEpochAndTheIndexAlone)
 }
 
 /** @brief Tests that the samples made before do not change the draws of the next one. */
-TEST(Unit_ImagingPipeline, EarlierSamplesDoNotShiftTheDrawsOfALaterOne)
+TEST(Small_ImagingPipeline, EarlierSamplesDoNotShiftTheDrawsOfALaterOne)
 {
     MemorySource source;
     fill_source(source);
@@ -708,7 +708,7 @@ TEST(Unit_ImagingPipeline, EarlierSamplesDoNotShiftTheDrawsOfALaterOne)
 }
 
 /** @brief Tests that a pipeline built without a partner source draws from its recent loads. */
-TEST(Unit_ImagingPipeline, DefaultPartnersComeFromTheImagesThePipelineLoaded)
+TEST(Small_ImagingPipeline, DefaultPartnersComeFromTheImagesThePipelineLoaded)
 {
     MemorySource source;
     fill_source(source);
@@ -724,7 +724,7 @@ TEST(Unit_ImagingPipeline, DefaultPartnersComeFromTheImagesThePipelineLoaded)
 }
 
 /** @brief Tests that a pipeline loads the partners the source it was given chooses. */
-TEST(Unit_ImagingPipeline, GivenPartnerSourceChoosesThePartners)
+TEST(Small_ImagingPipeline, GivenPartnerSourceChoosesThePartners)
 {
     MemorySource source;
     fill_source(source);
@@ -740,7 +740,7 @@ TEST(Unit_ImagingPipeline, GivenPartnerSourceChoosesThePartners)
 }
 
 /** @brief Tests that every setting is checked when the pipeline is constructed. */
-TEST(Unit_ImagingPipeline, TrainingRejectsEverySettingOutOfRangeAtConstruction)
+TEST(Small_ImagingPipeline, TrainingRejectsEverySettingOutOfRangeAtConstruction)
 {
     MemorySource source;
     fill_source(source);
@@ -782,7 +782,7 @@ TEST(Unit_ImagingPipeline, TrainingRejectsEverySettingOutOfRangeAtConstruction)
 }
 
 /** @brief Tests that an empty source and a null partner source are refused at construction. */
-TEST(Unit_ImagingPipeline, TrainingRejectsAnEmptySourceAndANullPartnerSource)
+TEST(Small_ImagingPipeline, TrainingRejectsAnEmptySourceAndANullPartnerSource)
 {
     MemorySource source;
     fill_source(source);
@@ -796,7 +796,7 @@ TEST(Unit_ImagingPipeline, TrainingRejectsAnEmptySourceAndANullPartnerSource)
 }
 
 /** @brief Tests that an index or an epoch outside its range is refused. */
-TEST(Unit_ImagingPipeline, TrainingRejectsIndicesAndEpochsOutsideTheirRange)
+TEST(Small_ImagingPipeline, TrainingRejectsIndicesAndEpochsOutsideTheirRange)
 {
     MemorySource source;
     fill_source(source);
@@ -812,7 +812,7 @@ TEST(Unit_ImagingPipeline, TrainingRejectsIndicesAndEpochsOutsideTheirRange)
 }
 
 /** @brief Tests that a one-channel image leaves the training pipeline with three equal channels. */
-TEST(Unit_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
+TEST(Small_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 1, 77), FileLabels{});
@@ -830,7 +830,7 @@ TEST(Unit_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
 }
 
 /** @brief Tests that a mosaic of grey and colour images is composed in three channels. */
-TEST(Unit_ImagingPipeline, TrainingComposesAMosaicOfGreyAndColourImages)
+TEST(Small_ImagingPipeline, TrainingComposesAMosaicOfGreyAndColourImages)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 1, 40), FileLabels{});
@@ -851,7 +851,7 @@ TEST(Unit_ImagingPipeline, TrainingComposesAMosaicOfGreyAndColourImages)
 }
 
 /** @brief Tests that an image of neither one nor three channels is refused with its index. */
-TEST(Unit_ImagingPipeline, TrainingRejectsAnImageOfFourChannels)
+TEST(Small_ImagingPipeline, TrainingRejectsAnImageOfFourChannels)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 4, 9), FileLabels{});
@@ -863,7 +863,7 @@ TEST(Unit_ImagingPipeline, TrainingRejectsAnImageOfFourChannels)
 }
 
 /** @brief Tests that a polygon label is resampled, carried through and bounds its box. */
-TEST(Unit_ImagingPipeline, TrainingCarriesAPolygonAndTakesTheBoxFromIt)
+TEST(Small_ImagingPipeline, TrainingCarriesAPolygonAndTakesTheBoxFromIt)
 {
     MemorySource source;
     FileLabels labels;
@@ -888,7 +888,7 @@ TEST(Unit_ImagingPipeline, TrainingCarriesAPolygonAndTakesTheBoxFromIt)
 }
 
 /** @brief Tests that validation resizes the long side and then only pads. */
-TEST(Unit_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
+TEST(Small_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
 {
     MemorySource source;
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30),
@@ -932,7 +932,7 @@ TEST(Unit_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
 }
 
 /** @brief Tests that validation moves a box by the padding and clips nothing. */
-TEST(Unit_ImagingPipeline, ValidationMovesBoxesByThePaddingWithoutClipping)
+TEST(Small_ImagingPipeline, ValidationMovesBoxesByThePaddingWithoutClipping)
 {
     MemorySource source;
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30),
@@ -954,7 +954,7 @@ TEST(Unit_ImagingPipeline, ValidationMovesBoxesByThePaddingWithoutClipping)
 }
 
 /** @brief Tests that a target of the loaded size adds no padding and copies the image. */
-TEST(Unit_ImagingPipeline, ValidationIntoARectangularTargetAddsNoPadding)
+TEST(Small_ImagingPipeline, ValidationIntoARectangularTargetAddsNoPadding)
 {
     MemorySource source;
     source.add(make_textured(ImageSize{16, 32}, 17), FileLabels{});
@@ -971,7 +971,7 @@ TEST(Unit_ImagingPipeline, ValidationIntoARectangularTargetAddsNoPadding)
 }
 
 /** @brief Tests that a validation sample does not depend on the samples made before it. */
-TEST(Unit_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
+TEST(Small_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
 {
     MemorySource source;
     fill_source(source);
@@ -992,7 +992,7 @@ TEST(Unit_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
 }
 
 /** @brief Tests that validation expands a grey image and pads it in three channels. */
-TEST(Unit_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
+TEST(Small_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{8, 16}, 1, 61), FileLabels{});
@@ -1015,7 +1015,7 @@ TEST(Unit_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
 }
 
 /** @brief Tests that validation resamples a polygon and moves it with the letterbox. */
-TEST(Unit_ImagingPipeline, ValidationCarriesAPolygonThroughTheLetterbox)
+TEST(Small_ImagingPipeline, ValidationCarriesAPolygonThroughTheLetterbox)
 {
     MemorySource source;
     FileLabels labels;
@@ -1037,7 +1037,7 @@ TEST(Unit_ImagingPipeline, ValidationCarriesAPolygonThroughTheLetterbox)
 }
 
 /** @brief Tests that validation checks its settings at construction and its index per sample. */
-TEST(Unit_ImagingPipeline, ValidationRejectsSettingsAndIndicesOutsideTheirRange)
+TEST(Small_ImagingPipeline, ValidationRejectsSettingsAndIndicesOutsideTheirRange)
 {
     MemorySource source;
     fill_source(source);

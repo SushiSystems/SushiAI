@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_boxes.cpp
 
 
-Suites: `Unit_ImagingBoxes`.
+Suites: `Small_ImagingBoxes`.
 
 Tests the two box forms, their conversions and the candidate filter.
 
-This file needs no device. `Unit_ImagingBoxes` covers `modules/vision/imaging/include/SushiAI/vision/imaging/boxes.hpp`: a
+This file needs no device. `Small_ImagingBoxes` covers `modules/vision/imaging/include/SushiAI/vision/imaging/boxes.hpp`: a
 `NormalizedBox` is a centre and an extent in fractions of the image, a `PixelBox` is two corners
 in pixels, and `is_box_candidate` decides whether a box survives an augmentation.
 

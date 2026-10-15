@@ -52,7 +52,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides the engine the batches are allocated on. */
-    class Unit_DataTarget : public SaTest::EngineTest
+    class Medium_DataTarget : public SaTest::EngineTest
     {
 
     };
@@ -80,7 +80,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a description is found by its role and an unknown role yields null. */
-TEST(Unit_DataTargetLookup, ADescriptionIsFoundByItsRole)
+TEST(Small_DataTargetLookup, ADescriptionIsFoundByItsRole)
 {
     const std::vector<TargetDescription> targets = two_roles();
 
@@ -91,7 +91,7 @@ TEST(Unit_DataTargetLookup, ADescriptionIsFoundByItsRole)
 }
 
 /** @brief Tests that a batch target is found by its role and an unknown role yields null. */
-TEST(Unit_DataTargetLookup, ABatchTargetIsFoundByItsRole)
+TEST(Small_DataTargetLookup, ABatchTargetIsFoundByItsRole)
 {
     std::vector<BatchTarget> targets(2);
     targets[0].role = std::string(Data::K_ROLE_LABELS);
@@ -103,7 +103,7 @@ TEST(Unit_DataTargetLookup, ABatchTargetIsFoundByItsRole)
 }
 
 /** @brief Tests that allocate_batch yields one tensor per description, in their order. */
-TEST_F(Unit_DataTarget, AllocateBatchYieldsOneTensorPerDescriptionInOrder)
+TEST_F(Medium_DataTarget, AllocateBatchYieldsOneTensorPerDescriptionInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch,
                             Data::allocate_batch(*engine, 8, float_input(Shape{6}),
@@ -130,7 +130,7 @@ TEST_F(Unit_DataTarget, AllocateBatchYieldsOneTensorPerDescriptionInOrder)
 }
 
 /** @brief Tests that allocate_batch with no description yields the inputs alone. */
-TEST_F(Unit_DataTarget, AllocateBatchWithNoDescriptionYieldsTheInputsAlone)
+TEST_F(Medium_DataTarget, AllocateBatchWithNoDescriptionYieldsTheInputsAlone)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch,
                             Data::allocate_batch(*engine, 2, float_input(Shape{4, 4, 1}), {}));
@@ -140,7 +140,7 @@ TEST_F(Unit_DataTarget, AllocateBatchWithNoDescriptionYieldsTheInputsAlone)
 }
 
 /** @brief Tests that allocate_batch gives the input the element type its description names. */
-TEST_F(Unit_DataTarget, AllocateBatchGivesTheInputItsStatedElementType)
+TEST_F(Medium_DataTarget, AllocateBatchGivesTheInputItsStatedElementType)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch,
                             Data::allocate_batch(*engine, 3, token_input(), two_roles()));
@@ -153,7 +153,7 @@ TEST_F(Unit_DataTarget, AllocateBatchGivesTheInputItsStatedElementType)
 }
 
 /** @brief Tests that prepare_batch keeps the tensors of a batch that holds the layout alone. */
-TEST_F(Unit_DataTarget, PrepareBatchKeepsABatchThatHoldsTheLayoutAlone)
+TEST_F(Medium_DataTarget, PrepareBatchKeepsABatchThatHoldsTheLayoutAlone)
 {
     Data::Batch batch;
     SA_EXPECT_OK(Data::prepare_batch(*engine, 3, token_input(), two_roles(), batch));
@@ -166,7 +166,7 @@ TEST_F(Unit_DataTarget, PrepareBatchKeepsABatchThatHoldsTheLayoutAlone)
 }
 
 /** @brief Tests that prepare_batch replaces an input of the same shape and another type. */
-TEST_F(Unit_DataTarget, PrepareBatchReplacesAnInputOfAnotherElementType)
+TEST_F(Medium_DataTarget, PrepareBatchReplacesAnInputOfAnotherElementType)
 {
     Data::Batch batch;
     SA_EXPECT_OK(Data::prepare_batch(*engine, 3, float_input(Shape{7}), two_roles(), batch));
@@ -180,7 +180,7 @@ TEST_F(Unit_DataTarget, PrepareBatchReplacesAnInputOfAnotherElementType)
 }
 
 /** @brief Tests that a dataset states float32 unless it overrides, and the type it was given. */
-TEST_F(Unit_DataTarget, ADatasetStatesTheElementTypeOfItsInput)
+TEST_F(Medium_DataTarget, ADatasetStatesTheElementTypeOfItsInput)
 {
     Data::SyntheticOptions options;
     options.batches = 1;
@@ -196,7 +196,7 @@ TEST_F(Unit_DataTarget, ADatasetStatesTheElementTypeOfItsInput)
 }
 
 /** @brief Tests that the synthetic set publishes labels as one int32 per sample, in rotation. */
-TEST_F(Unit_DataTarget, SyntheticClassificationPublishesItsLabelsInRotation)
+TEST_F(Medium_DataTarget, SyntheticClassificationPublishesItsLabelsInRotation)
 {
     Data::SyntheticOptions options;
     options.batch_size = 4;

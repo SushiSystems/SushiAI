@@ -210,7 +210,7 @@ namespace
     };
 } // namespace
 
-TEST(Unit_CodecsDecodeImage, PNGBytesReachThePNGDecoder)
+TEST(Small_CodecsDecodeImage, PNGBytesReachThePNGDecoder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_image(rgb_png(), DecodeOptions{}));
 
@@ -220,7 +220,7 @@ TEST(Unit_CodecsDecodeImage, PNGBytesReachThePNGDecoder)
     EXPECT_EQ(bytes_of(image), K_RGB_SAMPLES);
 }
 
-TEST(Unit_CodecsDecodeImage, JPEGBytesReachTheJPEGDecoder)
+TEST(Small_CodecsDecodeImage, JPEGBytesReachTheJPEGDecoder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_image(gray_jpeg(), DecodeOptions{}));
 
@@ -231,7 +231,7 @@ TEST(Unit_CodecsDecodeImage, JPEGBytesReachTheJPEGDecoder)
         EXPECT_NEAR(image.data()[i], K_JPEG_LEVEL, K_JPEG_TOLERANCE) << i;
 }
 
-TEST(Unit_CodecsDecodeImage, OptionsReachTheSelectedDecoder)
+TEST(Small_CodecsDecodeImage, OptionsReachTheSelectedDecoder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image from_jpeg,
                             decode_image(gray_jpeg(), layout_options(ChannelLayout::Color)));
@@ -242,7 +242,7 @@ TEST(Unit_CodecsDecodeImage, OptionsReachTheSelectedDecoder)
     EXPECT_EQ(from_png.channels(), 1);
 }
 
-TEST(Unit_CodecsDecodeImage, RawRGBFileDecodesToItsStoredSamples)
+TEST(Small_CodecsDecodeImage, RawRGBFileDecodesToItsStoredSamples)
 {
     const std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
 
@@ -257,7 +257,7 @@ TEST(Unit_CodecsDecodeImage, RawRGBFileDecodesToItsStoredSamples)
     EXPECT_EQ(bytes_of(color), K_RGB_SAMPLES);
 }
 
-TEST(Unit_CodecsDecodeImage, RawBGRFileDecodesToRGB)
+TEST(Small_CodecsDecodeImage, RawBGRFileDecodesToRGB)
 {
     const std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::BGR);
 
@@ -267,7 +267,7 @@ TEST(Unit_CodecsDecodeImage, RawBGRFileDecodesToRGB)
               (std::vector<std::uint8_t>{0, 0, 255, 0, 255, 0, 255, 0, 0, 30, 20, 10}));
 }
 
-TEST(Unit_CodecsDecodeImage, RawGrayFileDecodesToOneChannelOrToThreeEqualOnes)
+TEST(Small_CodecsDecodeImage, RawGrayFileDecodesToOneChannelOrToThreeEqualOnes)
 {
     const std::vector<std::uint8_t> file = raw_file(K_GRAY_SAMPLES, 1, ChannelOrder::Gray);
 
@@ -285,7 +285,7 @@ TEST(Unit_CodecsDecodeImage, RawGrayFileDecodesToOneChannelOrToThreeEqualOnes)
                                                           255, 255, 255}));
 }
 
-TEST(Unit_CodecsDecodeImage, RawRGBFileIsRefusedAsGray)
+TEST(Small_CodecsDecodeImage, RawRGBFileIsRefusedAsGray)
 {
     const std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
 
@@ -293,7 +293,7 @@ TEST(Unit_CodecsDecodeImage, RawRGBFileIsRefusedAsGray)
                       StatusCode::Unsupported, "decode_image: ", "3 channels", "gray");
 }
 
-TEST(Unit_CodecsDecodeImage, RawFileCutShortIsInvalid)
+TEST(Small_CodecsDecodeImage, RawFileCutShortIsInvalid)
 {
     const std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
     const SushiRuntime::span<const std::uint8_t> short_pixels(file.data(), file.size() - 1);
@@ -305,7 +305,7 @@ TEST(Unit_CodecsDecodeImage, RawFileCutShortIsInvalid)
                       "decode_image: ", "10 of 24");
 }
 
-TEST(Unit_CodecsDecodeImage, RawFileWithTrailingBytesIsInvalid)
+TEST(Small_CodecsDecodeImage, RawFileWithTrailingBytesIsInvalid)
 {
     std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
     file.push_back(0);
@@ -314,7 +314,7 @@ TEST(Unit_CodecsDecodeImage, RawFileWithTrailingBytesIsInvalid)
                       "holds 37 bytes", "declares 36");
 }
 
-TEST(Unit_CodecsDecodeImage, RawFileWithASideAboveTheLimitIsInvalidBeforeAnyAllocation)
+TEST(Small_CodecsDecodeImage, RawFileWithASideAboveTheLimitIsInvalidBeforeAnyAllocation)
 {
     std::vector<std::uint8_t> file = raw_file(K_RGB_SAMPLES, 3, ChannelOrder::RGB);
     // Bytes 8 to 11 hold the height, least significant byte first: 0x4001 is 16385.
@@ -325,7 +325,7 @@ TEST(Unit_CodecsDecodeImage, RawFileWithASideAboveTheLimitIsInvalidBeforeAnyAllo
                       "height 16385", "16384");
 }
 
-TEST(Unit_CodecsDecodeImage, BytesOfNoKnownFormatAreUnsupported)
+TEST(Small_CodecsDecodeImage, BytesOfNoKnownFormatAreUnsupported)
 {
     const std::vector<std::uint8_t> garbage(64, 0x5A);
     const std::vector<std::uint8_t> gif = {'G', 'I', 'F', '8', '9', 'a', 0, 0};
@@ -338,7 +338,7 @@ TEST(Unit_CodecsDecodeImage, BytesOfNoKnownFormatAreUnsupported)
                       StatusCode::Unsupported, "decode_image: ", "0 bytes");
 }
 
-TEST(Unit_CodecsDecodeImage, SignatureWithNothingBehindItFailsInItsDecoder)
+TEST(Small_CodecsDecodeImage, SignatureWithNothingBehindItFailsInItsDecoder)
 {
     const std::vector<std::uint8_t> jpeg = {0xFF, 0xD8, 0xFF};
     const std::vector<std::uint8_t> png = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
@@ -351,7 +351,7 @@ TEST(Unit_CodecsDecodeImage, SignatureWithNothingBehindItFailsInItsDecoder)
                       "decode_image: ", "4 of 24");
 }
 
-TEST(Unit_CodecsDecodeImage, LoadReportsAMissingPathAndNamesIt)
+TEST(Small_CodecsDecodeImage, LoadReportsAMissingPathAndNamesIt)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_missing");
 
@@ -359,7 +359,7 @@ TEST(Unit_CodecsDecodeImage, LoadReportsAMissingPathAndNamesIt)
                       StatusCode::FileNotFound, "absent.png", "load_image: ");
 }
 
-TEST(Unit_CodecsDecodeImage, LoadDecodesAPNGFile)
+TEST(Small_CodecsDecodeImage, LoadDecodesAPNGFile)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_png");
     const std::filesystem::path path = directory.write("image.png", rgb_png());
@@ -370,7 +370,7 @@ TEST(Unit_CodecsDecodeImage, LoadDecodesAPNGFile)
     EXPECT_EQ(bytes_of(image), K_RGB_SAMPLES);
 }
 
-TEST(Unit_CodecsDecodeImage, LoadDecodesAJPEGFileWhateverItsExtension)
+TEST(Small_CodecsDecodeImage, LoadDecodesAJPEGFileWhateverItsExtension)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_jpeg");
     const std::filesystem::path path = directory.write("image.png", gray_jpeg());
@@ -384,7 +384,7 @@ TEST(Unit_CodecsDecodeImage, LoadDecodesAJPEGFileWhateverItsExtension)
         EXPECT_NEAR(image.data()[i], K_JPEG_LEVEL, K_JPEG_TOLERANCE) << i;
 }
 
-TEST(Unit_CodecsDecodeImage, LoadDecodesARawImageFile)
+TEST(Small_CodecsDecodeImage, LoadDecodesARawImageFile)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_raw");
     const std::filesystem::path path =
@@ -396,7 +396,7 @@ TEST(Unit_CodecsDecodeImage, LoadDecodesARawImageFile)
     EXPECT_EQ(bytes_of(image), K_GRAY_SAMPLES);
 }
 
-TEST(Unit_CodecsDecodeImage, LoadNamesThePathOfAFileItsDecoderRejects)
+TEST(Small_CodecsDecodeImage, LoadNamesThePathOfAFileItsDecoderRejects)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_corrupt");
     std::vector<std::uint8_t> bytes = rgb_png();
@@ -408,7 +408,7 @@ TEST(Unit_CodecsDecodeImage, LoadNamesThePathOfAFileItsDecoderRejects)
                       "decode_png: ");
 }
 
-TEST(Unit_CodecsDecodeImage, LoadNamesThePathOfAFileOfNoKnownFormat)
+TEST(Small_CodecsDecodeImage, LoadNamesThePathOfAFileOfNoKnownFormat)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_unknown");
     const std::filesystem::path text = directory.write("notes.txt", {'h', 'e', 'l', 'l', 'o'});
@@ -420,7 +420,7 @@ TEST(Unit_CodecsDecodeImage, LoadNamesThePathOfAFileOfNoKnownFormat)
                       "0 bytes");
 }
 
-TEST(Unit_CodecsDecodeImage, LoadRefusesADirectory)
+TEST(Small_CodecsDecodeImage, LoadRefusesADirectory)
 {
     const ScratchDirectory directory("sushiai_unit_codecs_load_directory");
 

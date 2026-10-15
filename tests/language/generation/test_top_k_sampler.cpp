@@ -48,7 +48,7 @@ namespace
 } // namespace
 
 /** @brief Tests logits 0, ln 2, 0, -5 with k = 2: tokens 1 and 0 share 2/3 and 1/3. */
-TEST(Unit_GenerationTopKSampler, OnlyTheKLargestAreDrawnAndTheLowerIndexWinsATie)
+TEST(Small_GenerationTopKSampler, OnlyTheKLargestAreDrawnAndTheLowerIndexWinsATie)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TopKSampler> sampler,
                             TopKSampler::make(2, 1.0));
@@ -64,7 +64,7 @@ TEST(Unit_GenerationTopKSampler, OnlyTheKLargestAreDrawnAndTheLowerIndexWinsATie
 }
 
 /** @brief Tests that k = 1 always picks the largest logit, whatever the seed. */
-TEST(Unit_GenerationTopKSampler, KeepingOneTokenIsTheGreedyPick)
+TEST(Small_GenerationTopKSampler, KeepingOneTokenIsTheGreedyPick)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TopKSampler> sampler,
                             TopKSampler::make(1, 1.0));
@@ -76,7 +76,7 @@ TEST(Unit_GenerationTopKSampler, KeepingOneTokenIsTheGreedyPick)
 }
 
 /** @brief Tests that a k above the row keeps every token: 0 and ln 2 share 1/3 and 2/3. */
-TEST(Unit_GenerationTopKSampler, AKAboveTheRowKeepsEveryToken)
+TEST(Small_GenerationTopKSampler, AKAboveTheRowKeepsEveryToken)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TopKSampler> sampler,
                             TopKSampler::make(50, 1.0));
@@ -88,7 +88,7 @@ TEST(Unit_GenerationTopKSampler, AKAboveTheRowKeepsEveryToken)
 }
 
 /** @brief Tests that one seed gives one sequence. */
-TEST(Unit_GenerationTopKSampler, ASeedFixesTheSequence)
+TEST(Small_GenerationTopKSampler, ASeedFixesTheSequence)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TopKSampler> sampler,
                             TopKSampler::make(4, 0.8));
@@ -99,7 +99,7 @@ TEST(Unit_GenerationTopKSampler, ASeedFixesTheSequence)
 }
 
 /** @brief Tests that a k below one and a temperature that is not positive are refused. */
-TEST(Unit_GenerationTopKSampler, MakeRefusesAKBelowOneAndABadTemperature)
+TEST(Small_GenerationTopKSampler, MakeRefusesAKBelowOneAndABadTemperature)
 {
     SA_EXPECT_FAILURE(TopKSampler::make(0, 1.0), StatusCode::InvalidDescription, "'top_k'",
                       "keep 0 tokens");

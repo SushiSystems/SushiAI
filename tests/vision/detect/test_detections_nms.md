@@ -3,12 +3,12 @@
 
 The top-k selection, both postprocess paths and the overlap suppression.
 
-Suites: `Unit_DetectTopK`, `Unit_DetectPostprocess`.
+Suites: `Small_DetectTopK`, `Medium_DetectPostprocess`.
 
 Tests the top-k selection, both postprocess paths and the overlap suppression.
 
-This file needs no device. `Unit_DetectTopK` covers `modules/vision/detect/include/SushiAI/vision/detect/top_k.hpp`, and
-`Unit_DetectPostprocess` covers `modules/vision/detect/include/SushiAI/vision/detect/detections_topk.hpp` and
+This file needs no device. `Small_DetectTopK` covers `modules/vision/detect/include/SushiAI/vision/detect/top_k.hpp`, and
+`Medium_DetectPostprocess` covers `modules/vision/detect/include/SushiAI/vision/detect/detections_topk.hpp` and
 `modules/vision/detect/include/SushiAI/vision/detect/detections_nms.hpp`. The suppression path takes boxes as centre and
 size, so the hand cases write them that way and expect corners. Four cases read `forward.sacp`
 and report themselves skipped when the file is absent.

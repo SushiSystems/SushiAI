@@ -126,7 +126,7 @@ namespace
 } // namespace
 
 /** @brief Tests the five leaves of the Dice objective, none of them [R, C]. */
-TEST(Unit_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
+TEST(Medium_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DiceObjective> objective,
                             DiceObjective::make(K_EXTENTS));
@@ -152,7 +152,7 @@ TEST(Unit_DiceObjective, TheDiceDeclaresTwoIndexLeavesAndNoOneHot)
 }
 
 /** @brief Tests that the Dice loss is one element whose gradient crosses the scatter-add. */
-TEST(Unit_DiceObjective, TheDiceLossIsDifferentiated)
+TEST(Medium_DiceObjective, TheDiceLossIsDifferentiated)
 {
     NN::Conv2d model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DiceObjective> objective,
@@ -381,14 +381,14 @@ namespace
     }
 
     /** @brief Provides the engine the state and the step are built on. */
-    class Integration_DiceObjective : public SaTest::EngineTest
+    class Medium_DiceObjectiveEndToEnd : public SaTest::EngineTest
     {
     };
 
 } // namespace
 
 /** @brief Tests the Dice loss and its gradient at the logits against central differences. */
-TEST_F(Integration_DiceObjective, TheDiceLossAndItsGradientEqualTheHostComputation)
+TEST_F(Medium_DiceObjectiveEndToEnd, TheDiceLossAndItsGradientEqualTheHostComputation)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Vision::Training::DiceObjective> objective,
                             Vision::Training::DiceObjective::make(K_HOST_EXTENTS, K_IGNORE));

@@ -56,7 +56,7 @@ namespace
 } // namespace
 
 /** @brief Tests that rows() returns the rows in the order add() received them. */
-TEST(Unit_DatasetRegistry, AddKeepsInsertionOrder)
+TEST(Medium_DatasetRegistry, AddKeepsInsertionOrder)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(registry.add(K_RINGS_ROW));
@@ -69,7 +69,7 @@ TEST(Unit_DatasetRegistry, AddKeepsInsertionOrder)
 }
 
 /** @brief Tests that find returns null for a type no row holds and the row of one it holds. */
-TEST(Unit_DatasetRegistry, FindReturnsNullForAnUnknownType)
+TEST(Medium_DatasetRegistry, FindReturnsNullForAnUnknownType)
 {
     Data::DatasetRegistry registry;
     EXPECT_EQ(registry.find("rings"), nullptr);
@@ -83,7 +83,7 @@ TEST(Unit_DatasetRegistry, FindReturnsNullForAnUnknownType)
 }
 
 /** @brief Tests that add refuses a type a row already holds and names the type. */
-TEST(Unit_DatasetRegistry, ATypeAddedTwiceIsRefused)
+TEST(Medium_DatasetRegistry, ATypeAddedTwiceIsRefused)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(registry.add(K_RINGS_ROW));
@@ -93,7 +93,7 @@ TEST(Unit_DatasetRegistry, ATypeAddedTwiceIsRefused)
 }
 
 /** @brief Tests that register_datasets adds the "rings" row and no other. */
-TEST(Unit_DatasetRegistry, RegisterDatasetsAddsRingsOnly)
+TEST(Medium_DatasetRegistry, RegisterDatasetsAddsRingsOnly)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Data::register_datasets(registry));
@@ -106,7 +106,7 @@ TEST(Unit_DatasetRegistry, RegisterDatasetsAddsRingsOnly)
 
 namespace
 {
-    class Integration_Registries : public SaTest::EngineTest
+    class Medium_Registries : public SaTest::EngineTest
     {
         protected:
             /** @brief Adds the "rings" row the dataset tests name. */
@@ -142,7 +142,7 @@ namespace
     }
 }
 
-TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
+TEST_F(Medium_Registries, RingsIsBalancedAndCarriesItsDistractors)
 {
     Data::RingsOptions options;
     options.batch_size = 32;
@@ -166,7 +166,7 @@ TEST_F(Integration_Registries, RingsIsBalancedAndCarriesItsDistractors)
 }
 
 /** @brief Tests that Rings publishes one role: labels, one int32 per sample over its classes. */
-TEST_F(Integration_Registries, RingsPublishesItsLabelsAsOneIndexPerSample)
+TEST_F(Medium_Registries, RingsPublishesItsLabelsAsOneIndexPerSample)
 {
     Data::RingsOptions options;
     options.batch_size = 8;
@@ -192,7 +192,7 @@ TEST_F(Integration_Registries, RingsPublishesItsLabelsAsOneIndexPerSample)
     EXPECT_EQ(labels_of(batch), (std::vector<int32_t>{0, 1, 2, 0, 1, 2, 0, 1}));
 }
 
-TEST_F(Integration_Registries, RingsReportItsSampleShape)
+TEST_F(Medium_Registries, RingsReportItsSampleShape)
 {
     Data::RingsOptions options;
     options.batch_size = 8;
@@ -212,7 +212,7 @@ TEST_F(Integration_Registries, RingsReportItsSampleShape)
     EXPECT_EQ(inputs.shape[1], 6);
 }
 
-TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
+TEST_F(Medium_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
 {
     // The class is a function of x^2 + y^2; see tests/core/data/README.md.
     Data::RingsOptions options;
@@ -241,7 +241,7 @@ TEST_F(Integration_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
     }
 }
 
-TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
+TEST_F(Medium_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Data::Dataset> dataset,
@@ -256,7 +256,7 @@ TEST_F(Integration_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
     EXPECT_EQ(dataset->sample_shape(), Shape{3});   // x, y and one distractor
 }
 
-TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
+TEST_F(Medium_Registries, TheSameSeedGivesTheSameData)
 {
     // Data comes from a host RNG, not Philox; see tests/core/data/README.md.
     const auto build = [this]
@@ -279,14 +279,14 @@ TEST_F(Integration_Registries, TheSameSeedGivesTheSameData)
         EXPECT_EQ(a[i], b[i]) << "element " << i;
 }
 
-TEST_F(Integration_Registries, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
+TEST_F(Medium_Registries, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(datasets, *engine, "coco", attributes_from("{}"), "data"),
         StatusCode::InvalidDescription, "coco", "dataset type", "'rings'");
 }
 
-TEST_F(Integration_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
+TEST_F(Medium_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
 {
     SA_EXPECT_ERROR(
         (void)Data::make_dataset(datasets, *engine, "rings",
@@ -294,7 +294,7 @@ TEST_F(Integration_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
         "data", "'batch_sizes'", "'batch_size'");
 }
 
-TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
+TEST_F(Medium_Registries, ANonPositiveRingsExtentIsRefused)
 {
     SA_EXPECT_FAILURE(
         Data::make_dataset(datasets, *engine, "rings",
@@ -302,7 +302,7 @@ TEST_F(Integration_Registries, ANonPositiveRingsExtentIsRefused)
         StatusCode::InvalidDescription, "positive");
 }
 
-TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
+TEST_F(Medium_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
 {
     // One real slot backs the optimizer state; see tests/core/data/README.md.
     const int64_t dims[1] = {4};
@@ -329,14 +329,14 @@ TEST_F(Integration_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigVal
     EXPECT_TRUE(sgd->is_replay_invariant());
 }
 
-TEST_F(Integration_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
+TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 {
     SA_EXPECT_ERROR(
         (void)Optim::make_optimizer(*engine, "lion", {}, attributes_from("{}"), "optimizer"),
         "lion", "optimizer type", "'adamw'", "'sgd'");
 }
 
-TEST_F(Integration_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
+TEST_F(Medium_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 {
     // "momentum" is SGD's key, not AdamW's; see tests/core/data/README.md.
     SA_EXPECT_ERROR(
@@ -345,7 +345,7 @@ TEST_F(Integration_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
         "optimizer", "'momentum'", "'beta1'");
 }
 
-TEST_F(Integration_Registries, AConfigurationCannotReachTheReferenceUpdateKernel)
+TEST_F(Medium_Registries, AConfigurationCannotReachTheReferenceUpdateKernel)
 {
     // "kernel" is not an accepted config key; see tests/core/data/README.md.
     SA_EXPECT_ERROR(

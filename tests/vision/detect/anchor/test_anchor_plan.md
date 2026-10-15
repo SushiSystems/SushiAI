@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_plan.cpp
 
 
-Suites: `Unit_DetectAnchorPlan`.
+Suites: `Small_DetectAnchorPlan`.
 
 Tests `plan_anchors`, which chooses or takes a count per head, clusters the boxes, assigns the
 anchors to the heads by stride, measures the fit and derives the assignment thresholds. The

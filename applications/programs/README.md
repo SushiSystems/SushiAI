@@ -178,7 +178,7 @@ reports for each update.
 ### The compile-count line
 
 The driver prints `compiles: N` in the shape `sa demo mlp` prints it, because the CTest case
-`Integration_App.TrainRunsAndReportsOneCompile` in `tests/CMakeLists.txt` pins the line. `N` is
+`Medium_App.TrainRunsAndReportsOneCompile` in `tests/CMakeLists.txt` pins the line. `N` is
 the compile count of the training step the run returns. The `anchor` run also holds a
 forward-only step and fails unless that one was compiled exactly once.
 

@@ -104,7 +104,7 @@ namespace
 }
 
 /** @brief Tests that a trace gates every expert, and yields its usage and its balance. */
-TEST(Unit_BlockMoeFeedForward, ATraceMixesEveryExpertByItsGate)
+TEST(Small_BlockMoeFeedForward, ATraceMixesEveryExpertByItsGate)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -142,7 +142,7 @@ TEST(Unit_BlockMoeFeedForward, ATraceMixesEveryExpertByItsGate)
 }
 
 /** @brief Tests that each kept level adds one row window, one comparison and their glue. */
-TEST(Unit_BlockMoeFeedForward, KeepingTheTopScoresAddsOneWindowPerLevel)
+TEST(Small_BlockMoeFeedForward, KeepingTheTopScoresAddsOneWindowPerLevel)
 {
     for (const int64_t top_k : {int64_t{1}, int64_t{2}, K_EXPERTS})
     {
@@ -173,7 +173,7 @@ TEST(Unit_BlockMoeFeedForward, KeepingTheTopScoresAddsOneWindowPerLevel)
 }
 
 /** @brief Tests that the walk names the router, then the two stacked layers of the experts. */
-TEST(Unit_BlockMoeFeedForward, TheWalkYieldsTheRouterAndTheStackedLayers)
+TEST(Small_BlockMoeFeedForward, TheWalkYieldsTheRouterAndTheStackedLayers)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -196,7 +196,7 @@ TEST(Unit_BlockMoeFeedForward, TheWalkYieldsTheRouterAndTheStackedLayers)
  * @brief Tests that an input of another rank, a block of no width and a top_k above the
  *        experts each fail and add no node.
  */
-TEST(Unit_BlockMoeFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
+TEST(Small_BlockMoeFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -227,7 +227,7 @@ TEST(Unit_BlockMoeFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
 }
 
 /** @brief Tests that the factory reads its keys and builds a node of three ports. */
-TEST(Unit_BlockMoeFeedForward, TheFactoryBuildsANodeOfThreePorts)
+TEST(Small_BlockMoeFeedForward, TheFactoryBuildsANodeOfThreePorts)
 {
     const Shape input{5, K_DIM};
     const Config::Value good =
@@ -270,7 +270,7 @@ TEST(Unit_BlockMoeFeedForward, TheFactoryBuildsANodeOfThreePorts)
 }
 
 /** @brief Tests that the factory refuses a key it lacks, a stray key and a count out of range. */
-TEST(Unit_BlockMoeFeedForward, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockMoeFeedForward, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{5, K_DIM};
     const auto make = [&input](const char* text)
@@ -294,7 +294,7 @@ TEST(Unit_BlockMoeFeedForward, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that the incremental form of one position is the ordinary trace of it. */
-TEST(Unit_BlockMoeFeedForward, TheIncrementalFormIsTheOrdinaryTraceOfOnePosition)
+TEST(Small_BlockMoeFeedForward, TheIncrementalFormIsTheOrdinaryTraceOfOnePosition)
 {
     MoEFeedForward whole(K_DIM, K_HIDDEN, K_EXPERTS, 1);
     Graph::Graph whole_graph;

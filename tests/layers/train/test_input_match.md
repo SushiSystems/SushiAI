@@ -1,7 +1,7 @@
 # tests/layers/train/test_input_match.cpp
 
 
-Suites: `Unit_InputMatch`.
+Suites: `Small_InputMatch`.
 
 Tests `Train::describe_input_leaf` and `Train::match_input`. The dataset is a local `Published`
 class named "published" that publishes the input it is built with, no role and no batch.

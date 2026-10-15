@@ -259,31 +259,31 @@ namespace
 } // namespace
 
 /** @brief Tests that three heads over nine anchors read back from their section unchanged. */
-TEST(Unit_DetectAnchorTask, AThreeHeadTaskRoundTripsThroughItsSection)
+TEST(Small_DetectAnchorTask, AThreeHeadTaskRoundTripsThroughItsSection)
 {
     expect_task_round_trip(make_three_head_task());
 }
 
 /** @brief Tests that two heads over six anchors read back from their section unchanged. */
-TEST(Unit_DetectAnchorTask, ATwoHeadTaskRoundTripsThroughItsSection)
+TEST(Small_DetectAnchorTask, ATwoHeadTaskRoundTripsThroughItsSection)
 {
     expect_task_round_trip(make_two_head_task());
 }
 
 /** @brief Tests that a section of three heads is written back as it was read. */
-TEST(Unit_DetectAnchorTask, AThreeHeadSectionRoundTripsThroughItsTask)
+TEST(Small_DetectAnchorTask, AThreeHeadSectionRoundTripsThroughItsTask)
 {
     expect_section_round_trip(K_THREE_HEAD_SECTION);
 }
 
 /** @brief Tests that a section of two heads is written back as it was read. */
-TEST(Unit_DetectAnchorTask, ATwoHeadSectionRoundTripsThroughItsTask)
+TEST(Small_DetectAnchorTask, ATwoHeadSectionRoundTripsThroughItsTask)
 {
     expect_section_round_trip(K_TWO_HEAD_SECTION);
 }
 
 /** @brief Tests that the reader fills every field of the task from the section. */
-TEST(Unit_DetectAnchorTask, ReadsEveryFieldOfASection)
+TEST(Small_DetectAnchorTask, ReadsEveryFieldOfASection)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task,
                             read_anchor_task(section_from(K_THREE_HEAD_SECTION)));
@@ -304,7 +304,7 @@ TEST(Unit_DetectAnchorTask, ReadsEveryFieldOfASection)
 }
 
 /** @brief Tests that the writer states the type, the keys in order and each float as a double. */
-TEST(Unit_DetectAnchorTask, WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble)
+TEST(Small_DetectAnchorTask, WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section, write_anchor_task(make_two_head_task()));
 
@@ -325,7 +325,7 @@ TEST(Unit_DetectAnchorTask, WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble)
 }
 
 /** @brief Tests that both strings of "coding" are read and written as their enumerators. */
-TEST(Unit_DetectAnchorTask, ReadsAndWritesEachCodingString)
+TEST(Small_DetectAnchorTask, ReadsAndWritesEachCodingString)
 {
     /** @brief Pairs a string of "coding" with its enumerator. */
     struct Case
@@ -349,7 +349,7 @@ TEST(Unit_DetectAnchorTask, ReadsAndWritesEachCodingString)
 }
 
 /** @brief Tests that both strings of "criterion" are read and written as their enumerators. */
-TEST(Unit_DetectAnchorTask, ReadsAndWritesEachCriterionString)
+TEST(Small_DetectAnchorTask, ReadsAndWritesEachCriterionString)
 {
     /** @brief Pairs a string of "criterion" with its enumerator and a section stating it. */
     struct Case
@@ -377,7 +377,7 @@ TEST(Unit_DetectAnchorTask, ReadsAndWritesEachCriterionString)
 }
 
 /** @brief Tests that the exponent is written and read under DistanceIoU and only there. */
-TEST(Unit_DetectAnchorTask, TheExponentBelongsToTheCriterionThatReadsIt)
+TEST(Small_DetectAnchorTask, TheExponentBelongsToTheCriterionThatReadsIt)
 {
     AnchorTask plain = make_two_head_task();
     plain.distance_exponent = 0.25f;
@@ -400,7 +400,7 @@ TEST(Unit_DetectAnchorTask, TheExponentBelongsToTheCriterionThatReadsIt)
 }
 
 /** @brief Tests that a whole number is read where a section states a real. */
-TEST(Unit_DetectAnchorTask, ReadsAWholeNumberAsAScale)
+TEST(Small_DetectAnchorTask, ReadsAWholeNumberAsAScale)
 {
     SectionText text;
     text.heads = "[" + head_text(R"("logit")", "2") + "]";
@@ -410,7 +410,7 @@ TEST(Unit_DetectAnchorTask, ReadsAWholeNumberAsAScale)
 }
 
 /** @brief Tests that two heads may share an anchor, as validate_anchor_layout allows. */
-TEST(Unit_DetectAnchorTask, AcceptsAnAnchorTwoHeadsShare)
+TEST(Small_DetectAnchorTask, AcceptsAnAnchorTwoHeadsShare)
 {
     SectionText text;
     text.heads =
@@ -423,7 +423,7 @@ TEST(Unit_DetectAnchorTask, AcceptsAnAnchorTwoHeadsShare)
 }
 
 /** @brief Tests that a section that is not an object is refused. */
-TEST(Unit_DetectAnchorTask, RefusesASectionThatIsNotAnObject)
+TEST(Small_DetectAnchorTask, RefusesASectionThatIsNotAnObject)
 {
     SA_EXPECT_FAILURE(read_anchor_task(section_from("[1]")), StatusCode::InvalidDescription,
                       "task", "an array");
@@ -432,7 +432,7 @@ TEST(Unit_DetectAnchorTask, RefusesASectionThatIsNotAnObject)
 }
 
 /** @brief Tests that a type other than the anchor task's, or none, is refused by its key. */
-TEST(Unit_DetectAnchorTask, RefusesAnotherTypeOrNone)
+TEST(Small_DetectAnchorTask, RefusesAnotherTypeOrNone)
 {
     SectionText other;
     other.type = R"("anchor_free_detection")";
@@ -449,7 +449,7 @@ TEST(Unit_DetectAnchorTask, RefusesAnotherTypeOrNone)
 }
 
 /** @brief Tests that a key the section does not have is refused at each level. */
-TEST(Unit_DetectAnchorTask, RefusesAnUnknownKeyAtEachLevel)
+TEST(Small_DetectAnchorTask, RefusesAnUnknownKeyAtEachLevel)
 {
     SA_EXPECT_FAILURE(read_anchor_task(section_from(R"({"type": "anchor_detection",
                                                         "clases": 3})")),
@@ -468,7 +468,7 @@ TEST(Unit_DetectAnchorTask, RefusesAnUnknownKeyAtEachLevel)
 }
 
 /** @brief Tests that each of the five members is required. */
-TEST(Unit_DetectAnchorTask, RefusesASectionWithoutOneOfItsMembers)
+TEST(Small_DetectAnchorTask, RefusesASectionWithoutOneOfItsMembers)
 {
     const std::string type = R"("type": "anchor_detection")";
     const std::string classes = R"("classes": 3)";
@@ -497,7 +497,7 @@ TEST(Unit_DetectAnchorTask, RefusesASectionWithoutOneOfItsMembers)
 }
 
 /** @brief Tests that a class count that is not a whole number of at least 1 is refused. */
-TEST(Unit_DetectAnchorTask, RefusesAClassCountBelowOneOrOfAnotherKind)
+TEST(Small_DetectAnchorTask, RefusesAClassCountBelowOneOrOfAnotherKind)
 {
     SectionText none;
     none.classes = "0";
@@ -511,7 +511,7 @@ TEST(Unit_DetectAnchorTask, RefusesAClassCountBelowOneOrOfAnotherKind)
 }
 
 /** @brief Tests that an anchor that is not a pair of numbers is refused with its index. */
-TEST(Unit_DetectAnchorTask, RefusesAnAnchorThatIsNotAPairOfNumbers)
+TEST(Small_DetectAnchorTask, RefusesAnAnchorThatIsNotAPairOfNumbers)
 {
     SectionText listed;
     listed.anchors = "0.5";
@@ -535,7 +535,7 @@ TEST(Unit_DetectAnchorTask, RefusesAnAnchorThatIsNotAPairOfNumbers)
 }
 
 /** @brief Tests that an anchor side that is not a positive finite float is refused. */
-TEST(Unit_DetectAnchorTask, RefusesAnAnchorSideThatIsNotPositiveAndFinite)
+TEST(Small_DetectAnchorTask, RefusesAnAnchorSideThatIsNotPositiveAndFinite)
 {
     SectionText zero;
     zero.anchors = "[[0.125, 0.25], [0.25, 0.5], [0.0, 0.25], [0.75, 0.5]]";
@@ -565,7 +565,7 @@ TEST(Unit_DetectAnchorTask, RefusesAnAnchorSideThatIsNotPositiveAndFinite)
 }
 
 /** @brief Tests that a section without a head, or with a head that is no object, is refused. */
-TEST(Unit_DetectAnchorTask, RefusesNoHeadAndAHeadThatIsNotAnObject)
+TEST(Small_DetectAnchorTask, RefusesNoHeadAndAHeadThatIsNotAnObject)
 {
     SectionText none;
     none.heads = "[]";
@@ -584,7 +584,7 @@ TEST(Unit_DetectAnchorTask, RefusesNoHeadAndAHeadThatIsNotAnObject)
 }
 
 /** @brief Tests that a mask index that names no anchor is refused with head and slot. */
-TEST(Unit_DetectAnchorTask, RefusesAMaskIndexThatNamesNoAnchor)
+TEST(Small_DetectAnchorTask, RefusesAMaskIndexThatNamesNoAnchor)
 {
     SectionText past;
     past.heads =
@@ -612,7 +612,7 @@ TEST(Unit_DetectAnchorTask, RefusesAMaskIndexThatNamesNoAnchor)
 }
 
 /** @brief Tests that a head's output, coding and scale are each checked by key. */
-TEST(Unit_DetectAnchorTask, RefusesAHeadWithABadOutputCodingOrScale)
+TEST(Small_DetectAnchorTask, RefusesAHeadWithABadOutputCodingOrScale)
 {
     SectionText unnamed;
     unnamed.heads = R"([{"output": "", "anchors": [0], "coding": "logit", "scale_xy": 1.0}])";
@@ -642,7 +642,7 @@ TEST(Unit_DetectAnchorTask, RefusesAHeadWithABadOutputCodingOrScale)
 }
 
 /** @brief Tests that a criterion and its exponent are checked by key. */
-TEST(Unit_DetectAnchorTask, RefusesABadCriterionOrExponent)
+TEST(Small_DetectAnchorTask, RefusesABadCriterionOrExponent)
 {
     SectionText unknown;
     unknown.suppression = R"({"criterion": "giou"})";
@@ -666,7 +666,7 @@ TEST(Unit_DetectAnchorTask, RefusesABadCriterionOrExponent)
 }
 
 /** @brief Tests that the writer refuses a head whose class count is not the task's. */
-TEST(Unit_DetectAnchorTask, WriterRefusesAHeadOfAnotherClassCount)
+TEST(Small_DetectAnchorTask, WriterRefusesAHeadOfAnotherClassCount)
 {
     AnchorTask task = make_two_head_task();
     task.heads[1].options.num_classes = 4;
@@ -676,7 +676,7 @@ TEST(Unit_DetectAnchorTask, WriterRefusesAHeadOfAnotherClassCount)
 }
 
 /** @brief Tests that the writer refuses what the reader refuses in a task's values. */
-TEST(Unit_DetectAnchorTask, WriterRefusesTheValuesTheReaderRefuses)
+TEST(Small_DetectAnchorTask, WriterRefusesTheValuesTheReaderRefuses)
 {
     AnchorTask classless = make_two_head_task();
     classless.num_classes = 0;
@@ -715,7 +715,7 @@ TEST(Unit_DetectAnchorTask, WriterRefusesTheValuesTheReaderRefuses)
 }
 
 /** @brief Tests that the writer refuses an enumerator its tables do not list. */
-TEST(Unit_DetectAnchorTask, WriterRefusesAnEnumeratorWithoutAString)
+TEST(Small_DetectAnchorTask, WriterRefusesAnEnumeratorWithoutAString)
 {
     AnchorTask coded = make_two_head_task();
     coded.heads[1].options.coding = static_cast<HeadCoding>(7);
@@ -729,7 +729,7 @@ TEST(Unit_DetectAnchorTask, WriterRefusesAnEnumeratorWithoutAString)
 }
 
 /** @brief Tests that the writer refuses an exponent that is not finite where it is read. */
-TEST(Unit_DetectAnchorTask, WriterRefusesAnExponentThatIsNotFiniteUnderDistanceIoU)
+TEST(Small_DetectAnchorTask, WriterRefusesAnExponentThatIsNotFiniteUnderDistanceIoU)
 {
     AnchorTask task = make_two_head_task();
     task.distance_exponent = std::numeric_limits<float>::infinity();

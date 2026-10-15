@@ -300,7 +300,7 @@ namespace
 } // namespace
 
 /** @brief Tests that two anchors above the match threshold are both assigned and written. */
-TEST(Unit_DetectAnchorDeltaIou, TwoAnchorsAboveTheMatchThresholdAreBothAssigned)
+TEST(Small_DetectAnchorDeltaIou, TwoAnchorsAboveTheMatchThresholdAreBothAssigned)
 {
     IoUCase head = make_two_match_case();
     head.training.thresholds.match_threshold = 0.5f;
@@ -333,7 +333,7 @@ TEST(Unit_DetectAnchorDeltaIou, TwoAnchorsAboveTheMatchThresholdAreBothAssigned)
 }
 
 /** @brief Tests that the IoU sum takes the IoU of every assigned slot, further ones included. */
-TEST(Unit_DetectAnchorDeltaIou, AFurtherAssignmentAddsItsIoUToTheSum)
+TEST(Small_DetectAnchorDeltaIou, AFurtherAssignmentAddsItsIoUToTheSum)
 {
     IoUCase head = make_two_match_case();
     head.training.thresholds.match_threshold = 0.5f;
@@ -348,7 +348,7 @@ TEST(Unit_DetectAnchorDeltaIou, AFurtherAssignmentAddsItsIoUToTheSum)
 }
 
 /** @brief Tests that a match threshold of 1 assigns the best anchor alone. */
-TEST(Unit_DetectAnchorDeltaIou, AMatchThresholdOfOneAssignsTheBestAnchorAlone)
+TEST(Small_DetectAnchorDeltaIou, AMatchThresholdOfOneAssignsTheBestAnchorAlone)
 {
     IoUCase head = make_two_match_case();
 
@@ -365,7 +365,7 @@ TEST(Unit_DetectAnchorDeltaIou, AMatchThresholdOfOneAssignsTheBestAnchorAlone)
 }
 
 /** @brief Tests that an anchor at or below the match threshold takes no truth. */
-TEST(Unit_DetectAnchorDeltaIou, AnAnchorBelowTheMatchThresholdIsNotAssigned)
+TEST(Small_DetectAnchorDeltaIou, AnAnchorBelowTheMatchThresholdIsNotAssigned)
 {
     IoUCase head = make_two_match_case();
     // The second anchor's shape IoU is 0.2 / 0.29, about 0.69.
@@ -378,7 +378,7 @@ TEST(Unit_DetectAnchorDeltaIou, AnAnchorBelowTheMatchThresholdIsNotAssigned)
 }
 
 /** @brief Tests that a head takes a truth above the threshold whose best anchor is not its own. */
-TEST(Unit_DetectAnchorDeltaIou, AHeadWithoutTheBestAnchorStillTakesAMatchingTruth)
+TEST(Small_DetectAnchorDeltaIou, AHeadWithoutTheBestAnchorStillTakesAMatchingTruth)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}, {0.4f, 0.6f}};
@@ -401,7 +401,7 @@ TEST(Unit_DetectAnchorDeltaIou, AHeadWithoutTheBestAnchorStillTakesAMatchingTrut
 }
 
 /** @brief Tests that a slot with two positive class deltas halves its summed box deltas. */
-TEST(Unit_DetectAnchorDeltaIou, TwoPositiveClassDeltasHalveTheBoxDeltasOfTheSlot)
+TEST(Small_DetectAnchorDeltaIou, TwoPositiveClassDeltasHalveTheBoxDeltasOfTheSlot)
 {
     IoUCase head = make_two_truth_case();
     head.training.thresholds.match_threshold = 0.5f;
@@ -424,7 +424,7 @@ TEST(Unit_DetectAnchorDeltaIou, TwoPositiveClassDeltasHalveTheBoxDeltasOfTheSlot
 }
 
 /** @brief Tests that a match threshold of 1 leaves the summed box deltas undivided. */
-TEST(Unit_DetectAnchorDeltaIou, AMatchThresholdOfOneDividesNothing)
+TEST(Small_DetectAnchorDeltaIou, AMatchThresholdOfOneDividesNothing)
 {
     IoUCase head = make_two_truth_case();
 
@@ -439,7 +439,7 @@ TEST(Unit_DetectAnchorDeltaIou, AMatchThresholdOfOneDividesNothing)
 }
 
 /** @brief Tests that the division below a match threshold of 1 covers squared-error boxes. */
-TEST(Unit_DetectAnchorDeltaIou, TheDivisionCoversSquaredErrorBoxes)
+TEST(Small_DetectAnchorDeltaIou, TheDivisionCoversSquaredErrorBoxes)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}};
@@ -459,7 +459,7 @@ TEST(Unit_DetectAnchorDeltaIou, TheDivisionCoversSquaredErrorBoxes)
 }
 
 /** @brief Tests that a box delta beyond the bound is the bound, with its sign. */
-TEST(Unit_DetectAnchorDeltaIou, ABoxDeltaBeyondTheBoundIsClipped)
+TEST(Small_DetectAnchorDeltaIou, ABoxDeltaBeyondTheBoundIsClipped)
 {
     IoUCase head = make_two_match_case();
     head.training.max_delta = 0.5f;
@@ -486,7 +486,7 @@ TEST(Unit_DetectAnchorDeltaIou, ABoxDeltaBeyondTheBoundIsClipped)
 }
 
 /** @brief Tests that a box component that is not finite adds nothing to its entry. */
-TEST(Unit_DetectAnchorDeltaIou, ANonFiniteBoxComponentAddsZero)
+TEST(Small_DetectAnchorDeltaIou, ANonFiniteBoxComponentAddsZero)
 {
     IoUCase head = make_two_match_case();
     const std::size_t best = head.position(0, 1, 0);
@@ -629,7 +629,7 @@ namespace
 } // namespace
 
 /** @brief Tests that one truth writes its cell and slot with k = (2 - tw * th) * 0.75. */
-TEST(Unit_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
+TEST(Small_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
 {
     AnchorLayout layout;
     layout.anchors = {{0.125f, 0.125f}, {0.25f, 0.5f}, {1.0f, 1.0f}};
@@ -673,7 +673,7 @@ TEST(Unit_DetectAnchorDelta, OneTruthWritesTheCellAndSlotOfItsBestAnchor)
 }
 
 /** @brief Tests that the IoU sum takes the IoU of the assigned slot's box with its truth. */
-TEST(Unit_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum)
+TEST(Small_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}};
@@ -689,7 +689,7 @@ TEST(Unit_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum)
 }
 
 /** @brief Tests that a truth whose best anchor another head owns assigns nothing. */
-TEST(Unit_DetectAnchorDelta, ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing)
+TEST(Small_DetectAnchorDelta, ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing)
 {
     AnchorLayout layout;
     layout.anchors = {{0.125f, 0.125f}, {0.5f, 0.5f}};
@@ -716,7 +716,7 @@ TEST(Unit_DetectAnchorDelta, ATruthWhoseBestAnchorAnotherHeadOwnsAssignsNothing)
 }
 
 /** @brief Tests that the ignore rule needs a class probability above 0.25. */
-TEST(Unit_DetectAnchorDelta, AnOverlappingSlotIsIgnoredOnlyWithAClassAboveTheGate)
+TEST(Small_DetectAnchorDelta, AnOverlappingSlotIsIgnoredOnlyWithAClassAboveTheGate)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}, {0.45f, 0.45f}};
@@ -738,7 +738,7 @@ TEST(Unit_DetectAnchorDelta, AnOverlappingSlotIsIgnoredOnlyWithAClassAboveTheGat
 }
 
 /** @brief Tests that an overlap at or below the ignore threshold keeps its objectness delta. */
-TEST(Unit_DetectAnchorDelta, AnOverlapBelowTheIgnoreThresholdIsNotIgnored)
+TEST(Small_DetectAnchorDelta, AnOverlapBelowTheIgnoreThresholdIsNotIgnored)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}, {0.45f, 0.45f}};
@@ -754,7 +754,7 @@ TEST(Unit_DetectAnchorDelta, AnOverlapBelowTheIgnoreThresholdIsNotIgnored)
 }
 
 /** @brief Tests that a second truth in a slot adds its box delta and updates one class. */
-TEST(Unit_DetectAnchorDelta, TwoTruthsInOneSlotUpdateOneClassOnly)
+TEST(Small_DetectAnchorDelta, TwoTruthsInOneSlotUpdateOneClassOnly)
 {
     AnchorLayout layout;
     layout.anchors = {{0.25f, 0.25f}};
@@ -782,7 +782,7 @@ TEST(Unit_DetectAnchorDelta, TwoTruthsInOneSlotUpdateOneClassOnly)
 }
 
 /** @brief Tests that without truths only the objectness entries hold a delta. */
-TEST(Unit_DetectAnchorDelta, AnEmptyTruthListGivesObjectnessDeltasAlone)
+TEST(Small_DetectAnchorDelta, AnEmptyTruthListGivesObjectnessDeltasAlone)
 {
     AnchorLayout layout;
     layout.anchors = {{0.125f, 0.125f}, {0.25f, 0.5f}, {1.0f, 1.0f}};
@@ -810,7 +810,7 @@ TEST(Unit_DetectAnchorDelta, AnEmptyTruthListGivesObjectnessDeltasAlone)
 }
 
 /** @brief Tests that a padding row of the truth batch is read as no truth. */
-TEST(Unit_DetectAnchorDelta, APaddingRowAssignsNothing)
+TEST(Small_DetectAnchorDelta, APaddingRowAssignsNothing)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}};
@@ -955,7 +955,7 @@ namespace
 } // namespace
 
 /** @brief Tests that an ignored slot of IoU 0.8 and objectness 0.3 gets a delta of 0.5. */
-TEST(Unit_DetectAnchorDeltaActivated, AnIgnoredSlotIsPulledTowardItsBestIoU)
+TEST(Small_DetectAnchorDeltaActivated, AnIgnoredSlotIsPulledTowardItsBestIoU)
 {
     ActivatedCase head = make_case();
 
@@ -968,7 +968,7 @@ TEST(Unit_DetectAnchorDeltaActivated, AnIgnoredSlotIsPulledTowardItsBestIoU)
 }
 
 /** @brief Tests that the object weight multiplies the delta of an ignored slot. */
-TEST(Unit_DetectAnchorDeltaActivated, TheObjectWeightScalesAnIgnoredSlot)
+TEST(Small_DetectAnchorDeltaActivated, TheObjectWeightScalesAnIgnoredSlot)
 {
     ActivatedCase head = make_case();
     head.training.object_weight = 0.5f;
@@ -981,7 +981,7 @@ TEST(Unit_DetectAnchorDeltaActivated, TheObjectWeightScalesAnIgnoredSlot)
 }
 
 /** @brief Tests that the target One gives an ignored slot no objectness delta. */
-TEST(Unit_DetectAnchorDeltaActivated, TheTargetOneLeavesAnIgnoredSlotAlone)
+TEST(Small_DetectAnchorDeltaActivated, TheTargetOneLeavesAnIgnoredSlotAlone)
 {
     ActivatedCase head = make_case();
     head.training.objectness_target = ObjectnessTarget::One;
@@ -992,7 +992,7 @@ TEST(Unit_DetectAnchorDeltaActivated, TheTargetOneLeavesAnIgnoredSlotAlone)
 }
 
 /** @brief Tests that a slot with no class above the gate is pulled toward 0, not its IoU. */
-TEST(Unit_DetectAnchorDeltaActivated, ASlotWithoutAGatedClassIsNotIgnored)
+TEST(Small_DetectAnchorDeltaActivated, ASlotWithoutAGatedClassIsNotIgnored)
 {
     ActivatedCase head = make_case();
     head.set_classes(K_NEAR_SLOT, 0.2f, 0.2f);
@@ -1004,7 +1004,7 @@ TEST(Unit_DetectAnchorDeltaActivated, ASlotWithoutAGatedClassIsNotIgnored)
 }
 
 /** @brief Tests that under BestIoU an assigned slot keeps a delta that is not 0. */
-TEST(Unit_DetectAnchorDeltaActivated, AnAssignedSlotKeepsADeltaThatIsNotZero)
+TEST(Small_DetectAnchorDeltaActivated, AnAssignedSlotKeepsADeltaThatIsNotZero)
 {
     ActivatedCase head = make_case();
 
@@ -1016,7 +1016,7 @@ TEST(Unit_DetectAnchorDeltaActivated, AnAssignedSlotKeepsADeltaThatIsNotZero)
 }
 
 /** @brief Tests that under BestIoU an assigned slot whose delta is 0 is pulled toward 1. */
-TEST(Unit_DetectAnchorDeltaActivated, AnAssignedSlotWithAZeroDeltaIsPulledTowardOne)
+TEST(Small_DetectAnchorDeltaActivated, AnAssignedSlotWithAZeroDeltaIsPulledTowardOne)
 {
     ActivatedCase head = make_case();
     // An objectness of exactly 0 leaves the delta toward 0 at 0.
@@ -1028,7 +1028,7 @@ TEST(Unit_DetectAnchorDeltaActivated, AnAssignedSlotWithAZeroDeltaIsPulledToward
 }
 
 /** @brief Tests that the target One pulls an assigned slot toward 1 whatever it held. */
-TEST(Unit_DetectAnchorDeltaActivated, TheTargetOnePullsAnAssignedSlotTowardOne)
+TEST(Small_DetectAnchorDeltaActivated, TheTargetOnePullsAnAssignedSlotTowardOne)
 {
     ActivatedCase head = make_case();
     head.training.objectness_target = ObjectnessTarget::One;
@@ -1040,7 +1040,7 @@ TEST(Unit_DetectAnchorDeltaActivated, TheTargetOnePullsAnAssignedSlotTowardOne)
 }
 
 /** @brief Tests that the box delta is the weighted gradient at the decoded box, unchained. */
-TEST(Unit_DetectAnchorDeltaActivated, TheBoxDeltaIsTheWeightedGradientWithNoSizeFactor)
+TEST(Small_DetectAnchorDeltaActivated, TheBoxDeltaIsTheWeightedGradientWithNoSizeFactor)
 {
     ActivatedCase head = make_case();
     head.options.scale_xy = 2.0f;
@@ -1062,7 +1062,7 @@ TEST(Unit_DetectAnchorDeltaActivated, TheBoxDeltaIsTheWeightedGradientWithNoSize
 }
 
 /** @brief Tests that the class deltas read the published entries as probabilities. */
-TEST(Unit_DetectAnchorDeltaActivated, TheClassDeltasReadTheEntriesAsProbabilities)
+TEST(Small_DetectAnchorDeltaActivated, TheClassDeltasReadTheEntriesAsProbabilities)
 {
     ActivatedCase head = make_case();
 
@@ -1203,7 +1203,7 @@ namespace
 } // namespace
 
 /** @brief Tests that options left at their default take the analytic form. */
-TEST(Unit_DetectAnchorDeltaGradient, TheDefaultFormIsAnalytic)
+TEST(Small_DetectAnchorDeltaGradient, TheDefaultFormIsAnalytic)
 {
     // A 0.2 square centred in a 0.4 square: IoU = w * h / 0.16, so its slope by w is 1.25.
     const Box box{0.5f, 0.5f, 0.2f, 0.2f};
@@ -1218,7 +1218,7 @@ TEST(Unit_DetectAnchorDeltaGradient, TheDefaultFormIsAnalytic)
 }
 
 /** @brief Tests that the compatible form doubles the size deltas the analytic form writes. */
-TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormDoublesTheSizeSlopeOfTheOverlap)
+TEST(Small_DetectAnchorDeltaGradient, TheCompatibleFormDoublesTheSizeSlopeOfTheOverlap)
 {
     // A 0.2 square centred in a 0.4 square: IoU = w * h / 0.16, so its slope by w is 1.25.
     const Box box{0.5f, 0.5f, 0.2f, 0.2f};
@@ -1238,7 +1238,7 @@ TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormDoublesTheSizeSlopeOfTheOv
 }
 
 /** @brief Tests that the compatible form flips the enclosing-box term of the centre delta. */
-TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormFlipsTheEnclosingTermOfTheCentre)
+TEST(Small_DetectAnchorDeltaGradient, TheCompatibleFormFlipsTheEnclosingTermOfTheCentre)
 {
     // Disjoint equal squares: S = 0.25, Cw = 0.7, C = 0.53; x is (0.53 -+ 0.35) / 0.2809.
     const Box box{0.2f, 0.5f, 0.2f, 0.2f};
@@ -1258,7 +1258,7 @@ TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormFlipsTheEnclosingTermOfThe
 }
 
 /** @brief Tests that the compatible form holds the trade-off fixed and drops a divisor. */
-TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormSimplifiesTheAspectTerm)
+TEST(Small_DetectAnchorDeltaGradient, TheCompatibleFormSimplifiesTheAspectTerm)
 {
     // A 0.2 by 0.1 box centred in a 0.4 square: IoU 0.125, w^2 + h^2 = 0.05, no distance part.
     const Box box{0.5f, 0.5f, 0.2f, 0.1f};
@@ -1283,7 +1283,7 @@ TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormSimplifiesTheAspectTerm)
 }
 
 /** @brief Tests the compatible form against the twelve dumped deltas of the report. */
-TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormReproducesTheDumpedDeltas)
+TEST(Small_DetectAnchorDeltaGradient, TheCompatibleFormReproducesTheDumpedDeltas)
 {
     for (std::size_t cell = 0; cell < K_DUMPED_CELLS.size(); ++cell)
     {
@@ -1309,7 +1309,7 @@ TEST(Unit_DetectAnchorDeltaGradient, TheCompatibleFormReproducesTheDumpedDeltas)
 }
 
 /** @brief Tests that the analytic form does not give the dumped size deltas. */
-TEST(Unit_DetectAnchorDeltaGradient, TheAnalyticFormDepartsFromTheDumpedSizeDeltas)
+TEST(Small_DetectAnchorDeltaGradient, TheAnalyticFormDepartsFromTheDumpedSizeDeltas)
 {
     const DumpedCell& dumped = K_DUMPED_CELLS[0];
     GradientCase head = make_case(dumped.box, dumped.corners, BoxGradient::Analytic);

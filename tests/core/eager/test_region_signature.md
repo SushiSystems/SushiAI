@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_signature.cpp
 
 
-Suites: `Unit_RegionSignature`.
+Suites: `Small_RegionSignature`.
 
 Tests the signature that `signature_of` computes for one region of a partition.
 

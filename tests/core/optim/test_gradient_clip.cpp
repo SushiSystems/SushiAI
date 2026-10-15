@@ -64,7 +64,7 @@ namespace
     constexpr double K_EXACT_TOLERANCE = 0.0;
 
     /** @brief Provides an engine and slots of zero parameters with stated gradients. */
-    class Unit_GradientClip : public SaTest::EngineTest
+    class Medium_GradientClip : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns one slot per entry of @p gradients, each parameter all zeros. */
@@ -116,7 +116,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a gradient of norm 5 clipped to 1 moves the parameter by a fifth of it. */
-TEST_F(Unit_GradientClip, ANormAboveTheThresholdScalesTheUpdate)
+TEST_F(Medium_GradientClip, ANormAboveTheThresholdScalesTheUpdate)
 {
     std::vector<Optim::ParameterSlot> slots = make_slots({{3.0, 4.0, 0.0, 0.0}});
     const SushiBLAS::Tensor parameter = slots.front().parameter;
@@ -132,7 +132,7 @@ TEST_F(Unit_GradientClip, ANormAboveTheThresholdScalesTheUpdate)
 }
 
 /** @brief Tests that a gradient whose norm is below the threshold is applied as it is. */
-TEST_F(Unit_GradientClip, ANormBelowTheThresholdLeavesTheUpdate)
+TEST_F(Medium_GradientClip, ANormBelowTheThresholdLeavesTheUpdate)
 {
     std::vector<Optim::ParameterSlot> slots = make_slots({{3.0, 4.0, 0.0, 0.0}});
     const SushiBLAS::Tensor parameter = slots.front().parameter;
@@ -147,7 +147,7 @@ TEST_F(Unit_GradientClip, ANormBelowTheThresholdLeavesTheUpdate)
 }
 
 /** @brief Tests that the norm is taken over every slot, not slot by slot. */
-TEST_F(Unit_GradientClip, TheNormIsTakenOverEverySlot)
+TEST_F(Medium_GradientClip, TheNormIsTakenOverEverySlot)
 {
     std::vector<Optim::ParameterSlot> slots = make_slots({{3.0, 0.0}, {0.0, 4.0, 0.0}});
     const SushiBLAS::Tensor first = slots[0].parameter;
@@ -165,7 +165,7 @@ TEST_F(Unit_GradientClip, TheNormIsTakenOverEverySlot)
 }
 
 /** @brief Tests that a threshold set between two updates is the one the next update uses. */
-TEST_F(Unit_GradientClip, AThresholdSetAtRunTimeIsTheNextUpdates)
+TEST_F(Medium_GradientClip, AThresholdSetAtRunTimeIsTheNextUpdates)
 {
     std::vector<Optim::ParameterSlot> slots = make_slots({{3.0, 4.0}});
     const SushiBLAS::Tensor parameter = slots.front().parameter;
@@ -184,7 +184,7 @@ TEST_F(Unit_GradientClip, AThresholdSetAtRunTimeIsTheNextUpdates)
 }
 
 /** @brief Tests that the momentum kernel of SGD reads the factor as the plain one does. */
-TEST_F(Unit_GradientClip, TheMomentumKernelReadsTheFactor)
+TEST_F(Medium_GradientClip, TheMomentumKernelReadsTheFactor)
 {
     std::vector<Optim::ParameterSlot> slots = make_slots({{3.0, 4.0}});
     const SushiBLAS::Tensor parameter = slots.front().parameter;
@@ -203,7 +203,7 @@ TEST_F(Unit_GradientClip, TheMomentumKernelReadsTheFactor)
 }
 
 /** @brief Tests that AdamW computes the same factor through the same seam. */
-TEST_F(Unit_GradientClip, AdamWReadsTheSameFactor)
+TEST_F(Medium_GradientClip, AdamWReadsTheSameFactor)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Optim::AdamW> optimizer,
@@ -217,7 +217,7 @@ TEST_F(Unit_GradientClip, AdamWReadsTheSameFactor)
 }
 
 /** @brief Tests that a clip adds one task per gradient and one more, and none when absent. */
-TEST_F(Unit_GradientClip, AClipAddsItsTasksAndItsAbsenceAddsNone)
+TEST_F(Medium_GradientClip, AClipAddsItsTasksAndItsAbsenceAddsNone)
 {
     const std::unique_ptr<Optim::SGD> plain = make_sgd(make_slots({{3.0, 0.0}, {0.0, 4.0}}));
     const std::unique_ptr<Optim::SGD> clipped = make_sgd(make_slots({{3.0, 0.0}, {0.0, 4.0}}));
@@ -235,7 +235,7 @@ TEST_F(Unit_GradientClip, AClipAddsItsTasksAndItsAbsenceAddsNone)
 }
 
 /** @brief Tests each description a clip refuses. */
-TEST_F(Unit_GradientClip, AClipRefusesWhatItCannotCompute)
+TEST_F(Medium_GradientClip, AClipRefusesWhatItCannotCompute)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(make_slots({{3.0, 4.0}}));
     SA_EXPECT_FAILURE(optimizer->enable_gradient_clip(0.0), StatusCode::InvalidDescription,
@@ -253,7 +253,7 @@ TEST_F(Unit_GradientClip, AClipRefusesWhatItCannotCompute)
 }
 
 /** @brief Tests that a norm set without a clip, or one no clip can use, stops the process. */
-TEST_F(Unit_GradientClip, ANormSetWithoutAClipIsFatal)
+TEST_F(Medium_GradientClip, ANormSetWithoutAClipIsFatal)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(make_slots({{3.0, 4.0}}));
     SA_EXPECT_FATAL(optimizer->set_clip_norm(1.0), "no gradient clip");
@@ -263,7 +263,7 @@ TEST_F(Unit_GradientClip, ANormSetWithoutAClipIsFatal)
 }
 
 /** @brief Tests that the key clip_norm enables the clip and that its absence enables none. */
-TEST_F(Unit_GradientClip, TheKeyClipNormEnablesTheClip)
+TEST_F(Medium_GradientClip, TheKeyClipNormEnablesTheClip)
 {
     const auto attributes = [](std::string_view text)
     {

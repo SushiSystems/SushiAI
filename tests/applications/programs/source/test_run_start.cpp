@@ -59,7 +59,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_RunStart : public SaTest::EngineTest {};
+    class Medium_RunStart : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -164,7 +164,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a run starts initialised, from weights, or resumed with its run state. */
-TEST_F(Integration_RunStart, ARunStartsFromWhatItsFileStates)
+TEST_F(Medium_RunStart, ARunStartsFromWhatItsFileStates)
 {
     const SaTest::ScratchFile file("sushiai_program_runs_resume.sushi");
 

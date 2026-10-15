@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_attention.cpp
 
 
-Suites: `Unit_BlockAttention`.
+Suites: `Small_BlockAttention`.
 
 Tests the `Attention` block at the width of row 10 of YOLO26n: 128 channels, two heads, a query and
 key width of 32 and a value width of 64 per head. The traced cases run the block in training mode

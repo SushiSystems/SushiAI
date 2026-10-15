@@ -98,7 +98,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a trace adds two table leaves and eighteen nodes, two of them affine. */
-TEST(Unit_BlockRotaryEmbedding, ATraceWeighsTheValueAndItsSwappedHalves)
+TEST(Medium_BlockRotaryEmbedding, ATraceWeighsTheValueAndItsSwappedHalves)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -134,7 +134,7 @@ TEST(Unit_BlockRotaryEmbedding, ATraceWeighsTheValueAndItsSwappedHalves)
 }
 
 /** @brief Tests that the two tables hold the cosine and the sine of every row and pair. */
-TEST(Unit_BlockRotaryEmbedding, TheTablesHoldTheAnglesOfEveryPosition)
+TEST(Medium_BlockRotaryEmbedding, TheTablesHoldTheAnglesOfEveryPosition)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -167,7 +167,7 @@ TEST(Unit_BlockRotaryEmbedding, TheTablesHoldTheAnglesOfEveryPosition)
 }
 
 /** @brief Tests that a float64 value reads float64 tables and adds no cast. */
-TEST(Unit_BlockRotaryEmbedding, ADoubleValueReadsDoubleTables)
+TEST(Medium_BlockRotaryEmbedding, ADoubleValueReadsDoubleTables)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -187,7 +187,7 @@ TEST(Unit_BlockRotaryEmbedding, ADoubleValueReadsDoubleTables)
 }
 
 /** @brief Tests that the block lists no parameter and no buffer. */
-TEST(Unit_BlockRotaryEmbedding, TheBlockHoldsNoState)
+TEST(Medium_BlockRotaryEmbedding, TheBlockHoldsNoState)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -215,7 +215,7 @@ TEST(Unit_BlockRotaryEmbedding, TheBlockHoldsNoState)
 }
 
 /** @brief Tests that one position is fed one row of cosines and one of sines, and no table. */
-TEST(Unit_BlockRotaryEmbedding, TheIncrementalFormIsFedTheAnglesOfItsPosition)
+TEST(Medium_BlockRotaryEmbedding, TheIncrementalFormIsFedTheAnglesOfItsPosition)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -246,7 +246,7 @@ TEST(Unit_BlockRotaryEmbedding, TheIncrementalFormIsFedTheAnglesOfItsPosition)
 }
 
 /** @brief Tests that widths that leave no pair, another input and a plain trace are refused. */
-TEST(Unit_BlockRotaryEmbedding, ABlockOrAnInputThatDoesNotFitIsRefused)
+TEST(Medium_BlockRotaryEmbedding, ABlockOrAnInputThatDoesNotFitIsRefused)
 {
     SA_EXPECT_OK(Language::Blocks::check_rotary_widths(K_WIDTH, K_GROUPS));
     SA_EXPECT_FAILURE(Language::Blocks::check_rotary_widths(6, 2),
@@ -297,7 +297,7 @@ TEST(Unit_BlockRotaryEmbedding, ABlockOrAnInputThatDoesNotFitIsRefused)
 namespace
 {
     /** @brief Provides the Engine every case records on. */
-    class Integration_RotaryEmbedding : public SaTest::EngineTest
+    class Medium_RotaryEmbedding : public SaTest::EngineTest
     {
 
     };
@@ -378,7 +378,7 @@ namespace
 } // namespace
 
 /** @brief Tests each pair (a, b) of each row against (a cos - b sin, a sin + b cos). */
-TEST_F(Integration_RotaryEmbedding, ATurnMatchesTheHostFormula)
+TEST_F(Medium_RotaryEmbedding, ATurnMatchesTheHostFormula)
 {
     const std::size_t rows = 3;
     const std::vector<double> input{1.0, 2.0, 3.0, 4.0, 1.0, -1.0, 3.0, 0.25,
@@ -410,7 +410,7 @@ TEST_F(Integration_RotaryEmbedding, ATurnMatchesTheHostFormula)
 }
 
 /** @brief Tests that position 0 turns nothing: its row leaves the block as it entered. */
-TEST_F(Integration_RotaryEmbedding, PositionZeroIsTheIdentity)
+TEST_F(Medium_RotaryEmbedding, PositionZeroIsTheIdentity)
 {
     std::vector<double> turned;
     turn_on_engine(*engine, 2, 1, repeated(K_QUERY, 2), turned);
@@ -424,7 +424,7 @@ TEST_F(Integration_RotaryEmbedding, PositionZeroIsTheIdentity)
 }
 
 /** @brief Tests that two groups of one row holding the same values turn to the same values. */
-TEST_F(Integration_RotaryEmbedding, EveryGroupTurnsByTheSameAngles)
+TEST_F(Medium_RotaryEmbedding, EveryGroupTurnsByTheSameAngles)
 {
     const std::size_t rows = 3;
     std::vector<double> input;
@@ -450,7 +450,7 @@ TEST_F(Integration_RotaryEmbedding, EveryGroupTurnsByTheSameAngles)
 }
 
 /** @brief Tests that the score of a turned query and key depends on their distance alone. */
-TEST_F(Integration_RotaryEmbedding, AScoreDependsOnTheDistanceOfThePositionsAlone)
+TEST_F(Medium_RotaryEmbedding, AScoreDependsOnTheDistanceOfThePositionsAlone)
 {
     const std::size_t rows = 6;
     std::vector<double> queries;

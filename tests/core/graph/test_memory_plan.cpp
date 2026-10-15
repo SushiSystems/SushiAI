@@ -143,7 +143,7 @@ namespace
     }
 }
 
-TEST(Unit_MemoryPlan, AnEmptyGraphAsksForNothing)
+TEST(Small_MemoryPlan, AnEmptyGraphAsksForNothing)
 {
     const Graph::Graph graph;
     const MemoryPlan plan = MemoryPlan::build(graph);
@@ -153,7 +153,7 @@ TEST(Unit_MemoryPlan, AnEmptyGraphAsksForNothing)
     EXPECT_EQ(plan.arena_bytes(), 0u);
 }
 
-TEST(Unit_MemoryPlan, ASingleActivationGetsOneArenaAndOffsetZero)
+TEST(Small_MemoryPlan, ASingleActivationGetsOneArenaAndOffsetZero)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -174,7 +174,7 @@ TEST(Unit_MemoryPlan, ASingleActivationGetsOneArenaAndOffsetZero)
     EXPECT_EQ(plan.placement(y).bytes, 128u);
 }
 
-TEST(Unit_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
+TEST(Small_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -188,7 +188,7 @@ TEST(Unit_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
     EXPECT_EQ(plan.arena_bytes(), 0u);
 }
 
-TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
+TEST(Small_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
 {
     // Four chained activations need exactly two buffers; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -213,7 +213,7 @@ TEST(Unit_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
     expect_no_live_overlap(graph, plan);
 }
 
-TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
+TEST(Small_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 {
     // Nothing orders node 2 before node 3; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -246,7 +246,7 @@ TEST(Unit_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
     expect_no_live_overlap(graph, plan);
 }
 
-TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
+TEST(Small_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
 {
     // Only ACTIVATION and SCRATCH reach an arena; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -286,7 +286,7 @@ TEST(Unit_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
     EXPECT_EQ(plan.arenas()[1].lifetime, Lifetime::Scratch);
 }
 
-TEST(Unit_MemoryPlan, TwoUnorderedScratchBuffersShareBytesInNodeOrder)
+TEST(Small_MemoryPlan, TwoUnorderedScratchBuffersShareBytesInNodeOrder)
 {
     Graph::Graph graph;
 
@@ -311,7 +311,7 @@ TEST(Unit_MemoryPlan, TwoUnorderedScratchBuffersShareBytesInNodeOrder)
     EXPECT_EQ(plan.arena_bytes(), plan.placement(first).bytes);
 }
 
-TEST(Unit_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
+TEST(Small_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
 {
     Graph::Graph graph;
 
@@ -333,7 +333,7 @@ TEST(Unit_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
     EXPECT_NE(plan.placement(first).offset, plan.placement(second).offset);
 }
 
-TEST(Unit_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot)
+TEST(Small_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -370,7 +370,7 @@ TEST(Unit_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot)
     EXPECT_EQ(plan.scratch_placement(second, 1), nullptr);
 }
 
-TEST(Unit_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
+TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -385,7 +385,7 @@ TEST(Unit_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
                  Error);
 }
 
-TEST(Unit_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)
+TEST(Small_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -402,7 +402,7 @@ TEST(Unit_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)
     EXPECT_EQ(plan.placement(flat).offset, plan.placement(a).offset);
 }
 
-TEST(Unit_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
+TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -425,7 +425,7 @@ TEST(Unit_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
     EXPECT_TRUE(plan.is_packed(a));
 }
 
-TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
+TEST(Small_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
 {
     // An ACTIVATION with no producer lives the whole run; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -440,7 +440,7 @@ TEST(Unit_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
     EXPECT_TRUE(plan.is_packed(out));
 }
 
-TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
+TEST(Small_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
 {
     // ACCUMULATE's result is its accumulator's storage; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -466,7 +466,7 @@ TEST(Unit_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
     EXPECT_EQ(plan.arenas()[0].buffers, 3u);
 }
 
-TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
+TEST(Small_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
 {
     // The float64 buffer starts at 24, not at 20; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -496,7 +496,7 @@ TEST(Unit_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
         << "20 bytes of float32 rounded up to the next whole float64";
 }
 
-TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
+TEST(Small_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -517,7 +517,7 @@ TEST(Unit_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
     EXPECT_EQ(plan.arena_bytes(), 384u) << "three activations, three slots";
 }
 
-TEST(Unit_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
+TEST(Small_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
 {
     // Over the node limit the planner declines to overlap; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -538,7 +538,7 @@ TEST(Unit_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
     EXPECT_EQ(plan.arena_bytes(), plan.unpacked_bytes()) << "declined means no saving at all";
 }
 
-TEST(Unit_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
+TEST(Small_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -558,7 +558,7 @@ TEST(Unit_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
     EXPECT_TRUE(plan.is_packed(b));
 }
 
-TEST(Unit_MemoryPlan, PinningAValueThatDoesNotExistThrows)
+TEST(Small_MemoryPlan, PinningAValueThatDoesNotExistThrows)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -572,7 +572,7 @@ TEST(Unit_MemoryPlan, PinningAValueThatDoesNotExistThrows)
     EXPECT_THROW((void)MemoryPlan::build(graph, options), Error);
 }
 
-TEST(Unit_MemoryPlan, ZeroAlignmentThrows)
+TEST(Small_MemoryPlan, ZeroAlignmentThrows)
 {
     Graph::Graph graph;
     PlanOptions options;
@@ -581,7 +581,7 @@ TEST(Unit_MemoryPlan, ZeroAlignmentThrows)
     EXPECT_THROW((void)MemoryPlan::build(graph, options), Error);
 }
 
-TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
+TEST(Small_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
 {
     // The pass relies on topological order; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -595,7 +595,7 @@ TEST(Unit_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
     EXPECT_THROW((void)MemoryPlan::build(graph), Error);
 }
 
-TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
+TEST(Small_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 {
     // Two builds give byte-identical offsets; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -619,7 +619,7 @@ TEST(Unit_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
     }
 }
 
-TEST(Unit_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
+TEST(Small_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
 {
     // A node does not reach itself, so its results conflict; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -667,7 +667,7 @@ namespace
     }
 }
 
-TEST(Regression_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackward)
+TEST(Small_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackward)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

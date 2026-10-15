@@ -66,7 +66,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a file without a schedule yields none, whatever the optimizer states. */
-TEST(Unit_RunSchedule, ANullSectionYieldsNoSchedule)
+TEST(Small_RunSchedule, ANullSectionYieldsNoSchedule)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::optional<RateSchedule> schedule,
@@ -76,7 +76,7 @@ TEST(Unit_RunSchedule, ANullSectionYieldsNoSchedule)
 }
 
 /** @brief Tests that a schedule beside an optimizer without a rate is read whole. */
-TEST(Unit_RunSchedule, AScheduleIsReadWhenTheOptimizerStatesNoRate)
+TEST(Small_RunSchedule, AScheduleIsReadWhenTheOptimizerStatesNoRate)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::optional<RateSchedule> schedule,
@@ -92,7 +92,7 @@ TEST(Unit_RunSchedule, AScheduleIsReadWhenTheOptimizerStatesNoRate)
 }
 
 /** @brief Tests that the rate stated in both sections is refused, equal values included. */
-TEST(Unit_RunSchedule, ARateStatedTwiceIsRefused)
+TEST(Small_RunSchedule, ARateStatedTwiceIsRefused)
 {
     SA_EXPECT_FAILURE(read_rate_schedule(section_from(K_SCHEDULE),
                                         section_from(R"({"learning_rate": 0.00261})")),
@@ -101,7 +101,7 @@ TEST(Unit_RunSchedule, ARateStatedTwiceIsRefused)
 }
 
 /** @brief Tests that a schedule that leaves its rate out is refused, not trained at zero. */
-TEST(Unit_RunSchedule, AScheduleWithoutABaseRateIsRefused)
+TEST(Small_RunSchedule, AScheduleWithoutABaseRateIsRefused)
 {
     SA_EXPECT_FAILURE(read_rate_schedule(section_from(R"({"type": "step"})"),
                                         section_from("{}")),
@@ -109,7 +109,7 @@ TEST(Unit_RunSchedule, AScheduleWithoutABaseRateIsRefused)
 }
 
 /** @brief Tests that a base rate of zero or below is refused. */
-TEST(Unit_RunSchedule, ABaseRateNotAboveZeroIsRefused)
+TEST(Small_RunSchedule, ABaseRateNotAboveZeroIsRefused)
 {
     SA_EXPECT_FAILURE(read_rate_schedule(section_from(R"({"base_rate": 0.0})"),
                                         section_from("{}")),
@@ -120,7 +120,7 @@ TEST(Unit_RunSchedule, ABaseRateNotAboveZeroIsRefused)
 }
 
 /** @brief Tests that a refusal of the section reader comes back unchanged. */
-TEST(Unit_RunSchedule, WhatTheSectionReaderRefusesIsRefused)
+TEST(Small_RunSchedule, WhatTheSectionReaderRefusesIsRefused)
 {
     SA_EXPECT_FAILURE(read_rate_schedule(section_from(R"({"base_rate": 0.1, "gamma": 2})"),
                                         section_from("{}")),

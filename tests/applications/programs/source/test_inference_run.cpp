@@ -59,7 +59,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_InferenceRun : public SaTest::EngineTest {};
+    class Medium_InferenceRun : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -160,7 +160,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a report runs for its task type and an unknown type names the known. */
-TEST_F(Integration_InferenceRun, TheReportTableRefusesAnUnknownTask)
+TEST_F(Medium_InferenceRun, TheReportTableRefusesAnUnknownTask)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
     SA_ASSERT_OK_AND_ASSIGN(

@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_labels.cpp
 
 
-Suites: `Unit_ImagingLabels`.
+Suites: `Small_ImagingLabels`.
 
 Tests the parser of a label file's text.
 
-This file needs no device and reads no file. `Unit_ImagingLabels` passes strings to
+This file needs no device and reads no file. `Small_ImagingLabels` passes strings to
 `parse_label_text` of `modules/vision/imaging/include/SushiAI/vision/imaging/labels.hpp`. A row is a class and four
 normalized box values, or a class and the x, y pairs of a polygon. The refusal cases check that
 the message names the line and quotes the field.

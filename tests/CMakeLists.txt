@@ -63,13 +63,14 @@ endif()
 # of the line, and without it "compiles : 12" would satisfy a bare "...: 1".
 # The demo reads MNIST, so it exists only in a build with the vision domain.
 if(TARGET sushiai_demo_mlp)
-    add_test(NAME Integration_Demo.MLPRunsAndReportsOneCompile
+    add_test(NAME Medium_Demo.MLPRunsAndReportsOneCompile
         COMMAND sushiai_demo_mlp
             --epochs 1 --batches 2 --batch-size 8 --hidden 16
             --features 6 --classes 4 --mnist-dir does-not-exist
     )
-    set_tests_properties(Integration_Demo.MLPRunsAndReportsOneCompile PROPERTIES
-        LABELS "integration"
+    set_tests_properties(Medium_Demo.MLPRunsAndReportsOneCompile PROPERTIES
+        LABELS "medium"
+    TIMEOUT 300
         PASS_REGULAR_EXPRESSION "compiles[ \t]*:[ \t]*1[^0-9]"
     )
 endif()

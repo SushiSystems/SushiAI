@@ -1,7 +1,7 @@
 # tests/core/autograd/rules/test_all.cpp
 
 
-Suites: `Unit_RuleTable`.
+Suites: `Medium_RuleTable`.
 
 Tests that every domain's backward rules reach the combined table exactly once.
 

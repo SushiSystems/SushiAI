@@ -306,7 +306,7 @@ static_assert(!NN::Detail::HasOutputShapeOfInput<ShapelessStub>::value,
               "a layer without output_shape(const Shape&) must be refused by ModuleNode");
 
 /** @brief Tests that a ModuleNode declares one port named "output" with the layer's shape. */
-TEST(Unit_Node, ModuleNodeDeclaresOnePortWithTheLayersOutputShape)
+TEST(Small_Node, ModuleNodeDeclaresOnePortWithTheLayersOutputShape)
 {
     const std::unique_ptr<ModuleNode<Linear>> node = node_of(Linear{6, 8}, Shape{6});
 
@@ -316,7 +316,7 @@ TEST(Unit_Node, ModuleNodeDeclaresOnePortWithTheLayersOutputShape)
 }
 
 /** @brief Tests that a ModuleNode and a LayerNode each state that they read one value. */
-TEST(Unit_Node, ALayerNodeOfEitherKindReadsOneValue)
+TEST(Small_Node, ALayerNodeOfEitherKindReadsOneValue)
 {
     const std::unique_ptr<ModuleNode<Linear>> module = node_of(Linear{6, 8}, Shape{6});
     const LayerNode layer(std::make_unique<LayerAdapter<Linear>>(Linear{6, 8}, 8));
@@ -326,14 +326,14 @@ TEST(Unit_Node, ALayerNodeOfEitherKindReadsOneValue)
 }
 
 /** @brief Tests that create() returns the failure of a shape the layer's output_shape refuses. */
-TEST(Unit_Node, ModuleNodeCreateReturnsTheFailureOfAShapeTheLayerRefuses)
+TEST(Small_Node, ModuleNodeCreateReturnsTheFailureOfAShapeTheLayerRefuses)
 {
     SA_EXPECT_FAILURE(ModuleNode<Linear>::create(Linear{6, 8}, Shape{5}),
                       StatusCode::InvalidDescription, "Linear(6, 8)", "[5]", "[6]");
 }
 
 /** @brief Tests that a layer's thrown refusal of a traced value comes back as a failure. */
-TEST(Unit_Node, ModuleNodeForwardReturnsTheFailureOfALayerThatThrows)
+TEST(Small_Node, ModuleNodeForwardReturnsTheFailureOfALayerThatThrows)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -348,7 +348,7 @@ TEST(Unit_Node, ModuleNodeForwardReturnsTheFailureOfALayerThatThrows)
 }
 
 /** @brief Tests that a failure the layer recorded on the trace comes back and appends nothing. */
-TEST(Unit_Node, ModuleNodeForwardReturnsTheFailureALayerRecorded)
+TEST(Small_Node, ModuleNodeForwardReturnsTheFailureALayerRecorded)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -363,7 +363,7 @@ TEST(Unit_Node, ModuleNodeForwardReturnsTheFailureALayerRecorded)
 }
 
 /** @brief Tests that a failure a layer recorded outranks an Error the layer threw after it. */
-TEST(Unit_Node, ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow)
+TEST(Small_Node, ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -379,7 +379,7 @@ TEST(Unit_Node, ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow)
 }
 
 /** @brief Tests that ModuleNode::forward appends the layer's result after what is there. */
-TEST(Unit_Node, ModuleNodeForwardAppendsTheLayersResult)
+TEST(Small_Node, ModuleNodeForwardAppendsTheLayersResult)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -396,7 +396,7 @@ TEST(Unit_Node, ModuleNodeForwardAppendsTheLayersResult)
 }
 
 /** @brief Tests that a ModuleNode traces a modal layer in the form the trace's mode names. */
-TEST(Unit_Node, ModuleNodeTracesAModalLayerInTheModeOfTheTrace)
+TEST(Small_Node, ModuleNodeTracesAModalLayerInTheModeOfTheTrace)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -416,7 +416,7 @@ TEST(Unit_Node, ModuleNodeTracesAModalLayerInTheModeOfTheTrace)
 }
 
 /** @brief Tests that a ModuleNode gives a TraceModule the trace itself, mode included. */
-TEST(Unit_Node, ModuleNodeHandsTheTraceToATraceModule)
+TEST(Small_Node, ModuleNodeHandsTheTraceToATraceModule)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -435,7 +435,7 @@ TEST(Unit_Node, ModuleNodeHandsTheTraceToATraceModule)
 }
 
 /** @brief Tests that a ModuleNode walks the layer's parameters under the given prefix. */
-TEST(Unit_Node, ModuleNodeWalksTheLayersParametersUnderThePrefix)
+TEST(Small_Node, ModuleNodeWalksTheLayersParametersUnderThePrefix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -449,7 +449,7 @@ TEST(Unit_Node, ModuleNodeWalksTheLayersParametersUnderThePrefix)
 }
 
 /** @brief Tests that a ModuleNode walk reaches a buffer, which a LayerAdapter walk cannot. */
-TEST(Unit_Node, ModuleNodeWalksABufferOfTheLayer)
+TEST(Small_Node, ModuleNodeWalksABufferOfTheLayer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -463,7 +463,7 @@ TEST(Unit_Node, ModuleNodeWalksABufferOfTheLayer)
 }
 
 /** @brief Tests that a ModuleNode given two inputs fails and neither traces nor appends. */
-TEST(Unit_Node, ModuleNodeRejectsTwoInputs)
+TEST(Small_Node, ModuleNodeRejectsTwoInputs)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -480,7 +480,7 @@ TEST(Unit_Node, ModuleNodeRejectsTwoInputs)
 }
 
 /** @brief Tests that a LayerNode over make_conv2d reports the layer's per-sample shape. */
-TEST(Unit_Node, LayerNodeReportsTheShapeOfTheLayerItWraps)
+TEST(Small_Node, LayerNodeReportsTheShapeOfTheLayerItWraps)
 {
     std::unique_ptr<NN::Layer> layer = make_test_conv2d(Shape{8, 8, 2});
     const Shape layer_shape = layer->output_shape();
@@ -494,7 +494,7 @@ TEST(Unit_Node, LayerNodeReportsTheShapeOfTheLayerItWraps)
 }
 
 /** @brief Tests that LayerNode::forward appends a value shaped like its port with a batch axis. */
-TEST(Unit_Node, LayerNodeForwardAppendsAValueShapedLikeItsPort)
+TEST(Small_Node, LayerNodeForwardAppendsAValueShapedLikeItsPort)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -509,7 +509,7 @@ TEST(Unit_Node, LayerNodeForwardAppendsAValueShapedLikeItsPort)
 }
 
 /** @brief Tests that a run-time layer's thrown refusal of a value comes back as a failure. */
-TEST(Unit_Node, LayerNodeForwardReturnsTheFailureOfALayerThatThrows)
+TEST(Small_Node, LayerNodeForwardReturnsTheFailureOfALayerThatThrows)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -524,7 +524,7 @@ TEST(Unit_Node, LayerNodeForwardReturnsTheFailureOfALayerThatThrows)
 }
 
 /** @brief Tests that a LayerNode walks the layer's declared parameters under the prefix. */
-TEST(Unit_Node, LayerNodeWalksTheLayersParametersUnderThePrefix)
+TEST(Small_Node, LayerNodeWalksTheLayersParametersUnderThePrefix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -538,7 +538,7 @@ TEST(Unit_Node, LayerNodeWalksTheLayersParametersUnderThePrefix)
 }
 
 /** @brief Tests that a LayerNode given two inputs fails and neither traces nor appends. */
-TEST(Unit_Node, LayerNodeRejectsTwoInputs)
+TEST(Small_Node, LayerNodeRejectsTwoInputs)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -555,7 +555,7 @@ TEST(Unit_Node, LayerNodeRejectsTwoInputs)
 }
 
 /** @brief Tests that a LayerNode given no input fails with the count it was given. */
-TEST(Unit_Node, LayerNodeRejectsNoInput)
+TEST(Small_Node, LayerNodeRejectsNoInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -569,7 +569,7 @@ TEST(Unit_Node, LayerNodeRejectsNoInput)
 }
 
 /** @brief Tests that building a LayerNode over a null layer stops the process. */
-TEST(Unit_NodeDeathTest, LayerNodeOverANullLayerIsFatal)
+TEST(Small_NodeDeathTest, LayerNodeOverANullLayerIsFatal)
 {
     SA_EXPECT_FATAL((void)LayerNode(std::unique_ptr<NN::Layer>()), "LayerNode", "null layer");
 }

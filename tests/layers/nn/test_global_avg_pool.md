@@ -3,7 +3,7 @@
 
 The shapes GlobalAvgPool traces and reports, and the inputs it refuses.
 
-Suites: `Unit_GlobalAvgPool`.
+Suites: `Small_GlobalAvgPool`.
 
 Tests the shapes GlobalAvgPool traces and reports, and the inputs it refuses.
 

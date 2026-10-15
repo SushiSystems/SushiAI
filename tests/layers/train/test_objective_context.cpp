@@ -44,7 +44,7 @@ using namespace SushiAI;
 using Train::OutputShape;
 
 /** @brief Tests that each output is listed under its name with its extents, in order. */
-TEST(Unit_ObjectiveContext, ListsEveryOutputWithItsExtentsInPublishedOrder)
+TEST(Medium_ObjectiveContext, ListsEveryOutputWithItsExtentsInPublishedOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -63,7 +63,7 @@ TEST(Unit_ObjectiveContext, ListsEveryOutputWithItsExtentsInPublishedOrder)
 }
 
 /** @brief Tests that a model with no output lists nothing. */
-TEST(Unit_ObjectiveContext, AnEmptyOutputSetListsNothing)
+TEST(Medium_ObjectiveContext, AnEmptyOutputSetListsNothing)
 {
     const Graph::Graph graph;
     const NN::ModelOutputs outputs;
@@ -75,7 +75,7 @@ TEST(Unit_ObjectiveContext, AnEmptyOutputSetListsNothing)
 }
 
 /** @brief Tests that the probe trace of a model gives its head shapes with no engine. */
-TEST(Unit_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
+TEST(Medium_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
 {
     NN::ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRef hidden,
@@ -98,7 +98,7 @@ TEST(Unit_ObjectiveContext, AProbeTraceGivesTheShapesWithoutAnEngine)
 }
 
 /** @brief Tests that an output is found by its name and that an absent name gives null. */
-TEST(Unit_ObjectiveContext, FindsAnOutputByItsName)
+TEST(Medium_ObjectiveContext, FindsAnOutputByItsName)
 {
     const std::vector<OutputShape> outputs = {OutputShape{"coarse", Shape{2, 4, 4, 14}},
                                               OutputShape{"fine", Shape{2, 8, 8, 14}}};

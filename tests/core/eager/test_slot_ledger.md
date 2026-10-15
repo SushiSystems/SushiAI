@@ -1,7 +1,7 @@
 # tests/core/eager/test_slot_ledger.cpp
 
 
-Suites: `Unit_SlotLedger`.
+Suites: `Small_SlotLedger`.
 
 Tests which slot `SlotLedger` gives a shared buffer from one step to the next.
 

@@ -117,7 +117,7 @@ namespace
     };
 
     /** @brief Builds the decoder, one state and both generators over it. */
-    class Integration_CachedGeneration : public SaTest::EngineTest
+    class Medium_CachedGeneration : public SaTest::EngineTest
     {
         protected:
             /** @brief Builds every part the two generators read, in the order they depend. */
@@ -227,7 +227,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the cached generator reads the window and the vocabulary of its step. */
-TEST_F(Integration_CachedGeneration, TheGeneratorReadsTheExtentsOfTheStep)
+TEST_F(Medium_CachedGeneration, TheGeneratorReadsTheExtentsOfTheStep)
 {
     EXPECT_EQ(cached.generator->window(), SaTest::K_DECODER_WINDOW);
     EXPECT_EQ(cached.generator->vocabulary(), SaTest::K_DECODER_VOCABULARY);
@@ -243,7 +243,7 @@ TEST_F(Integration_CachedGeneration, TheGeneratorReadsTheExtentsOfTheStep)
 }
 
 /** @brief Tests that both traces leave the state with the parameters of the model alone. */
-TEST_F(Integration_CachedGeneration, TheCachesAreNoEntryOfTheModelState)
+TEST_F(Medium_CachedGeneration, TheCachesAreNoEntryOfTheModelState)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelState again,
                             NN::ModelState::create(*engine, *model));
@@ -254,7 +254,7 @@ TEST_F(Integration_CachedGeneration, TheCachesAreNoEntryOfTheModelState)
 }
 
 /** @brief Tests that a prompt that fits gives the tokens of the window generator. */
-TEST_F(Integration_CachedGeneration, APromptThatFitsGivesTheTokensOfTheWindowGenerator)
+TEST_F(Medium_CachedGeneration, APromptThatFitsGivesTheTokensOfTheWindowGenerator)
 {
     const std::vector<TokenID> prompt{1, 2, 3};
 
@@ -271,7 +271,7 @@ TEST_F(Integration_CachedGeneration, APromptThatFitsGivesTheTokensOfTheWindowGen
 }
 
 /** @brief Tests that the logits after a prompt equal those of the window at its last position. */
-TEST_F(Integration_CachedGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosition)
+TEST_F(Medium_CachedGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosition)
 {
     const std::vector<TokenID> prompt{4, 7, 1, 30, 2};
     static_cast<void>(continue_with(*window, prompt, 1));
@@ -288,7 +288,7 @@ TEST_F(Integration_CachedGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosi
 }
 
 /** @brief Tests that a context that reaches the window and slides gives the same tokens. */
-TEST_F(Integration_CachedGeneration, AContextThatSlidesGivesTheTokensOfTheWindowGenerator)
+TEST_F(Medium_CachedGeneration, AContextThatSlidesGivesTheTokensOfTheWindowGenerator)
 {
     const std::vector<TokenID> prompt{1, 2, 3};
 
@@ -305,7 +305,7 @@ TEST_F(Integration_CachedGeneration, AContextThatSlidesGivesTheTokensOfTheWindow
 }
 
 /** @brief Tests that a prompt longer than the window keeps its last T ids, as the window does. */
-TEST_F(Integration_CachedGeneration, APromptLongerThanTheWindowKeepsItsLastIDs)
+TEST_F(Medium_CachedGeneration, APromptLongerThanTheWindowKeepsItsLastIDs)
 {
     const std::vector<TokenID> prompt{9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 11};
 
@@ -317,7 +317,7 @@ TEST_F(Integration_CachedGeneration, APromptLongerThanTheWindowKeepsItsLastIDs)
 }
 
 /** @brief Tests that a second prompt gives what a generator that saw no first prompt gives. */
-TEST_F(Integration_CachedGeneration, ASecondPromptMatchesAFreshGenerator)
+TEST_F(Medium_CachedGeneration, ASecondPromptMatchesAFreshGenerator)
 {
     const std::vector<TokenID> first{5, 9, 13, 2};
     const std::vector<TokenID> second{20, 3};
@@ -338,7 +338,7 @@ TEST_F(Integration_CachedGeneration, ASecondPromptMatchesAFreshGenerator)
 }
 
 /** @brief Tests that a step that carries nothing and a leaf that is absent are refused. */
-TEST_F(Integration_CachedGeneration, AStepThatDoesNotFitIsRefused)
+TEST_F(Medium_CachedGeneration, AStepThatDoesNotFitIsRefused)
 {
     SA_EXPECT_FAILURE(CachedGenerator::make(*engine, *window_step, output, block_leaves()),
                       StatusCode::InvalidDescription, "keeps nothing between runs");
@@ -350,7 +350,7 @@ TEST_F(Integration_CachedGeneration, AStepThatDoesNotFitIsRefused)
 }
 
 /** @brief Tests that an empty prompt, an id outside the vocabulary and no token are refused. */
-TEST_F(Integration_CachedGeneration, APromptOrACountThatDoesNotFitIsRefused)
+TEST_F(Medium_CachedGeneration, APromptOrACountThatDoesNotFitIsRefused)
 {
     const GreedySampler sampler;
     RandomGenerator random(K_SEED);
@@ -555,7 +555,7 @@ namespace
     };
 
     /** @brief Builds the rotary decoders and both generators over each. */
-    class Integration_RotaryGeneration : public SaTest::EngineTest
+    class Medium_RotaryGeneration : public SaTest::EngineTest
     {
         protected:
             /** @brief Releases every decoder before the engine they were built on. */
@@ -688,7 +688,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the one-position step is fed a ring and that no position is among it. */
-TEST_F(Integration_RotaryGeneration, TheStepIsFedTheRingAndNoPosition)
+TEST_F(Medium_RotaryGeneration, TheStepIsFedTheRingAndNoPosition)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.generator, nullptr);
@@ -710,7 +710,7 @@ TEST_F(Integration_RotaryGeneration, TheStepIsFedTheRingAndNoPosition)
 }
 
 /** @brief Tests that the state holds parameters only: no position table, no angle table. */
-TEST_F(Integration_RotaryGeneration, TheStateHoldsParametersOnly)
+TEST_F(Medium_RotaryGeneration, TheStateHoldsParametersOnly)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.state, nullptr);
@@ -726,7 +726,7 @@ TEST_F(Integration_RotaryGeneration, TheStateHoldsParametersOnly)
 }
 
 /** @brief Tests that the logits after a prompt equal those of the window at its last position. */
-TEST_F(Integration_RotaryGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosition)
+TEST_F(Medium_RotaryGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosition)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.generator, nullptr);
@@ -747,7 +747,7 @@ TEST_F(Integration_RotaryGeneration, TheLogitsEqualThoseOfTheWindowAtTheLastPosi
 }
 
 /** @brief Tests that a prompt that fits gives the tokens of the window generator. */
-TEST_F(Integration_RotaryGeneration, APromptThatFitsGivesTheTokensOfTheWindowGenerator)
+TEST_F(Medium_RotaryGeneration, APromptThatFitsGivesTheTokensOfTheWindowGenerator)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.generator, nullptr);
@@ -758,7 +758,7 @@ TEST_F(Integration_RotaryGeneration, APromptThatFitsGivesTheTokensOfTheWindowGen
 }
 
 /** @brief Tests that a one-block ring gives the window generator's tokens over three windows. */
-TEST_F(Integration_RotaryGeneration, AOneBlockRingGivesTheTokensOfTheWindowGeneratorAcrossSlides)
+TEST_F(Medium_RotaryGeneration, AOneBlockRingGivesTheTokensOfTheWindowGeneratorAcrossSlides)
 {
     build(SaTest::K_SHALLOW_ROTARY_DECODER_MODEL, shallow);
     ASSERT_NE(shallow.cached.generator, nullptr);
@@ -778,7 +778,7 @@ TEST_F(Integration_RotaryGeneration, AOneBlockRingGivesTheTokensOfTheWindowGener
 }
 
 /** @brief Tests the logits of a one-block ring against the window's at every fed position. */
-TEST_F(Integration_RotaryGeneration, TheLogitsOfAOneBlockRingEqualTheWindowsAtEveryPosition)
+TEST_F(Medium_RotaryGeneration, TheLogitsOfAOneBlockRingEqualTheWindowsAtEveryPosition)
 {
     build(SaTest::K_SHALLOW_ROTARY_DECODER_MODEL, shallow);
     ASSERT_NE(shallow.window_step, nullptr);
@@ -823,7 +823,7 @@ TEST_F(Integration_RotaryGeneration, TheLogitsOfAOneBlockRingEqualTheWindowsAtEv
 }
 
 /** @brief Tests a ring of T rows against a cache of 64 rows read through the last T alone. */
-TEST_F(Integration_RotaryGeneration, ARingEqualsAWideCacheReadThroughItsLastPositions)
+TEST_F(Medium_RotaryGeneration, ARingEqualsAWideCacheReadThroughItsLastPositions)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.generator, nullptr);
@@ -864,7 +864,7 @@ TEST_F(Integration_RotaryGeneration, ARingEqualsAWideCacheReadThroughItsLastPosi
 }
 
 /** @brief Tests that a context that slides takes one run per token: 14 where a table takes 56. */
-TEST_F(Integration_RotaryGeneration, AContextThatSlidesTakesOneRunPerToken)
+TEST_F(Medium_RotaryGeneration, AContextThatSlidesTakesOneRunPerToken)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.generator, nullptr);
@@ -879,7 +879,7 @@ TEST_F(Integration_RotaryGeneration, AContextThatSlidesTakesOneRunPerToken)
 }
 
 /** @brief Tests that a row written twice holds the second write and its neighbour its own. */
-TEST_F(Integration_RotaryGeneration, ASlotWrittenTwiceHoldsTheSecondRow)
+TEST_F(Medium_RotaryGeneration, ASlotWrittenTwiceHoldsTheSecondRow)
 {
     build(SaTest::K_SHALLOW_ROTARY_DECODER_MODEL, shallow);
     ASSERT_NE(shallow.cached.step, nullptr);
@@ -931,7 +931,7 @@ TEST_F(Integration_RotaryGeneration, ASlotWrittenTwiceHoldsTheSecondRow)
 }
 
 /** @brief Tests that a second prompt gives what a generator that saw no first prompt gives. */
-TEST_F(Integration_RotaryGeneration, ASecondPromptMatchesAFreshGenerator)
+TEST_F(Medium_RotaryGeneration, ASecondPromptMatchesAFreshGenerator)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.generator, nullptr);
@@ -950,7 +950,7 @@ TEST_F(Integration_RotaryGeneration, ASecondPromptMatchesAFreshGenerator)
 }
 
 /** @brief Tests that a ring without its angles and a step fed both leaves are refused. */
-TEST_F(Integration_RotaryGeneration, AStepOrARingThatDoesNotFitIsRefused)
+TEST_F(Medium_RotaryGeneration, AStepOrARingThatDoesNotFitIsRefused)
 {
     build(SaTest::K_ROTARY_DECODER_MODEL, deep);
     ASSERT_NE(deep.cached.step, nullptr);

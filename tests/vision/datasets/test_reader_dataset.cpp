@@ -69,7 +69,7 @@ namespace
     constexpr float K_PIXEL_TOLERANCE = 1e-4f;
 
     /** @brief Provides an engine and the builders of the lists these tests read. */
-    class Unit_DatasetsReaderDataset : public SaTest::EngineTest
+    class Medium_DatasetsReaderDataset : public SaTest::EngineTest
     {
         protected:
             /**
@@ -122,7 +122,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the dataset reports the batch size, the shapes and the whole batches. */
-TEST_F(Unit_DatasetsReaderDataset, ItDescribesItsBatches)
+TEST_F(Medium_DatasetsReaderDataset, ItDescribesItsBatches)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_describe");
 
@@ -139,7 +139,7 @@ TEST_F(Unit_DatasetsReaderDataset, ItDescribesItsBatches)
 }
 
 /** @brief Tests that batch i holds samples 2i and 2i + 1, scaled, with their labels. */
-TEST_F(Unit_DatasetsReaderDataset, ABatchHoldsItsSamplesInListOrder)
+TEST_F(Medium_DatasetsReaderDataset, ABatchHoldsItsSamplesInListOrder)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_order");
 
@@ -160,7 +160,7 @@ TEST_F(Unit_DatasetsReaderDataset, ABatchHoldsItsSamplesInListOrder)
 }
 
 /** @brief Tests that a detection batch letterboxes each file and moves its boxes with it. */
-TEST_F(Unit_DatasetsReaderDataset, ADetectionBatchLetterboxesImagesAndBoxes)
+TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchLetterboxesImagesAndBoxes)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_detection");
 
@@ -214,7 +214,7 @@ TEST_F(Unit_DatasetsReaderDataset, ADetectionBatchLetterboxesImagesAndBoxes)
 }
 
 /** @brief Tests that make refuses options no batch can be built from. */
-TEST_F(Unit_DatasetsReaderDataset, MakeRefusesOptionsOutsideTheirBounds)
+TEST_F(Medium_DatasetsReaderDataset, MakeRefusesOptionsOutsideTheirBounds)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_refusals");
     const SampleList list = stored_list(scratch, 2);
@@ -244,7 +244,7 @@ TEST_F(Unit_DatasetsReaderDataset, MakeRefusesOptionsOutsideTheirBounds)
 }
 
 /** @brief Tests that a batch index past the last batch stops the process. */
-TEST_F(Unit_DatasetsReaderDataset, ABatchOutsideTheEpochStopsTheProcess)
+TEST_F(Medium_DatasetsReaderDataset, ABatchOutsideTheEpochStopsTheProcess)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_index");
 
@@ -257,7 +257,7 @@ TEST_F(Unit_DatasetsReaderDataset, ABatchOutsideTheEpochStopsTheProcess)
 }
 
 /** @brief Tests that a second read into the same batch writes the tensors of the first. */
-TEST_F(Unit_DatasetsReaderDataset, AReadReusesTheTensorsItFilledBefore)
+TEST_F(Medium_DatasetsReaderDataset, AReadReusesTheTensorsItFilledBefore)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_reuse");
 
@@ -277,7 +277,7 @@ TEST_F(Unit_DatasetsReaderDataset, AReadReusesTheTensorsItFilledBefore)
 }
 
 /** @brief Tests that a read leaves alone a tensor something else still references. */
-TEST_F(Unit_DatasetsReaderDataset, AReadDoesNotWriteATensorSomethingElseHolds)
+TEST_F(Medium_DatasetsReaderDataset, AReadDoesNotWriteATensorSomethingElseHolds)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_shared");
 
@@ -296,7 +296,7 @@ TEST_F(Unit_DatasetsReaderDataset, AReadDoesNotWriteATensorSomethingElseHolds)
 }
 
 /** @brief Tests that a reader dataset is read through the Data::Dataset interface. */
-TEST_F(Unit_DatasetsReaderDataset, ItIsADatasetATrainerCanRead)
+TEST_F(Medium_DatasetsReaderDataset, ItIsADatasetATrainerCanRead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_seam");
 
@@ -313,7 +313,7 @@ TEST_F(Unit_DatasetsReaderDataset, ItIsADatasetATrainerCanRead)
 }
 
 /** @brief Tests that an image of another channel count is a failure naming its file. */
-TEST_F(Unit_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
+TEST_F(Medium_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_channels");
 
@@ -330,7 +330,7 @@ TEST_F(Unit_DatasetsReaderDataset, AnImageOfAnotherChannelCountNamesItsFile)
 }
 
 /** @brief Tests that a file that is absent when its batch is read is a failure naming it. */
-TEST_F(Unit_DatasetsReaderDataset, AFileAbsentAtReadTimeIsNamed)
+TEST_F(Medium_DatasetsReaderDataset, AFileAbsentAtReadTimeIsNamed)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_absent");
 
@@ -391,7 +391,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a shuffled epoch reads every sample once, in the order of its seed. */
-TEST_F(Unit_DatasetsReaderDataset, AShuffledEpochReadsEverySampleOnceInTheOrderOfTheSeed)
+TEST_F(Medium_DatasetsReaderDataset, AShuffledEpochReadsEverySampleOnceInTheOrderOfTheSeed)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_shuffle");
 
@@ -416,7 +416,7 @@ TEST_F(Unit_DatasetsReaderDataset, AShuffledEpochReadsEverySampleOnceInTheOrderO
 }
 
 /** @brief Tests that begin_epoch gives the order of that epoch, and the first one again. */
-TEST_F(Unit_DatasetsReaderDataset, BeginEpochSelectsTheOrderOfTheEpoch)
+TEST_F(Medium_DatasetsReaderDataset, BeginEpochSelectsTheOrderOfTheEpoch)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_epochs");
 
@@ -438,7 +438,7 @@ TEST_F(Unit_DatasetsReaderDataset, BeginEpochSelectsTheOrderOfTheEpoch)
 }
 
 /** @brief Tests that without shuffle every epoch reads the samples in the list's order. */
-TEST_F(Unit_DatasetsReaderDataset, WithoutShuffleEveryEpochKeepsTheOrderOfTheList)
+TEST_F(Medium_DatasetsReaderDataset, WithoutShuffleEveryEpochKeepsTheOrderOfTheList)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_unshuffled");
 
@@ -454,7 +454,7 @@ TEST_F(Unit_DatasetsReaderDataset, WithoutShuffleEveryEpochKeepsTheOrderOfTheLis
 }
 
 /** @brief Tests that the form of make that takes a pipeline refuses a null one. */
-TEST_F(Unit_DatasetsReaderDataset, MakeRefusesANullPipeline)
+TEST_F(Medium_DatasetsReaderDataset, MakeRefusesANullPipeline)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_pipeline");
 

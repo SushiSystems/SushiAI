@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_raw_cache.cpp
 
 
-Suites: `Unit_ImagingRawCache`.
+Suites: `Small_ImagingRawCache`.
 
 Tests the raw image file: its bytes, its header checks and its file reader and writer.
 
-This file needs no device. `Unit_ImagingRawCache` covers
+This file needs no device. `Small_ImagingRawCache` covers
 `modules/vision/imaging/include/SushiAI/vision/imaging/raw_cache.hpp`. A file is a 24-byte header of six little-endian
 32-bit words (magic, version, height, width, channel count, channel order) followed by the
 pixels. Most cases read and write string streams. The cases from ImageRoundTripsThroughAFile on

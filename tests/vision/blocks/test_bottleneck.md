@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_bottleneck.cpp
 
 
-Suites: `Unit_BlockBottleneck`.
+Suites: `Small_BlockBottleneck`.
 
 Tests Bottleneck's trace, its state names against YOLO26n row 2, and its factory.
 

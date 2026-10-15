@@ -1,11 +1,11 @@
 # tests/vision/datasets/test_reader_section.cpp
 
 
-Suites: `Unit_DatasetsReaderTable`, `Unit_DatasetsTaskTable`, `Unit_DatasetsReaderSection`.
+Suites: `Small_DatasetsReaderTable`, `Small_DatasetsTaskTable`, `Medium_DatasetsReaderSection`.
 
 Tests `reader_table` and `find_reader`, `task_table` and `find_task`, and
 `make_reader_dataset` in `modules/vision/datasets/include/SushiAI/vision/datasets/`. The
-`Unit_DatasetsReaderSection` fixture is an `EngineTest` that builds a dataset from a section
+`Medium_DatasetsReaderSection` fixture is an `EngineTest` that builds a dataset from a section
 called "data" whose `root` is a directory under the system's temporary directory. Its YOLO
 split is two white raw images of 2 rows and 4 columns under `images/train`, the second with
 one object of class 2 in `labels/train/b.txt`. Its folder split is one file under each of

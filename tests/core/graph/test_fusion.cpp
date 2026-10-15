@@ -95,10 +95,10 @@ namespace
                            [reason](const DeclinedFusion& d) { return d.reason == reason; });
     }
 
-    class Unit_Fusion : public ::testing::Test {};
+    class Small_Fusion : public ::testing::Test {};
 }
 
-TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
+TEST_F(Small_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
 {
     // Every form round-trips through its operation identity; see tests/core/graph/README.md.
     constexpr FusedForm K_ALL[] = {
@@ -121,7 +121,7 @@ TEST_F(Unit_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
     EXPECT_EQ(Graph::fused_form_of(Ops::K_RELU.id), FusedForm::None);
 }
 
-TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts)
+TEST_F(Small_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts)
 {
     // RELU's gradient reads its output, so it survives fusion; see tests/core/graph/README.md.
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::K_RELU.id));
@@ -150,7 +150,7 @@ TEST_F(Unit_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFac
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBiasGELU), Ops::K_GELU.id);
 }
 
-TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
+TEST_F(Small_Fusion, AMatmulAndABiasAddBecomeOneNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -186,7 +186,7 @@ TEST_F(Unit_Fusion, AMatmulAndABiasAddBecomeOneNode)
     EXPECT_EQ(graph.value(layer.product).producer, K_NO_NODE);
 }
 
-TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
+TEST_F(Small_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
 {
     // The matcher walks roots in reverse; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -205,7 +205,7 @@ TEST_F(Unit_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
     EXPECT_EQ(graph.node_count(), report.nodes_before() - 2u);
 }
 
-TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
+TEST_F(Small_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -233,7 +233,7 @@ TEST_F(Unit_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
     EXPECT_EQ(graph.value(difference).producer, K_NO_NODE);
 }
 
-TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
+TEST_F(Small_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
 {
     // The entry's link position refuses swapped operands; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -255,7 +255,7 @@ TEST_F(Unit_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
     EXPECT_EQ(report.nodes_after(), report.nodes_before());
 }
 
-TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
+TEST_F(Small_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -276,7 +276,7 @@ TEST_F(Unit_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
 }
 
-TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIDIsNotFusedAway)
+TEST_F(Small_Fusion, AnIntermediateTheCallerReadsByIDIsNotFusedAway)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -297,7 +297,7 @@ TEST_F(Unit_Fusion, AnIntermediateTheCallerReadsByIDIsNotFusedAway)
     EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
 }
 
-TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
+TEST_F(Small_Fusion, AParameterIsProtectedWithoutBeingListed)
 {
     // A persistent value is protected without being listed; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -319,7 +319,7 @@ TEST_F(Unit_Fusion, AParameterIsProtectedWithoutBeingListed)
     EXPECT_TRUE(declined_for(report, FusionDecline::ValueIsObserved));
 }
 
-TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntrySpills)
+TEST_F(Small_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntrySpills)
 {
     // The fused node keeps writing the pre-activation; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -367,7 +367,7 @@ TEST_F(Unit_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntry
     EXPECT_EQ(backward.inputs[1], layer.biased);
 }
 
-TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
+TEST_F(Small_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
 {
     // A reader before the fused node would break the order; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -401,7 +401,7 @@ TEST_F(Unit_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
         }
 }
 
-TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
+TEST_F(Small_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
 {
     // A spilled pre-activation may be named as observed; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -420,7 +420,7 @@ TEST_F(Unit_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
     EXPECT_NE(graph.value(layer.biased).producer, K_NO_NODE);
 }
 
-TEST_F(Unit_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
+TEST_F(Small_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
 {
     // A spill licenses one interior value and no other; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -441,7 +441,7 @@ TEST_F(Unit_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
-TEST_F(Unit_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
+TEST_F(Small_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -466,7 +466,7 @@ TEST_F(Unit_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
     EXPECT_FALSE(declined_for(report, FusionDecline::NoCatalogEntry));
 }
 
-TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
+TEST_F(Small_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
 {
     // ReLU's gradient reads its own result, so it folds; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -488,7 +488,7 @@ TEST_F(Unit_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
     EXPECT_FALSE(declined_for(report, FusionDecline::GradientNeedsPreActivation));
 }
 
-TEST_F(Unit_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
+TEST_F(Small_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -510,7 +510,7 @@ TEST_F(Unit_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
-TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
+TEST_F(Small_Fusion, DisablingOneFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -531,7 +531,7 @@ TEST_F(Unit_Fusion, DisablingOneFormFallsBackToTheShorterOne)
     EXPECT_TRUE(declined_for(report, FusionDecline::Disabled));
 }
 
-TEST_F(Unit_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
+TEST_F(Small_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
 {
     // Value ids and descriptions survive the rewrite; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -560,7 +560,7 @@ TEST_F(Unit_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
     }
 }
 
-TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
+TEST_F(Small_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
 {
     // The fused node sits at the root's position; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -585,7 +585,7 @@ TEST_F(Unit_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
         }
 }
 
-TEST_F(Unit_Fusion, TheReportNamesEverySubtreeItCollapsed)
+TEST_F(Small_Fusion, TheReportNamesEverySubtreeItCollapsed)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -601,7 +601,7 @@ TEST_F(Unit_Fusion, TheReportNamesEverySubtreeItCollapsed)
 }
 
 /** @brief Tests that fuse keeps each state's leaf, a buffer's lifetime and a refusal mark. */
-TEST_F(Unit_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
+TEST_F(Small_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

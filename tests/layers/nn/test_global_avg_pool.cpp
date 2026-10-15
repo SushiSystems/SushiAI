@@ -57,7 +57,7 @@ namespace
 } // namespace
 
 /** @brief Tests that GlobalAvgPool satisfies the Module trait as a leaf with a const forward(). */
-TEST(Unit_GlobalAvgPool, SatisfiesTheModuleTrait)
+TEST(Small_GlobalAvgPool, SatisfiesTheModuleTrait)
 {
     static_assert(NN::Module<GlobalAvgPool>, "GlobalAvgPool must satisfy the Module contract");
     static_assert(!NN::ModuleContainer<GlobalAvgPool>,
@@ -71,7 +71,7 @@ TEST(Unit_GlobalAvgPool, SatisfiesTheModuleTrait)
 }
 
 /** @brief Tests that forward() reduces an [N, H, W, C] input to [N, C]. */
-TEST(Unit_GlobalAvgPool, ForwardReducesTheSpatialAxes)
+TEST(Small_GlobalAvgPool, ForwardReducesTheSpatialAxes)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -84,7 +84,7 @@ TEST(Unit_GlobalAvgPool, ForwardReducesTheSpatialAxes)
 }
 
 /** @brief Tests that forward() emits one SPATIAL_MEAN node reading its input. */
-TEST(Unit_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
+TEST(Small_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -104,7 +104,7 @@ TEST(Unit_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
 }
 
 /** @brief Tests that the traced result keeps the NHWC layout tag of the rank-4 input it reads. */
-TEST(Unit_GlobalAvgPool, ForwardKeepsTheNHWCLayoutTag)
+TEST(Small_GlobalAvgPool, ForwardKeepsTheNHWCLayoutTag)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -119,7 +119,7 @@ TEST(Unit_GlobalAvgPool, ForwardKeepsTheNHWCLayoutTag)
 }
 
 /** @brief Tests that output_shape() maps a per-sample [H, W, C] shape to [C]. */
-TEST(Unit_GlobalAvgPool, OutputShapeKeepsOnlyTheChannels)
+TEST(Small_GlobalAvgPool, OutputShapeKeepsOnlyTheChannels)
 {
     const GlobalAvgPool layer{};
 
@@ -127,7 +127,7 @@ TEST(Unit_GlobalAvgPool, OutputShapeKeepsOnlyTheChannels)
 }
 
 /** @brief Tests that output_shape() agrees with the traced shape for two different inputs. */
-TEST(Unit_GlobalAvgPool, OutputShapeAgreesWithForward)
+TEST(Small_GlobalAvgPool, OutputShapeAgreesWithForward)
 {
     const GlobalAvgPool layer{};
 
@@ -141,7 +141,7 @@ TEST(Unit_GlobalAvgPool, OutputShapeAgreesWithForward)
 }
 
 /** @brief Tests that output_shape() rejects a per-sample shape of rank 1. */
-TEST(Unit_GlobalAvgPool, OutputShapeRejectsAFeatureVector)
+TEST(Small_GlobalAvgPool, OutputShapeRejectsAFeatureVector)
 {
     const GlobalAvgPool layer{};
 
@@ -149,7 +149,7 @@ TEST(Unit_GlobalAvgPool, OutputShapeRejectsAFeatureVector)
 }
 
 /** @brief Tests that output_shape() rejects a per-sample shape of rank 2. */
-TEST(Unit_GlobalAvgPool, OutputShapeRejectsARankTwoShape)
+TEST(Small_GlobalAvgPool, OutputShapeRejectsARankTwoShape)
 {
     const GlobalAvgPool layer{};
 
@@ -157,7 +157,7 @@ TEST(Unit_GlobalAvgPool, OutputShapeRejectsARankTwoShape)
 }
 
 /** @brief Tests that output_shape() rejects a rank-4 shape that still carries the batch axis. */
-TEST(Unit_GlobalAvgPool, OutputShapeRejectsAShapeWithTheBatchAxis)
+TEST(Small_GlobalAvgPool, OutputShapeRejectsAShapeWithTheBatchAxis)
 {
     const GlobalAvgPool layer{};
 
@@ -165,7 +165,7 @@ TEST(Unit_GlobalAvgPool, OutputShapeRejectsAShapeWithTheBatchAxis)
 }
 
 /** @brief Tests that forward() rejects a rank-2 [N, F] input. */
-TEST(Unit_GlobalAvgPool, ForwardRejectsAFeatureMatrix)
+TEST(Small_GlobalAvgPool, ForwardRejectsAFeatureMatrix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -177,7 +177,7 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAFeatureMatrix)
 }
 
 /** @brief Tests that forward() rejects a rank-3 input that lacks the batch axis. */
-TEST(Unit_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
+TEST(Small_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -189,7 +189,7 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
 }
 
 /** @brief Tests that forward() rejects a rank-4 input tagged NCHW. */
-TEST(Unit_GlobalAvgPool, ForwardRejectsAnNCHWInput)
+TEST(Small_GlobalAvgPool, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -202,7 +202,7 @@ TEST(Unit_GlobalAvgPool, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Unit_GlobalAvgPool, TheParameterWalkVisitsNothing)
+TEST(Small_GlobalAvgPool, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

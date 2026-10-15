@@ -49,7 +49,7 @@ using Optim::LossScaler;
 
 namespace
 {
-    class Regression_LossScaling : public ::testing::Test {};
+    class Medium_LossScaling : public ::testing::Test {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -196,7 +196,7 @@ namespace
  * @brief Tests that an fp16 overflow is detected, backs the scale off and lets the run recover.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
+TEST_F(Medium_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -233,7 +233,7 @@ TEST_F(Regression_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
  * @brief Tests that the same scale under the fp32 policy overflows nothing and skips nothing.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
+TEST_F(Medium_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -255,7 +255,7 @@ TEST_F(Regression_LossScaling, TheSameScaleInFloat32OverflowsNothing)
  * @brief Tests that a skipped step leaves the parameter and both AdamW moments byte-identical.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical)
+TEST_F(Medium_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -325,7 +325,7 @@ TEST_F(Regression_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdent
  *        moment.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
+TEST_F(Medium_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -367,7 +367,7 @@ TEST_F(Regression_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
  * @brief Tests that a run scaled by 1024 and unscaled matches the unscaled run bit for bit.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
+TEST_F(Medium_LossScaling, UnscalingByAPowerOfTwoIsExact)
 {
     using Bytes = std::vector<unsigned char>;
 
@@ -434,7 +434,7 @@ TEST_F(Regression_LossScaling, UnscalingByAPowerOfTwoIsExact)
  * @brief Tests that the step compiles once while the loss scale grows.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
+TEST_F(Medium_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -456,7 +456,7 @@ TEST_F(Regression_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
  * @brief Tests that the step compiles once while the loss scale backs off.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
+TEST_F(Medium_LossScaling, ABackingOffScaleStillCompilesOnce)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -476,7 +476,7 @@ TEST_F(Regression_LossScaling, ABackingOffScaleStillCompilesOnce)
  * @brief Tests that an AdamW with the separate kernel refuses a loss scaler.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
+TEST_F(Medium_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 

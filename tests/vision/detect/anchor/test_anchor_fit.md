@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_fit.cpp
 
 
-Suites: `Unit_DetectAnchorFit`.
+Suites: `Small_DetectAnchorFit`.
 
 Tests `measure_anchor_fit`, which measures how well the anchors of an `AnchorLayout` fit a list
 of box sizes. Every number is compared to 1e-9.

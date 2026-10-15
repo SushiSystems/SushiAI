@@ -55,10 +55,10 @@ using Graph::ValueID;
 
 namespace
 {
-    class Integration_Resilience : public SaTest::EngineTest {};
+    class Medium_Resilience : public SaTest::EngineTest {};
 
     /** @brief Names the suite of the cases that expect the process to stop. */
-    using Integration_ResilienceDeathTest = Integration_Resilience;
+    using Medium_ResilienceDeathTest = Medium_Resilience;
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -207,7 +207,7 @@ namespace
     }
 }
 
-TEST_F(Integration_Resilience, AnOptimizerNamesTheParameterWhoseGradientDoesNotMatch)
+TEST_F(Medium_Resilience, AnOptimizerNamesTheParameterWhoseGradientDoesNotMatch)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{4, 3}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient, allocate_tensor(*engine, Shape{4, 2}));
@@ -220,7 +220,7 @@ TEST_F(Integration_Resilience, AnOptimizerNamesTheParameterWhoseGradientDoesNotM
                       "0.weight", "12 elements", "gradient has 8");
 }
 
-TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrongType)
+TEST_F(Medium_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrongType)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(*engine, Shape{4}, DType::Float32));
@@ -234,7 +234,7 @@ TEST_F(Integration_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrong
                       StatusCode::InvalidDescription, "0.bias", "float32", "float64");
 }
 
-TEST_F(Integration_Resilience, AnOptimizerRefusesADTypeItCannotServeAndExplainsWhy)
+TEST_F(Medium_Resilience, AnOptimizerRefusesADTypeItCannotServeAndExplainsWhy)
 {
     // The half refusal must say why in its message; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor complex_parameter,
@@ -262,7 +262,7 @@ TEST_F(Integration_Resilience, AnOptimizerRefusesADTypeItCannotServeAndExplainsW
                       "0.weight", "half precision", "float32");
 }
 
-TEST_F(Integration_Resilience, AdamWNamesTheHyperparameterThatIsOutOfRange)
+TEST_F(Medium_Resilience, AdamWNamesTheHyperparameterThatIsOutOfRange)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{4}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor gradient, allocate_tensor(*engine, Shape{4}));
@@ -286,7 +286,7 @@ TEST_F(Integration_Resilience, AdamWNamesTheHyperparameterThatIsOutOfRange)
                       StatusCode::InvalidDescription, "eps must be positive");
 }
 
-TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
+TEST_F(Medium_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
 {
     NN::Linear layer{4, 3};
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built, Train::build_classifier(layer, 4, 4, 3));
@@ -299,7 +299,7 @@ TEST_F(Integration_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
                       "'ghost'", "receives no gradient", "no optimizer could ever move it");
 }
 
-TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarbage)
+TEST_F(Medium_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarbage)
 {
     // An unwritten gradient must read as zero; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 12, 4));
@@ -340,7 +340,7 @@ TEST_F(Integration_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThan
     }
 }
 
-TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledStep)
+TEST_F(Medium_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledStep)
 {
     SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
@@ -360,7 +360,7 @@ TEST_F(Integration_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledS
                       "[4, 6]", "[8, 6]");
 }
 
-TEST_F(Integration_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
+TEST_F(Medium_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
 {
     SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
@@ -385,7 +385,7 @@ TEST_F(Integration_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
                       "5 classes", "compiled for 4");
 }
 
-TEST_F(Integration_Resilience, TheSyntheticDatasetNamesEveryExtentWhenOneIsNotPositive)
+TEST_F(Medium_Resilience, TheSyntheticDatasetNamesEveryExtentWhenOneIsNotPositive)
 {
     SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(8, 0, 6, 4)),
                       StatusCode::InvalidDescription, "positive extents", "batches=0");
@@ -395,7 +395,7 @@ TEST_F(Integration_Resilience, TheSyntheticDatasetNamesEveryExtentWhenOneIsNotPo
                       StatusCode::InvalidDescription, "positive extents", "classes=0");
 }
 
-TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
+TEST_F(Medium_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
 {
     const int64_t empty_dims[2] = {4, 0};
     SA_EXPECT_FAILURE(allocate_tensor(*engine, SushiRuntime::span<const int64_t>(empty_dims, 2)),
@@ -407,7 +407,7 @@ TEST_F(Integration_Resilience, AllocationRefusesAnEmptyOrUnrepresentableTensor)
                       StatusCode::InvalidDescription, "more than", "elements", "3000000000");
 }
 
-TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanTheKernel)
+TEST_F(Medium_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanTheKernel)
 {
     // A petabyte: the error names shape and dtype; see tests/layers/train/README.md.
     const int64_t enormous[2] = {1LL << 25, 1LL << 25};
@@ -417,7 +417,7 @@ TEST_F(Integration_Resilience, AModelTooLargeToAllocateNamesTheTensorRatherThanT
                       "Could not allocate the float32 tensor", "[33554432, 33554432]");
 }
 
-TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
+TEST_F(Medium_Resilience, ASingleSampleWithASingleFeatureTrains)
 {
     // N = 1 and D = 1 with one Linear: every loop bound is at its minimum.
     const int64_t batch = 1;
@@ -469,7 +469,7 @@ TEST_F(Integration_Resilience, ASingleSampleWithASingleFeatureTrains)
     EXPECT_TRUE(all_finite(SaTest::read_tensor(slots[0].gradient), "gradient"));
 }
 
-TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
+TEST_F(Medium_Resilience, ASingleClassIsDegenerateButNotUndefined)
 {
     // With C = 1 loss and gradient are exactly zero; see tests/layers/train/README.md.
     const int64_t batch = 4;
@@ -515,7 +515,7 @@ TEST_F(Integration_Resilience, ASingleClassIsDegenerateButNotUndefined)
         EXPECT_NEAR(gradient[i], 0.0, 1e-4) << "at " << i;
 }
 
-TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
+TEST_F(Medium_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
 {
     // 64 fills a GEMM block; 65 leaves a remainder; see tests/layers/train/README.md.
     for (int64_t n : {int64_t{64}, int64_t{65}})
@@ -564,7 +564,7 @@ TEST_F(Integration_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
     }
 }
 
-TEST_F(Integration_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastIt)
+TEST_F(Medium_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastIt)
 {
     for (int64_t n : {int64_t{64}, int64_t{65}})
     {
@@ -634,7 +634,7 @@ namespace
     }
 }
 
-TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitude)
+TEST_F(Medium_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitude)
 {
     // A uniform row gives -log(C) at any offset; see tests/layers/train/README.md.
     const int64_t rows = 3;
@@ -653,7 +653,7 @@ TEST_F(Integration_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitud
     }
 }
 
-TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
+TEST_F(Medium_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
 {
     // The winner's log-probability is exactly zero; see tests/layers/train/README.md.
     const int64_t rows = 2;
@@ -674,7 +674,7 @@ TEST_F(Integration_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
     EXPECT_LT(got[3], -1e29);
 }
 
-TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
+TEST_F(Medium_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
 {
     // Each row is shifted by its own maximum; see tests/layers/train/README.md.
     const int64_t columns = 3;
@@ -696,7 +696,7 @@ TEST_F(Integration_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRan
     EXPECT_NEAR(got[0], -std::log(denominator), 1e-4);
 }
 
-TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
+TEST_F(Medium_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
 {
     const int64_t rows = 2;
     const int64_t columns = 3;
@@ -736,7 +736,7 @@ TEST_F(Integration_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictio
     EXPECT_NEAR(wrong, 160.0, 1e-2);
 }
 
-TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
+TEST_F(Medium_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 {
     // eps is added after the bias correction; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter, allocate_tensor(*engine, Shape{6}));
@@ -769,7 +769,7 @@ TEST_F(Integration_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
     EXPECT_TRUE(all_finite(SaTest::read_tensor(parameter), "parameter after two steps"));
 }
 
-TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
+TEST_F(Medium_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 {
     // The runtime counts its live USM allocations; see tests/layers/train/README.md.
     const auto live_allocations = [this]()
@@ -817,7 +817,7 @@ TEST_F(Integration_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
     }
 }
 
-TEST_F(Integration_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIROperationAndSaysSo)
+TEST_F(Medium_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIROperationAndSaysSo)
 {
     // BATCHNORM_UPDATE_STATS has no lowering; see tests/layers/train/README.md.
     Graph::Graph graph;

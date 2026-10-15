@@ -92,7 +92,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the top-k path returns the best anchor and class pairs, best first. */
-TEST(Unit_DetectPostprocess, SelectsTheHighestScoringAnchorClassPairs)
+TEST(Medium_DetectPostprocess, SelectsTheHighestScoringAnchorClassPairs)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 1.0f, 1.0f, 2.0f, 2.0f,
                                    3.0f, 3.0f, 4.0f, 4.0f, 5.0f, 5.0f};
@@ -108,7 +108,7 @@ TEST(Unit_DetectPostprocess, SelectsTheHighestScoringAnchorClassPairs)
 }
 
 /** @brief Tests that one anchor yields two detections when two of its classes score highest. */
-TEST(Unit_DetectPostprocess, OneAnchorCanYieldTwoDetections)
+TEST(Medium_DetectPostprocess, OneAnchorCanYieldTwoDetections)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 1.0f, 1.0f, 2.0f, 2.0f,
                                    3.0f, 3.0f, 4.0f, 4.0f, 5.0f, 5.0f};
@@ -124,14 +124,14 @@ TEST(Unit_DetectPostprocess, OneAnchorCanYieldTwoDetections)
 }
 
 /** @brief Tests that the row count is the anchor count when the limit is larger. */
-TEST(Unit_DetectPostprocess, LimitsRowsToTheAnchorCount)
+TEST(Medium_DetectPostprocess, LimitsRowsToTheAnchorCount)
 {
     EXPECT_EQ(SushiAI::Vision::Detect::count_top_detections({1, 3, 2}, 300), 3);
     EXPECT_EQ(SushiAI::Vision::Detect::count_top_detections({1, 8400, 80}, 300), 300);
 }
 
 /** @brief Tests that each image of a batch is selected from its own rows. */
-TEST(Unit_DetectPostprocess, SelectsEachImageFromItsOwnRows)
+TEST(Medium_DetectPostprocess, SelectsEachImageFromItsOwnRows)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 1.0f, 1.0f, 2.0f, 2.0f, 3.0f, 3.0f,
                                    4.0f, 4.0f, 5.0f, 5.0f, 6.0f, 6.0f, 7.0f, 7.0f};
@@ -146,7 +146,7 @@ TEST(Unit_DetectPostprocess, SelectsEachImageFromItsOwnRows)
 }
 
 /** @brief Tests that a detections array of the wrong size is refused with the needed shape. */
-TEST(Unit_DetectPostprocess, RejectsADetectionArrayOfTheWrongSize)
+TEST(Medium_DetectPostprocess, RejectsADetectionArrayOfTheWrongSize)
 {
     const std::vector<float> boxes(12, 0.0f);
     const std::vector<float> scores(6, 0.0f);
@@ -157,7 +157,7 @@ TEST(Unit_DetectPostprocess, RejectsADetectionArrayOfTheWrongSize)
 }
 
 /** @brief Tests that the top-k path reproduces the reference detections up to tied scores. */
-TEST(Unit_DetectPostprocess, ReproducesTheReferenceDetections)
+TEST(Medium_DetectPostprocess, ReproducesTheReferenceDetections)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(box_tensor, forward, "one2one.decoded.boxes");
@@ -198,7 +198,7 @@ TEST(Unit_DetectPostprocess, ReproducesTheReferenceDetections)
 }
 
 /** @brief Tests that the confidence filter drops a score at the threshold and keeps one above. */
-TEST(Unit_DetectPostprocess, TheConfidenceFilterDropsAScoreAtTheThreshold)
+TEST(Medium_DetectPostprocess, TheConfidenceFilterDropsAScoreAtTheThreshold)
 {
     const std::vector<float> rows{0.0f, 0.0f, 1.0f, 1.0f, 0.5f,  3.0f, 2.0f, 2.0f,
                                   3.0f, 3.0f, 0.25f, 1.0f, 4.0f, 4.0f, 5.0f, 5.0f,
@@ -214,7 +214,7 @@ TEST(Unit_DetectPostprocess, TheConfidenceFilterDropsAScoreAtTheThreshold)
 }
 
 /** @brief Tests that the confidence filter keeps each image's rows apart. */
-TEST(Unit_DetectPostprocess, TheConfidenceFilterKeepsEachImagesRows)
+TEST(Medium_DetectPostprocess, TheConfidenceFilterKeepsEachImagesRows)
 {
     const std::vector<float> rows{0.0f, 0.0f, 1.0f, 1.0f, 0.9f, 0.0f, 2.0f, 2.0f,
                                   3.0f, 3.0f, 0.0f, 1.0f, 4.0f, 4.0f, 5.0f, 5.0f,
@@ -230,7 +230,7 @@ TEST(Unit_DetectPostprocess, TheConfidenceFilterKeepsEachImagesRows)
 }
 
 /** @brief Tests that the confidence filter refuses rows the batch does not divide evenly. */
-TEST(Unit_DetectPostprocess, TheConfidenceFilterRejectsRowsTheBatchDoesNotDivide)
+TEST(Medium_DetectPostprocess, TheConfidenceFilterRejectsRowsTheBatchDoesNotDivide)
 {
     // Three rows of six values cannot be split between two images.
     const std::vector<float> rows(18, 0.0f);
@@ -242,7 +242,7 @@ TEST(Unit_DetectPostprocess, TheConfidenceFilterRejectsRowsTheBatchDoesNotDivide
 }
 
 /** @brief Tests that the confidence filter keeps the reference's rows as its validator does. */
-TEST(Unit_DetectPostprocess, TheConfidenceFilterKeepsTheRowsTheReferenceValidatorKeeps)
+TEST(Medium_DetectPostprocess, TheConfidenceFilterKeepsTheRowsTheReferenceValidatorKeeps)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference_tensor, forward, "one2one.detections");

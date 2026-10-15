@@ -63,7 +63,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the image extensions are matched without regard to case. */
-TEST(Unit_DatasetsImageFolder, ImageExtensionsIgnoreCase)
+TEST(Small_DatasetsImageFolder, ImageExtensionsIgnoreCase)
 {
     EXPECT_TRUE(has_image_extension("a.jpg"));
     EXPECT_TRUE(has_image_extension("a.JPEG"));
@@ -75,7 +75,7 @@ TEST(Unit_DatasetsImageFolder, ImageExtensionsIgnoreCase)
 }
 
 /** @brief Tests that the classes are the folder names in sorted order. */
-TEST(Unit_DatasetsImageFolder, ClassesAreTheSortedFolderNames)
+TEST(Small_DatasetsImageFolder, ClassesAreTheSortedFolderNames)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_classes");
     scratch.write("zebra/1.png", {1});
@@ -97,7 +97,7 @@ TEST(Unit_DatasetsImageFolder, ClassesAreTheSortedFolderNames)
 }
 
 /** @brief Tests that a class lists its image files sorted by path, at any depth. */
-TEST(Unit_DatasetsImageFolder, AClassListsItsImageFilesSortedAtAnyDepth)
+TEST(Small_DatasetsImageFolder, AClassListsItsImageFilesSortedAtAnyDepth)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_files");
     scratch.write("cat/b.png", {1});
@@ -119,7 +119,7 @@ TEST(Unit_DatasetsImageFolder, AClassListsItsImageFilesSortedAtAnyDepth)
 }
 
 /** @brief Tests that a split names a folder of the root, and a file there is no class. */
-TEST(Unit_DatasetsImageFolder, ASplitNamesAFolderOfTheRoot)
+TEST(Small_DatasetsImageFolder, ASplitNamesAFolderOfTheRoot)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_split");
     scratch.write("train/no/1.png", {1});
@@ -134,7 +134,7 @@ TEST(Unit_DatasetsImageFolder, ASplitNamesAFolderOfTheRoot)
 }
 
 /** @brief Tests that a folder without an image is still a class, so indices stay put. */
-TEST(Unit_DatasetsImageFolder, AFolderWithoutAnImageIsStillAClass)
+TEST(Small_DatasetsImageFolder, AFolderWithoutAnImageIsStillAClass)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_empty_class");
     scratch.make_directory("a");
@@ -148,7 +148,7 @@ TEST(Unit_DatasetsImageFolder, AFolderWithoutAnImageIsStillAClass)
 }
 
 /** @brief Tests that a split that is not a directory is reported as absent. */
-TEST(Unit_DatasetsImageFolder, AnAbsentSplitIsNotFound)
+TEST(Small_DatasetsImageFolder, AnAbsentSplitIsNotFound)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_absent");
 
@@ -157,7 +157,7 @@ TEST(Unit_DatasetsImageFolder, AnAbsentSplitIsNotFound)
 }
 
 /** @brief Tests that a split with no class folder, or with no image, is refused. */
-TEST(Unit_DatasetsImageFolder, ASplitWithoutAClassOrAnImageIsRefused)
+TEST(Small_DatasetsImageFolder, ASplitWithoutAClassOrAnImageIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_folder_nothing");
     scratch.write("flat/1.png", {1});

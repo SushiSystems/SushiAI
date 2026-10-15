@@ -43,14 +43,14 @@ using Language::Generation::Detail::make_position_feed;
 namespace
 {
     /** @brief Builds the steps a feed is picked for. */
-    class Unit_GenerationPositionFeed : public Support::FedStepTest
+    class Medium_GenerationPositionFeed : public Support::FedStepTest
     {
 
     };
 } // namespace
 
 /** @brief Tests that a step fed a position gets the feed of one leaf that resets on a slide. */
-TEST_F(Unit_GenerationPositionFeed, AStepFedAPositionGetsTheTableFeed)
+TEST_F(Medium_GenerationPositionFeed, AStepFedAPositionGetsTheTableFeed)
 {
     build_step(true, false);
     ASSERT_NE(step, nullptr);
@@ -64,7 +64,7 @@ TEST_F(Unit_GenerationPositionFeed, AStepFedAPositionGetsTheTableFeed)
 }
 
 /** @brief Tests that a step fed a cache slot gets the feed of three leaves that keeps its rows. */
-TEST_F(Unit_GenerationPositionFeed, AStepFedACacheSlotGetsTheRingFeed)
+TEST_F(Medium_GenerationPositionFeed, AStepFedACacheSlotGetsTheRingFeed)
 {
     build_step(false, true);
     ASSERT_NE(step, nullptr);
@@ -78,7 +78,7 @@ TEST_F(Unit_GenerationPositionFeed, AStepFedACacheSlotGetsTheRingFeed)
 }
 
 /** @brief Tests that leaves that name no ring pick the table feed of a step fed a position. */
-TEST_F(Unit_GenerationPositionFeed, LeavesWithoutARingPickTheTableFeed)
+TEST_F(Medium_GenerationPositionFeed, LeavesWithoutARingPickTheTableFeed)
 {
     build_step(true, false);
     ASSERT_NE(step, nullptr);
@@ -91,7 +91,7 @@ TEST_F(Unit_GenerationPositionFeed, LeavesWithoutARingPickTheTableFeed)
 }
 
 /** @brief Tests that a step fed both the position and the slot, or neither, is refused. */
-TEST_F(Unit_GenerationPositionFeed, AStepFedBothOrNeitherIsRefused)
+TEST_F(Medium_GenerationPositionFeed, AStepFedBothOrNeitherIsRefused)
 {
     build_step(true, true);
     ASSERT_NE(step, nullptr);

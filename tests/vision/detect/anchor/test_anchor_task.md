@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_task.cpp
 
 
-Suites: `Unit_DetectAnchorTask`.
+Suites: `Small_DetectAnchorTask`.
 
 Tests `read_anchor_task` and `write_anchor_task` in
 `modules/vision/detect/include/SushiAI/vision/detect/anchor/anchor_task.hpp`. A task is

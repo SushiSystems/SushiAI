@@ -137,7 +137,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the fit gives the input size, the objects and the same result per epoch. */
-TEST(Unit_DatasetsFitPipeline, FitsEachSampleTheSameInEveryEpoch)
+TEST(Small_DatasetsFitPipeline, FitsEachSampleTheSameInEveryEpoch)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_fit");
     const SampleList list = four_images(scratch);
@@ -165,7 +165,7 @@ TEST(Unit_DatasetsFitPipeline, FitsEachSampleTheSameInEveryEpoch)
 }
 
 /** @brief Tests that the fit refuses a size outside the bounds and counts that differ. */
-TEST(Unit_DatasetsFitPipeline, RefusesWhatItCannotFit)
+TEST(Small_DatasetsFitPipeline, RefusesWhatItCannotFit)
 {
     SampleFitOptions fit;
     fit.size = ImageSize{0, 8};

@@ -60,7 +60,7 @@ namespace Support = SushiAI::Eager::Support;
 namespace
 {
     /** @brief Provides the Engine every case records on. */
-    class Unit_RegionEmitter : public SaTest::EngineTest
+    class Medium_RegionEmitter : public SaTest::EngineTest
     {
 
     };
@@ -126,7 +126,7 @@ namespace
     }
 } // namespace
 
-TEST_F(Unit_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
+TEST_F(Medium_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
     const std::vector<double> expected = expected_result(*recorded);
@@ -146,7 +146,7 @@ TEST_F(Unit_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
         EXPECT_NEAR(result[i], expected[i], K_TOLERANCE) << "element " << i;
 }
 
-TEST_F(Unit_RegionEmitter, EmitCountsItsCallsAndItsTasks)
+TEST_F(Medium_RegionEmitter, EmitCountsItsCallsAndItsTasks)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
     RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);

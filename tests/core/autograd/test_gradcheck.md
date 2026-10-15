@@ -1,7 +1,7 @@
 # tests/core/autograd/test_gradcheck.cpp
 
 
-Suites: `Unit_GradCheck`.
+Suites: `Small_GradCheck`.
 
 Tests the gradient checker against closed-form functions and a wrong gradient.
 

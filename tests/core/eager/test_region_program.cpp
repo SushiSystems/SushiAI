@@ -69,7 +69,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_RegionProgram, TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport)
+TEST(Small_RegionProgram, TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
 
@@ -87,7 +87,7 @@ TEST(Unit_RegionProgram, TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport)
     EXPECT_EQ(program.graph.node(1).outputs, std::vector<Graph::ValueID>{step.hidden});
 }
 
-TEST(Unit_RegionProgram, ValuesKeepTheIdsOfTheStep)
+TEST(Small_RegionProgram, ValuesKeepTheIdsOfTheStep)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
     const RegionProgram program = compile(step, "activation#0", Direction::Forward);
@@ -97,7 +97,7 @@ TEST(Unit_RegionProgram, ValuesKeepTheIdsOfTheStep)
     EXPECT_EQ(program.exports, std::vector<Graph::ValueID>{step.hidden});
 }
 
-TEST(Unit_RegionProgram, AnImportAnotherRegionComputesIsAnInputOfTheProgram)
+TEST(Small_RegionProgram, AnImportAnotherRegionComputesIsAnInputOfTheProgram)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
     const RegionProgram program = compile(step, "activation#0", Direction::Forward);
@@ -107,7 +107,7 @@ TEST(Unit_RegionProgram, AnImportAnotherRegionComputesIsAnInputOfTheProgram)
     EXPECT_EQ(program.graph.value(projected).lifetime, Graph::Lifetime::Input);
 }
 
-TEST(Unit_RegionProgram, AParameterImportKeepsItsLifetime)
+TEST(Small_RegionProgram, AParameterImportKeepsItsLifetime)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
     const RegionProgram program = compile(step, "linear#0", Direction::Forward);
@@ -116,7 +116,7 @@ TEST(Unit_RegionProgram, AParameterImportKeepsItsLifetime)
         EXPECT_EQ(program.graph.value(parameter).lifetime, Graph::Lifetime::Parameter);
 }
 
-TEST(Unit_RegionProgram, NoSharedValueIsPackedIntoAnArena)
+TEST(Small_RegionProgram, NoSharedValueIsPackedIntoAnArena)
 {
     const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
     const Eager::BoundaryMap boundaries = Support::boundaries_of(step);
@@ -133,7 +133,7 @@ TEST(Unit_RegionProgram, NoSharedValueIsPackedIntoAnArena)
     }
 }
 
-TEST(Unit_RegionProgram, AChainInOneRegionFolds)
+TEST(Small_RegionProgram, AChainInOneRegionFolds)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const RegionProgram program = compile(step, "linear#0", Direction::Forward);
@@ -142,7 +142,7 @@ TEST(Unit_RegionProgram, AChainInOneRegionFolds)
     EXPECT_EQ(count_op(program.graph, Ops::K_RELU.id), 0u);
 }
 
-TEST(Unit_RegionProgram, AChainCutByAScopeFoldsOnlyUpToTheBoundary)
+TEST(Small_RegionProgram, AChainCutByAScopeFoldsOnlyUpToTheBoundary)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
     const RegionProgram linear = compile(step, "linear#0", Direction::Forward);
@@ -154,7 +154,7 @@ TEST(Unit_RegionProgram, AChainCutByAScopeFoldsOnlyUpToTheBoundary)
     EXPECT_EQ(count_op(activation.graph, Ops::K_RELU.id), 1u);
 }
 
-TEST(Unit_RegionProgram, SwitchingFusionOffLeavesTheNodesAsTraced)
+TEST(Small_RegionProgram, SwitchingFusionOffLeavesTheNodesAsTraced)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
 
@@ -167,7 +167,7 @@ TEST(Unit_RegionProgram, SwitchingFusionOffLeavesTheNodesAsTraced)
     EXPECT_EQ(count_op(program.graph, Ops::K_RELU.id), 1u);
 }
 
-TEST(Unit_RegionProgram, AKeyThatNamesNoRegionThrows)
+TEST(Small_RegionProgram, AKeyThatNamesNoRegionThrows)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const Eager::BoundaryMap boundaries = Support::boundaries_of(step);

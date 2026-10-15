@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_mask_png.cpp
 
 
-Suites: `Unit_DatasetsMaskPng`.
+Suites: `Small_DatasetsMaskPng`.
 
 Tests `read_mask_png` in `modules/vision/datasets/include/SushiAI/vision/datasets/mask_png.hpp`
 over one-byte files the cases write under the system's temporary directory. Unless a case says

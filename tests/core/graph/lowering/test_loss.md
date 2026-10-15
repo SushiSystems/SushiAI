@@ -1,7 +1,7 @@
 # tests/core/graph/lowering/test_loss.cpp
 
 
-Suites: `Regression_LogSoftmaxStability`.
+Suites: `Medium_LogSoftmaxStability`.
 
 This file tests a log-softmax that was stabilised by the wrong maximum.
 

@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_detect_head.cpp
 
 
-Suites: `Unit_BlockDetectHead`.
+Suites: `Medium_BlockDetectHead`.
 
 Tests `DetectHead` and its factory `Vision::Blocks::make_detect_node` at row 23 of YOLO26n:
 three feature levels of 64, 128 and 256 channels with the sides 80, 40 and 20, and 80 classes.

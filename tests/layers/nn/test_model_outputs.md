@@ -1,7 +1,7 @@
 # tests/layers/nn/test_model_outputs.cpp
 
 
-Suites: `Unit_ModelOutputs`, `Unit_ModelOutputsDeathTest`.
+Suites: `Small_ModelOutputs`, `Small_ModelOutputsDeathTest`.
 
 Tests ModelOutputs: publishing named values and reading them back.
 
@@ -42,7 +42,7 @@ and "boxes, scores". The set still holds two entries and `at("boxes")` is still 
 
 ## AddStopsOnNoValue
 
-The case is in the suite `Unit_ModelOutputsDeathTest`. `add("boxes", K_NO_VALUE)` stops the
+The case is in the suite `Small_ModelOutputsDeathTest`. `add("boxes", K_NO_VALUE)` stops the
 process with a report containing "'boxes'" and "no value".
 
 ## AtReturnsTheNamedValue

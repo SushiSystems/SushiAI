@@ -69,7 +69,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the value of a call that does not throw comes back as a held value. */
-TEST(Unit_ThrowingBridge, AValuePassesThrough)
+TEST(Small_ThrowingBridge, AValuePassesThrough)
 {
     const Result<int> bridged = bridge_throwing([]()
     {
@@ -81,7 +81,7 @@ TEST(Unit_ThrowingBridge, AValuePassesThrough)
 }
 
 /** @brief Tests that a move-only value comes back without a copy. */
-TEST(Unit_ThrowingBridge, AMoveOnlyValuePassesThrough)
+TEST(Small_ThrowingBridge, AMoveOnlyValuePassesThrough)
 {
     Result<std::unique_ptr<int>> bridged = bridge_throwing([]()
     {
@@ -94,21 +94,21 @@ TEST(Unit_ThrowingBridge, AMoveOnlyValuePassesThrough)
 }
 
 /** @brief Tests that a thrown Error becomes InvalidDescription carrying the Error's message. */
-TEST(Unit_ThrowingBridge, AnErrorBecomesInvalidDescriptionWithItsMessage)
+TEST(Small_ThrowingBridge, AnErrorBecomesInvalidDescriptionWithItsMessage)
 {
     SA_EXPECT_FAILURE(bridge_throwing(&refuse_a_shape), StatusCode::InvalidDescription,
                       "Linear(6, 8)", "[5]");
 }
 
 /** @brief Tests that std::bad_alloc becomes OutOfMemory. */
-TEST(Unit_ThrowingBridge, ARefusedAllocationBecomesOutOfMemory)
+TEST(Small_ThrowingBridge, ARefusedAllocationBecomesOutOfMemory)
 {
     SA_EXPECT_FAILURE(bridge_throwing(&refuse_an_allocation), StatusCode::OutOfMemory,
                       "allocation was refused");
 }
 
 /** @brief Tests that an exception of another type stops the process and quotes its text. */
-TEST(Unit_ThrowingBridgeDeathTest, AnotherExceptionIsFatal)
+TEST(Small_ThrowingBridgeDeathTest, AnotherExceptionIsFatal)
 {
     SA_EXPECT_FATAL(bridge_a_logic_error(), "other than Error", "an index was out of range");
 }

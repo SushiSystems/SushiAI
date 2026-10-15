@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_import.cpp
 
 
-Suites: `Unit_DarknetImport`.
+Suites: `Medium_DarknetImport`.
 
 Tests `import_darknet_model` and `import_darknet_files` in
 `modules/vision/importers/include/SushiAI/vision/importers/darknet_import.hpp`. The sample
@@ -47,7 +47,7 @@ and for three files (".cfg", "3 files").
 `import_darknet_files` of a `.cfg` path that does not exist fails with `FileNotFound` and the
 path's name.
 
-Suites: `Integration_DarknetImport`, in `sushiai_vision_importers_tests`.
+Suites: `Medium_DarknetImportEndToEnd`, in `sushiai_vision_importers_tests`.
 
 The suite runs once for each model of the parity table in `modules/vision/darknet_forward_cases/source/darknet_forward.cpp`:
 `yolov3-tiny`, `yolov3`, `yolov4-tiny`, `yolov4`, `yolov7-tiny` and `yolov7`. The fixture

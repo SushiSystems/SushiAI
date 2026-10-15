@@ -4,7 +4,7 @@ The tests of the module `vision/codecs`, one file per header of `modules/vision/
 
 ## test_decode_image.cpp
 
-Suites: `Unit_CodecsDecodeImage`.
+Suites: `Small_CodecsDecodeImage`.
 
 Tests `decode_image` and `load_image` in
 `modules/vision/codecs/include/SushiAI/vision/codecs/decode_image.hpp`. The inputs are a 2 by 2
@@ -106,7 +106,7 @@ and "regular file".
 
 ## test_image_format.cpp
 
-Suites: `Unit_CodecsImageFormat`.
+Suites: `Small_CodecsImageFormat`.
 
 Tests `detect_image_format` in
 `modules/vision/codecs/include/SushiAI/vision/codecs/image_format.hpp`.
@@ -153,7 +153,7 @@ give `ImageFormat::Unknown`.
 
 ## test_jpeg_decoder.cpp
 
-Suites: `Unit_CodecsJpeg`.
+Suites: `Small_CodecsJpeg`.
 
 Tests `decode_jpeg` in `modules/vision/codecs/include/SushiAI/vision/codecs/jpeg_decoder.hpp`
 on files the cases encode in memory with libjpeg at quality 100 and without subsampling. A
@@ -246,7 +246,7 @@ A file one pixel wide and 16385 high fails with `Unsupported`, "16385x1" and "16
 
 ## test_png_decoder.cpp
 
-Suites: `Unit_CodecsPng`.
+Suites: `Small_CodecsPng`.
 
 Tests `decode_png` in `modules/vision/codecs/include/SushiAI/vision/codecs/png_decoder.hpp` on
 files the cases encode in memory with libpng's simplified writer. The gray file is 2 rows by 3

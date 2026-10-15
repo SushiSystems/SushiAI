@@ -79,7 +79,7 @@ namespace
 } // namespace
 
 /** @brief Tests that "step" and "cosine" each read as the schedule of that type. */
-TEST(Unit_RateSchedule, ASectionIsReadByTheTypeItStates)
+TEST(Small_RateSchedule, ASectionIsReadByTheTypeItStates)
 {
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule step,
                             read_rate_schedule_section(section_from(K_STEP_SECTION)));
@@ -94,7 +94,7 @@ TEST(Unit_RateSchedule, ASectionIsReadByTheTypeItStates)
 }
 
 /** @brief Tests that a section that states no type is read as a step schedule. */
-TEST(Unit_RateSchedule, ASectionWithoutATypeIsAStepSchedule)
+TEST(Small_RateSchedule, ASectionWithoutATypeIsAStepSchedule)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const RateSchedule read,
@@ -104,7 +104,7 @@ TEST(Unit_RateSchedule, ASectionWithoutATypeIsAStepSchedule)
 }
 
 /** @brief Tests that a type no schedule has is refused with every type there is. */
-TEST(Unit_RateSchedule, AnUnknownTypeIsRefusedWithTheTypesThereAre)
+TEST(Small_RateSchedule, AnUnknownTypeIsRefusedWithTheTypesThereAre)
 {
     SA_EXPECT_FAILURE(
         read_rate_schedule_section(section_from(R"({"type": "linear", "base_rate": 0.5})")),
@@ -116,7 +116,7 @@ TEST(Unit_RateSchedule, AnUnknownTypeIsRefusedWithTheTypesThereAre)
 }
 
 /** @brief Tests that a key of one type is refused in a section of the other. */
-TEST(Unit_RateSchedule, AKeyOfAnotherTypeIsRefused)
+TEST(Small_RateSchedule, AKeyOfAnotherTypeIsRefused)
 {
     SA_EXPECT_FAILURE(
         read_rate_schedule_section(section_from(R"({"type": "cosine", "steps": [1]})")),
@@ -127,7 +127,7 @@ TEST(Unit_RateSchedule, AKeyOfAnotherTypeIsRefused)
 }
 
 /** @brief Tests that the rate and the base rate of a held schedule are that schedule's. */
-TEST(Unit_RateSchedule, TheRateIsThatOfTheScheduleHeld)
+TEST(Small_RateSchedule, TheRateIsThatOfTheScheduleHeld)
 {
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule step,
                             read_rate_schedule_section(section_from(K_STEP_SECTION)));
@@ -143,7 +143,7 @@ TEST(Unit_RateSchedule, TheRateIsThatOfTheScheduleHeld)
 }
 
 /** @brief Tests that a written section states the type of the schedule held and reads back. */
-TEST(Unit_RateSchedule, AWrittenSectionStatesItsTypeAndReadsBack)
+TEST(Small_RateSchedule, AWrittenSectionStatesItsTypeAndReadsBack)
 {
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule cosine,
                             read_rate_schedule_section(section_from(K_COSINE_SECTION)));
@@ -156,7 +156,7 @@ TEST(Unit_RateSchedule, AWrittenSectionStatesItsTypeAndReadsBack)
 }
 
 /** @brief Tests the rules of a run's one source of the rate, for a cosine schedule. */
-TEST(Unit_RateSchedule, ARunReadsACosineScheduleUnderTheSameRules)
+TEST(Small_RateSchedule, ARunReadsACosineScheduleUnderTheSameRules)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::optional<RateSchedule> none,
@@ -178,7 +178,7 @@ TEST(Unit_RateSchedule, ARunReadsACosineScheduleUnderTheSameRules)
 }
 
 /** @brief Tests that a run's reader keeps a step section as a step schedule. */
-TEST(Unit_RateSchedule, ARunReadsAStepScheduleAsAStepSchedule)
+TEST(Small_RateSchedule, ARunReadsAStepScheduleAsAStepSchedule)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::optional<RateSchedule> read,
@@ -189,7 +189,7 @@ TEST(Unit_RateSchedule, ARunReadsAStepScheduleAsAStepSchedule)
 }
 
 /** @brief Tests that a held schedule is checked by the validation of its own type. */
-TEST(Unit_RateSchedule, AHeldScheduleIsCheckedByItsOwnValidation)
+TEST(Small_RateSchedule, AHeldScheduleIsCheckedByItsOwnValidation)
 {
     StepSchedule uneven;
     uneven.base_rate = 0.5;

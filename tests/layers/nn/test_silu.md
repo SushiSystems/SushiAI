@@ -1,7 +1,7 @@
 # tests/layers/nn/test_silu.cpp
 
 
-Suites: `Unit_SiLU`.
+Suites: `Small_SiLU`.
 
 Tests the SiLU layer's trace, shape inference and empty state.
 

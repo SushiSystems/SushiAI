@@ -76,7 +76,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_RegionTable, TheFirstStepBuildsEveryRegion)
+TEST(Small_RegionTable, TheFirstStepBuildsEveryRegion)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -94,7 +94,7 @@ TEST(Unit_RegionTable, TheFirstStepBuildsEveryRegion)
         EXPECT_EQ(order.previous_key, Eager::K_NO_REGION);
 }
 
-TEST(Unit_RegionTable, TheSameTraceKeepsEveryRegion)
+TEST(Small_RegionTable, TheSameTraceKeepsEveryRegion)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -113,7 +113,7 @@ TEST(Unit_RegionTable, TheSameTraceKeepsEveryRegion)
     EXPECT_EQ(second.storage_of_value[again.loss], first.storage_of_value[again.loss]);
 }
 
-TEST(Unit_RegionTable, AChangedScopeRebuildsItsTwoRegionsAndNoOther)
+TEST(Small_RegionTable, AChangedScopeRebuildsItsTwoRegionsAndNoOther)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -137,7 +137,7 @@ TEST(Unit_RegionTable, AChangedScopeRebuildsItsTwoRegionsAndNoOther)
     EXPECT_EQ(count(planned, RegionAction::Build), 2u);
 }
 
-TEST(Unit_RegionTable, AReaderKeepsTheStorageOfAResultWhoseProducerChanged)
+TEST(Small_RegionTable, AReaderKeepsTheStorageOfAResultWhoseProducerChanged)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -151,7 +151,7 @@ TEST(Unit_RegionTable, AReaderKeepsTheStorageOfAResultWhoseProducerChanged)
     EXPECT_NE(second.storage_of_value[relu.logits], Eager::K_NO_STORAGE);
 }
 
-TEST(Unit_RegionTable, AScopeThatAppearsRenumbersARegionWithoutRebuildingIt)
+TEST(Small_RegionTable, AScopeThatAppearsRenumbersARegionWithoutRebuildingIt)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -178,7 +178,7 @@ TEST(Unit_RegionTable, AScopeThatAppearsRenumbersARegionWithoutRebuildingIt)
               Eager::K_NO_REGION);
 }
 
-TEST(Unit_RegionTable, AScopeThatDisappearsIsDroppedByItsOldKeys)
+TEST(Small_RegionTable, AScopeThatDisappearsIsDroppedByItsOldKeys)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -193,7 +193,7 @@ TEST(Unit_RegionTable, AScopeThatDisappearsIsDroppedByItsOldKeys)
     EXPECT_FALSE(second.released.empty());
 }
 
-TEST(Unit_RegionTable, ALeafWithoutStorageThrows)
+TEST(Small_RegionTable, ALeafWithoutStorageThrows)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -206,7 +206,7 @@ TEST(Unit_RegionTable, ALeafWithoutStorageThrows)
         "linear#0 forward", "no storage");
 }
 
-TEST(Unit_RegionTable, ForgetBuildsEveryRegionAgain)
+TEST(Small_RegionTable, ForgetBuildsEveryRegionAgain)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);

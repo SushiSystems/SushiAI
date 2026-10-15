@@ -54,7 +54,7 @@ namespace
     constexpr double K_RATIO_TOLERANCE = 1e-12;
 
     /** @brief Provides the engine the logits and the truth are allocated on. */
-    class Unit_BinaryConfusion : public SaTest::EngineTest
+    class Medium_BinaryConfusion : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a tensor of @p shape and @p dtype that holds @p values. */
@@ -69,7 +69,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each of the four counts is the number of rows in its cell. */
-TEST_F(Unit_BinaryConfusion, EachRowLandsInOneOfTheFourCounts)
+TEST_F(Medium_BinaryConfusion, EachRowLandsInOneOfTheFourCounts)
 {
     // Rows: hit, false alarm, miss, correct rejection, hit at the cut itself.
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
@@ -92,7 +92,7 @@ TEST_F(Unit_BinaryConfusion, EachRowLandsInOneOfTheFourCounts)
 }
 
 /** @brief Tests that a count reads its own column of a matrix and no other. */
-TEST_F(Unit_BinaryConfusion, AColumnIsCountedAlone)
+TEST_F(Medium_BinaryConfusion, AColumnIsCountedAlone)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
                             tensor_of(Shape{2, 2}, DType::Float64, {3.0, -3.0, 3.0, 3.0}));
@@ -111,7 +111,7 @@ TEST_F(Unit_BinaryConfusion, AColumnIsCountedAlone)
 }
 
 /** @brief Tests that a raised threshold moves the cut above a logit that passed one half. */
-TEST_F(Unit_BinaryConfusion, TheThresholdMovesTheCut)
+TEST_F(Medium_BinaryConfusion, TheThresholdMovesTheCut)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,
                             tensor_of(Shape{1, 1}, DType::Float32, {1.0}));
@@ -127,7 +127,7 @@ TEST_F(Unit_BinaryConfusion, TheThresholdMovesTheCut)
 }
 
 /** @brief Tests that every ratio of an empty count is 0 and none divides by zero. */
-TEST(Unit_BinaryConfusionRatios, ARatioOverNothingIsZero)
+TEST(Small_BinaryConfusionRatios, ARatioOverNothingIsZero)
 {
     const BinaryConfusion none{};
     EXPECT_EQ(Train::accuracy_of(none), 0.0);
@@ -142,7 +142,7 @@ TEST(Unit_BinaryConfusionRatios, ARatioOverNothingIsZero)
 }
 
 /** @brief Tests that logit_of inverts the sigmoid at one half, above it and below it. */
-TEST(Unit_DecisionThreshold, LogitOfInvertsTheSigmoid)
+TEST(Small_DecisionThreshold, LogitOfInvertsTheSigmoid)
 {
     EXPECT_EQ(Train::logit_of(0.5), 0.0);
     for (const double probability : {0.1, 0.731, 0.9})
@@ -153,7 +153,7 @@ TEST(Unit_DecisionThreshold, LogitOfInvertsTheSigmoid)
 }
 
 /** @brief Tests that the reader returns the stated threshold and one half for none. */
-TEST(Unit_DecisionThreshold, TheReaderDefaultsToOneHalf)
+TEST(Small_DecisionThreshold, TheReaderDefaultsToOneHalf)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const double absent,
@@ -168,7 +168,7 @@ TEST(Unit_DecisionThreshold, TheReaderDefaultsToOneHalf)
 }
 
 /** @brief Tests that another key, a value that is no number and a bound are each refused. */
-TEST(Unit_DecisionThreshold, TheReaderRefusesWhatIsNoProbability)
+TEST(Small_DecisionThreshold, TheReaderRefusesWhatIsNoProbability)
 {
     SA_EXPECT_FAILURE(
         Train::read_threshold(Config::parse_json(R"({"cut": 0.5})", "<test>"), "objective"),
@@ -187,7 +187,7 @@ TEST(Unit_DecisionThreshold, TheReaderRefusesWhatIsNoProbability)
 }
 
 /** @brief Tests that the host read refuses an integer tensor and another element count. */
-TEST_F(Unit_BinaryConfusion, TheHostReadRefusesWhatItCannotRead)
+TEST_F(Medium_BinaryConfusion, TheHostReadRefusesWhatItCannotRead)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor reals,
                             tensor_of(Shape{2, 2}, DType::Float64, {0.5, 1.5, 2.5, 3.5}));

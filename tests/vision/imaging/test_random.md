@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_random.cpp
 
 
-Suites: `Unit_ImagingRandom`.
+Suites: `Small_ImagingRandom`.
 
 Tests the generator every augmentation draws from.
 
-This file needs no device. `Unit_ImagingRandom` covers `Random` of
+This file needs no device. `Small_ImagingRandom` covers `Random` of
 `modules/vision/imaging/include/SushiAI/vision/imaging/random.hpp`: a 64-bit counter advanced by `K_INCREMENT` and passed
 through `mix`. The first cases follow the arithmetic by hand, with each intermediate value as a
 literal, so the sequence is fixed by this file and not by a second copy of the code. The

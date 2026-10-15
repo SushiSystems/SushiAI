@@ -1,7 +1,7 @@
 # tests/core/graph/test_dropout_mask.cpp
 
 
-Suites: `Unit_DropoutMask`.
+Suites: `Small_DropoutMask`.
 
 Tests the functions of `modules/core/graph/include/SushiAI/graph/dropout_mask.hpp`:
 `splitmix64_at`, `dropout_site_seed`, `dropout_bits`, `dropout_keeps` and `fill_keep_mask`.

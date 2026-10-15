@@ -4,7 +4,7 @@ The tests of the module `core/config`, one file per header of `modules/core/conf
 
 ## test_json_events.cpp
 
-Suites: `Unit_JsonEvents`.
+Suites: `Medium_JsonEvents`.
 
 Tests `Config::read_json_events`. Each case writes a file under the system's temporary
 directory and removes it at its end. A local `EventLog` implements `Config::JSONEvents`, keeps
@@ -45,7 +45,7 @@ not open".
 
 ## test_json_writer.cpp
 
-Suites: `Unit_JsonWriter`.
+Suites: `Small_JsonWriter`.
 
 Tests `Config::write_json`. A depth of 0 writes the whole document on one line. The cases that
 read text back parse it with `Config::parse_json`, and a real is compared bit for bit.
@@ -127,7 +127,7 @@ A NaN under `rate` in entry 1 of the array under `layers` fails with a message c
 
 ## test_model_writer.cpp
 
-Suites: `Unit_ModelWriter`.
+Suites: `Small_ModelWriter`.
 
 Tests `Config::write_model`. Three models are parsed from text in the file. The chain model has
 three rows and states neither `from` nor `outputs`. The full model has a `defaults` block, an
@@ -244,7 +244,7 @@ of "" ("'type'", "empty string").
 
 ## test_section_reader.cpp
 
-Suites: `Unit_SectionReader`.
+Suites: `Small_SectionReader`.
 
 Tests `Config::SectionReader` and the free readers of
 `modules/core/config/include/SushiAI/config/section_reader.hpp`. The reader of every case is
@@ -304,7 +304,7 @@ and `read_array` of a string with "steps must be an array, but it is a string".
 
 ## test_train_config.cpp
 
-Suites: `Unit_TrainConfig`.
+Suites: `Medium_TrainConfig`.
 
 Tests `Config::parse_train`, `Config::check_start` and `Config::read_run_seed`. Most cases
 parse a file that states `sushiai_train`, `model`, `objective`, `data` and an `sgd` optimizer,

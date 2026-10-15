@@ -74,7 +74,7 @@ namespace
     using Classes = std::vector<std::int32_t>;
 
     /** @brief Provides an engine, masks and the leaves they fill. */
-    class Unit_VisionTrainingPixelTargets : public SaTest::EngineTest
+    class Medium_VisionTrainingPixelTargets : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns an INT32 tensor of @p shape holding @p values. */
@@ -125,7 +125,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the check passes classes and the ignore index and names a bad pixel. */
-TEST_F(Unit_VisionTrainingPixelTargets, TheLabelCheckNamesThePixelOutOfBounds)
+TEST_F(Medium_VisionTrainingPixelTargets, TheLabelCheckNamesThePixelOutOfBounds)
 {
     const SushiBLAS::Tensor good = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, 1, 0});
     const SushiBLAS::Tensor high = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 3, 1, 0});
@@ -144,7 +144,7 @@ TEST_F(Unit_VisionTrainingPixelTargets, TheLabelCheckNamesThePixelOutOfBounds)
 }
 
 /** @brief Tests that pixel r of class l indexes r * C + l and weighs 1 over the kept count. */
-TEST_F(Unit_VisionTrainingPixelTargets, AKeptPixelIndexesItsClassAndSharesTheWeight)
+TEST_F(Medium_VisionTrainingPixelTargets, AKeptPixelIndexesItsClassAndSharesTheWeight)
 {
     const SushiBLAS::Tensor mask = make_ids(Shape{2, 3}, {0, 2, K_IGNORE, 1, 1, K_IGNORE});
     SushiBLAS::Tensor indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
@@ -158,7 +158,7 @@ TEST_F(Unit_VisionTrainingPixelTargets, AKeptPixelIndexesItsClassAndSharesTheWei
 }
 
 /** @brief Tests that a mask of ignored pixels alone gives weights of zero. */
-TEST_F(Unit_VisionTrainingPixelTargets, AMaskWithNoKeptPixelGivesZeroWeights)
+TEST_F(Medium_VisionTrainingPixelTargets, AMaskWithNoKeptPixelGivesZeroWeights)
 {
     const SushiBLAS::Tensor mask = make_ids(Shape{K_PIXELS}, Classes(6, K_IGNORE));
     SushiBLAS::Tensor indices = make_ids(Shape{K_PIXELS}, Classes(6, -7));
@@ -171,7 +171,7 @@ TEST_F(Unit_VisionTrainingPixelTargets, AMaskWithNoKeptPixelGivesZeroWeights)
 }
 
 /** @brief Tests that a refused cross-entropy fill leaves both leaves as they were. */
-TEST_F(Unit_VisionTrainingPixelTargets, ARefusedPixelFillChangesNothing)
+TEST_F(Medium_VisionTrainingPixelTargets, ARefusedPixelFillChangesNothing)
 {
     const SushiBLAS::Tensor bad = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 9, 0});
     const SushiBLAS::Tensor good = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 0, 0});
@@ -191,7 +191,7 @@ TEST_F(Unit_VisionTrainingPixelTargets, ARefusedPixelFillChangesNothing)
 }
 
 /** @brief Tests the five Dice leaves of a mask with one absent class and one ignored pixel. */
-TEST_F(Unit_VisionTrainingPixelTargets, TheDiceLeavesCountTheKeptPixelsOfEachClass)
+TEST_F(Medium_VisionTrainingPixelTargets, TheDiceLeavesCountTheKeptPixelsOfEachClass)
 {
     // Classes 0 and 2 are present, with three and two kept pixels; class 1 is absent.
     const SushiBLAS::Tensor mask = make_ids(Shape{K_PIXELS}, {0, 2, K_IGNORE, 0, 2, 0});
@@ -214,7 +214,7 @@ TEST_F(Unit_VisionTrainingPixelTargets, TheDiceLeavesCountTheKeptPixelsOfEachCla
 }
 
 /** @brief Tests that a refused Dice fill leaves the five leaves as they were. */
-TEST_F(Unit_VisionTrainingPixelTargets, ARefusedDiceFillChangesNothing)
+TEST_F(Medium_VisionTrainingPixelTargets, ARefusedDiceFillChangesNothing)
 {
     const SushiBLAS::Tensor bad = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 3, 0});
     const SushiBLAS::Tensor good = make_ids(Shape{K_PIXELS}, {0, 2, 1, 1, 0, 0});

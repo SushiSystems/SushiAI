@@ -103,7 +103,7 @@ namespace
  * Total (5.25 + 26) / 2 = 15.625, non-box 26 / 2 = 13, box 15.625 - 13 = 2.625, and the stored
  * cost is the undivided 5.25 + 26 = 31.25.
  */
-TEST(Unit_DetectAnchorCost, SquaredErrorSplitsBoxFromNonBoxAndDividesByBatch)
+TEST(Small_DetectAnchorCost, SquaredErrorSplitsBoxFromNonBoxAndDividesByBatch)
 {
     HeadTrainingOptions training;
     training.box_loss = BoxLoss::SquaredError;
@@ -123,7 +123,7 @@ TEST(Unit_DetectAnchorCost, SquaredErrorSplitsBoxFromNonBoxAndDividesByBatch)
  * With a weight of 2 the non-box share is 2 * 26 / 2 = 26 and box is 15.625 - 26 = -10.375;
  * the total and the stored cost of a squared-error head do not read the weight.
  */
-TEST(Unit_DetectAnchorCost, ObjectWeightScalesTheNonBoxShare)
+TEST(Small_DetectAnchorCost, ObjectWeightScalesTheNonBoxShare)
 {
     HeadTrainingOptions training;
     training.box_loss = BoxLoss::SquaredError;
@@ -144,7 +144,7 @@ TEST(Unit_DetectAnchorCost, ObjectWeightScalesTheNonBoxShare)
  * Two assignments with an IoU sum of 1 have a mean 1 - IoU of 0.5, so the IoU term is
  * 0.75 * 0.5 = 0.375; the non-box term is 2 * 26 = 52; the stored cost is 52.375, undivided.
  */
-TEST(Unit_DetectAnchorCost, CompleteIoUStoredAddsTheIoUTermAndWeightedNonBoxSum)
+TEST(Small_DetectAnchorCost, CompleteIoUStoredAddsTheIoUTermAndWeightedNonBoxSum)
 {
     HeadTrainingOptions training;
     training.box_loss = BoxLoss::CompleteIoU;
@@ -161,7 +161,7 @@ TEST(Unit_DetectAnchorCost, CompleteIoUStoredAddsTheIoUTermAndWeightedNonBoxSum)
 }
 
 /** @brief Tests that a CompleteIoU head without an assignment stores the non-box sum of 26. */
-TEST(Unit_DetectAnchorCost, CompleteIoUWithoutAssignmentsOmitsTheIoUTerm)
+TEST(Small_DetectAnchorCost, CompleteIoUWithoutAssignmentsOmitsTheIoUTerm)
 {
     HeadTrainingOptions training;
     training.box_loss = BoxLoss::CompleteIoU;
@@ -175,7 +175,7 @@ TEST(Unit_DetectAnchorCost, CompleteIoUWithoutAssignmentsOmitsTheIoUTerm)
 }
 
 /** @brief Tests that a delta of zeros reports zero in all four numbers. */
-TEST(Unit_DetectAnchorCost, ZeroDeltaReportsZeroCost)
+TEST(Small_DetectAnchorCost, ZeroDeltaReportsZeroCost)
 {
     HeadDelta delta;
     delta.delta.assign(28, 0.0f);

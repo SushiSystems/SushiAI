@@ -75,7 +75,7 @@ namespace
     constexpr double K_UPDATE_TOLERANCE = 1e-6;
 
     /** @brief Provides an engine and two slots of zero gradient, the second without decay. */
-    class Unit_ParameterDecay : public SaTest::EngineTest
+    class Medium_ParameterDecay : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns "weight", which decays, then "bias", which does not. */
@@ -142,14 +142,14 @@ namespace
 } // namespace
 
 /** @brief Tests that a slot made by hand decays, as every slot did before the flag. */
-TEST_F(Unit_ParameterDecay, ASlotDecaysUnlessItSaysOtherwise)
+TEST_F(Medium_ParameterDecay, ASlotDecaysUnlessItSaysOtherwise)
 {
     const Optim::ParameterSlot slot{};
     EXPECT_TRUE(slot.decays);
 }
 
 /** @brief Tests that both kernels of SGD decay the weight and leave the bias. */
-TEST_F(Unit_ParameterDecay, SGDDecaysOnlyTheSlotsThatTakeIt)
+TEST_F(Medium_ParameterDecay, SGDDecaysOnlyTheSlotsThatTakeIt)
 {
     for (const Optim::UpdateKernel kernel : {Optim::UpdateKernel::Fused,
                                              Optim::UpdateKernel::Separate})
@@ -161,7 +161,7 @@ TEST_F(Unit_ParameterDecay, SGDDecaysOnlyTheSlotsThatTakeIt)
 }
 
 /** @brief Tests that both kernels of AdamW decay the weight and leave the bias. */
-TEST_F(Unit_ParameterDecay, AdamWDecaysOnlyTheSlotsThatTakeIt)
+TEST_F(Medium_ParameterDecay, AdamWDecaysOnlyTheSlotsThatTakeIt)
 {
     for (const Optim::UpdateKernel kernel : {Optim::UpdateKernel::Fused,
                                              Optim::UpdateKernel::Separate})
@@ -174,7 +174,7 @@ TEST_F(Unit_ParameterDecay, AdamWDecaysOnlyTheSlotsThatTakeIt)
 }
 
 /** @brief Tests that decay_all decays the slot that would not take it, in both optimizers. */
-TEST_F(Unit_ParameterDecay, DecayAllDecaysEverySlot)
+TEST_F(Medium_ParameterDecay, DecayAllDecaysEverySlot)
 {
     Optim::SGDOptions sgd = sgd_options(Optim::UpdateKernel::Fused);
     sgd.decay_all = true;
@@ -190,7 +190,7 @@ TEST_F(Unit_ParameterDecay, DecayAllDecaysEverySlot)
 }
 
 /** @brief Tests that the key decay_all reaches both optimizers and is false when absent. */
-TEST_F(Unit_ParameterDecay, TheKeyDecayAllReachesTheOptimizer)
+TEST_F(Medium_ParameterDecay, TheKeyDecayAllReachesTheOptimizer)
 {
     const auto attributes = [](std::string_view text)
     {

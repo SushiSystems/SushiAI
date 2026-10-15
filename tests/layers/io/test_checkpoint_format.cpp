@@ -169,7 +169,7 @@ namespace
     }
 }
 
-TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
+TEST(Small_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
 {
     std::istringstream in(sample_stream());
     SA_ASSERT_OK_AND_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
@@ -197,7 +197,7 @@ TEST(Unit_CheckpointFormat, RoundTripsNamesShapesAndPayloads)
     EXPECT_EQ(reader.read_count(), 2u);
 }
 
-TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
+TEST(Small_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
 {
     // The recorded shape separates [2, 3] from [3, 2]; see tests/layers/io/README.md.
     std::ostringstream out;
@@ -212,7 +212,7 @@ TEST(Unit_CheckpointFormat, DistinguishesTwoShapesWithTheSameElementCount)
     EXPECT_NE(record.shape, (SushiAI::Shape{3, 2}));
 }
 
-TEST(Unit_CheckpointFormat, RejectsAForeignMagic)
+TEST(Small_CheckpointFormat, RejectsAForeignMagic)
 {
     std::string bytes = sample_stream();
     std::memcpy(&bytes[K_OFFSET_MAGIC], "JUNK", 4);
@@ -220,7 +220,7 @@ TEST(Unit_CheckpointFormat, RejectsAForeignMagic)
                       "not a SushiAI checkpoint");
 }
 
-TEST(Unit_CheckpointFormat, RejectsAFutureVersion)
+TEST(Small_CheckpointFormat, RejectsAFutureVersion)
 {
     std::string bytes = sample_stream();
     patch_u32(bytes, K_OFFSET_VERSION, 3u);
@@ -228,21 +228,21 @@ TEST(Unit_CheckpointFormat, RejectsAFutureVersion)
                       "versions 1 to 2");
 }
 
-TEST(Unit_CheckpointFormat, RejectsACountOverTheBound)
+TEST(Small_CheckpointFormat, RejectsACountOverTheBound)
 {
     std::string bytes = sample_stream();
     patch_u32(bytes, K_OFFSET_COUNT, 4097u);
     SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "4097", "4096");
 }
 
-TEST(Unit_CheckpointFormat, RejectsATruncatedHeader)
+TEST(Small_CheckpointFormat, RejectsATruncatedHeader)
 {
     const std::string bytes = sample_stream().substr(0, 6);
     SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "ended while reading",
                       "version");
 }
 
-TEST(Unit_CheckpointFormat, RejectsATruncatedPayload)
+TEST(Small_CheckpointFormat, RejectsATruncatedPayload)
 {
     const std::string whole = sample_stream();
     const std::string bytes = whole.substr(0, whole.size() - 4);
@@ -250,21 +250,21 @@ TEST(Unit_CheckpointFormat, RejectsATruncatedPayload)
                       "0.bias");
 }
 
-TEST(Unit_CheckpointFormat, RejectsANameLengthOverTheBound)
+TEST(Small_CheckpointFormat, RejectsANameLengthOverTheBound)
 {
     std::string bytes = sample_stream();
     patch_u32(bytes, K_OFFSET_NAME_LENGTH, 257u);
     SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "257", "256");
 }
 
-TEST(Unit_CheckpointFormat, RejectsARankOverTheBound)
+TEST(Small_CheckpointFormat, RejectsARankOverTheBound)
 {
     std::string bytes = sample_stream();
     patch_u32(bytes, K_OFFSET_RANK, 7u);
     SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "0.weight", "rank 7", "6");
 }
 
-TEST(Unit_CheckpointFormat, RejectsANonPositiveDim)
+TEST(Small_CheckpointFormat, RejectsANonPositiveDim)
 {
     std::string bytes = sample_stream();
     patch_i64(bytes, K_OFFSET_FIRST_DIM, 0);
@@ -272,7 +272,7 @@ TEST(Unit_CheckpointFormat, RejectsANonPositiveDim)
                       "must be positive");
 }
 
-TEST(Unit_CheckpointFormat, RejectsAnUnknownDType)
+TEST(Small_CheckpointFormat, RejectsAnUnknownDType)
 {
     std::string bytes = sample_stream();
     patch_u32(bytes, K_OFFSET_DTYPE, 99u);
@@ -280,7 +280,7 @@ TEST(Unit_CheckpointFormat, RejectsAnUnknownDType)
                       "does not know");
 }
 
-TEST(Unit_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
+TEST(Small_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 2));
@@ -295,7 +295,7 @@ TEST(Unit_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
         "declared 2", "'c'");
 }
 
-TEST(Unit_CheckpointFormatDeathTest, RejectsFewerRecordsThanDeclared)
+TEST(Small_CheckpointFormatDeathTest, RejectsFewerRecordsThanDeclared)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 2));
@@ -305,14 +305,14 @@ TEST(Unit_CheckpointFormatDeathTest, RejectsFewerRecordsThanDeclared)
     SA_EXPECT_FATAL(writer.finish(), "declared 2", "1 were written");
 }
 
-TEST(Unit_CheckpointFormat, RejectsATensorCountOverTheBoundAtConstruction)
+TEST(Small_CheckpointFormat, RejectsATensorCountOverTheBoundAtConstruction)
 {
     std::ostringstream out;
     SA_EXPECT_FAILURE(CheckpointWriter::create(out, 4097u), StatusCode::InvalidDescription,
                       "4097", "4096");
 }
 
-TEST(Unit_CheckpointFormatDeathTest, ReadingPastTheDeclaredCountIsAnError)
+TEST(Small_CheckpointFormatDeathTest, ReadingPastTheDeclaredCountIsAnError)
 {
     std::istringstream in(sample_stream());
     SA_ASSERT_OK_AND_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
@@ -329,7 +329,7 @@ TEST(Unit_CheckpointFormatDeathTest, ReadingPastTheDeclaredCountIsAnError)
 }
 
 /** @brief Tests the sixteen bytes of a version 2 header and the size of the file. */
-TEST(Unit_CheckpointFormat, WritesTheVersionTwoHeaderByteByByte)
+TEST(Small_CheckpointFormat, WritesTheVersionTwoHeaderByteByByte)
 {
     const std::string bytes = sample_stream();
 
@@ -343,7 +343,7 @@ TEST(Unit_CheckpointFormat, WritesTheVersionTwoHeaderByteByByte)
 }
 
 /** @brief Tests that a version 1 file reads as model state with no run state. */
-TEST(Unit_CheckpointFormat, AVersionOneFileReadsAsModelStateAlone)
+TEST(Small_CheckpointFormat, AVersionOneFileReadsAsModelStateAlone)
 {
     std::istringstream in(version_one_stream());
     SA_ASSERT_OK_AND_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
@@ -365,7 +365,7 @@ TEST(Unit_CheckpointFormat, AVersionOneFileReadsAsModelStateAlone)
 }
 
 /** @brief Tests that a version below the first one is refused with the versions read. */
-TEST(Unit_CheckpointFormat, RejectsAVersionBelowTheFirst)
+TEST(Small_CheckpointFormat, RejectsAVersionBelowTheFirst)
 {
     std::string bytes = sample_stream();
     patch_u32(bytes, K_OFFSET_VERSION, 0u);
@@ -374,7 +374,7 @@ TEST(Unit_CheckpointFormat, RejectsAVersionBelowTheFirst)
 }
 
 /** @brief Tests the bytes of the run-state section and its round trip. */
-TEST(Unit_CheckpointFormat, RoundTripsARunStateSection)
+TEST(Small_CheckpointFormat, RoundTripsARunStateSection)
 {
     const std::string bytes = run_state_stream();
 
@@ -417,13 +417,13 @@ TEST(Unit_CheckpointFormat, RoundTripsARunStateSection)
 }
 
 /** @brief Tests that a reader of the model records alone leaves the run state unread. */
-TEST(Unit_CheckpointFormat, AReaderOfModelStateLeavesTheRunStateUnread)
+TEST(Small_CheckpointFormat, AReaderOfModelStateLeavesTheRunStateUnread)
 {
     SA_EXPECT_OK(read_everything(run_state_stream()));
 }
 
 /** @brief Tests that a run-state count above the bound is refused by reader and writer. */
-TEST(Unit_CheckpointFormat, RejectsARunStateCountOverTheBound)
+TEST(Small_CheckpointFormat, RejectsARunStateCountOverTheBound)
 {
     std::string bytes = run_state_stream();
     patch_u32(bytes, K_OFFSET_RUN_STATE_COUNT, 16385u);
@@ -436,7 +436,7 @@ TEST(Unit_CheckpointFormat, RejectsARunStateCountOverTheBound)
 }
 
 /** @brief Tests that an owner that is empty, too long or cut short is refused. */
-TEST(Unit_CheckpointFormat, RejectsAMalformedRunStateOwner)
+TEST(Small_CheckpointFormat, RejectsAMalformedRunStateOwner)
 {
     const std::size_t owner_length = 50;
 
@@ -460,7 +460,7 @@ TEST(Unit_CheckpointFormat, RejectsAMalformedRunStateOwner)
 }
 
 /** @brief Tests that a run-state section cut short in a payload names the record. */
-TEST(Unit_CheckpointFormat, RejectsATruncatedRunStatePayload)
+TEST(Small_CheckpointFormat, RejectsATruncatedRunStatePayload)
 {
     const std::string whole = run_state_stream();
     SA_EXPECT_FAILURE(read_run_state(whole.substr(0, whole.size() - 3)),
@@ -468,7 +468,7 @@ TEST(Unit_CheckpointFormat, RejectsATruncatedRunStatePayload)
 }
 
 /** @brief Tests that the run-state section opens only after every model record. */
-TEST(Unit_CheckpointFormatDeathTest, TheRunStateOpensAfterTheModelRecords)
+TEST(Small_CheckpointFormatDeathTest, TheRunStateOpensAfterTheModelRecords)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 1u, 1u));
@@ -480,7 +480,7 @@ TEST(Unit_CheckpointFormatDeathTest, TheRunStateOpensAfterTheModelRecords)
 }
 
 /** @brief Tests that a file that declared no run state cannot open the section. */
-TEST(Unit_CheckpointFormatDeathTest, ARunStateThatWasNotDeclaredCannotOpen)
+TEST(Small_CheckpointFormatDeathTest, ARunStateThatWasNotDeclaredCannotOpen)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 0u));
@@ -498,7 +498,7 @@ TEST(Unit_CheckpointFormatDeathTest, ARunStateThatWasNotDeclaredCannotOpen)
 }
 
 /** @brief Tests that the run-state section holds exactly the records declared. */
-TEST(Unit_CheckpointFormatDeathTest, TheRunStateHoldsExactlyTheRecordsDeclared)
+TEST(Small_CheckpointFormatDeathTest, TheRunStateHoldsExactlyTheRecordsDeclared)
 {
     std::ostringstream out;
     SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 0u, 1u));

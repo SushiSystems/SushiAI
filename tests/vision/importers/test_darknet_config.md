@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_config.cpp
 
 
-Suites: `Unit_DarknetConfig`.
+Suites: `Small_DarknetConfig`.
 
 Tests `parse_darknet_config`, which reads a config text into a `DarknetConfig` of one network
 section and a list of layer sections, each with its options and line numbers, and

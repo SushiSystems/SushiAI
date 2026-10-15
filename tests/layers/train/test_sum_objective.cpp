@@ -205,7 +205,7 @@ namespace
 } // namespace
 
 /** @brief Tests that make() keeps its terms in order and names itself "sum". */
-TEST(Unit_SumObjective, MakeKeepsItsTermsInOrder)
+TEST(Small_SumObjective, MakeKeepsItsTermsInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
 
@@ -219,7 +219,7 @@ TEST(Unit_SumObjective, MakeKeepsItsTermsInOrder)
 }
 
 /** @brief Tests that no term and a weight that is not finite and above zero are refused. */
-TEST(Unit_SumObjective, MakeRefusesNoTermAndAWeightItCannotUse)
+TEST(Small_SumObjective, MakeRefusesNoTermAndAWeightItCannotUse)
 {
     SA_EXPECT_FAILURE(SumObjective::make({}), StatusCode::InvalidDescription,
                       "at least one term");
@@ -233,7 +233,7 @@ TEST(Unit_SumObjective, MakeRefusesNoTermAndAWeightItCannotUse)
 }
 
 /** @brief Tests that a term its own step feeds is refused when the sum is made, by name. */
-TEST(Unit_SumObjective, MakeRefusesATermItsOwnStepFeeds)
+TEST(Small_SumObjective, MakeRefusesATermItsOwnStepFeeds)
 {
     EXPECT_FALSE(StepFedObjective().is_fed_by_batch());
     EXPECT_TRUE(CrossEntropyObjective(K_BATCH, K_CLASSES).is_fed_by_batch());
@@ -247,7 +247,7 @@ TEST(Unit_SumObjective, MakeRefusesATermItsOwnStepFeeds)
 }
 
 /** @brief Tests that two terms of one role name declare two leaves, each under its prefix. */
-TEST(Unit_SumObjective, EachTermDeclaresItsLeavesUnderItsOwnPrefix)
+TEST(Small_SumObjective, EachTermDeclaresItsLeavesUnderItsOwnPrefix)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
     Graph::Graph graph;
@@ -270,7 +270,7 @@ TEST(Unit_SumObjective, EachTermDeclaresItsLeavesUnderItsOwnPrefix)
 }
 
 /** @brief Tests that the loss is one element: a SCALE per weight that is not 1 and one ADD. */
-TEST(Unit_SumObjective, TheLossAddsTheWeightedLossesInTheGraph)
+TEST(Small_SumObjective, TheLossAddsTheWeightedLossesInTheGraph)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(1.0, 0.5));
     Graph::Graph graph;
@@ -302,7 +302,7 @@ TEST(Unit_SumObjective, TheLossAddsTheWeightedLossesInTheGraph)
 }
 
 /** @brief Tests that a gradient reaches the model through both terms of a training graph. */
-TEST(Unit_SumObjective, ATrainingGraphDifferentiatesTheSum)
+TEST(Small_SumObjective, ATrainingGraphDifferentiatesTheSum)
 {
     NN::Sequential<NN::Linear> model(NN::Linear{K_FEATURES, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SumObjective> objective, make_pair(2.0, 0.5));
@@ -321,7 +321,7 @@ TEST(Unit_SumObjective, ATrainingGraphDifferentiatesTheSum)
 }
 
 /** @brief Tests that of two metrics of one name the first term's is the one reported. */
-TEST(Unit_SumObjective, MeasureKeepsTheFirstOfTwoMetricsOfOneName)
+TEST(Small_SumObjective, MeasureKeepsTheFirstOfTwoMetricsOfOneName)
 {
     std::vector<SumTerm> terms;
     terms.push_back(SumTerm{std::make_unique<ReportingObjective>(
@@ -350,7 +350,7 @@ TEST(Unit_SumObjective, MeasureKeepsTheFirstOfTwoMetricsOfOneName)
 }
 
 /** @brief Tests that the "sum" row builds each term through the registry it was found in. */
-TEST(Unit_SumObjective, TheFactoryBuildsEachTermThroughTheRegistry)
+TEST(Small_SumObjective, TheFactoryBuildsEachTermThroughTheRegistry)
 {
     const Train::ObjectiveRegistry registry = make_registry();
 
@@ -368,7 +368,7 @@ TEST(Unit_SumObjective, TheFactoryBuildsEachTermThroughTheRegistry)
 }
 
 /** @brief Tests that a term may itself be a sum, and that its leaves carry both prefixes. */
-TEST(Unit_SumObjective, ATermMayBeASum)
+TEST(Small_SumObjective, ATermMayBeASum)
 {
     const Train::ObjectiveRegistry registry = make_registry();
 
@@ -390,7 +390,7 @@ TEST(Unit_SumObjective, ATermMayBeASum)
 }
 
 /** @brief Tests each section the factory refuses, and that a refusal names the entry. */
-TEST(Unit_SumObjective, TheFactoryRefusesASectionItCannotRead)
+TEST(Small_SumObjective, TheFactoryRefusesASectionItCannotRead)
 {
     const Train::ObjectiveRegistry registry = make_registry();
 
@@ -418,7 +418,7 @@ TEST(Unit_SumObjective, TheFactoryRefusesASectionItCannotRead)
 }
 
 /** @brief Tests that the factory, called with a context that names no registry, refuses. */
-TEST(Unit_SumObjective, TheFactoryNeedsTheRegistryOfItsContext)
+TEST(Small_SumObjective, TheFactoryNeedsTheRegistryOfItsContext)
 {
     SA_EXPECT_FAILURE(
         Train::make_sum_objective(make_context(),

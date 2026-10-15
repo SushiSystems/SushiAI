@@ -65,7 +65,7 @@ namespace
 }
 
 /** @brief Tests that the node reads [x] and writes the value and a mask, both shaped like x. */
-TEST(Unit_DropoutOps, DropoutWritesItsValueAndTheMaskItSaves)
+TEST(Small_DropoutOps, DropoutWritesItsValueAndTheMaskItSaves)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -93,7 +93,7 @@ TEST(Unit_DropoutOps, DropoutWritesItsValueAndTheMaskItSaves)
 }
 
 /** @brief Tests that a 64-bit seed comes back whole from the two attribute slots it is put in. */
-TEST(Unit_DropoutOps, TheSiteSeedSurvivesItsAttributeSlots)
+TEST(Small_DropoutOps, TheSiteSeedSurvivesItsAttributeSlots)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -110,7 +110,7 @@ TEST(Unit_DropoutOps, TheSiteSeedSurvivesItsAttributeSlots)
 }
 
 /** @brief Tests each refusal of the emitter: the element type, the rate and an empty input. */
-TEST(Unit_DropoutOps, DropoutRefusesOperandsThatDoNotFit)
+TEST(Small_DropoutOps, DropoutRefusesOperandsThatDoNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -126,7 +126,7 @@ TEST(Unit_DropoutOps, DropoutRefusesOperandsThatDoNotFit)
 }
 
 /** @brief Tests that DROPOUT has the one row of the random table and no other. */
-TEST(Unit_DropoutOps, DropoutHasTheRowOfTheRandomTable)
+TEST(Small_DropoutOps, DropoutHasTheRowOfTheRandomTable)
 {
     ASSERT_EQ(Graph::K_RANDOM_LOWERINGS.size(), 1u);
     EXPECT_EQ(Graph::K_RANDOM_LOWERINGS[0].op, Ops::K_DROPOUT.id);

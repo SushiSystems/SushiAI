@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_review.cpp
 
 
-Suites: `Unit_DetectAnchorReview`.
+Suites: `Small_DetectAnchorReview`.
 
 Tests `review_anchors`, which measures a current `AnchorLayout` on a box list, clusters a
 proposal with the same counts per head and returns `AnchorVerdict::Keep` or

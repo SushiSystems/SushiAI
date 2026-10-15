@@ -1,7 +1,7 @@
 # tests/layers/nn/test_model_state.cpp
 
 
-Suites: `Integration_ModelState`, `Integration_ModelStateDeathTest`.
+Suites: `Medium_ModelState`, `Medium_ModelStateDeathTest`.
 
 `NN::ModelState` lists a model's parameters and buffers in walk order, finds them by name or by
 identity, refuses two entries with one name, stops on an entry with no identity, and attaches its

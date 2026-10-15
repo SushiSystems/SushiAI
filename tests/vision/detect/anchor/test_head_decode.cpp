@@ -169,7 +169,7 @@ namespace
 } // namespace
 
 /** @brief Tests that zero logits decode to the cell centre, the anchor size and scores of 0.25. */
-TEST(Unit_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterScores)
+TEST(Small_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterScores)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(2, HeadCoding::Logit, 1.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
@@ -186,7 +186,7 @@ TEST(Unit_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterScor
 }
 
 /** @brief Tests that saturated logits reach the cell edges and the score bounds 0 and 1. */
-TEST(Unit_DetectAnchorDecode, SaturatedLogitsReachTheCellEdgesAndTheScoreBounds)
+TEST(Small_DetectAnchorDecode, SaturatedLogitsReachTheCellEdgesAndTheScoreBounds)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(2, HeadCoding::Logit, 1.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
@@ -209,7 +209,7 @@ TEST(Unit_DetectAnchorDecode, SaturatedLogitsReachTheCellEdgesAndTheScoreBounds)
 }
 
 /** @brief Tests that a score is objectness times class: 0.5 times 1. */
-TEST(Unit_DetectAnchorDecode, ZeroObjectnessLogitHalvesASaturatedClass)
+TEST(Small_DetectAnchorDecode, ZeroObjectnessLogitHalvesASaturatedClass)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Logit, 1.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
@@ -221,7 +221,7 @@ TEST(Unit_DetectAnchorDecode, ZeroObjectnessLogitHalvesASaturatedClass)
 }
 
 /** @brief Tests that scale_xy 2.0 moves a saturated offset half a cell past each edge. */
-TEST(Unit_DetectAnchorDecode, ScaleTwoMovesASaturatedOffsetHalfACellPastTheEdge)
+TEST(Small_DetectAnchorDecode, ScaleTwoMovesASaturatedOffsetHalfACellPastTheEdge)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Logit, 2.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
@@ -236,7 +236,7 @@ TEST(Unit_DetectAnchorDecode, ScaleTwoMovesASaturatedOffsetHalfACellPastTheEdge)
 }
 
 /** @brief Tests that scale_xy stretches about 0.5, so a zero logit stays at the cell centre. */
-TEST(Unit_DetectAnchorDecode, ScaleTwoKeepsAZeroLogitAtTheCellCentre)
+TEST(Small_DetectAnchorDecode, ScaleTwoKeepsAZeroLogitAtTheCellCentre)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Logit, 2.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
@@ -248,7 +248,7 @@ TEST(Unit_DetectAnchorDecode, ScaleTwoKeepsAZeroLogitAtTheCellCentre)
 }
 
 /** @brief Tests that the Activated size at 0, 0.5 and 1 is 0, the anchor and four anchors. */
-TEST(Unit_DetectAnchorDecode, ActivatedSizeAtZeroHalfAndOneIsZeroTheAnchorAndFourAnchors)
+TEST(Small_DetectAnchorDecode, ActivatedSizeAtZeroHalfAndOneIsZeroTheAnchorAndFourAnchors)
 {
     HeadCase head = make_case({1, 1, 3}, make_options(1, HeadCoding::Activated, 1.0f),
                               make_single_anchor_layout(0.125f, 0.25f));
@@ -271,7 +271,7 @@ TEST(Unit_DetectAnchorDecode, ActivatedSizeAtZeroHalfAndOneIsZeroTheAnchorAndFou
 }
 
 /** @brief Tests that the Activated coding reads offsets, objectness and classes as they arrive. */
-TEST(Unit_DetectAnchorDecode, ActivatedOffsetsAndScoresTakeNoLogistic)
+TEST(Small_DetectAnchorDecode, ActivatedOffsetsAndScoresTakeNoLogistic)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(2, HeadCoding::Activated, 1.0f),
                               make_single_anchor_layout(0.125f, 0.25f));
@@ -290,7 +290,7 @@ TEST(Unit_DetectAnchorDecode, ActivatedOffsetsAndScoresTakeNoLogistic)
 }
 
 /** @brief Tests that scale_xy 2.0 maps Activated offsets 0 and 1 to -0.5 and 1.5. */
-TEST(Unit_DetectAnchorDecode, ActivatedScaleTwoMapsZeroAndOnePastTheCellEdges)
+TEST(Small_DetectAnchorDecode, ActivatedScaleTwoMapsZeroAndOnePastTheCellEdges)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Activated, 2.0f),
                               make_single_anchor_layout(0.125f, 0.25f));
@@ -305,7 +305,7 @@ TEST(Unit_DetectAnchorDecode, ActivatedScaleTwoMapsZeroAndOnePastTheCellEdges)
 }
 
 /** @brief Tests that decoded row (row * W + col) * A + a holds that cell and slot, per image. */
-TEST(Unit_DetectAnchorDecode, RowsRunCellByCellThenByAnchorSlotInEveryImage)
+TEST(Small_DetectAnchorDecode, RowsRunCellByCellThenByAnchorSlotInEveryImage)
 {
     AnchorLayout layout;
     layout.anchors = {{0.1f, 0.2f}, {0.3f, 0.3f}, {0.5f, 0.6f}};
@@ -344,7 +344,7 @@ TEST(Unit_DetectAnchorDecode, RowsRunCellByCellThenByAnchorSlotInEveryImage)
 }
 
 /** @brief Tests that one layout decodes the same fractional size on a 13 and a 19 grid. */
-TEST(Unit_DetectAnchorDecode, OneLayoutGivesTheSameFractionalSizeOnTwoGrids)
+TEST(Small_DetectAnchorDecode, OneLayoutGivesTheSameFractionalSizeOnTwoGrids)
 {
     const AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
     const HeadOptions options = make_options(1, HeadCoding::Logit, 1.0f);

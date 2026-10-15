@@ -70,7 +70,7 @@ per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::p
 `1.791759` is `ln 6` to the last digit: the exact uniform-prior loss a
 zero-initialised classifier must start at. **`compiles: 1`** is the claim the
 whole design rests on: 128 training steps, one lowering, one compile. The
-CTest entry `Integration_Demo.MLPRunsAndReportsOneCompile` and
+CTest entry `Medium_Demo.MLPRunsAndReportsOneCompile` and
 `cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
 
 **`ops per step: 25`** is 21 graph nodes plus one fused update per parameter:
@@ -85,7 +85,7 @@ step where this issues 25.
 The **`Fusion`** line is the pass reporting itself, refusals included. Run
 `--fusion off` to get the unfused graph back, or `--no-fuse gemm+bias+relu` to
 switch one catalog entry off; every spelling produces the same numbers, which
-is what `Regression_Fusion` pins byte for byte.
+is what `Medium_Fusion` pins byte for byte.
 
 ## What fusion is actually worth here, including the part that costs
 
@@ -124,7 +124,7 @@ The **`Arenas`** line now says `0% saved`, and that is fusion's doing rather
 than the planner failing: a fused subtree's intermediates stop being values at
 all, so the buffers the planner would overlap do not exist.
 The whole pool is 96.6 KiB against 130.9 KiB before either pass existed.
-`Regression_StaticMemory` pins both halves: packing still shrinks the
+`Medium_StaticMemory` pins both halves: packing still shrinks the
 *unfused* graph, and the fused graph is never larger than the packed unfused
 one.
 
@@ -171,7 +171,7 @@ actually meaningful (epoch 1's last step, `0.037844` against `0.037880`):
 the relative deviation is 9.5e-4. The demo prints six decimals, so by epoch 8
 the losses are down at `0.000331` against `0.000332` and the apparent 3e-3
 there is dominated by the printing rather than by the arithmetic; the
-per-step comparison that is not (`Regression_MixedPrecision`) reads the
+per-step comparison that is not (`Medium_MixedPrecisionRegressions`) reads the
 doubles directly. That is a *measurement of this workload*, not a general
 claim: fp16 training without loss scaling is
 expected to lose small gradients to underflow, and on this small MLP it
@@ -196,7 +196,7 @@ One honest caveat: the skip is **per parameter**, not per step. A parameter
 whose own gradient stayed finite still updates on an overflowed step, so the
 report says "overflowed steps" rather than "skipped". No infinity or NaN
 reaches a parameter or a moment either way: that is asserted bit for bit in
-`Regression_LossScaling`, but it is a partial step where PyTorch would take
+`Medium_LossScaling`, but it is a partial step where PyTorch would take
 none. `optim/loss_scaler.hpp` explains what a whole-step skip would cost.
 
 `gradcheck` and mixed precision are incompatible, and deliberately so:

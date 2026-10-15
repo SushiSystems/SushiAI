@@ -27,7 +27,10 @@
 
 #pragma once
 
+#include <cstdio>
+#include <cstdlib>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
@@ -43,28 +46,37 @@ namespace SushiAI
         class TestEnvironment : public ::testing::Environment
         {
             public:
-                /** @brief Creates the runtime before the first test. */
-                void SetUp() override
-                {
-                    Result<SushiRuntime::Runtime> created = Detail::create_runtime();
-                    ASSERT_TRUE(created.has_value()) << created.status().message();
-                    runtime_.emplace(std::move(created).value());
-                }
-
-                /** @brief Destroys the runtime after the last test. */
+                /** @brief Destroys the runtime after the last test, when one was created. */
                 void TearDown() override
                 {
                     runtime_.reset();
                 }
 
-                /** @brief Returns the shared runtime, valid for the whole run. */
+                /**
+                 * @brief Returns the shared runtime, creating it on the first call.
+                 *
+                 * A test that never calls it opens no device and starts no worker. A runtime that
+                 * cannot be created ends the process with its message.
+                 */
                 static SushiRuntime::Runtime& runtime()
                 {
+                    if (!runtime_)
+                    {
+                        Result<SushiRuntime::Runtime> created = Detail::create_runtime();
+                        if (!created.has_value())
+                        {
+                            const std::string_view message = created.status().message();
+                            std::fprintf(stderr, "cannot create the runtime: %.*s\n",
+                                         static_cast<int>(message.size()), message.data());
+                            std::abort();
+                        }
+                        runtime_.emplace(std::move(created).value());
+                    }
                     return *runtime_;
                 }
 
             private:
-                /** @brief Holds the runtime between SetUp() and TearDown(). */
+                /** @brief Holds the runtime from the first runtime() call to TearDown(). */
                 static inline std::optional<SushiRuntime::Runtime> runtime_;
 
         };

@@ -56,7 +56,7 @@ using Graph::ValueID;
 namespace
 {
     /** @brief Provides the Engine every case compiles on. */
-    class Unit_CompiledStep : public SaTest::EngineTest
+    class Medium_CompiledStep : public SaTest::EngineTest
     {
 
     };
@@ -129,7 +129,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a step restored to a count draws the mask of that run next. */
-TEST_F(Unit_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
+TEST_F(Medium_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> whole, make_masked_ones(*engine));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> resumed,
@@ -151,7 +151,7 @@ TEST_F(Unit_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
 }
 
 /** @brief Tests that a step that has run refuses a restore and keeps its count. */
-TEST_F(Unit_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
+TEST_F(Medium_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
 
@@ -162,7 +162,7 @@ TEST_F(Unit_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
 }
 
 /** @brief Tests that a count above 0 is restored once, and that 0 leaves a new step new. */
-TEST_F(Unit_CompiledStep, ASecondRestoreIsRefused)
+TEST_F(Medium_CompiledStep, ASecondRestoreIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
 
@@ -174,7 +174,7 @@ TEST_F(Unit_CompiledStep, ASecondRestoreIsRefused)
 }
 
 /** @brief Tests that two ranges of a graph run as two steps over the tensors of one pool. */
-TEST_F(Unit_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
+TEST_F(Medium_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -210,7 +210,7 @@ TEST_F(Unit_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
 }
 
 /** @brief Tests that a range that ends behind the last node is refused with its bounds. */
-TEST_F(Unit_CompiledStep, ARangeOutsideTheGraphIsRefused)
+TEST_F(Medium_CompiledStep, ARangeOutsideTheGraphIsRefused)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

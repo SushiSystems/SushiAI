@@ -49,7 +49,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a box has IoU 1 and complete IoU 1 with itself. */
-TEST(Unit_DetectBoxes, IdenticalBoxesScoreOne)
+TEST(Medium_DetectBoxes, IdenticalBoxesScoreOne)
 {
     const std::vector<float> box{0.0f, 0.0f, 2.0f, 2.0f};
 
@@ -60,7 +60,7 @@ TEST(Unit_DetectBoxes, IdenticalBoxesScoreOne)
 }
 
 /** @brief Tests that disjoint boxes have IoU 0 and a complete IoU lowered by their distance. */
-TEST(Unit_DetectBoxes, DisjointBoxesScoreZeroAndPayForDistance)
+TEST(Medium_DetectBoxes, DisjointBoxesScoreZeroAndPayForDistance)
 {
     const std::vector<float> left{0.0f, 0.0f, 1.0f, 1.0f};
     const std::vector<float> right{2.0f, 0.0f, 3.0f, 1.0f};
@@ -75,7 +75,7 @@ TEST(Unit_DetectBoxes, DisjointBoxesScoreZeroAndPayForDistance)
 }
 
 /** @brief Tests that partly overlapping squares give 1/7 and lose the centre term only. */
-TEST(Unit_DetectBoxes, OverlappingSquaresLoseTheCentreTerm)
+TEST(Medium_DetectBoxes, OverlappingSquaresLoseTheCentreTerm)
 {
     const std::vector<float> first{0.0f, 0.0f, 2.0f, 2.0f};
     const std::vector<float> second{1.0f, 1.0f, 3.0f, 3.0f};
@@ -90,7 +90,7 @@ TEST(Unit_DetectBoxes, OverlappingSquaresLoseTheCentreTerm)
 }
 
 /** @brief Tests that boxes of different aspect ratio also lose the aspect term. */
-TEST(Unit_DetectBoxes, DifferentAspectRatiosLoseTheAspectTerm)
+TEST(Medium_DetectBoxes, DifferentAspectRatiosLoseTheAspectTerm)
 {
     const std::vector<float> wide{0.0f, 0.0f, 4.0f, 2.0f};
     const std::vector<float> square{0.0f, 0.0f, 2.0f, 2.0f};
@@ -110,7 +110,7 @@ TEST(Unit_DetectBoxes, DifferentAspectRatiosLoseTheAspectTerm)
 }
 
 /** @brief Tests that a zero-size box gives finite values: IoU 0 and complete IoU -0.05. */
-TEST(Unit_DetectBoxes, ADegenerateBoxStaysFinite)
+TEST(Medium_DetectBoxes, ADegenerateBoxStaysFinite)
 {
     const std::vector<float> point{1.0f, 1.0f, 1.0f, 1.0f};
     const std::vector<float> box{0.0f, 0.0f, 2.0f, 2.0f};
@@ -129,7 +129,7 @@ TEST(Unit_DetectBoxes, ADegenerateBoxStaysFinite)
 }
 
 /** @brief Tests that the elementwise forms pair row i with row i. */
-TEST(Unit_DetectBoxes, ElementwiseFormsPairRows)
+TEST(Medium_DetectBoxes, ElementwiseFormsPairRows)
 {
     const std::vector<float> first{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 1.0f, 1.0f};
     const std::vector<float> second{1.0f, 1.0f, 3.0f, 3.0f, 2.0f, 0.0f, 3.0f, 1.0f};
@@ -145,7 +145,7 @@ TEST(Unit_DetectBoxes, ElementwiseFormsPairRows)
 }
 
 /** @brief Tests that the pairwise form fills row n, column m with IoU of box n and box m. */
-TEST(Unit_DetectBoxes, PairwiseFormFillsEveryPair)
+TEST(Medium_DetectBoxes, PairwiseFormFillsEveryPair)
 {
     const std::vector<float> first{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 1.0f, 1.0f};
     const std::vector<float> second{0.0f, 0.0f, 2.0f, 2.0f, 1.0f, 1.0f, 3.0f, 3.0f,
@@ -159,7 +159,7 @@ TEST(Unit_DetectBoxes, PairwiseFormFillsEveryPair)
 }
 
 /** @brief Tests that an elementwise IoU over arrays of different length is refused. */
-TEST(Unit_DetectBoxes, RejectsElementwiseInputsOfDifferentLength)
+TEST(Medium_DetectBoxes, RejectsElementwiseInputsOfDifferentLength)
 {
     const std::vector<float> first(8, 0.0f);
     const std::vector<float> second(4, 0.0f);

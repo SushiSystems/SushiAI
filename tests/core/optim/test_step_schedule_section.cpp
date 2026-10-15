@@ -111,19 +111,19 @@ namespace
 } // namespace
 
 /** @brief Tests that the default schedule reads back from its section unchanged. */
-TEST(Unit_StepScheduleSection, TheDefaultsRoundTripThroughTheirSection)
+TEST(Small_StepScheduleSection, TheDefaultsRoundTripThroughTheirSection)
 {
     expect_schedule_round_trip(StepSchedule{});
 }
 
 /** @brief Tests that a warm-up and two steps read back from their section unchanged. */
-TEST(Unit_StepScheduleSection, AWarmupAndTwoStepsRoundTripThroughTheirSection)
+TEST(Small_StepScheduleSection, AWarmupAndTwoStepsRoundTripThroughTheirSection)
 {
     expect_schedule_round_trip(make_two_step_schedule());
 }
 
 /** @brief Tests that a section stating every key is written back as it was read. */
-TEST(Unit_StepScheduleSection, AFullSectionRoundTripsThroughItsSchedule)
+TEST(Small_StepScheduleSection, AFullSectionRoundTripsThroughItsSchedule)
 {
     const Value section = section_from(K_FULL_SECTION);
     SA_ASSERT_OK_AND_ASSIGN(const StepSchedule schedule, read_step_schedule_section(section));
@@ -135,7 +135,7 @@ TEST(Unit_StepScheduleSection, AFullSectionRoundTripsThroughItsSchedule)
 }
 
 /** @brief Tests that the reader fills every field of the schedule from the section. */
-TEST(Unit_StepScheduleSection, ReadsEveryFieldOfASection)
+TEST(Small_StepScheduleSection, ReadsEveryFieldOfASection)
 {
     SA_ASSERT_OK_AND_ASSIGN(const StepSchedule schedule,
                             read_step_schedule_section(section_from(K_FULL_SECTION)));
@@ -150,7 +150,7 @@ TEST(Unit_StepScheduleSection, ReadsEveryFieldOfASection)
 }
 
 /** @brief Tests that a section with no key, or with its type alone, gives the defaults. */
-TEST(Unit_StepScheduleSection, AKeyLeftOutKeepsTheDefaultOfItsField)
+TEST(Small_StepScheduleSection, AKeyLeftOutKeepsTheDefaultOfItsField)
 {
     SA_ASSERT_OK_AND_ASSIGN(const StepSchedule empty,
                             read_step_schedule_section(section_from("{}")));
@@ -168,7 +168,7 @@ TEST(Unit_StepScheduleSection, AKeyLeftOutKeepsTheDefaultOfItsField)
 }
 
 /** @brief Tests that the writer states the type and every key in the order of the fields. */
-TEST(Unit_StepScheduleSection, WritesTheTypeAndEveryKeyInOrder)
+TEST(Small_StepScheduleSection, WritesTheTypeAndEveryKeyInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section,
                             write_step_schedule_section(make_two_step_schedule()));
@@ -182,7 +182,7 @@ TEST(Unit_StepScheduleSection, WritesTheTypeAndEveryKeyInOrder)
 }
 
 /** @brief Tests that a whole number is read where the section holds a real. */
-TEST(Unit_StepScheduleSection, ReadsAWholeNumberAsARateAPowerAndAScale)
+TEST(Small_StepScheduleSection, ReadsAWholeNumberAsARateAPowerAndAScale)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const StepSchedule schedule,
@@ -195,7 +195,7 @@ TEST(Unit_StepScheduleSection, ReadsAWholeNumberAsARateAPowerAndAScale)
 }
 
 /** @brief Tests that a section that is no object is refused with the kind it is. */
-TEST(Unit_StepScheduleSection, RefusesASectionThatIsNotAnObject)
+TEST(Small_StepScheduleSection, RefusesASectionThatIsNotAnObject)
 {
     SA_EXPECT_FAILURE(read_step_schedule_section(section_from("[]")),
                       StatusCode::InvalidDescription, "schedule", "an object");
@@ -204,7 +204,7 @@ TEST(Unit_StepScheduleSection, RefusesASectionThatIsNotAnObject)
 }
 
 /** @brief Tests that a type of another schedule or of another kind is refused. */
-TEST(Unit_StepScheduleSection, RefusesAnotherType)
+TEST(Small_StepScheduleSection, RefusesAnotherType)
 {
     SA_EXPECT_FAILURE(read_step_schedule_section(section_of(R"("type": "cosine")")),
                       StatusCode::InvalidDescription, "schedule 'type'", "'cosine'", "'step'");
@@ -213,7 +213,7 @@ TEST(Unit_StepScheduleSection, RefusesAnotherType)
 }
 
 /** @brief Tests that a key outside the section is refused with the keys it accepts. */
-TEST(Unit_StepScheduleSection, RefusesAnUnknownKey)
+TEST(Small_StepScheduleSection, RefusesAnUnknownKey)
 {
     SA_EXPECT_FAILURE(read_step_schedule_section(section_of(R"("burn_in": 1000)")),
                       StatusCode::InvalidDescription, "schedule", "'burn_in'",
@@ -221,7 +221,7 @@ TEST(Unit_StepScheduleSection, RefusesAnUnknownKey)
 }
 
 /** @brief Tests that a value of another kind is refused with its key and its entry. */
-TEST(Unit_StepScheduleSection, RefusesAValueOfAnotherKind)
+TEST(Small_StepScheduleSection, RefusesAValueOfAnotherKind)
 {
     SA_EXPECT_FAILURE(read_step_schedule_section(section_of(R"("base_rate": "fast")")),
                       StatusCode::InvalidDescription, "schedule 'base_rate'", "a number");
@@ -239,7 +239,7 @@ TEST(Unit_StepScheduleSection, RefusesAValueOfAnotherKind)
 }
 
 /** @brief Tests that the reader refuses the schedules validate_step_schedule refuses. */
-TEST(Unit_StepScheduleSection, RefusesTheSchedulesTheScheduleCheckRefuses)
+TEST(Small_StepScheduleSection, RefusesTheSchedulesTheScheduleCheckRefuses)
 {
     SA_EXPECT_FAILURE(read_step_schedule_section(section_of(R"("steps": [100, 200])")),
                       StatusCode::InvalidDescription, "schedule", "2 steps", "0 scales");
@@ -253,7 +253,7 @@ TEST(Unit_StepScheduleSection, RefusesTheSchedulesTheScheduleCheckRefuses)
 }
 
 /** @brief Tests that the writer refuses a number JSON cannot hold, with its key. */
-TEST(Unit_StepScheduleSection, WriterRefusesANumberThatIsNotFinite)
+TEST(Small_StepScheduleSection, WriterRefusesANumberThatIsNotFinite)
 {
     StepSchedule rated = make_two_step_schedule();
     rated.base_rate = std::numeric_limits<double>::infinity();
@@ -272,7 +272,7 @@ TEST(Unit_StepScheduleSection, WriterRefusesANumberThatIsNotFinite)
 }
 
 /** @brief Tests that the writer refuses the schedules validate_step_schedule refuses. */
-TEST(Unit_StepScheduleSection, WriterRefusesTheSchedulesTheScheduleCheckRefuses)
+TEST(Small_StepScheduleSection, WriterRefusesTheSchedulesTheScheduleCheckRefuses)
 {
     StepSchedule uneven = make_two_step_schedule();
     uneven.scales.pop_back();

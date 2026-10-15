@@ -54,7 +54,7 @@ using Graph::ValueID;
 
 namespace
 {
-    class Integration_Training : public SaTest::EngineTest {};
+    class Medium_Training : public SaTest::EngineTest {};
 
     /** @brief The model every test here trains, so a failure names one variable. */
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
@@ -144,7 +144,7 @@ namespace
     }
 }
 
-TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
+TEST_F(Medium_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
 {
     // Zero logits make the first loss exactly ln(C); see tests/layers/train/README.md.
     const int64_t batch = 8;
@@ -185,7 +185,7 @@ TEST_F(Integration_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     EXPECT_NEAR(metrics.loss, std::log(static_cast<double>(classes)), 1e-5);
 }
 
-TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
+TEST_F(Medium_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
 {
     // The step must compile once over many steps; see tests/layers/train/README.md.
     const int64_t batch = 16;
@@ -232,7 +232,7 @@ TEST_F(Integration_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     EXPECT_GT(report.operations_per_step, 0u);
 }
 
-TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
+TEST_F(Medium_Training, TheStepAllocatesNothingInSteadyState)
 {
     // Replays must reuse the same buffers; see tests/layers/train/README.md.
     const int64_t batch = 8;
@@ -281,7 +281,7 @@ TEST_F(Integration_Training, TheStepAllocatesNothingInSteadyState)
     EXPECT_EQ(pool.allocated_bytes(), bytes_after_first);
 }
 
-TEST_F(Integration_Training, SGDDrivesTheLossDownOnASeparableProblem)
+TEST_F(Medium_Training, SGDDrivesTheLossDownOnASeparableProblem)
 {
     const int64_t batch = 16;
     const int64_t features = 8;
@@ -327,7 +327,7 @@ TEST_F(Integration_Training, SGDDrivesTheLossDownOnASeparableProblem)
     EXPECT_EQ(report.compile_count, 1u);
 }
 
-TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
+TEST_F(Medium_Training, AdamWDrivesTheLossDownOnASeparableProblem)
 {
     const int64_t batch = 16;
     const int64_t features = 8;
@@ -371,7 +371,7 @@ TEST_F(Integration_Training, AdamWDrivesTheLossDownOnASeparableProblem)
     EXPECT_EQ(report.compile_count, 1u);
 }
 
-TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate)
+TEST_F(Medium_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate)
 {
     // Step one moves each coordinate by about lr; see tests/layers/train/README.md.
     const int64_t batch = 8;
@@ -437,7 +437,7 @@ TEST_F(Integration_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearnin
     EXPECT_GT(checked, 0u) << "no coordinate had a large enough gradient to check";
 }
 
-TEST_F(Integration_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTheGradient)
+TEST_F(Medium_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTheGradient)
 {
     const int64_t batch = 8;
     const int64_t features = 4;
@@ -487,7 +487,7 @@ TEST_F(Integration_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTh
         EXPECT_NEAR(after[i], before[i] - sgd.learning_rate * gradient[i], 1e-6) << "at " << i;
 }
 
-TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherThanZeroes)
+TEST_F(Medium_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherThanZeroes)
 {
     // The shared runtime records no timing; see tests/layers/train/README.md.
     const int64_t batch = 8;
@@ -530,7 +530,7 @@ TEST_F(Integration_Training, ProfilingOnAnUnprofiledContextReportsNothingRatherT
     EXPECT_NE(report.to_string().find("per-node timing"), std::string::npos);
 }
 
-TEST_F(Integration_Training, ADisconnectedParameterIsRejectedRatherThanSilentlySkipped)
+TEST_F(Medium_Training, ADisconnectedParameterIsRejectedRatherThanSilentlySkipped)
 {
     const int64_t batch = 4;
     const int64_t features = 4;
@@ -550,7 +550,7 @@ TEST_F(Integration_Training, ADisconnectedParameterIsRejectedRatherThanSilentlyS
                       "'ghost'");
 }
 
-TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
+TEST_F(Medium_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
 {
     Data::SyntheticOptions options;
     options.batch_size = 8;
@@ -598,7 +598,7 @@ TEST_F(Integration_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
     }
 }
 
-TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays)
+TEST_F(Medium_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays)
 {
     // Each step applies the host form of the update to the batch mean of that step.
     NormMLP model = make_norm_model();
@@ -672,7 +672,7 @@ TEST_F(Integration_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSay
     }
 }
 
-TEST_F(Integration_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm)
+TEST_F(Medium_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm)
 {
     NormMLP model = make_norm_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -736,7 +736,7 @@ TEST_F(Integration_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchN
     EXPECT_TRUE(found) << "the model has no parameter named '3.weight'";
 }
 
-TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
+TEST_F(Medium_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
 {
     const int64_t batch = 8;
     const int64_t features = 6;
@@ -775,7 +775,7 @@ TEST_F(Integration_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
 }
 
 /** @brief Tests that bind_parameters marks the weights as decaying and the biases as not. */
-TEST_F(Integration_Training, BoundSlotsDecayByTheRoleOfTheirParameter)
+TEST_F(Medium_Training, BoundSlotsDecayByTheRoleOfTheirParameter)
 {
     const int64_t batch = 4;
     const int64_t features = 6;

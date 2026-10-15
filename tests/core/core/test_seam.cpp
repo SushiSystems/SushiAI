@@ -64,7 +64,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides the engine the record_and_run cases record on. */
-    class Unit_SeamEngine : public SaTest::EngineTest
+    class Medium_SeamEngine : public SaTest::EngineTest
     {
 
     };
@@ -125,7 +125,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Seam, GuardReturnsTheStatusOfACallThatDoesNotThrow)
+TEST(Small_Seam, GuardReturnsTheStatusOfACallThatDoesNotThrow)
 {
     SA_EXPECT_OK(guard(SeamPhase::Record, []()
     {
@@ -142,7 +142,7 @@ TEST(Unit_Seam, GuardReturnsTheStatusOfACallThatDoesNotThrow)
     SA_EXPECT_FAILURE(failed, StatusCode::InvalidFile, "wrong magic");
 }
 
-TEST(Unit_Seam, GuardValueReturnsTheValueOfACallThatDoesNotThrow)
+TEST(Small_Seam, GuardValueReturnsTheValueOfACallThatDoesNotThrow)
 {
     const Result<int> result = guard_value(SeamPhase::Allocate, []()
     {
@@ -153,7 +153,7 @@ TEST(Unit_Seam, GuardValueReturnsTheValueOfACallThatDoesNotThrow)
     EXPECT_EQ(result.value(), 7);
 }
 
-TEST(Unit_Seam, GuardValueReturnsTheStatusOfWhatTheCallThrew)
+TEST(Small_Seam, GuardValueReturnsTheStatusOfWhatTheCallThrew)
 {
     const Result<int> result = guard_value(SeamPhase::Allocate, []() -> int
     {
@@ -164,21 +164,21 @@ TEST(Unit_Seam, GuardValueReturnsTheStatusOfWhatTheCallThrew)
     EXPECT_EQ(result.status().code(), StatusCode::OutOfMemory);
 }
 
-TEST(Unit_Seam, UnsupportedExecutionIsUnsupportedThoughItIsAnInvalidArgument)
+TEST(Small_Seam, UnsupportedExecutionIsUnsupportedThoughItIsAnInvalidArgument)
 {
     SA_EXPECT_FAILURE(
         status_of_throw(SeamPhase::Record, SushiBLAS::UnsupportedExecution("no host path")),
         StatusCode::Unsupported, "no host path");
 }
 
-TEST(Unit_Seam, InvalidArgumentIsInvalidDescription)
+TEST(Small_Seam, InvalidArgumentIsInvalidDescription)
 {
     SA_EXPECT_FAILURE(
         status_of_throw(SeamPhase::Record, std::invalid_argument("gemm: shapes disagree")),
         StatusCode::InvalidDescription, "gemm: shapes disagree");
 }
 
-TEST(Unit_Seam, PlainRuntimeErrorTakesItsCodeFromThePhase)
+TEST(Small_Seam, PlainRuntimeErrorTakesItsCodeFromThePhase)
 {
     const std::runtime_error error("the storage rule refused it");
 
@@ -190,7 +190,7 @@ TEST(Unit_Seam, PlainRuntimeErrorTakesItsCodeFromThePhase)
                       "the storage rule refused it");
 }
 
-TEST(Unit_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
+TEST(Small_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
 {
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::AllocationFailed, "no USM"),
@@ -207,7 +207,7 @@ TEST(Unit_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
         StatusCode::Unsupported, "no fp16");
 }
 
-TEST(Unit_Seam, RuntimeInvalidGraphIsInvalidDescription)
+TEST(Small_Seam, RuntimeInvalidGraphIsInvalidDescription)
 {
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidGraph, "buffers span two contexts"),
@@ -215,7 +215,7 @@ TEST(Unit_Seam, RuntimeInvalidGraphIsInvalidDescription)
         StatusCode::InvalidDescription, "buffers span two contexts");
 }
 
-TEST(Unit_Seam, RuntimeInvalidAccessIsUnsupported)
+TEST(Small_Seam, RuntimeInvalidAccessIsUnsupported)
 {
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidAccess, "no device 3"),
@@ -223,7 +223,7 @@ TEST(Unit_Seam, RuntimeInvalidAccessIsUnsupported)
         StatusCode::Unsupported, "no device 3");
 }
 
-TEST(Unit_Seam, RuntimeInvalidStateIsUnsupported)
+TEST(Small_Seam, RuntimeInvalidStateIsUnsupported)
 {
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidState, "another run is in flight"),
@@ -231,7 +231,7 @@ TEST(Unit_Seam, RuntimeInvalidStateIsUnsupported)
         StatusCode::Unsupported, "another run is in flight");
 }
 
-TEST(Unit_Seam, RuntimeProtocolMismatchIsIncompatible)
+TEST(Small_Seam, RuntimeProtocolMismatchIsIncompatible)
 {
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::ProtocolMismatch, "peer speaks version 2"),
@@ -239,7 +239,7 @@ TEST(Unit_Seam, RuntimeProtocolMismatchIsIncompatible)
         StatusCode::Incompatible, "peer speaks version 2");
 }
 
-TEST(Unit_Seam, RuntimeCompileFailedTakesItsCodeFromThePhase)
+TEST(Small_Seam, RuntimeCompileFailedTakesItsCodeFromThePhase)
 {
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::CompileFailed, "no plan"),
@@ -251,7 +251,7 @@ TEST(Unit_Seam, RuntimeCompileFailedTakesItsCodeFromThePhase)
         StatusCode::DeviceFailed, "no plan");
 }
 
-TEST(Unit_Seam, RuntimeDanglingResourceIsFatal)
+TEST(Small_Seam, RuntimeDanglingResourceIsFatal)
 {
     SA_EXPECT_FATAL(
         (void)status_of_error(runtime_failure(ErrorCode::DanglingResource, "freed"),
@@ -259,14 +259,14 @@ TEST(Unit_Seam, RuntimeDanglingResourceIsFatal)
         "SushiRuntime reported DanglingResource", "freed");
 }
 
-TEST(Unit_Seam, ErrorOfAHostUnitIsFatalWithItsText)
+TEST(Small_Seam, ErrorOfAHostUnitIsFatalWithItsText)
 {
     SA_EXPECT_FATAL(
         (void)status_of_throw(SeamPhase::Record, SushiAI::Error("value 9 is out of range")),
         "value 9 is out of range");
 }
 
-TEST(Unit_Seam, BadAllocIsOutOfMemoryInEveryPhase)
+TEST(Small_Seam, BadAllocIsOutOfMemoryInEveryPhase)
 {
     EXPECT_EQ(status_of_throw(SeamPhase::Record, std::bad_alloc()).code(),
               StatusCode::OutOfMemory);
@@ -274,7 +274,7 @@ TEST(Unit_Seam, BadAllocIsOutOfMemoryInEveryPhase)
               StatusCode::OutOfMemory);
 }
 
-TEST(Unit_Seam, AnyOtherStandardExceptionIsDeviceFailed)
+TEST(Small_Seam, AnyOtherStandardExceptionIsDeviceFailed)
 {
     SA_EXPECT_FAILURE(status_of_throw(SeamPhase::Allocate, ForeignException()),
                       StatusCode::DeviceFailed, "the device queue faulted");
@@ -282,13 +282,13 @@ TEST(Unit_Seam, AnyOtherStandardExceptionIsDeviceFailed)
                       StatusCode::DeviceFailed, "a broken rule");
 }
 
-TEST(Unit_Seam, ExceptionOfAnUnknownTypeIsDeviceFailed)
+TEST(Small_Seam, ExceptionOfAnUnknownTypeIsDeviceFailed)
 {
     SA_EXPECT_FAILURE(status_of_throw(SeamPhase::Allocate, 3), StatusCode::DeviceFailed,
                       "an exception of an unknown type");
 }
 
-TEST_F(Unit_SeamEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
+TEST_F(Medium_SeamEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
 
@@ -302,7 +302,7 @@ TEST_F(Unit_SeamEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
     expect_all(target, 2.0);
 }
 
-TEST_F(Unit_SeamEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
+TEST_F(Medium_SeamEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor kept, filled_vector(*engine, 1.0));
@@ -326,7 +326,7 @@ TEST_F(Unit_SeamEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
     expect_all(discarded, 1.0);
 }
 
-TEST_F(Unit_SeamEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailure)
+TEST_F(Medium_SeamEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailure)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
 

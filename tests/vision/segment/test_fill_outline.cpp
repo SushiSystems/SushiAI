@@ -86,7 +86,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a rectangle on pixel edges fills exactly the pixels it bounds. */
-TEST(Unit_SegmentRasterise, ARectangleOnPixelEdgesFillsThePixelsItBounds)
+TEST(Small_SegmentRasterise, ARectangleOnPixelEdgesFillsThePixelsItBounds)
 {
     Image mask = blank(ImageSize{4, 5});
     const Parts parts{rectangle(1.0f, 1.0f, 4.0f, 3.0f)};
@@ -100,7 +100,7 @@ TEST(Unit_SegmentRasterise, ARectangleOnPixelEdgesFillsThePixelsItBounds)
 }
 
 /** @brief Tests that a pixel is filled only when its centre is inside the outline. */
-TEST(Unit_SegmentRasterise, APixelIsFilledWhenItsCentreIsInside)
+TEST(Small_SegmentRasterise, APixelIsFilledWhenItsCentreIsInside)
 {
     // The rectangle spans x in [0.6, 2.4]: it holds the centre 1.5 and neither 0.5 nor 2.5.
     Image mask = blank(ImageSize{1, 3});
@@ -112,7 +112,7 @@ TEST(Unit_SegmentRasterise, APixelIsFilledWhenItsCentreIsInside)
 }
 
 /** @brief Tests that two rectangles sharing an edge through pixel centres fill no pixel twice. */
-TEST(Unit_SegmentRasterise, ACentreOnASharedEdgeBelongsToOneSide)
+TEST(Small_SegmentRasterise, ACentreOnASharedEdgeBelongsToOneSide)
 {
     // The shared edge x = 1.5 passes through the centre of column 1; the right side takes it.
     Image mask = blank(ImageSize{1, 3});
@@ -127,7 +127,7 @@ TEST(Unit_SegmentRasterise, ACentreOnASharedEdgeBelongsToOneSide)
 }
 
 /** @brief Tests that a triangle fills the centres under its slanted edge. */
-TEST(Unit_SegmentRasterise, ATriangleFillsTheCentresUnderItsSlope)
+TEST(Small_SegmentRasterise, ATriangleFillsTheCentresUnderItsSlope)
 {
     // Row y is filled where x + 0.5 is below 4 - (y + 0.5): 3, 2, 1 and 0 columns.
     Image mask = blank(ImageSize{4, 4});
@@ -142,7 +142,7 @@ TEST(Unit_SegmentRasterise, ATriangleFillsTheCentresUnderItsSlope)
 }
 
 /** @brief Tests that both parts of a two-part outline are filled. */
-TEST(Unit_SegmentRasterise, EveryPartOfAnOutlineIsFilled)
+TEST(Small_SegmentRasterise, EveryPartOfAnOutlineIsFilled)
 {
     Image mask = blank(ImageSize{1, 5});
     const Parts parts{rectangle(0.0f, 0.0f, 1.0f, 1.0f), rectangle(3.0f, 0.0f, 5.0f, 1.0f)};
@@ -153,7 +153,7 @@ TEST(Unit_SegmentRasterise, EveryPartOfAnOutlineIsFilled)
 }
 
 /** @brief Tests that a part inside another cuts a hole, by the even-odd rule. */
-TEST(Unit_SegmentRasterise, APartInsideAnotherCutsAHole)
+TEST(Small_SegmentRasterise, APartInsideAnotherCutsAHole)
 {
     Image mask = blank(ImageSize{3, 3});
     const Parts parts{rectangle(0.0f, 0.0f, 3.0f, 3.0f), rectangle(1.0f, 1.0f, 2.0f, 2.0f)};
@@ -164,7 +164,7 @@ TEST(Unit_SegmentRasterise, APartInsideAnotherCutsAHole)
 }
 
 /** @brief Tests that an outline reaching past the mask is clipped to it. */
-TEST(Unit_SegmentRasterise, AnOutlineIsClippedToTheMask)
+TEST(Small_SegmentRasterise, AnOutlineIsClippedToTheMask)
 {
     Image mask = blank(ImageSize{2, 2});
     const Parts parts{rectangle(-5.0f, -5.0f, 1.0f, 50.0f)};
@@ -175,7 +175,7 @@ TEST(Unit_SegmentRasterise, AnOutlineIsClippedToTheMask)
 }
 
 /** @brief Tests that an outline of no part, or of a part with two vertices, fills nothing. */
-TEST(Unit_SegmentRasterise, AnOutlineWithoutAreaFillsNothing)
+TEST(Small_SegmentRasterise, AnOutlineWithoutAreaFillsNothing)
 {
     Image mask = blank(ImageSize{2, 2});
     const Parts none{};
@@ -188,7 +188,7 @@ TEST(Unit_SegmentRasterise, AnOutlineWithoutAreaFillsNothing)
 }
 
 /** @brief Tests that fill_outline refuses an unsized mask, three channels and a NaN vertex. */
-TEST(Unit_SegmentRasterise, FillRefusesABadMaskAndAVertexThatIsNotFinite)
+TEST(Small_SegmentRasterise, FillRefusesABadMaskAndAVertexThatIsNotFinite)
 {
     Image unsized;
     Image colour(ImageSize{2, 2}, 3);

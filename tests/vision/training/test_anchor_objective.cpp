@@ -118,7 +118,7 @@ namespace
 } // namespace
 
 /** @brief Tests that declare adds one float32 leaf per head, in head order and head shape. */
-TEST(Unit_AnchorObjective, DeclaresOneLeafPerHeadInTheShapeOfItsOutput)
+TEST(Small_AnchorObjective, DeclaresOneLeafPerHeadInTheShapeOfItsOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -145,7 +145,7 @@ TEST(Unit_AnchorObjective, DeclaresOneLeafPerHeadInTheShapeOfItsOutput)
 }
 
 /** @brief Tests that the root adds one delta loss per head, each scaled by -1 over the batch. */
-TEST(Unit_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
+TEST(Small_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -188,7 +188,7 @@ TEST(Unit_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
 }
 
 /** @brief Tests that a model that does not publish a head is refused by the head's name. */
-TEST(Unit_AnchorObjective, AModelWithoutAHeadThrowsNamingTheHead)
+TEST(Small_AnchorObjective, AModelWithoutAHeadThrowsNamingTheHead)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -205,7 +205,7 @@ TEST(Unit_AnchorObjective, AModelWithoutAHeadThrowsNamingTheHead)
 }
 
 /** @brief Tests that a head whose shape differs from the declared one throws both shapes. */
-TEST(Unit_AnchorObjective, AHeadOfAnotherShapeThrowsNamingBothShapes)
+TEST(Small_AnchorObjective, AHeadOfAnotherShapeThrowsNamingBothShapes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -224,7 +224,7 @@ TEST(Unit_AnchorObjective, AHeadOfAnotherShapeThrowsNamingBothShapes)
 }
 
 /** @brief Tests that the cost is the field-by-field sum of the two heads' costs, to 1e-12. */
-TEST(Unit_AnchorObjective, TheCostIsTheSumOverTheHeads)
+TEST(Small_AnchorObjective, TheCostIsTheSumOverTheHeads)
 {
     // One anchor and one class per head: a slot is x, y, w, h, objectness, class.
     AnchorLayout layout;
@@ -259,7 +259,7 @@ TEST(Unit_AnchorObjective, TheCostIsTheSumOverTheHeads)
 }
 
 /** @brief Tests that the name is "anchor_delta" and that no batch alone feeds the objective. */
-TEST(Unit_AnchorObjective, NamesItselfAndIsFedByItsOwnStep)
+TEST(Small_AnchorObjective, NamesItselfAndIsFedByItsOwnStep)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -272,7 +272,7 @@ TEST(Unit_AnchorObjective, NamesItselfAndIsFedByItsOwnStep)
 }
 
 /** @brief Tests that a head count other than the layout's is InvalidDescription. */
-TEST(Unit_AnchorObjective, AHeadCountOtherThanTheLayoutsIsRefused)
+TEST(Small_AnchorObjective, AHeadCountOtherThanTheLayoutsIsRefused)
 {
     SA_EXPECT_FAILURE(AnchorObjective::make(network(), two_head_layout(), {}),
                       StatusCode::InvalidDescription, "0 heads", "holds 2");
@@ -282,7 +282,7 @@ TEST(Unit_AnchorObjective, AHeadCountOtherThanTheLayoutsIsRefused)
 }
 
 /** @brief Tests that heads declared with different batches are InvalidDescription. */
-TEST(Unit_AnchorObjective, HeadsOfDifferentBatchesAreRefused)
+TEST(Small_AnchorObjective, HeadsOfDifferentBatchesAreRefused)
 {
     std::vector<AnchorHead> heads = two_heads();
     heads[1].shape.batch = 3;
@@ -292,7 +292,7 @@ TEST(Unit_AnchorObjective, HeadsOfDifferentBatchesAreRefused)
 }
 
 /** @brief Tests that an empty and a repeated output name are InvalidDescription. */
-TEST(Unit_AnchorObjective, AnEmptyOrARepeatedOutputNameIsRefused)
+TEST(Small_AnchorObjective, AnEmptyOrARepeatedOutputNameIsRefused)
 {
     std::vector<AnchorHead> unnamed = two_heads();
     unnamed[1].output.clear();
@@ -306,7 +306,7 @@ TEST(Unit_AnchorObjective, AnEmptyOrARepeatedOutputNameIsRefused)
 }
 
 /** @brief Tests that an extent or a network side below 1 is InvalidDescription. */
-TEST(Unit_AnchorObjective, AnExtentOrANetworkSideBelowOneIsRefused)
+TEST(Small_AnchorObjective, AnExtentOrANetworkSideBelowOneIsRefused)
 {
     std::vector<AnchorHead> flat = two_heads();
     flat[0].shape.height = 0;
@@ -318,7 +318,7 @@ TEST(Unit_AnchorObjective, AnExtentOrANetworkSideBelowOneIsRefused)
 }
 
 /** @brief Tests that options the head and the training validators refuse are passed on. */
-TEST(Unit_AnchorObjective, OptionsTheValidatorsRefuseAreRefused)
+TEST(Small_AnchorObjective, OptionsTheValidatorsRefuseAreRefused)
 {
     std::vector<AnchorHead> classless = two_heads();
     classless[0].options.num_classes = 0;

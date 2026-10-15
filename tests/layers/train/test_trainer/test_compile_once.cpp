@@ -45,7 +45,7 @@ using Graph::TensorPool;
 
 namespace
 {
-    class Regression_CompileOnce : public SaTest::EngineTest {};
+    class Medium_CompileOnce : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -74,7 +74,7 @@ namespace
  * @brief Tests that repeated fit() calls leave the trainer's compile count at one.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
+TEST_F(Medium_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
 {
     MLP model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -120,7 +120,7 @@ TEST_F(Regression_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
  * @brief Tests that five replayed steps each change the loss and move a parameter.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmediately)
+TEST_F(Medium_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmediately)
 {
     MLP model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -178,7 +178,7 @@ TEST_F(Regression_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteI
  * @brief Tests that the first run() and three replays overwrite a poisoned output buffer.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_CompileOnce,
+TEST_F(Medium_CompileOnce,
        TheVeryFirstRunDispatchesRatherThanReportingCompleteOverAnEmptyBaseline)
 {
     Graph::Graph graph;
@@ -238,7 +238,7 @@ TEST_F(Regression_CompileOnce,
  *        the step.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps)
+TEST_F(Medium_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps)
 {
     MLP model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,

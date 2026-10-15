@@ -47,13 +47,13 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides the Engine every case allocates on. */
-    class Unit_StorageBank : public SaTest::EngineTest
+    class Medium_StorageBank : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
-TEST_F(Unit_StorageBank, AllocateHoldsATensorOfTheShapeAndTypeAsked)
+TEST_F(Medium_StorageBank, AllocateHoldsATensorOfTheShapeAndTypeAsked)
 {
     StorageBank bank(*engine);
     const StorageID id = 7;
@@ -67,7 +67,7 @@ TEST_F(Unit_StorageBank, AllocateHoldsATensorOfTheShapeAndTypeAsked)
     EXPECT_EQ(bank.allocation_count(), 1u);
 }
 
-TEST_F(Unit_StorageBank, AdoptSharesTheStorageOfTheCallersTensor)
+TEST_F(Medium_StorageBank, AdoptSharesTheStorageOfTheCallersTensor)
 {
     StorageBank bank(*engine);
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor owned, allocate_tensor(*engine, Shape{5}));
@@ -81,7 +81,7 @@ TEST_F(Unit_StorageBank, AdoptSharesTheStorageOfTheCallersTensor)
     EXPECT_EQ(bank.allocation_count(), 0u);
 }
 
-TEST_F(Unit_StorageBank, ReleaseForgetsTheTensorAndIgnoresAnUnknownId)
+TEST_F(Medium_StorageBank, ReleaseForgetsTheTensorAndIgnoresAnUnknownId)
 {
     StorageBank bank(*engine);
     SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
@@ -94,7 +94,7 @@ TEST_F(Unit_StorageBank, ReleaseForgetsTheTensorAndIgnoresAnUnknownId)
     EXPECT_EQ(bank.allocation_count(), 1u);
 }
 
-TEST_F(Unit_StorageBank, ASecondTensorUnderOneIdStopsTheProcess)
+TEST_F(Medium_StorageBank, ASecondTensorUnderOneIdStopsTheProcess)
 {
     StorageBank bank(*engine);
     SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
@@ -103,7 +103,7 @@ TEST_F(Unit_StorageBank, ASecondTensorUnderOneIdStopsTheProcess)
                     "already holds");
 }
 
-TEST_F(Unit_StorageBank, AskingForAnUnknownIdStopsTheProcess)
+TEST_F(Medium_StorageBank, AskingForAnUnknownIdStopsTheProcess)
 {
     StorageBank bank(*engine);
 

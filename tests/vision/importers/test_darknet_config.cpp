@@ -60,7 +60,7 @@ namespace
 } // namespace
 
 /** @brief Tests that comments, blank lines and inner whitespace parse to the stated lines. */
-TEST(Unit_DarknetConfig, ParsesEveryLexicalFormOfTheGrammar)
+TEST(Small_DarknetConfig, ParsesEveryLexicalFormOfTheGrammar)
 {
     const std::string text =
         "# the first line is a comment\n"
@@ -114,7 +114,7 @@ TEST(Unit_DarknetConfig, ParsesEveryLexicalFormOfTheGrammar)
 }
 
 /** @brief Tests that a CRLF text parses to the same keys, values and lines. */
-TEST(Unit_DarknetConfig, IgnoresCarriageReturnsAtLineEnds)
+TEST(Small_DarknetConfig, IgnoresCarriageReturnsAtLineEnds)
 {
     const std::string text = "[net]\r\nwidth=416\r\n[convolutional]\r\nfilters=16\r\n";
 
@@ -131,7 +131,7 @@ TEST(Unit_DarknetConfig, IgnoresCarriageReturnsAtLineEnds)
 }
 
 /** @brief Tests that a key may appear once in each of two sections. */
-TEST(Unit_DarknetConfig, AcceptsOneKeyInTwoSections)
+TEST(Small_DarknetConfig, AcceptsOneKeyInTwoSections)
 {
     const std::string text = "[net]\nwidth=416\n[convolutional]\nwidth=8\n";
 
@@ -144,7 +144,7 @@ TEST(Unit_DarknetConfig, AcceptsOneKeyInTwoSections)
 }
 
 /** @brief Tests that a key before any section fails naming origin, line and key. */
-TEST(Unit_DarknetConfig, RefusesAKeyBeforeAnySection)
+TEST(Small_DarknetConfig, RefusesAKeyBeforeAnySection)
 {
     const Result<DarknetConfig> outcome = parse_darknet_config("width=416\n[net]\n", "test.cfg");
 
@@ -152,7 +152,7 @@ TEST(Unit_DarknetConfig, RefusesAKeyBeforeAnySection)
 }
 
 /** @brief Tests that a line without '=' fails naming origin and line. */
-TEST(Unit_DarknetConfig, RefusesALineThatIsNeitherSectionNorOption)
+TEST(Small_DarknetConfig, RefusesALineThatIsNeitherSectionNorOption)
 {
     const Result<DarknetConfig> outcome = parse_darknet_config("[net]\nwidth 416\n", "test.cfg");
 
@@ -160,7 +160,7 @@ TEST(Unit_DarknetConfig, RefusesALineThatIsNeitherSectionNorOption)
 }
 
 /** @brief Tests that a line that starts with '=' fails naming origin and line. */
-TEST(Unit_DarknetConfig, RefusesAnEmptyKey)
+TEST(Small_DarknetConfig, RefusesAnEmptyKey)
 {
     const Result<DarknetConfig> outcome = parse_darknet_config("[net]\n=416\n", "test.cfg");
 
@@ -168,7 +168,7 @@ TEST(Unit_DarknetConfig, RefusesAnEmptyKey)
 }
 
 /** @brief Tests that a repeated key fails naming both of its lines. */
-TEST(Unit_DarknetConfig, RefusesAKeyRepeatedWithinASection)
+TEST(Small_DarknetConfig, RefusesAKeyRepeatedWithinASection)
 {
     const Result<DarknetConfig> outcome =
         parse_darknet_config("[net]\nwidth=416\nwidth=608\n", "test.cfg");
@@ -178,7 +178,7 @@ TEST(Unit_DarknetConfig, RefusesAKeyRepeatedWithinASection)
 }
 
 /** @brief Tests that a first section that is not [net] or [network] fails naming it. */
-TEST(Unit_DarknetConfig, RefusesAFirstSectionThatIsNotNetOrNetwork)
+TEST(Small_DarknetConfig, RefusesAFirstSectionThatIsNotNetOrNetwork)
 {
     const Result<DarknetConfig> outcome =
         parse_darknet_config("[convolutional]\nfilters=16\n", "test.cfg");
@@ -187,7 +187,7 @@ TEST(Unit_DarknetConfig, RefusesAFirstSectionThatIsNotNetOrNetwork)
 }
 
 /** @brief Tests that an unclosed section, an empty name and text after ']' each fail. */
-TEST(Unit_DarknetConfig, RefusesAMalformedSectionLine)
+TEST(Small_DarknetConfig, RefusesAMalformedSectionLine)
 {
     const Result<DarknetConfig> unclosed = parse_darknet_config("[net\n", "test.cfg");
     SA_EXPECT_FAILURE(unclosed, StatusCode::InvalidDescription, "test.cfg:1", "']'");
@@ -200,7 +200,7 @@ TEST(Unit_DarknetConfig, RefusesAMalformedSectionLine)
 }
 
 /** @brief Tests that a text of comments alone fails naming the origin. */
-TEST(Unit_DarknetConfig, RefusesATextWithoutASection)
+TEST(Small_DarknetConfig, RefusesATextWithoutASection)
 {
     const Result<DarknetConfig> outcome = parse_darknet_config("# only a comment\n", "test.cfg");
 
@@ -208,7 +208,7 @@ TEST(Unit_DarknetConfig, RefusesATextWithoutASection)
 }
 
 /** @brief Tests that a path that cannot be opened gives FileNotFound naming the path. */
-TEST(Unit_DarknetConfig, MissingFileGivesFileNotFound)
+TEST(Small_DarknetConfig, MissingFileGivesFileNotFound)
 {
     const Result<DarknetConfig> outcome = load_darknet_config("absent_darknet_model.cfg");
 

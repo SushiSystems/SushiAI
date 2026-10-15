@@ -1,7 +1,7 @@
 # tests/layers/train/test_dense_losses.cpp
 
 
-Suites: `Unit_DenseLosses`, `Unit_DenseLossesDeathTest`.
+Suites: `Small_DenseLosses`, `Small_DenseLossesDeathTest`.
 
 Tests the nodes `Train::emit_mean_of_elements`, `Train::emit_logistic_loss` and
 `Train::emit_squared_error` add to a graph. Each case reads the operations of the whole graph in

@@ -72,7 +72,7 @@ namespace
     constexpr double K_ABSENT = -1.0;
 
     /** @brief Provides an engine and the batch and the logits of one step. */
-    class Unit_VisionTrainingSegmentationMetrics : public SaTest::EngineTest
+    class Medium_VisionTrainingSegmentationMetrics : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a batch whose mask role holds @p classes as INT32 [1, 2, 2]. */
@@ -105,7 +105,7 @@ namespace
 } // namespace
 
 /** @brief Tests both metrics against counts worked by hand, with one pixel ignored. */
-TEST_F(Unit_VisionTrainingSegmentationMetrics, TheMetricsEqualTheHandCount)
+TEST_F(Medium_VisionTrainingSegmentationMetrics, TheMetricsEqualTheHandCount)
 {
     // Picks 0, 1, 0 and 1 against 0, 2, ignored and 1: two of three right.
     const SushiBLAS::Tensor logits = make_logits(
@@ -128,7 +128,7 @@ TEST_F(Unit_VisionTrainingSegmentationMetrics, TheMetricsEqualTheHandCount)
 }
 
 /** @brief Tests that a step with two outputs, no mask or a label out of bounds is refused. */
-TEST_F(Unit_VisionTrainingSegmentationMetrics, AStepThatDoesNotFitIsRefused)
+TEST_F(Medium_VisionTrainingSegmentationMetrics, AStepThatDoesNotFitIsRefused)
 {
     const SushiBLAS::Tensor logits = make_logits(std::vector<double>(12, 0.0));
     const Data::Batch batch = make_batch({0, 2, K_IGNORE, 1});

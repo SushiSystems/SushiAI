@@ -117,7 +117,7 @@ namespace
 }
 
 /** @brief Tests that a causal trace adds 15 nodes around its heads and 15 per head. */
-TEST(Unit_BlockCausalSelfAttention, ACausalTraceMasksEveryHead)
+TEST(Medium_BlockCausalSelfAttention, ACausalTraceMasksEveryHead)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -142,7 +142,7 @@ TEST(Unit_BlockCausalSelfAttention, ACausalTraceMasksEveryHead)
 }
 
 /** @brief Tests that each mask reads a [N, T, T] product scaled by 1 / sqrt(dim / heads). */
-TEST(Unit_BlockCausalSelfAttention, EachMaskReadsTheScaledScoresOfItsHead)
+TEST(Medium_BlockCausalSelfAttention, EachMaskReadsTheScaledScoresOfItsHead)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -166,7 +166,7 @@ TEST(Unit_BlockCausalSelfAttention, EachMaskReadsTheScaledScoresOfItsHead)
 }
 
 /** @brief Tests that a block without a mask adds no CAUSAL_MASK and one node less per head. */
-TEST(Unit_BlockCausalSelfAttention, ATraceWithoutAMaskEmitsNone)
+TEST(Medium_BlockCausalSelfAttention, ATraceWithoutAMaskEmitsNone)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -184,7 +184,7 @@ TEST(Unit_BlockCausalSelfAttention, ATraceWithoutAMaskEmitsNone)
 }
 
 /** @brief Tests that qkv is [3 * dim, dim], proj [dim, dim], and the walk names the four. */
-TEST(Unit_BlockCausalSelfAttention, TheWalkYieldsTheTwoProjections)
+TEST(Medium_BlockCausalSelfAttention, TheWalkYieldsTheTwoProjections)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -211,7 +211,7 @@ TEST(Unit_BlockCausalSelfAttention, TheWalkYieldsTheTwoProjections)
 }
 
 /** @brief Tests that a rank-2 input, another width and an integer input fail and emit nothing. */
-TEST(Unit_BlockCausalSelfAttention, AnInputThatDoesNotFitFails)
+TEST(Medium_BlockCausalSelfAttention, AnInputThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -234,7 +234,7 @@ TEST(Unit_BlockCausalSelfAttention, AnInputThatDoesNotFitFails)
 }
 
 /** @brief Tests that a head count that does not divide the width, and no width, each fail. */
-TEST(Unit_BlockCausalSelfAttention, ABlockDescribedWrongFails)
+TEST(Medium_BlockCausalSelfAttention, ABlockDescribedWrongFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -249,7 +249,7 @@ TEST(Unit_BlockCausalSelfAttention, ABlockDescribedWrongFails)
 }
 
 /** @brief Tests that the factory takes dim from the input and reads "heads" and "causal". */
-TEST(Unit_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
+TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
 {
     const Shape input{5, K_DIM};
     const Config::Value plain = Config::parse_json(R"({"heads": 4})", "<test>");
@@ -278,7 +278,7 @@ TEST(Unit_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
 }
 
 /** @brief Tests that the factory refuses a stray key, no heads, uneven heads and a bad input. */
-TEST(Unit_BlockCausalSelfAttention, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Medium_BlockCausalSelfAttention, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{5, K_DIM};
     const Shape map{4, 4, K_DIM};
@@ -318,7 +318,7 @@ namespace
 } // namespace
 
 /** @brief Tests that one position writes two rows and attends over the cache with no mask node. */
-TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormWritesOneRowPerCacheAndReadsEveryRow)
+TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormWritesOneRowPerCacheAndReadsEveryRow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -344,7 +344,7 @@ TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormWritesOneRowPerCacheAndRea
 }
 
 /** @brief Tests that the block declares the position, the mask and two carried [T, dim] leaves. */
-TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormDeclaresTwoFedLeavesAndTwoCarriedValues)
+TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormDeclaresTwoFedLeavesAndTwoCarriedValues)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -375,7 +375,7 @@ TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormDeclaresTwoFedLeavesAndTwo
 }
 
 /** @brief Tests that two blocks of one trace share the fed leaves and carry four values. */
-TEST(Unit_BlockCausalSelfAttention, TwoBlocksOfOneTraceShareTheirFedLeaves)
+TEST(Medium_BlockCausalSelfAttention, TwoBlocksOfOneTraceShareTheirFedLeaves)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -395,7 +395,7 @@ TEST(Unit_BlockCausalSelfAttention, TwoBlocksOfOneTraceShareTheirFedLeaves)
 }
 
 /** @brief Tests that the incremental form declares the state the ordinary form declares. */
-TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormDeclaresTheParametersOfTheOrdinaryForm)
+TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormDeclaresTheParametersOfTheOrdinaryForm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -413,7 +413,7 @@ TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormDeclaresTheParametersOfThe
 }
 
 /** @brief Tests that an unmasked block, a longer slice and a plain trace are each refused. */
-TEST(Unit_BlockCausalSelfAttention, TheIncrementalFormRefusesWhatItCannotCache)
+TEST(Medium_BlockCausalSelfAttention, TheIncrementalFormRefusesWhatItCannotCache)
 {
     {
         Graph::Graph graph;
@@ -484,7 +484,7 @@ namespace
 } // namespace
 
 /** @brief Tests that rotary positions turn the queries and the keys once, for every head. */
-TEST(Unit_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
+TEST(Medium_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -522,7 +522,7 @@ TEST(Unit_BlockCausalSelfAttention, ARotaryTraceTurnsTheQueriesAndTheKeysOnce)
 }
 
 /** @brief Tests that the walk of a rotary block yields the two projections and no table. */
-TEST(Unit_BlockCausalSelfAttention, ARotaryBlockHoldsTheStateOfALearnedOne)
+TEST(Medium_BlockCausalSelfAttention, ARotaryBlockHoldsTheStateOfALearnedOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -550,7 +550,7 @@ TEST(Unit_BlockCausalSelfAttention, ARotaryBlockHoldsTheStateOfALearnedOne)
 }
 
 /** @brief Tests that a trace no step fills tables for and an odd head are each refused. */
-TEST(Unit_BlockCausalSelfAttention, ARotaryTraceRefusesWhatItCannotTurn)
+TEST(Medium_BlockCausalSelfAttention, ARotaryTraceRefusesWhatItCannotTurn)
 {
     {
         Graph::Graph graph;
@@ -573,7 +573,7 @@ TEST(Unit_BlockCausalSelfAttention, ARotaryTraceRefusesWhatItCannotTurn)
 }
 
 /** @brief Tests that the factory reads "positions" and refuses a word or a head that misfits. */
-TEST(Unit_BlockCausalSelfAttention, TheFactoryReadsThePositions)
+TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsThePositions)
 {
     const Shape input{5, K_DIM};
     const Shape odd{5, 6};
@@ -618,7 +618,7 @@ TEST(Unit_BlockCausalSelfAttention, TheFactoryReadsThePositions)
 }
 
 /** @brief Tests that one rotary position puts a row in place of what each ring holds. */
-TEST(Unit_BlockCausalSelfAttention, TheRotaryIncrementalFormReplacesARowOfEachRing)
+TEST(Medium_BlockCausalSelfAttention, TheRotaryIncrementalFormReplacesARowOfEachRing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -652,7 +652,7 @@ TEST(Unit_BlockCausalSelfAttention, TheRotaryIncrementalFormReplacesARowOfEachRi
 }
 
 /** @brief Tests that a rotary position is fed its slot, the mask and its angles, no position. */
-TEST(Unit_BlockCausalSelfAttention, TheRotaryIncrementalFormIsFedASlotAndTheAngles)
+TEST(Medium_BlockCausalSelfAttention, TheRotaryIncrementalFormIsFedASlotAndTheAngles)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -683,7 +683,7 @@ TEST(Unit_BlockCausalSelfAttention, TheRotaryIncrementalFormIsFedASlotAndTheAngl
 namespace
 {
     /** @brief Provides the Engine every gradient case records on. */
-    class Integration_AttentionGradient : public SaTest::EngineTest
+    class Medium_AttentionGradient : public SaTest::EngineTest
     {
 
     };
@@ -906,7 +906,7 @@ namespace
  * A SCALE by one sits between LOG_SOFTMAX and NLL_LOSS, so the fused rule does not apply and
  * the gradient is (softmax(x) * rowsum(Y) - Y) / N, which the host computes.
  */
-TEST_F(Integration_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
+TEST_F(Medium_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
 {
     constexpr std::size_t K_ROWS = 3;
     constexpr std::size_t K_CLASSES = 4;
@@ -965,7 +965,7 @@ TEST_F(Integration_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
 }
 
 /** @brief Tests the gradient of a [3, 4] softmax that a matrix product reads. */
-TEST_F(Integration_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
+TEST_F(Medium_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
 {
     Probe probe(*engine, 7200, [](const GraphBuilder& builder)
     {
@@ -979,7 +979,7 @@ TEST_F(Integration_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
 }
 
 /** @brief Tests the gradient of a softmax over the last axis of a [2, 3, 4] value. */
-TEST_F(Integration_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes)
+TEST_F(Medium_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes)
 {
     Probe probe(*engine, 7300, [](const GraphBuilder& builder)
     {
@@ -992,21 +992,21 @@ TEST_F(Integration_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThrough
 }
 
 /** @brief Tests the gradient of a causal attention block at the sequence it reads. */
-TEST_F(Integration_AttentionGradient, ACausalAttentionDifferentiatesAtItsInput)
+TEST_F(Medium_AttentionGradient, ACausalAttentionDifferentiatesAtItsInput)
 {
     ASSERT_NO_FATAL_FAILURE(expect_attention_gradient_matches(
         *engine, AttentionMask::Causal, AttentionVariable::Input, 7400));
 }
 
 /** @brief Tests the gradient of a causal attention block at the weight of its qkv. */
-TEST_F(Integration_AttentionGradient, ACausalAttentionDifferentiatesAtItsProjectionWeight)
+TEST_F(Medium_AttentionGradient, ACausalAttentionDifferentiatesAtItsProjectionWeight)
 {
     ASSERT_NO_FATAL_FAILURE(expect_attention_gradient_matches(
         *engine, AttentionMask::Causal, AttentionVariable::ProjectionWeight, 7500));
 }
 
 /** @brief Tests the gradient of an attention block without the mask at the sequence it reads. */
-TEST_F(Integration_AttentionGradient, AnUnmaskedAttentionDifferentiatesAtItsInput)
+TEST_F(Medium_AttentionGradient, AnUnmaskedAttentionDifferentiatesAtItsInput)
 {
     ASSERT_NO_FATAL_FAILURE(expect_attention_gradient_matches(
         *engine, AttentionMask::None, AttentionVariable::Input, 7600));
@@ -1015,7 +1015,7 @@ TEST_F(Integration_AttentionGradient, AnUnmaskedAttentionDifferentiatesAtItsInpu
 namespace
 {
     /** @brief Provides the Engine every causal case records on. */
-    class Integration_CausalAttention : public SaTest::EngineTest
+    class Medium_CausalAttention : public SaTest::EngineTest
     {
 
     };
@@ -1157,13 +1157,13 @@ namespace
 }
 
 /** @brief Tests that the mask keeps the lower triangle and writes the fill above, in FLOAT32. */
-TEST_F(Integration_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonal)
+TEST_F(Medium_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonal)
 {
     ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(*engine, DType::Float32));
 }
 
 /** @brief Tests the same in FLOAT64, where the mask vectors are converted from FLOAT32. */
-TEST_F(Integration_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonalInFloat64)
+TEST_F(Medium_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonalInFloat64)
 {
     ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(*engine, DType::Float64));
 }
@@ -1175,7 +1175,7 @@ TEST_F(Integration_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonalInF
  * The loss is the cross-entropy of the masked [4, 4] rows, so the incoming gradient is
  * (softmax - target) / 4, which the host computes from the masked scores.
  */
-TEST_F(Integration_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlone)
+TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlone)
 {
     constexpr std::size_t K_SIDE = 4;
 
@@ -1227,7 +1227,7 @@ TEST_F(Integration_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntrie
 }
 
 /** @brief Tests that positions 0 to 2 of a masked attention keep their output exactly. */
-TEST_F(Integration_CausalAttention, AnEarlierPositionIgnoresALaterInput)
+TEST_F(Medium_CausalAttention, AnEarlierPositionIgnoresALaterInput)
 {
     CausalSelfAttention block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, AttentionMask::Causal);
     TwoRuns runs;
@@ -1240,7 +1240,7 @@ TEST_F(Integration_CausalAttention, AnEarlierPositionIgnoresALaterInput)
 }
 
 /** @brief Tests that without the mask an earlier position does read the later input. */
-TEST_F(Integration_CausalAttention, WithoutTheMaskAnEarlierPositionReadsALaterInput)
+TEST_F(Medium_CausalAttention, WithoutTheMaskAnEarlierPositionReadsALaterInput)
 {
     CausalSelfAttention block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, AttentionMask::None);
     TwoRuns runs;
@@ -1251,7 +1251,7 @@ TEST_F(Integration_CausalAttention, WithoutTheMaskAnEarlierPositionReadsALaterIn
 }
 
 /** @brief Tests that a whole causal transformer block keeps the same property. */
-TEST_F(Integration_CausalAttention, ATransformerBlockKeepsEarlierPositions)
+TEST_F(Medium_CausalAttention, ATransformerBlockKeepsEarlierPositions)
 {
     TransformerBlock block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, 4 * static_cast<int64_t>(K_MASK_DIM),
                            AttentionMask::Causal, NN::K_LAYER_NORM_EPSILON);

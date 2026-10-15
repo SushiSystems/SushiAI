@@ -3,7 +3,7 @@
 
 Buffer: its description, its one leaf per graph and its identity.
 
-Suites: `Unit_Buffer`, `Unit_BufferDeathTest`.
+Suites: `Small_Buffer`, `Small_BufferDeathTest`.
 
 Tests Buffer: its description, its one leaf per graph and its identity.
 
@@ -108,5 +108,5 @@ containing "Buffer was defined as" and "is now defined as". The starting value s
 
 ## ReadingBeforeDefineIsFatal
 
-The case is in the suite `Unit_BufferDeathTest`. `read()` on an undefined buffer stops the
+The case is in the suite `Small_BufferDeathTest`. `read()` on an undefined buffer stops the
 process with a report containing "'running_mean'" and "before define()".

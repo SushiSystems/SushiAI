@@ -171,7 +171,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the training samples have the training size and three channels. */
-TEST(Unit_DatasetsAugmentPipeline, MakesSquareSamplesOfThreeChannels)
+TEST(Small_DatasetsAugmentPipeline, MakesSquareSamplesOfThreeChannels)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_shape");
     const SampleList list = four_images(scratch);
@@ -196,7 +196,7 @@ TEST(Unit_DatasetsAugmentPipeline, MakesSquareSamplesOfThreeChannels)
 }
 
 /** @brief Tests that a sample depends on its index and its epoch, not on its batch. */
-TEST(Unit_DatasetsAugmentPipeline, ASampleDependsOnItsIndexAndItsEpochAlone)
+TEST(Small_DatasetsAugmentPipeline, ASampleDependsOnItsIndexAndItsEpochAlone)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_replay");
     const SampleList list = four_images(scratch);
@@ -224,7 +224,7 @@ TEST(Unit_DatasetsAugmentPipeline, ASampleDependsOnItsIndexAndItsEpochAlone)
 }
 
 /** @brief Tests that past the mosaic epochs a sample holds the objects of its own image. */
-TEST(Unit_DatasetsAugmentPipeline, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
+TEST(Small_DatasetsAugmentPipeline, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_closed");
     const SampleList list = four_images(scratch);
@@ -243,7 +243,7 @@ TEST(Unit_DatasetsAugmentPipeline, PastTheMosaicEpochsASampleHoldsItsOwnObjects)
 }
 
 /** @brief Tests that a mask comes out at the training size holding classes or the void byte. */
-TEST(Unit_DatasetsAugmentPipeline, AMaskTakesTheSizeOfItsSample)
+TEST(Small_DatasetsAugmentPipeline, AMaskTakesTheSizeOfItsSample)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_masks");
     SampleList list = four_images(scratch);
@@ -266,7 +266,7 @@ TEST(Unit_DatasetsAugmentPipeline, AMaskTakesTheSizeOfItsSample)
 }
 
 /** @brief Tests that an image that cannot be read is the failure, with its file. */
-TEST(Unit_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
+TEST(Small_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_pipeline_missing");
     SampleList list = four_images(scratch);
@@ -282,7 +282,7 @@ TEST(Unit_DatasetsAugmentPipeline, AnImageThatCannotBeReadIsTheFailure)
 }
 
 /** @brief Tests each refusal: a size, an epoch count, an epoch and a list out of range. */
-TEST(Unit_DatasetsAugmentPipeline, RefusesWhatItCannotMake)
+TEST(Small_DatasetsAugmentPipeline, RefusesWhatItCannotMake)
 {
     AugmentOptions options;
     options.image_size = 0;

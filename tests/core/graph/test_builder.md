@@ -1,7 +1,7 @@
 # tests/core/graph/test_builder.cpp
 
 
-Suites: `Unit_BatchedMatmul`.
+Suites: `Small_BatchedMatmul`.
 
 Tests the IR that `GraphBuilder::matmul` emits for rank-2 and rank-3 operands and that
 `GraphBuilder::softmax` emits over the last axis. Every refusal case also expects the graph's
@@ -48,7 +48,7 @@ yields [6, 3], and the result has the shape [2, 3, 3].
 
 `softmax` over a [5] input throws `Error` and adds no node.
 
-Suites: `Unit_CausalMaskOps`.
+Suites: `Small_CausalMaskOps`.
 
 Tests `GraphBuilder::causal_mask`: the node it emits, the shapes it accepts and the operands it
 refuses. Every case uses the fill -1e9.
@@ -69,7 +69,7 @@ Four calls fail with `InvalidDescription`: a [5] vector ("[..., T, T] scores"), 
 value ("[2, 4, 5]"), int32 scores ("half, float32 or float64 scores") and a fill of minus
 infinity ("finite fill"). After each the node count is unchanged and `has_refusal()` is true.
 
-Suites: `Unit_DepthwiseOps`.
+Suites: `Small_DepthwiseOps`.
 
 Tests the three depthwise emitters of `GraphBuilder`: `depthwise_conv2d`,
 `depthwise_conv2d_backward_input` and `depthwise_conv2d_backward_weight`. Most cases share one
@@ -149,12 +149,12 @@ Against a [2, 5, 5, 3] gradient, an input of another batch, of another channel c
 another element type makes the emitter throw `Error`, as does a rank-3 gradient. The node count
 does not change.
 
-Suites: `Unit_ElementwiseOps`.
+Suites: `Small_ElementwiseOps`.
 
 Tests the nodes the builder emits for the elementwise, comparison, selection and constant
 operations.
 
-This file needs no device. Every case in `Unit_ElementwiseOps` calls an emitter of
+This file needs no device. Every case in `Small_ElementwiseOps` calls an emitter of
 `modules/core/graph/include/SushiAI/graph/builder.hpp` on a host-side graph and reads the node and the value it
 wrote. The emitters are `div`, `minimum`, `maximum`, `less_equal`, `abs`, `atan`, `softplus`,
 `silu`, `select`, `activation_backward`, `constant` and `constant_like`. The cases that concern
@@ -334,7 +334,7 @@ no gradient.
 `zeros` and `zeros_like` each write a K_ZERO node with no input. K_ZERO and K_CONSTANT are two
 identities.
 
-Suites: `Unit_GatherOps`.
+Suites: `Small_GatherOps`.
 
 Tests `GraphBuilder::gather_rows` and `GraphBuilder::scatter_add_rows`: the node each emits,
 the result shape and the operands each refuses. The table has 7 rows of length 3. A refusal is
@@ -391,7 +391,7 @@ the gathered value are float32 and the `matmul` that reads the gathered value is
 gather still reads the table and the index. No reported cast has the index as its source or
 GATHER_ROWS as its op, and `find_dtype_mismatches` is empty.
 
-Suites: `Unit_LayerNormOps`.
+Suites: `Small_LayerNormOps`.
 
 Tests `GraphBuilder::layer_norm` and `GraphBuilder::layer_norm_backward`. The leaves are a
 [2, 3, 4] input, a [4] gain and a [4] bias, and the epsilon is 1e-5. A refusal is
@@ -426,7 +426,7 @@ the saved mean and the saved inverse deviation and writes dx, dgamma and dbeta, 
 A [6, 4] gradient is refused with "operand of [2, 3, 4]" and a [4] saved mean with "operand of
 [6]".
 
-Suites: `Unit_LogSoftmaxOps`.
+Suites: `Small_LogSoftmaxOps`.
 
 Tests `GraphBuilder::log_softmax_backward`.
 

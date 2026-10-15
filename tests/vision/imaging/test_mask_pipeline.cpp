@@ -147,7 +147,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a scale of 1 with no translation copies the source. */
-TEST(Unit_ImagingAffineNearest, AnIdentityPlanCopiesTheSource)
+TEST(Small_ImagingAffineNearest, AnIdentityPlanCopiesTheSource)
 {
     const ImageSize size{3, 4};
     const Image source = counting_mask(size);
@@ -163,7 +163,7 @@ TEST(Unit_ImagingAffineNearest, AnIdentityPlanCopiesTheSource)
 }
 
 /** @brief Tests that a translation moves the pixels and fills what it uncovers. */
-TEST(Unit_ImagingAffineNearest, ATranslationFillsWhatItUncoversWithTheBorderValue)
+TEST(Small_ImagingAffineNearest, ATranslationFillsWhatItUncoversWithTheBorderValue)
 {
     const ImageSize size{2, 4};
     const Image source = counting_mask(size);
@@ -180,7 +180,7 @@ TEST(Unit_ImagingAffineNearest, ATranslationFillsWhatItUncoversWithTheBorderValu
 }
 
 /** @brief Tests that a scale of 2 repeats pixels, rounding a half up, and blends none. */
-TEST(Unit_ImagingAffineNearest, AScaleRepeatsPixelsAndBlendsNone)
+TEST(Small_ImagingAffineNearest, AScaleRepeatsPixelsAndBlendsNone)
 {
     Image source(ImageSize{1, 4}, 1);
     const std::uint8_t values[] = {3, 50, 7, 120};
@@ -197,7 +197,7 @@ TEST(Unit_ImagingAffineNearest, AScaleRepeatsPixelsAndBlendsNone)
 }
 
 /** @brief Tests that every channel of a pixel moves together. */
-TEST(Unit_ImagingAffineNearest, EveryChannelOfAPixelMovesTogether)
+TEST(Small_ImagingAffineNearest, EveryChannelOfAPixelMovesTogether)
 {
     Image source(ImageSize{1, 2}, K_RGB_CHANNELS);
     const std::uint8_t values[] = {1, 2, 3, 4, 5, 6};
@@ -214,7 +214,7 @@ TEST(Unit_ImagingAffineNearest, EveryChannelOfAPixelMovesTogether)
 }
 
 /** @brief Tests each refusal: no pixels, another size, shared pixels and a sheared matrix. */
-TEST(Unit_ImagingAffineNearest, RefusesWhatItCannotWarp)
+TEST(Small_ImagingAffineNearest, RefusesWhatItCannotWarp)
 {
     const ImageSize size{2, 2};
     Image source = counting_mask(size);
@@ -238,7 +238,7 @@ TEST(Unit_ImagingAffineNearest, RefusesWhatItCannotWarp)
 }
 
 /** @brief Tests that a flipped sample's mask is its mask mirrored, with nothing resampled. */
-TEST(Unit_ImagingMaskPipeline, AFlippedSampleHasItsMaskMirrored)
+TEST(Small_ImagingMaskPipeline, AFlippedSampleHasItsMaskMirrored)
 {
     constexpr std::int32_t K_SIDE = 8;
     const ImageSize size{K_SIDE, K_SIDE};
@@ -271,7 +271,7 @@ TEST(Unit_ImagingMaskPipeline, AFlippedSampleHasItsMaskMirrored)
 }
 
 /** @brief Tests that inside every box a mosaic sample keeps, the mask holds the box's class. */
-TEST(Unit_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
+TEST(Small_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
 {
     constexpr std::int32_t K_SIDE = 32;
     const ImageSize sizes[] = {{40, 30}, {30, 40}, {32, 32}, {20, 40}};
@@ -332,7 +332,7 @@ TEST(Unit_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
 }
 
 /** @brief Tests each refusal: a failed load, several channels and a mask not of its image. */
-TEST(Unit_ImagingMaskPipeline, RefusesAMaskItCannotReplay)
+TEST(Small_ImagingMaskPipeline, RefusesAMaskItCannotReplay)
 {
     constexpr std::int32_t K_SIDE = 8;
     const ImageSize size{K_SIDE, K_SIDE};

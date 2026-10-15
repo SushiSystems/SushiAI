@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_table_dataset.cpp
 
 
-Suites: `Unit_DatasetsTableDataset`.
+Suites: `Medium_DatasetsTableDataset`.
 
 Tests `TableDataset` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/table_dataset.hpp`. The fixture is an

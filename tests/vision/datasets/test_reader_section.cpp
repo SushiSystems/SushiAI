@@ -70,7 +70,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides an engine and the sections these tests build datasets from. */
-    class Unit_DatasetsReaderSection : public SaTest::EngineTest
+    class Medium_DatasetsReaderSection : public SaTest::EngineTest
     {
         protected:
             /**
@@ -127,7 +127,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the reader table holds the eight readers of the module, by name. */
-TEST(Unit_DatasetsReaderTable, ItListsTheEightReaders)
+TEST(Small_DatasetsReaderTable, ItListsTheEightReaders)
 {
     const std::vector<std::string_view> expected = {"yolo_txt", "image_folder", "idx", "cifar",
                                                     "coco_json", "voc_xml", "mask_png", "csv"};
@@ -143,7 +143,7 @@ TEST(Unit_DatasetsReaderTable, ItListsTheEightReaders)
 }
 
 /** @brief Tests that a row lists the keys it reads of the section, and the first four none. */
-TEST(Unit_DatasetsReaderTable, ARowListsTheKeysItReads)
+TEST(Small_DatasetsReaderTable, ARowListsTheKeysItReads)
 {
     const auto keys_of = [](std::string_view name)
     {
@@ -166,7 +166,7 @@ TEST(Unit_DatasetsReaderTable, ARowListsTheKeysItReads)
 }
 
 /** @brief Tests that a row reads its keys of the request's section and names a bad one. */
-TEST(Unit_DatasetsReaderTable, ARowReadsItsKeysOfTheSection)
+TEST(Small_DatasetsReaderTable, ARowReadsItsKeysOfTheSection)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_table_keys");
     scratch.write_text("rows/set.csv", "a,b,c\n1,2,3\n");
@@ -191,7 +191,7 @@ TEST(Unit_DatasetsReaderTable, ARowReadsItsKeysOfTheSection)
 }
 
 /** @brief Tests that the mask_png row passes the class count and the folders it is given. */
-TEST(Unit_DatasetsReaderTable, TheMaskPNGRowPassesTheClassCountAndTheFolders)
+TEST(Small_DatasetsReaderTable, TheMaskPNGRowPassesTheClassCountAndTheFolders)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_table_masks");
     scratch.write("pictures/train/a.jpg", {1});
@@ -213,7 +213,7 @@ TEST(Unit_DatasetsReaderTable, TheMaskPNGRowPassesTheClassCountAndTheFolders)
 }
 
 /** @brief Tests that the voc_xml row passes the class list and the difficult flag. */
-TEST(Unit_DatasetsReaderTable, TheVOCXMLRowPassesTheClassListAndTheFlag)
+TEST(Small_DatasetsReaderTable, TheVOCXMLRowPassesTheClassListAndTheFlag)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_table_voc");
     scratch.write_text("ImageSets/Main/train.txt", "a\n");
@@ -241,7 +241,7 @@ TEST(Unit_DatasetsReaderTable, TheVOCXMLRowPassesTheClassListAndTheFlag)
 }
 
 /** @brief Tests that the cifar row refuses a class count no CIFAR labels have. */
-TEST(Unit_DatasetsReaderTable, TheCIFARRowRefusesAnotherClassCount)
+TEST(Small_DatasetsReaderTable, TheCIFARRowRefusesAnotherClassCount)
 {
     ReaderRequest request;
     request.root = "sushiai_absent_cifar";
@@ -254,7 +254,7 @@ TEST(Unit_DatasetsReaderTable, TheCIFARRowRefusesAnotherClassCount)
 }
 
 /** @brief Tests that detection letterboxes and reads max_objects, and classification resizes. */
-TEST(Unit_DatasetsTaskTable, EachTaskStatesItsFitAndItsKeys)
+TEST(Small_DatasetsTaskTable, EachTaskStatesItsFitAndItsKeys)
 {
     const TaskEntry* const detection = find_task(K_TASK_DETECTION);
     ASSERT_NE(detection, nullptr);
@@ -287,7 +287,7 @@ TEST(Unit_DatasetsTaskTable, EachTaskStatesItsFitAndItsKeys)
 }
 
 /** @brief Tests that a task row builds the collator of its task from one request. */
-TEST(Unit_DatasetsTaskTable, ARowBuildsTheCollatorOfItsTask)
+TEST(Small_DatasetsTaskTable, ARowBuildsTheCollatorOfItsTask)
 {
     const Config::Value section = SaTest::attributes_from(R"({"max_objects": 5})");
 
@@ -309,7 +309,7 @@ TEST(Unit_DatasetsTaskTable, ARowBuildsTheCollatorOfItsTask)
 }
 
 /** @brief Tests that the binary row reads "positive" as a class name or as an index. */
-TEST(Unit_DatasetsTaskTable, TheBinaryRowReadsThePositiveClass)
+TEST(Small_DatasetsTaskTable, TheBinaryRowReadsThePositiveClass)
 {
     SampleList list;
     list.class_names = {"cat", "dog"};
@@ -340,7 +340,7 @@ TEST(Unit_DatasetsTaskTable, TheBinaryRowReadsThePositiveClass)
 }
 
 /** @brief Tests that the segmentation row reads "ignore_index" and refuses one that is a class. */
-TEST(Unit_DatasetsTaskTable, TheSegmentationRowReadsTheIgnoreIndex)
+TEST(Small_DatasetsTaskTable, TheSegmentationRowReadsTheIgnoreIndex)
 {
     const SampleList list;
     const CollatorRequest request{list, 3, ImageSize{4, 4}};
@@ -364,7 +364,7 @@ TEST(Unit_DatasetsTaskTable, TheSegmentationRowReadsTheIgnoreIndex)
 }
 
 /** @brief Tests that a detection section over a YOLO split yields letterboxed batches. */
-TEST_F(Unit_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
+TEST_F(Medium_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_detection");
     write_yolo_split(scratch);
@@ -406,7 +406,7 @@ TEST_F(Unit_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
 }
 
 /** @brief Tests that a classification section takes the class count of its folders. */
-TEST_F(Unit_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheList)
+TEST_F(Medium_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheList)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_folder");
     write_folder_split(scratch);
@@ -423,7 +423,7 @@ TEST_F(Unit_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheLis
 }
 
 /** @brief Tests that a section may state more classes than its samples name, and not fewer. */
-TEST_F(Unit_DatasetsReaderSection, TheClassCountMayExceedTheListAndNotFallBelowIt)
+TEST_F(Medium_DatasetsReaderSection, TheClassCountMayExceedTheListAndNotFallBelowIt)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_classes");
     write_folder_split(scratch);
@@ -441,7 +441,7 @@ TEST_F(Unit_DatasetsReaderSection, TheClassCountMayExceedTheListAndNotFallBelowI
 }
 
 /** @brief Tests that a reader the table lacks is refused with every reader it holds. */
-TEST_F(Unit_DatasetsReaderSection, AnUnknownReaderListsTheKnownOnes)
+TEST_F(Medium_DatasetsReaderSection, AnUnknownReaderListsTheKnownOnes)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_reader");
 
@@ -453,7 +453,7 @@ TEST_F(Unit_DatasetsReaderSection, AnUnknownReaderListsTheKnownOnes)
 }
 
 /** @brief Tests that a task the table lacks is refused with every task it holds. */
-TEST_F(Unit_DatasetsReaderSection, AnUnknownTaskListsTheKnownOnes)
+TEST_F(Medium_DatasetsReaderSection, AnUnknownTaskListsTheKnownOnes)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_task");
 
@@ -465,7 +465,7 @@ TEST_F(Unit_DatasetsReaderSection, AnUnknownTaskListsTheKnownOnes)
 }
 
 /** @brief Tests that a key no section reads, and a key of another task, are both refused. */
-TEST_F(Unit_DatasetsReaderSection, AKeyTheTaskDoesNotReadIsRefused)
+TEST_F(Medium_DatasetsReaderSection, AKeyTheTaskDoesNotReadIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_keys");
 
@@ -480,7 +480,7 @@ TEST_F(Unit_DatasetsReaderSection, AKeyTheTaskDoesNotReadIsRefused)
 }
 
 /** @brief Tests that a detection section without its object slots is refused by key. */
-TEST_F(Unit_DatasetsReaderSection, ADetectionSectionNeedsMaxObjects)
+TEST_F(Medium_DatasetsReaderSection, ADetectionSectionNeedsMaxObjects)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_slots");
     write_yolo_split(scratch);
@@ -492,7 +492,7 @@ TEST_F(Unit_DatasetsReaderSection, ADetectionSectionNeedsMaxObjects)
 }
 
 /** @brief Tests that an input of another length and a count below its bound are refused. */
-TEST_F(Unit_DatasetsReaderSection, ValuesOutsideTheirBoundsAreRefused)
+TEST_F(Medium_DatasetsReaderSection, ValuesOutsideTheirBoundsAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_bounds");
 
@@ -511,7 +511,7 @@ TEST_F(Unit_DatasetsReaderSection, ValuesOutsideTheirBoundsAreRefused)
 }
 
 /** @brief Tests that the failure of the reader reaches the caller with its path. */
-TEST_F(Unit_DatasetsReaderSection, TheFailureOfTheReaderIsReturned)
+TEST_F(Medium_DatasetsReaderSection, TheFailureOfTheReaderIsReturned)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_absent");
 
@@ -522,7 +522,7 @@ TEST_F(Unit_DatasetsReaderSection, TheFailureOfTheReaderIsReturned)
 }
 
 /** @brief Tests that a regression section over a CSV file yields rows and their targets. */
-TEST_F(Unit_DatasetsReaderSection, ARegressionSectionReadsTheRowsOfACSVFile)
+TEST_F(Medium_DatasetsReaderSection, ARegressionSectionReadsTheRowsOfACSVFile)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_regression");
     scratch.write_text("train.csv", "a,b,y\n1,2,3\n4,5,6\n7,8,9\n");
@@ -551,7 +551,7 @@ TEST_F(Unit_DatasetsReaderSection, ARegressionSectionReadsTheRowsOfACSVFile)
 }
 
 /** @brief Tests that a segmentation section letterboxes a mask and pads with the ignore index. */
-TEST_F(Unit_DatasetsReaderSection, ASegmentationSectionFitsTheMaskOfEachImage)
+TEST_F(Medium_DatasetsReaderSection, ASegmentationSectionFitsTheMaskOfEachImage)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_segmentation");
     Support::write_raw_image(scratch, "images/train/a.saim",
@@ -580,7 +580,7 @@ TEST_F(Unit_DatasetsReaderSection, ASegmentationSectionFitsTheMaskOfEachImage)
 }
 
 /** @brief Tests that a mask of another size than its image is refused with the mask file. */
-TEST_F(Unit_DatasetsReaderSection, AMaskOfAnotherSizeThanItsImageIsRefused)
+TEST_F(Medium_DatasetsReaderSection, AMaskOfAnotherSizeThanItsImageIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_mask_size");
     Support::write_raw_image(scratch, "images/train/a.saim",
@@ -599,7 +599,7 @@ TEST_F(Unit_DatasetsReaderSection, AMaskOfAnotherSizeThanItsImageIsRefused)
 }
 
 /** @brief Tests that a binary section writes 1 for the class its "positive" names. */
-TEST_F(Unit_DatasetsReaderSection, ABinarySectionWritesOneForThePositiveFolder)
+TEST_F(Medium_DatasetsReaderSection, ABinarySectionWritesOneForThePositiveFolder)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_binary");
     Support::write_raw_image(scratch, "train/cat/a.saim",
@@ -624,7 +624,7 @@ TEST_F(Unit_DatasetsReaderSection, ABinarySectionWritesOneForThePositiveFolder)
 }
 
 /** @brief Tests that a multi-label section flags the classes of each image's objects. */
-TEST_F(Unit_DatasetsReaderSection, AMultiLabelSectionFlagsTheClassesOfTheObjects)
+TEST_F(Medium_DatasetsReaderSection, AMultiLabelSectionFlagsTheClassesOfTheObjects)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_multi_label");
     write_yolo_split(scratch);
@@ -645,7 +645,7 @@ TEST_F(Unit_DatasetsReaderSection, AMultiLabelSectionFlagsTheClassesOfTheObjects
 }
 
 /** @brief Tests that a task of images over rows of numbers, and the reverse, are refused. */
-TEST_F(Unit_DatasetsReaderSection, ATaskAndAReaderOfAnotherSampleKindAreRefused)
+TEST_F(Medium_DatasetsReaderSection, ATaskAndAReaderOfAnotherSampleKindAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_kinds");
     scratch.write_text("train.csv", "a,y\n1,2\n");
@@ -663,7 +663,7 @@ TEST_F(Unit_DatasetsReaderSection, ATaskAndAReaderOfAnotherSampleKindAreRefused)
 }
 
 /** @brief Tests that a key of another reader is refused and the keys allowed are listed. */
-TEST_F(Unit_DatasetsReaderSection, AKeyOfAnotherReaderIsRefused)
+TEST_F(Medium_DatasetsReaderSection, AKeyOfAnotherReaderIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_reader_keys");
 
@@ -674,7 +674,7 @@ TEST_F(Unit_DatasetsReaderSection, AKeyOfAnotherReaderIsRefused)
 }
 
 /** @brief Tests that "cache" writes raw image files and that the batches are read from them. */
-TEST_F(Unit_DatasetsReaderSection, ACacheIsWrittenAndRead)
+TEST_F(Medium_DatasetsReaderSection, ACacheIsWrittenAndRead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_cache");
     write_yolo_split(scratch);
@@ -703,7 +703,7 @@ TEST_F(Unit_DatasetsReaderSection, ACacheIsWrittenAndRead)
 }
 
 /** @brief Tests that "shuffle", "seed" and "pipeline" build a dataset that reads a batch. */
-TEST_F(Unit_DatasetsReaderSection, AShuffledSectionWithThePipelineReadsABatch)
+TEST_F(Medium_DatasetsReaderSection, AShuffledSectionWithThePipelineReadsABatch)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_pipeline");
     write_yolo_split(scratch);
@@ -723,7 +723,7 @@ TEST_F(Unit_DatasetsReaderSection, AShuffledSectionWithThePipelineReadsABatch)
 }
 
 /** @brief Tests that an unknown pipeline lists the rows, and that default needs a square input. */
-TEST_F(Unit_DatasetsReaderSection, APipelineTheTableLacksIsRefused)
+TEST_F(Medium_DatasetsReaderSection, APipelineTheTableLacksIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_pipeline_names");
     write_yolo_split(scratch);
@@ -740,7 +740,7 @@ TEST_F(Unit_DatasetsReaderSection, APipelineTheTableLacksIsRefused)
 }
 
 /** @brief Tests that "workers" puts the dataset behind a loader that reads the same batches. */
-TEST_F(Unit_DatasetsReaderSection, WorkersReadTheSameBatchesAhead)
+TEST_F(Medium_DatasetsReaderSection, WorkersReadTheSameBatchesAhead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_workers");
     write_yolo_split(scratch);
@@ -774,7 +774,7 @@ TEST_F(Unit_DatasetsReaderSection, WorkersReadTheSameBatchesAhead)
 }
 
 /** @brief Tests the refusals of the loader keys and of an image key on a section of rows. */
-TEST_F(Unit_DatasetsReaderSection, KeysThatDoNotApplyAreRefused)
+TEST_F(Medium_DatasetsReaderSection, KeysThatDoNotApplyAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_misplaced");
     write_yolo_split(scratch);
@@ -796,7 +796,7 @@ TEST_F(Unit_DatasetsReaderSection, KeysThatDoNotApplyAreRefused)
 }
 
 /** @brief Tests that a segmentation section over polygons paints them into the mask. */
-TEST_F(Unit_DatasetsReaderSection, ASegmentationSectionPaintsThePolygonsOfALabelFile)
+TEST_F(Medium_DatasetsReaderSection, ASegmentationSectionPaintsThePolygonsOfALabelFile)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_polygons");
     Support::write_raw_image(scratch, "images/train/a.saim",

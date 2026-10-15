@@ -85,7 +85,7 @@ namespace
 }
 
 /** @brief Tests that a trace is two normalised branches, each added to what it read. */
-TEST(Unit_BlockTransformerBlock, ATraceAddsANormalisedAttentionThenANormalisedFeedForward)
+TEST(Small_BlockTransformerBlock, ATraceAddsANormalisedAttentionThenANormalisedFeedForward)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -120,7 +120,7 @@ TEST(Unit_BlockTransformerBlock, ATraceAddsANormalisedAttentionThenANormalisedFe
 }
 
 /** @brief Tests that the mask option reaches the attention: no CAUSAL_MASK without it. */
-TEST(Unit_BlockTransformerBlock, ABlockWithoutAMaskEmitsNone)
+TEST(Small_BlockTransformerBlock, ABlockWithoutAMaskEmitsNone)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -135,7 +135,7 @@ TEST(Unit_BlockTransformerBlock, ABlockWithoutAMaskEmitsNone)
 }
 
 /** @brief Tests that the walk names the twelve parameters under the four children, in order. */
-TEST(Unit_BlockTransformerBlock, TheWalkYieldsTheFourChildren)
+TEST(Small_BlockTransformerBlock, TheWalkYieldsTheFourChildren)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -164,7 +164,7 @@ TEST(Unit_BlockTransformerBlock, TheWalkYieldsTheFourChildren)
 }
 
 /** @brief Tests that an input of another width fails once, with the first child's message. */
-TEST(Unit_BlockTransformerBlock, AnInputThatDoesNotFitFails)
+TEST(Small_BlockTransformerBlock, AnInputThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -181,7 +181,7 @@ TEST(Unit_BlockTransformerBlock, AnInputThatDoesNotFitFails)
 }
 
 /** @brief Tests that the factory reads its keys, and takes four times the width as hidden. */
-TEST(Unit_BlockTransformerBlock, TheFactoryReadsItsKeysOverTheirDefaults)
+TEST(Small_BlockTransformerBlock, TheFactoryReadsItsKeysOverTheirDefaults)
 {
     const Shape input{5, K_DIM};
     const Config::Value plain = Config::parse_json(R"({"heads": 2})", "<test>");
@@ -214,7 +214,7 @@ TEST(Unit_BlockTransformerBlock, TheFactoryReadsItsKeysOverTheirDefaults)
 }
 
 /** @brief Tests that the factory refuses a stray key, no heads and heads that do not divide. */
-TEST(Unit_BlockTransformerBlock, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockTransformerBlock, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{5, K_DIM};
     const Config::Value stray = Config::parse_json(R"({"heads": 2, "depth": 3})", "<test>");
@@ -236,7 +236,7 @@ TEST(Unit_BlockTransformerBlock, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that one position of a block normalises twice and carries the two caches. */
-TEST(Unit_BlockTransformerBlock, TheIncrementalFormTracesEachChildOverOnePosition)
+TEST(Small_BlockTransformerBlock, TheIncrementalFormTracesEachChildOverOnePosition)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -261,7 +261,7 @@ TEST(Unit_BlockTransformerBlock, TheIncrementalFormTracesEachChildOverOnePositio
 }
 
 /** @brief Tests that the incremental form declares the parameters the ordinary form declares. */
-TEST(Unit_BlockTransformerBlock, BothFormsDeclareTheSameParameters)
+TEST(Small_BlockTransformerBlock, BothFormsDeclareTheSameParameters)
 {
     TransformerBlock whole(K_DIM, K_HEADS, K_HIDDEN, AttentionMask::Causal,
                            NN::K_LAYER_NORM_EPSILON);
@@ -287,7 +287,7 @@ TEST(Unit_BlockTransformerBlock, BothFormsDeclareTheSameParameters)
 }
 
 /** @brief Tests that a block without a mask fails the trace through its attention. */
-TEST(Unit_BlockTransformerBlock, AnUnmaskedBlockHasNoIncrementalForm)
+TEST(Small_BlockTransformerBlock, AnUnmaskedBlockHasNoIncrementalForm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -303,7 +303,7 @@ TEST(Unit_BlockTransformerBlock, AnUnmaskedBlockHasNoIncrementalForm)
 }
 
 /** @brief Tests that the factory hands "positions" to the attention and refuses an odd head. */
-TEST(Unit_BlockTransformerBlock, TheFactoryPassesThePositionsToItsAttention)
+TEST(Small_BlockTransformerBlock, TheFactoryPassesThePositionsToItsAttention)
 {
     const Shape input{5, K_DIM};
     const Shape odd{5, 6};

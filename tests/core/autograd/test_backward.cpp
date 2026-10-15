@@ -74,7 +74,7 @@ namespace SushiAI
         using Graph::TensorLayout;
         using Graph::ValueID;
 
-        TEST(Unit_Layout, EveryValueIsNHWCUnlessSaidOtherwise)
+        TEST(Small_Layout, EveryValueIsNHWCUnlessSaidOtherwise)
         {
             // A value that states no layout is NHWC; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -84,7 +84,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[x].layout, TensorLayout::NHWC);
         }
 
-        TEST(Unit_Layout, FinaliseAcceptsAUniformGraph)
+        TEST(Small_Layout, FinaliseAcceptsAUniformGraph)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -95,7 +95,7 @@ namespace SushiAI
             EXPECT_NO_THROW(graph.finalise());
         }
 
-        TEST(Unit_Layout, FinaliseRejectsAMixedGraphAndNamesTheValue)
+        TEST(Small_Layout, FinaliseRejectsAMixedGraphAndNamesTheValue)
         {
             // A mixed graph fails finalise(); see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -109,7 +109,7 @@ namespace SushiAI
             EXPECT_THROW(graph.finalise(), Error);
         }
 
-        TEST(Unit_Layout, LayoutConvertIsAllowedToChangeIt)
+        TEST(Small_Layout, LayoutConvertIsAllowedToChangeIt)
         {
             // LAYOUT_CONVERT alone may change the layout; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -121,7 +121,7 @@ namespace SushiAI
             EXPECT_NO_THROW(graph.finalise());
         }
 
-        TEST(Unit_Layout, DeclareLikeInheritsTheSourceValuesLayout)
+        TEST(Small_Layout, DeclareLikeInheritsTheSourceValuesLayout)
         {
             // declare_like carries the layout forward; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -162,7 +162,7 @@ namespace SushiAI
             }
         }
 
-        TEST(Unit_Layout, FusionCarriesTheLayoutTagAcrossItsRebuild)
+        TEST(Small_Layout, FusionCarriesTheLayoutTagAcrossItsRebuild)
         {
             // fuse() copies the layout tag of every value; see tests/core/autograd/README.md.
             Crossed c = make_crossed();
@@ -175,7 +175,7 @@ namespace SushiAI
                    "a no-op that copies transposed data through";
         }
 
-        TEST(Unit_Layout, CastInsertionCarriesTheLayoutTagAcrossItsRebuild)
+        TEST(Small_Layout, CastInsertionCarriesTheLayoutTagAcrossItsRebuild)
         {
             // Cast insertion copies the layout tag as well; see tests/core/autograd/README.md.
             Crossed c = make_crossed();
@@ -187,7 +187,7 @@ namespace SushiAI
                 << "insert_casts() reset a NCHW value to NHWC";
         }
 
-        TEST(Unit_Layout, ARebuiltGraphStillProvesUniform)
+        TEST(Small_Layout, ARebuiltGraphStillProvesUniform)
         {
             // The proof is re-run on tags that survived; see tests/core/autograd/README.md.
             Crossed c = make_crossed();
@@ -199,7 +199,7 @@ namespace SushiAI
             EXPECT_NO_THROW(c.graph.finalise());
         }
 
-        TEST(Unit_Layout, TheThreeRulesThatEmitZerosCannotBeReachedWithAnNCHWOperand)
+        TEST(Small_Layout, TheThreeRulesThatEmitZerosCannotBeReachedWithAnNCHWOperand)
         {
             // Rank-4 emitters refuse an NCHW operand (CV-3); see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -225,7 +225,7 @@ namespace SushiAI
             EXPECT_THROW(graph.finalise(), Error);
         }
 
-        TEST(Unit_Layout, ZerosLikeCarriesTheTagAndPlainZerosCannot)
+        TEST(Small_Layout, ZerosLikeCarriesTheTagAndPlainZerosCannot)
         {
             // zeros_like() inherits its operand's layout; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -242,7 +242,7 @@ namespace SushiAI
                       TensorLayout::NHWC);
         }
 
-        TEST(Unit_Layout, FinaliseStillPropagatesRequiresGrad)
+        TEST(Small_Layout, FinaliseStillPropagatesRequiresGrad)
         {
             // finalise() still propagates requires_grad; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -336,7 +336,7 @@ namespace
     }
 }
 
-TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
+TEST(Small_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 {
     const UniformPrecisionPolicy policy;
 
@@ -348,7 +348,7 @@ TEST(Unit_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
     EXPECT_EQ(policy.name(), "fp32");
 }
 
-TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
+TEST(Small_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
 {
     // Every narrowing operation is listed here; see tests/core/autograd/README.md.
     const OpID narrows[] = {
@@ -414,7 +414,7 @@ TEST(Unit_Precision, OnlyTheProductAndWhatAGEMMFoldsIntoItNarrow)
               Ops::K_ALL.size());
 }
 
-TEST(Unit_Precision, TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecision)
+TEST(Small_Precision, TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecision)
 {
     // None of the three is in the narrowing set, so each keeps its declared type.
     const MixedPrecisionPolicy policy;
@@ -434,7 +434,7 @@ TEST(Unit_Precision, TheDepthwiseIdentitiesKeepTheirDeclaredTypeUnderMixedPrecis
     }
 }
 
-TEST(Unit_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
+TEST(Small_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
 {
     // The catalog folds GELU and the policy keeps it wide; see tests/core/autograd/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id))
@@ -451,7 +451,7 @@ TEST(Unit_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
     EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::K_RELU.id));
 }
 
-TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
+TEST(Small_Precision, ChoosingIsIdempotentForEveryOperation)
 {
     // choose() is idempotent for every operation; see tests/core/autograd/README.md.
     const MixedPrecisionPolicy policy;
@@ -465,7 +465,7 @@ TEST(Unit_Precision, ChoosingIsIdempotentForEveryOperation)
         }
 }
 
-TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
+TEST(Small_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
 {
     const MixedPrecisionPolicy policy;
 
@@ -487,14 +487,14 @@ TEST(Unit_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
               DType::Float32);
 }
 
-TEST(Unit_Precision, ANonFloatLowTypeIsRefusedAtConstruction)
+TEST(Small_Precision, ANonFloatLowTypeIsRefusedAtConstruction)
 {
     EXPECT_THROW(MixedPrecisionPolicy{DType::Int32}, Error);
     EXPECT_THROW(MixedPrecisionPolicy{DType::Complex32}, Error);
     EXPECT_NO_THROW(MixedPrecisionPolicy{DType::Half});
 }
 
-TEST(Unit_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
+TEST(Small_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
 {
     const MixedPrecisionPolicy policy;
 
@@ -503,7 +503,7 @@ TEST(Unit_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
             << entry.name << " was decided without a reason";
 }
 
-TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
+TEST(Small_CastInsertion, TheUniformPolicyInsertsNoCasts)
 {
     // The fp32 policy inserts zero casts; see tests/core/autograd/README.md.
     Traced traced = trace();
@@ -530,7 +530,7 @@ TEST(Unit_CastInsertion, TheUniformPolicyInsertsNoCasts)
         EXPECT_EQ(traced.graph.value(id).dtype, DType::Float32);
 }
 
-TEST(Unit_CastInsertion, NoPolicyMeansTheUniformPolicy)
+TEST(Small_CastInsertion, NoPolicyMeansTheUniformPolicy)
 {
     Traced traced = trace();
     const std::size_t nodes_before = traced.graph.node_count();
@@ -541,7 +541,7 @@ TEST(Unit_CastInsertion, NoPolicyMeansTheUniformPolicy)
     EXPECT_EQ(traced.graph.node_count(), nodes_before);
 }
 
-TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
+TEST(Small_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 {
     // Every operand agrees with its node's computing type; see tests/core/autograd/README.md.
     Traced traced = trace();
@@ -562,7 +562,7 @@ TEST(Unit_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
     EXPECT_TRUE(mismatches.empty()) << describe_all(mismatches);
 }
 
-TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
+TEST(Small_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 {
     // Fusion runs after the casts and keeps the invariant; see tests/core/autograd/README.md.
     Traced traced = trace();
@@ -602,7 +602,7 @@ TEST(Unit_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     }
 }
 
-TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
+TEST(Small_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 {
     // The checker reports a graph that is wrong; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -627,7 +627,7 @@ TEST(Unit_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
     EXPECT_NE(Graph::describe(mismatches.front()).find("sushiai.matmul"), std::string::npos);
 }
 
-TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
+TEST(Small_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
 {
     Traced traced = trace();
 
@@ -660,7 +660,7 @@ TEST(Unit_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
     }
 }
 
-TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
+TEST(Small_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
 {
     // An fp16 gradient is widened into its fp32 buffer; see tests/core/autograd/README.md.
     Traced traced = trace();
@@ -701,7 +701,7 @@ TEST(Unit_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
     EXPECT_EQ(report.count_into(DType::Float32) > 0, true);
 }
 
-TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
+TEST(Small_CastInsertion, AccumulatingGradientContributionsHappensWide)
 {
     // ACCUMULATE's result aliases its accumulator's buffer; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -744,7 +744,7 @@ TEST(Unit_CastInsertion, AccumulatingGradientContributionsHappensWide)
         }
 }
 
-TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
+TEST(Small_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
 {
     // An observed activation keeps its dtype; see tests/core/autograd/README.md.
     Traced pinned = trace();
@@ -774,7 +774,7 @@ TEST(Unit_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
     EXPECT_THROW(Graph::insert_casts(other.graph, bad), Error);
 }
 
-TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
+TEST(Small_CastInsertion, AValueReadTwiceIsConvertedOnce)
 {
     // w2 has two readers and one conversion; see tests/core/autograd/README.md.
     Traced traced = trace();
@@ -820,7 +820,7 @@ TEST(Unit_CastInsertion, AValueReadTwiceIsConvertedOnce)
     EXPECT_EQ(readers, 2u);
 }
 
-TEST(Unit_CastInsertion, ValueIDsSurviveThePass)
+TEST(Small_CastInsertion, ValueIDsSurviveThePass)
 {
     Traced traced = trace();
     const std::size_t values_before = traced.graph.value_count();
@@ -850,7 +850,7 @@ TEST(Unit_CastInsertion, ValueIDsSurviveThePass)
     }
 }
 
-TEST(Unit_CastInsertion, RunningThePassTwiceAddsNothingTheSecondTime)
+TEST(Small_CastInsertion, RunningThePassTwiceAddsNothingTheSecondTime)
 {
     Traced traced = trace();
 
@@ -873,7 +873,7 @@ TEST(Unit_CastInsertion, RunningThePassTwiceAddsNothingTheSecondTime)
     EXPECT_EQ(traced.graph.value_count(), values);
 }
 
-TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
+TEST(Small_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
 {
     Traced traced = trace();
 
@@ -898,7 +898,7 @@ TEST(Unit_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
     EXPECT_NE(report.to_string().find("casts inserted"), std::string::npos);
 }
 
-TEST(Unit_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
+TEST(Small_CastInsertion, AGraphThatIsNotInTopologicalOrderIsRefused)
 {
     // A conversion sits immediately before its consumer; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -973,7 +973,7 @@ namespace
     }
 }
 
-TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
+TEST(Small_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
 {
     // The INT64 argmax is not converted; see tests/core/autograd/README.md.
     Pooled p = trace_pool();
@@ -990,7 +990,7 @@ TEST(Unit_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
         << "a CAST was wrapped around the index buffer, which is a rounding policy nobody asked for";
 }
 
-TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
+TEST(Small_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
 {
     Pooled p = trace_pool();
 
@@ -1007,7 +1007,7 @@ TEST(Unit_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
     EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
 }
 
-TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
+TEST(Small_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 {
     // A pinned argmax keeps its id and its INT64 buffer; see tests/core/autograd/README.md.
     Pooled p = trace_pool();
@@ -1023,7 +1023,7 @@ TEST(Unit_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 }
 
 /** @brief Tests that the cast pass keeps a buffer's type, lifetime and state leaf. */
-TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass)
+TEST(Small_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1061,7 +1061,7 @@ TEST(Unit_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass
 }
 
 /** @brief Tests that the mixed policy leaves BATCHNORM_FOLD and its four operands in fp32. */
-TEST(Unit_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
+TEST(Small_CastInsertion, BatchNormFoldStaysInTheMasterTypeUnderTheMixedPolicy)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1146,7 +1146,7 @@ namespace
     }
 }
 
-TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
+TEST(Small_Rematerialise, TheColumnBufferStopsBeingAnActivation)
 {
     // The column buffer's lifetime drops to SCRATCH; see tests/core/autograd/README.md.
     ConvGraph c;
@@ -1165,7 +1165,7 @@ TEST(Unit_Rematerialise, TheColumnBufferStopsBeingAnActivation)
     EXPECT_EQ(readers_of(c.graph, c.cols).size(), std::size_t{1});
 }
 
-TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
+TEST(Small_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 {
     // The clone reads the same operands and attributes; see tests/core/autograd/README.md.
     ConvGraph c;
@@ -1204,7 +1204,7 @@ TEST(Unit_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
     EXPECT_EQ(clones, std::size_t{1});
 }
 
-TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
+TEST(Small_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
 {
     // A clone precedes every consumer it serves; see tests/core/autograd/README.md.
     ConvGraph c;
@@ -1227,7 +1227,7 @@ TEST(Unit_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
     EXPECT_NO_THROW(c.graph.finalise());
 }
 
-TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
+TEST(Small_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 {
     // An inference graph has no second consumer; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -1247,7 +1247,7 @@ TEST(Unit_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
     EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::Activation);
 }
 
-TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
+TEST(Small_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
 {
     // A column matrix with one reader is not cloned; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -1270,7 +1270,7 @@ TEST(Unit_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
     EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::Activation);
 }
 
-TEST(Unit_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
+TEST(Small_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
 {
     // The clone has one consumer, so a second run adds none; see tests/core/autograd/README.md.
     ConvGraph c;
@@ -1346,7 +1346,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Backward, EveryImplementedOperationHasARule)
+TEST(Small_Backward, EveryImplementedOperationHasARule)
 {
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_MATMUL.id));
     EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_BIAS_ADD.id));
@@ -1400,7 +1400,7 @@ TEST(Unit_Backward, EveryImplementedOperationHasARule)
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CAST.id));
 }
 
-TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
+TEST(Small_Backward, EveryRuleInTheTableIsNamedByANumericTest)
 {
     // Every rule names the numeric test that proves it; see tests/core/autograd/README.md.
     struct Proven
@@ -1410,79 +1410,79 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     };
 
     const std::vector<Proven> ledger = {
-        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithoutTransposes"},
-        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithATransposedRightOperand"},
-        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithATransposedLeftOperand"},
-        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulWithBothOperandsTransposed"},
-        {Ops::K_MATMUL.id,     "Integration_Autograd.MatmulGradientOfTheRightOperand"},
+        {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithoutTransposes"},
+        {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithATransposedRightOperand"},
+        {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithATransposedLeftOperand"},
+        {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithBothOperandsTransposed"},
+        {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulGradientOfTheRightOperand"},
         {Ops::K_GATHER_ROWS.id,
-         "Integration_Autograd.GatherRowsScatterAddsARepeatedIndexIntoItsTable"},
+         "Medium_Autograd.GatherRowsScatterAddsARepeatedIndexIntoItsTable"},
         {Ops::K_GATHER_ROWS.id,
-         "Integration_Autograd.GatherRowsOverARankTwoIndexDifferentiatesThroughItsReshape"},
+         "Medium_Autograd.GatherRowsOverARankTwoIndexDifferentiatesThroughItsReshape"},
         {Ops::K_SCATTER_ADD_ROWS.id,
-         "Integration_Autograd.ScatterAddRowsGathersARepeatedIndexBackOntoItsRows"},
+         "Medium_Autograd.ScatterAddRowsGathersARepeatedIndexBackOntoItsRows"},
         {Ops::K_SCATTER_ADD_ROWS.id,
-         "Integration_Autograd.ScatterAddRowsOverARankTwoIndexGathersInTheRowsOwnShape"},
+         "Medium_Autograd.ScatterAddRowsOverARankTwoIndexGathersInTheRowsOwnShape"},
         {Ops::K_LAYER_NORM.id,
-         "Integration_LayerNorm.TheInputGradientMatchesCentralDifferences"},
+         "Medium_LayerNorm.TheInputGradientMatchesCentralDifferences"},
         {Ops::K_LAYER_NORM.id,
-         "Integration_LayerNorm.TheGainGradientMatchesCentralDifferences"},
+         "Medium_LayerNorm.TheGainGradientMatchesCentralDifferences"},
         {Ops::K_LAYER_NORM.id,
-         "Integration_LayerNorm.TheBiasGradientMatchesCentralDifferences"},
+         "Medium_LayerNorm.TheBiasGradientMatchesCentralDifferences"},
         {Ops::K_CAUSAL_MASK.id,
-         "Integration_CausalAttention.TheMaskPassesItsGradientThroughTheKeptEntriesAlone"},
+         "Medium_CausalAttention.TheMaskPassesItsGradientThroughTheKeptEntriesAlone"},
         {Ops::K_DROPOUT.id,
-         "Integration_Dropout.TheGradientAtTheInputIsTheMaskOfThatStep"},
-        {Ops::K_BIAS_ADD.id,   "Integration_Autograd.BiasAddPassesTheMatrixGradientThrough"},
-        {Ops::K_BIAS_ADD.id,   "Integration_Autograd.BiasAddSumsOverTheBroadcastAxis"},
-        {Ops::K_ADD.id,        "Integration_Autograd.ElementwiseAddAndSubtract"},
-        {Ops::K_SUB.id,        "Integration_Autograd.ElementwiseSubtractFromTheRight"},
-        {Ops::K_MUL.id,        "Integration_Autograd.ElementwiseMultiply"},
-        {Ops::K_MUL.id,        "Integration_Autograd.ElementwiseMultiplyFromTheRight"},
-        {Ops::K_SCALE.id,      "Integration_Autograd.Scale"},
-        {Ops::K_EXP.id,        "Integration_Autograd.Exp"},
-        {Ops::K_RELU.id,       "Integration_Autograd.ReLUAwayFromItsKink"},
-        {Ops::K_GELU.id,       "Integration_Autograd.GELU"},
-        {Ops::K_SIGMOID.id,    "Integration_Autograd.SigmoidReadsItsForwardOutput"},
-        {Ops::K_TANH.id,       "Integration_Autograd.TanhReadsItsForwardOutput"},
-        {Ops::K_LEAKY_RELU.id, "Integration_Autograd.LeakyReLUHasBothOfItsSlopes"},
-        {Ops::K_SUM_ROWS.id,   "Integration_Autograd.SumRowsBroadcastsItsGradientBack"},
-        {Ops::K_ACCUMULATE.id, "Integration_Autograd.AccumulateInTheForwardGraph"},
-        {Ops::K_NLL_LOSS.id,   "Integration_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
+         "Medium_Dropout.TheGradientAtTheInputIsTheMaskOfThatStep"},
+        {Ops::K_BIAS_ADD.id,   "Medium_Autograd.BiasAddPassesTheMatrixGradientThrough"},
+        {Ops::K_BIAS_ADD.id,   "Medium_Autograd.BiasAddSumsOverTheBroadcastAxis"},
+        {Ops::K_ADD.id,        "Medium_Autograd.ElementwiseAddAndSubtract"},
+        {Ops::K_SUB.id,        "Medium_Autograd.ElementwiseSubtractFromTheRight"},
+        {Ops::K_MUL.id,        "Medium_Autograd.ElementwiseMultiply"},
+        {Ops::K_MUL.id,        "Medium_Autograd.ElementwiseMultiplyFromTheRight"},
+        {Ops::K_SCALE.id,      "Medium_Autograd.Scale"},
+        {Ops::K_EXP.id,        "Medium_Autograd.Exp"},
+        {Ops::K_RELU.id,       "Medium_Autograd.ReLUAwayFromItsKink"},
+        {Ops::K_GELU.id,       "Medium_Autograd.GELU"},
+        {Ops::K_SIGMOID.id,    "Medium_Autograd.SigmoidReadsItsForwardOutput"},
+        {Ops::K_TANH.id,       "Medium_Autograd.TanhReadsItsForwardOutput"},
+        {Ops::K_LEAKY_RELU.id, "Medium_Autograd.LeakyReLUHasBothOfItsSlopes"},
+        {Ops::K_SUM_ROWS.id,   "Medium_Autograd.SumRowsBroadcastsItsGradientBack"},
+        {Ops::K_ACCUMULATE.id, "Medium_Autograd.AccumulateInTheForwardGraph"},
+        {Ops::K_NLL_LOSS.id,   "Medium_Autograd.FusedCrossEntropyAgainstOneHotTargets"},
 
         {Ops::K_LOG_SOFTMAX.id,
-         "Integration_AttentionGradient.AnUnfusedLogSoftmaxMatchesItsClosedForm"},
+         "Medium_AttentionGradient.AnUnfusedLogSoftmaxMatchesItsClosedForm"},
         {Ops::K_LOG_SOFTMAX.id,
-         "Integration_AttentionGradient.ASoftmaxGradientMatchesCentralDifferences"},
+         "Medium_AttentionGradient.ASoftmaxGradientMatchesCentralDifferences"},
         {Ops::K_LOG_SOFTMAX.id,
-         "Integration_AttentionGradient.ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes"},
+         "Medium_AttentionGradient.ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes"},
         {Ops::K_LOG_SOFTMAX.id,
-         "Integration_AttentionGradient.ACausalAttentionDifferentiatesAtItsInput"},
+         "Medium_AttentionGradient.ACausalAttentionDifferentiatesAtItsInput"},
         {Ops::K_LOG_SOFTMAX.id,
-         "Integration_AttentionGradient.ACausalAttentionDifferentiatesAtItsProjectionWeight"},
+         "Medium_AttentionGradient.ACausalAttentionDifferentiatesAtItsProjectionWeight"},
 
-        {Ops::K_RESHAPE.id,        "Integration_Autograd.ReshapeMovesItsGradientBackUnchanged"},
-        {Ops::K_LAYOUT_CONVERT.id, "Integration_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
+        {Ops::K_RESHAPE.id,        "Medium_Autograd.ReshapeMovesItsGradientBackUnchanged"},
+        {Ops::K_LAYOUT_CONVERT.id, "Medium_Autograd.LayoutConvertsGradientIsThePermutedGradient"},
 
-        {Ops::K_IM2COL.id, "Integration_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
-        {Ops::K_COL2IM.id, "Integration_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
+        {Ops::K_IM2COL.id, "Medium_Autograd.AWholeConvolutionDifferentiatesThroughIm2colAndMatmul"},
+        {Ops::K_COL2IM.id, "Medium_Autograd.Col2imsGradientGathersEveryWindowThatWroteAPixel"},
 
-        {Ops::K_MAXPOOL2D.id, "Integration_Autograd.MaxPoolRoutesEachGradientToTheElementThatWon"},
-        {Ops::K_AVGPOOL2D.id, "Integration_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
-        {Ops::K_UPSAMPLE2D.id, "Integration_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
+        {Ops::K_MAXPOOL2D.id, "Medium_Autograd.MaxPoolRoutesEachGradientToTheElementThatWon"},
+        {Ops::K_AVGPOOL2D.id, "Medium_Autograd.AvgPoolSpreadsItsGradientOverTheWholeWindow"},
+        {Ops::K_UPSAMPLE2D.id, "Medium_Autograd.UpsampleSumsEachSourcePixelsReplicas"},
         {Ops::K_DEPTHWISE_CONV2D.id,
-         "Integration_Autograd.DepthwiseConvolutionDifferentiatesOverItsInputAndItsTaps"},
-        {Ops::K_SPATIAL_MEAN.id, "Integration_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
-        {Ops::K_CONCAT_CHANNELS.id, "Integration_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
-        {Ops::K_SLICE_CHANNELS.id, "Integration_Autograd.SliceScattersItsGradientBackIntoZeros"},
+         "Medium_Autograd.DepthwiseConvolutionDifferentiatesOverItsInputAndItsTaps"},
+        {Ops::K_SPATIAL_MEAN.id, "Medium_Autograd.SpatialMeanBroadcastsScaledByOneOverHW"},
+        {Ops::K_CONCAT_CHANNELS.id, "Medium_Autograd.ConcatGivesEachOperandItsOwnChannelRange"},
+        {Ops::K_SLICE_CHANNELS.id, "Medium_Autograd.SliceScattersItsGradientBackIntoZeros"},
 
-        {Ops::K_BATCHNORM2D.id, "Integration_Autograd.BatchNormsGradientAccountsForTheStatisticsItComputed"},
-        {Ops::K_BATCHNORM2D.id, "Integration_Autograd.BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput"},
-        {Ops::K_BATCHNORM2D.id, "Integration_Autograd.BatchNormsShiftGradientIsThePlainSumOfDy"},
+        {Ops::K_BATCHNORM2D.id, "Medium_Autograd.BatchNormsGradientAccountsForTheStatisticsItComputed"},
+        {Ops::K_BATCHNORM2D.id, "Medium_Autograd.BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInput"},
+        {Ops::K_BATCHNORM2D.id, "Medium_Autograd.BatchNormsShiftGradientIsThePlainSumOfDy"},
 
-        {Ops::K_CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffineDifferentiatesAtItsInput"},
-        {Ops::K_CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
-        {Ops::K_CHANNEL_AFFINE.id, "Integration_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
+        {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffineDifferentiatesAtItsInput"},
+        {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffinesScaleGradientSumsOverNHAndW"},
+        {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
     };
 
     // No finite-difference case names these rules; an entry leaves this list when one does.
@@ -1527,7 +1527,7 @@ TEST(Unit_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     }
 }
 
-TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
+TEST(Small_Backward, FanOutEmitsAnAccumulateChain)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1551,7 +1551,7 @@ TEST(Unit_Backward, FanOutEmitsAnAccumulateChain)
     EXPECT_EQ(graph.node(graph.value(grads[0]).producer).op, Ops::K_ACCUMULATE.id);
 }
 
-TEST(Unit_Backward, ThreeContributorsChainTwoAccumulates)
+TEST(Small_Backward, ThreeContributorsChainTwoAccumulates)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1570,7 +1570,7 @@ TEST(Unit_Backward, ThreeContributorsChainTwoAccumulates)
     EXPECT_EQ(count_op(graph, Ops::K_ACCUMULATE.id), 2u);
 }
 
-TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
+TEST(Small_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1595,7 +1595,7 @@ TEST(Unit_Backward, ADisconnectedParameterGetsASymbolicZeroNotABuffer)
     EXPECT_EQ(graph.node_count(), before + 2);
 }
 
-TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
+TEST(Small_Backward, ADeadLossPathEmitsNothingAtAll)
 {
     // A graph with no gradient request emits no node; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -1616,7 +1616,7 @@ TEST(Unit_Backward, ADeadLossPathEmitsNothingAtAll)
     EXPECT_EQ(graph.node_count(), before);
 }
 
-TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
+TEST(Small_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1637,7 +1637,7 @@ TEST(Unit_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
                  Error);
 }
 
-TEST(Unit_Backward, ANonScalarRootIsRejected)
+TEST(Small_Backward, ANonScalarRootIsRejected)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1652,7 +1652,7 @@ TEST(Unit_Backward, ANonScalarRootIsRejected)
 }
 
 /** @brief Tests that a log-softmax a RELU reads gets one gradient node over [dy, its result]. */
-TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity)
+TEST(Small_Backward, LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1679,7 +1679,7 @@ TEST(Unit_Backward, LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity)
 }
 
 /** @brief Tests that the fused cross-entropy still absorbs its log-softmax. */
-TEST(Unit_Backward, TheFusedPairAppendsNoLogSoftmaxGradient)
+TEST(Small_Backward, TheFusedPairAppendsNoLogSoftmaxGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1696,7 +1696,7 @@ TEST(Unit_Backward, TheFusedPairAppendsNoLogSoftmaxGradient)
 }
 
 /** @brief Tests that a log-softmax over an input adds no gradient node. */
-TEST(Unit_Backward, ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode)
+TEST(Small_Backward, ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1712,7 +1712,7 @@ TEST(Unit_Backward, ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode)
 }
 
 /** @brief Tests that a softmax hands its log-softmax the gradient its exponential produced. */
-TEST(Unit_Backward, ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax)
+TEST(Small_Backward, ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1747,7 +1747,7 @@ TEST(Unit_Backward, ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax)
 }
 
 /** @brief Tests that DIV's rule divides dy by the divisor and reuses the forward quotient. */
-TEST(Unit_Backward, DivReadsItsDivisorAndItsOwnQuotient)
+TEST(Small_Backward, DivReadsItsDivisorAndItsOwnQuotient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1779,7 +1779,7 @@ TEST(Unit_Backward, DivReadsItsDivisorAndItsOwnQuotient)
 }
 
 /** @brief Tests that DIV's rule emits no divisor gradient when only the dividend needs one. */
-TEST(Unit_Backward, DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient)
+TEST(Small_Backward, DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1797,7 +1797,7 @@ TEST(Unit_Backward, DivEmitsOnlyTheQuotientWhenTheDivisorNeedsNoGradient)
 }
 
 /** @brief Tests that DIV's rule emits the divisor gradient alone when the dividend needs none. */
-TEST(Unit_Backward, DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone)
+TEST(Small_Backward, DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1825,7 +1825,7 @@ TEST(Unit_Backward, DivEmitsTheDivisorGradientAloneWhenTheDividendNeedsNone)
 }
 
 /** @brief Tests that MINIMUM's rule masks by a <= b, so a tie sends dy to the first operand. */
-TEST(Unit_Backward, MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand)
+TEST(Small_Backward, MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1858,7 +1858,7 @@ TEST(Unit_Backward, MinimumRoutesByALessEqualBSoATieGoesToTheFirstOperand)
 }
 
 /** @brief Tests that MAXIMUM's rule masks by b <= a, so a tie sends dy to the first operand. */
-TEST(Unit_Backward, MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand)
+TEST(Small_Backward, MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1891,7 +1891,7 @@ TEST(Unit_Backward, MaximumRoutesByBLessEqualASoATieGoesToTheFirstOperand)
 }
 
 /** @brief Tests that MINIMUM's rule emits one SELECT when one operand needs a gradient. */
-TEST(Unit_Backward, MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient)
+TEST(Small_Backward, MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1916,7 +1916,7 @@ TEST(Unit_Backward, MinimumEmitsOneSelectWhenOnlyTheSecondOperandNeedsAGradient)
 }
 
 /** @brief Tests that MAXIMUM's rule emits one SELECT when only the first operand needs one. */
-TEST(Unit_Backward, MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient)
+TEST(Small_Backward, MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1944,7 +1944,7 @@ TEST(Unit_Backward, MaximumEmitsOneSelectWhenOnlyTheFirstOperandNeedsAGradient)
 }
 
 /** @brief Tests that ABS's rule multiplies dy by [0 <= x] - [x <= 0], which is 0 at x = 0. */
-TEST(Unit_Backward, AbsMultipliesByASignThatIsZeroAtZero)
+TEST(Small_Backward, AbsMultipliesByASignThatIsZeroAtZero)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1979,7 +1979,7 @@ TEST(Unit_Backward, AbsMultipliesByASignThatIsZeroAtZero)
 }
 
 /** @brief Tests that ATAN's rule divides dy by x*x plus a CONSTANT one shaped like the input. */
-TEST(Unit_Backward, AtanDividesByOnePlusTheSquaredInput)
+TEST(Small_Backward, AtanDividesByOnePlusTheSquaredInput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2014,7 +2014,7 @@ TEST(Unit_Backward, AtanDividesByOnePlusTheSquaredInput)
 }
 
 /** @brief Tests that SOFTPLUS's rule emits one SOFTPLUS_BACKWARD over dy and the forward input. */
-TEST(Unit_Backward, SoftplusBackwardReadsTheForwardInputNotTheOutput)
+TEST(Small_Backward, SoftplusBackwardReadsTheForwardInputNotTheOutput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2036,7 +2036,7 @@ TEST(Unit_Backward, SoftplusBackwardReadsTheForwardInputNotTheOutput)
 }
 
 /** @brief Tests that SILU's rule emits one SILU_BACKWARD over dy and the forward input. */
-TEST(Unit_Backward, SiLUBackwardReadsTheForwardInputNotTheOutput)
+TEST(Small_Backward, SiLUBackwardReadsTheForwardInputNotTheOutput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2058,7 +2058,7 @@ TEST(Unit_Backward, SiLUBackwardReadsTheForwardInputNotTheOutput)
 }
 
 /** @brief Tests that SELECT's rule gives dy to a under the condition and to b elsewhere. */
-TEST(Unit_Backward, SelectRoutesItsGradientByItsOwnCondition)
+TEST(Small_Backward, SelectRoutesItsGradientByItsOwnCondition)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2088,7 +2088,7 @@ TEST(Unit_Backward, SelectRoutesItsGradientByItsOwnCondition)
 }
 
 /** @brief Tests that SELECT's rule emits one SELECT when only the second branch needs one. */
-TEST(Unit_Backward, SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient)
+TEST(Small_Backward, SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2114,7 +2114,7 @@ TEST(Unit_Backward, SelectEmitsOneSelectWhenOnlyTheSecondBranchNeedsAGradient)
 }
 
 /** @brief Tests that SELECT's rule emits nothing when only its condition needs a gradient. */
-TEST(Unit_Backward, SelectGivesItsConditionNoGradient)
+TEST(Small_Backward, SelectGivesItsConditionNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2131,7 +2131,7 @@ TEST(Unit_Backward, SelectGivesItsConditionNoGradient)
 }
 
 /** @brief Tests that a comparison feeding a SELECT condition gives its operands no gradient. */
-TEST(Unit_Backward, AComparisonUnderASelectLeavesItsOperandsWithoutAGradient)
+TEST(Small_Backward, AComparisonUnderASelectLeavesItsOperandsWithoutAGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2153,7 +2153,7 @@ TEST(Unit_Backward, AComparisonUnderASelectLeavesItsOperandsWithoutAGradient)
 }
 
 /** @brief Tests that a mask multiplied into a product receives no gradient node of its own. */
-TEST(Unit_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
+TEST(Small_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2183,7 +2183,7 @@ TEST(Unit_Backward, AComparisonMultipliedIntoAProductEmitsNothingForTheMask)
 }
 
 /** @brief Tests that a CONSTANT added to a parameter path receives no gradient node. */
-TEST(Unit_Backward, AConstantAddedToAParameterPathEmitsNothingForTheConstant)
+TEST(Small_Backward, AConstantAddedToAParameterPathEmitsNothingForTheConstant)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2207,7 +2207,7 @@ TEST(Unit_Backward, AConstantAddedToAParameterPathEmitsNothingForTheConstant)
 }
 
 /** @brief Tests that MAXIMUM of x and a zero CONSTANT, in that order, sends a tie's dy to x. */
-TEST(Unit_Backward, MaximumOfXAndAZeroConstantRoutesATieToX)
+TEST(Small_Backward, MaximumOfXAndAZeroConstantRoutesATieToX)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2236,7 +2236,7 @@ TEST(Unit_Backward, MaximumOfXAndAZeroConstantRoutesATieToX)
 }
 
 /** @brief Tests that MAXIMUM of a zero CONSTANT and x, the wide clamp, gives x nothing at a tie. */
-TEST(Unit_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATie)
+TEST(Small_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATie)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2272,7 +2272,7 @@ TEST(Unit_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtATi
 }
 
 /** @brief Tests that no rule of the eight forward operations appends a node that narrows. */
-TEST(Unit_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
+TEST(Small_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
 {
     const std::vector<ForwardCase> cases = {
         {"div", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.div(a, b); }},
@@ -2310,7 +2310,7 @@ TEST(Unit_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
 }
 
 /** @brief Tests that a gradient reaching the batch variance, output 3, is refused by the rule. */
-TEST(Unit_Backward, AGradientOnTheBatchVarianceOfBatchNormThrows)
+TEST(Small_Backward, AGradientOnTheBatchVarianceOfBatchNormThrows)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2328,7 +2328,7 @@ TEST(Unit_Backward, AGradientOnTheBatchVarianceOfBatchNormThrows)
 }
 
 /** @brief Tests that a gradient through output 0 of a four-output BATCHNORM2D is still emitted. */
-TEST(Unit_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
+TEST(Small_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2360,7 +2360,7 @@ TEST(Unit_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
 }
 
 /** @brief Tests that differentiation fails at BATCHNORM_FOLD when gamma requires a gradient. */
-TEST(Unit_Backward, DifferentiatingThroughBatchNormFoldFails)
+TEST(Small_Backward, DifferentiatingThroughBatchNormFoldFails)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2380,7 +2380,7 @@ TEST(Unit_Backward, DifferentiatingThroughBatchNormFoldFails)
 }
 
 /** @brief Tests that differentiate refuses a buffer in wrt before it appends any node. */
-TEST(Unit_Backward, ABufferInWrtIsRefusedAndAppendsNoNode)
+TEST(Small_Backward, ABufferInWrtIsRefusedAndAppendsNoNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2464,7 +2464,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a loss ending in an ADD of two terms gives every parameter a gradient. */
-TEST(Unit_LossRoots, ASumOfTwoTermsEndingInAddReachesEveryParameter)
+TEST(Small_LossRoots, ASumOfTwoTermsEndingInAddReachesEveryParameter)
 {
     WeightedSum model;
     const std::size_t forward_nodes = model.graph.node_count();
@@ -2499,7 +2499,7 @@ TEST(Unit_LossRoots, ASumOfTwoTermsEndingInAddReachesEveryParameter)
 }
 
 /** @brief Tests that a loss ending in a SCALE hands the scaled seed to both terms under it. */
-TEST(Unit_LossRoots, ASumOfTwoTermsEndingInScaleReachesEveryParameter)
+TEST(Small_LossRoots, ASumOfTwoTermsEndingInScaleReachesEveryParameter)
 {
     WeightedSum model;
     const GraphBuilder builder(model.graph);
@@ -2535,7 +2535,7 @@ TEST(Unit_LossRoots, ASumOfTwoTermsEndingInScaleReachesEveryParameter)
 }
 
 /** @brief Tests that the seed is one CONSTANT of 1 in the root's shape, element type and layout. */
-TEST(Unit_LossRoots, TheSeedIsAConstantOneShapedAndTypedLikeTheRoot)
+TEST(Small_LossRoots, TheSeedIsAConstantOneShapedAndTypedLikeTheRoot)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2564,7 +2564,7 @@ TEST(Unit_LossRoots, TheSeedIsAConstantOneShapedAndTypedLikeTheRoot)
 }
 
 /** @brief Tests that a seed factor multiplies the seed in one DYNAMIC_SCALE every rule reads. */
-TEST(Unit_LossRoots, TheSeedFactorMultipliesTheSeedOnce)
+TEST(Small_LossRoots, TheSeedFactorMultipliesTheSeedOnce)
 {
     WeightedSum model;
     const GraphBuilder builder(model.graph);
@@ -2595,7 +2595,7 @@ TEST(Unit_LossRoots, TheSeedFactorMultipliesTheSeedOnce)
 }
 
 /** @brief Tests that a root of more than one element throws and names its shape. */
-TEST(Unit_LossRoots, ANonScalarRootThrowsNamingItsShape)
+TEST(Small_LossRoots, ANonScalarRootThrowsNamingItsShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2608,7 +2608,7 @@ TEST(Unit_LossRoots, ANonScalarRootThrowsNamingItsShape)
 }
 
 /** @brief Tests that a root that is a leaf throws, names the leaf and appends nothing. */
-TEST(Unit_LossRoots, ALeafRootThrowsNamingTheLeaf)
+TEST(Small_LossRoots, ALeafRootThrowsNamingTheLeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2621,7 +2621,7 @@ TEST(Unit_LossRoots, ALeafRootThrowsNamingTheLeaf)
 }
 
 /** @brief Tests that a root no parameter reaches throws, names the cause and appends nothing. */
-TEST(Unit_LossRoots, ARootThatNeedsNoGradientThrowsNamingTheCause)
+TEST(Small_LossRoots, ARootThatNeedsNoGradientThrowsNamingTheCause)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2638,7 +2638,7 @@ TEST(Unit_LossRoots, ARootThatNeedsNoGradientThrowsNamingTheCause)
 }
 
 /** @brief Tests that a root whose producer has no rule throws, names it and appends nothing. */
-TEST(Unit_LossRoots, ARootWhoseProducerHasNoRuleThrowsNamingTheOperation)
+TEST(Small_LossRoots, ARootWhoseProducerHasNoRuleThrowsNamingTheOperation)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2654,7 +2654,7 @@ TEST(Unit_LossRoots, ARootWhoseProducerHasNoRuleThrowsNamingTheOperation)
 }
 
 /** @brief Tests that a root that is not its producer's first result throws and names it. */
-TEST(Unit_LossRoots, ARootThatIsNotTheFirstResultThrowsNamingTheProducer)
+TEST(Small_LossRoots, ARootThatIsNotTheFirstResultThrowsNamingTheProducer)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2669,7 +2669,7 @@ TEST(Unit_LossRoots, ARootThatIsNotTheFirstResultThrowsNamingTheProducer)
 }
 
 /** @brief Tests that a root of an integer element type throws and names the type. */
-TEST(Unit_LossRoots, ARootThatIsNotRealFloatingThrowsNamingItsType)
+TEST(Small_LossRoots, ARootThatIsNotRealFloatingThrowsNamingItsType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2684,7 +2684,7 @@ TEST(Unit_LossRoots, ARootThatIsNotRealFloatingThrowsNamingItsType)
 }
 
 /** @brief Tests that an NLL_LOSS root outside the fused pair emits its SCALE and no seed node. */
-TEST(Unit_LossRoots, AnUnfusedNLLLossRootEmitsNoSeedNode)
+TEST(Small_LossRoots, AnUnfusedNLLLossRootEmitsNoSeedNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2704,7 +2704,7 @@ TEST(Unit_LossRoots, AnUnfusedNLLLossRootEmitsNoSeedNode)
 }
 
 /** @brief Tests that an NLL_LOSS root with a seed factor applies it in one DYNAMIC_SCALE. */
-TEST(Unit_LossRoots, AnNLLLossRootAppliesTheSeedFactorInItsOwnRule)
+TEST(Small_LossRoots, AnNLLLossRootAppliesTheSeedFactorInItsOwnRule)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2727,7 +2727,7 @@ TEST(Unit_LossRoots, AnNLLLossRootAppliesTheSeedFactorInItsOwnRule)
 }
 
 /** @brief Tests that the emitter writes one STOP_GRADIENT node that copies its operand's form. */
-TEST(Unit_LossRoots, StopGradientEmitsAnIdentityShapedLikeItsOperand)
+TEST(Small_LossRoots, StopGradientEmitsAnIdentityShapedLikeItsOperand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2748,7 +2748,7 @@ TEST(Unit_LossRoots, StopGradientEmitsAnIdentityShapedLikeItsOperand)
 }
 
 /** @brief Tests that STOP_GRADIENT is declared a gradient barrier and not differentiable. */
-TEST(Unit_LossRoots, StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable)
+TEST(Small_LossRoots, StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable)
 {
     EXPECT_TRUE(Ops::K_STOP_GRADIENT.blocks_gradient);
     EXPECT_FALSE(Ops::K_STOP_GRADIENT.differentiable);
@@ -2758,7 +2758,7 @@ TEST(Unit_LossRoots, StopGradientIsDeclaredAGradientBarrierAndNotDifferentiable)
 }
 
 /** @brief Tests that finalise() marks neither a STOP_GRADIENT result nor its consumers. */
-TEST(Unit_LossRoots, RequiresGradDoesNotCrossStopGradient)
+TEST(Small_LossRoots, RequiresGradDoesNotCrossStopGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2777,7 +2777,7 @@ TEST(Unit_LossRoots, RequiresGradDoesNotCrossStopGradient)
 }
 
 /** @brief Tests that a parameter read only through STOP_GRADIENT gets no gradient and no throw. */
-TEST(Unit_LossRoots, StopGradientBlocksAParameterReachableOnlyThroughIt)
+TEST(Small_LossRoots, StopGradientBlocksAParameterReachableOnlyThroughIt)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2805,7 +2805,7 @@ TEST(Unit_LossRoots, StopGradientBlocksAParameterReachableOnlyThroughIt)
 }
 
 /** @brief Tests that a value read directly and through STOP_GRADIENT gets one gradient only. */
-TEST(Unit_LossRoots, AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradient)
+TEST(Small_LossRoots, AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2831,7 +2831,7 @@ TEST(Unit_LossRoots, AValueReadDirectlyAndThroughStopGradientKeepsTheDirectGradi
 }
 
 /** @brief Tests that a loss every path to which crosses STOP_GRADIENT throws and names it. */
-TEST(Unit_LossRoots, ALossReachableOnlyThroughStopGradientThrowsNamingTheBarrier)
+TEST(Small_LossRoots, ALossReachableOnlyThroughStopGradientThrowsNamingTheBarrier)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2844,7 +2844,7 @@ TEST(Unit_LossRoots, ALossReachableOnlyThroughStopGradientThrowsNamingTheBarrier
 }
 
 /** @brief Tests that a root that is a STOP_GRADIENT result throws for needing no gradient. */
-TEST(Unit_LossRoots, AStopGradientRootThrowsForRequiringNoGradient)
+TEST(Small_LossRoots, AStopGradientRootThrowsForRequiringNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2859,7 +2859,7 @@ TEST(Unit_LossRoots, AStopGradientRootThrowsForRequiringNoGradient)
 }
 
 /** @brief Tests that a gradient contributed to a STOP_GRADIENT result is dropped, not thrown on. */
-TEST(Unit_LossRoots, AContributionToAStopGradientResultIsDroppedWithoutAskingForARule)
+TEST(Small_LossRoots, AContributionToAStopGradientResultIsDroppedWithoutAskingForARule)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2891,7 +2891,7 @@ TEST(Unit_LossRoots, AContributionToAStopGradientResultIsDroppedWithoutAskingFor
 }
 
 /** @brief Tests that the seed nodes CONSTANT and DYNAMIC_SCALE originate at the root producer. */
-TEST(Unit_LossRoots, TheSeedNodesHaveTheRootProducerAsOrigin)
+TEST(Small_LossRoots, TheSeedNodesHaveTheRootProducerAsOrigin)
 {
     WeightedSum model;
     const GraphBuilder builder(model.graph);
@@ -2919,7 +2919,7 @@ TEST(Unit_LossRoots, TheSeedNodesHaveTheRootProducerAsOrigin)
 }
 
 /** @brief Tests that a root a CONSTANT produces throws for requiring no gradient. */
-TEST(Unit_LossRoots, AConstantRootThrowsForRequiringNoGradient)
+TEST(Small_LossRoots, AConstantRootThrowsForRequiringNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2934,7 +2934,7 @@ TEST(Unit_LossRoots, AConstantRootThrowsForRequiringNoGradient)
 }
 
 /** @brief Tests that a root a comparison of a parameter produces throws for needing no gradient. */
-TEST(Unit_LossRoots, AComparisonRootThrowsForRequiringNoGradient)
+TEST(Small_LossRoots, AComparisonRootThrowsForRequiringNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2950,7 +2950,7 @@ TEST(Unit_LossRoots, AComparisonRootThrowsForRequiringNoGradient)
 }
 
 /** @brief Tests that finalise() marks no barrier's result and marks what bypasses the barrier. */
-TEST(Unit_LossRoots, RequiresGradCrossesNoGradientBarrier)
+TEST(Small_LossRoots, RequiresGradCrossesNoGradientBarrier)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2984,7 +2984,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
+TEST(Small_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -2997,7 +2997,7 @@ TEST(Unit_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
 }
 
 /** @brief Tests that a one-element root a differentiable operation produces is seeded. */
-TEST(Unit_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
+TEST(Small_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -3027,7 +3027,7 @@ TEST(Unit_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
 }
 
 /** @brief Tests that a root no parameter reaches is refused with a message naming that cause. */
-TEST(Unit_Diagnostics, ARootThatRequiresNoGradientNamesItsProducerAndTheCause)
+TEST(Small_Diagnostics, ARootThatRequiresNoGradientNamesItsProducerAndTheCause)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -3045,7 +3045,7 @@ TEST(Unit_Diagnostics, ARootThatRequiresNoGradientNamesItsProducerAndTheCause)
 }
 
 /** @brief Tests that a root whose producer has no backward rule is refused naming the producer. */
-TEST(Unit_Diagnostics, ARootWhoseProducerHasNoRuleNamesTheProducer)
+TEST(Small_Diagnostics, ARootWhoseProducerHasNoRuleNamesTheProducer)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -3058,7 +3058,7 @@ TEST(Unit_Diagnostics, ARootWhoseProducerHasNoRuleNamesTheProducer)
                     "sushiai.dynamic_scale", "has no backward rule", "autograd/rules/");
 }
 
-TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
+TEST(Small_Diagnostics, ALossNoOperationProducesIsRejected)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -3073,7 +3073,7 @@ TEST(Unit_Diagnostics, ALossNoOperationProducesIsRejected)
     SA_EXPECT_ERROR(differentiate_wrt(graph, leaf, leaf), "sushiai.leaf", "NLL_LOSS");
 }
 
-TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
+TEST(Small_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -3092,7 +3092,7 @@ TEST(Unit_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
                     "No backward rule for", "sushiai.unknown", "node 2");
 }
 
-TEST(Unit_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
+TEST(Small_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
 {
     // A SUB with a mis-shaped result provokes the error; see tests/core/autograd/README.md.
     Graph::Graph graph;

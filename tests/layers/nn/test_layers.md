@@ -1,7 +1,7 @@
 # tests/layers/nn: test_layers.cpp, tests/core/autograd/test_backward.cpp
 
 
-Suites: `Unit_Backward`.
+Suites: `Small_Backward`.
 
 Tests the graph that differentiation emits and the coverage of the backward rule table.
 
@@ -303,12 +303,12 @@ the lifetime `GRADIENT`, and the buffer keeps the lifetime `BUFFER`.
 ## test_layers.cpp, tests/core/autograd/test_backward.cpp
 
 
-Suites: `Unit_LossRoots`.
+Suites: `Small_LossRoots`.
 
 Tests which values differentiation accepts as a loss, the seed it emits and the K_STOP_GRADIENT
 barrier.
 
-This file needs no device. Every case in `Unit_LossRoots` builds a host-side graph, calls
+This file needs no device. Every case in `Small_LossRoots` builds a host-side graph, calls
 `Autograd::differentiate` and reads the appended nodes or the error. A root produced by
 K_NLL_LOSS is seeded by that operation's own rule. Any other one-element root of a real floating
 type whose producer has a rule gets a K_CONSTANT of 1 as its gradient. Most refusal cases also

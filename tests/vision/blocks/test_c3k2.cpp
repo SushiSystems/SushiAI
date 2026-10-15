@@ -311,7 +311,7 @@ namespace
 } // namespace
 
 /** @brief Tests that row 2 keeps H and W and yields the output width. */
-TEST(Unit_BlockC3k2, OutputShapeKeepsTheExtentsAndSetsTheWidth)
+TEST(Small_BlockC3k2, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C3k2<Bottleneck> block = make_row2();
 
@@ -322,7 +322,7 @@ TEST(Unit_BlockC3k2, OutputShapeKeepsTheExtentsAndSetsTheWidth)
  * @brief Tests that row 2 traces four Conv blocks, two slices, one ADD and one
  *        CONCAT_CHANNELS.
  */
-TEST(Unit_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
+TEST(Small_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -347,7 +347,7 @@ TEST(Unit_BlockC3k2, Row2EmitsFourConvBlocksTwoSlicesAndOneConcat)
  * @brief Tests that the join reads the stem's first half, its second half, then the inner
  *        block's result, and that the inner block reads the second half.
  */
-TEST(Unit_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
+TEST(Small_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -380,7 +380,7 @@ TEST(Unit_BlockC3k2, TheJoinReadsBothHalvesThenTheChainOffTheSecondHalf)
 }
 
 /** @brief Tests that each inner block reads the one before it and that all are joined. */
-TEST(Unit_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
+TEST(Small_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -405,7 +405,7 @@ TEST(Unit_BlockC3k2, TwoInnerBlocksAreChainedAndBothJoined)
  * @brief Tests that row 6, whose inner block is a C3k, traces nine Conv blocks, two slices,
  *        two ADDs and two CONCAT_CHANNELS.
  */
-TEST(Unit_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
+TEST(Small_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -431,7 +431,7 @@ TEST(Unit_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
  * @brief Tests that traced row 2 yields the 20 records MANIFEST.json lists under model.2,
  *        names, NHWC shapes and order.
  */
-TEST(Unit_BlockC3k2, StateMatchesManifestRow2)
+TEST(Small_BlockC3k2, StateMatchesManifestRow2)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -447,7 +447,7 @@ TEST(Unit_BlockC3k2, StateMatchesManifestRow2)
  * @brief Tests that traced row 6 yields the 45 records MANIFEST.json lists under model.6,
  *        names, NHWC shapes and order.
  */
-TEST(Unit_BlockC3k2, StateMatchesManifestRow6)
+TEST(Small_BlockC3k2, StateMatchesManifestRow6)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -463,7 +463,7 @@ TEST(Unit_BlockC3k2, StateMatchesManifestRow6)
  * @brief Tests that K_C3K2_INNER lists the bottleneck, the C3k and the bottleneck_psa pair,
  *        each with a factory.
  */
-TEST(Unit_BlockC3k2, TheInnerTableListsEachInnerBlockWithItsFactory)
+TEST(Small_BlockC3k2, TheInnerTableListsEachInnerBlockWithItsFactory)
 {
     ASSERT_EQ(Vision::Blocks::K_C3K2_INNER.size(), 3u);
     EXPECT_EQ(Vision::Blocks::K_C3K2_INNER[0].name, "bottleneck");
@@ -479,7 +479,7 @@ TEST(Unit_BlockC3k2, TheInnerTableListsEachInnerBlockWithItsFactory)
  *        Bottleneck and a PSABlock: the port's shape, the 45 manifest records, the 18 buffer
  *        updates and the row's norm options on all nine norms.
  */
-TEST(Unit_BlockC3k2, TheFactoryBuildsRow22)
+TEST(Small_BlockC3k2, TheFactoryBuildsRow22)
 {
     const Shape input{20, 20, 384};
     const Config::Value attributes = attributes_of(
@@ -514,7 +514,7 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow22)
  * @brief Tests that the factory refuses a hidden width whose head count does not divide it:
  *        200 channels take max(200 / 64, 1) = 3 heads, and 3 does not divide 200.
  */
-TEST(Unit_BlockC3k2, TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden)
+TEST(Small_BlockC3k2, TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden)
 {
     const Shape input{4, 4, 192};
     const Config::Value attributes =
@@ -528,7 +528,7 @@ TEST(Unit_BlockC3k2, TheFactoryRefusesAPSAHeadCountThatDoesNotDivideHidden)
  * @brief Tests that make_c3k2_node builds row 2 from its file row: the port's shape, the 20
  *        manifest records and the row's norm options on all four norms.
  */
-TEST(Unit_BlockC3k2, TheFactoryBuildsRow2)
+TEST(Small_BlockC3k2, TheFactoryBuildsRow2)
 {
     const Shape input{160, 160, 32};
     const Config::Value attributes = attributes_of(
@@ -561,7 +561,7 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow2)
  *        C3k of two bottlenecks that add their input: the port's shape, the 45 manifest
  *        records and the row's norm options on all nine norms.
  */
-TEST(Unit_BlockC3k2, TheFactoryBuildsRow6)
+TEST(Small_BlockC3k2, TheFactoryBuildsRow6)
 {
     const Shape input{40, 40, 128};
     const Config::Value attributes = attributes_of(
@@ -589,7 +589,7 @@ TEST(Unit_BlockC3k2, TheFactoryBuildsRow6)
 }
 
 /** @brief Tests that "shortcut": false reaches the bottlenecks of a C3k inner block. */
-TEST(Unit_BlockC3k2, TheFactoryReadsTheShortcutOfAC3kInnerBlock)
+TEST(Small_BlockC3k2, TheFactoryReadsTheShortcutOfAC3kInnerBlock)
 {
     const Shape input{4, 4, 128};
     const Config::Value attributes = attributes_of(
@@ -613,7 +613,7 @@ TEST(Unit_BlockC3k2, TheFactoryReadsTheShortcutOfAC3kInnerBlock)
  * @brief Tests that a row stating neither "inner", "repeats" nor "shortcut" gets one
  *        bottleneck that adds its input.
  */
-TEST(Unit_BlockC3k2, TheFactoryDefaultsToOneBottleneckWithAShortcut)
+TEST(Small_BlockC3k2, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 {
     const Shape input{4, 4, 32};
     const Config::Value attributes = attributes_of(R"({"filters": 64, "hidden": 16})");
@@ -634,7 +634,7 @@ TEST(Unit_BlockC3k2, TheFactoryDefaultsToOneBottleneckWithAShortcut)
 }
 
 /** @brief Tests that "repeats" sets the number of inner blocks and "shortcut" their add. */
-TEST(Unit_BlockC3k2, TheFactoryReadsRepeatsAndShortcut)
+TEST(Small_BlockC3k2, TheFactoryReadsRepeatsAndShortcut)
 {
     const Shape input{4, 4, 32};
     const Config::Value attributes =
@@ -660,7 +660,7 @@ TEST(Unit_BlockC3k2, TheFactoryReadsRepeatsAndShortcut)
 }
 
 /** @brief Tests that an inner name outside the table fails and lists the table's names. */
-TEST(Unit_BlockC3k2, TheFactoryRefusesAnInnerBlockItDoesNotList)
+TEST(Small_BlockC3k2, TheFactoryRefusesAnInnerBlockItDoesNotList)
 {
     const Shape input{4, 4, 32};
     const Config::Value unlisted =
@@ -675,7 +675,7 @@ TEST(Unit_BlockC3k2, TheFactoryRefusesAnInnerBlockItDoesNotList)
 }
 
 /** @brief Tests that the factory refuses a hidden width of one, which no inner block halves. */
-TEST(Unit_BlockC3k2, TheFactoryRefusesAHiddenWidthOfOne)
+TEST(Small_BlockC3k2, TheFactoryRefusesAHiddenWidthOfOne)
 {
     const Shape input{4, 4, 32};
     const Config::Value bottleneck = attributes_of(R"({"filters": 64, "hidden": 1})");
@@ -688,7 +688,7 @@ TEST(Unit_BlockC3k2, TheFactoryRefusesAHiddenWidthOfOne)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing width and a flat input. */
-TEST(Unit_BlockC3k2, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockC3k2, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{4, 4, 32};
     const Shape flat{512};
@@ -708,7 +708,7 @@ TEST(Unit_BlockC3k2, TheFactoryRefusesARowThatDoesNotFit)
  * @brief Tests that each inner factory, called directly, refuses a row whose "inner" names
  *        the other block or is not a string, and accepts its own name.
  */
-TEST(Unit_BlockC3k2, AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock)
+TEST(Small_BlockC3k2, AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock)
 {
     const Shape input{4, 4, 32};
     const Config::Value of_c3k = attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c3k"})");
@@ -733,7 +733,7 @@ TEST(Unit_BlockC3k2, AnInnerFactoryRefusesARowThatNamesAnotherInnerBlock)
  * @brief Tests that the bottleneck_psa factory refuses a row whose "inner" names the C3k, and
  *        accepts a row that names its own block.
  */
-TEST(Unit_BlockC3k2, TheBottleneckPSAFactoryRefusesARowThatNamesAnotherInnerBlock)
+TEST(Small_BlockC3k2, TheBottleneckPSAFactoryRefusesARowThatNamesAnotherInnerBlock)
 {
     const Shape input{4, 4, 32};
     const Config::Value of_c3k = attributes_of(R"({"filters": 64, "hidden": 16, "inner": "c3k"})");

@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_reader_dataset.cpp
 
 
-Suites: `Unit_DatasetsReaderDataset`.
+Suites: `Medium_DatasetsReaderDataset`.
 
 Tests `ReaderDataset` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/reader_dataset.hpp`. The fixture is an

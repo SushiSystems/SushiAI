@@ -74,7 +74,7 @@ namespace
 }
 
 /** @brief Tests the first four numbers of seed 0 against the published SplitMix64 sequence. */
-TEST(Unit_DropoutMask, TheSequenceOfSeedZeroIsThePublishedSplitMix64)
+TEST(Small_DropoutMask, TheSequenceOfSeedZeroIsThePublishedSplitMix64)
 {
     EXPECT_EQ(Graph::splitmix64_at(0, 0), 0xE220A8397B1DCDAFull);
     EXPECT_EQ(Graph::splitmix64_at(0, 1), 0x6E789E6AA1B965F4ull);
@@ -83,7 +83,7 @@ TEST(Unit_DropoutMask, TheSequenceOfSeedZeroIsThePublishedSplitMix64)
 }
 
 /** @brief Tests that the seed of site s is number s of the trace seed's sequence. */
-TEST(Unit_DropoutMask, EachSiteOfATraceHasItsOwnSeed)
+TEST(Small_DropoutMask, EachSiteOfATraceHasItsOwnSeed)
 {
     EXPECT_EQ(Graph::dropout_site_seed(0, 0), 0xE220A8397B1DCDAFull);
     EXPECT_EQ(Graph::dropout_site_seed(0, 1), 0x6E789E6AA1B965F4ull);
@@ -92,7 +92,7 @@ TEST(Unit_DropoutMask, EachSiteOfATraceHasItsOwnSeed)
 }
 
 /** @brief Tests the bits of the first four elements of runs 0 and 1 against golden values. */
-TEST(Unit_DropoutMask, TheBitsOfASeedARunAndAnElementAreGolden)
+TEST(Small_DropoutMask, TheBitsOfASeedARunAndAnElementAreGolden)
 {
     EXPECT_EQ(Graph::dropout_bits(K_SEED, 0, 0), 0x6E75725323D4929Eull);
     EXPECT_EQ(Graph::dropout_bits(K_SEED, 0, 1), 0x07B389BACFD8F970ull);
@@ -105,14 +105,14 @@ TEST(Unit_DropoutMask, TheBitsOfASeedARunAndAnElementAreGolden)
 }
 
 /** @brief Tests the first 32 elements of two runs at a keep of one half against golden masks. */
-TEST(Unit_DropoutMask, TheMaskOfARunIsGolden)
+TEST(Small_DropoutMask, TheMaskOfARunIsGolden)
 {
     EXPECT_EQ(drawn(K_SEED, 0, 32, 0.5), "11110000011001111110011111110000");
     EXPECT_EQ(drawn(K_SEED, 1, 32, 0.5), "01110100100110000111111111000011");
 }
 
 /** @brief Tests that the fill writes what dropout_keeps answers, element by element. */
-TEST(Unit_DropoutMask, TheFillAgreesWithTheElementwiseQuestion)
+TEST(Small_DropoutMask, TheFillAgreesWithTheElementwiseQuestion)
 {
     constexpr std::size_t K_COUNT = 257;
     constexpr double K_KEEP = 0.7;
@@ -126,7 +126,7 @@ TEST(Unit_DropoutMask, TheFillAgreesWithTheElementwiseQuestion)
 }
 
 /** @brief Tests that an element's draw does not depend on how many elements are filled. */
-TEST(Unit_DropoutMask, AShorterFillIsAPrefixOfALongerOne)
+TEST(Small_DropoutMask, AShorterFillIsAPrefixOfALongerOne)
 {
     const std::string longer = drawn(K_SEED, 2, 96, 0.9);
 
@@ -134,13 +134,13 @@ TEST(Unit_DropoutMask, AShorterFillIsAPrefixOfALongerOne)
 }
 
 /** @brief Tests that the same seed, run and keep give the same mask on a second call. */
-TEST(Unit_DropoutMask, TheSameInputsGiveTheSameMask)
+TEST(Small_DropoutMask, TheSameInputsGiveTheSameMask)
 {
     EXPECT_EQ(drawn(K_SEED, 9, 4096, 0.8), drawn(K_SEED, 9, 4096, 0.8));
 }
 
 /** @brief Tests that two runs differ in 2033 of 4096 elements, and two sites in some. */
-TEST(Unit_DropoutMask, TwoRunsAndTwoSitesDrawDifferentMasks)
+TEST(Small_DropoutMask, TwoRunsAndTwoSitesDrawDifferentMasks)
 {
     const std::string first = drawn(K_SEED, 0, 4096, 0.5);
     const std::string second = drawn(K_SEED, 1, 4096, 0.5);
@@ -155,7 +155,7 @@ TEST(Unit_DropoutMask, TwoRunsAndTwoSitesDrawDifferentMasks)
 }
 
 /** @brief Tests the kept fraction of 2^20 draws at three keeps, within K_FRACTION_TOLERANCE. */
-TEST(Unit_DropoutMask, TheKeptFractionIsTheKeepProbability)
+TEST(Small_DropoutMask, TheKeptFractionIsTheKeepProbability)
 {
     EXPECT_NEAR(kept_fraction(0, 0.9), 0.9, K_FRACTION_TOLERANCE);
     EXPECT_NEAR(kept_fraction(0, 0.5), 0.5, K_FRACTION_TOLERANCE);
@@ -163,7 +163,7 @@ TEST(Unit_DropoutMask, TheKeptFractionIsTheKeepProbability)
 }
 
 /** @brief Tests that a keep of 1 keeps every element and a keep of 0 keeps none. */
-TEST(Unit_DropoutMask, TheTwoEndsOfTheKeepRangeAreExact)
+TEST(Small_DropoutMask, TheTwoEndsOfTheKeepRangeAreExact)
 {
     EXPECT_EQ(drawn(K_SEED, 0, 64, 1.0), std::string(64, '1'));
     EXPECT_EQ(drawn(K_SEED, 0, 64, 0.0), std::string(64, '0'));

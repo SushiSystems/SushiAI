@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_executor.cpp
 
 
-Suites: `Unit_RegionExecutor`.
+Suites: `Medium_RegionExecutor`.
 
 Tests that `RegionExecutor` builds, keeps, records again and drops regions as a step says.
 

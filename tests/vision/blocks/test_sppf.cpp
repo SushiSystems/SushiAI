@@ -150,7 +150,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the block keeps H and W and yields the output width. */
-TEST(Unit_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
+TEST(Small_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const SPPF row9(256, 256, 5, 3, true, K_YOLO_NORM);
     const SPPF widening(64, 96, 5, 3, true, K_YOLO_NORM);
@@ -160,7 +160,7 @@ TEST(Unit_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 }
 
 /** @brief Tests that the pool is a stride-1 window of the kernel given, padded by half of it. */
-TEST(Unit_BlockSppf, ThePoolKeepsTheExtents)
+TEST(Small_BlockSppf, ThePoolKeepsTheExtents)
 {
     const SPPF block(256, 256, 5, 3, true, K_YOLO_NORM);
 
@@ -177,7 +177,7 @@ TEST(Unit_BlockSppf, ThePoolKeepsTheExtents)
  * @brief Tests that row 9 traces two convolutions, three MAXPOOL2D, one CONCAT_CHANNELS, one
  *        ADD and a single SILU, which is cv2's.
  */
-TEST(Unit_BlockSppf, Row9EmitsThreePoolsOneConcatAndOneAdd)
+TEST(Small_BlockSppf, Row9EmitsThreePoolsOneConcatAndOneAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -201,7 +201,7 @@ TEST(Unit_BlockSppf, Row9EmitsThreePoolsOneConcatAndOneAdd)
  * @brief Tests that the join reads cv1's normalised result, with no SILU after it, then each
  *        pool, and that each pool reads the stage before it.
  */
-TEST(Unit_BlockSppf, TheJoinReadsTheNarrowedValueThenEachPoolInAChain)
+TEST(Small_BlockSppf, TheJoinReadsTheNarrowedValueThenEachPoolInAChain)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -229,7 +229,7 @@ TEST(Unit_BlockSppf, TheJoinReadsTheNarrowedValueThenEachPoolInAChain)
 }
 
 /** @brief Tests that the closing ADD reads cv2's result first and the block's input second. */
-TEST(Unit_BlockSppf, TheClosingAddReadsTheResultThenTheInput)
+TEST(Small_BlockSppf, TheClosingAddReadsTheResultThenTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -249,7 +249,7 @@ TEST(Unit_BlockSppf, TheClosingAddReadsTheResultThenTheInput)
 }
 
 /** @brief Tests that no ADD is traced without a shortcut, or with one over unequal widths. */
-TEST(Unit_BlockSppf, NoAddWithoutAShortcutOrOverUnequalWidths)
+TEST(Small_BlockSppf, NoAddWithoutAShortcutOrOverUnequalWidths)
 {
     Graph::Graph plain_graph;
     const Graph::GraphBuilder plain_builder(plain_graph);
@@ -270,7 +270,7 @@ TEST(Unit_BlockSppf, NoAddWithoutAShortcutOrOverUnequalWidths)
 }
 
 /** @brief Tests that the pool count sets the number of pools and the width cv2 reads. */
-TEST(Unit_BlockSppf, ThePoolCountSetsThePoolsAndTheJoinedWidth)
+TEST(Small_BlockSppf, ThePoolCountSetsThePoolsAndTheJoinedWidth)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -288,7 +288,7 @@ TEST(Unit_BlockSppf, ThePoolCountSetsThePoolsAndTheJoinedWidth)
  * @brief Tests that a traced SPPF(256, 256, 5, 3) yields the ten records MANIFEST.json lists
  *        under model.9, names, NHWC shapes and order.
  */
-TEST(Unit_BlockSppf, StateMatchesManifestRow9)
+TEST(Small_BlockSppf, StateMatchesManifestRow9)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -318,7 +318,7 @@ TEST(Unit_BlockSppf, StateMatchesManifestRow9)
  * @brief Tests that make_sppf_node builds row 9 from its file row: the port's shape, three
  *        pools, the closing add and the state names.
  */
-TEST(Unit_BlockSppf, TheFactoryBuildsRow9)
+TEST(Small_BlockSppf, TheFactoryBuildsRow9)
 {
     const Shape input{20, 20, 256};
     const Config::Value attributes = attributes_of(
@@ -353,7 +353,7 @@ TEST(Unit_BlockSppf, TheFactoryBuildsRow9)
  * @brief Tests that a row stating only "filters" gets a 5x5 pool applied three times and no
  *        closing add.
  */
-TEST(Unit_BlockSppf, TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut)
+TEST(Small_BlockSppf, TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes = attributes_of(R"({"filters": 64})");
@@ -377,7 +377,7 @@ TEST(Unit_BlockSppf, TheFactoryDefaultsToThreePoolsOfFiveAndNoShortcut)
 }
 
 /** @brief Tests that the factory refuses an even kernel, which would change H and W. */
-TEST(Unit_BlockSppf, TheFactoryRefusesAnEvenKernel)
+TEST(Small_BlockSppf, TheFactoryRefusesAnEvenKernel)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes = attributes_of(R"({"filters": 64, "kernel": 4})");
@@ -387,7 +387,7 @@ TEST(Unit_BlockSppf, TheFactoryRefusesAnEvenKernel)
 }
 
 /** @brief Tests that the factory refuses a one-channel input, which leaves no hidden channel. */
-TEST(Unit_BlockSppf, TheFactoryRefusesAnInputOfOneChannel)
+TEST(Small_BlockSppf, TheFactoryRefusesAnInputOfOneChannel)
 {
     const Shape input{4, 4, 1};
     const Config::Value attributes = attributes_of(R"({"filters": 64})");
@@ -397,7 +397,7 @@ TEST(Unit_BlockSppf, TheFactoryRefusesAnInputOfOneChannel)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing width and zero pools. */
-TEST(Unit_BlockSppf, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockSppf, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{4, 4, 64};
     const Config::Value unknown = attributes_of(R"({"filters": 64, "hidden": 32})");
@@ -413,7 +413,7 @@ TEST(Unit_BlockSppf, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that the factory hands "bn_epsilon" and "bn_momentum" to both norms. */
-TEST(Unit_BlockSppf, TheFactoryHandsTheNormOptionsToBothNorms)
+TEST(Small_BlockSppf, TheFactoryHandsTheNormOptionsToBothNorms)
 {
     const Shape input{4, 4, 256};
     const Config::Value attributes = attributes_of(
@@ -439,7 +439,7 @@ TEST(Unit_BlockSppf, TheFactoryHandsTheNormOptionsToBothNorms)
  * @brief Tests that the factory reads "kernel" and "pools": one 3x3 pool padded by one, and a
  *        cv2 that reads two parts.
  */
-TEST(Unit_BlockSppf, TheFactoryReadsKernelAndPools)
+TEST(Small_BlockSppf, TheFactoryReadsKernelAndPools)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes =

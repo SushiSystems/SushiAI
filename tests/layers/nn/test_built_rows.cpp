@@ -95,7 +95,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a reference is a row number, -1 for the row before, or an object. */
-TEST(Unit_LinkedRows, ARowReferenceTakesThreeForms)
+TEST(Small_LinkedRows, ARowReferenceTakesThreeForms)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t absolute,
                             NN::Detail::read_row_above(attributes_of(R"({"names": 0})"),
@@ -114,7 +114,7 @@ TEST(Unit_LinkedRows, ARowReferenceTakesThreeForms)
 }
 
 /** @brief Tests that a row that is not above, and every other form, is refused by name. */
-TEST(Unit_LinkedRows, ARowReferenceThatDoesNotFitIsRefused)
+TEST(Small_LinkedRows, ARowReferenceThatDoesNotFitIsRefused)
 {
     SA_EXPECT_FAILURE(NN::Detail::read_row_above(attributes_of(R"({"names": 3})"), K_NAMES_KEY,
                                                  "layer 3", 3),
@@ -141,7 +141,7 @@ TEST(Unit_LinkedRows, ARowReferenceThatDoesNotFitIsRefused)
 }
 
 /** @brief Tests that a linked type is found, listed, and shares one namespace of types. */
-TEST(Unit_LinkedRows, ALinkedTypeHasOneRowAmongAllKinds)
+TEST(Small_LinkedRows, ALinkedTypeHasOneRowAmongAllKinds)
 {
     NN::NodeRegistry registry = make_registry();
 
@@ -159,7 +159,7 @@ TEST(Unit_LinkedRows, ALinkedTypeHasOneRowAmongAllKinds)
 }
 
 /** @brief Tests that build_model hands a linked row the nodes of the rows above it. */
-TEST(Unit_LinkedRows, BuildModelHandsALinkedRowTheRowsAbove)
+TEST(Small_LinkedRows, BuildModelHandsALinkedRowTheRowsAbove)
 {
     const NN::NodeRegistry registry = make_registry();
     const Config::ModelSpec tied = SaTest::model_from(R"({
@@ -191,7 +191,7 @@ TEST(Unit_LinkedRows, BuildModelHandsALinkedRowTheRowsAbove)
 }
 
 /** @brief Tests that a linked row built alone sees no row, and that an unknown type lists it. */
-TEST(Unit_LinkedRows, ALinkedRowBuiltAloneSeesNoRow)
+TEST(Small_LinkedRows, ALinkedRowBuiltAloneSeesNoRow)
 {
     const NN::NodeRegistry registry = make_registry();
     const Shape sample{4, 3};
@@ -205,7 +205,7 @@ TEST(Unit_LinkedRows, ALinkedRowBuiltAloneSeesNoRow)
 }
 
 /** @brief Tests that the view counts the nodes of its graph and that no view counts none. */
-TEST(Unit_LinkedRows, BuiltRowsCountsTheNodesOfItsGraph)
+TEST(Small_LinkedRows, BuiltRowsCountsTheNodesOfItsGraph)
 {
     NN::ModelGraph model(Shape{4});
     NN::Embedding table{};
@@ -224,7 +224,7 @@ TEST(Unit_LinkedRows, BuiltRowsCountsTheNodesOfItsGraph)
 }
 
 /** @brief Tests that asking a view for a row it does not hold stops the process. */
-TEST(Unit_LinkedRowsDeathTest, ARowOutsideTheViewIsFatal)
+TEST(Small_LinkedRowsDeathTest, ARowOutsideTheViewIsFatal)
 {
     SA_EXPECT_FATAL(node_of_no_row(), "BuiltRows::node", "row 0");
 }

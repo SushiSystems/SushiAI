@@ -41,7 +41,7 @@ using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
 
 /** @brief Tests that the dataset source returns three index draws in draw order. */
-TEST(Unit_ImagingPartners, DatasetSourceReturnsThreeIndexDrawsInOrder)
+TEST(Small_ImagingPartners, DatasetSourceReturnsThreeIndexDrawsInOrder)
 {
     DatasetPartners partners(1000);
     Random random(20261007u);
@@ -56,7 +56,7 @@ TEST(Unit_ImagingPartners, DatasetSourceReturnsThreeIndexDrawsInOrder)
 }
 
 /** @brief Tests that the dataset source reaches every image and none outside the dataset. */
-TEST(Unit_ImagingPartners, DatasetSourceCoversTheDatasetAndNeverLeavesIt)
+TEST(Small_ImagingPartners, DatasetSourceCoversTheDatasetAndNeverLeavesIt)
 {
     const std::size_t dataset_size = 7;
     DatasetPartners partners(dataset_size);
@@ -77,7 +77,7 @@ TEST(Unit_ImagingPartners, DatasetSourceCoversTheDatasetAndNeverLeavesIt)
 }
 
 /** @brief Tests that earlier calls do not change what the dataset source gives a generator. */
-TEST(Unit_ImagingPartners, DatasetSourceKeepsNoStateBetweenSamples)
+TEST(Small_ImagingPartners, DatasetSourceKeepsNoStateBetweenSamples)
 {
     DatasetPartners used(50);
     DatasetPartners fresh(50);
@@ -92,7 +92,7 @@ TEST(Unit_ImagingPartners, DatasetSourceKeepsNoStateBetweenSamples)
 }
 
 /** @brief Tests that the dataset source refuses a size or an index outside its range. */
-TEST(Unit_ImagingPartners, DatasetSourceRejectsSizesAndIndicesOutOfRange)
+TEST(Small_ImagingPartners, DatasetSourceRejectsSizesAndIndicesOutOfRange)
 {
     const std::size_t largest = std::numeric_limits<std::uint32_t>::max();
     DatasetPartners partners(4);

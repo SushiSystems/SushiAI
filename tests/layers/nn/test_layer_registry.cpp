@@ -223,7 +223,7 @@ namespace
 }
 
 /** @brief Tests that every registry row has a minimal case here, so no factory goes unbuilt. */
-TEST(Unit_LayerRegistry, EveryRowHasAMinimalCase)
+TEST(Small_LayerRegistry, EveryRowHasAMinimalCase)
 {
     const NN::NodeRegistry registry = make_layer_registry();
     const SushiRuntime::span<const NN::LayerEntry> layers = registry.layers();
@@ -235,7 +235,7 @@ TEST(Unit_LayerRegistry, EveryRowHasAMinimalCase)
 }
 
 /** @brief Tests that the registry spells its sixteen type strings as model files do, in order. */
-TEST(Unit_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
+TEST(Small_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
 {
     const std::vector<std::string_view> expected = {
         "linear",     "gelu",      "relu",   "tanh",      "sigmoid",
@@ -253,7 +253,7 @@ TEST(Unit_LayerRegistry, TheTypeStringsAreTheOnesModelFilesSpell)
 }
 
 /** @brief Tests that each factory builds a layer from its minimal object and reports its shape. */
-TEST(Unit_LayerRegistry, EachFactoryBuildsFromAMinimalObject)
+TEST(Small_LayerRegistry, EachFactoryBuildsFromAMinimalObject)
 {
     for (const MinimalCase& minimal : K_MINIMAL_CASES)
     {
@@ -268,7 +268,7 @@ TEST(Unit_LayerRegistry, EachFactoryBuildsFromAMinimalObject)
 }
 
 /** @brief Tests that each registry key builds the layer type it names and no other. */
-TEST(Unit_LayerRegistry, EachKeyBuildsItsOwnLayerType)
+TEST(Small_LayerRegistry, EachKeyBuildsItsOwnLayerType)
 {
     const Shape vector{6};
     const Shape image{8, 8, 2};
@@ -293,7 +293,7 @@ TEST(Unit_LayerRegistry, EachKeyBuildsItsOwnLayerType)
 }
 
 /** @brief Tests that each factory refuses a key it does not know and names that key. */
-TEST(Unit_LayerRegistry, EachFactoryRejectsAnUnknownKey)
+TEST(Small_LayerRegistry, EachFactoryRejectsAnUnknownKey)
 {
     for (const MinimalCase& minimal : K_MINIMAL_CASES)
     {
@@ -305,7 +305,7 @@ TEST(Unit_LayerRegistry, EachFactoryRejectsAnUnknownKey)
 }
 
 /** @brief Tests that a model file cannot set a convolution's input channel count. */
-TEST(Unit_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
+TEST(Small_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
 {
     const std::unique_ptr<NN::Layer> layer =
         make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{8, 8, 7});
@@ -322,14 +322,14 @@ TEST(Unit_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
 }
 
 /** @brief Tests that a convolution fed a feature vector is refused with the layer that fixes it. */
-TEST(Unit_LayerRegistry, Conv2dRefusesAnInputThatIsNotAnImage)
+TEST(Small_LayerRegistry, Conv2dRefusesAnInputThatIsNotAnImage)
 {
     SA_EXPECT_ERROR((void)make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{784}),
                     "layer 0 'conv2d'", "[784]", "[H, W, C]", "'unflatten'");
 }
 
 /** @brief Tests that a convolution defaults to stride 1, no padding, dilation 1 and a bias. */
-TEST(Unit_LayerRegistry, Conv2dDefaultsItsOptionalKeys)
+TEST(Small_LayerRegistry, Conv2dDefaultsItsOptionalKeys)
 {
     const std::unique_ptr<NN::Layer> layer =
         make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{8, 8, 2});
@@ -346,7 +346,7 @@ TEST(Unit_LayerRegistry, Conv2dDefaultsItsOptionalKeys)
 }
 
 /** @brief Tests that a convolution stores every key the model file sets. */
-TEST(Unit_LayerRegistry, Conv2dReadsEveryKeyItAccepts)
+TEST(Small_LayerRegistry, Conv2dReadsEveryKeyItAccepts)
 {
     const std::unique_ptr<NN::Layer> layer = make_layer(
         "conv2d",
@@ -369,7 +369,7 @@ TEST(Unit_LayerRegistry, Conv2dReadsEveryKeyItAccepts)
 }
 
 /** @brief Tests that a kernel spelled as an integer and as [h, w] builds the same window. */
-TEST(Unit_LayerRegistry, AKernelAsAnIntegerAndAsAPairAgree)
+TEST(Small_LayerRegistry, AKernelAsAnIntegerAndAsAPairAgree)
 {
     const Shape image{8, 8, 2};
 
@@ -405,7 +405,7 @@ TEST(Unit_LayerRegistry, AKernelAsAnIntegerAndAsAPairAgree)
 }
 
 /** @brief Tests that a window setting is refused unless it is an integer or a two-entry array. */
-TEST(Unit_LayerRegistry, AWindowSettingOfTheWrongFormIsRefused)
+TEST(Small_LayerRegistry, AWindowSettingOfTheWrongFormIsRefused)
 {
     const Shape image{8, 8, 2};
 
@@ -421,7 +421,7 @@ TEST(Unit_LayerRegistry, AWindowSettingOfTheWrongFormIsRefused)
 }
 
 /** @brief Tests that a pool's stride follows its kernel unless the model file sets one. */
-TEST(Unit_LayerRegistry, APoolStrideDefaultsToItsKernel)
+TEST(Small_LayerRegistry, APoolStrideDefaultsToItsKernel)
 {
     const Shape image{12, 12, 2};
 
@@ -447,7 +447,7 @@ TEST(Unit_LayerRegistry, APoolStrideDefaultsToItsKernel)
 }
 
 /** @brief Tests that conv2d refuses a non-positive filter count, kernel, stride or dilation. */
-TEST(Unit_LayerRegistry, Conv2dRejectsANonPositiveExtent)
+TEST(Small_LayerRegistry, Conv2dRejectsANonPositiveExtent)
 {
     const Shape image{8, 8, 2};
 
@@ -468,7 +468,7 @@ TEST(Unit_LayerRegistry, Conv2dRejectsANonPositiveExtent)
 }
 
 /** @brief Tests that both pools refuse a non-positive kernel or stride. */
-TEST(Unit_LayerRegistry, ThePoolsRejectANonPositiveExtent)
+TEST(Small_LayerRegistry, ThePoolsRejectANonPositiveExtent)
 {
     const Shape image{8, 8, 2};
 
@@ -490,7 +490,7 @@ TEST(Unit_LayerRegistry, ThePoolsRejectANonPositiveExtent)
 }
 
 /** @brief Tests that conv2d and both pools refuse a negative padding on either axis. */
-TEST(Unit_LayerRegistry, AWindowedLayerRejectsANegativePadding)
+TEST(Small_LayerRegistry, AWindowedLayerRejectsANegativePadding)
 {
     const Shape image{8, 8, 2};
 
@@ -511,7 +511,7 @@ TEST(Unit_LayerRegistry, AWindowedLayerRejectsANegativePadding)
 }
 
 /** @brief Tests that a factory refuses an object missing a key it requires and names the key. */
-TEST(Unit_LayerRegistry, AFactoryRejectsAMissingRequiredKey)
+TEST(Small_LayerRegistry, AFactoryRejectsAMissingRequiredKey)
 {
     const Shape image{8, 8, 2};
 
@@ -528,7 +528,7 @@ TEST(Unit_LayerRegistry, AFactoryRejectsAMissingRequiredKey)
 }
 
 /** @brief Tests that leaky_relu refuses a slope outside (0, 1) when the layer is built. */
-TEST(Unit_LayerRegistry, LeakyReLURejectsASlopeOutsideItsRange)
+TEST(Small_LayerRegistry, LeakyReLURejectsASlopeOutsideItsRange)
 {
     for (std::string_view attributes : {R"({"slope": 0})", R"({"slope": 1})",
                                         R"({"slope": -0.1})"})
@@ -540,14 +540,14 @@ TEST(Unit_LayerRegistry, LeakyReLURejectsASlopeOutsideItsRange)
 }
 
 /** @brief Tests that upsample refuses a scale below one when the layer is built. */
-TEST(Unit_LayerRegistry, UpsampleRejectsAScaleBelowOne)
+TEST(Small_LayerRegistry, UpsampleRejectsAScaleBelowOne)
 {
     SA_EXPECT_ERROR((void)make_layer("upsample", R"({"scale": 0})", Shape{4, 4, 2}),
                     "layer 0 'upsample'", "Upsample2d", "scale");
 }
 
 /** @brief Tests that leaky_relu and upsample use 0.01 and 2 until the model file sets a value. */
-TEST(Unit_LayerRegistry, LeakyReLUAndUpsampleReadTheirOptionalKey)
+TEST(Small_LayerRegistry, LeakyReLUAndUpsampleReadTheirOptionalKey)
 {
     const std::unique_ptr<NN::Layer> default_leaky = make_layer("leaky_relu", "{}", Shape{6});
     const std::unique_ptr<NN::Layer> steep_leaky =
@@ -566,7 +566,7 @@ TEST(Unit_LayerRegistry, LeakyReLUAndUpsampleReadTheirOptionalKey)
 }
 
 /** @brief Tests that unflatten refuses an input whose element count its image does not hold. */
-TEST(Unit_LayerRegistry, UnflattenRefusesAnInputOfAnotherSize)
+TEST(Small_LayerRegistry, UnflattenRefusesAnInputOfAnotherSize)
 {
     SA_EXPECT_ERROR((void)make_layer("unflatten",
                                      R"({"height": 28, "width": 28, "channels": 1})",
@@ -577,7 +577,7 @@ TEST(Unit_LayerRegistry, UnflattenRefusesAnInputOfAnotherSize)
 }
 
 /** @brief Tests that the convolutional model file builds a stack that ends in ten features. */
-TEST(Unit_LayerRegistry, TheConvModelBuildsAndReportsItsOutputShape)
+TEST(Small_LayerRegistry, TheConvModelBuildsAndReportsItsOutputShape)
 {
     const NN::LayerStack stack = make_conv_stack();
 
@@ -590,7 +590,7 @@ TEST(Unit_LayerRegistry, TheConvModelBuildsAndReportsItsOutputShape)
 }
 
 /** @brief Tests that the convolutional model traces a [4, 784] batch to [4, 10]. */
-TEST(Unit_LayerRegistry, TheConvModelTracesToTheShapeItReports)
+TEST(Small_LayerRegistry, TheConvModelTracesToTheShapeItReports)
 {
     NN::LayerStack stack = make_conv_stack();
 
@@ -602,7 +602,7 @@ TEST(Unit_LayerRegistry, TheConvModelTracesToTheShapeItReports)
 }
 
 /** @brief Tests that the convolutional model names its six parameters by layer position. */
-TEST(Unit_LayerRegistry, TheConvModelNamesItsParametersByLayerPosition)
+TEST(Small_LayerRegistry, TheConvModelNamesItsParametersByLayerPosition)
 {
     NN::LayerStack stack = make_conv_stack();
 
@@ -610,7 +610,7 @@ TEST(Unit_LayerRegistry, TheConvModelNamesItsParametersByLayerPosition)
 }
 
 /** @brief Tests that a Sequential of the same layer types yields the model file's names. */
-TEST(Unit_LayerRegistry, ASequentialOfTheSameLayersYieldsTheSameNames)
+TEST(Small_LayerRegistry, ASequentialOfTheSameLayersYieldsTheSameNames)
 {
     NN::Sequential compile_time{
         NN::Unflatten{28, 28, 1},
@@ -631,7 +631,7 @@ TEST(Unit_LayerRegistry, ASequentialOfTheSameLayersYieldsTheSameNames)
 }
 
 /** @brief Tests that differentiating cross-entropy reaches all six parameters of the model. */
-TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvModel)
+TEST(Small_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvModel)
 {
     NN::LayerStack stack = make_conv_stack();
 
@@ -666,7 +666,7 @@ TEST(Unit_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMode
 }
 
 /** @brief Tests that a silu row traces one SILU node that keeps the input's shape. */
-TEST(Unit_LayerRegistry, ASiLURowTracesOneSiLUNode)
+TEST(Small_LayerRegistry, ASiLURowTracesOneSiLUNode)
 {
     const std::unique_ptr<NN::Layer> layer = make_layer("silu", "{}", Shape{8, 8, 2});
 
@@ -682,7 +682,7 @@ TEST(Unit_LayerRegistry, ASiLURowTracesOneSiLUNode)
 }
 
 /** @brief Tests that a version 2 chain is seeded with input.shape, not with its element count. */
-TEST(Unit_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
+TEST(Small_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
 {
     constexpr std::string_view K_IMAGE_CHAIN = R"({
         "format_version": 2,
@@ -704,7 +704,7 @@ TEST(Unit_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads two rows and names build_model. */
-TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
+TEST(Small_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
 {
     constexpr std::string_view K_MERGING_MODEL = R"({
         "format_version": 2,
@@ -723,7 +723,7 @@ TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads one row other than the last. */
-TEST(Unit_LayerRegistry, AChainRefusesARowThatSkipsBack)
+TEST(Small_LayerRegistry, AChainRefusesARowThatSkipsBack)
 {
     constexpr std::string_view K_SKIPPING_MODEL = R"({
         "format_version": 2,
@@ -742,7 +742,7 @@ TEST(Unit_LayerRegistry, AChainRefusesARowThatSkipsBack)
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads the model input below row 0. */
-TEST(Unit_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
+TEST(Small_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
 {
     constexpr std::string_view K_RESTARTING_MODEL = R"({
         "format_version": 2,
@@ -760,7 +760,7 @@ TEST(Unit_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
 }
 
 /** @brief Tests that build_layer_stack refuses a file whose outputs publish an earlier row. */
-TEST(Unit_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
+TEST(Small_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
 {
     constexpr std::string_view K_EARLY_OUTPUT_MODEL = R"({
         "format_version": 2,
@@ -779,7 +779,7 @@ TEST(Unit_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
 }
 
 /** @brief Tests that build_layer_stack builds a file whose outputs name the last row whole. */
-TEST(Unit_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
+TEST(Small_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
 {
     constexpr std::string_view K_LAST_OUTPUT_MODEL = R"({
         "format_version": 2,
@@ -799,7 +799,7 @@ TEST(Unit_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads a named port of the row above. */
-TEST(Unit_LayerRegistry, AChainRefusesARowThatReadsANamedPort)
+TEST(Small_LayerRegistry, AChainRefusesARowThatReadsANamedPort)
 {
     constexpr std::string_view K_PORT_MODEL = R"({
         "format_version": 2,

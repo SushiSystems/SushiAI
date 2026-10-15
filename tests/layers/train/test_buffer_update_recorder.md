@@ -1,7 +1,7 @@
 # tests/layers/train/test_buffer_update_recorder.cpp
 
 
-Suites: `Integration_BufferUpdateRecorder`.
+Suites: `Medium_BufferUpdateRecorder`.
 
 The recorder blends each buffer's batch statistic into its running buffer, once per replay. The
 cases check how many tasks it records, the value one replay leaves behind, the empty recorder,
@@ -32,7 +32,7 @@ Binding is refused as `Incompatible`, and the message contains "no entry".
 The target entry is float32 and the source tensor is float64. Binding is refused as
 `Incompatible`, and the message names both dtypes by their `dtype_name`.
 
-Suites: `Integration_EvaluationStep`.
+Suites: `Medium_EvaluationStep`.
 
 The evaluation step replays a forward-only graph over a `NN::ModelState`. The cases check that it
 compiles once, that it reads the weights a training step wrote, that a probe run leaves the

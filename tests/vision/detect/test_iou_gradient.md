@@ -1,7 +1,7 @@
 # tests/vision/detect/test_iou_gradient.cpp
 
 
-Suites: `Unit_DetectIouGradient`.
+Suites: `Small_DetectIouGradient`.
 
 Tests the box gradient declared in
 `modules/vision/detect/include/SushiAI/vision/detect/iou_gradient.hpp` in its two forms,

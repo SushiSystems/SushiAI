@@ -107,7 +107,7 @@ namespace
 }
 
 /** @brief Tests that a trace adds the attention, then the mixture, each to what it read. */
-TEST(Unit_BlockExpertTransformerBlock, ATraceAddsANormalisedAttentionThenANormalisedMixture)
+TEST(Small_BlockExpertTransformerBlock, ATraceAddsANormalisedAttentionThenANormalisedMixture)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -137,7 +137,7 @@ TEST(Unit_BlockExpertTransformerBlock, ATraceAddsANormalisedAttentionThenANormal
 }
 
 /** @brief Tests that the walk names the fourteen parameters under the four children. */
-TEST(Unit_BlockExpertTransformerBlock, TheWalkYieldsTheFourChildren)
+TEST(Small_BlockExpertTransformerBlock, TheWalkYieldsTheFourChildren)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -166,7 +166,7 @@ TEST(Unit_BlockExpertTransformerBlock, TheWalkYieldsTheFourChildren)
 }
 
 /** @brief Tests that an input of another width fails once, with the first child's message. */
-TEST(Unit_BlockExpertTransformerBlock, AnInputThatDoesNotFitFails)
+TEST(Small_BlockExpertTransformerBlock, AnInputThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -183,7 +183,7 @@ TEST(Unit_BlockExpertTransformerBlock, AnInputThatDoesNotFitFails)
 }
 
 /** @brief Tests that "experts" turns the row into a node of three ports, and its absence not. */
-TEST(Unit_BlockExpertTransformerBlock, TheTransformerRowWithExpertsHasThreePorts)
+TEST(Small_BlockExpertTransformerBlock, TheTransformerRowWithExpertsHasThreePorts)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> plain, make_row(R"({"heads": 2})"));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> none,
@@ -221,7 +221,7 @@ TEST(Unit_BlockExpertTransformerBlock, TheTransformerRowWithExpertsHasThreePorts
 }
 
 /** @brief Tests that the row refuses a top_k without experts and one above their count. */
-TEST(Unit_BlockExpertTransformerBlock, TheTransformerRowRefusesCountsThatDoNotFit)
+TEST(Small_BlockExpertTransformerBlock, TheTransformerRowRefusesCountsThatDoNotFit)
 {
     SA_EXPECT_FAILURE(make_row(R"({"heads": 2, "top_k": 1})"), StatusCode::InvalidDescription,
                       "layer 3", "'top_k'", "no 'experts'");
@@ -232,7 +232,7 @@ TEST(Unit_BlockExpertTransformerBlock, TheTransformerRowRefusesCountsThatDoNotFi
 }
 
 /** @brief Tests that one position carries the two caches and routes through the experts. */
-TEST(Unit_BlockExpertTransformerBlock, TheIncrementalFormTracesEachChildOverOnePosition)
+TEST(Small_BlockExpertTransformerBlock, TheIncrementalFormTracesEachChildOverOnePosition)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -273,7 +273,7 @@ TEST(Unit_BlockExpertTransformerBlock, TheIncrementalFormTracesEachChildOverOneP
 }
 
 /** @brief Tests that the block and its row hand the positions to the attention. */
-TEST(Unit_BlockExpertTransformerBlock, TheBlockAndItsRowPassThePositionsToTheAttention)
+TEST(Small_BlockExpertTransformerBlock, TheBlockAndItsRowPassThePositionsToTheAttention)
 {
     using Language::Blocks::AttentionPositions;
 

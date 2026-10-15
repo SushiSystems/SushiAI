@@ -83,7 +83,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the emitter appends MUL, RESHAPE, SUM_ROWS and SCALE, wired in that order. */
-TEST(Unit_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
+TEST(Medium_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -118,7 +118,7 @@ TEST(Unit_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
 }
 
 /** @brief Tests that the result carries the element type of the head. */
-TEST(Unit_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
+TEST(Medium_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -132,7 +132,7 @@ TEST(Unit_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
 }
 
 /** @brief Tests that autograd takes the result as a root and returns a head-shaped gradient. */
-TEST(Unit_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
+TEST(Medium_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -153,7 +153,7 @@ TEST(Unit_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
 }
 
 /** @brief Tests that a delta of another shape throws, naming MUL and both shapes. */
-TEST(Unit_HeadDeltaLoss, ADeltaOfAnotherShapeThrowsNamingBothShapes)
+TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherShapeThrowsNamingBothShapes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -168,7 +168,7 @@ TEST(Unit_HeadDeltaLoss, ADeltaOfAnotherShapeThrowsNamingBothShapes)
 }
 
 /** @brief Tests that a delta of another element type throws, naming MUL and both types. */
-TEST(Unit_HeadDeltaLoss, ADeltaOfAnotherElementTypeThrowsNamingBothTypes)
+TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherElementTypeThrowsNamingBothTypes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -184,7 +184,7 @@ TEST(Unit_HeadDeltaLoss, ADeltaOfAnotherElementTypeThrowsNamingBothTypes)
 
 namespace
 {
-    class Integration_HeadDeltaLoss : public SaTest::EngineTest {};
+    class Medium_HeadDeltaLossEndToEnd : public SaTest::EngineTest {};
 
     /** @brief Holds the factor under test, one over the batch of two. */
     constexpr double K_ENGINE_SCALE = 0.5;
@@ -262,7 +262,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the gradient at the head is -scale * delta, element by element, to 1e-6. */
-TEST_F(Integration_HeadDeltaLoss, TheGradientAtTheHeadIsMinusScaleTimesDelta)
+TEST_F(Medium_HeadDeltaLossEndToEnd, TheGradientAtTheHeadIsMinusScaleTimesDelta)
 {
     DeltaLossCase model(*engine);
     ASSERT_NE(model.step, nullptr);
@@ -279,7 +279,7 @@ TEST_F(Integration_HeadDeltaLoss, TheGradientAtTheHeadIsMinusScaleTimesDelta)
 }
 
 /** @brief Tests that the root's value is -scale * sum(delta * head), summed in double, to 1e-4. */
-TEST_F(Integration_HeadDeltaLoss, TheValueIsMinusScaleTimesTheSumOfProducts)
+TEST_F(Medium_HeadDeltaLossEndToEnd, TheValueIsMinusScaleTimesTheSumOfProducts)
 {
     DeltaLossCase model(*engine);
     ASSERT_NE(model.step, nullptr);

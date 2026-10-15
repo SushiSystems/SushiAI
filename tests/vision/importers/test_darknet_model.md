@@ -1,13 +1,13 @@
 # tests/vision/importers/test_darknet_model.cpp
 
 
-Suites: `Unit_DarknetModel`, `Unit_DarknetModelState`.
+Suites: `Small_DarknetModel`, `Medium_DarknetModelState`.
 
 Tests the translation of a config text into a `DarknetModel`: the rows of its model spec, the
 row each layer ends on, its heads, its anchor layout, the shape of each convolution and the
 state names its weights go to. Most cases translate a 24-layer text with two heads that the
 file holds, under `DarknetNormalisation::Separate` or `DarknetNormalisation::Folded`. The
-refusal cases use a small 32x32 network. `Unit_DarknetModelState` is an engine fixture.
+refusal cases use a small 32x32 network. `Medium_DarknetModelState` is an engine fixture.
 
 ## SeparateFormHasTheCountedRowsAndSources
 
@@ -87,7 +87,7 @@ route to a later layer ("line 12", "names layer 1"), a head over 12 channels tha
 ("line 8", "reads 18 channels", "has 12"), a mask that names anchor 3 of three ("line 12",
 "names anchor 3"), and a text with no head ("no [yolo] section").
 
-Suites: `Unit_DarknetRouteGroups`.
+Suites: `Small_DarknetRouteGroups`.
 
 Tests how the translation of a config text turns a `[route]` section with `groups` and
 `group_id` into model rows. Each case starts from a network whose first convolution has 64
@@ -117,7 +117,7 @@ Four routes fail with `InvalidDescription`: `groups=3` over 64 channels ("line 1
 "64 channels"), `group_id=2` with two groups ("line 11", "group_id 2"), `groups=0` ("line 11",
 "groups 0"), and a `group_id` of 1 without `groups` ("line 11", "group_id 1").
 
-Suites: `Unit_DarknetShortcut`.
+Suites: `Small_DarknetShortcut`.
 
 Tests how the translation of a config text turns a `[shortcut]` section into a model row. Each
 case starts from an 8x8 three-channel network with two convolutions.

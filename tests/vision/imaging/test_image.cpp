@@ -69,7 +69,7 @@ static_assert(!is_valid_channel_count(0) && !is_valid_channel_count(K_MAX_CHANNE
 static_assert(ImageView(nullptr, ImageSize{2, 5}, 3).row_bytes() == 15, "width by channels");
 static_assert(ImageView(nullptr, ImageSize{2, 5}, 3).byte_count() == 30, "rows by row bytes");
 
-TEST(Unit_ImagingImage, ImageSizeComparesHeightAndWidth)
+TEST(Small_ImagingImage, ImageSizeComparesHeightAndWidth)
 {
     EXPECT_TRUE((ImageSize{3, 4} == ImageSize{3, 4}));
     EXPECT_TRUE((ImageSize{3, 4} != ImageSize{3, 5}));
@@ -77,7 +77,7 @@ TEST(Unit_ImagingImage, ImageSizeComparesHeightAndWidth)
     EXPECT_FALSE((ImageSize{3, 4} == ImageSize{4, 3}));
 }
 
-TEST(Unit_ImagingImage, ADefaultImageHasNoPixels)
+TEST(Small_ImagingImage, ADefaultImageHasNoPixels)
 {
     const Image image;
 
@@ -90,7 +90,7 @@ TEST(Unit_ImagingImage, ADefaultImageHasNoPixels)
     EXPECT_EQ(image.allocated_bytes(), 0u);
 }
 
-TEST(Unit_ImagingImage, AConstructedImageReportsItsExtents)
+TEST(Small_ImagingImage, AConstructedImageReportsItsExtents)
 {
     const Image image(ImageSize{4, 6}, 3);
 
@@ -103,7 +103,7 @@ TEST(Unit_ImagingImage, AConstructedImageReportsItsExtents)
     ASSERT_NE(image.data(), nullptr);
 }
 
-TEST(Unit_ImagingImage, AConstructedImageIsZero)
+TEST(Small_ImagingImage, AConstructedImageIsZero)
 {
     const Image image(ImageSize{5, 7}, 4);
 
@@ -111,7 +111,7 @@ TEST(Unit_ImagingImage, AConstructedImageIsZero)
         ASSERT_EQ(image.data()[i], 0) << "byte " << i;
 }
 
-TEST(Unit_ImagingImage, TheLargestSideAndChannelCountAreAccepted)
+TEST(Small_ImagingImage, TheLargestSideAndChannelCountAreAccepted)
 {
     const Image tall(ImageSize{K_MAX_IMAGE_SIDE, 1}, 1);
     const Image wide(ImageSize{1, K_MAX_IMAGE_SIDE}, K_MAX_CHANNELS);
@@ -120,28 +120,28 @@ TEST(Unit_ImagingImage, TheLargestSideAndChannelCountAreAccepted)
     EXPECT_EQ(wide.byte_count(), static_cast<std::size_t>(K_MAX_IMAGE_SIDE) * K_MAX_CHANNELS);
 }
 
-TEST(Unit_ImagingImage, ConstructionRejectsAHeightOutsideItsBounds)
+TEST(Small_ImagingImage, ConstructionRejectsAHeightOutsideItsBounds)
 {
     SA_EXPECT_ERROR(Image(ImageSize{0, 4}, 3), "Image:", "size of 0x4", "16384");
     SA_EXPECT_ERROR(Image(ImageSize{-2, 4}, 3), "Image:", "size of -2x4");
     SA_EXPECT_ERROR(Image(ImageSize{K_MAX_IMAGE_SIDE + 1, 4}, 3), "Image:", "size of 16385x4");
 }
 
-TEST(Unit_ImagingImage, ConstructionRejectsAWidthOutsideItsBounds)
+TEST(Small_ImagingImage, ConstructionRejectsAWidthOutsideItsBounds)
 {
     SA_EXPECT_ERROR(Image(ImageSize{4, 0}, 3), "Image:", "size of 4x0", "16384");
     SA_EXPECT_ERROR(Image(ImageSize{4, -7}, 3), "Image:", "size of 4x-7");
     SA_EXPECT_ERROR(Image(ImageSize{4, K_MAX_IMAGE_SIDE + 1}, 3), "Image:", "size of 4x16385");
 }
 
-TEST(Unit_ImagingImage, ConstructionRejectsAChannelCountOutsideItsBounds)
+TEST(Small_ImagingImage, ConstructionRejectsAChannelCountOutsideItsBounds)
 {
     SA_EXPECT_ERROR(Image(ImageSize{4, 4}, 0), "Image:", "channel count of 0", "[1, 4]");
     SA_EXPECT_ERROR(Image(ImageSize{4, 4}, -1), "Image:", "channel count of -1");
     SA_EXPECT_ERROR(Image(ImageSize{4, 4}, K_MAX_CHANNELS + 1), "Image:", "channel count of 5");
 }
 
-TEST(Unit_ImagingImage, RowsStartOneRowOfBytesApart)
+TEST(Small_ImagingImage, RowsStartOneRowOfBytesApart)
 {
     Image image(ImageSize{3, 5}, 3);
     const Image& constant = image;
@@ -156,7 +156,7 @@ TEST(Unit_ImagingImage, RowsStartOneRowOfBytesApart)
     }
 }
 
-TEST(Unit_ImagingImage, AByteWrittenThroughARowIsReadAtItsHwcOffset)
+TEST(Small_ImagingImage, AByteWrittenThroughARowIsReadAtItsHwcOffset)
 {
     Image image(ImageSize{3, 4}, 3);
 
@@ -167,7 +167,7 @@ TEST(Unit_ImagingImage, AByteWrittenThroughARowIsReadAtItsHwcOffset)
         ASSERT_EQ(image.data()[i], i == 29 ? 201 : 0) << "byte " << i;
 }
 
-TEST(Unit_ImagingImage, FillSetsEveryByte)
+TEST(Small_ImagingImage, FillSetsEveryByte)
 {
     Image image(ImageSize{4, 3}, 2);
     image.fill(114);
@@ -176,7 +176,7 @@ TEST(Unit_ImagingImage, FillSetsEveryByte)
         ASSERT_EQ(image.data()[i], 114) << "byte " << i;
 }
 
-TEST(Unit_ImagingImage, FillOnAnEmptyImageDoesNothing)
+TEST(Small_ImagingImage, FillOnAnEmptyImageDoesNothing)
 {
     Image image;
     image.fill(9);
@@ -184,7 +184,7 @@ TEST(Unit_ImagingImage, FillOnAnEmptyImageDoesNothing)
     EXPECT_EQ(image.byte_count(), 0u);
 }
 
-TEST(Unit_ImagingImage, ResetGivesTheImageNewExtents)
+TEST(Small_ImagingImage, ResetGivesTheImageNewExtents)
 {
     Image image(ImageSize{2, 2}, 1);
     image.reset(ImageSize{5, 3}, 4);
@@ -201,7 +201,7 @@ TEST(Unit_ImagingImage, ResetGivesTheImageNewExtents)
         ASSERT_EQ(static_cast<std::size_t>(image.data()[i]), i % 251) << "byte " << i;
 }
 
-TEST(Unit_ImagingImage, ResetOnADefaultImageAllocates)
+TEST(Small_ImagingImage, ResetOnADefaultImageAllocates)
 {
     Image image;
     image.reset(ImageSize{3, 2}, 3);
@@ -210,7 +210,7 @@ TEST(Unit_ImagingImage, ResetOnADefaultImageAllocates)
     EXPECT_EQ(image.byte_count(), 18u);
 }
 
-TEST(Unit_ImagingImage, ResetKeepsTheAllocationWhenItIsLargeEnough)
+TEST(Small_ImagingImage, ResetKeepsTheAllocationWhenItIsLargeEnough)
 {
     Image image(ImageSize{8, 8}, 3);
     const std::uint8_t* allocation = image.data();
@@ -225,7 +225,7 @@ TEST(Unit_ImagingImage, ResetKeepsTheAllocationWhenItIsLargeEnough)
     EXPECT_EQ(image.byte_count(), 192u);
 }
 
-TEST(Unit_ImagingImage, ResetRejectsTheBoundsTheConstructorRejects)
+TEST(Small_ImagingImage, ResetRejectsTheBoundsTheConstructorRejects)
 {
     Image image(ImageSize{2, 2}, 3);
 
@@ -235,7 +235,7 @@ TEST(Unit_ImagingImage, ResetRejectsTheBoundsTheConstructorRejects)
     SA_EXPECT_ERROR(image.reset(ImageSize{2, 2}, 5), "Image::reset", "channel count of 5");
 }
 
-TEST(Unit_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
+TEST(Small_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
 {
     Image image(ImageSize{2, 3}, 3);
     write_offsets(image);
@@ -251,7 +251,7 @@ TEST(Unit_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
         ASSERT_EQ(static_cast<std::size_t>(image.data()[i]), i % 251) << "byte " << i;
 }
 
-TEST(Unit_ImagingImage, AViewOfAnImageDescribesTheSamePixels)
+TEST(Small_ImagingImage, AViewOfAnImageDescribesTheSamePixels)
 {
     Image image(ImageSize{3, 4}, 3);
     write_offsets(image);
@@ -268,7 +268,7 @@ TEST(Unit_ImagingImage, AViewOfAnImageDescribesTheSamePixels)
     EXPECT_EQ(view.row(2)[5], 29);
 }
 
-TEST(Unit_ImagingImage, ADefaultViewIsEmpty)
+TEST(Small_ImagingImage, ADefaultViewIsEmpty)
 {
     const ImageView view;
 
@@ -279,7 +279,7 @@ TEST(Unit_ImagingImage, ADefaultViewIsEmpty)
     EXPECT_EQ(view.byte_count(), 0u);
 }
 
-TEST(Unit_ImagingImage, AViewOverForeignBytesAddressesThemInHwcOrder)
+TEST(Small_ImagingImage, AViewOverForeignBytesAddressesThemInHwcOrder)
 {
     const std::array<std::uint8_t, 12> bytes{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     const ImageView view(bytes.data(), ImageSize{2, 3}, 2);
@@ -294,7 +294,7 @@ TEST(Unit_ImagingImage, AViewOverForeignBytesAddressesThemInHwcOrder)
     EXPECT_EQ(view.row(1)[2 * 2 + 1], 11);
 }
 
-TEST(Unit_ImagingImage, ACopyOwnsItsOwnPixels)
+TEST(Small_ImagingImage, ACopyOwnsItsOwnPixels)
 {
     Image original(ImageSize{2, 2}, 3);
     write_offsets(original);
@@ -310,7 +310,7 @@ TEST(Unit_ImagingImage, ACopyOwnsItsOwnPixels)
 }
 
 /** @brief Tests that the allocation never shrinks and is what a smaller reset keeps. */
-TEST(Unit_ImagingImage, AllocatedBytesKeepsTheLargestSizeTheImageHad)
+TEST(Small_ImagingImage, AllocatedBytesKeepsTheLargestSizeTheImageHad)
 {
     Image image(ImageSize{4, 4}, 3);
 
@@ -321,7 +321,7 @@ TEST(Unit_ImagingImage, AllocatedBytesKeepsTheLargestSizeTheImageHad)
 }
 
 /** @brief Tests that a view of the whole image and a view of some of its rows both overlap it. */
-TEST(Unit_ImagingImage, OverlapsFindsTheWholeImageAndAViewInsideIt)
+TEST(Small_ImagingImage, OverlapsFindsTheWholeImageAndAViewInsideIt)
 {
     const Image image(ImageSize{4, 3}, 3);
     const ImageView inner(image.row(1), ImageSize{2, 3}, 3);
@@ -333,7 +333,7 @@ TEST(Unit_ImagingImage, OverlapsFindsTheWholeImageAndAViewInsideIt)
 }
 
 /** @brief Tests that a view over bytes another container owns does not overlap an image. */
-TEST(Unit_ImagingImage, OverlapsIsFalseForBytesOfAnotherContainer)
+TEST(Small_ImagingImage, OverlapsIsFalseForBytesOfAnotherContainer)
 {
     const std::array<std::uint8_t, 24> bytes{};
     const Image image(ImageSize{2, 2}, 3);
@@ -343,7 +343,7 @@ TEST(Unit_ImagingImage, OverlapsIsFalseForBytesOfAnotherContainer)
 }
 
 /** @brief Tests that bytes a smaller reset left behind still count as the image's own. */
-TEST(Unit_ImagingImage, OverlapsCountsTheAllocationBeyondTheCurrentSize)
+TEST(Small_ImagingImage, OverlapsCountsTheAllocationBeyondTheCurrentSize)
 {
     Image image(ImageSize{4, 4}, 3);
     const ImageView tail(image.row(3), ImageSize{1, 4}, 3);
@@ -354,7 +354,7 @@ TEST(Unit_ImagingImage, OverlapsCountsTheAllocationBeyondTheCurrentSize)
 }
 
 /** @brief Tests that separate images, empty views and unallocated images overlap nothing. */
-TEST(Unit_ImagingImage, OverlapsIsFalseForSeparateOrEmptyOperands)
+TEST(Small_ImagingImage, OverlapsIsFalseForSeparateOrEmptyOperands)
 {
     const Image first(ImageSize{2, 2}, 3);
     const Image second(ImageSize{2, 2}, 3);
@@ -370,7 +370,7 @@ TEST(Unit_ImagingImage, OverlapsIsFalseForSeparateOrEmptyOperands)
 }
 
 /** @brief Tests that check_source accepts a valid view of another image. */
-TEST(Unit_ImagingImage, CheckSourceAcceptsAViewOfAnotherImage)
+TEST(Small_ImagingImage, CheckSourceAcceptsAViewOfAnotherImage)
 {
     const Image source(ImageSize{2, 2}, 3);
     const Image destination(ImageSize{5, 5}, 1);
@@ -381,7 +381,7 @@ TEST(Unit_ImagingImage, CheckSourceAcceptsAViewOfAnotherImage)
 }
 
 /** @brief Tests that check_source names the caller and each of the four faults it finds. */
-TEST(Unit_ImagingImage, CheckSourceRejectsEachFaultUnderTheCallersName)
+TEST(Small_ImagingImage, CheckSourceRejectsEachFaultUnderTheCallersName)
 {
     Image image(ImageSize{4, 3}, 3);
     const Image other(ImageSize{2, 2}, 3);

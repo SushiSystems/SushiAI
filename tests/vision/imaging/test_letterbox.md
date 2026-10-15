@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_letterbox.cpp
 
 
-Suites: `Unit_ImagingLetterbox`.
+Suites: `Small_ImagingLetterbox`.
 
 Tests the plan and the application of the letterbox to an image and its labels.
 
-This file needs no device. `Unit_ImagingLetterbox` covers
+This file needs no device. `Small_ImagingLetterbox` covers
 `modules/vision/imaging/include/SushiAI/vision/imaging/letterbox.hpp`. `plan_letterbox` computes the ratio, the resized size
 and the four paddings, and draws no random number. `apply_letterbox` resizes with
 `resize_bilinear` of `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`, pads, and moves boxes and polygons

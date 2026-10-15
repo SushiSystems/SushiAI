@@ -81,7 +81,7 @@ namespace
     }
 }
 
-TEST(Unit_Module, AnUntracedLayerYieldsNoParameters)
+TEST(Small_Module, AnUntracedLayerYieldsNoParameters)
 {
     // An untraced layer has no parameters to walk; see tests/layers/nn/README.md.
     Linear layer{4, 3};
@@ -89,7 +89,7 @@ TEST(Unit_Module, AnUntracedLayerYieldsNoParameters)
     EXPECT_EQ(NN::parameter_count(layer), 0u);
 }
 
-TEST(Unit_Module, ALinearLayerNamesItsWeightAndBias)
+TEST(Small_Module, ALinearLayerNamesItsWeightAndBias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -102,7 +102,7 @@ TEST(Unit_Module, ALinearLayerNamesItsWeightAndBias)
     EXPECT_EQ(NN::parameter_elements(layer), 3 * 4 + 3);
 }
 
-TEST(Unit_Module, ABiasFreeLayerSimplyHasNoBiasEntry)
+TEST(Small_Module, ABiasFreeLayerSimplyHasNoBiasEntry)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -114,7 +114,7 @@ TEST(Unit_Module, ABiasFreeLayerSimplyHasNoBiasEntry)
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[3, 4]"}));
 }
 
-TEST(Unit_Module, SequentialNamesParametersByLayerIndex)
+TEST(Small_Module, SequentialNamesParametersByLayerIndex)
 {
     // The index is the layer's position, as in PyTorch; see tests/layers/nn/README.md.
     Graph::Graph graph;
@@ -130,7 +130,7 @@ TEST(Unit_Module, SequentialNamesParametersByLayerIndex)
     }));
 }
 
-TEST(Unit_Module, NestedContainersCompoundTheirIndices)
+TEST(Small_Module, NestedContainersCompoundTheirIndices)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -147,7 +147,7 @@ TEST(Unit_Module, NestedContainersCompoundTheirIndices)
     }));
 }
 
-TEST(Unit_Module, TracingTwiceDoesNotDuplicateParameters)
+TEST(Small_Module, TracingTwiceDoesNotDuplicateParameters)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -167,7 +167,7 @@ TEST(Unit_Module, TracingTwiceDoesNotDuplicateParameters)
     EXPECT_EQ(NN::parameter_count(layer), 2u);
 }
 
-TEST(Unit_Module, ParametersAreDeclaredAsGradientRequiringLeaves)
+TEST(Small_Module, ParametersAreDeclaredAsGradientRequiringLeaves)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -182,7 +182,7 @@ TEST(Unit_Module, ParametersAreDeclaredAsGradientRequiringLeaves)
     EXPECT_FALSE(graph.value(x).requires_grad);
 }
 
-TEST(Unit_Module, RolesAndFansAreRecordedForTheInitializer)
+TEST(Small_Module, RolesAndFansAreRecordedForTheInitializer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -197,7 +197,7 @@ TEST(Unit_Module, RolesAndFansAreRecordedForTheInitializer)
     EXPECT_EQ(layer.weight.fan_out(), 3);
 }
 
-TEST(Unit_Module, LinearRejectsAnInputWhoseInnerExtentIsWrong)
+TEST(Small_Module, LinearRejectsAnInputWhoseInnerExtentIsWrong)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -233,7 +233,7 @@ namespace
     };
 }
 
-TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
+TEST(Small_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -252,7 +252,7 @@ TEST(Unit_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
     static_assert(NN::Module<MyOffset>, "the tutorial's layer must be a Module");
 }
 
-TEST(Unit_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
+TEST(Small_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
 {
     // mul goes through require_same and never broadcasts; see tests/layers/nn/README.md.
     Graph::Graph graph;
@@ -312,7 +312,7 @@ namespace
     };
 }
 
-TEST(Unit_Module, AWalkableLeafIsEnumeratedByItsOwnWalk)
+TEST(Small_Module, AWalkableLeafIsEnumeratedByItsOwnWalk)
 {
     WalkableStub stub;
     EXPECT_EQ(walk(stub), (std::vector<std::string>{"weight:[2, 3]", "bias:[2]"}));
@@ -320,14 +320,14 @@ TEST(Unit_Module, AWalkableLeafIsEnumeratedByItsOwnWalk)
     EXPECT_EQ(NN::parameter_elements(stub), 8);
 }
 
-TEST(Unit_Module, AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther)
+TEST(Small_Module, AContainerPrefixesAWalkableChildTheSameWayItPrefixesAnyOther)
 {
     // The container supplies "0.", the child the leaf names; see tests/layers/nn/README.md.
     StubHolder holder;
     EXPECT_EQ(walk(holder), (std::vector<std::string>{"0.weight:[2, 3]", "0.bias:[2]"}));
 }
 
-TEST(Unit_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
+TEST(Small_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
 {
     // layers.hpp asserts the same at build time; see tests/layers/nn/README.md.
     static_assert(NN::Detail::HasParameterWalk<WalkableStub>::value,
@@ -341,21 +341,21 @@ TEST(Unit_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
 }
 
 /** @brief Tests that Linear maps the per-sample shape [in_features] to [out_features]. */
-TEST(Unit_Module, LinearReportsItsOutFeaturesAsThePerSampleOutputShape)
+TEST(Small_Module, LinearReportsItsOutFeaturesAsThePerSampleOutputShape)
 {
     const Linear layer{4, 3};
     EXPECT_EQ(layer.output_shape(Shape{4}), (Shape{3}));
 }
 
 /** @brief Tests that Linear's output_shape() matches what forward() traces, batch axis aside. */
-TEST(Unit_Module, LinearsOutputShapeAgreesWithItsTrace)
+TEST(Small_Module, LinearsOutputShapeAgreesWithItsTrace)
 {
     Linear layer{4, 3};
     EXPECT_EQ(traced_shape(layer, 4), (Shape{2, layer.output_shape(Shape{4})[0]}));
 }
 
 /** @brief Tests that Linear refuses a per-sample shape whose rank is not 1. */
-TEST(Unit_Module, LinearRefusesAPerSampleShapeOfTheWrongRank)
+TEST(Small_Module, LinearRefusesAPerSampleShapeOfTheWrongRank)
 {
     const Linear layer{4, 3};
 
@@ -364,7 +364,7 @@ TEST(Unit_Module, LinearRefusesAPerSampleShapeOfTheWrongRank)
 }
 
 /** @brief Tests that Linear refuses a rank-1 per-sample shape whose width is not in_features. */
-TEST(Unit_Module, LinearRefusesAPerSampleShapeOfTheWrongWidth)
+TEST(Small_Module, LinearRefusesAPerSampleShapeOfTheWrongWidth)
 {
     const Linear layer{4, 3};
 
@@ -372,7 +372,7 @@ TEST(Unit_Module, LinearRefusesAPerSampleShapeOfTheWrongWidth)
 }
 
 /** @brief Tests that every activation returns the per-sample shape it was given, at any rank. */
-TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
+TEST(Small_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
 {
     for (const Shape& input : {Shape{5}, Shape{4, 4, 3}})
     {
@@ -384,7 +384,7 @@ TEST(Unit_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
 }
 
 /** @brief Tests that every activation's output_shape() matches what forward() traces. */
-TEST(Unit_Module, AnActivationsOutputShapeAgreesWithItsTrace)
+TEST(Small_Module, AnActivationsOutputShapeAgreesWithItsTrace)
 {
     ReLU relu;
     NN::GELU gelu;
@@ -407,7 +407,7 @@ namespace
 }
 
 /** @brief Tests that one parameter traced into two graphs has its own leaf in each. */
-TEST(Unit_Module, AParameterTracedIntoTwoGraphsHasALeafInEach)
+TEST(Small_Module, AParameterTracedIntoTwoGraphsHasALeafInEach)
 {
     Graph::Graph first;
     Graph::Graph second;
@@ -431,7 +431,7 @@ TEST(Unit_Module, AParameterTracedIntoTwoGraphsHasALeafInEach)
 }
 
 /** @brief Tests that id_in() reports NO_VALUE for a graph the parameter was never traced into. */
-TEST(Unit_Module, AParameterHasNoLeafInAGraphItWasNotTracedInto)
+TEST(Small_Module, AParameterHasNoLeafInAGraphItWasNotTracedInto)
 {
     Graph::Graph traced;
     Graph::Graph untouched;
@@ -448,7 +448,7 @@ TEST(Unit_Module, AParameterHasNoLeafInAGraphItWasNotTracedInto)
 }
 
 /** @brief Tests that a second declare in one graph returns the first leaf and adds no value. */
-TEST(Unit_Module, ASecondDeclareInOneGraphReturnsTheFirstLeaf)
+TEST(Small_Module, ASecondDeclareInOneGraphReturnsTheFirstLeaf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -463,7 +463,7 @@ TEST(Unit_Module, ASecondDeclareInOneGraphReturnsTheFirstLeaf)
 }
 
 /** @brief Tests that a declare with another shape is refused, in the same graph and in another. */
-TEST(Unit_Module, ADeclareWithAnotherShapeIsRefused)
+TEST(Small_Module, ADeclareWithAnotherShapeIsRefused)
 {
     Graph::Graph graph;
     Graph::Graph other;
@@ -484,7 +484,7 @@ TEST(Unit_Module, ADeclareWithAnotherShapeIsRefused)
 }
 
 /** @brief Tests that a declare with another element type is refused in either graph. */
-TEST(Unit_Module, ADeclareWithAnotherElementTypeIsRefused)
+TEST(Small_Module, ADeclareWithAnotherElementTypeIsRefused)
 {
     Graph::Graph graph;
     Graph::Graph other;
@@ -506,7 +506,7 @@ TEST(Unit_Module, ADeclareWithAnotherElementTypeIsRefused)
 }
 
 /** @brief Tests that a later declare with another fill and other fans leaves the first ones. */
-TEST(Unit_Module, ALaterDeclareKeepsTheFirstDescription)
+TEST(Small_Module, ALaterDeclareKeepsTheFirstDescription)
 {
     Graph::Graph first;
     Graph::Graph second;
@@ -528,7 +528,7 @@ TEST(Unit_Module, ALaterDeclareKeepsTheFirstDescription)
 }
 
 /** @brief Tests that a copied layer is new state: its own StateID and its own leaf. */
-TEST(Unit_Module, ACopiedLayerHasANewStateID)
+TEST(Small_Module, ACopiedLayerHasANewStateID)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -554,7 +554,7 @@ TEST(Unit_Module, ACopiedLayerHasANewStateID)
 }
 
 /** @brief Tests that a moved layer keeps its StateID, so it still matches the graph it traced. */
-TEST(Unit_Module, AMovedLayerKeepsItsStateID)
+TEST(Small_Module, AMovedLayerKeepsItsStateID)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -578,7 +578,7 @@ TEST(Unit_Module, AMovedLayerKeepsItsStateID)
 }
 
 /** @brief Tests that a role declare records the fill the role stands for. */
-TEST(Unit_Module, ARoleDeclareRecordsTheFillOfItsRole)
+TEST(Small_Module, ARoleDeclareRecordsTheFillOfItsRole)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -594,7 +594,7 @@ TEST(Unit_Module, ARoleDeclareRecordsTheFillOfItsRole)
 }
 
 /** @brief Tests that an init declare keeps the stated fill and the stated role, each as given. */
-TEST(Unit_Module, AnInitDeclareRecordsTheStatedFillAndTheStatedRole)
+TEST(Small_Module, AnInitDeclareRecordsTheStatedFillAndTheStatedRole)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -616,7 +616,7 @@ TEST(Unit_Module, AnInitDeclareRecordsTheStatedFillAndTheStatedRole)
 }
 
 /** @brief Tests that a normal fill keeps its deviation and leaves the other kinds as they were. */
-TEST(Unit_Module, ANormalFillKeepsItsDeviation)
+TEST(Small_Module, ANormalFillKeepsItsDeviation)
 {
     constexpr NN::ParameterInit drawn = NN::ParameterInit::normal(0.02);
     constexpr NN::ParameterInit scaled = NN::ParameterInit::fan_scaled();
@@ -633,7 +633,7 @@ TEST(Unit_Module, ANormalFillKeepsItsDeviation)
 }
 
 /** @brief Tests that an Embedding role with no stated fill is fan-scaled, as a weight is. */
-TEST(Unit_Module, AnEmbeddingRoleWithoutAFillIsFanScaled)
+TEST(Small_Module, AnEmbeddingRoleWithoutAFillIsFanScaled)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -646,7 +646,7 @@ TEST(Unit_Module, AnEmbeddingRoleWithoutAFillIsFanScaled)
 }
 
 /** @brief Tests that a Linear's weight is fan-scaled unless the layer states another fill. */
-TEST(Unit_Module, ALinearDeclaresTheFillItStates)
+TEST(Small_Module, ALinearDeclaresTheFillItStates)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -666,7 +666,7 @@ TEST(Unit_Module, ALinearDeclaresTheFillItStates)
 }
 
 /** @brief Tests that each role's own fill is fan-scaled, zero or one, by the role declared. */
-TEST(Unit_Module, ARoleDeclareFillsByItsRole)
+TEST(Small_Module, ARoleDeclareFillsByItsRole)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -772,7 +772,7 @@ namespace
 }
 
 /** @brief Tests that walk_state() yields all three field kinds in declaration order. */
-TEST(Unit_Module, WalkStateYieldsTheThreeFieldKindsInDeclarationOrder)
+TEST(Small_Module, WalkStateYieldsTheThreeFieldKindsInDeclarationOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -789,7 +789,7 @@ TEST(Unit_Module, WalkStateYieldsTheThreeFieldKindsInDeclarationOrder)
 }
 
 /** @brief Tests that walk_state() puts its prefix in front of every name, children included. */
-TEST(Unit_Module, WalkStateJoinsItsPrefixToEveryName)
+TEST(Small_Module, WalkStateJoinsItsPrefixToEveryName)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -806,7 +806,7 @@ TEST(Unit_Module, WalkStateJoinsItsPrefixToEveryName)
 }
 
 /** @brief Tests that for_each_parameter() yields the parameters of the walk and no buffer. */
-TEST(Unit_Module, ForEachParameterNeverYieldsABuffer)
+TEST(Small_Module, ForEachParameterNeverYieldsABuffer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -820,7 +820,7 @@ TEST(Unit_Module, ForEachParameterNeverYieldsABuffer)
 }
 
 /** @brief Tests that for_each_buffer() yields the buffers of the walk and no parameter. */
-TEST(Unit_Module, ForEachBufferNeverYieldsAParameter)
+TEST(Small_Module, ForEachBufferNeverYieldsAParameter)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -833,7 +833,7 @@ TEST(Unit_Module, ForEachBufferNeverYieldsAParameter)
 }
 
 /** @brief Tests that the walk skips a buffer until define() is called on it. */
-TEST(Unit_Module, AnUndefinedBufferIsSkipped)
+TEST(Small_Module, AnUndefinedBufferIsSkipped)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -849,7 +849,7 @@ TEST(Unit_Module, AnUndefinedBufferIsSkipped)
 }
 
 /** @brief Tests that a defined buffer is walked although no graph holds a leaf for it. */
-TEST(Unit_Module, ADefinedBufferIsWalkedWithoutALeaf)
+TEST(Small_Module, ADefinedBufferIsWalkedWithoutALeaf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -904,7 +904,7 @@ namespace
 }
 
 /** @brief Tests that a type with its own walk_state() is enumerated by it, order included. */
-TEST(Unit_Module, ATypesOwnWalkStateIsTheWalk)
+TEST(Small_Module, ATypesOwnWalkStateIsTheWalk)
 {
     static_assert(NN::Detail::HasStateWalk<SelfWalkingStub>::value,
                   "the stub must be detected as walking its own state");
@@ -921,7 +921,7 @@ TEST(Unit_Module, ATypesOwnWalkStateIsTheWalk)
 }
 
 /** @brief Tests that a child field names a self-walking child and a walk_parameters child. */
-TEST(Unit_Module, AChildFieldNamesEveryKindOfWalkableChild)
+TEST(Small_Module, AChildFieldNamesEveryKindOfWalkableChild)
 {
     StubPair pair;
     EXPECT_EQ(walk_all(pair, ""), (std::vector<std::string>{
@@ -933,7 +933,7 @@ TEST(Unit_Module, AChildFieldNamesEveryKindOfWalkableChild)
 }
 
 /** @brief Tests that a walk_parameters type yields its parameters and no buffer. */
-TEST(Unit_Module, AWalkParametersTypeYieldsNoBuffer)
+TEST(Small_Module, AWalkParametersTypeYieldsNoBuffer)
 {
     WalkableStub stub;
     EXPECT_EQ(walk_all(stub, ""), (std::vector<std::string>{
@@ -944,7 +944,7 @@ TEST(Unit_Module, AWalkParametersTypeYieldsNoBuffer)
 }
 
 /** @brief Tests that a LayerAdapter, which walks through walk_parameters, yields its layer. */
-TEST(Unit_Module, ALayerAdapterYieldsItsLayersParametersUnderThePrefix)
+TEST(Small_Module, ALayerAdapterYieldsItsLayersParametersUnderThePrefix)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -961,7 +961,7 @@ TEST(Unit_Module, ALayerAdapterYieldsItsLayersParametersUnderThePrefix)
 }
 
 /** @brief Tests that the name check accepts distinct names and refuses a repeated one. */
-TEST(Unit_Module, TwoFieldsWithOneNameAreDetected)
+TEST(Small_Module, TwoFieldsWithOneNameAreDetected)
 {
     // walk_state() asserts the same check, so a layer that repeats a name does not compile.
     static_assert(NN::Detail::has_unique_names(MixedState::fields()),
@@ -982,7 +982,7 @@ TEST(Unit_Module, TwoFieldsWithOneNameAreDetected)
 }
 
 /** @brief Tests that a Sequential of Modules keeps its builder forward and stays a Module. */
-TEST(Unit_Module, ASequentialOfModulesKeepsItsBuilderForward)
+TEST(Small_Module, ASequentialOfModulesKeepsItsBuilderForward)
 {
     using Chain = Sequential<Linear, ReLU>;
 

@@ -40,7 +40,7 @@ using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
 
 /** @brief Tests that each element type has the byte count the format gives it. */
-TEST(Unit_DatasetsIdxFile, ElementBytesFollowTheFormat)
+TEST(Small_DatasetsIdxFile, ElementBytesFollowTheFormat)
 {
     EXPECT_EQ(idx_element_bytes(IDXElement::UInt8), 1u);
     EXPECT_EQ(idx_element_bytes(IDXElement::Int8), 1u);
@@ -51,7 +51,7 @@ TEST(Unit_DatasetsIdxFile, ElementBytesFollowTheFormat)
 }
 
 /** @brief Tests that a header gives the element type, the extents and the payload size. */
-TEST(Unit_DatasetsIdxFile, AHeaderGivesTheElementTheExtentsAndThePayloadSize)
+TEST(Small_DatasetsIdxFile, AHeaderGivesTheElementTheExtentsAndThePayloadSize)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_header");
     const std::filesystem::path file = scratch.write(
@@ -66,7 +66,7 @@ TEST(Unit_DatasetsIdxFile, AHeaderGivesTheElementTheExtentsAndThePayloadSize)
 }
 
 /** @brief Tests that an extent is read with its most significant byte first. */
-TEST(Unit_DatasetsIdxFile, AnExtentIsReadMostSignificantByteFirst)
+TEST(Small_DatasetsIdxFile, AnExtentIsReadMostSignificantByteFirst)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_extent");
     const std::filesystem::path file =
@@ -78,7 +78,7 @@ TEST(Unit_DatasetsIdxFile, AnExtentIsReadMostSignificantByteFirst)
 }
 
 /** @brief Tests that the payload size counts the bytes of a wider element. */
-TEST(Unit_DatasetsIdxFile, ThePayloadSizeCountsTheElementBytes)
+TEST(Small_DatasetsIdxFile, ThePayloadSizeCountsTheElementBytes)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_int32");
     const std::filesystem::path file =
@@ -91,7 +91,7 @@ TEST(Unit_DatasetsIdxFile, ThePayloadSizeCountsTheElementBytes)
 }
 
 /** @brief Tests that the payload is every byte after the header, in file order. */
-TEST(Unit_DatasetsIdxFile, ThePayloadIsEveryByteAfterTheHeader)
+TEST(Small_DatasetsIdxFile, ThePayloadIsEveryByteAfterTheHeader)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_payload");
     const std::filesystem::path file =
@@ -105,7 +105,7 @@ TEST(Unit_DatasetsIdxFile, ThePayloadIsEveryByteAfterTheHeader)
 }
 
 /** @brief Tests that a path that names nothing is reported as absent, with the path. */
-TEST(Unit_DatasetsIdxFile, AnAbsentFileIsNotFound)
+TEST(Small_DatasetsIdxFile, AnAbsentFileIsNotFound)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_absent");
 
@@ -114,7 +114,7 @@ TEST(Unit_DatasetsIdxFile, AnAbsentFileIsNotFound)
 }
 
 /** @brief Tests that each malformed header is refused with the file and the cause. */
-TEST(Unit_DatasetsIdxFile, AMalformedHeaderIsRefused)
+TEST(Small_DatasetsIdxFile, AMalformedHeaderIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_malformed");
 
@@ -131,7 +131,7 @@ TEST(Unit_DatasetsIdxFile, AMalformedHeaderIsRefused)
 }
 
 /** @brief Tests that a file shorter or longer than its header declares is refused. */
-TEST(Unit_DatasetsIdxFile, AFileOfAnotherSizeThanItsHeaderDeclaresIsRefused)
+TEST(Small_DatasetsIdxFile, AFileOfAnotherSizeThanItsHeaderDeclaresIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_size");
 
@@ -144,7 +144,7 @@ TEST(Unit_DatasetsIdxFile, AFileOfAnotherSizeThanItsHeaderDeclaresIsRefused)
 }
 
 /** @brief Tests that extents whose product passes 64 bits are refused, not wrapped. */
-TEST(Unit_DatasetsIdxFile, ExtentsThatOverflowAreRefused)
+TEST(Small_DatasetsIdxFile, ExtentsThatOverflowAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_file_overflow");
     const std::uint32_t largest = 0xFFFFFFFFu;

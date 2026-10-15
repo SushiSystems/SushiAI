@@ -53,7 +53,7 @@ using SaTest::write_tensor;
 
 namespace
 {
-    class Regression_LogSoftmaxStability : public SaTest::EngineTest {};
+    class Medium_LogSoftmaxStability : public SaTest::EngineTest {};
 
     /** @brief Classes per row in every case here. */
     constexpr int64_t K_CLASSES = 3;
@@ -107,7 +107,7 @@ namespace
  * @brief Tests that log-softmax of a row far below the batch maximum is finite and within 1e-4.
  * @see tests/core/graph/README.md
  */
-TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
+TEST_F(Medium_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
 {
     for (double gap : K_GAPS)
     {
@@ -149,7 +149,7 @@ TEST_F(Regression_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAnd
  * @brief Tests that cross-entropy over such a row is finite and equals 2 + k.
  * @see tests/core/graph/README.md
  */
-TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
+TEST_F(Medium_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
 {
     for (double gap : K_GAPS)
     {
@@ -182,7 +182,7 @@ TEST_F(Regression_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrec
  * @brief Tests that the cross-entropy gradient over such a row is finite and matches the softmax.
  * @see tests/core/graph/README.md
  */
-TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
+TEST_F(Medium_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
 {
     const double mass = 1.0 + std::exp(-1.0) + std::exp(-2.0);
     const std::vector<double> softmax_row =
@@ -237,7 +237,7 @@ TEST_F(Regression_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFini
  * @brief Tests that the log-probabilities are exactly equal at every gap.
  * @see tests/core/graph/README.md
  */
-TEST_F(Regression_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
+TEST_F(Medium_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
 {
     std::vector<double> baseline;
 

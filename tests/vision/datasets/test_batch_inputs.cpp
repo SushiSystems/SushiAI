@@ -66,7 +66,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_BatchInputs : public SaTest::EngineTest
+    class Medium_BatchInputs : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -111,7 +111,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the images are written row by row as bytes divided by 255. */
-TEST_F(Unit_BatchInputs, InputsAreBytesDividedBy255)
+TEST_F(Medium_BatchInputs, InputsAreBytesDividedBy255)
 {
     Data::Batch batch = allocate({});
     SA_EXPECT_OK(write_batch_inputs(span(), batch.inputs));
@@ -124,7 +124,7 @@ TEST_F(Unit_BatchInputs, InputsAreBytesDividedBy255)
 }
 
 /** @brief Tests that an image of another size is refused with its position in the batch. */
-TEST_F(Unit_BatchInputs, AnImageOfAnotherSizeIsRefused)
+TEST_F(Medium_BatchInputs, AnImageOfAnotherSizeIsRefused)
 {
     samples[1].image = Support::uniform_image(ImageSize{2, 2}, 1, 0);
 
@@ -134,7 +134,7 @@ TEST_F(Unit_BatchInputs, AnImageOfAnotherSizeIsRefused)
 }
 
 /** @brief Tests that a tensor of another image count is refused. */
-TEST_F(Unit_BatchInputs, ATensorOfAnotherImageCountIsRefused)
+TEST_F(Medium_BatchInputs, ATensorOfAnotherImageCountIsRefused)
 {
     samples.pop_back();
 

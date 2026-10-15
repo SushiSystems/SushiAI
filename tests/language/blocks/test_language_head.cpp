@@ -73,7 +73,7 @@ namespace
 }
 
 /** @brief Tests that a trace normalises, then maps the rows to [N, T, vocabulary] with no bias. */
-TEST(Unit_BlockLanguageHead, ATraceNormalisesThenMapsToTheVocabulary)
+TEST(Small_BlockLanguageHead, ATraceNormalisesThenMapsToTheVocabulary)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -101,7 +101,7 @@ TEST(Unit_BlockLanguageHead, ATraceNormalisesThenMapsToTheVocabulary)
 }
 
 /** @brief Tests that the walk names the normalisation's two parameters and the one weight. */
-TEST(Unit_BlockLanguageHead, TheWalkYieldsTheNormalisationAndTheWeight)
+TEST(Small_BlockLanguageHead, TheWalkYieldsTheNormalisationAndTheWeight)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -127,7 +127,7 @@ TEST(Unit_BlockLanguageHead, TheWalkYieldsTheNormalisationAndTheWeight)
 }
 
 /** @brief Tests that an input of another width, and a head of no width, each fail. */
-TEST(Unit_BlockLanguageHead, AnInputOrADescriptionThatDoesNotFitFails)
+TEST(Small_BlockLanguageHead, AnInputOrADescriptionThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -151,7 +151,7 @@ TEST(Unit_BlockLanguageHead, AnInputOrADescriptionThatDoesNotFitFails)
 }
 
 /** @brief Tests that a tied head scores with the embedding's table and declares no weight. */
-TEST(Unit_BlockLanguageHead, ATiedHeadScoresWithTheEmbeddingsTable)
+TEST(Small_BlockLanguageHead, ATiedHeadScoresWithTheEmbeddingsTable)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -184,7 +184,7 @@ TEST(Unit_BlockLanguageHead, ATiedHeadScoresWithTheEmbeddingsTable)
 }
 
 /** @brief Tests that a table no layer has declared, or of another shape, fails the trace. */
-TEST(Unit_BlockLanguageHead, ATiedTableThatDoesNotFitFails)
+TEST(Small_BlockLanguageHead, ATiedTableThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -211,7 +211,7 @@ TEST(Unit_BlockLanguageHead, ATiedTableThatDoesNotFitFails)
 }
 
 /** @brief Tests that output_shape replaces the width of a [T, C] shape by the vocabulary. */
-TEST(Unit_BlockLanguageHead, OutputShapeReplacesTheWidthByTheVocabulary)
+TEST(Small_BlockLanguageHead, OutputShapeReplacesTheWidthByTheVocabulary)
 {
     const LanguageHead head(K_DIM, K_VOCABULARY, NN::K_LAYER_NORM_EPSILON);
 
@@ -219,7 +219,7 @@ TEST(Unit_BlockLanguageHead, OutputShapeReplacesTheWidthByTheVocabulary)
 }
 
 /** @brief Tests that the factory reads "vocabulary" and "ln_epsilon" and refuses a bad row. */
-TEST(Unit_BlockLanguageHead, TheFactoryReadsTheVocabulary)
+TEST(Small_BlockLanguageHead, TheFactoryReadsTheVocabulary)
 {
     const Shape input{5, K_DIM};
     const Shape flat{K_DIM};
@@ -248,7 +248,7 @@ TEST(Unit_BlockLanguageHead, TheFactoryReadsTheVocabulary)
 }
 
 /** @brief Tests that "tie" binds the head to the table of the embedding row it names. */
-TEST(Unit_BlockLanguageHead, TheFactoryTiesTheHeadToAnEmbeddingRow)
+TEST(Small_BlockLanguageHead, TheFactoryTiesTheHeadToAnEmbeddingRow)
 {
     NN::ModelGraph model(Shape{5});
     NN::Embedding table{};
@@ -296,13 +296,13 @@ TEST(Unit_BlockLanguageHead, TheFactoryTiesTheHeadToAnEmbeddingRow)
 }
 
 /** @brief Tests that output_shape over a per-sample shape of rank one stops the process. */
-TEST(Unit_BlockLanguageHeadDeathTest, OutputShapeOverARankOneSampleIsFatal)
+TEST(Small_BlockLanguageHeadDeathTest, OutputShapeOverARankOneSampleIsFatal)
 {
     SA_EXPECT_FATAL(shape_of_a_rank_one_sample(), "LanguageHead::output_shape", "[6]");
 }
 
 /** @brief Tests that the incremental form of one position is the ordinary trace of it. */
-TEST(Unit_BlockLanguageHead, TheIncrementalFormIsTheOrdinaryTraceOfOnePosition)
+TEST(Small_BlockLanguageHead, TheIncrementalFormIsTheOrdinaryTraceOfOnePosition)
 {
     LanguageHead whole(K_DIM, K_VOCABULARY, NN::K_LAYER_NORM_EPSILON);
     Graph::Graph whole_graph;

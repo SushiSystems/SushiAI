@@ -12,10 +12,13 @@ tests do not fit one file keeps them in a folder named like that file, such as
 Each module with tests builds one program through `sushiai_add_test_program`
 (`cmake/SushiAITestProgram.cmake`). A module builds `sushiai_<tier>_<module>_tests` and an
 application `sushiai_<app>_tests`. Run one through the
-CLI, for example `sa run sushiai_core_graph_tests -- --gtest_filter=Unit_Ir.*`.
+CLI, for example `sa run sushiai_core_graph_tests -- --gtest_filter=Small_Ir.*`.
 
-A case's suite prefix gives its ctest label: `Unit_` is `unit`, `Integration_` is `integration`
-and `Regression_` is `regression`. A suite without one of these prefixes is never discovered.
+A case's suite prefix gives its size, which is its ctest label and sets its timeout: `Small_` is
+`small` (60 s), `Medium_` is `medium` (300 s) and `Large_` is `large` (900 s). A small case uses
+one process and no device, a medium one a CPU SYCL device, threads or files, and a large one a
+real GPU or a run longer than medium allows. A suite without one of these prefixes fails the
+configure. A case named in `SUSHIAI_QUARANTINED_TESTS` also carries the label `quarantined`.
 
 The code the tests of several modules share lives in internal modules, such as
 `modules/core/engine_fixture/`, which holds `main()`. They are never installed. Each one's README

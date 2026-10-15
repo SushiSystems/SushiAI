@@ -107,7 +107,7 @@ Three properties are structural rather than checked beside the code:
 `LayerStack` names its parameters exactly as `Sequential` does, gaps included,
 because `LayerAdapter` delegates to the same `for_each_parameter` walk. That is
 what lets a checkpoint written by either load into the other, and
-`Integration_Checkpoint.ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack`
+`Medium_Checkpoint.ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack`
 proves the two paths describe one model **by the checkpoint itself**, rather
 than through a second mechanism whose own correctness would then be the open
 question.

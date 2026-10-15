@@ -68,7 +68,7 @@ namespace
 } // namespace
 
 /** @brief Tests each class against counts worked by hand: 1/2, 1/3 and 2/3. */
-TEST(Unit_SegmentMetrics, ClassIoUIsIntersectionOverUnion)
+TEST(Small_SegmentMetrics, ClassIoUIsIntersectionOverUnion)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix,
                             counted(3, {0, 1, 1, 2, 2, 2}, {0, 0, 1, 2, 1, 2}));
@@ -81,7 +81,7 @@ TEST(Unit_SegmentMetrics, ClassIoUIsIntersectionOverUnion)
 }
 
 /** @brief Tests that a class no true pixel holds is left out of the mean. */
-TEST(Unit_SegmentMetrics, TheMeanSkipsAClassThatDoesNotOccur)
+TEST(Small_SegmentMetrics, TheMeanSkipsAClassThatDoesNotOccur)
 {
     // Class 2 is predicted once and never true: its IoU is 0 and it does not occur.
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix,
@@ -94,7 +94,7 @@ TEST(Unit_SegmentMetrics, TheMeanSkipsAClassThatDoesNotOccur)
 }
 
 /** @brief Tests that a matrix that counted nothing gives zero for both means. */
-TEST(Unit_SegmentMetrics, AnEmptyMatrixGivesZero)
+TEST(Small_SegmentMetrics, AnEmptyMatrixGivesZero)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix, counted(2, {0}, {K_IGNORE}));
 

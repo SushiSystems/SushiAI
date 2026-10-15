@@ -39,7 +39,7 @@ using namespace SushiAI;
 using namespace SushiAI::Language::Text;
 
 /** @brief Tests that a vocabulary without merges holds the bytes and end-of-text. */
-TEST(Unit_TextVocabulary, AVocabularyWithoutMergesHoldsTheBytesAndEndOfText)
+TEST(Small_TextVocabulary, AVocabularyWithoutMergesHoldsTheBytesAndEndOfText)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 
@@ -58,7 +58,7 @@ TEST(Unit_TextVocabulary, AVocabularyWithoutMergesHoldsTheBytesAndEndOfText)
 }
 
 /** @brief Tests that merge i has the id first_merged() + i and the bytes of its two parts. */
-TEST(Unit_TextVocabulary, MergedTokensTakeIDsInTheOrderOfTheirMerges)
+TEST(Small_TextVocabulary, MergedTokensTakeIDsInTheOrderOfTheirMerges)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
                             Vocabulary::make({Merge{97, 98}, Merge{257, 99}}));
@@ -76,7 +76,7 @@ TEST(Unit_TextVocabulary, MergedTokensTakeIDsInTheOrderOfTheirMerges)
 }
 
 /** @brief Tests that the special tokens follow end-of-text and precede the merged tokens. */
-TEST(Unit_TextVocabulary, SpecialTokensFollowEndOfText)
+TEST(Small_TextVocabulary, SpecialTokensFollowEndOfText)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
                             Vocabulary::make({Merge{97, 98}}, {"<pad>", "<mask>"}));
@@ -92,7 +92,7 @@ TEST(Unit_TextVocabulary, SpecialTokensFollowEndOfText)
 }
 
 /** @brief Tests that a merge of itself, a later, a special or a negative token is refused. */
-TEST(Unit_TextVocabulary, MakeRefusesAMergeOfATokenItMayNotJoin)
+TEST(Small_TextVocabulary, MakeRefusesAMergeOfATokenItMayNotJoin)
 {
     SA_EXPECT_FAILURE(Vocabulary::make({Merge{97, 257}}), StatusCode::InvalidDescription,
                       "Vocabulary", "merge 0", "97 and 257");
@@ -105,14 +105,14 @@ TEST(Unit_TextVocabulary, MakeRefusesAMergeOfATokenItMayNotJoin)
 }
 
 /** @brief Tests that a pair two merges name is refused at the second. */
-TEST(Unit_TextVocabulary, MakeRefusesAPairNamedTwice)
+TEST(Small_TextVocabulary, MakeRefusesAPairNamedTwice)
 {
     SA_EXPECT_FAILURE(Vocabulary::make({Merge{97, 98}, Merge{97, 98}}),
                       StatusCode::InvalidDescription, "merge 1", "97 and 98", "earlier merge");
 }
 
 /** @brief Tests that a merged token of 512 bytes is refused, and one of 256 is held. */
-TEST(Unit_TextVocabulary, MakeRefusesATokenAboveTheByteLimit)
+TEST(Small_TextVocabulary, MakeRefusesATokenAboveTheByteLimit)
 {
     // Merge i joins the token before it with itself, so it stands for 2^(i + 1) bytes.
     std::vector<Merge> merges = {Merge{97, 97}};
@@ -128,7 +128,7 @@ TEST(Unit_TextVocabulary, MakeRefusesATokenAboveTheByteLimit)
 }
 
 /** @brief Tests that an empty, an overlong and a repeated special name are refused. */
-TEST(Unit_TextVocabulary, MakeRefusesASpecialNameOutOfBounds)
+TEST(Small_TextVocabulary, MakeRefusesASpecialNameOutOfBounds)
 {
     SA_EXPECT_FAILURE(Vocabulary::make({}, {""}), StatusCode::InvalidDescription,
                       "special token 1", "0 bytes");
@@ -143,7 +143,7 @@ TEST(Unit_TextVocabulary, MakeRefusesASpecialNameOutOfBounds)
 }
 
 /** @brief Tests that the bytes of an id outside the vocabulary stop the process. */
-TEST(Unit_TextVocabulary, AnIDOutsideTheVocabularyStopsTheProcess)
+TEST(Small_TextVocabulary, AnIDOutsideTheVocabularyStopsTheProcess)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
 

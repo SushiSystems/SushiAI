@@ -46,7 +46,7 @@ static_assert(std::tuple_size<decltype(SiLU::fields())>::value == 0,
               "SiLU must declare no parameter field");
 
 /** @brief Tests that tracing emits one SILU node reading the input. */
-TEST(Unit_SiLU, ForwardEmitsOneSiLUNodeReadingTheInput)
+TEST(Small_SiLU, ForwardEmitsOneSiLUNodeReadingTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -66,7 +66,7 @@ TEST(Unit_SiLU, ForwardEmitsOneSiLUNodeReadingTheInput)
 }
 
 /** @brief Tests that a feature-vector batch keeps its shape and element type. */
-TEST(Unit_SiLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
+TEST(Small_SiLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -80,7 +80,7 @@ TEST(Unit_SiLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 }
 
 /** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Unit_SiLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
+TEST(Small_SiLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -94,7 +94,7 @@ TEST(Unit_SiLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
-TEST(Unit_SiLU, ForwardCarriesTheLayoutOfItsInput)
+TEST(Small_SiLU, ForwardCarriesTheLayoutOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -109,7 +109,7 @@ TEST(Unit_SiLU, ForwardCarriesTheLayoutOfItsInput)
 }
 
 /** @brief Tests that output_shape() returns its input for a feature vector and for an image. */
-TEST(Unit_SiLU, OutputShapeReturnsItsInput)
+TEST(Small_SiLU, OutputShapeReturnsItsInput)
 {
     const SiLU layer{};
 
@@ -118,7 +118,7 @@ TEST(Unit_SiLU, OutputShapeReturnsItsInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Unit_SiLU, TheParameterWalkVisitsNothing)
+TEST(Small_SiLU, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

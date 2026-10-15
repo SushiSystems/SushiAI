@@ -64,7 +64,7 @@ namespace
     constexpr std::int64_t K_LENGTH = 4;
 
     /** @brief Provides an engine and the token file these tests read. */
-    class Unit_LanguageDatasetsTokenDataset : public SaTest::EngineTest
+    class Medium_LanguageDatasetsTokenDataset : public SaTest::EngineTest
     {
         protected:
             /** @brief Writes the ids 0 to 19 over 20 tokens, so an id is its own position. */
@@ -99,7 +99,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the dataset reports its batch size, shapes, input type and batches. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, ItDescribesItsBatches)
+TEST_F(Medium_LanguageDatasetsTokenDataset, ItDescribesItsBatches)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_describe");
 
@@ -121,7 +121,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, ItDescribesItsBatches)
 }
 
 /** @brief Tests that batch 1 holds windows 2 and 3 as int32 inputs and labels of [2, 4]. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, ABatchHoldsItsWindowsAsInt32)
+TEST_F(Medium_LanguageDatasetsTokenDataset, ABatchHoldsItsWindowsAsInt32)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_batch");
 
@@ -151,7 +151,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, ABatchHoldsItsWindowsAsInt32)
 }
 
 /** @brief Tests, over every batch of overlapping windows, that a label is the next token. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, EveryLabelIsTheTokenAfterItsInput)
+TEST_F(Medium_LanguageDatasetsTokenDataset, EveryLabelIsTheTokenAfterItsInput)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_next");
 
@@ -188,7 +188,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, EveryLabelIsTheTokenAfterItsInput)
 }
 
 /** @brief Tests that make refuses options no batch can be built from. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, MakeRefusesOptionsOutsideTheirBounds)
+TEST_F(Medium_LanguageDatasetsTokenDataset, MakeRefusesOptionsOutsideTheirBounds)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_refusals");
     const std::filesystem::path file = rising_file(scratch);
@@ -222,7 +222,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, MakeRefusesOptionsOutsideTheirBounds)
 }
 
 /** @brief Tests that an id above the vocabulary of the file is a failure naming its offset. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, AnIDOutsideTheVocabularyNamesItsFileOffset)
+TEST_F(Medium_LanguageDatasetsTokenDataset, AnIDOutsideTheVocabularyNamesItsFileOffset)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_bad_id");
     const std::filesystem::path file = rising_file(scratch);
@@ -240,7 +240,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, AnIDOutsideTheVocabularyNamesItsFileOf
 }
 
 /** @brief Tests that a file cut after the dataset was made is a failure naming where it ends. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, AFileCutAfterMakeNamesWhereItEnds)
+TEST_F(Medium_LanguageDatasetsTokenDataset, AFileCutAfterMakeNamesWhereItEnds)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_cut");
     const std::filesystem::path file = rising_file(scratch);
@@ -259,7 +259,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, AFileCutAfterMakeNamesWhereItEnds)
 }
 
 /** @brief Tests that a batch index past the last batch stops the process. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, ABatchOutsideTheEpochStopsTheProcess)
+TEST_F(Medium_LanguageDatasetsTokenDataset, ABatchOutsideTheEpochStopsTheProcess)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_index");
 
@@ -272,7 +272,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, ABatchOutsideTheEpochStopsTheProcess)
 }
 
 /** @brief Tests that a second read into the same batch writes the tensors of the first. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, AReadReusesTheTensorsItFilledBefore)
+TEST_F(Medium_LanguageDatasetsTokenDataset, AReadReusesTheTensorsItFilledBefore)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_reuse");
 
@@ -292,7 +292,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, AReadReusesTheTensorsItFilledBefore)
 }
 
 /** @brief Tests that a read leaves alone a tensor something else still references. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, AReadDoesNotWriteATensorSomethingElseHolds)
+TEST_F(Medium_LanguageDatasetsTokenDataset, AReadDoesNotWriteATensorSomethingElseHolds)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_shared");
 
@@ -311,7 +311,7 @@ TEST_F(Unit_LanguageDatasetsTokenDataset, AReadDoesNotWriteATensorSomethingElseH
 }
 
 /** @brief Tests that a token dataset is read through the Data::Dataset interface. */
-TEST_F(Unit_LanguageDatasetsTokenDataset, ItIsADatasetATrainerCanRead)
+TEST_F(Medium_LanguageDatasetsTokenDataset, ItIsADatasetATrainerCanRead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_seam");
 

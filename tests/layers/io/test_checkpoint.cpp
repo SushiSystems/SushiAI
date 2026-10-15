@@ -65,7 +65,7 @@ namespace
 {
     using Test::make_layer_registry;
 
-    class Integration_Checkpoint : public SaTest::EngineTest {};
+    class Medium_Checkpoint : public SaTest::EngineTest {};
 
     constexpr std::string_view K_MODEL_JSON = R"({
         "sushiai_model": 1,
@@ -178,7 +178,7 @@ namespace
     using SaTest::ScratchFile;
 }
 
-TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
+TEST_F(Medium_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
 {
     const ScratchFile file("sushiai_roundtrip.sushi");
 
@@ -195,7 +195,7 @@ TEST_F(Integration_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
     EXPECT_EQ(fresh.bits(), expected);
 }
 
-TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack)
+TEST_F(Medium_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAndBack)
 {
     // Both spellings of the model swap a checkpoint; see tests/layers/io/README.md.
     const ScratchFile from_sequential("sushiai_equivalence_a.sushi");
@@ -226,7 +226,7 @@ TEST_F(Integration_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerSt
     EXPECT_EQ(third.bits(), sequential_bits);
 }
 
-TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
+TEST_F(Medium_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
 {
     const ScratchFile file("sushiai_missing.sushi");
 
@@ -240,7 +240,7 @@ TEST_F(Integration_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt
                       StatusCode::Incompatible, "does not supply", "2.weight");
 }
 
-TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
+TEST_F(Medium_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
 {
     const ScratchFile file("sushiai_extra.sushi");
 
@@ -253,7 +253,7 @@ TEST_F(Integration_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
                       StatusCode::Incompatible, "2.weight", "this model has no such entry");
 }
 
-TEST_F(Integration_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
+TEST_F(Medium_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
 {
     const ScratchFile file("sushiai_shape.sushi");
 
@@ -267,7 +267,7 @@ TEST_F(Integration_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
                       StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
 }
 
-TEST_F(Integration_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
+TEST_F(Medium_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
 {
     const ScratchFile file("sushiai_duplicate.sushi");
 
@@ -297,7 +297,7 @@ TEST_F(Integration_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
 
 namespace
 {
-    class Integration_StateCheckpoint : public SaTest::EngineTest {};
+    class Medium_StateCheckpoint : public SaTest::EngineTest {};
 
     /**
      * @struct NormModel
@@ -393,7 +393,7 @@ namespace
  * @brief Tests that every parameter and buffer of a state, statistics included, round-trips
  *        bit for bit through a checkpoint.
  */
-TEST_F(Integration_StateCheckpoint, SavesAndLoadsParametersAndBuffersBitForBit)
+TEST_F(Medium_StateCheckpoint, SavesAndLoadsParametersAndBuffersBitForBit)
 {
     const ScratchFile file("sushiai_state_roundtrip.sushi");
 
@@ -426,7 +426,7 @@ TEST_F(Integration_StateCheckpoint, SavesAndLoadsParametersAndBuffersBitForBit)
  * @brief Tests that the file holds one record per entry, in the walk order of the state, and
  *        that each record's payload is the length its header declares.
  */
-TEST_F(Integration_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
+TEST_F(Medium_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
 {
     const ScratchFile file("sushiai_state_walk_order.sushi");
 
@@ -460,7 +460,7 @@ TEST_F(Integration_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
  * @brief Tests that a checkpoint without the buffers is refused, and the refusal names the
  *        running mean the file does not supply.
  */
-TEST_F(Integration_StateCheckpoint, ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean)
+TEST_F(Medium_StateCheckpoint, ACheckpointWithoutBuffersIsRefusedAndNamesTheRunningMean)
 {
     const ScratchFile file("sushiai_state_no_buffers.sushi");
 
@@ -476,7 +476,7 @@ TEST_F(Integration_StateCheckpoint, ACheckpointWithoutBuffersIsRefusedAndNamesTh
 /**
  * @brief Tests that a path whose directory does not exist is refused as an invalid file.
  */
-TEST_F(Integration_StateCheckpoint, AnUnwritablePathIsInvalidFile)
+TEST_F(Medium_StateCheckpoint, AnUnwritablePathIsInvalidFile)
 {
     const std::filesystem::path directory =
         std::filesystem::temp_directory_path() / "sushiai_state_no_such_directory";

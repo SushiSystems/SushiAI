@@ -1,7 +1,7 @@
 # tests/layers/nn/test_conv2d.cpp
 
 
-Suites: `Unit_Conv2d`.
+Suites: `Small_Conv2d`.
 
 Tests the 2-D convolution layer's trace, parameters, shape inference and rejections.
 

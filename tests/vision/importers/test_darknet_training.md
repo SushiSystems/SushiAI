@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_training.cpp
 
 
-Suites: `Unit_DarknetTraining`.
+Suites: `Small_DarknetTraining`.
 
 Tests `read_darknet_training` over texts parsed with `parse_darknet_config`. A head's options
 are checked as seven values: box loss, objectness target, box weight, object weight,

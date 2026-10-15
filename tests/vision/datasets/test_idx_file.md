@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_idx_file.cpp
 
 
-Suites: `Unit_DatasetsIdxFile`.
+Suites: `Small_DatasetsIdxFile`.
 
 Tests `idx_element_bytes`, `read_idx_header` and `read_idx_payload` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/idx_file.hpp` over files the cases

@@ -55,7 +55,7 @@ namespace
 } // namespace
 
 /** @brief Tests that Unflatten satisfies the Module trait and is not a container. */
-TEST(Unit_Unflatten, SatisfiesTheModuleContract)
+TEST(Small_Unflatten, SatisfiesTheModuleContract)
 {
     static_assert(NN::Module<Unflatten>, "Unflatten must be a Module");
     static_assert(!NN::ModuleContainer<Unflatten>, "Unflatten must be a leaf");
@@ -65,7 +65,7 @@ TEST(Unit_Unflatten, SatisfiesTheModuleContract)
 }
 
 /** @brief Tests that the traced result is [N, height, width, channels] with the input's dtype. */
-TEST(Unit_Unflatten, TracesTheImageShape)
+TEST(Small_Unflatten, TracesTheImageShape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -79,7 +79,7 @@ TEST(Unit_Unflatten, TracesTheImageShape)
 }
 
 /** @brief Tests that forward() leaves the default NHWC tag on a result finalise() accepts. */
-TEST(Unit_Unflatten, TagsTheResultNHWC)
+TEST(Small_Unflatten, TagsTheResultNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -94,7 +94,7 @@ TEST(Unit_Unflatten, TagsTheResultNHWC)
 }
 
 /** @brief Tests that the trace adds exactly one node, a RESHAPE reading the input. */
-TEST(Unit_Unflatten, EmitsOneReshapeNode)
+TEST(Small_Unflatten, EmitsOneReshapeNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -112,7 +112,7 @@ TEST(Unit_Unflatten, EmitsOneReshapeNode)
 }
 
 /** @brief Tests that output_shape() equals the traced per-sample shape of a multi-channel image. */
-TEST(Unit_Unflatten, OutputShapeAgreesWithTheTraceForAnRGBImage)
+TEST(Small_Unflatten, OutputShapeAgreesWithTheTraceForAnRGBImage)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -126,7 +126,7 @@ TEST(Unit_Unflatten, OutputShapeAgreesWithTheTraceForAnRGBImage)
 }
 
 /** @brief Tests that output_shape() equals the traced per-sample shape of a one-channel image. */
-TEST(Unit_Unflatten, OutputShapeAgreesWithTheTraceForAGreyImage)
+TEST(Small_Unflatten, OutputShapeAgreesWithTheTraceForAGreyImage)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -140,7 +140,7 @@ TEST(Unit_Unflatten, OutputShapeAgreesWithTheTraceForAGreyImage)
 }
 
 /** @brief Tests that forward() throws the layer's positive-extent error for a zero extent. */
-TEST(Unit_Unflatten, ForwardRejectsAZeroExtent)
+TEST(Small_Unflatten, ForwardRejectsAZeroExtent)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -153,7 +153,7 @@ TEST(Unit_Unflatten, ForwardRejectsAZeroExtent)
 }
 
 /** @brief Tests that forward() throws the layer's positive-extent error for a negative extent. */
-TEST(Unit_Unflatten, ForwardRejectsANegativeExtent)
+TEST(Small_Unflatten, ForwardRejectsANegativeExtent)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -166,7 +166,7 @@ TEST(Unit_Unflatten, ForwardRejectsANegativeExtent)
 }
 
 /** @brief Tests that forward() throws on a rank-4 input whose element count would fit. */
-TEST(Unit_Unflatten, ForwardRejectsAnInputThatIsNotRankTwo)
+TEST(Small_Unflatten, ForwardRejectsAnInputThatIsNotRankTwo)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -179,7 +179,7 @@ TEST(Unit_Unflatten, ForwardRejectsAnInputThatIsNotRankTwo)
 }
 
 /** @brief Tests that forward() throws the layer's own error for a mismatched inner extent. */
-TEST(Unit_Unflatten, ForwardRejectsAMismatchedElementCount)
+TEST(Small_Unflatten, ForwardRejectsAMismatchedElementCount)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -192,7 +192,7 @@ TEST(Unit_Unflatten, ForwardRejectsAMismatchedElementCount)
 }
 
 /** @brief Tests that forward() throws on an input tagged NCHW. */
-TEST(Unit_Unflatten, ForwardRejectsAnNCHWInput)
+TEST(Small_Unflatten, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -205,7 +205,7 @@ TEST(Unit_Unflatten, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that output_shape() throws the layer's positive-extent error for a zero extent. */
-TEST(Unit_Unflatten, OutputShapeRejectsAZeroExtent)
+TEST(Small_Unflatten, OutputShapeRejectsAZeroExtent)
 {
     const Unflatten layer{4, 5, 0};
 
@@ -213,7 +213,7 @@ TEST(Unit_Unflatten, OutputShapeRejectsAZeroExtent)
 }
 
 /** @brief Tests that output_shape() throws the layer's positive-extent error for a negative one. */
-TEST(Unit_Unflatten, OutputShapeRejectsANegativeExtent)
+TEST(Small_Unflatten, OutputShapeRejectsANegativeExtent)
 {
     const Unflatten layer{-4, -5, 3};
 
@@ -221,7 +221,7 @@ TEST(Unit_Unflatten, OutputShapeRejectsANegativeExtent)
 }
 
 /** @brief Tests that output_shape() throws on a per-sample shape that is not rank 1. */
-TEST(Unit_Unflatten, OutputShapeRejectsAShapeThatIsNotRankOne)
+TEST(Small_Unflatten, OutputShapeRejectsAShapeThatIsNotRankOne)
 {
     const Unflatten layer{4, 5, 3};
 
@@ -229,7 +229,7 @@ TEST(Unit_Unflatten, OutputShapeRejectsAShapeThatIsNotRankOne)
 }
 
 /** @brief Tests that output_shape() throws when the feature count does not match. */
-TEST(Unit_Unflatten, OutputShapeRejectsAMismatchedElementCount)
+TEST(Small_Unflatten, OutputShapeRejectsAMismatchedElementCount)
 {
     const Unflatten layer{4, 5, 3};
 
@@ -237,7 +237,7 @@ TEST(Unit_Unflatten, OutputShapeRejectsAMismatchedElementCount)
 }
 
 /** @brief Tests that the parameter walk visits nothing before and after a trace. */
-TEST(Unit_Unflatten, HasNoParameters)
+TEST(Small_Unflatten, HasNoParameters)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

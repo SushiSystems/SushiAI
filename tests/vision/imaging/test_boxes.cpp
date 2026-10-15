@@ -73,35 +73,35 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingBoxes, ToPixelBoxPlacesCornersFromCentreAndExtent)
+TEST(Small_ImagingBoxes, ToPixelBoxPlacesCornersFromCentreAndExtent)
 {
     const PixelBox box = to_pixel_box(NormalizedBox{0.5f, 0.25f, 0.5f, 0.25f}, K_SIZE);
 
     expect_pixel_box(box, 160.0f, 60.0f, 480.0f, 180.0f);
 }
 
-TEST(Unit_ImagingBoxes, ToPixelBoxUsesWidthForXAndHeightForY)
+TEST(Small_ImagingBoxes, ToPixelBoxUsesWidthForXAndHeightForY)
 {
     const PixelBox box = to_pixel_box(NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f}, ImageSize{100, 200});
 
     expect_pixel_box(box, 0.0f, 0.0f, 200.0f, 100.0f);
 }
 
-TEST(Unit_ImagingBoxes, ToPixelBoxDoesNotClip)
+TEST(Small_ImagingBoxes, ToPixelBoxDoesNotClip)
 {
     const PixelBox box = to_pixel_box(NormalizedBox{0.0f, 1.0f, 0.5f, 0.5f}, ImageSize{100, 200});
 
     expect_pixel_box(box, -50.0f, 75.0f, 50.0f, 125.0f);
 }
 
-TEST(Unit_ImagingBoxes, ToNormalizedBoxDividesCentreAndExtentByTheImageSize)
+TEST(Small_ImagingBoxes, ToNormalizedBoxDividesCentreAndExtentByTheImageSize)
 {
     const NormalizedBox box = to_normalized_box(PixelBox{160.0f, 60.0f, 480.0f, 180.0f}, K_SIZE);
 
     expect_normalized_box(box, 0.5f, 0.25f, 0.5f, 0.25f);
 }
 
-TEST(Unit_ImagingBoxes, NormalizedToPixelAndBackReturnsTheBox)
+TEST(Small_ImagingBoxes, NormalizedToPixelAndBackReturnsTheBox)
 {
     const std::vector<NormalizedBox> boxes = {
         {0.5f, 0.5f, 1.0f, 1.0f},
@@ -118,7 +118,7 @@ TEST(Unit_ImagingBoxes, NormalizedToPixelAndBackReturnsTheBox)
     }
 }
 
-TEST(Unit_ImagingBoxes, PixelToNormalizedAndBackReturnsTheBox)
+TEST(Small_ImagingBoxes, PixelToNormalizedAndBackReturnsTheBox)
 {
     const PixelBox box{12.5f, 7.25f, 630.0f, 471.75f};
 
@@ -127,35 +127,35 @@ TEST(Unit_ImagingBoxes, PixelToNormalizedAndBackReturnsTheBox)
     expect_pixel_box(back, box.x1, box.y1, box.x2, box.y2);
 }
 
-TEST(Unit_ImagingBoxes, ScaleBoxMultipliesEachAxisByItsOwnFactor)
+TEST(Small_ImagingBoxes, ScaleBoxMultipliesEachAxisByItsOwnFactor)
 {
     const PixelBox box = scale_box(PixelBox{10.0f, 20.0f, 30.0f, 40.0f}, 2.0f, 0.5f);
 
     expect_pixel_box(box, 20.0f, 10.0f, 60.0f, 20.0f);
 }
 
-TEST(Unit_ImagingBoxes, TranslateBoxAddsEachAxisItsOwnOffset)
+TEST(Small_ImagingBoxes, TranslateBoxAddsEachAxisItsOwnOffset)
 {
     const PixelBox box = translate_box(PixelBox{10.0f, 20.0f, 30.0f, 40.0f}, 5.0f, -25.0f);
 
     expect_pixel_box(box, 15.0f, -5.0f, 35.0f, 15.0f);
 }
 
-TEST(Unit_ImagingBoxes, ClipBoxClampsEachEdgeToTheImage)
+TEST(Small_ImagingBoxes, ClipBoxClampsEachEdgeToTheImage)
 {
     const PixelBox box = clip_box(PixelBox{-10.0f, 20.0f, 700.0f, 500.0f}, K_SIZE);
 
     expect_pixel_box(box, 0.0f, 20.0f, 640.0f, 480.0f);
 }
 
-TEST(Unit_ImagingBoxes, ClipBoxLeavesABoxInsideTheImageAlone)
+TEST(Small_ImagingBoxes, ClipBoxLeavesABoxInsideTheImageAlone)
 {
     const PixelBox box = clip_box(PixelBox{0.0f, 0.0f, 640.0f, 480.0f}, K_SIZE);
 
     expect_pixel_box(box, 0.0f, 0.0f, 640.0f, 480.0f);
 }
 
-TEST(Unit_ImagingBoxes, ClipBoxCollapsesABoxOutsideTheImageOntoTheEdge)
+TEST(Small_ImagingBoxes, ClipBoxCollapsesABoxOutsideTheImageOntoTheEdge)
 {
     const PixelBox right = clip_box(PixelBox{700.0f, 10.0f, 800.0f, 20.0f}, K_SIZE);
     const PixelBox above = clip_box(PixelBox{10.0f, -30.0f, 20.0f, -5.0f}, K_SIZE);
@@ -166,13 +166,13 @@ TEST(Unit_ImagingBoxes, ClipBoxCollapsesABoxOutsideTheImageOntoTheEdge)
     EXPECT_NEAR(box_area(above), 0.0f, K_PIXEL_TOLERANCE);
 }
 
-TEST(Unit_ImagingBoxes, BoxAreaIsWidthTimesHeight)
+TEST(Small_ImagingBoxes, BoxAreaIsWidthTimesHeight)
 {
     EXPECT_NEAR(box_area(PixelBox{1.0f, 2.0f, 4.0f, 6.0f}), 12.0f, K_PIXEL_TOLERANCE);
 }
 
 /** @brief Tests that the polygon filter differs from the default one in its area ratio alone. */
-TEST(Unit_ImagingBoxes, PolygonFilterLowersOnlyTheAreaRatioToOneHundredth)
+TEST(Small_ImagingBoxes, PolygonFilterLowersOnlyTheAreaRatioToOneHundredth)
 {
     const CandidateFilter plain;
     const CandidateFilter polygon = make_polygon_filter();
@@ -185,7 +185,7 @@ TEST(Unit_ImagingBoxes, PolygonFilterLowersOnlyTheAreaRatioToOneHundredth)
 }
 
 /** @brief Tests that a box at 5 percent of its area passes the polygon filter alone. */
-TEST(Unit_ImagingBoxes, PolygonFilterKeepsABoxThePlainFilterRejects)
+TEST(Small_ImagingBoxes, PolygonFilterKeepsABoxThePlainFilterRejects)
 {
     const PixelBox before{0.0f, 0.0f, 100.0f, 100.0f};
     const PixelBox after{0.0f, 0.0f, 50.0f, 10.0f};
@@ -194,7 +194,7 @@ TEST(Unit_ImagingBoxes, PolygonFilterKeepsABoxThePlainFilterRejects)
     EXPECT_TRUE(is_box_candidate(before, after, make_polygon_filter()));
 }
 
-TEST(Unit_ImagingBoxes, CandidateFilterDefaultsAreTheReferenceThresholds)
+TEST(Small_ImagingBoxes, CandidateFilterDefaultsAreTheReferenceThresholds)
 {
     const CandidateFilter filter;
 
@@ -204,7 +204,7 @@ TEST(Unit_ImagingBoxes, CandidateFilterDefaultsAreTheReferenceThresholds)
     EXPECT_NEAR(filter.epsilon, 1e-16f, K_EPSILON_TOLERANCE);
 }
 
-TEST(Unit_ImagingBoxes, CandidateNeedsAWidthAboveTheMinimumSide)
+TEST(Small_ImagingBoxes, CandidateNeedsAWidthAboveTheMinimumSide)
 {
     const CandidateFilter filter;
     const PixelBox before = box_of_sides(10.0f, 10.0f);
@@ -213,7 +213,7 @@ TEST(Unit_ImagingBoxes, CandidateNeedsAWidthAboveTheMinimumSide)
     EXPECT_TRUE(is_box_candidate(before, box_of_sides(2.25f, 10.0f), filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateNeedsAHeightAboveTheMinimumSide)
+TEST(Small_ImagingBoxes, CandidateNeedsAHeightAboveTheMinimumSide)
 {
     const CandidateFilter filter;
     const PixelBox before = box_of_sides(10.0f, 10.0f);
@@ -222,7 +222,7 @@ TEST(Unit_ImagingBoxes, CandidateNeedsAHeightAboveTheMinimumSide)
     EXPECT_TRUE(is_box_candidate(before, box_of_sides(10.0f, 2.25f), filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateNeedsMoreThanTheMinimumAreaRatio)
+TEST(Small_ImagingBoxes, CandidateNeedsMoreThanTheMinimumAreaRatio)
 {
     const CandidateFilter filter;
     const PixelBox before = box_of_sides(100.0f, 100.0f);
@@ -233,7 +233,7 @@ TEST(Unit_ImagingBoxes, CandidateNeedsMoreThanTheMinimumAreaRatio)
     EXPECT_FALSE(is_box_candidate(before, box_of_sides(9.5f, 100.0f), filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateAreaRatioFollowsTheFilterField)
+TEST(Small_ImagingBoxes, CandidateAreaRatioFollowsTheFilterField)
 {
     CandidateFilter filter;
     filter.min_area_ratio = 0.01f;
@@ -243,7 +243,7 @@ TEST(Unit_ImagingBoxes, CandidateAreaRatioFollowsTheFilterField)
     EXPECT_FALSE(is_box_candidate(before, box_of_sides(10.0f, 10.0f), filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateNeedsAnAspectRatioBelowTheMaximum)
+TEST(Small_ImagingBoxes, CandidateNeedsAnAspectRatioBelowTheMaximum)
 {
     const CandidateFilter filter;
 
@@ -259,7 +259,7 @@ TEST(Unit_ImagingBoxes, CandidateNeedsAnAspectRatioBelowTheMaximum)
     EXPECT_TRUE(is_box_candidate(nearly_tall, nearly_tall, filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateMeasuresSidesNotPositions)
+TEST(Small_ImagingBoxes, CandidateMeasuresSidesNotPositions)
 {
     const CandidateFilter filter;
     const PixelBox before{100.0f, 200.0f, 150.0f, 240.0f};
@@ -268,7 +268,7 @@ TEST(Unit_ImagingBoxes, CandidateMeasuresSidesNotPositions)
     EXPECT_TRUE(is_box_candidate(before, after, filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateEpsilonIsAddedToTheAreaBefore)
+TEST(Small_ImagingBoxes, CandidateEpsilonIsAddedToTheAreaBefore)
 {
     CandidateFilter filter;
     filter.epsilon = 100.0f;
@@ -279,7 +279,7 @@ TEST(Unit_ImagingBoxes, CandidateEpsilonIsAddedToTheAreaBefore)
     EXPECT_FALSE(is_box_candidate(box, box, filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateEpsilonIsAddedToTheHeightOfAWideBox)
+TEST(Small_ImagingBoxes, CandidateEpsilonIsAddedToTheHeightOfAWideBox)
 {
     CandidateFilter filter;
     filter.epsilon = 1.0f;
@@ -289,7 +289,7 @@ TEST(Unit_ImagingBoxes, CandidateEpsilonIsAddedToTheHeightOfAWideBox)
     EXPECT_TRUE(is_box_candidate(wide, wide, filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateEpsilonIsAddedToTheWidthOfATallBox)
+TEST(Small_ImagingBoxes, CandidateEpsilonIsAddedToTheWidthOfATallBox)
 {
     CandidateFilter filter;
     filter.epsilon = 1.0f;
@@ -299,7 +299,7 @@ TEST(Unit_ImagingBoxes, CandidateEpsilonIsAddedToTheWidthOfATallBox)
     EXPECT_TRUE(is_box_candidate(tall, tall, filter));
 }
 
-TEST(Unit_ImagingBoxes, CandidateWithAnEmptyBeforeBoxIsKeptAndAnEmptyAfterBoxIsNot)
+TEST(Small_ImagingBoxes, CandidateWithAnEmptyBeforeBoxIsKeptAndAnEmptyAfterBoxIsNot)
 {
     const CandidateFilter filter;
 

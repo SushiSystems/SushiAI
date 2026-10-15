@@ -3,11 +3,11 @@
 
 Box decoding and encoding, the two box formats and the IoU forms.
 
-Suites: `Unit_DetectBoxes`.
+Suites: `Medium_DetectBoxes`.
 
 Tests box decoding and encoding, the two box formats and the IoU forms.
 
-This file needs no device. `Unit_DetectBoxes` covers `modules/vision/detect/include/SushiAI/vision/detect/free/box_coding.hpp`,
+This file needs no device. `Medium_DetectBoxes` covers `modules/vision/detect/include/SushiAI/vision/detect/free/box_coding.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/box_format.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/iou.hpp`. The hand cases
 write the expected value as the arithmetic that produces it. Three cases read `forward.sacp`
 and report themselves skipped when the file is absent.

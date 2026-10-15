@@ -235,14 +235,14 @@ namespace
     }
 } // namespace
 
-TEST(Unit_CodecsJpeg, GrayFileDecodesToOneChannel)
+TEST(Small_CodecsJpeg, GrayFileDecodesToOneChannel)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_jpeg(gray_jpeg(), DecodeOptions{}));
 
     expect_quadrants(image, K_GRAY_QUADRANTS, 1);
 }
 
-TEST(Unit_CodecsJpeg, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
+TEST(Small_CodecsJpeg, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_jpeg(gray_jpeg(), layout_options(ChannelLayout::Color)));
@@ -255,7 +255,7 @@ TEST(Unit_CodecsJpeg, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
     }
 }
 
-TEST(Unit_CodecsJpeg, ColorFileDecodesToRGB)
+TEST(Small_CodecsJpeg, ColorFileDecodesToRGB)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_jpeg(color_jpeg(K_RGB_QUADRANTS), DecodeOptions{}));
@@ -263,7 +263,7 @@ TEST(Unit_CodecsJpeg, ColorFileDecodesToRGB)
     expect_quadrants(image, K_RGB_QUADRANTS, 3);
 }
 
-TEST(Unit_CodecsJpeg, ColorFileDecodesToRGBWhenColorIsAsked)
+TEST(Small_CodecsJpeg, ColorFileDecodesToRGBWhenColorIsAsked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_jpeg(color_jpeg(K_RGB_QUADRANTS),
                                                            layout_options(ChannelLayout::Color)));
@@ -271,7 +271,7 @@ TEST(Unit_CodecsJpeg, ColorFileDecodesToRGBWhenColorIsAsked)
     expect_quadrants(image, K_RGB_QUADRANTS, 3);
 }
 
-TEST(Unit_CodecsJpeg, ColorFileOfNeutralPixelsDecodesToTheirLevelWhenGrayIsAsked)
+TEST(Small_CodecsJpeg, ColorFileOfNeutralPixelsDecodesToTheirLevelWhenGrayIsAsked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_jpeg(color_jpeg(K_NEUTRAL_QUADRANTS),
                                                            layout_options(ChannelLayout::Gray)));
@@ -280,7 +280,7 @@ TEST(Unit_CodecsJpeg, ColorFileOfNeutralPixelsDecodesToTheirLevelWhenGrayIsAsked
     expect_quadrants(image, K_NEUTRAL_QUADRANTS, 1);
 }
 
-TEST(Unit_CodecsJpeg, RGBFileWithoutAColorTransformDecodesToRGB)
+TEST(Small_CodecsJpeg, RGBFileWithoutAColorTransformDecodesToRGB)
 {
     const std::vector<std::uint8_t> file = quadrant_jpeg(K_RGB_QUADRANTS, JCS_RGB, JCS_RGB, 3);
 
@@ -289,7 +289,7 @@ TEST(Unit_CodecsJpeg, RGBFileWithoutAColorTransformDecodesToRGB)
     expect_quadrants(image, K_RGB_QUADRANTS, 3);
 }
 
-TEST(Unit_CodecsJpeg, CMYKFileDecodesToRGB)
+TEST(Small_CodecsJpeg, CMYKFileDecodesToRGB)
 {
     const std::vector<std::uint8_t> file = quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, JCS_CMYK, 4);
 
@@ -298,7 +298,7 @@ TEST(Unit_CodecsJpeg, CMYKFileDecodesToRGB)
     expect_quadrants(image, K_CMYK_AS_RGB, 3);
 }
 
-TEST(Unit_CodecsJpeg, YCCKFileDecodesToRGB)
+TEST(Small_CodecsJpeg, YCCKFileDecodesToRGB)
 {
     const std::vector<std::uint8_t> file = quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, JCS_YCCK, 4);
 
@@ -308,7 +308,7 @@ TEST(Unit_CodecsJpeg, YCCKFileDecodesToRGB)
     expect_quadrants(image, K_CMYK_AS_RGB, 3);
 }
 
-TEST(Unit_CodecsJpeg, CMYKFileIsRefusedAsGrayAndTheColorSpaceIsNamed)
+TEST(Small_CodecsJpeg, CMYKFileIsRefusedAsGrayAndTheColorSpaceIsNamed)
 {
     const std::vector<std::uint8_t> cmyk = quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, JCS_CMYK, 4);
     const std::vector<std::uint8_t> ycck = quadrant_jpeg(K_CMYK_QUADRANTS, JCS_CMYK, JCS_YCCK, 4);
@@ -319,7 +319,7 @@ TEST(Unit_CodecsJpeg, CMYKFileIsRefusedAsGrayAndTheColorSpaceIsNamed)
                       StatusCode::Unsupported, "decode_jpeg: ", "YCCK", "gray");
 }
 
-TEST(Unit_CodecsJpeg, FileCutInHalfIsInvalid)
+TEST(Small_CodecsJpeg, FileCutInHalfIsInvalid)
 {
     const std::vector<std::uint8_t> file = color_jpeg(K_RGB_QUADRANTS);
     const SushiRuntime::span<const std::uint8_t> half(file.data(), file.size() / 2);
@@ -328,7 +328,7 @@ TEST(Unit_CodecsJpeg, FileCutInHalfIsInvalid)
                       "decode_jpeg: ");
 }
 
-TEST(Unit_CodecsJpeg, FileWithoutItsEndMarkerIsInvalidAndCarriesTheLibraryMessage)
+TEST(Small_CodecsJpeg, FileWithoutItsEndMarkerIsInvalidAndCarriesTheLibraryMessage)
 {
     const std::vector<std::uint8_t> file = gray_jpeg();
     ASSERT_GT(file.size(), 2u);
@@ -338,7 +338,7 @@ TEST(Unit_CodecsJpeg, FileWithoutItsEndMarkerIsInvalidAndCarriesTheLibraryMessag
                       "decode_jpeg: the data is corrupt: ", "JPEG");
 }
 
-TEST(Unit_CodecsJpeg, EveryProperPrefixOfAFileFails)
+TEST(Small_CodecsJpeg, EveryProperPrefixOfAFileFails)
 {
     const std::vector<std::uint8_t> file = gray_jpeg();
 
@@ -351,13 +351,13 @@ TEST(Unit_CodecsJpeg, EveryProperPrefixOfAFileFails)
     }
 }
 
-TEST(Unit_CodecsJpeg, NoBytesAreInvalid)
+TEST(Small_CodecsJpeg, NoBytesAreInvalid)
 {
     SA_EXPECT_FAILURE(decode_jpeg(SushiRuntime::span<const std::uint8_t>(), DecodeOptions{}),
                       StatusCode::InvalidFile, "decode_jpeg: ");
 }
 
-TEST(Unit_CodecsJpeg, BytesThatAreNotAJPEGAreInvalid)
+TEST(Small_CodecsJpeg, BytesThatAreNotAJPEGAreInvalid)
 {
     const std::vector<std::uint8_t> garbage(64, 0x5A);
 
@@ -365,7 +365,7 @@ TEST(Unit_CodecsJpeg, BytesThatAreNotAJPEGAreInvalid)
                       "decode_jpeg: ");
 }
 
-TEST(Unit_CodecsJpeg, DecoderIsUsableAfterAFailure)
+TEST(Small_CodecsJpeg, DecoderIsUsableAfterAFailure)
 {
     const std::vector<std::uint8_t> garbage(64, 0x5A);
     SA_EXPECT_FAILURE(decode_jpeg(garbage, DecodeOptions{}), StatusCode::InvalidFile,
@@ -376,7 +376,7 @@ TEST(Unit_CodecsJpeg, DecoderIsUsableAfterAFailure)
     expect_quadrants(image, K_GRAY_QUADRANTS, 1);
 }
 
-TEST(Unit_CodecsJpeg, SideAtTheLimitDecodes)
+TEST(Small_CodecsJpeg, SideAtTheLimitDecodes)
 {
     const std::vector<std::uint8_t> samples(static_cast<std::size_t>(K_MAX_IMAGE_SIDE), 77);
     const std::vector<std::uint8_t> file =
@@ -390,7 +390,7 @@ TEST(Unit_CodecsJpeg, SideAtTheLimitDecodes)
     EXPECT_EQ(image.channels(), 1);
 }
 
-TEST(Unit_CodecsJpeg, WidthAboveTheLimitIsRefused)
+TEST(Small_CodecsJpeg, WidthAboveTheLimitIsRefused)
 {
     const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
     const std::vector<std::uint8_t> samples(side, 77);
@@ -401,7 +401,7 @@ TEST(Unit_CodecsJpeg, WidthAboveTheLimitIsRefused)
                       "16384");
 }
 
-TEST(Unit_CodecsJpeg, HeightAboveTheLimitIsRefused)
+TEST(Small_CodecsJpeg, HeightAboveTheLimitIsRefused)
 {
     const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
     const std::vector<std::uint8_t> samples(side, 77);

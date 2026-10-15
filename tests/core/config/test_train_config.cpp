@@ -78,7 +78,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a file without the section parses as before, with a null schedule. */
-TEST(Unit_TrainConfig, AFileWithoutAScheduleHoldsTheNullValue)
+TEST(Medium_TrainConfig, AFileWithoutAScheduleHoldsTheNullValue)
 {
     const TrainSpec spec = parse_with("");
 
@@ -88,7 +88,7 @@ TEST(Unit_TrainConfig, AFileWithoutAScheduleHoldsTheNullValue)
 }
 
 /** @brief Tests that the section is kept whole, its "type" and an unread key included. */
-TEST(Unit_TrainConfig, TheScheduleIsCarriedAsTheFileStatesIt)
+TEST(Medium_TrainConfig, TheScheduleIsCarriedAsTheFileStatesIt)
 {
     const TrainSpec spec = parse_with(", " + std::string(K_SCHEDULE_MEMBER));
 
@@ -100,7 +100,7 @@ TEST(Unit_TrainConfig, TheScheduleIsCarriedAsTheFileStatesIt)
 }
 
 /** @brief Tests that the parser accepts a schedule of any kind and leaves the check to optim. */
-TEST(Unit_TrainConfig, AScheduleOfAnotherKindIsCarriedUnchecked)
+TEST(Medium_TrainConfig, AScheduleOfAnotherKindIsCarriedUnchecked)
 {
     const TrainSpec spec = parse_with(R"(, "schedule": "later")");
 
@@ -108,19 +108,19 @@ TEST(Unit_TrainConfig, AScheduleOfAnotherKindIsCarriedUnchecked)
 }
 
 /** @brief Tests that a key beside the known ones is still refused by name. */
-TEST(Unit_TrainConfig, AKeyBesideTheScheduleIsStillRefused)
+TEST(Medium_TrainConfig, AKeyBesideTheScheduleIsStillRefused)
 {
     SA_EXPECT_ERROR((void)parse_with(R"(, "schedules": {})"), "'schedules'");
 }
 
 /** @brief Tests that a file without "weights" leaves the path empty. */
-TEST(Unit_TrainConfig, AFileWithoutWeightsHoldsAnEmptyPath)
+TEST(Medium_TrainConfig, AFileWithoutWeightsHoldsAnEmptyPath)
 {
     EXPECT_TRUE(parse_with("").weights.empty());
 }
 
 /** @brief Tests that "weights" resolves against the directory of the file, as "model" does. */
-TEST(Unit_TrainConfig, TheWeightsPathResolvesAgainstTheFile)
+TEST(Medium_TrainConfig, TheWeightsPathResolvesAgainstTheFile)
 {
     const std::string text =
         std::string(K_REQUIRED_MEMBERS) + R"(, "weights": "start.sushi"})";
@@ -132,13 +132,13 @@ TEST(Unit_TrainConfig, TheWeightsPathResolvesAgainstTheFile)
 }
 
 /** @brief Tests that "weights" of another kind than a string is refused by name. */
-TEST(Unit_TrainConfig, WeightsThatAreNoStringAreRefused)
+TEST(Medium_TrainConfig, WeightsThatAreNoStringAreRefused)
 {
     SA_EXPECT_ERROR((void)parse_with(R"(, "weights": 3)"), "'weights'");
 }
 
 /** @brief Tests that "resume" is empty when left out and resolves against the file. */
-TEST(Unit_TrainConfig, TheResumePathResolvesAgainstTheFile)
+TEST(Medium_TrainConfig, TheResumePathResolvesAgainstTheFile)
 {
     EXPECT_TRUE(parse_with("").resume.empty());
 
@@ -152,13 +152,13 @@ TEST(Unit_TrainConfig, TheResumePathResolvesAgainstTheFile)
 }
 
 /** @brief Tests that "resume" of another kind than a string is refused by name. */
-TEST(Unit_TrainConfig, AResumeThatIsNoStringIsRefused)
+TEST(Medium_TrainConfig, AResumeThatIsNoStringIsRefused)
 {
     SA_EXPECT_ERROR((void)parse_with(R"(, "resume": true)"), "'resume'");
 }
 
 /** @brief Tests that a file states "weights" or "resume", and is refused with both. */
-TEST(Unit_TrainConfig, WeightsAndResumeTogetherAreRefused)
+TEST(Medium_TrainConfig, WeightsAndResumeTogetherAreRefused)
 {
     SA_EXPECT_OK(Config::check_start(parse_with(""), "train.json"));
     SA_EXPECT_OK(Config::check_start(parse_with(R"(, "weights": "a.sushi")"), "train.json"));
@@ -171,7 +171,7 @@ TEST(Unit_TrainConfig, WeightsAndResumeTogetherAreRefused)
 }
 
 /** @brief Tests that "seed" is 0 when left out and holds the integer the file states. */
-TEST(Unit_TrainConfig, TheSeedIsZeroUnlessTheFileStatesOne)
+TEST(Medium_TrainConfig, TheSeedIsZeroUnlessTheFileStatesOne)
 {
     EXPECT_EQ(parse_with("").seed, 0);
 
@@ -187,14 +187,14 @@ TEST(Unit_TrainConfig, TheSeedIsZeroUnlessTheFileStatesOne)
 }
 
 /** @brief Tests that a "seed" that is no integer is refused by name. */
-TEST(Unit_TrainConfig, ASeedThatIsNoIntegerIsRefused)
+TEST(Medium_TrainConfig, ASeedThatIsNoIntegerIsRefused)
 {
     SA_EXPECT_ERROR((void)parse_with(R"(, "seed": "seven")"), "'seed'");
     SA_EXPECT_ERROR((void)parse_with(R"(, "seed": 0.5)"), "'seed'");
 }
 
 /** @brief Tests that a negative "seed" parses and is refused with the file and the value. */
-TEST(Unit_TrainConfig, ANegativeSeedIsRefused)
+TEST(Medium_TrainConfig, ANegativeSeedIsRefused)
 {
     SA_EXPECT_FAILURE(Config::read_run_seed(parse_with(R"(, "seed": -3)"), "train.json"),
                       StatusCode::InvalidDescription, "'train.json'", "'seed'", "-3");
@@ -214,7 +214,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a data block with a reader and no type takes the reader type whole. */
-TEST(Unit_TrainConfig, ADataBlockWithAReaderTakesTheReaderType)
+TEST(Medium_TrainConfig, ADataBlockWithAReaderTakesTheReaderType)
 {
     const TrainSpec spec =
         parse_with_data(R"({"reader": "yolo_txt", "task": "detection", "root": "data"})");
@@ -225,7 +225,7 @@ TEST(Unit_TrainConfig, ADataBlockWithAReaderTakesTheReaderType)
 }
 
 /** @brief Tests that a typed data block is read as before, its type stripped. */
-TEST(Unit_TrainConfig, ATypedDataBlockKeepsItsType)
+TEST(Medium_TrainConfig, ATypedDataBlockKeepsItsType)
 {
     const TrainSpec spec = parse_with_data(R"({"type": "mnist", "directory": "data"})");
 
@@ -235,7 +235,7 @@ TEST(Unit_TrainConfig, ATypedDataBlockKeepsItsType)
 }
 
 /** @brief Tests that a block with both keys is a typed block that still carries "reader". */
-TEST(Unit_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
+TEST(Medium_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
 {
     const TrainSpec spec = parse_with_data(R"({"type": "mnist", "reader": "idx"})");
 
@@ -244,7 +244,7 @@ TEST(Unit_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
 }
 
 /** @brief Tests that a data block with neither key is refused for its missing type. */
-TEST(Unit_TrainConfig, ADataBlockWithNeitherKeyIsRefused)
+TEST(Medium_TrainConfig, ADataBlockWithNeitherKeyIsRefused)
 {
     SA_EXPECT_ERROR((void)parse_with_data(R"({"root": "data"})"), "'type'");
 }
@@ -307,7 +307,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_TrainConfig, ParsesATrainDocumentIntoItsFourTypedBlocks)
+TEST(Medium_TrainConfig, ParsesATrainDocumentIntoItsFourTypedBlocks)
 {
     const SushiAI::Config::TrainSpec spec = train_from(K_GOOD_TRAIN);
 
@@ -323,7 +323,7 @@ TEST(Unit_TrainConfig, ParsesATrainDocumentIntoItsFourTypedBlocks)
     EXPECT_EQ(spec.data.attributes.at("batch_size", "data").as_int("batch_size"), 8);
 }
 
-TEST(Unit_TrainConfig, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
+TEST(Medium_TrainConfig, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
 {
     const TemporaryDirectory directory("sushiai_config_paths");
     const std::filesystem::path config = directory.write("train.json", K_GOOD_TRAIN);
@@ -334,7 +334,7 @@ TEST(Unit_TrainConfig, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
     EXPECT_EQ(spec.checkpoint, directory.path() / "out" / "model.sushi");
 }
 
-TEST(Unit_TrainConfig, LeavesAnAbsolutePathAlone)
+TEST(Medium_TrainConfig, LeavesAnAbsolutePathAlone)
 {
     const std::filesystem::path absolute =
         std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
@@ -351,7 +351,7 @@ TEST(Unit_TrainConfig, LeavesAnAbsolutePathAlone)
     EXPECT_EQ(spec.model_path, absolute);
 }
 
-TEST(Unit_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
+TEST(Medium_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
 {
     const SushiAI::Config::TrainSpec defaulted = train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -371,7 +371,7 @@ TEST(Unit_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
     })"), "'epochs'", "positive");
 }
 
-TEST(Unit_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
+TEST(Medium_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
 {
     SA_EXPECT_ERROR((void)train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -382,7 +382,7 @@ TEST(Unit_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
     })"), "'epochz'", "'epochs'");
 }
 
-TEST(Unit_TrainConfig, AMissingTrainBlockNamesIt)
+TEST(Medium_TrainConfig, AMissingTrainBlockNamesIt)
 {
     SA_EXPECT_ERROR((void)train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -391,7 +391,7 @@ TEST(Unit_TrainConfig, AMissingTrainBlockNamesIt)
     })"), "'data'");
 }
 
-TEST(Unit_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
+TEST(Medium_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
 {
     SA_EXPECT_ERROR((void)train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -401,7 +401,7 @@ TEST(Unit_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
     })"), "'objective'", "a string");
 }
 
-TEST(Unit_TrainConfig, AFutureTrainVersionIsAnError)
+TEST(Medium_TrainConfig, AFutureTrainVersionIsAnError)
 {
     SA_EXPECT_ERROR((void)train_from(R"({
         "sushiai_train": 2, "model": "m.json",
@@ -411,7 +411,7 @@ TEST(Unit_TrainConfig, AFutureTrainVersionIsAnError)
     })"), "version 2", "version 1");
 }
 
-TEST(Unit_TrainConfig, ParsesAnEvalDocument)
+TEST(Medium_TrainConfig, ParsesAnEvalDocument)
 {
     const SushiAI::Config::DataSpec data = SushiAI::Config::parse_data(
         parse_json(R"({
@@ -424,7 +424,7 @@ TEST(Unit_TrainConfig, ParsesAnEvalDocument)
     EXPECT_EQ(data.attributes.at("seed", "data").as_int("seed"), 3735928575);
 }
 
-TEST(Unit_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
+TEST(Medium_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
 {
     // An eval document naming a model is an error; see tests/core/config/README.md.
     SA_EXPECT_ERROR((void)SushiAI::Config::parse_data(
@@ -432,7 +432,7 @@ TEST(Unit_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
                    "eval.json"), "eval.json"), "'model'", "'data'");
 }
 
-TEST(Unit_TrainConfig, LoadingAnAbsentFileNamesThePath)
+TEST(Medium_TrainConfig, LoadingAnAbsentFileNamesThePath)
 {
     SA_EXPECT_ERROR((void)SushiAI::Config::load_train("no/such/train.json"),
                     "no/such/train.json");

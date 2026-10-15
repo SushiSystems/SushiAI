@@ -84,7 +84,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the training split of CIFAR-10 lists its five files in order. */
-TEST(Unit_DatasetsCifar, TheCIFAR10TrainingSplitListsItsFiveFilesInOrder)
+TEST(Small_DatasetsCifar, TheCIFAR10TrainingSplitListsItsFiveFilesInOrder)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar10_train");
     for (std::uint8_t batch = 1; batch <= 5; ++batch)
@@ -110,7 +110,7 @@ TEST(Unit_DatasetsCifar, TheCIFAR10TrainingSplitListsItsFiveFilesInOrder)
 }
 
 /** @brief Tests that a record's sample refers to its planes after the label byte. */
-TEST(Unit_DatasetsCifar, ASampleRefersToThePlanesAfterItsLabel)
+TEST(Small_DatasetsCifar, ASampleRefersToThePlanesAfterItsLabel)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar10_test");
     scratch.write("test_batch.bin", joined(record({3}, {10, 20, 30}), record({9}, {40, 50, 60})));
@@ -143,7 +143,7 @@ TEST(Unit_DatasetsCifar, ASampleRefersToThePlanesAfterItsLabel)
 }
 
 /** @brief Tests that CIFAR-100 takes the second label byte as fine and the first as coarse. */
-TEST(Unit_DatasetsCifar, CIFAR100TakesTheFineOrTheCoarseLabel)
+TEST(Small_DatasetsCifar, CIFAR100TakesTheFineOrTheCoarseLabel)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar100");
     scratch.write("train.bin", record({19, 87}, {1, 2, 3}));
@@ -166,7 +166,7 @@ TEST(Unit_DatasetsCifar, CIFAR100TakesTheFineOrTheCoarseLabel)
 }
 
 /** @brief Tests that a label at or above the class count names the file and the record. */
-TEST(Unit_DatasetsCifar, ALabelOutsideTheClassesNamesItsRecord)
+TEST(Small_DatasetsCifar, ALabelOutsideTheClassesNamesItsRecord)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar_label");
     scratch.write("test_batch.bin", joined(record({3}, {0, 0, 0}), record({10}, {0, 0, 0})));
@@ -179,7 +179,7 @@ TEST(Unit_DatasetsCifar, ALabelOutsideTheClassesNamesItsRecord)
 }
 
 /** @brief Tests that a file that is empty or ends inside a record is refused. */
-TEST(Unit_DatasetsCifar, AFileThatIsNotWholeRecordsIsRefused)
+TEST(Small_DatasetsCifar, AFileThatIsNotWholeRecordsIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar_size");
 
@@ -195,7 +195,7 @@ TEST(Unit_DatasetsCifar, AFileThatIsNotWholeRecordsIsRefused)
 }
 
 /** @brief Tests that an absent file of the split is reported with its path. */
-TEST(Unit_DatasetsCifar, AnAbsentFileIsNotFound)
+TEST(Small_DatasetsCifar, AnAbsentFileIsNotFound)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar_absent");
     scratch.write("data_batch_1.bin", record({0}, {0, 0, 0}));
@@ -205,7 +205,7 @@ TEST(Unit_DatasetsCifar, AnAbsentFileIsNotFound)
 }
 
 /** @brief Tests that a split other than train and test is refused. */
-TEST(Unit_DatasetsCifar, AnotherSplitIsRefused)
+TEST(Small_DatasetsCifar, AnotherSplitIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cifar_split");
 

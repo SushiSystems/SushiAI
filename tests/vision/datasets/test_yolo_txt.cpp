@@ -73,7 +73,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the last "images" folder becomes "labels" and the extension .txt. */
-TEST(Unit_DatasetsYoloTxt, TheLabelPathSwapsTheLastImagesFolder)
+TEST(Small_DatasetsYoloTxt, TheLabelPathSwapsTheLastImagesFolder)
 {
     EXPECT_EQ(label_of("data/images/train/a.jpg"), "data/labels/train/a.txt");
     EXPECT_EQ(label_of("images/x/images/a.png"), "images/x/labels/a.txt");
@@ -81,7 +81,7 @@ TEST(Unit_DatasetsYoloTxt, TheLabelPathSwapsTheLastImagesFolder)
 }
 
 /** @brief Tests that a path with no "images" folder keeps its folder. */
-TEST(Unit_DatasetsYoloTxt, TheLabelPathKeepsAFolderThatIsNotImages)
+TEST(Small_DatasetsYoloTxt, TheLabelPathKeepsAFolderThatIsNotImages)
 {
     EXPECT_EQ(label_of("data/train/a.jpg"), "data/train/a.txt");
     EXPECT_EQ(label_of("data/images"), "data/images.txt");
@@ -89,7 +89,7 @@ TEST(Unit_DatasetsYoloTxt, TheLabelPathKeepsAFolderThatIsNotImages)
 }
 
 /** @brief Tests that the image folder is listed sorted and each label file is parsed. */
-TEST(Unit_DatasetsYoloTxt, TheImageFolderIsListedWithItsLabels)
+TEST(Small_DatasetsYoloTxt, TheImageFolderIsListedWithItsLabels)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_folder");
     scratch.write("images/train/b.jpg", {1});
@@ -131,7 +131,7 @@ TEST(Unit_DatasetsYoloTxt, TheImageFolderIsListedWithItsLabels)
 }
 
 /** @brief Tests that an image without a label file, or with an empty one, has no object. */
-TEST(Unit_DatasetsYoloTxt, AnImageWithoutALabelFileHasNoObject)
+TEST(Small_DatasetsYoloTxt, AnImageWithoutALabelFileHasNoObject)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_background");
     scratch.write("images/val/a.jpg", {1});
@@ -146,7 +146,7 @@ TEST(Unit_DatasetsYoloTxt, AnImageWithoutALabelFileHasNoObject)
 }
 
 /** @brief Tests that an image list is read in its own order, relative paths from the root. */
-TEST(Unit_DatasetsYoloTxt, AnImageListIsReadInItsOwnOrder)
+TEST(Small_DatasetsYoloTxt, AnImageListIsReadInItsOwnOrder)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_list");
     scratch.write("images/all/z.jpg", {1});
@@ -166,7 +166,7 @@ TEST(Unit_DatasetsYoloTxt, AnImageListIsReadInItsOwnOrder)
 }
 
 /** @brief Tests that an image list wins over an image folder of the same split. */
-TEST(Unit_DatasetsYoloTxt, AnImageListWinsOverAnImageFolder)
+TEST(Small_DatasetsYoloTxt, AnImageListWinsOverAnImageFolder)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_both");
     scratch.write("images/train/a.jpg", {1});
@@ -180,7 +180,7 @@ TEST(Unit_DatasetsYoloTxt, AnImageListWinsOverAnImageFolder)
 }
 
 /** @brief Tests that a listed image that is no file names the list and its line. */
-TEST(Unit_DatasetsYoloTxt, AListedImageThatIsAbsentNamesItsLine)
+TEST(Small_DatasetsYoloTxt, AListedImageThatIsAbsentNamesItsLine)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_list_absent");
     scratch.write("images/a.jpg", {1});
@@ -191,7 +191,7 @@ TEST(Unit_DatasetsYoloTxt, AListedImageThatIsAbsentNamesItsLine)
 }
 
 /** @brief Tests that a label file the parser rejects names its path and its line. */
-TEST(Unit_DatasetsYoloTxt, ABadLabelFileNamesItsPathAndLine)
+TEST(Small_DatasetsYoloTxt, ABadLabelFileNamesItsPathAndLine)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_bad_label");
     scratch.write("images/train/a.jpg", {1});
@@ -204,7 +204,7 @@ TEST(Unit_DatasetsYoloTxt, ABadLabelFileNamesItsPathAndLine)
 }
 
 /** @brief Tests that a class at or above the class count is refused with its label file. */
-TEST(Unit_DatasetsYoloTxt, AClassOutsideTheClassCountIsRefused)
+TEST(Small_DatasetsYoloTxt, AClassOutsideTheClassCountIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_class");
     scratch.write("images/train/a.jpg", {1});
@@ -215,7 +215,7 @@ TEST(Unit_DatasetsYoloTxt, AClassOutsideTheClassCountIsRefused)
 }
 
 /** @brief Tests that a class count below one is refused before the disk is read. */
-TEST(Unit_DatasetsYoloTxt, AClassCountBelowOneIsRefused)
+TEST(Small_DatasetsYoloTxt, AClassCountBelowOneIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_count");
     YOLOTxtOptions options = options_of(scratch, "train");
@@ -225,7 +225,7 @@ TEST(Unit_DatasetsYoloTxt, AClassCountBelowOneIsRefused)
 }
 
 /** @brief Tests that a split with neither a list nor a folder names both paths. */
-TEST(Unit_DatasetsYoloTxt, ASplitWithNeitherFormIsNotFound)
+TEST(Small_DatasetsYoloTxt, ASplitWithNeitherFormIsNotFound)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_absent");
 
@@ -234,7 +234,7 @@ TEST(Unit_DatasetsYoloTxt, ASplitWithNeitherFormIsNotFound)
 }
 
 /** @brief Tests that an image folder with no image file is refused. */
-TEST(Unit_DatasetsYoloTxt, ASplitWithoutAnImageIsRefused)
+TEST(Small_DatasetsYoloTxt, ASplitWithoutAnImageIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_yolo_empty");
     scratch.write("images/train/readme.txt", {1});

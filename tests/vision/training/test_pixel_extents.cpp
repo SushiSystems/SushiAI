@@ -59,7 +59,7 @@ using Vision::Training::PixelCrossEntropyObjective;
 using Vision::Training::PixelExtents;
 
 /** @brief Tests the largest batch of 512 by 512 pixels over 150 classes INT32 indexes: 54. */
-TEST(Unit_PixelExtents, MakeRefusesWhatInt32CannotIndex)
+TEST(Small_PixelExtents, MakeRefusesWhatInt32CannotIndex)
 {
     // 54 * 512 * 512 * 150 is 2 123 366 400; one image more is 2 162 688 000.
     SA_EXPECT_OK(PixelCrossEntropyObjective::make(PixelExtents{54, 512, 512, 150}));

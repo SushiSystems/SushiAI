@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_resize.cpp
 
 
-Suites: `Unit_ImagingResize`.
+Suites: `Small_ImagingResize`.
 
 Tests the bilinear resize and the fit of an image's long side.
 
-This file needs no device. `Unit_ImagingResize` covers `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`:
+This file needs no device. `Small_ImagingResize` covers `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`:
 `resize_bilinear`, `fit_long_side` and `resize_long_side`. The kernel samples at pixel centres
 with weights rounded to `K_BILINEAR_WEIGHT_BITS` bits and rounds its result half up. The first
 cases compare whole images with values a comment derives.

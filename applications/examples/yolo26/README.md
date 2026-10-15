@@ -71,7 +71,7 @@ them here.
 third is the expansion `e`. `shortcut` is the last parameter of `C3k2.__init__` and defaults to
 `True`, and no row of `yolo26.yaml` states it, so the one `Bottleneck(16, 16)` of row 2 and the one
 `Bottleneck(32, 32)` of row 4 add their input.
-`Unit_VisionRegistration.YOLO26RowsTwoAndFourAddTheirBottlenecksInput` pins the two additions.
+`Medium_VisionRegistration.YOLO26RowsTwoAndFourAddTheirBottlenecksInput` pins the two additions.
 
 `defaults` gives every block the batch-normalisation constants Ultralytics sets, epsilon 0.001
 and momentum 0.03. A row that states either key keeps its own value.

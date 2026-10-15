@@ -1,7 +1,7 @@
 # tests/core/autograd/rules/test_linalg.cpp
 
 
-Suites: `Unit_CausalMaskBackward`.
+Suites: `Small_CausalMaskBackward`.
 
 Tests the nodes `Autograd::differentiate` appends for CAUSAL_MASK. The two graph cases mask
 [4, 4] scores with the fill -1e9 and take the `nll_loss` of the `log_softmax` of the masked
@@ -23,7 +23,7 @@ second is the returned gradient, whose shape is [4, 4].
 With the scores as an input, the returned gradient is `K_NO_VALUE` and the graph holds one
 CAUSAL_MASK node.
 
-Suites: `Unit_GatherBackward`.
+Suites: `Small_GatherBackward`.
 
 Tests the nodes `Autograd::differentiate` appends for GATHER_ROWS and SCATTER_ADD_ROWS. The
 table has 7 rows of length 3, the index is int32, and the loss is the `nll_loss` of the

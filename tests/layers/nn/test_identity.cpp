@@ -45,7 +45,7 @@ static_assert(std::tuple_size<decltype(Identity::fields())>::value == 0,
               "Identity must declare no parameter field");
 
 /** @brief Tests that forward returns the id it was given. */
-TEST(Unit_Identity, ForwardReturnsItsInput)
+TEST(Small_Identity, ForwardReturnsItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -57,7 +57,7 @@ TEST(Unit_Identity, ForwardReturnsItsInput)
 }
 
 /** @brief Tests that forward adds no node and no value to the graph. */
-TEST(Unit_Identity, ForwardEmitsNothing)
+TEST(Small_Identity, ForwardEmitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -73,7 +73,7 @@ TEST(Unit_Identity, ForwardEmitsNothing)
 }
 
 /** @brief Tests that output_shape() returns its input for a feature vector and for an image. */
-TEST(Unit_Identity, OutputShapeReturnsItsInput)
+TEST(Small_Identity, OutputShapeReturnsItsInput)
 {
     const Identity layer{};
 
@@ -82,7 +82,7 @@ TEST(Unit_Identity, OutputShapeReturnsItsInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Unit_Identity, TheParameterWalkVisitsNothing)
+TEST(Small_Identity, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

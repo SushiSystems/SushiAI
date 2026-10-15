@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_image_folder.cpp
 
 
-Suites: `Unit_DatasetsImageFolder`.
+Suites: `Small_DatasetsImageFolder`.
 
 Tests `read_image_folder` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/image_folder.hpp` and

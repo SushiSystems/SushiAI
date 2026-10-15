@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_tensors.cpp
 
 
-Suites: `Unit_DarknetTensors`.
+Suites: `Small_DarknetTensors`.
 
 Tests `list_darknet_tensors` in
 `modules/vision/importers/include/SushiAI/vision/importers/darknet_tensors.hpp`. The weights

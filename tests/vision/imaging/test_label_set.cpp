@@ -88,7 +88,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a default set holds no object in any of its three lists. */
-TEST(Unit_ImagingLabelSet, DefaultSetHoldsNoObject)
+TEST(Small_ImagingLabelSet, DefaultSetHoldsNoObject)
 {
     const Labels labels;
 
@@ -100,7 +100,7 @@ TEST(Unit_ImagingLabelSet, DefaultSetHoldsNoObject)
 }
 
 /** @brief Tests that the constructors refuse lists of different lengths. */
-TEST(Unit_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
+TEST(Small_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
 {
     const PixelBox box{0.0f, 0.0f, 1.0f, 1.0f};
 
@@ -111,7 +111,7 @@ TEST(Unit_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
 }
 
 /** @brief Tests that a set built from classes and boxes gives each object an empty polygon. */
-TEST(Unit_ImagingLabelSet, SetWithoutPolygonsHoldsOneEmptyPolygonPerObject)
+TEST(Small_ImagingLabelSet, SetWithoutPolygonsHoldsOneEmptyPolygonPerObject)
 {
     const Labels labels({4, 9},
                         {PixelBox{0.0f, 0.0f, 1.0f, 1.0f}, PixelBox{2.0f, 2.0f, 3.0f, 3.0f}});
@@ -123,7 +123,7 @@ TEST(Unit_ImagingLabelSet, SetWithoutPolygonsHoldsOneEmptyPolygonPerObject)
 }
 
 /** @brief Tests that add grows the three lists together, with or without a polygon. */
-TEST(Unit_ImagingLabelSet, AddAppendsOneEntryToEachList)
+TEST(Small_ImagingLabelSet, AddAppendsOneEntryToEachList)
 {
     Labels labels;
 
@@ -140,7 +140,7 @@ TEST(Unit_ImagingLabelSet, AddAppendsOneEntryToEachList)
 }
 
 /** @brief Tests that keep_if removes an object's class, box and polygon together. */
-TEST(Unit_ImagingLabelSet, KeepIfRemovesAnObjectFromAllThreeLists)
+TEST(Small_ImagingLabelSet, KeepIfRemovesAnObjectFromAllThreeLists)
 {
     Labels labels;
     labels.add(1, PixelBox{0.0f, 0.0f, 1.0f, 1.0f}, Polygon{Point{0.0f, 0.0f}});
@@ -165,7 +165,7 @@ TEST(Unit_ImagingLabelSet, KeepIfRemovesAnObjectFromAllThreeLists)
 }
 
 /** @brief Tests that to_pixel_labels converts every box and keeps classes and order. */
-TEST(Unit_ImagingLabelSet, ToPixelLabelsKeepsClassesAndOrder)
+TEST(Small_ImagingLabelSet, ToPixelLabelsKeepsClassesAndOrder)
 {
     const FileLabels labels({7, 2, 7}, {NormalizedBox{0.5f, 0.25f, 0.5f, 0.25f},
                                         NormalizedBox{0.25f, 0.5f, 0.25f, 0.5f},
@@ -181,7 +181,7 @@ TEST(Unit_ImagingLabelSet, ToPixelLabelsKeepsClassesAndOrder)
 }
 
 /** @brief Tests that to_pixel_labels multiplies a vertex's x by the width and y by the height. */
-TEST(Unit_ImagingLabelSet, ToPixelLabelsScalesVerticesByWidthAndHeight)
+TEST(Small_ImagingLabelSet, ToPixelLabelsScalesVerticesByWidthAndHeight)
 {
     FileLabels labels;
     labels.add(3, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f},
@@ -199,7 +199,7 @@ TEST(Unit_ImagingLabelSet, ToPixelLabelsScalesVerticesByWidthAndHeight)
 }
 
 /** @brief Tests that to_normalized_labels converts boxes and vertices and keeps the order. */
-TEST(Unit_ImagingLabelSet, ToNormalizedLabelsKeepsClassesAndOrder)
+TEST(Small_ImagingLabelSet, ToNormalizedLabelsKeepsClassesAndOrder)
 {
     Labels labels;
     labels.add(4, PixelBox{80.0f, 120.0f, 240.0f, 360.0f},
@@ -219,14 +219,14 @@ TEST(Unit_ImagingLabelSet, ToNormalizedLabelsKeepsClassesAndOrder)
 }
 
 /** @brief Tests that both conversions of a background image give an empty set. */
-TEST(Unit_ImagingLabelSet, LabelConversionsOfABackgroundImageAreEmpty)
+TEST(Small_ImagingLabelSet, LabelConversionsOfABackgroundImageAreEmpty)
 {
     EXPECT_TRUE(to_pixel_labels(FileLabels{}, K_SIZE).is_empty());
     EXPECT_TRUE(to_normalized_labels(Labels{}, K_SIZE).is_empty());
 }
 
 /** @brief Tests that clip_labels clips every box, clamps every vertex and removes no object. */
-TEST(Unit_ImagingLabelSet, ClipLabelsClipsBoxesAndVerticesAndRemovesNone)
+TEST(Small_ImagingLabelSet, ClipLabelsClipsBoxesAndVerticesAndRemovesNone)
 {
     Labels labels;
     labels.add(1, PixelBox{-10.0f, 20.0f, 700.0f, 500.0f},
@@ -246,7 +246,7 @@ TEST(Unit_ImagingLabelSet, ClipLabelsClipsBoxesAndVerticesAndRemovesNone)
 }
 
 /** @brief Tests that remove_empty_boxes drops zero-area objects with their polygons, in order. */
-TEST(Unit_ImagingLabelSet, RemoveEmptyBoxesDropsZeroAreaAndKeepsOrderClassesAndPolygons)
+TEST(Small_ImagingLabelSet, RemoveEmptyBoxesDropsZeroAreaAndKeepsOrderClassesAndPolygons)
 {
     Labels labels;
     labels.add(10, PixelBox{0.0f, 0.0f, 5.0f, 5.0f});
@@ -269,7 +269,7 @@ TEST(Unit_ImagingLabelSet, RemoveEmptyBoxesDropsZeroAreaAndKeepsOrderClassesAndP
 }
 
 /** @brief Tests that remove_empty_boxes drops a box whose corners are in the wrong order. */
-TEST(Unit_ImagingLabelSet, RemoveEmptyBoxesDropsABoxOfNegativeArea)
+TEST(Small_ImagingLabelSet, RemoveEmptyBoxesDropsABoxOfNegativeArea)
 {
     Labels labels({3}, {PixelBox{5.0f, 0.0f, 2.0f, 4.0f}});
 
@@ -281,7 +281,7 @@ TEST(Unit_ImagingLabelSet, RemoveEmptyBoxesDropsABoxOfNegativeArea)
 }
 
 /** @brief Tests that resample_polygons gives every polygon 1000 points and skips empty ones. */
-TEST(Unit_ImagingLabelSet, ResamplePolygonsGivesEachPolygonAThousandPoints)
+TEST(Small_ImagingLabelSet, ResamplePolygonsGivesEachPolygonAThousandPoints)
 {
     FileLabels labels;
     labels.add(0, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f},
@@ -301,7 +301,7 @@ TEST(Unit_ImagingLabelSet, ResamplePolygonsGivesEachPolygonAThousandPoints)
 }
 
 /** @brief Tests that a polygon of over 1000 vertices raises the count to its length plus one. */
-TEST(Unit_ImagingLabelSet, ResamplePolygonsUsesTheLongestPolygonPlusOneAboveAThousand)
+TEST(Small_ImagingLabelSet, ResamplePolygonsUsesTheLongestPolygonPlusOneAboveAThousand)
 {
     FileLabels labels;
     labels.add(0, NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f}, make_diagonal(1200));
@@ -315,7 +315,7 @@ TEST(Unit_ImagingLabelSet, ResamplePolygonsUsesTheLongestPolygonPlusOneAboveATho
 }
 
 /** @brief Tests that a set without any polygon comes back from resample_polygons unchanged. */
-TEST(Unit_ImagingLabelSet, ResamplePolygonsLeavesASetWithoutPolygonsAlone)
+TEST(Small_ImagingLabelSet, ResamplePolygonsLeavesASetWithoutPolygonsAlone)
 {
     const FileLabels labels({6}, {NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f}});
 

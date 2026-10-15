@@ -1,7 +1,7 @@
 # tests/layers/nn/test_module_list.cpp
 
 
-Suites: `Unit_ModuleList`, `Unit_ModuleListDeathTest`.
+Suites: `Small_ModuleList`, `Small_ModuleListDeathTest`.
 
 Tests ModuleList: its storage, its index names and its place in the state walk.
 
@@ -74,5 +74,5 @@ graph, and its bias keeps its leaf in the graph.
 
 ## AnIndexPastTheEndIsFatal
 
-The case is in the suite `Unit_ModuleListDeathTest`. `list[2]` on a list of two stops the
+The case is in the suite `Small_ModuleListDeathTest`. `list[2]` on a list of two stops the
 process with a report containing "index 2" and "holds 2 children".

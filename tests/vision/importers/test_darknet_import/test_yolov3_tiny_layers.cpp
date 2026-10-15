@@ -298,7 +298,7 @@ namespace
     };
 
     /** @brief Runs over yolov3-tiny, the model whose sections this file lists. */
-    class Integration_DarknetYolov3TinyLayers : public FullBodyTest
+    class Medium_DarknetYolov3TinyLayers : public FullBodyTest
     {
         protected:
             /** @brief Builds the engine, then loads yolov3-tiny or skips. */
@@ -310,7 +310,7 @@ namespace
     };
 
     /** @brief Runs once per row of K_FULL_BODY_CASES. */
-    class Integration_DarknetLayers : public FullBodyTest,
+    class Medium_DarknetLayers : public FullBodyTest,
                                       public ::testing::WithParamInterface<FullBodyCase>
     {
         protected:
@@ -329,7 +329,7 @@ namespace
  *        its [yolo] sections are those of the parity table, that a one-layer route takes no
  *        row of its own, and that the layers a layer reads are those the cfg gives it.
  */
-TEST_F(Integration_DarknetYolov3TinyLayers, TheSectionsAndRowsAreThoseOfTheDumps)
+TEST_F(Medium_DarknetYolov3TinyLayers, TheSectionsAndRowsAreThoseOfTheDumps)
 {
     const std::size_t count = std::size(K_YOLOV3_TINY_SECTIONS);
     const std::vector<BodyLayer> layers = list_layers(config);
@@ -361,7 +361,7 @@ TEST_F(Integration_DarknetYolov3TinyLayers, TheSectionsAndRowsAreThoseOfTheDumps
  * Every layer prints its index, type, extents, largest difference and bound, in file order.
  * The failure names the first layer outside the bound and the layers that layer reads.
  */
-TEST_P(Integration_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
+TEST_P(Medium_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
 {
     const FullBodyCase& body = GetParam();
     const std::vector<BodyLayer> layers = list_layers(config);
@@ -408,7 +408,7 @@ TEST_P(Integration_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
         << later_outside << " later layers are outside it too";
 }
 
-INSTANTIATE_TEST_SUITE_P(, Integration_DarknetLayers, ::testing::ValuesIn(K_FULL_BODY_CASES),
+INSTANTIATE_TEST_SUITE_P(, Medium_DarknetLayers, ::testing::ValuesIn(K_FULL_BODY_CASES),
                          [](const ::testing::TestParamInfo<FullBodyCase>& info)
                          {
                              return std::string(info.param.directory);

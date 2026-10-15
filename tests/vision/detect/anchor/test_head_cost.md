@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_head_cost.cpp
 
 
-Suites: `Unit_DetectAnchorCost`.
+Suites: `Small_DetectAnchorCost`.
 
 Tests `measure_head_cost`
 over a head with two classes whose delta the file builds by hand. Its box part sums to 5.25 and

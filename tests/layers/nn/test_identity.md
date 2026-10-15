@@ -3,7 +3,7 @@
 
 That the Identity layer returns its input, emits nothing and holds no state.
 
-Suites: `Unit_Identity`.
+Suites: `Small_Identity`.
 
 Tests that the Identity layer returns its input, emits nothing and holds no state.
 

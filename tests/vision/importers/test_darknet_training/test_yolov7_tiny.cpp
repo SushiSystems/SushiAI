@@ -67,11 +67,11 @@ namespace
     }
 
     /** @brief Runs the training suite of YOLOv7-tiny on an engine; skipped without its files. */
-    class Integration_DarknetYolov7TinyTraining : public SaTest::DarknetTrainingTest
+    class Medium_DarknetYolov7TinyTraining : public SaTest::DarknetTrainingTest
     {
         protected:
             /** @brief Hands the fixture what this file states of the model. */
-            Integration_DarknetYolov7TinyTraining() : SaTest::DarknetTrainingTest(describe_model())
+            Medium_DarknetYolov7TinyTraining() : SaTest::DarknetTrainingTest(describe_model())
             {
 
             }
@@ -82,7 +82,7 @@ namespace
  * @brief Tests that the options read from the cfg are the box loss and the objectness target
  *        this file states, and the weights and thresholds the dump's descriptions hold.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheTrainingOptionsMatchTheDumpedSettings)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheTrainingOptionsMatchTheDumpedSettings)
 {
     SaTest::check_training_settings(training);
 }
@@ -91,7 +91,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheTrainingOptionsMatchTheDumpedSe
  * @brief Tests that the delta computed from each dumped head of one image has Darknet's
  *        assignments exactly, its delta within the host bounds and its stored cost to 1e-5.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheDeltaOfADumpedHeadMatchesDarknet)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltaOfADumpedHeadMatchesDarknet)
 {
     SaTest::check_host_deltas(training);
 }
@@ -100,7 +100,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheDeltaOfADumpedHeadMatchesDarkne
  * @brief Tests that the delta computed from each dumped head of the two-image step equals the
  *        step's dumped delta within the host bounds, and its stored cost to 1e-5.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheDeltaOfATwoImageHeadMatchesDarknet)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltaOfATwoImageHeadMatchesDarknet)
 {
     SaTest::check_two_image_deltas(training);
 }
@@ -109,7 +109,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheDeltaOfATwoImageHeadMatchesDark
  * @brief Tests that each head of the Separate model under batch statistics, and the [yolo]
  *        output computed from it, equal the dump within the head and the [yolo] bounds.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheHeadsUnderBatchStatisticsMatchDarknet)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheHeadsUnderBatchStatisticsMatchDarknet)
 {
     SaTest::check_step_heads(*engine, training);
 }
@@ -120,7 +120,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheHeadsUnderBatchStatisticsMatchD
  *
  * The step bounds do not cover a slot that crosses the ignore threshold.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheDeltasOfTheStepMatchDarknet)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltasOfTheStepMatchDarknet)
 {
     SaTest::check_step_deltas(*engine, training);
 }
@@ -130,7 +130,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheDeltasOfTheStepMatchDarknet)
  *        minus the batch, equal the dumped updates within the head update share of the
  *        dump's largest magnitude plus 1e-3 of the entry.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMatchDarknet)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMatchDarknet)
 {
     SaTest::check_head_updates(*engine, training);
 }
@@ -142,7 +142,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMat
  * The dumped updates of that layer are not the gradient and are not compared; see
  * tests/vision/importers/README.md.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradient)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradient)
 {
     SaTest::check_first_gradients(*engine, training);
 }
@@ -151,7 +151,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradie
  * @brief Tests that the rolling mean and variance of the first batch norm equal the dump
  *        before the step and are within 1e-5 of it after one blend.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMatchDarknet)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMatchDarknet)
 {
     SaTest::check_rolling_statistics(*engine, training);
 }
@@ -162,7 +162,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMa
  *
  * Darknet ends the same 200 steps at 0.226 of its first cost; see tests/vision/importers/README.md.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAThird)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAThird)
 {
     SaTest::check_one_batch_overfit(*engine, training);
 }
@@ -170,7 +170,7 @@ TEST_F(Integration_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAThird)
 /**
  * @brief Tests that the memory plan of the step changes no head, no delta and no gradient.
  */
-TEST_F(Integration_DarknetYolov7TinyTraining, ThePlanOfTheStepChangesNoValue)
+TEST_F(Medium_DarknetYolov7TinyTraining, ThePlanOfTheStepChangesNoValue)
 {
     SaTest::check_plan_changes_no_value(*engine, training);
 }

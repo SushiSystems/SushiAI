@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_program.cpp
 
 
-Suites: `Unit_RegionProgram`.
+Suites: `Small_RegionProgram`.
 
 Tests the graph, the plan and the reports `compile_region` makes for one region.
 

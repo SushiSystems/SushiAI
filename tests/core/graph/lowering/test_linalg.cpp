@@ -58,7 +58,7 @@ using SaTest::write_tensor;
 namespace
 {
     /** @brief Provides the Engine every attention case records on. */
-    class Integration_AttentionOperations : public SaTest::EngineTest
+    class Medium_AttentionOperations : public SaTest::EngineTest
     {
 
     };
@@ -125,7 +125,7 @@ namespace
 }
 
 /** @brief Tests that a rank-3 product with a transposed right operand matches the host product. */
-TEST_F(Integration_AttentionOperations, BatchedProductWithTransposedRightOperandMatchesHost)
+TEST_F(Medium_AttentionOperations, BatchedProductWithTransposedRightOperandMatchesHost)
 {
     // [B, m, k] by [B, n, k] transposed gives [B, m, n] with B = 2, m = 3, k = 4, n = 5.
     Graph::Graph graph;
@@ -164,7 +164,7 @@ TEST_F(Integration_AttentionOperations, BatchedProductWithTransposedRightOperand
 }
 
 /** @brief Tests that the softmax over a [2, 3, 3] value matches the host softmax in double. */
-TEST_F(Integration_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
+TEST_F(Medium_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -190,7 +190,7 @@ TEST_F(Integration_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
  * The loss is the sum of every product element, so dloss/da[b,i,k] is the sum over j of
  * b[b,j,k], and dloss/db[b,j,k] is the sum over i of a[b,i,k].
  */
-TEST_F(Integration_AttentionOperations, BatchedProductGradientEmitsRankThreeProducts)
+TEST_F(Medium_AttentionOperations, BatchedProductGradientEmitsRankThreeProducts)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

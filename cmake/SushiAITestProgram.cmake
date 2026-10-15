@@ -13,18 +13,65 @@ if(NOT DEFINED SUSHIAI_TIER_ORDER)
     include(SushiAILayers)
 endif()
 
-# The suite prefix of a GTest case and the ctest label it carries. A case
-# whose suite has none of these prefixes is discovered by no block and never
-# runs; cli/sushiai/services/project.py selects the same labels.
-set(SUSHIAI_TEST_LABELS
-    Unit         unit
-    Integration  integration
-    Regression   regression
-)
+# A test's size comes from its GoogleTest suite-name prefix, Small_, Medium_ or Large_, and each
+# size has its own label and timeout in seconds; see the testing skill. A test named here keeps its
+# size and gains the label quarantined, which leaves it out of every gating run. Each name is
+# Suite.Case and has its entry in docs/reference/KNOWN_ISSUES.md.
+set(SUSHIAI_QUARANTINED_TESTS "")
+
+# Fails the configure when a suite in `sources` has no size prefix: it would register no test.
+function(sushiai_check_suite_sizes)
+    foreach(source IN LISTS ARGN)
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${source}" text)
+        string(REGEX MATCHALL "(TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)\\([ \t\r\n]*[A-Za-z0-9_]+"
+            declarations "${text}")
+        foreach(declaration IN LISTS declarations)
+            string(REGEX REPLACE "^[A-Z_]+\\([ \t\r\n]*" "" suite "${declaration}")
+            if(NOT suite MATCHES "^(Small|Medium|Large)_")
+                message(FATAL_ERROR
+                    "${source}: the suite ${suite} has no size prefix (Small_, Medium_ or "
+                    "Large_); tests/README.md gives the sizes.")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
+
+# Registers the cases of `program` in one block per size, each with its label and timeout. A
+# GoogleTest filter after '-' excludes, so the quarantined cases of a size register apart.
+function(sushiai_discover_sized_tests program)
+    set(groups "Small_|small|60" "Medium_|medium|300" "Large_|large|900")
+    foreach(group IN LISTS groups)
+        string(REPLACE "|" ";" parts "${group}")
+        list(GET parts 0 prefix)
+        list(GET parts 1 label)
+        list(GET parts 2 timeout)
+
+        set(quarantined "")
+        foreach(name IN LISTS SUSHIAI_QUARANTINED_TESTS)
+            if(name MATCHES "^${prefix}")
+                list(APPEND quarantined "${name}" "*/${name}")
+            endif()
+        endforeach()
+        list(JOIN quarantined ":" quarantined_filter)
+
+        # An instantiated suite is named <prefix>/<suite>, so its pattern carries the slash.
+        set(filter "${prefix}*:*/${prefix}*")
+        if(quarantined_filter)
+            string(APPEND filter "-${quarantined_filter}")
+            gtest_discover_tests(${program}
+                DISCOVERY_MODE PRE_TEST
+                TEST_FILTER "${quarantined_filter}"
+                PROPERTIES LABELS "${label}\;quarantined" TIMEOUT ${timeout})
+        endif()
+        gtest_discover_tests(${program}
+            DISCOVERY_MODE PRE_TEST
+            TEST_FILTER "${filter}"
+            PROPERTIES LABELS "${label}" TIMEOUT ${timeout})
+    endforeach()
+endfunction()
 
 # sushiai_add_test_program(OWNER <module key> | APPLICATION <name>
-#     SOURCES test_<name>.cpp ... [DEPENDS <module key> ...]
-#     [LINKS <target> ...] [INCLUDES <folder> ...])
+#     SOURCES test_<name>.cpp ... [DEPENDS <module key> ...] [LINKS <target> ...] [INCLUDES <folder> ...])
 #
 # Called from tests/<tier>/<module>/CMakeLists.txt with the key the module has
 # in SUSHIAI_MODULE_TIERS, or from tests/applications/<name>/CMakeLists.txt.
@@ -32,7 +79,8 @@ set(SUSHIAI_TEST_LABELS
 # sushiai_<name>_tests for an application. It links the library of the
 # owner's tier, GTest, the internal module engine_fixture, which holds main(),
 # and every module DEPENDS names.
-# Its cases are labelled by suite prefix. SA_TEST_FIXTURE_DIR names the
+# Every case carries the size its suite-name prefix gives; CTest labels it with that size and
+# enforces the size's timeout. SA_TEST_FIXTURE_DIR names the
 # fixtures/ folder beside its CMakeLists.txt, and SA_REPOSITORY_ROOT names the
 # root of the repository.
 function(sushiai_add_test_program)
@@ -42,6 +90,8 @@ function(sushiai_add_test_program)
         message(FATAL_ERROR
             "sushiai_add_test_program: SOURCES and one of OWNER or APPLICATION are required.")
     endif()
+
+    sushiai_check_suite_sizes(${ARG_SOURCES})
 
     if(ARG_OWNER)
         sushiai_lookup_pair(SUSHIAI_MODULE_TIERS "${ARG_OWNER}" tier)
@@ -91,14 +141,7 @@ function(sushiai_add_test_program)
 
     sushiai_apply_build_policy(${program})
 
-    set(labels ${SUSHIAI_TEST_LABELS})
-    while(labels)
-        list(POP_FRONT labels prefix label)
-        gtest_discover_tests(${program}
-            DISCOVERY_MODE PRE_TEST
-            TEST_FILTER "${prefix}_*"
-            PROPERTIES LABELS "${label}")
-    endwhile()
+    sushiai_discover_sized_tests(${program})
 
     if(WIN32)
         add_custom_command(TARGET ${program} POST_BUILD

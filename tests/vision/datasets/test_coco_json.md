@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_coco_json.cpp
 
 
-Suites: `Unit_DatasetsCocoJson`.
+Suites: `Small_DatasetsCocoJson`.
 
 Tests `read_coco_json` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/coco_json.hpp` over files the cases

@@ -1,12 +1,12 @@
 # tests/vision/imaging/test_pipeline.cpp
 
 
-Suites: `Unit_ImagingPipeline`.
+Suites: `Small_ImagingPipeline`.
 
 Tests the training and the validation pipeline that compose the imaging transforms into a
 sample.
 
-This file needs no device and reads no file. `Unit_ImagingPipeline` covers
+This file needs no device and reads no file. `Small_ImagingPipeline` covers
 `modules/vision/imaging/include/SushiAI/vision/imaging/pipeline.hpp`. A `TrainingPipeline` loads an image from a
 `SampleSource`, draws and applies mosaic, affine, colour jitter and flip, and returns a
 `TrainingTrace` of the plans it used. A `ValidationPipeline` resizes the long side and

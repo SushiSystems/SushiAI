@@ -139,7 +139,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Traced, DefaultHoldsTheAbsentValueAndNoFailure)
+TEST(Small_Traced, DefaultHoldsTheAbsentValueAndNoFailure)
 {
     const Traced absent;
     EXPECT_TRUE(absent.has_value());
@@ -147,7 +147,7 @@ TEST(Unit_Traced, DefaultHoldsTheAbsentValueAndNoFailure)
     EXPECT_EQ(absent.value(), SushiAI::Graph::K_NO_VALUE);
 }
 
-TEST(Unit_Traced, HoldsAnIDWithASuccessStatus)
+TEST(Small_Traced, HoldsAnIDWithASuccessStatus)
 {
     const Traced traced(ValueID{12});
     EXPECT_TRUE(traced.has_value());
@@ -155,7 +155,7 @@ TEST(Unit_Traced, HoldsAnIDWithASuccessStatus)
     EXPECT_EQ(traced.value(), ValueID{12});
 }
 
-TEST(Unit_Traced, HoldsAFailureAndTheAbsentID)
+TEST(Small_Traced, HoldsAFailureAndTheAbsentID)
 {
     const Traced traced(description_failure("MATMUL needs two rank-2 operands"));
     EXPECT_FALSE(traced.has_value());
@@ -163,7 +163,7 @@ TEST(Unit_Traced, HoldsAFailureAndTheAbsentID)
 }
 
 // A Traced stores its id in place, so an unchanged block count means no allocation.
-TEST(Unit_Traced, SuccessPathCreatesNoFailureBlock)
+TEST(Small_Traced, SuccessPathCreatesNoFailureBlock)
 {
     const std::size_t before = live_failure_count();
     TraceLog log;
@@ -181,7 +181,7 @@ TEST(Unit_Traced, SuccessPathCreatesNoFailureBlock)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Traced, MovedFromTracedKeepsItsState)
+TEST(Small_Traced, MovedFromTracedKeepsItsState)
 {
     Traced failed(description_failure("window is larger than the image"));
     const Traced taken(std::move(failed));
@@ -195,7 +195,7 @@ TEST(Unit_Traced, MovedFromTracedKeepsItsState)
     EXPECT_EQ(held.value(), ValueID{4});
 }
 
-TEST(Unit_Traced, AssignmentReplacesAFailureWithAnID)
+TEST(Small_Traced, AssignmentReplacesAFailureWithAnID)
 {
     Traced traced(description_failure("first attempt"));
     traced = ValueID{3};
@@ -206,7 +206,7 @@ TEST(Unit_Traced, AssignmentReplacesAFailureWithAnID)
     SA_EXPECT_FAILURE(traced, StatusCode::InvalidDescription, "second attempt");
 }
 
-TEST(Unit_Traced, AnAbsentOperandPassesThroughAnEmitter)
+TEST(Small_Traced, AnAbsentOperandPassesThroughAnEmitter)
 {
     TraceLog log;
     const StandInBuilder builder(log);
@@ -216,7 +216,7 @@ TEST(Unit_Traced, AnAbsentOperandPassesThroughAnEmitter)
     EXPECT_EQ(log.emitted, ValueID{1});
 }
 
-TEST(Unit_Traced, RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing)
+TEST(Small_Traced, RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing)
 {
     TraceLog log;
     const StandInBuilder builder(log);
@@ -235,7 +235,7 @@ TEST(Unit_Traced, RefusalTravelsThroughAChainOfTwoCallsAndEmitsNothing)
     EXPECT_EQ(log.emitted, ValueID{0});
 }
 
-TEST(Unit_Traced, NestedCallsEmitWhenNothingIsRefused)
+TEST(Small_Traced, NestedCallsEmitWhenNothingIsRefused)
 {
     TraceLog log;
     const StandInBuilder builder(log);
@@ -247,7 +247,7 @@ TEST(Unit_Traced, NestedCallsEmitWhenNothingIsRefused)
     EXPECT_EQ(log.refusals, 0);
 }
 
-TEST(Unit_Traced, TryForwardsATracedFailureAsAStatus)
+TEST(Small_Traced, TryForwardsATracedFailureAsAStatus)
 {
     bool reached_end = false;
     SA_EXPECT_FAILURE(forward_traced(description_failure("bias shape"), reached_end),
@@ -258,20 +258,20 @@ TEST(Unit_Traced, TryForwardsATracedFailureAsAStatus)
     EXPECT_TRUE(reached_end);
 }
 
-TEST(Unit_Traced, ValueOnAFailureIsFatalAndPrintsTheFailure)
+TEST(Small_Traced, ValueOnAFailureIsFatalAndPrintsTheFailure)
 {
     const Traced traced(description_failure("stride must be positive"));
     SA_EXPECT_FATAL((void)traced.value(),
                     "Traced::value() was called on a failure", "stride must be positive");
 }
 
-TEST(Unit_Traced, BuildingFromASuccessStatusIsFatal)
+TEST(Small_Traced, BuildingFromASuccessStatusIsFatal)
 {
     SA_EXPECT_FATAL((void)Traced(Status()), "a Traced was built from a success Status");
 }
 
 /** @brief Tests that GraphBuilder::refuse marks its graph and returns the failure it was given. */
-TEST(Unit_Traced, RefuseMarksTheGraphAndReturnsTheFailure)
+TEST(Small_Traced, RefuseMarksTheGraphAndReturnsTheFailure)
 {
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
@@ -286,7 +286,7 @@ TEST(Unit_Traced, RefuseMarksTheGraphAndReturnsTheFailure)
 }
 
 /** @brief Tests that SA_REFUSE_IF over a GraphBuilder marks the graph only when it refuses. */
-TEST(Unit_Traced, RefuseIfOverAGraphBuilderMarksTheGraphOnlyOnARefusal)
+TEST(Small_Traced, RefuseIfOverAGraphBuilderMarksTheGraphOnlyOnARefusal)
 {
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
@@ -303,7 +303,7 @@ TEST(Unit_Traced, RefuseIfOverAGraphBuilderMarksTheGraphOnlyOnARefusal)
 }
 
 /** @brief Tests that observe marks the graph for a failed Status and not for a success. */
-TEST(Unit_Traced, ObserveMarksTheGraphForAFailedStatusOnly)
+TEST(Small_Traced, ObserveMarksTheGraphForAFailedStatusOnly)
 {
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
@@ -317,7 +317,7 @@ TEST(Unit_Traced, ObserveMarksTheGraphForAFailedStatusOnly)
 }
 
 /** @brief Tests that observe passes a Result through and marks the graph when it holds a failure. */
-TEST(Unit_Traced, ObserveMarksTheGraphForAFailedResultOnly)
+TEST(Small_Traced, ObserveMarksTheGraphForAFailedResultOnly)
 {
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);

@@ -56,7 +56,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the buffer length is the smallest of the dataset, eight batches and 1000. */
-TEST(Unit_ImagingPartners, RecentCapacityIsTheSmallestOfItsThreeBounds)
+TEST(Small_ImagingPartners, RecentCapacityIsTheSmallestOfItsThreeBounds)
 {
     EXPECT_EQ(recent_capacity(5, 16), 5u);
     EXPECT_EQ(recent_capacity(10000, 16), 128u);
@@ -68,7 +68,7 @@ TEST(Unit_ImagingPartners, RecentCapacityIsTheSmallestOfItsThreeBounds)
 }
 
 /** @brief Tests that the first sample's partners are the sample itself. */
-TEST(Unit_ImagingPartners, RecentSourceGivesTheFirstSampleItselfThreeTimes)
+TEST(Small_ImagingPartners, RecentSourceGivesTheFirstSampleItselfThreeTimes)
 {
     RecentPartners partners(100, 16);
     Random random(5u);
@@ -80,7 +80,7 @@ TEST(Unit_ImagingPartners, RecentSourceGivesTheFirstSampleItselfThreeTimes)
 }
 
 /** @brief Tests that an addition evicts the oldest index once the buffer reaches its capacity. */
-TEST(Unit_ImagingPartners, RecentSourceEvictsTheOldestIndexAtCapacity)
+TEST(Small_ImagingPartners, RecentSourceEvictsTheOldestIndexAtCapacity)
 {
     RecentPartners three(3, 16);
     RecentPartners two(2, 16);
@@ -97,7 +97,7 @@ TEST(Unit_ImagingPartners, RecentSourceEvictsTheOldestIndexAtCapacity)
 }
 
 /** @brief Tests that an index already in the buffer is neither added again nor moved. */
-TEST(Unit_ImagingPartners, RecentSourceDoesNotAddAnIndexItAlreadyHolds)
+TEST(Small_ImagingPartners, RecentSourceDoesNotAddAnIndexItAlreadyHolds)
 {
     RecentPartners partners(100, 16);
 
@@ -105,7 +105,7 @@ TEST(Unit_ImagingPartners, RecentSourceDoesNotAddAnIndexItAlreadyHolds)
 }
 
 /** @brief Tests that a dataset of one image keeps its only index in the buffer. */
-TEST(Unit_ImagingPartners, RecentSourceOfOneImageNeverEmptiesItsBuffer)
+TEST(Small_ImagingPartners, RecentSourceOfOneImageNeverEmptiesItsBuffer)
 {
     RecentPartners partners(1, 16);
     Random random(3u);
@@ -117,7 +117,7 @@ TEST(Unit_ImagingPartners, RecentSourceOfOneImageNeverEmptiesItsBuffer)
 }
 
 /** @brief Tests that a long run leaves the capacity minus one most recent indices. */
-TEST(Unit_ImagingPartners, RecentSourceHoldsTheLastIndicesOfALongRun)
+TEST(Small_ImagingPartners, RecentSourceHoldsTheLastIndicesOfALongRun)
 {
     RecentPartners partners(1000, 2);
     Random random(8u);
@@ -132,7 +132,7 @@ TEST(Unit_ImagingPartners, RecentSourceHoldsTheLastIndicesOfALongRun)
 }
 
 /** @brief Tests that each partner is the buffer entry one index draw names, in draw order. */
-TEST(Unit_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
+TEST(Small_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
 {
     RecentPartners partners(1000, 16);
     Random warm(2u);
@@ -154,7 +154,7 @@ TEST(Unit_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
 }
 
 /** @brief Tests that the recent source reaches every buffered index over many seeds. */
-TEST(Unit_ImagingPartners, RecentSourceCoversItsBuffer)
+TEST(Small_ImagingPartners, RecentSourceCoversItsBuffer)
 {
     RecentPartners partners(100, 16);
     Random warm(4u);
@@ -178,7 +178,7 @@ TEST(Unit_ImagingPartners, RecentSourceCoversItsBuffer)
 }
 
 /** @brief Tests that the recent source refuses a size, a batch or an index out of range. */
-TEST(Unit_ImagingPartners, RecentSourceRejectsSizesAndIndicesOutOfRange)
+TEST(Small_ImagingPartners, RecentSourceRejectsSizesAndIndicesOutOfRange)
 {
     RecentPartners partners(4, 16);
     Random random(1u);

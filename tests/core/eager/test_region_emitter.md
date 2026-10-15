@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_emitter.cpp
 
 
-Suites: `Unit_RegionEmitter`.
+Suites: `Medium_RegionEmitter`.
 
 Tests that `RegionEmitter` records a region's program on the recorder it is handed.
 

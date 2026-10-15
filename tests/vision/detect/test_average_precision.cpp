@@ -119,7 +119,7 @@ namespace
 }
 
 /** @brief Tests that the ten thresholds carry the float32 bits of torch.linspace(0.5, 0.95, 10). */
-TEST(Unit_AveragePrecision, HoldsTheTenReferenceThresholds)
+TEST(Small_AveragePrecision, HoldsTheTenReferenceThresholds)
 {
     const std::vector<float> expected{0x1.0p-1f,      0x1.19999ap-1f, 0x1.333334p-1f,
                                       0x1.4cccccp-1f, 0x1.666666p-1f, 0x1.8p-1f,
@@ -131,7 +131,7 @@ TEST(Unit_AveragePrecision, HoldsTheTenReferenceThresholds)
 }
 
 /** @brief Tests that an empty curve integrates to the area under the line from 1 to 0. */
-TEST(Unit_AveragePrecision, IntegratesAnEmptyCurveToOneHalf)
+TEST(Small_AveragePrecision, IntegratesAnEmptyCurveToOneHalf)
 {
     const std::vector<double> none;
 
@@ -140,7 +140,7 @@ TEST(Unit_AveragePrecision, IntegratesAnEmptyCurveToOneHalf)
 }
 
 /** @brief Tests that the envelope lifts a precision dip to the larger value at higher recall. */
-TEST(Unit_AveragePrecision, IntegratesUnderThePrecisionEnvelope)
+TEST(Small_AveragePrecision, IntegratesUnderThePrecisionEnvelope)
 {
     const std::vector<double> recall{0.5, 0.5, 1.0};
     const std::vector<double> precision{1.0, 0.5, 2.0 / 3.0};
@@ -151,7 +151,7 @@ TEST(Unit_AveragePrecision, IntegratesUnderThePrecisionEnvelope)
 }
 
 /** @brief Tests that a curve with one length for recall and another for precision is refused. */
-TEST(Unit_AveragePrecision, RejectsCurvesOfUnequalLength)
+TEST(Small_AveragePrecision, RejectsCurvesOfUnequalLength)
 {
     const std::vector<double> recall{0.5, 1.0};
     const std::vector<double> precision{1.0};
@@ -160,7 +160,7 @@ TEST(Unit_AveragePrecision, RejectsCurvesOfUnequalLength)
 }
 
 /** @brief Tests that a detector that finds every box exactly scores 0.995 and not 1. */
-TEST(Unit_AveragePrecision, PerfectDetectorScoresTheInterpolationCeiling)
+TEST(Small_AveragePrecision, PerfectDetectorScoresTheInterpolationCeiling)
 {
     AveragePrecision metric;
     add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0});
@@ -183,7 +183,7 @@ TEST(Unit_AveragePrecision, PerfectDetectorScoresTheInterpolationCeiling)
 }
 
 /** @brief Tests that a class with boxes and no detections scores zero in every column. */
-TEST(Unit_AveragePrecision, NoDetectionsScoreZero)
+TEST(Small_AveragePrecision, NoDetectionsScoreZero)
 {
     const MetricsSummary summary = summarize_image(K_NO_VALUES, K_BOX_A, {0});
 
@@ -201,7 +201,7 @@ TEST(Unit_AveragePrecision, NoDetectionsScoreZero)
 }
 
 /** @brief Tests that a false positive scored above the only true positive gives AP 0.4975. */
-TEST(Unit_AveragePrecision, FalsePositiveAboveTheTruePositiveHalvesPrecision)
+TEST(Small_AveragePrecision, FalsePositiveAboveTheTruePositiveHalvesPrecision)
 {
     const std::vector<float> detections =
         join({make_row(K_BOX_FAR, 0.9f, 0.0f), make_row(K_BOX_A, 0.6f, 0.0f)});
@@ -219,7 +219,7 @@ TEST(Unit_AveragePrecision, FalsePositiveAboveTheTruePositiveHalvesPrecision)
 }
 
 /** @brief Tests that precision and recall are read where the smoothed mean F1 is largest. */
-TEST(Unit_AveragePrecision, ReadsPrecisionAndRecallAtTheBestF1Confidence)
+TEST(Small_AveragePrecision, ReadsPrecisionAndRecallAtTheBestF1Confidence)
 {
     const std::vector<float> detections =
         join({make_row(K_BOX_A, 0.9f, 0.0f), make_row(K_BOX_FAR, 0.3f, 0.0f)});
@@ -241,7 +241,7 @@ TEST(Unit_AveragePrecision, ReadsPrecisionAndRecallAtTheBestF1Confidence)
 }
 
 /** @brief Tests that the second of two detections on one box is a false positive. */
-TEST(Unit_AveragePrecision, TwoDetectionsOnOneBoxCountOneMatch)
+TEST(Small_AveragePrecision, TwoDetectionsOnOneBoxCountOneMatch)
 {
     const std::vector<float> detections = join({make_row(K_BOX_A, 0.9f, 0.0f),
                                                 make_row(K_BOX_A, 0.8f, 0.0f),
@@ -265,7 +265,7 @@ TEST(Unit_AveragePrecision, TwoDetectionsOnOneBoxCountOneMatch)
 }
 
 /** @brief Tests that a detected class without ground truth gets no row and no share of a mean. */
-TEST(Unit_AveragePrecision, ClassWithoutGroundTruthIsLeftOutOfTheMean)
+TEST(Small_AveragePrecision, ClassWithoutGroundTruthIsLeftOutOfTheMean)
 {
     const std::vector<float> detections =
         join({make_row(K_BOX_A, 0.9f, 0.0f), make_row(K_BOX_A, 0.8f, 3.0f)});
@@ -281,7 +281,7 @@ TEST(Unit_AveragePrecision, ClassWithoutGroundTruthIsLeftOutOfTheMean)
 }
 
 /** @brief Tests that a class with ground truth and no detections enters the means as zero. */
-TEST(Unit_AveragePrecision, ClassWithoutDetectionsCountsAsZeroInTheMean)
+TEST(Small_AveragePrecision, ClassWithoutDetectionsCountsAsZeroInTheMean)
 {
     const MetricsSummary summary =
         summarize_image(make_row(K_BOX_A, 0.9f, 0.0f), join({K_BOX_A, K_BOX_B}), {0, 1});
@@ -297,7 +297,7 @@ TEST(Unit_AveragePrecision, ClassWithoutDetectionsCountsAsZeroInTheMean)
 }
 
 /** @brief Tests that detections of equal score are ranked in the order they were added. */
-TEST(Unit_AveragePrecision, EqualScoresKeepTheOrderTheyWereAddedIn)
+TEST(Small_AveragePrecision, EqualScoresKeepTheOrderTheyWereAddedIn)
 {
     const std::vector<float> miss = make_row(K_BOX_FAR, 0.5f, 0.0f);
     const std::vector<float> hit = make_row(K_BOX_A, 0.5f, 0.0f);
@@ -314,7 +314,7 @@ TEST(Unit_AveragePrecision, EqualScoresKeepTheOrderTheyWereAddedIn)
 }
 
 /** @brief Tests that a detection at IoU 0.625 counts at 0.5, 0.55 and 0.6 and at no other. */
-TEST(Unit_AveragePrecision, LooseDetectionCountsAtTheLowThresholdsOnly)
+TEST(Small_AveragePrecision, LooseDetectionCountsAtTheLowThresholdsOnly)
 {
     const std::vector<float> detections = make_row(K_BOX_LOOSE, 0.9f, 0.0f);
     const std::vector<std::uint8_t> correct = match(detections, K_BOX_A, {0});
@@ -330,7 +330,7 @@ TEST(Unit_AveragePrecision, LooseDetectionCountsAtTheLowThresholdsOnly)
 }
 
 /** @brief Tests that a detection in an image without ground truth is a false positive. */
-TEST(Unit_AveragePrecision, ImageWithoutGroundTruthAddsFalsePositives)
+TEST(Small_AveragePrecision, ImageWithoutGroundTruthAddsFalsePositives)
 {
     AveragePrecision metric;
     add_image(metric, make_row(K_BOX_A, 0.6f, 0.0f), K_BOX_A, {0});
@@ -348,7 +348,7 @@ TEST(Unit_AveragePrecision, ImageWithoutGroundTruthAddsFalsePositives)
 }
 
 /** @brief Tests that the boxes of an image without detections lower recall and AP. */
-TEST(Unit_AveragePrecision, ImageWithoutDetectionsLowersRecall)
+TEST(Small_AveragePrecision, ImageWithoutDetectionsLowersRecall)
 {
     AveragePrecision metric;
     add_image(metric, make_row(K_BOX_A, 0.6f, 0.0f), K_BOX_A, {0});
@@ -367,7 +367,7 @@ TEST(Unit_AveragePrecision, ImageWithoutDetectionsLowersRecall)
 }
 
 /** @brief Tests that a detection whose best box is taken is not given its second-best box. */
-TEST(Unit_AveragePrecision, DetectionWhoseBestBoxIsTakenStaysUnmatched)
+TEST(Small_AveragePrecision, DetectionWhoseBestBoxIsTakenStaysUnmatched)
 {
     const std::vector<float> detections =
         join({make_row(K_BOX_A, 0.9f, 0.0f), make_row(K_BOX_NEAR, 0.8f, 0.0f)});
@@ -380,7 +380,7 @@ TEST(Unit_AveragePrecision, DetectionWhoseBestBoxIsTakenStaysUnmatched)
 }
 
 /** @brief Tests that a detection over two boxes matches the one of larger IoU, listed second. */
-TEST(Unit_AveragePrecision, DetectionTakesTheBoxOfLargestIoU)
+TEST(Small_AveragePrecision, DetectionTakesTheBoxOfLargestIoU)
 {
     // IoU is 40 / 56 = 0.714 with K_BOX_LOOSE and 56 / 64 = 0.875 with K_BOX_A: 0.85 passes.
     const std::vector<std::uint8_t> correct =
@@ -389,7 +389,7 @@ TEST(Unit_AveragePrecision, DetectionTakesTheBoxOfLargestIoU)
 }
 
 /** @brief Tests that a detection whose IoU is not a number matches at no threshold. */
-TEST(Unit_AveragePrecision, DetectionWithNaNBoxDoesNotMatch)
+TEST(Small_AveragePrecision, DetectionWithNaNBoxDoesNotMatch)
 {
     const std::vector<float> detection{std::numeric_limits<float>::quiet_NaN(),
                                        0.0f, 8.0f, 8.0f, 0.9f, 0.0f};
@@ -398,7 +398,7 @@ TEST(Unit_AveragePrecision, DetectionWithNaNBoxDoesNotMatch)
 }
 
 /** @brief Tests that a box goes to its first detection and not to the one of larger IoU. */
-TEST(Unit_AveragePrecision, BoxGoesToItsFirstDetectionAtEachThreshold)
+TEST(Small_AveragePrecision, BoxGoesToItsFirstDetectionAtEachThreshold)
 {
     const std::vector<float> detections =
         join({make_row(K_BOX_LOOSE, 0.9f, 0.0f), make_row(K_BOX_A, 0.8f, 0.0f)});
@@ -410,14 +410,14 @@ TEST(Unit_AveragePrecision, BoxGoesToItsFirstDetectionAtEachThreshold)
 }
 
 /** @brief Tests that a detection of another class does not match a box it covers exactly. */
-TEST(Unit_AveragePrecision, DetectionOfAnotherClassDoesNotMatch)
+TEST(Small_AveragePrecision, DetectionOfAnotherClassDoesNotMatch)
 {
     const std::vector<std::uint8_t> correct = match(make_row(K_BOX_A, 0.9f, 1.0f), K_BOX_A, {0});
     EXPECT_EQ(correct, std::vector<std::uint8_t>(K_IOU_THRESHOLD_COUNT, 0));
 }
 
 /** @brief Tests that an accumulator without ground truth reports no rows and zero means. */
-TEST(Unit_AveragePrecision, NoGroundTruthGivesNoRows)
+TEST(Small_AveragePrecision, NoGroundTruthGivesNoRows)
 {
     AveragePrecision metric;
     EXPECT_TRUE(metric.summarize().classes.empty());
@@ -433,7 +433,7 @@ TEST(Unit_AveragePrecision, NoGroundTruthGivesNoRows)
 }
 
 /** @brief Tests that clear() leaves nothing of the images added before it. */
-TEST(Unit_AveragePrecision, ClearDropsEveryImage)
+TEST(Small_AveragePrecision, ClearDropsEveryImage)
 {
     AveragePrecision metric;
     add_image(metric, make_row(K_BOX_FAR, 0.9f, 0.0f), K_BOX_A, {0});
@@ -449,7 +449,7 @@ TEST(Unit_AveragePrecision, ClearDropsEveryImage)
 }
 
 /** @brief Tests that malformed detections and ground truth are refused and leave no image. */
-TEST(Unit_AveragePrecision, RejectsMalformedImages)
+TEST(Small_AveragePrecision, RejectsMalformedImages)
 {
     AveragePrecision metric;
     const std::vector<float> row = make_row(K_BOX_A, 0.9f, 0.0f);

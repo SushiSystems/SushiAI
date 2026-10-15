@@ -418,7 +418,7 @@ namespace
 }
 
 /** @brief Tests that two graphs built by the same code give equal signatures. */
-TEST(Unit_RegionSignature, TheSameTraceGivesTheSameSignature)
+TEST(Small_RegionSignature, TheSameTraceGivesTheSameSignature)
 {
     const RegionSignature first = signature_of(Recipe{});
     const RegionSignature second = signature_of(Recipe{});
@@ -430,7 +430,7 @@ TEST(Unit_RegionSignature, TheSameTraceGivesTheSameSignature)
 }
 
 /** @brief Tests that another SCALE factor gives another hash over the same operations. */
-TEST(Unit_RegionSignature, AChangedAttributeChangesTheHash)
+TEST(Small_RegionSignature, AChangedAttributeChangesTheHash)
 {
     Recipe changed;
     changed.alpha = 3.0;
@@ -443,7 +443,7 @@ TEST(Unit_RegionSignature, AChangedAttributeChangesTheHash)
 }
 
 /** @brief Tests that a value in the last attribute slot gives another hash. */
-TEST(Unit_RegionSignature, AChangedLastAttributeSlotChangesTheHash)
+TEST(Small_RegionSignature, AChangedLastAttributeSlotChangesTheHash)
 {
     const Traced base = build(Recipe{});
     Traced changed = build(Recipe{});
@@ -458,7 +458,7 @@ TEST(Unit_RegionSignature, AChangedLastAttributeSlotChangesTheHash)
 }
 
 /** @brief Tests that another layout on one result gives another hash. */
-TEST(Unit_RegionSignature, AChangedLayoutChangesTheHash)
+TEST(Small_RegionSignature, AChangedLayoutChangesTheHash)
 {
     const Traced base = build(Recipe{});
     Traced changed = build(Recipe{});
@@ -474,7 +474,7 @@ TEST(Unit_RegionSignature, AChangedLayoutChangesTheHash)
 }
 
 /** @brief Tests that other extents give another hash over the same operations. */
-TEST(Unit_RegionSignature, AChangedShapeChangesTheHash)
+TEST(Small_RegionSignature, AChangedShapeChangesTheHash)
 {
     Recipe changed;
     changed.shape = Shape{4, 5};
@@ -487,7 +487,7 @@ TEST(Unit_RegionSignature, AChangedShapeChangesTheHash)
 }
 
 /** @brief Tests that another element type gives another hash over the same operations. */
-TEST(Unit_RegionSignature, AChangedDTypeChangesTheHash)
+TEST(Small_RegionSignature, AChangedDTypeChangesTheHash)
 {
     Recipe changed;
     changed.dtype = DType::Float64;
@@ -500,7 +500,7 @@ TEST(Unit_RegionSignature, AChangedDTypeChangesTheHash)
 }
 
 /** @brief Tests that SUB in place of ADD changes both the hash and the operation list. */
-TEST(Unit_RegionSignature, AChangedOpChangesTheHash)
+TEST(Small_RegionSignature, AChangedOpChangesTheHash)
 {
     Recipe changed;
     changed.subtracts = true;
@@ -513,7 +513,7 @@ TEST(Unit_RegionSignature, AChangedOpChangesTheHash)
 }
 
 /** @brief Tests that the same structure over a parameter of another identity hashes apart. */
-TEST(Unit_RegionSignature, ADifferentParameterChangesTheHash)
+TEST(Small_RegionSignature, ADifferentParameterChangesTheHash)
 {
     Recipe changed;
     changed.parameter_identity = K_PARAMETER_IDENTITY + 1;
@@ -529,7 +529,7 @@ TEST(Unit_RegionSignature, ADifferentParameterChangesTheHash)
  * @brief Tests that a layer added to "stem" keeps the forward and the backward signature of
  *        "body", which reads the last result of "stem" under one identity in both traces.
  */
-TEST(Unit_RegionSignature, AnEarlierRegionGrowingDoesNotChangeALaterRegion)
+TEST(Small_RegionSignature, AnEarlierRegionGrowingDoesNotChangeALaterRegion)
 {
     const ScopedPerceptron small(1);
     const ScopedPerceptron grown(2);
@@ -562,7 +562,7 @@ TEST(Unit_RegionSignature, AnEarlierRegionGrowingDoesNotChangeALaterRegion)
 }
 
 /** @brief Tests that add(a, b) and add(b, a) over two results of the region hash apart. */
-TEST(Unit_RegionSignature, ARewiredOperandChangesTheHash)
+TEST(Small_RegionSignature, ARewiredOperandChangesTheHash)
 {
     Recipe changed;
     changed.swaps_operands = true;
@@ -575,7 +575,7 @@ TEST(Unit_RegionSignature, ARewiredOperandChangesTheHash)
 }
 
 /** @brief Tests that reading the second result of a node hashes apart from reading the first. */
-TEST(Unit_RegionSignature, AReadOfAnotherResultChangesTheHash)
+TEST(Small_RegionSignature, AReadOfAnotherResultChangesTheHash)
 {
     const RegionSignature first = signature_of(build_reader_of_result(0), K_BODY);
     const RegionSignature second = signature_of(build_reader_of_result(1), K_BODY);
@@ -585,7 +585,7 @@ TEST(Unit_RegionSignature, AReadOfAnotherResultChangesTheHash)
 }
 
 /** @brief Tests that the same reader hashes apart when the value it reads has another identity. */
-TEST(Unit_RegionSignature, ABoundaryValueOfAnotherIdentityChangesTheHash)
+TEST(Small_RegionSignature, ABoundaryValueOfAnotherIdentityChangesTheHash)
 {
     ExternalRecipe changed;
     changed.identity = K_EXTERNAL_IDENTITY + 1;
@@ -598,7 +598,7 @@ TEST(Unit_RegionSignature, ABoundaryValueOfAnotherIdentityChangesTheHash)
 }
 
 /** @brief Tests that a leaf and a result of another region hash alike under one identity. */
-TEST(Unit_RegionSignature, ALeafAndABoundaryValueOfOneIdentityHashAlike)
+TEST(Small_RegionSignature, ALeafAndABoundaryValueOfOneIdentityHashAlike)
 {
     ExternalRecipe leaf;
     leaf.reads_leaf = true;
@@ -611,7 +611,7 @@ TEST(Unit_RegionSignature, ALeafAndABoundaryValueOfOneIdentityHashAlike)
 }
 
 /** @brief Tests that a result of a region the partition does not list hashes by its identity. */
-TEST(Unit_RegionSignature, AnOperandFromAnUnlistedRegionHashesAsExternal)
+TEST(Small_RegionSignature, AnOperandFromAnUnlistedRegionHashesAsExternal)
 {
     ExternalRecipe unlisted;
     unlisted.lists_producer = false;
@@ -624,7 +624,7 @@ TEST(Unit_RegionSignature, AnOperandFromAnUnlistedRegionHashesAsExternal)
 }
 
 /** @brief Tests that a result of the region hashes apart from one of another region. */
-TEST(Unit_RegionSignature, AnOperandInsideTheRegionHashesApartFromOneOutside)
+TEST(Small_RegionSignature, AnOperandInsideTheRegionHashesApartFromOneOutside)
 {
     const RegionSignature inside_first =
         signature_of(build(ProbeOperands::InsideThenOutside), K_READER);
@@ -636,7 +636,7 @@ TEST(Unit_RegionSignature, AnOperandInsideTheRegionHashesApartFromOneOutside)
 }
 
 /** @brief Tests that a leaf operand hashes apart from an operand of the region. */
-TEST(Unit_RegionSignature, ALeafOperandHashesApartFromOneInsideTheRegion)
+TEST(Small_RegionSignature, ALeafOperandHashesApartFromOneInsideTheRegion)
 {
     const RegionSignature inside_first =
         signature_of(build(ProbeOperands::InsideThenLeaves), K_READER);
@@ -648,7 +648,7 @@ TEST(Unit_RegionSignature, ALeafOperandHashesApartFromOneInsideTheRegion)
 }
 
 /** @brief Tests that two signatures with one hash and different operations compare unequal. */
-TEST(Unit_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
+TEST(Small_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
 {
     const RegionSignature added{42, {Ops::K_ADD.id}};
     const RegionSignature subtracted{42, {Ops::K_SUB.id}};
@@ -661,7 +661,7 @@ TEST(Unit_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
 }
 
 /** @brief Tests that asking for a key the partition does not list raises an Error. */
-TEST(Unit_RegionSignature, ARegionThePartitionDoesNotListThrows)
+TEST(Small_RegionSignature, ARegionThePartitionDoesNotListThrows)
 {
     const Traced traced = build(Recipe{});
 
@@ -670,7 +670,7 @@ TEST(Unit_RegionSignature, ARegionThePartitionDoesNotListThrows)
 }
 
 /** @brief Tests that a partition sized for another graph raises an Error. */
-TEST(Unit_RegionSignature, APartitionOfAnotherNodeCountThrows)
+TEST(Small_RegionSignature, APartitionOfAnotherNodeCountThrows)
 {
     Traced traced = build(Recipe{});
     traced.partition.region_of_node.pop_back();
@@ -679,7 +679,7 @@ TEST(Unit_RegionSignature, APartitionOfAnotherNodeCountThrows)
 }
 
 /** @brief Tests that an external operand whose id lies beyond the identities raises an Error. */
-TEST(Unit_RegionSignature, AnExternalValueWithoutAnIdentityThrows)
+TEST(Small_RegionSignature, AnExternalValueWithoutAnIdentityThrows)
 {
     Traced traced = build(Recipe{});
     traced.identity.clear();

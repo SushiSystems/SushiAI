@@ -1,7 +1,7 @@
 # tests/vision/detect/test_suppression_criterion.cpp
 
 
-Suites: `Unit_DetectSuppressionCriterion`, `Unit_DetectSuppressionCriterionDeathTest`.
+Suites: `Small_DetectSuppressionCriterion`, `Small_DetectSuppressionCriterionDeathTest`.
 
 Tests `Detect::measure_suppression`, the six-argument `Detect::suppress_overlaps`, and the
 criterion fields of `Detect::NMSConfig`. Boxes are corner pairs, and most cases measure against

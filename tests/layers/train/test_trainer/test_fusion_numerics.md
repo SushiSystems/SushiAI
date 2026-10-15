@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_fusion_numerics.cpp
 
 
-Suites: `Regression_Fusion`.
+Suites: `Medium_Fusion`.
 
 This file is the gate on collapsing the forward and backward graph into fewer kernels.
 

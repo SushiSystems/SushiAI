@@ -143,8 +143,8 @@ hold it. Both default to 255. `"type": "dice"` takes the same key. The file has 
 
 | File | Suite | Covers |
 | --- | --- | --- |
-| `tests/vision/segment/test_confusion_matrix.cpp` | `Unit_SegmentConfusionMatrix` | Counts by truth and prediction, an ignored pixel, sums over batches, merge and clear, the refusals and that a refused batch counts nothing |
-| `tests/vision/segment/test_intersection_over_union.cpp`, `test_pixel_accuracy.cpp`, `test_argmax_classes.cpp` | `Unit_SegmentMetrics` | IoU per class and its mean by hand, a class that does not occur, pixel accuracy, an empty matrix, the class pick and its tie |
-| `tests/vision/segment/test_rasterise_outlines.cpp` | `Unit_SegmentRasterise` | A rectangle on pixel edges, the centre rule, a shared edge, a triangle, two parts, a hole, clipping, an outline without area, the later outline winning, the refusals |
+| `tests/vision/segment/test_confusion_matrix.cpp` | `Small_SegmentConfusionMatrix` | Counts by truth and prediction, an ignored pixel, sums over batches, merge and clear, the refusals and that a refused batch counts nothing |
+| `tests/vision/segment/test_intersection_over_union.cpp`, `test_pixel_accuracy.cpp`, `test_argmax_classes.cpp` | `Small_SegmentMetrics` | IoU per class and its mean by hand, a class that does not occur, pixel accuracy, an empty matrix, the class pick and its tie |
+| `tests/vision/segment/test_rasterise_outlines.cpp` | `Small_SegmentRasterise` | A rectangle on pixel edges, the centre rule, a shared edge, a triangle, two parts, a hole, clipping, an outline without area, the later outline winning, the refusals |
 
 Every expected value in these files was worked by hand. None has been run.

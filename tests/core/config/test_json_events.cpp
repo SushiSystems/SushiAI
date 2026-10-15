@@ -127,7 +127,7 @@ namespace
 } // namespace
 
 /** @brief Tests that every kind of event arrives once, in the order of the text. */
-TEST(Unit_JsonEvents, EventsArriveInTheOrderOfTheText)
+TEST(Medium_JsonEvents, EventsArriveInTheOrderOfTheText)
 {
     const ScratchFile file("sushiai_test_json_events_order.json",
                            R"({"a": [1, -2, 2.5, "x", true, null], "b": {"c": false}})");
@@ -144,7 +144,7 @@ TEST(Unit_JsonEvents, EventsArriveInTheOrderOfTheText)
 }
 
 /** @brief Tests that a whole number above the largest int64 arrives as a real. */
-TEST(Unit_JsonEvents, AWholeNumberAboveInt64IsAReal)
+TEST(Medium_JsonEvents, AWholeNumberAboveInt64IsAReal)
 {
     const ScratchFile file("sushiai_test_json_events_wide.json",
                            "[9223372036854775807, 18446744073709551615]");
@@ -158,7 +158,7 @@ TEST(Unit_JsonEvents, AWholeNumberAboveInt64IsAReal)
 }
 
 /** @brief Tests that a document longer than the read buffer arrives whole. */
-TEST(Unit_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
+TEST(Medium_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
 {
     constexpr std::size_t entries = 40000;
     std::string text = "[";
@@ -178,7 +178,7 @@ TEST(Unit_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
 }
 
 /** @brief Tests that an event that returns false ends the read with success. */
-TEST(Unit_JsonEvents, AHandlerThatStopsEndsTheReadWithSuccess)
+TEST(Medium_JsonEvents, AHandlerThatStopsEndsTheReadWithSuccess)
 {
     const ScratchFile file("sushiai_test_json_events_stop.json", R"({"a": [1, 2, 3]})");
 
@@ -190,7 +190,7 @@ TEST(Unit_JsonEvents, AHandlerThatStopsEndsTheReadWithSuccess)
 }
 
 /** @brief Tests that text that is no JSON is refused with the path and the byte offset. */
-TEST(Unit_JsonEvents, TextThatIsNoJSONIsRefusedWithItsOffset)
+TEST(Medium_JsonEvents, TextThatIsNoJSONIsRefusedWithItsOffset)
 {
     const ScratchFile cut("sushiai_test_json_events_cut.json", R"({"a": [1, 2)");
     const ScratchFile trailing("sushiai_test_json_events_trailing.json", "[1] x");
@@ -206,7 +206,7 @@ TEST(Unit_JsonEvents, TextThatIsNoJSONIsRefusedWithItsOffset)
 }
 
 /** @brief Tests that a file that is not there is refused by its path. */
-TEST(Unit_JsonEvents, AnAbsentFileIsRefusedByItsPath)
+TEST(Medium_JsonEvents, AnAbsentFileIsRefusedByItsPath)
 {
     const std::filesystem::path absent =
         std::filesystem::temp_directory_path() / "sushiai_test_json_events_absent.json";

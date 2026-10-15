@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_recipe.cpp
 
 
-Suites: `Unit_DarknetRecipe`.
+Suites: `Small_DarknetRecipe`.
 
 Tests `write_darknet_recipe` in
 `modules/vision/importers/include/SushiAI/vision/importers/darknet_recipe.hpp`. Each case

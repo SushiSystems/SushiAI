@@ -4,7 +4,7 @@ The tests of the module `core/core`, one file per header of `modules/core/core/i
 
 ## test_ops.cpp
 
-Suites: `Unit_Ops`.
+Suites: `Small_Ops`.
 
 Tests that the operation table is complete and that the reverse lookup resolves names.
 
@@ -111,7 +111,7 @@ gradient reaches the node.
 
 ## test_result.cpp
 
-Suites: `Unit_Result`.
+Suites: `Small_Result`.
 
 Tests Result, its reference form and SA_TRY_ASSIGN.
 
@@ -252,7 +252,7 @@ from a success Status".
 
 ## test_shape.cpp
 
-Suites: `Unit_Shape`.
+Suites: `Small_Shape`.
 
 Tests Shape's extents, indexing, validation, equality and hash.
 
@@ -314,7 +314,7 @@ entries with the values 2 and 7.
 
 ## test_status.cpp
 
-Suites: `Unit_Status`.
+Suites: `Small_Status`.
 
 Tests Status, its macros, the fatal family and the assertions of test_status.hpp.
 
@@ -514,7 +514,7 @@ condition: the counter stays at zero. Without it, `assert_positive(1)` returns a
 
 ## test_seam.cpp
 
-Suites: `Unit_Seam`, `Unit_SeamEngine`.
+Suites: `Small_Seam`, `Medium_SeamEngine`.
 
 Tests the seam in `modules/core/core/include/SushiAI/core/seam.hpp`, the one place where an exception of SushiBLAS
 or of a standard type, or an `Error` SushiRuntime returned, becomes a `Status`. `guard` and
@@ -522,8 +522,8 @@ or of a standard type, or an `Error` SushiRuntime returned, becomes a `Status`. 
 chooses the code from the type of the exception and from the `SeamPhase` the call was in:
 `Record`, `Allocate` or `Execute`. `status_of_error` chooses it from the `ErrorCode`.
 
-The `Unit_Seam` cases need no device and build each exception and each `Error` they map by hand. The
-`Unit_SeamEngine` fixture is an `EngineTest`: its cases record work on an engine through
+The `Small_Seam` cases need no device and build each exception and each `Error` they map by hand. The
+`Medium_SeamEngine` fixture is an `EngineTest`: its cases record work on an engine through
 `record_and_run`.
 
 ### GuardReturnsTheStatusOfACallThatDoesNotThrow
@@ -624,7 +624,7 @@ still holds 1.0.
 
 ## test_shape.cpp, tests/core/graph/test_builder.cpp, tests/core/graph/test_ir.cpp, tests/layers/nn/test_layers.cpp, tests/core/autograd/test_backward.cpp
 
-Suites: `Unit_Diagnostics`.
+Suites: `Small_Diagnostics`.
 
 Tests that each host-lane precondition raises a message carrying the values that disagree.
 

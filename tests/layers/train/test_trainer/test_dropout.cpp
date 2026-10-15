@@ -76,7 +76,7 @@ using SaTest::write_tensor;
 namespace
 {
     /** @brief Provides the Engine every dropout case records on. */
-    class Integration_Dropout : public SaTest::EngineTest
+    class Medium_Dropout : public SaTest::EngineTest
     {
 
     };
@@ -306,7 +306,7 @@ namespace
 }
 
 /** @brief Tests that each output is 0 or x / (1 - rate), and that 3/4 of them are kept. */
-TEST_F(Integration_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
+TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 {
     Probe probe(*engine, K_SEED);
     ASSERT_TRUE(probe.ready());
@@ -336,7 +336,7 @@ TEST_F(Integration_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 }
 
 /** @brief Tests that two runs of one step draw the masks of runs 0 and 1 from one compile. */
-TEST_F(Integration_Dropout, TwoStepsOfOneCompiledStepDrawDifferentMasks)
+TEST_F(Medium_Dropout, TwoStepsOfOneCompiledStepDrawDifferentMasks)
 {
     Probe probe(*engine, K_SEED);
     ASSERT_TRUE(probe.ready());
@@ -355,7 +355,7 @@ TEST_F(Integration_Dropout, TwoStepsOfOneCompiledStepDrawDifferentMasks)
 }
 
 /** @brief Tests that two fresh steps with one seed agree byte for byte over three runs. */
-TEST_F(Integration_Dropout, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
+TEST_F(Medium_Dropout, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
 {
     Probe first(*engine, K_SEED);
     Probe second(*engine, K_SEED);
@@ -374,7 +374,7 @@ TEST_F(Integration_Dropout, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
 }
 
 /** @brief Tests that the gradient at the input is the mask of the same run, on two runs. */
-TEST_F(Integration_Dropout, TheGradientAtTheInputIsTheMaskOfThatStep)
+TEST_F(Medium_Dropout, TheGradientAtTheInputIsTheMaskOfThatStep)
 {
     Probe probe(*engine, K_SEED);
     ASSERT_TRUE(probe.ready());
@@ -403,7 +403,7 @@ TEST_F(Integration_Dropout, TheGradientAtTheInputIsTheMaskOfThatStep)
 }
 
 /** @brief Tests that a step whose graph holds no dropout registers no prelude and runs. */
-TEST_F(Integration_Dropout, AStepWithoutDropoutRegistersNoPrelude)
+TEST_F(Medium_Dropout, AStepWithoutDropoutRegistersNoPrelude)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -423,7 +423,7 @@ TEST_F(Integration_Dropout, AStepWithoutDropoutRegistersNoPrelude)
 }
 
 /** @brief Tests that a model's evaluation graph holds no DROPOUT node and its probe graph one. */
-TEST_F(Integration_Dropout, AnEvaluationTraceOfAModelEmitsNoDropoutNode)
+TEST_F(Medium_Dropout, AnEvaluationTraceOfAModelEmitsNoDropoutNode)
 {
     DropoutMLP model = make_model();
     const Shape batch{K_BATCH, K_FEATURES};
@@ -450,7 +450,7 @@ TEST_F(Integration_Dropout, AnEvaluationTraceOfAModelEmitsNoDropoutNode)
 }
 
 /** @brief Tests that a classifier with dropout lowers its loss over 80 steps of one compile. */
-TEST_F(Integration_Dropout, AModelWithDropoutTrainsThroughTheTrainer)
+TEST_F(Medium_Dropout, AModelWithDropoutTrainsThroughTheTrainer)
 {
     DropoutMLP model = make_model();
     const Train::CrossEntropyObjective objective(K_BATCH, K_CLASSES, DType::Float32);

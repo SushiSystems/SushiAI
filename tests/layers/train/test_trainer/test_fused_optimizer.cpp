@@ -49,10 +49,10 @@ using Optim::UpdateKernel;
 
 namespace
 {
-    class Regression_FusedOptimizer : public ::testing::Test {};
+    class Medium_FusedOptimizer : public ::testing::Test {};
 
     /** @brief Names the suite of the cases that expect the process to stop. */
-    using Regression_FusedOptimizerDeathTest = Regression_FusedOptimizer;
+    using Medium_FusedOptimizerDeathTest = Medium_FusedOptimizer;
 
     // 133 is not a multiple of the vector width; see tests/layers/train/README.md.
     constexpr int64_t K_ELEMENTS = 133;
@@ -278,7 +278,7 @@ namespace
     }
 }
 
-TEST_F(Regression_FusedOptimizer, AdamWsFusedKernelMatchesTheSeparateOperationsExactly)
+TEST_F(Medium_FusedOptimizer, AdamWsFusedKernelMatchesTheSeparateOperationsExactly)
 {
     Optim::AdamWOptions options;
     options.learning_rate = 0.02;
@@ -290,7 +290,7 @@ TEST_F(Regression_FusedOptimizer, AdamWsFusedKernelMatchesTheSeparateOperationsE
  * @brief Tests that AdamW without weight decay matches the separate operations byte for byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizer, AdamWWithoutDecayTakesTheOtherBranchAndStillMatches)
+TEST_F(Medium_FusedOptimizer, AdamWWithoutDecayTakesTheOtherBranchAndStillMatches)
 {
     Optim::AdamWOptions options;
     options.learning_rate = 0.02;
@@ -302,7 +302,7 @@ TEST_F(Regression_FusedOptimizer, AdamWWithoutDecayTakesTheOtherBranchAndStillMa
  * @brief Tests that every SGD branch matches the separate operations byte for byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExactly)
+TEST_F(Medium_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExactly)
 {
     struct Case
     {
@@ -344,7 +344,7 @@ TEST_F(Regression_FusedOptimizer, SGDsFusedKernelMatchesTheSeparateOperationsExa
  * @brief Tests that AdamW inside the compiled plan trains identically to AdamW outside it.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt)
+TEST_F(Medium_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdateOutsideIt)
 {
     TrainedRun folded;
     TrainedRun apart;
@@ -364,7 +364,7 @@ TEST_F(Regression_FusedOptimizer, TheUpdateInThePlanTrainsIdenticallyToTheUpdate
  * @brief Tests that the fused and separate spellings train a whole model identically.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo)
+TEST_F(Medium_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdenticallyToo)
 {
     TrainedRun fused;
     TrainedRun separate;
@@ -376,7 +376,7 @@ TEST_F(Regression_FusedOptimizer, TheSeparateSpellingOutsideThePlanTrainsIdentic
     expect_runs_agree(fused, separate, "the update's spelling");
 }
 
-TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
+TEST_F(Medium_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
 {
     TrainedRun folded;
     TrainedRun apart;
@@ -398,7 +398,7 @@ TEST_F(Regression_FusedOptimizer, TheStepCompilesOnceWithTheOptimizerInsideIt)
  *        AdamW and four for separate SGD.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve)
+TEST_F(Medium_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparateOneIsTwelve)
 {
     constexpr std::size_t K_PARAMETERS = 3;
 
@@ -463,7 +463,7 @@ TEST_F(Regression_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSep
  * @brief Tests that the trainer refuses to compile a separate-kernel AdamW into the step.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored)
+TEST_F(Medium_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -498,7 +498,7 @@ TEST_F(Regression_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherT
  * @brief Tests that step() stops the process on an optimizer already recorded into a compiled step.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
+TEST_F(Medium_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
 
@@ -536,7 +536,7 @@ TEST_F(Regression_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThe
  * @brief Tests that step() stops the process when momentum is switched on after construction.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_FusedOptimizerDeathTest,
+TEST_F(Medium_FusedOptimizerDeathTest,
        TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());

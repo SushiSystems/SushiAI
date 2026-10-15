@@ -4,7 +4,7 @@ The tests of the module `language/text`, one file per header of `modules/languag
 
 ## test_bpe_trainer.cpp
 
-Suites: `Unit_TextBpeTrainer`.
+Suites: `Small_TextBpeTrainer`.
 
 Tests `Language::Text::train_bpe` in
 `modules/language/text/include/SushiAI/language/text/bpe_trainer.hpp`. Unless a case says
@@ -57,7 +57,7 @@ name ("special token 1").
 
 ## test_codec.cpp
 
-Suites: `Unit_TextCodec`.
+Suites: `Small_TextCodec`.
 
 Tests `Language::Text::encode_text` and `Language::Text::decode_tokens` in
 `modules/language/text/include/SushiAI/language/text/codec.hpp`. A round trip encodes a text,
@@ -102,7 +102,7 @@ Over a vocabulary of 257 tokens, `decode_tokens` fails with `InvalidDescription`
 
 ## test_stream_encoder.cpp
 
-Suites: `Unit_TextStreamEncoder`.
+Suites: `Small_TextStreamEncoder`.
 
 Tests `Language::Text::encode_stream` in
 `modules/language/text/include/SushiAI/language/text/stream_encoder.hpp` against
@@ -122,7 +122,7 @@ a word of 600 'x' bytes and " the end". With a vocabulary of 300 tokens trained 
 
 ## test_vocabulary.cpp
 
-Suites: `Unit_TextVocabulary`.
+Suites: `Small_TextVocabulary`.
 
 Tests `Language::Text::Vocabulary` in
 `modules/language/text/include/SushiAI/language/text/vocabulary.hpp`. A merge is written here
@@ -180,7 +180,7 @@ Over a vocabulary of 257 tokens, `bytes_of(257)` stops the process with a report
 
 ## test_vocabulary_file.cpp
 
-Suites: `Unit_TextVocabularyFile`.
+Suites: `Small_TextVocabularyFile`.
 
 Tests `write_vocabulary_file`, `read_vocabulary_file` and `parse_vocabulary_file` in
 `modules/language/text/include/SushiAI/language/text/vocabulary_file.hpp`. Most cases start

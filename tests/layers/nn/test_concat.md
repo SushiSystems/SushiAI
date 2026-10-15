@@ -3,7 +3,7 @@
 
 The Concat node's shape check, its port and the node it traces.
 
-Suites: `Unit_Concat`.
+Suites: `Small_Concat`.
 
 Tests the Concat node's shape check, its port and the node it traces.
 

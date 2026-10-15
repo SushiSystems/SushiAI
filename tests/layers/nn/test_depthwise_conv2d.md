@@ -3,7 +3,7 @@
 
 The DepthwiseConv2d layer's one DEPTHWISE_CONV2D node, its [kernel_h, kernel_w, channels] weight with role and fans, shape inference against the trace, `same_padded`, and the inputs it rejects.
 
-Suites: `Unit_DepthwiseConv2d`.
+Suites: `Small_DepthwiseConv2d`.
 
 Tests `NN::DepthwiseConv2d`. Most cases use four channels, a 3x3 window and one pixel of
 padding.

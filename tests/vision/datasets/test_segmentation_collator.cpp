@@ -68,7 +68,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_SegmentationCollator : public SaTest::EngineTest
+    class Medium_SegmentationCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -116,7 +116,7 @@ namespace
 } // namespace
 
 /** @brief Tests that segmentation publishes mask as [H, W] int32 over the classes. */
-TEST_F(Unit_SegmentationCollator, SegmentationPublishesTheMask)
+TEST_F(Medium_SegmentationCollator, SegmentationPublishesTheMask)
 {
     SegmentationOptions options;
     options.size = K_SIZE;
@@ -150,7 +150,7 @@ TEST_F(Unit_SegmentationCollator, SegmentationPublishesTheMask)
 }
 
 /** @brief Tests that segmentation writes each class and the ignore index for the void byte. */
-TEST_F(Unit_SegmentationCollator, SegmentationWritesClassesAndTheIgnoreIndex)
+TEST_F(Medium_SegmentationCollator, SegmentationWritesClassesAndTheIgnoreIndex)
 {
     samples[0].mask = Support::gray_image(K_SIZE, {2, K_MASK_VOID});
     samples[1].mask = Support::gray_image(K_SIZE, {0, 1});
@@ -174,7 +174,7 @@ TEST_F(Unit_SegmentationCollator, SegmentationWritesClassesAndTheIgnoreIndex)
 }
 
 /** @brief Tests that segmentation names the file and the pixel of a byte that is no class. */
-TEST_F(Unit_SegmentationCollator, SegmentationRefusesAByteThatIsNoClass)
+TEST_F(Medium_SegmentationCollator, SegmentationRefusesAByteThatIsNoClass)
 {
     samples[0].mask = Support::gray_image(K_SIZE, {0, 1});
     samples[1].mask = Support::gray_image(K_SIZE, {0, 3});
@@ -192,7 +192,7 @@ TEST_F(Unit_SegmentationCollator, SegmentationRefusesAByteThatIsNoClass)
 }
 
 /** @brief Tests that segmentation names the file of a sample with no mask of the input size. */
-TEST_F(Unit_SegmentationCollator, SegmentationRefusesASampleWithoutAMask)
+TEST_F(Medium_SegmentationCollator, SegmentationRefusesASampleWithoutAMask)
 {
     samples[0].mask = Support::gray_image(K_SIZE, {0, 1});
 
@@ -208,7 +208,7 @@ TEST_F(Unit_SegmentationCollator, SegmentationRefusesASampleWithoutAMask)
 }
 
 /** @brief Tests that segmentation paints the polygons of a sample that has no mask file. */
-TEST_F(Unit_SegmentationCollator, SegmentationPaintsThePolygonsOfASample)
+TEST_F(Medium_SegmentationCollator, SegmentationPaintsThePolygonsOfASample)
 {
     using Vision::Imaging::Polygon;
 
@@ -242,7 +242,7 @@ TEST_F(Unit_SegmentationCollator, SegmentationPaintsThePolygonsOfASample)
 }
 
 /** @brief Tests that an object with no polygon is refused with the file of its sample. */
-TEST_F(Unit_SegmentationCollator, SegmentationRefusesAnObjectWithoutAPolygon)
+TEST_F(Medium_SegmentationCollator, SegmentationRefusesAnObjectWithoutAPolygon)
 {
     samples[1].objects.add(0, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
 
@@ -259,7 +259,7 @@ TEST_F(Unit_SegmentationCollator, SegmentationRefusesAnObjectWithoutAPolygon)
 }
 
 /** @brief Tests that a background must be a class and is stated with polygons alone. */
-TEST_F(Unit_SegmentationCollator, SegmentationRefusesABackgroundItCannotWrite)
+TEST_F(Medium_SegmentationCollator, SegmentationRefusesABackgroundItCannotWrite)
 {
     SegmentationOptions options;
     options.class_count = 3;

@@ -59,7 +59,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_BufferUpdateRecorder : public SaTest::EngineTest {};
+    class Medium_BufferUpdateRecorder : public SaTest::EngineTest {};
 
     /** @brief The weight the blend gives the buffer's current content. */
     constexpr double K_MOMENTUM = 0.1;
@@ -103,7 +103,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a recorder records two device tasks for every slot it holds. */
-TEST_F(Integration_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
+TEST_F(Medium_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target,
                             vector_of(*engine, {1.0, 2.0}, DType::Float64));
@@ -132,7 +132,7 @@ TEST_F(Integration_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
  * @brief Tests that one replay of a recorder leaves each target at the value
  *        NN::updated_statistic gives for its running and batch elements.
  */
-TEST_F(Integration_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
+TEST_F(Medium_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
 {
     const std::vector<double> running = {1.0, -2.0, 0.5, 4.0};
     const std::vector<double> batch = {0.25, 3.0, -1.0, 2.0};
@@ -165,7 +165,7 @@ TEST_F(Integration_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
 }
 
 /** @brief Tests that a recorder holding no slot records no task and runs cleanly. */
-TEST_F(Integration_BufferUpdateRecorder, NoSlotRecordsNothing)
+TEST_F(Medium_BufferUpdateRecorder, NoSlotRecordsNothing)
 {
     Train::BufferUpdateRecorder recorder(std::vector<Train::BufferUpdateSlot>{});
 
@@ -183,7 +183,7 @@ TEST_F(Integration_BufferUpdateRecorder, NoSlotRecordsNothing)
 }
 
 /** @brief Tests that binding refuses an update whose target the state does not hold. */
-TEST_F(Integration_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
+TEST_F(Medium_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
 {
     std::vector<NN::StateEntry> entries;
     entries.push_back(make_entry("bn.running_mean", 1, DType::Float64));
@@ -204,7 +204,7 @@ TEST_F(Integration_BufferUpdateRecorder, BindRefusesATargetTheStateLacks)
 }
 
 /** @brief Tests that binding refuses an update whose target and source differ in dtype. */
-TEST_F(Integration_BufferUpdateRecorder, BindRefusesADTypeMismatch)
+TEST_F(Medium_BufferUpdateRecorder, BindRefusesADTypeMismatch)
 {
     std::vector<NN::StateEntry> entries;
     entries.push_back(make_entry("bn.running_mean", K_TARGET_STATE, DType::Float32));

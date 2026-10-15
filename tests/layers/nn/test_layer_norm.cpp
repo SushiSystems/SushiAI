@@ -107,7 +107,7 @@ static_assert(NN::TraceModule<LayerNorm> && !NN::Module<LayerNorm> && !NN::Modal
               "LayerNorm has the trace form alone");
 
 /** @brief Tests that a trace adds two leaves and one LAYER_NORM over [x, weight, bias]. */
-TEST(Unit_LayerNorm, ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode)
+TEST(Small_LayerNorm, ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -134,7 +134,7 @@ TEST(Unit_LayerNorm, ATraceDeclaresTheGainAndTheBiasAndEmitsOneNode)
 }
 
 /** @brief Tests that the gain is a [dim] scale, the bias a [dim] bias, both of the input's type. */
-TEST(Unit_LayerNorm, TheGainIsAScaleAndTheBiasABias)
+TEST(Small_LayerNorm, TheGainIsAScaleAndTheBiasABias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -155,7 +155,7 @@ TEST(Unit_LayerNorm, TheGainIsAScaleAndTheBiasABias)
 }
 
 /** @brief Tests that the state walk yields the two parameters, weight before bias. */
-TEST(Unit_LayerNorm, TheWalkYieldsTheGainThenTheBias)
+TEST(Small_LayerNorm, TheWalkYieldsTheGainThenTheBias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -179,7 +179,7 @@ TEST(Unit_LayerNorm, TheWalkYieldsTheGainThenTheBias)
 }
 
 /** @brief Tests that an input of another width and an integer input fail and declare nothing. */
-TEST(Unit_LayerNorm, AnInputThatDoesNotFitFails)
+TEST(Small_LayerNorm, AnInputThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -199,7 +199,7 @@ TEST(Unit_LayerNorm, AnInputThatDoesNotFitFails)
 }
 
 /** @brief Tests that a dim that is not positive and an epsilon that is not positive each fail. */
-TEST(Unit_LayerNorm, ALayerDescribedWrongFails)
+TEST(Small_LayerNorm, ALayerDescribedWrongFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -217,7 +217,7 @@ TEST(Unit_LayerNorm, ALayerDescribedWrongFails)
 }
 
 /** @brief Tests that output_shape returns the per-sample shape it is given. */
-TEST(Unit_LayerNorm, OutputShapeIsTheInputShape)
+TEST(Small_LayerNorm, OutputShapeIsTheInputShape)
 {
     const LayerNorm layer = make_layer();
 
@@ -226,7 +226,7 @@ TEST(Unit_LayerNorm, OutputShapeIsTheInputShape)
 }
 
 /** @brief Tests that the factory takes dim from the last extent and reads "ln_epsilon". */
-TEST(Unit_LayerNorm, TheFactoryReadsTheWidthAndTheEpsilon)
+TEST(Small_LayerNorm, TheFactoryReadsTheWidthAndTheEpsilon)
 {
     const Shape input{6, K_DIM};
     const Config::Value plain = Config::parse_json("{}", "<test>");
@@ -251,7 +251,7 @@ TEST(Unit_LayerNorm, TheFactoryReadsTheWidthAndTheEpsilon)
 }
 
 /** @brief Tests that the factory refuses a stray key, a bad epsilon and an input that is off. */
-TEST(Unit_LayerNorm, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_LayerNorm, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{6, K_DIM};
     const Shape pair[] = {Shape{K_DIM}, Shape{K_DIM}};
@@ -274,7 +274,7 @@ TEST(Unit_LayerNorm, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that a trace over a value the graph does not hold stops the process. */
-TEST(Unit_LayerNormDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
+TEST(Medium_LayerNormDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
 {
     SA_EXPECT_FATAL(trace_over_a_value_the_graph_lacks(), "LayerNorm(4)", "value 7",
                     "holds 1 values");
@@ -283,7 +283,7 @@ TEST(Unit_LayerNormDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
 namespace
 {
     /** @brief Provides the Engine every layer-normalisation case records on. */
-    class Integration_LayerNorm : public SaTest::EngineTest
+    class Medium_LayerNorm : public SaTest::EngineTest
     {
 
     };
@@ -462,7 +462,7 @@ namespace
 }
 
 /** @brief Tests that a FLOAT32 [2, 3, 5] value is normalised row by row, as the host does. */
-TEST_F(Integration_LayerNorm, EachRowIsNormalisedByItsOwnStatistics)
+TEST_F(Medium_LayerNorm, EachRowIsNormalisedByItsOwnStatistics)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -495,7 +495,7 @@ TEST_F(Integration_LayerNorm, EachRowIsNormalisedByItsOwnStatistics)
 }
 
 /** @brief Tests that the saved statistics are each row's mean and 1 / sqrt(variance + eps). */
-TEST_F(Integration_LayerNorm, TheSavedStatisticsAreTheRowMeanAndInverseDeviation)
+TEST_F(Medium_LayerNorm, TheSavedStatisticsAreTheRowMeanAndInverseDeviation)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -526,7 +526,7 @@ TEST_F(Integration_LayerNorm, TheSavedStatisticsAreTheRowMeanAndInverseDeviation
 }
 
 /** @brief Tests the gradient of the input against central differences, in FLOAT64. */
-TEST_F(Integration_LayerNorm, TheInputGradientMatchesCentralDifferences)
+TEST_F(Medium_LayerNorm, TheInputGradientMatchesCentralDifferences)
 {
     ValueID gamma = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
@@ -546,7 +546,7 @@ TEST_F(Integration_LayerNorm, TheInputGradientMatchesCentralDifferences)
 }
 
 /** @brief Tests the gradient of the gain against central differences, in FLOAT64. */
-TEST_F(Integration_LayerNorm, TheGainGradientMatchesCentralDifferences)
+TEST_F(Medium_LayerNorm, TheGainGradientMatchesCentralDifferences)
 {
     ValueID x = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
@@ -566,7 +566,7 @@ TEST_F(Integration_LayerNorm, TheGainGradientMatchesCentralDifferences)
 }
 
 /** @brief Tests the gradient of the bias against central differences, in FLOAT64. */
-TEST_F(Integration_LayerNorm, TheBiasGradientMatchesCentralDifferences)
+TEST_F(Medium_LayerNorm, TheBiasGradientMatchesCentralDifferences)
 {
     ValueID x = Graph::K_NO_VALUE;
     ValueID gamma = Graph::K_NO_VALUE;
@@ -586,7 +586,7 @@ TEST_F(Integration_LayerNorm, TheBiasGradientMatchesCentralDifferences)
 }
 
 /** @brief Tests that a LayerNorm layer over a [2, 3, 4] value yields the host's rows. */
-TEST_F(Integration_LayerNorm, ALayerNormalisesWithItsGainAndItsBias)
+TEST_F(Medium_LayerNorm, ALayerNormalisesWithItsGainAndItsBias)
 {
     NN::LayerNorm layer{};
     layer.dim = 4;

@@ -47,7 +47,7 @@ namespace
 } // namespace
 
 /** @brief Tests that equal values are selected by ascending index and larger values first. */
-TEST(Unit_DetectTopK, OrdersByValueThenIndex)
+TEST(Small_DetectTopK, OrdersByValueThenIndex)
 {
     const std::vector<float> values{0.5f, 0.9f, 0.5f, 0.1f, 0.9f};
     std::vector<std::int64_t> indices;
