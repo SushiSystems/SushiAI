@@ -907,9 +907,9 @@ false and `MixedPrecisionPolicy::choose` returns `Float32` for `Float32` and `Fl
 
 ### GELUStaysWideEvenThoughACatalogEntryNowFoldsIt
 
-Rule 5 used to rest on two arguments, and one of them is gone. `FusedForm::GEMMBiasGELU`
+Rule 5 rests on arithmetic. `FusedForm::GEMMBiasGELU`
 folds GELU by spilling the pre-activation, so "nothing folds it, therefore nothing forces its
-precision" is no longer a reason for anything. The surviving argument is the arithmetic: the
+precision" is not a reason for anything. The argument is the arithmetic: the
 tanh approximation computes `x*x*x`, which overflows fp16 at |x| about 40.3. A unit test cannot
 assert that without a device.
 

@@ -641,7 +641,7 @@ wrong:
 
 - **The second output is the same value.** `Graph::Node::outputs` was already a
   vector; the fused node's `outputs[1]` is the very `ValueID` the absorbed
-  `K_BIAS_ADD` used to produce. So `gelu_backward` reads what it always read, no
+  `K_BIAS_ADD` would produce. So `gelu_backward` reads what it always read, no
   backward rule changed, and no pass had to learn about a new tensor.
 - **Rule 1 is relaxed for exactly that value and nothing else.** A catalog entry
   names one `spill` step; the interior value at that step may have any number of
@@ -658,9 +658,8 @@ wrong:
   fails and nothing is slower: the reader simply races the write, which is the
   hazard SushiBLAS's seam exists to close.
 
-The `static_assert` in `fusion.cpp` learned the difference the previous version
-of this section predicted it would have to. It no longer refuses every entry
-folding a `GradientSource::Input` activation; it refuses one that folds such an
+The `static_assert` in `fusion.cpp` does not refuse every entry folding a
+`GradientSource::Input` activation; it refuses one that folds such an
 activation **without** a spill, or that spills the wrong step of the chain. It
 still fails the build for a hypothetical `GEMM_BIAS_SILU` added without an
 auxiliary write.
@@ -677,10 +676,8 @@ hazard nothing orders. A transitive path through the gradient happens to exist
 for a plain feed-forward model, and relying on it is exactly the accident that
 survives every test and breaks on the first second writer.
 
-This used to be paid for with a `Lowering::declare_epilogue_operand()` that
-emitted a host node of the SushiRuntime graph running nothing, present only for its two
-access declarations - one node per fused GEMM, no kernel launch, counted apart by
-a `RunReport::ordering_nodes_per_step`. All of that is gone.
+Without that access set the order would be paid for with a host node of the SushiRuntime graph running nothing, present only for its two
+access declarations: one node per fused GEMM, with no kernel launch.
 `record_fused_gemm` (`modules/core/graph/source/lowering/fused.cpp`) hands SushiBLAS the
 epilogue and its operands together,
 `gemm_epilogue(BiasReLUEpilogue{...}).reads(bias)`. Each row of the fused table
@@ -757,7 +754,7 @@ absorb; it has to agree with the kernel that absorbs it.
 
 **`GELU` is the one place that rule meets a limit, and the resolution is the
 pass order.** Since `K_GEMM_BIAS_GELU` exists, a catalog entry *can* absorb GELU,
-so "nothing folds it, therefore nothing forces its precision" is no longer an
+so "nothing folds it, therefore nothing forces its precision" is not an
 argument for anything. The reason it still stays wide is arithmetic and nothing
 else: the tanh approximation computes `x*x*x`, fp16's largest finite value is
 65504, so the cube overflows at |x| ≈ 40.3 and `tanh(±inf)` then returns ±1:
@@ -1007,7 +1004,7 @@ does not verify a mixed-precision graph, is in
 [`KNOWN_ISSUES.md`](../reference/KNOWN_ISSUES.md).
 
 The retired 2025-06 prototype (`core/tensor.h`, eager autograd, CUDA-only)
-that used to occupy this repository is **not** a migration source for any of
+is **not** a migration source for any of
 this: it predates the SushiStack integration entirely and was deleted, not
 ported, at AI-0. See the master plan for the actual sequencing.
 

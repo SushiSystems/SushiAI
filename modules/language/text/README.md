@@ -83,7 +83,7 @@ The algorithm:
    pair the chunks it occurs in.
 3. Enter every pair that occurs at least twice into a priority queue ordered by count, then
    left id, then right id.
-4. Take the top of the queue. An entry whose count is no longer the pair's count is stale; the
+4. Take the top of the queue. An entry whose count differs from the pair's present count is stale; the
    pair is entered again with its present count and the next entry is taken.
 5. Rewrite the chunks listed for the pair. For each, subtract its pairs from the counts,
    replace the pair, and add its pairs back. Pairs that hold the new token are listed and
