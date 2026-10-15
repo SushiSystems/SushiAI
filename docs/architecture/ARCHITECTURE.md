@@ -4,7 +4,7 @@ This document describes how SushiAI is built today, and names only what
 actually exists under `modules/`, `applications/`, and `cmake/`. **AI-1** has
 landed: the graph IR, the differentiation transform, the lowering to
 SushiBLAS, the layer/optimizer/data/training layers, and an MLP that trains
-end to end. It will keep growing section by section — see
+end to end. It will keep growing section by section: see
 [`ROADMAP.md`](../design/ROADMAP.md)
 for what's coming and in what order.
 
@@ -34,7 +34,7 @@ Two places outside the lowering record SushiBLAS work, because neither has an
 IR node to lower: `nn/init.cpp` and `data/` build their views from the engine,
 which binds them to the engine's own recorder and RNG, and `optim/` records the
 parameter update on the recorder of the compiled step. `optim/` additionally
-hands SushiBLAS a **device functor** —
+hands SushiBLAS a **device functor**:
 `Dispatch::execute_zip_inplace`'s generic elementwise seam inlines it into a
 kernel SushiBLAS owns. That is plain C++ arithmetic on `auto&` parameters, not
 a kernel this repository defines, but it is device code and §5.1 says what
@@ -57,7 +57,7 @@ the step is compiled exactly once no matter how many batches run
 (`TensorPool::allocated_bytes()` stops moving after the first step). The
 first of those is additionally pinned in the `regression` tier
 (`tests/layers/train/test_trainer/test_compile_once.cpp`) and in the demo's own
-CTest smoke test, because a recompile-per-step still converges — it just
+CTest smoke test, because a recompile-per-step still converges: it just
 quietly pays graph analysis every step, and nothing else would notice.
 
 Alongside the core there is the scaffolding a real library needs from day
@@ -65,13 +65,13 @@ one: a `find_package(SushiAI)`-able target verified by an out-of-tree
 consumer, a three-tier test suite with CTest labels (`unit` / `integration` /
 `regression`), and the `sa` CLI. Each module builds one test program,
 `sushiai_<tier>_<module>_tests`: `sa run` runs one in one process and `sa test`
-runs every case through CTest. `sa demo mlp` runs the showcase —
+runs every case through CTest. `sa demo mlp` runs the showcase:
 `applications/examples/source/demo_mlp.cpp`, a flag-driven training program, deliberately a
 separate binary from the `applications/examples/source/example.cpp` teaching file.
 
 ### The whole stack is C++17, and that is not a style choice
 
-SushiAI is built at **C++17** — the standard SushiRuntime and SushiBLAS are
+SushiAI is built at **C++17**: the standard SushiRuntime and SushiBLAS are
 built to. The three repositories have to agree on one standard, and the reason
 is an ABI, not a preference.
 
@@ -79,7 +79,7 @@ is an ABI, not a preference.
 `__cplusplus >= 202002L` and SushiRuntime's own C++17 shim otherwise. That
 branch is taken per translation unit and it reaches the mangled name of every
 function that takes one. SushiAI compiled at C++20 over siblings compiled at
-C++17 put the two halves of one build on opposite sides of it — the same
+C++17 put the two halves of one build on opposite sides of it: the same
 mismatch that moved SushiBLAS down first
 ([its ARCHITECTURE §1](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/ARCHITECTURE.md#1-what-sushiblas-is)).
 SushiAI was the last repository still above the line, so the stack now agrees.
@@ -87,7 +87,7 @@ SushiAI was the last repository still above the line, so the stack now agrees.
 The library's own API did not change: the same functions take the same
 arguments spelled the same way, and a *header-only* use compiles under either
 standard. What did change is the linkage of the out-of-line entry points whose
-parameter type is a span — `Autograd::differentiate`,
+parameter type is a span: `Autograd::differentiate`,
 `allocate_tensor`, `Optim::StepScalars::write`, the `Autograd`
 gradcheck entry points. Those now export the shim's mangling, so a consumer
 must be at C++17 too; `tests/package/` says so in a comment, with the two
@@ -97,7 +97,7 @@ The pieces C++20 had been supplying are C++17 spellings now:
 
 | was | is | where |
 |---|---|---|
-| `std::span` | `SushiRuntime::span` | 105 sites across 31 files — the same type wherever `std::span` exists |
+| `std::span` | `SushiRuntime::span` | 105 sites across 31 files: the same type wherever `std::span` exists |
 | `std::format` | `SushiBLAS::Core::format` | `SA_FAIL_IF`, `SA_FATAL_IF`, `SA_THROW_IF` and every report/diagnostic string |
 | `concept Module` / `ModuleContainer` | `constexpr bool` variable templates over `std::void_t` detectors | `nn/module.hpp` |
 | `template<Module... Ls>` | `template<typename... Ls>` + a `static_assert` fold | `nn/layers.hpp`'s `Sequential` |
@@ -107,8 +107,8 @@ The pieces C++20 had been supplying are C++17 spellings now:
 stand-in as an installed public header and SushiAI links SushiBLAS
 unconditionally, so a third copy of the same code would only have meant a
 third place to delete when the stack returns to C++20. One guarantee is
-genuinely lost with it — `std::format`'s `consteval` check on a literal format
-string — so a placeholder/argument mismatch is now a slightly worse message
+genuinely lost with it: `std::format`'s `consteval` check on a literal format
+string, so a placeholder/argument mismatch is now a slightly worse message
 rather than a compile error. Diagnostics never fail the program; that is the
 trade.
 
@@ -120,21 +120,21 @@ SushiAI depends on two siblings, resolved independently through the same
 three-mode, layered CMake pattern used stack-wide (`cmake/Runtime.cmake`,
 `cmake/BLAS.cmake`):
 
-1. **TARGET-guard** — reuse an already-defined `SushiRuntime::SushiRuntime` /
+1. **TARGET-guard**: reuse an already-defined `SushiRuntime::SushiRuntime` /
    `SushiBLAS::sushiblas` if a superproject already brought it in.
-2. **`find_package(... QUIET)`** — an installed package.
-3. **Sibling `add_subdirectory`** — the common case: `../sushiruntime` /
+2. **`find_package(... QUIET)`**: an installed package.
+3. **Sibling `add_subdirectory`**: the common case: `../sushiruntime` /
    `../sushiblas` next to this checkout.
 
 **Order matters.** `Runtime.cmake` runs before `BLAS.cmake` in the root
 `CMakeLists.txt` specifically so that when SushiBLAS's own internal
 `Runtime.cmake` runs (SushiBLAS `add_subdirectory`'d as SushiAI's dependency
 also depends on SushiRuntime), its own TARGET-guard already finds
-`SushiRuntime::SushiRuntime` defined and skips re-adding it — one runtime in
+`SushiRuntime::SushiRuntime` defined and skips re-adding it: one runtime in
 the whole build tree, not two competing copies.
 
-Every consumer downstream — SushiAI's own targets, the CLI's `-D` flags, an
-out-of-tree `find_package(SushiAI)` consumer — links the same two namespaced
+Every consumer downstream (SushiAI's own targets, the CLI's `-D` flags, an
+out-of-tree `find_package(SushiAI)` consumer) links the same two namespaced
 aliases regardless of which mode actually resolved them.
 
 ---
@@ -167,7 +167,7 @@ A module only the tests use passes `INTERNAL` to `sushiai_add_module()`. It join
 installs nothing. `tools/layering/check_layering.py` compares every include of a module with
 the `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` its `CMakeLists.txt` lists.
 
-Both dependencies are linked `PUBLIC` — the lowering needs SushiBLAS, and
+Both dependencies are linked `PUBLIC`: the lowering needs SushiBLAS, and
 every consumer needs it to construct an `Engine` anyway. SushiAI therefore
 inherits SushiRuntime's `sushiruntime_deterministic_fp` floating-point
 contract transitively rather than owning a copy of that guarantee, which is
@@ -178,10 +178,10 @@ than through atomics (see `autograd/backward.hpp`).
 public header of the `sushiai` library. Two lanes live under it. Each header name below is
 relative to `SushiAI/` under the `include/` of the module that owns it:
 
-- The **host lane** — `core/` (except `core/allocation.hpp` and
+- The **host lane** (`core/` (except `core/allocation.hpp` and
   `core/seam.hpp`), `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
   `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
-  `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp` — reaches no SushiBLAS
+  `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp`) reaches no SushiBLAS
   *engine* and no SYCL. The `Unit_*` tests include these directly and run
   without a device. What it does reach of its siblings is vocabulary only, and
   every one of those headers is `<cstddef>`-and-friends deep:
@@ -189,10 +189,10 @@ relative to `SushiAI/` under the `include/` of the module that owns it:
   `<SushiBLAS/core/format.hpp>` for the message formatter, and
   `<SushiRuntime/core/span.hpp>` and `<SushiRuntime/graph/task_types.hpp>` for
   the span and the `OpID`.
-- The **device lane** — `core/allocation.hpp`, `core/seam.hpp`,
+- The **device lane** (`core/allocation.hpp`, `core/seam.hpp`,
   `graph/arena.hpp`, `graph/tensor_pool.hpp`, `graph/step_recorder.hpp`,
   `graph/lowering.hpp`, `graph/lowering/`, `graph/compiled_step.hpp`,
-  `nn/init.hpp`, `optim/`, `data/`, `train/`, `io/checkpoint.hpp` — reaches
+  `nn/init.hpp`, `optim/`, `data/`, `train/`, `io/checkpoint.hpp`) reaches
   SushiBLAS.
 
 SYCL device-compilation policy (`sushiai_apply_sycl()`,
@@ -251,8 +251,8 @@ the whole forward *and* backward graph, that fusion needs a DAG to
 partition, and that `SushiRuntime::Graph::compile()` drains its builder and so
 cannot be held and rewritten.
 
-`autograd/backward.hpp` declares the reverse walk — `differentiate()` and
-`has_backward_rule()` — and nothing else.
+`autograd/backward.hpp` declares the reverse walk: `differentiate()` and
+`has_backward_rule()`, and nothing else.
 
 Gradient accumulation at a fan-out is tiered: zero contributors means no
 gradient value at all (a symbolic zero, not a materialised buffer), one
@@ -266,7 +266,7 @@ There is no `backward.cpp`. The implementation is three kinds of file:
 | File | What it owns |
 |---|---|
 | `modules/core/autograd/source/differentiator.cpp` | `differentiate()`, the reverse traversal, and the seed |
-| `modules/core/autograd/source/tape.cpp` | `GradientTape` — how a rule reads its node and contributes a gradient |
+| `modules/core/autograd/source/tape.cpp` | `GradientTape`: how a rule reads its node and contributes a gradient |
 | `modules/core/autograd/source/rules/<domain>.cpp` | The rules themselves, one file per domain |
 
 The domains are `elementwise`, `activation`, `linalg`, `loss`, `shape`,
@@ -277,8 +277,8 @@ them.
 The property this buys is a rule about *diffs*, and it is the reason the split
 is worth having at all: **adding an operation to an existing domain changes
 only that domain's `.cpp` and `.hpp`. Adding a whole domain is one line in
-`all.hpp`.** Before the split, every new gradient — a pooling rule, a
-normalisation rule, a loss rule — edited the same 600-line file, which is how
+`all.hpp`.** Before the split, every new gradient (a pooling rule, a
+normalisation rule, a loss rule) edited the same 600-line file, which is how
 four unrelated reasons to change end up sharing a merge conflict.
 
 A rule sees `GradientTape` and nothing else. `Differentiator`'s definition
@@ -288,7 +288,7 @@ into it.
 
 **Nothing self-registers**, and that is not a stylistic preference. `sushiai`
 is a **static** library. A translation unit whose only job is to run a
-registration constructor resolves no symbol, so the linker drops it — the rule
+registration constructor resolves no symbol, so the linker drops it: the rule
 table comes up short, `differentiate()` reports no rule for an operation that
 plainly has one, and it happens *only in a downstream consumer's build*, not in
 this repository's own tests. So each domain's rules reach the table by being
@@ -303,7 +303,7 @@ shape for the same reason.
 **`TensorLayout`, proved by `Graph::prove_layout_uniformity()` (CV-4).** Every
 `Value` carries a `TensorLayout`, and `K_LAYOUT_CONVERT` is the only node allowed
 to have operands and results that disagree about it. `finalise()` closes the
-forward graph — it propagates `requires_grad` and then proves uniformity — so a
+forward graph (it propagates `requires_grad` and then proves uniformity), so a
 builder-emitted graph that mixes NCHW into an NHWC chain fails there, naming
 the node, instead of reaching a kernel that reads the right number of elements
 in the wrong order.
@@ -312,7 +312,7 @@ That is a claim about the graph the builder emits, and it is worth being exact
 about how far it carries. `finalise()` is called once, before differentiation,
 and the stages after it rebuild the graph: `fuse()` and `insert_casts()` both
 copy the value table entry by entry, and `Graph::add_value` defaults the layout
-to NHWC, so a field one of them forgets to copy is not lost but *changed* —
+to NHWC, so a field one of them forgets to copy is not lost but *changed*:
 silently, because the shapes still agree. Both passes therefore re-prove
 uniformity over the graph they produce, which is why the proof is public rather
 than a private step of `finalise()`. Backward-emitted nodes are still only
@@ -322,27 +322,27 @@ then handed straight to lowering is not re-proved anywhere.
 `GraphBuilder::declare_like()` is how an emitter keeps the invariant true
 without restating it: a result takes its operand's layout by construction.
 `declare()` is left for the values that have no operand to inherit from: the
-leaves (`input()`, `parameter()`), `layout_convert()` — which sets the tag
-itself, being the one node allowed to change it — and `zeros()`, whose node has
+leaves (`input()`, `parameter()`), `layout_convert()`, which sets the tag
+itself, being the one node allowed to change it, and `zeros()`, whose node has
 no inputs and is therefore skipped by the per-node proof. A backward rule
 emitting zeros beside a real operand calls `zeros_like()` instead, since the
 exposure there is the *consumer*'s node, not `K_ZERO`'s.
 
 `Lowering::record()` proves it once more before recording anything. That is the
 one gate every path passes through, so the pass-level proofs are
-belt-and-braces rather than load-bearing — and it is where the tag stops being
+belt-and-braces rather than load-bearing, and it is where the tag stops being
 bookkeeping, since `lower_layout_convert()` (`modules/core/graph/source/lowering/shape.cpp`)
 reads it to decide whether to relabel a side into `[N,H,W,C]`.
 
 **The `differentiable` flag is split from its proof.** `core/ops.hpp` carries
-the flag on each `OpName` — the *claim* that an operation has a gradient.
+the flag on each `OpName`: the *claim* that an operation has a gradient.
 `autograd/rules/all.hpp` carries the `static_assert` that every operation
-making that claim is in the rule table — the *proof*. They are apart because
+making that claim is in the rule table: the *proof*. They are apart because
 they must be: the assert needs to see the rule table, and `core/` cannot depend
 on `autograd/` without inverting the layering the whole tree is built on. The
 flag stays where the operation is declared; the check lives where the evidence
 is. `K_BATCHNORM_UPDATE_STATS` claims nothing and has no rule, because CV-7 keeps
-a BatchNorm's running statistics out of the differentiated graph entirely — it
+a BatchNorm's running statistics out of the differentiated graph entirely: it
 is recorded into the training step beside the graph, the way `K_SGD_UPDATE` and
 `K_ADAMW_UPDATE` are. Those three identities are the whole of `K_UNLOWERED`
 (`graph/lowering/unlowered.hpp`), the list of operations with no lowering row.
@@ -362,12 +362,12 @@ The clone copies the original's `Attributes` rather than rederiving them, for
 the reason the next paragraph gives.
 
 **`Attributes::K_CAPACITY` is 10, and the last two slots are not redundant.**
-Slots 0–7 are a 2-D window's geometry — `kernel_h`, `kernel_w`, `stride_h`,
-`stride_w`, `dilation_h`, `dilation_w`, `pad_top`, `pad_left` — mirroring
+Slots 0–7 are a 2-D window's geometry: `kernel_h`, `kernel_w`, `stride_h`,
+`stride_w`, `dilation_h`, `dilation_w`, `pad_top`, `pad_left`, mirroring
 `Graph::ConvGeometry` field for field. Slots 8 and 9 are the output extents
 `out_h` and `out_w`, **stored rather than derived**. That looks like
 duplication and is not: CV-5 gives the geometry no `pad_bottom` or `pad_right`,
-so deriving the extents back from it silently assumes symmetric padding — which
+so deriving the extents back from it silently assumes symmetric padding, which
 YOLOv3-tiny's 13→13 pool violates. A wrong derivation there yields a window
 grid that is the *transpose* of the real one, with the same element count, so
 it passes every shape check in the tree and gathers the wrong pixels. Storing
@@ -385,8 +385,8 @@ capacity is what the operations need, and nothing else.
 ## 5. Memory planning, and lowering
 
 `graph/memory_plan.hpp` decides where every non-persistent value's bytes go,
-before anything is lowered. It is a pure function of the IR — no engine, no
-allocator, no SYCL — which is why the whole pass is unit-tested over
+before anything is lowered. It is a pure function of the IR: no engine, no
+allocator, no SYCL, which is why the whole pass is unit-tested over
 synthetic graphs in the device-free tier.
 
 Two decisions in it are load-bearing:
@@ -403,7 +403,7 @@ Two decisions in it are load-bearing:
   strict ancestor of `b2`'s first write. A planner that instead sorts nodes
   into a linear schedule and overlaps disjoint `[first_use, last_use]`
   intervals passes every obvious test and quietly serialises branches the
-  runtime was free to run in parallel — memory reuse *injects* WAR and WAW
+  runtime was free to run in parallel: memory reuse *injects* WAR and WAW
   anti-dependencies, and only the reachability form guarantees the injected
   edge was already implied. The transitive closure costs O(V²/64) memory, so
   above `PlanOptions::reuse_node_limit` nodes the planner declines to overlap
@@ -503,7 +503,7 @@ A `CompiledStep` owns its `SushiRuntime::Graph`, the
 The engine and the pool are borrowed and must outlive it. When the recording
 fails, `compile` discards the recorded nodes and returns the refusal.
 
-It also takes an optional `StepRecorder` (`graph/step_recorder.hpp`) — work
+It also takes an optional `StepRecorder` (`graph/step_recorder.hpp`): work
 that belongs to the step but has no IR node behind it, recorded after the
 lowering and before the one compilation, and driven around every replay. The
 optimizer's parameter update is what it exists for; see §5.1.
@@ -511,7 +511,7 @@ optimizer's parameter update is what it exists for; see §5.1.
 ### 5.1 The optimizer is part of the compiled step
 
 Spelled as separate SushiBLAS calls, an AdamW update is about eleven launches
-per parameter per step — for an eight-tensor model, ~88 launches against the
+per parameter per step: for an eight-tensor model, ~88 launches against the
 ~31 the whole forward and backward graph costs. Both optimizers now issue
 **one** `Dispatch::execute_zip_inplace` per parameter instead: that seam hands
 a functor lvalue references to every operand's element, so the entire recipe
@@ -520,8 +520,8 @@ registers. The scratch buffers those temporaries needed are not allocated at
 all on the fused path.
 
 Fusing is also what let the update *join the plan*. The recorded obstacle was
-real — a per-step scalar baked into a recorded node is a compile-time constant,
-and AdamW's bias corrections change every step — but a single functor can
+real: a per-step scalar baked into a recorded node is a compile-time constant,
+and AdamW's bias corrections change every step, but a single functor can
 capture a **device pointer** instead, and read the step's numbers from the
 small `Optim::StepScalars` buffer behind it. A pointer is capturable by value
 and its contents may change between replays, so the recorded work is
@@ -546,8 +546,8 @@ report nothing.
 What it is worth, measured rather than assumed: on `sa demo mlp`'s four
 parameters, a step goes from 81 device tasks in three dispatch rounds to 37 in
 two, and a whole run from 278 `SushiRuntime::Graph::compile()` calls to 150. The wall
-clock moves much less — a median 8.80 to 7.74 ms/step over ten runs each on a
-quiet CPU/OpenCL box — because this model's largest tensor is 4096 elements
+clock moves much less: a median 8.80 to 7.74 ms/step over ten runs each on a
+quiet CPU/OpenCL box, because this model's largest tensor is 4096 elements
 and most of a step is neither the optimizer nor arithmetic. The launch counts
 are the honest number; the microbenchmark's 16-22x is what the same change is
 worth when the optimizer *is* the step.
@@ -563,9 +563,9 @@ compositions exist* is decided when SushiAI is compiled and a pass running at
 graph-build time can only choose among them. Everything about the shape of this
 work follows from that one fact:
 
-- **`core/ops.hpp` holds the catalog's identities** — `gemm_bias`,
+- **`core/ops.hpp` holds the catalog's identities**: `gemm_bias`,
   `gemm_bias_relu`, `gemm_bias_sigmoid`, `gemm_bias_tanh`, `gemm_bias_gelu`,
-  `exp_sub_scale` —
+  `exp_sub_scale`:
   each a distinct kernel in the binary rather than a flag on a generic one.
 - **`graph/fusion.hpp` is the static pass**: host lane, pure IR to IR, no
   engine and no SYCL, unit-tested over synthetic graphs with no device. It
@@ -630,7 +630,7 @@ exactly recoverable from their outputs (`y(1-y)`, `1-y²`) and SushiBLAS's rules
 already take the output, so GELU was the only one the use count genuinely
 refused.
 
-**The auxiliary-buffer GELU epilogue — cuBLASLt's `GELU_AUX_BIAS` shape — is
+**The auxiliary-buffer GELU epilogue (cuBLASLt's `GELU_AUX_BIAS` shape) is
 implemented.** `FusedForm::GEMMBiasGELU`'s epilogue stores the fully formed
 pre-activation to a second buffer on its way past and then returns `gelu` of it,
 so the tensor `gelu_backward` differentiates at is written after all and the
@@ -655,7 +655,7 @@ wrong:
 - **The write is declared.** `Dispatch::gemm_epilogue(f).reads(bias).writes(aux)`
   puts the spill in the GEMM task's own write set, so whatever reads it is
   ordered behind the kernel that filled it. Without that declaration nothing
-  fails and nothing is slower — the reader simply races the write, which is the
+  fails and nothing is slower: the reader simply races the write, which is the
   hazard SushiBLAS's seam exists to close.
 
 The `static_assert` in `fusion.cpp` learned the difference the previous version
@@ -666,7 +666,7 @@ still fails the build for a hypothetical `GEMM_BIAS_SILU` added without an
 auxiliary write.
 
 Under a narrowing precision policy the entry is unreachable, and deliberately
-so — see §6.2.
+so; see §6.2.
 
 ### The cost the epilogue carried
 
@@ -693,7 +693,7 @@ that edge on `in_degree` rather than on a loss: with no edge the tasks may still
 come out in the right order on any given run, so a loss that falls proves
 nothing.
 
-### What it is worth, measured — and what it costs
+### What it is worth, measured, and what it costs
 
 On `sa demo mlp`'s model a step goes from **35 recorded SushiBLAS calls to 25**,
 all of it out of the forward and backward
@@ -719,7 +719,7 @@ The wall clock has **two terms, and only one of them is an improvement**:
   of model size, batch and step count.
 
 Break-even is therefore around **5 000 steps** on this machine, and the demo's
-default 128-step run sits far below it — with fusion on it is about 1.9x slower
+default 128-step run sits far below it, with fusion on it is about 1.9x slower
 in wall clock while issuing 29% fewer kernels. AOT device targeting
 (`SB_SYCL_TARGETS`) is what moves that term to build time. This is recorded
 here rather than quietly omitted because a fusion pass is exactly the kind of
@@ -737,7 +737,7 @@ judgements about numerics that has to be argued. Putting them in one file
 would mean the argument and the machinery move together.
 
 - `PrecisionPolicy` answers, per operation, which element type it computes
-  in. `UniformPrecisionPolicy` — the default — answers "the graph's own
+  in. `UniformPrecisionPolicy` (the default) answers "the graph's own
   type" to everything, so a graph built without a policy is byte-for-byte what
   it was before this existed. `MixedPrecisionPolicy` narrows two families and
   nothing else: `K_MATMUL` and the fused GEMM forms, and the `K_BIAS_ADD` plus
@@ -745,22 +745,22 @@ would mean the argument and the machinery move together.
 - `insert_casts()` reads the policy and rewrites the graph so every node's
   operands and results carry its computed type, emitting an `Ops::K_CAST` node
   at each boundary. `find_dtype_mismatches()` states the resulting invariant
-  as a function anyone can call — including after fusion, which is where it
+  as a function anyone can call, including after fusion, which is where it
   earns its keep.
 
 **Why the epilogue's precision is forced rather than chosen.** A
 `K_GEMM_BIAS_RELU` node applies its epilogue inside the GEMM's kernel, in the
 GEMM's element type. If the IR said `K_BIAS_ADD` computes in fp32, fusing it
-into an fp16 GEMM would change the numbers — and §5.2 promises fusion changes
+into an fp16 GEMM would change the numbers, and §5.2 promises fusion changes
 none. So the policy does not get to pick for anything a catalog entry **will**
 absorb; it has to agree with the kernel that absorbs it.
 
 **`GELU` is the one place that rule meets a limit, and the resolution is the
-pass order.** Since `K_GEMM_BIAS_GELU` exists, a catalog entry *can* absorb GELU —
+pass order.** Since `K_GEMM_BIAS_GELU` exists, a catalog entry *can* absorb GELU,
 so "nothing folds it, therefore nothing forces its precision" is no longer an
 argument for anything. The reason it still stays wide is arithmetic and nothing
 else: the tanh approximation computes `x*x*x`, fp16's largest finite value is
-65504, so the cube overflows at |x| ≈ 40.3 and `tanh(±inf)` then returns ±1 —
+65504, so the cube overflows at |x| ≈ 40.3 and `tanh(±inf)` then returns ±1:
 `0.5*x*(1+tanh)` yields `x` or `0` rather than a NaN, a wrong number with no
 symptom. (That last step is IEEE-754 arithmetic, not a figure measured here.)
 Loss scaling cannot reach it either, because it is a *forward* activation and
@@ -771,8 +771,8 @@ falls out of the pass order rather than needing a special case: the cast pass
 runs before fusion, so an activation the policy keeps wide gets a `K_CAST` between
 it and the narrowed `K_BIAS_ADD`, and a chain with a conversion in the middle
 matches no entry. Under a narrowing policy a GELU layer therefore folds to
-`gemm+bias` and the activation runs on its own — exactly as it did before the
-entry existed — and `narrows_under_mixed_precision` answers false for both
+`gemm+bias` and the activation runs on its own: exactly as it did before the
+entry existed, and `narrows_under_mixed_precision` answers false for both
 `K_GELU` and `K_GEMM_BIAS_GELU` so the two halves cannot drift.
 `Regression_MixedPrecision.AGELULayerIsNotFoldedUnderANarrowingPolicy` pins it.
 
@@ -786,9 +786,9 @@ fusion, because a conversion dropped into the middle of a `K_MATMUL` →
 `Lifetime::Parameter`; so does its gradient, and the optimizer is untouched.
 The fp16 a GEMM reads is a *derived* value with an activation lifetime,
 produced by a cast and rewritten every replay because the parameter it reads
-changed. The rule the pass applies is one sentence — a value's element type
+changed. The rule the pass applies is one sentence: a value's element type
 follows its producer's computed type unless something outside the pass depends
-on it — and "outside" means a persistent lifetime class or a value the caller
+on it, and "outside" means a persistent lifetime class or a value the caller
 named as observed. The backward direction falls out of it: a gradient value is
 `Lifetime::Gradient`, so it is pinned, so an fp16 matmul writes a fresh narrow
 result and a cast widens it into the buffer the optimizer accumulates in.
@@ -797,7 +797,7 @@ result and a cast widens it into the buffer the optimizer accumulates in.
 fp16 matrix unit, so half arithmetic is emulated and `--precision mixed` is
 several times *slower* than fp32. No timing gate exists for it and none should
 until the hardware does. What is real and tested is that the graph carries the
-right types, that the masters stay fp32, and that the model still learns — see
+right types, that the masters stay fp32, and that the model still learns: see
 [README.md § Mixed precision](../../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
 for the measured loss curves both ways.
 
@@ -812,13 +812,13 @@ and doubles after N clean steps, and it is device-resident so that neither
 move recompiles the step.
 
 Two things about it are worth knowing before relying on it. **On this workload
-it buys nothing** — fp16 without it neither stalls nor diverges here, so it is
+it buys nothing**: fp16 without it neither stalls nor diverges here, so it is
 justified by theory and by larger models. And **the skip is per parameter**:
 the ordering that makes an update wait for its own screen is the
 write-after-read hazard on that gradient, and there is no such hazard between
 parameter A's update and parameter B's screen, so a step where only some
 gradients overflowed is a partial update rather than an empty one. Nothing
-unsafe results — no non-finite value reaches a parameter or a moment — and the
+unsafe results (no non-finite value reaches a parameter or a moment) and the
 header states what a whole-step skip would cost.
 
 ---
@@ -828,7 +828,7 @@ header states what a whole-step skip would cost.
 `NN::Sequential` decides its layer list at compile time: it holds a
 `std::tuple<Ls...>`, its `fields()` is `static constexpr`, and the parameter
 walk over it is a template walk. A JSON file decides that list at run time. The
-two cannot be reconciled — one is a type, the other is data — so there is a
+two cannot be reconciled (one is a type, the other is data), so there is a
 second, runtime-polymorphic path: `nn/layer.hpp`'s `Layer` and
 `nn/layer_stack.hpp`'s `LayerStack`.
 
@@ -836,7 +836,7 @@ second, runtime-polymorphic path: `nn/layer.hpp`'s `Layer` and
 trace time, to emit IR; the graph is compiled once and replayed (§1). A
 `std::vector<std::unique_ptr<Layer>>` therefore adds no per-step work at all.
 The same design would be indefensible in an eager framework, where it would
-mean a virtual call per layer per step — the graph-native architecture is what
+mean a virtual call per layer per step: the graph-native architecture is what
 pays for this feature.
 
 ### One walk, four cases
@@ -850,8 +850,8 @@ parameters through `walk_parameters`; a container that recurses through
 container walk over children that are all `Layer&` would find no parameters
 *while reporting no error*.
 
-The arm is strictly additive — `layers.hpp` asserts that neither `Linear` nor
-`Sequential` takes it — and everything downstream is a template over that one
+The arm is strictly additive: `layers.hpp` asserts that neither `Linear` nor
+`Sequential` takes it, and everything downstream is a template over that one
 walk, so `NN::ModelState::create`, `Train::build_training_graph`, `NN::parameter_elements` and
 the checkpoint I/O all consume a `LayerStack` without knowing a second kind of
 model exists. A virtual cannot be a template, so the visitor is type-erased
@@ -874,7 +874,7 @@ applications/programs/source/train.cpp  (no type names; never edited again)
 
 Each is a file-scope `constexpr` array of `{name, factory function pointer}`,
 in the shape of `Ops::K_ALL` and the fusion `K_CATALOG`, and `"type"` is the
-discriminator key in all four — so `Config::find_entry` is written once and
+discriminator key in all four, so `Config::find_entry` is written once and
 serves all of them. **Nothing self-registers**, for the reason §4 gives for the
 backward-rule table.
 
@@ -920,7 +920,7 @@ Three properties are structural rather than checked beside the code:
   `read_payload()` copies into that destination.
 - **Filled slots, not a record count.** A file with one duplicated name and one
   missing name has the right count, and the unfilled parameter would then read
-  uninitialised device memory — `allocate_tensor` does not zero, so a forward
+  uninitialised device memory: `allocate_tensor` does not zero, so a forward
   pass over it produces numbers rather than crashing.
 - **A `Shape`, not an element count.** `[256, 6]` cannot load into `[6, 256]`.
 
@@ -951,14 +951,14 @@ time.
 warnings/architecture/sanitizer policy targets and pulls their flag *values*
 onto the real target via `target_compile_options`/
 `target_compile_definitions`/`target_link_options` +
-`$<TARGET_PROPERTY:...>`, never `target_link_libraries` — the STATIC-library
+`$<TARGET_PROPERTY:...>`, never `target_link_libraries`: the STATIC-library
 export-set-safe pattern SushiBLAS's own SB-6 work established (see
 SushiBLAS's `ARCHITECTURE.md §10`): linking a PRIVATE policy target, even
 `BUILD_INTERFACE`-wrapped, records its name in the exported
 `INTERFACE_LINK_LIBRARIES` and breaks `install(EXPORT)`/`export(EXPORT)`.
 
-`tests/package/` is a real out-of-tree consumer — `find_package(SushiAI)`
-against an install prefix, no access to this source tree — that runs a real
+`tests/package/` is a real out-of-tree consumer: `find_package(SushiAI)`
+against an install prefix, no access to this source tree: that runs a real
 op through both transitively-resolved siblings.
 
 It is built at **C++17**, which is the one place this repository deliberately
@@ -966,7 +966,7 @@ stops mirroring sushiblas's `tests/package/`. SushiBLAS keeps its consumer at
 C++20 as a live assertion that a C++20 consumer still links against a C++17
 library, and that assertion holds there because all of its span-taking entry
 points are header-inline. SushiAI's are not (§1), so the same assertion here
-would be false — and would pass only because `main.cpp` happens to call
+would be false, and would pass only because `main.cpp` happens to call
 nothing that takes a span. The file records the two mangled symbols that
 prove it.
 
@@ -987,7 +987,7 @@ CMake module files that define SushiAI-specific functions
 `SushiAIOptimization.cmake`, `SushiAISanitizers.cmake`, `SushiAISyclTarget.cmake`)
 are prefixed with the program's full name, because D3's sibling
 `add_subdirectory` puts every checked-out repo's `cmake/` directory on one
-shared `CMAKE_MODULE_PATH` — an unprefixed `SyclTarget.cmake` here would
+shared `CMAKE_MODULE_PATH`: an unprefixed `SyclTarget.cmake` here would
 shadow (or be shadowed by) SushiBLAS's own file the moment both are
 `add_subdirectory`'d together, exactly the collision SushiBLAS's own SB-6
 work found and fixed. `Vcpkg.cmake` and `Toolchain.cmake` stay unprefixed
@@ -1008,7 +1008,7 @@ does not verify a mixed-precision graph, is in
 
 The retired 2025-06 prototype (`core/tensor.h`, eager autograd, CUDA-only)
 that used to occupy this repository is **not** a migration source for any of
-this — it predates the SushiStack integration entirely and was deleted, not
+this: it predates the SushiStack integration entirely and was deleted, not
 ported, at AI-0. See the master plan for the actual sequencing.
 
 ## Project layout

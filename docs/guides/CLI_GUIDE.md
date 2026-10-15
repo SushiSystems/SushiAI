@@ -11,8 +11,8 @@ so you don't have to retype long compiler flags.
 The CLI is a Python package that lives in the `cli/` folder. Install it once
 and it puts two commands on your `PATH`:
 
-- **`sa`** — short name.
-- **`sushiai`** — long name.
+- **`sa`**: short name.
+- **`sushiai`**: long name.
 
 They are identical; every example below uses `sa`.
 
@@ -32,12 +32,12 @@ pipx uninstall sushiai-cli   # to remove it later
 
 ### How the CLI finds your compiler and siblings
 
-SushiAI builds against the shared SushiStack SYCL toolchain — it selects no
-toolchain of its own — and against **two sibling checkouts**, SushiRuntime
+SushiAI builds against the shared SushiStack SYCL toolchain: it selects no
+toolchain of its own, and against **two sibling checkouts**, SushiRuntime
 and SushiBLAS. The CLI reads all of this from:
 
-- **`cli/config.toml`** — committed, shared defaults.
-- **`cli/config.local.toml`** — your machine's absolute paths (gitignored).
+- **`cli/config.toml`**: committed, shared defaults.
+- **`cli/config.local.toml`**: your machine's absolute paths (gitignored).
 
 With sibling `../sushiruntime` and `../sushiblas` checkouts, or inside a
 SushiStack workspace, run `sa setup` once: it provisions the toolchain and
@@ -89,14 +89,14 @@ both `SushiRuntime` and `SushiBLAS`; set `sushiruntime_dir` / `sushiblas_dir`
 in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` in the
 environment) to point either elsewhere.
 
-### `-D` / `--define` — CMake cache variables
+### `-D` / `--define`: CMake cache variables
 
 ```bash
 sa build -D SA_BUILD_TESTS=OFF
 sa build -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_61" -D SA_BUILD_TESTS=OFF
 ```
 
-Repeatable, `VAR=VALUE`, passed straight through to `cmake` — the same flag
+Repeatable, `VAR=VALUE`, passed straight through to `cmake`: the same flag
 `sb build` takes. A malformed entry exits 2 before the build tree is touched,
 `--clean` included, with the message naming what you typed.
 
@@ -129,7 +129,7 @@ sa test --repeat 5            # re-run each test up to 5x, stop on first failure
 ```
 
 The three tiers come from the GTest suite-name prefix (`Unit_*`,
-`Integration_*`, `Regression_*`) and nothing else — see
+`Integration_*`, `Regression_*`) and nothing else: see
 `tests/CMakeLists.txt`. `regression` holds the guarantees whose failure is
 silent (see [CONTRIBUTING.md §3](../CONTRIBUTING.md#3-building-and-testing-your-change)).
 
@@ -143,7 +143,7 @@ configured with `-D SA_BUILD_TESTS=OFF` has no SushiAI tests registered.
 
 Every other suite is a CTest label. This one is not, and runs no CTest at all.
 It installs SushiAI to `build/package/prefix`, configures `tests/package/`
-into `build/package/consumer` against that prefix, builds it and runs it —
+into `build/package/consumer` against that prefix, builds it and runs it:
 the way a third party consumes the library, through `find_package(SushiAI)`,
 with no access to this source tree. Both intermediates live under `build/`,
 so `sa clean` reclaims them.
@@ -157,15 +157,15 @@ checkout happened to sit next to it, is invisible to all of them.
 **What it does not cover**, and this is worth being exact about since the
 suite was written in response to a header bug: the suite compiles what
 `SushiAI/SushiAI.hpp` names, so it catches *referenced but not installed*. The
-inverse — *installed but never referenced by the umbrella*, which is the actual
-bug that prompted this work, four headers missing from the umbrella — it cannot
+inverse: *installed but never referenced by the umbrella*, which is the actual
+bug that prompted this work, four headers missing from the umbrella: it cannot
 catch by construction. A header the umbrella does not name is simply never
 compiled, and nothing fails. That half is checked at configure time instead, in
 `src/CMakeLists.txt`: every `include/SushiAI/**/*.hpp` must appear in the
 umbrella or the configure fails with the list. The two checks are
 complementary and neither subsumes the other.
 
-It also checks what the exported CMake interface *does not* carry — warnings,
+It also checks what the exported CMake interface *does not* carry: warnings,
 `-Werror`, sanitizers, `-march=`, the in-tree policy targets, and the config
 layer's private `nlohmann_json`. Those assertions are in
 `tests/package/CMakeLists.txt`, because what a consumer inherits is only
@@ -180,14 +180,14 @@ rather than package concerns:
   `SushiAIConfig.cmake` resolve from the same prefix.
 - The consumer configure reuses the same compiler and host-tool flags as the
   main configure, from one shared helper (`_toolchain_args`), so the two
-  cannot drift. `CMAKE_PREFIX_PATH` is the deliberate exception — the consumer
+  cannot drift. `CMAKE_PREFIX_PATH` is the deliberate exception: the consumer
   must also see the install prefix. `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` are
   excluded too, for a stronger reason: handing the consumer the sibling source
   trees is the shortcut this suite exists to forbid.
 - On Windows the built binary needs `sushiruntime.dll` **and `hwloc-15.dll`**
   beside it or it exits `0xC0000135` before reaching `main`, which looks like a
   package failure and is not one. hwloc is linked PRIVATE by SushiRuntime and
-  so never appears on a consumer's link line — but PRIVATE is a link-time
+  so never appears on a consumer's link line, but PRIVATE is a link-time
   statement and the loader does not read `INTERFACE_LINK_LIBRARIES`; hwloc is
   in `sushiruntime.dll`'s import table either way. In-tree binaries get it from
   PATH (`sa` puts the vcpkg installed `bin` there, see `cli/sushiai/env.py`);
@@ -207,7 +207,7 @@ rather than leaving the gap to be discovered. `--filter` and `--repeat` are
 CTest knobs; passing either with `--suite package` exits 2 instead of being
 silently ignored.
 
-The consumer compiles at C++17 — the same standard as the library, and
+The consumer compiles at C++17: the same standard as the library, and
 deliberately not SushiBLAS's C++20 consumer. `tests/package/CMakeLists.txt`
 records the measured reason (SushiAI exports out-of-line functions whose
 parameter type is `SushiRuntime::span`, so the C++17/C++20 spelling difference
@@ -238,7 +238,7 @@ sa run --sort                         # interactively pick from the list of exec
 sa run sushiai_core_version_tests -- --gtest_filter='Unit_Version.*'
 ```
 
-## `sa demo` — the AI-7 showcase
+## `sa demo`: the AI-7 showcase
 
 ```bash
 sa demo mlp                              # the defaults
@@ -258,8 +258,8 @@ one SushiBLAS build. `--no-fuse` takes a form's name exactly as the demo's
 `Fusion` line prints it.
 
 `--activation` picks the hidden layer's nonlinearity, and the two it offers are
-the two *kinds* rather than a sample of the library's four. `relu` — the
-default — has a gradient that reads its own output, so folding it into the GEMM
+the two *kinds* rather than a sample of the library's four. `relu`, the
+default, has a gradient that reads its own output, so folding it into the GEMM
 epilogue destroys nothing and needs nothing extra. `gelu` has a gradient that
 reads its **input**, so `gemm+bias+gelu` only exists because its epilogue
 spills that input to a second buffer on the way past (cuBLASLt calls the shape
@@ -272,20 +272,20 @@ spills that input to a second buffer on the way past (cuBLASLt calls the shape
 | `--activation gelu --fusion off` | 35 | 112.7 KiB | 0.000343 |
 
 Two launches saved against the fallback and ten against the unfused graph, at
-**no cost in memory at all** — the spill is not a new buffer, it is the
+**no cost in memory at all**: the spill is not a new buffer, it is the
 pre-activation the unfused `BIAS_ADD` would have written anyway, kept instead of
 eliminated. The identical final loss across all three is the point of the
 exercise: the spill is what makes the gradients agree, and
 `Regression_Fusion.AGELUMLPTrainsIdenticallyFusedAndUnfused` pins it as a
 byte-for-byte parameter comparison rather than as six printed decimals.
 
-Under `--precision mixed` the GELU layer is **not** folded — the fusion line
-shows `gemm+bias` twice — because the tanh approximation computes `x*x*x`,
+Under `--precision mixed` the GELU layer is **not** folded: the fusion line
+shows `gemm+bias` twice, because the tanh approximation computes `x*x*x`,
 which overflows fp16 at |x| ≈ 40.3. See
 [ARCHITECTURE.md §5.3](../architecture/ARCHITECTURE.md#53-mixed-precision-is-structure-in-the-ir-not-a-runtime-switch) for why that is a structural
 consequence of the pass order rather than a special case.
 
-`--precision` is the same idea for mixed precision. `fp32` — the default —
+`--precision` is the same idea for mixed precision. `fp32`, the default,
 means every operation computes in the graph's own element type and the cast
 pass inserts nothing, so nothing about an existing run changes. `mixed` runs
 the matrix products and the epilogues a fused GEMM folds into them in fp16,
@@ -295,7 +295,7 @@ that cost and in which direction.
 
 **On this machine `--precision mixed` is a correctness switch, not a speed
 one.** There is no fp16 matrix unit here, so half arithmetic is emulated and
-the mixed run is several times slower — see
+the mixed run is several times slower: see
 [README.md § Mixed precision](../../README.md#mixed-precision-what---precision-mixed-does-and-what-it-is-worth-here)
 for the measured figures. What the flag is for is running the two arms from
 one binary and comparing the *loss curves*.
@@ -304,7 +304,7 @@ one binary and comparing the *loss curves*.
 multiplied by `S`, every gradient is screened for infinities and NaNs, an
 overflowed parameter's update is skipped, the scale halves, and 2000 clean
 steps double it. `S` must be a power of two so that the unscale before the
-update is exact — the demo run at `--precision fp32 --loss-scale 65536`
+update is exact: the demo run at `--precision fp32 --loss-scale 65536`
 reports a loss identical to the unscaled one, which is that exactness being
 visible rather than a coincidence.
 
@@ -313,7 +313,7 @@ neither stalls nor underflows, so the flag is for watching the machinery:
 `--precision mixed --loss-scale 65536` overflows once and backs off to 32768
 (PyTorch's default scale is too high for this model's fp16 backward pass), and
 `--loss-scale 16777216` overflows on every step and walks the scale down eight
-halvings — with `compiles: 1` throughout, which is what the scale being a
+halvings, with `compiles: 1` throughout, which is what the scale being a
 device-resident value rather than a graph attribute buys.
 
 `sa demo mlp` runs `sushiai_demo_mlp` (`examples/demo_mlp.cpp`) from the repo
@@ -336,7 +336,7 @@ Two deliberate choices:
   own page and then says to run `sa build`. `sa train` and `sa inference` do
   the same.
 
-## `sushiai train` and `sushiai inference` — config-driven runs
+## `sushiai train` and `sushiai inference`: config-driven runs
 
 ```bash
 sushiai train      examples/heavy_mlp/train.json
@@ -408,7 +408,7 @@ closes a way of being silently wrong:
   layer *does* accept. An unknown `type` likewise lists every type the build
   has.
 - **Relative paths resolve against the configuration file's own directory**,
-  not your working directory — so `sushiai train examples/heavy_mlp/train.json`
+  not your working directory, so `sushiai train examples/heavy_mlp/train.json`
   works from the repository root and a configuration directory can be moved
   without editing what is inside it. This holds for `model`, `weights` and
   `checkpoint`.
@@ -525,12 +525,12 @@ stops with an error that names them when the split's two files are not in
 The architecture file carries no data block, because it describes a model. So
 `inference` needs to be told what to run on, and an optional flag that always
 errored when omitted would be a lie about optionality. It traces the forward
-pass only — no loss, no backward pass, no optimizer.
+pass only: no loss, no backward pass, no optimizer.
 
 It reports the predicted-class distribution **and** top-1 agreement with the
 labels the dataset supplies. The distribution alone would be useless: on
 class-balanced data a perfect model and a random one both give a uniform
-spread. Reading the labels names no loss and no objective — labels are part of
+spread. Reading the labels names no loss and no objective: labels are part of
 the `Data::Dataset` seam, and top-1 agreement is a property of the data and
 the output rather than of what the model was trained to minimise. It is
 reported only when the model's output width matches the dataset's class count,
@@ -539,11 +539,11 @@ because otherwise the two are not comparable and a number would be fiction.
 ### Exit codes and output
 
 Both exit `0` on success and non-zero on any configuration or runtime error,
-printing the library's own diagnostic — which names the file, the key and what
+printing the library's own diagnostic, which names the file, the key and what
 was found. Both print a `compiles: 1` line; two CTest cases pin it, the same
 way `sa demo mlp`'s is pinned.
 
-## `sushiai import` — a model of another framework
+## `sushiai import`: a model of another framework
 
 ```bash
 sushiai import darknet yolov7-tiny.cfg yolov7-tiny.weights --output models/yolov7_tiny
@@ -575,7 +575,7 @@ foreign files that none of the three files holds; for Darknet these are `batch`,
 
 The command creates no engine and needs no device.
 
-## `sushiai tokenize` — a vocabulary and a token file
+## `sushiai tokenize`: a vocabulary and a token file
 
 ```bash
 sushiai tokenize train  corpus.txt --vocabulary-size 4096 --output vocab.savb
@@ -619,13 +619,13 @@ holds a file in it open, the command names the tree and exits 1.
 the new one when it runs on a terminal, and is removed after 2027-03-25; `SA_NO_DEPRECATION_NOTICE=1`
 silences the notice.
 
-It runs Doxygen against the repo-root `Doxyfile`, which is **committed** — for
+It runs Doxygen against the repo-root `Doxyfile`, which is **committed**: for
 a while it was not, and `.gitignore` listed it, so the command reported
 `Doxyfile not found at repo root.` and exited 1 in every fresh checkout.
 sushiruntime commits its own for the same reason.
 
-Output lands in `build/docs/api-site/html/`, and warnings — every public symbol
-missing a doc comment — in `build/docs/api-site/doxygen-warnings.log`. Both are
+Output lands in `build/docs/api-site/html/`, and warnings (every public symbol
+missing a doc comment) in `build/docs/api-site/doxygen-warnings.log`. Both are
 gitignored; the log is where the documentation debt is read off, and
 `WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
 build.
@@ -634,7 +634,7 @@ Scope is `include/SushiAI` minus `Detail`. Unlike sushiruntime, which curates a
 fluent `api/` subtree, SushiAI has no such split: every installed header is
 surface a consumer writes against.
 
-Doxygen itself is an external tool, not vendored — install it or point
+Doxygen itself is an external tool, not vendored: install it or point
 `doxygen_exe` in `cli/config.local.toml` at an existing binary; the command
 prints the right install line if it cannot find one. `sa setup` installs one
 with the rest of the shared tools.
@@ -650,7 +650,7 @@ and the line, when a published page has no level-one heading, has no link from
 it exits 2. The release is three integers: `v1.2.3` and `1.2.3-rc1` are
 refused.
 
-## `sa config` and `sa env` — diagnostics
+## `sa config` and `sa env`: diagnostics
 
 ```bash
 sa config         # print the resolved config and where each value came from

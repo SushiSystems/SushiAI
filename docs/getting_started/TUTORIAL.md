@@ -6,7 +6,7 @@ what the library actually did with it.
 Every command in this file was run against the tree at the time of writing, and
 every number quoted is from that output. Where a number was not measured, it
 says so rather than guessing. If a command here does not do what this file says
-it does, the file is wrong — please treat it as a bug.
+it does, the file is wrong: please treat it as a bug.
 
 > **Conventions.** `sa` is SushiAI's CLI; never invoke `cmake`, `ninja` or
 > `ctest` directly ([CONTRIBUTING.md](../CONTRIBUTING.md)). Code samples use the
@@ -22,7 +22,7 @@ IR into more IR, fuses it, plans every buffer's address, lowers the whole thing
 to a SushiRuntime `TaskGraph` **once**, compiles it **once**, and then replays
 it per batch. There is no tape rebuilt per step and no kernel launched from
 Python. `compile_count() == 1` is not a goal, it is a guarantee with a test on
-it — and every design decision in the repo defers to it.
+it, and every design decision in the repo defers to it.
 
 That single fact explains most of what looks unusual here: why a learning rate
 lives in device memory instead of a C++ variable, why fusion is a lookup in a
@@ -51,7 +51,7 @@ sa config                # shows what the CLI resolved, and where each value cam
 `hub install` provisions several checkouts at once; `sa setup` covers this one.
 
 If a sibling cannot be found, `sa build` fails immediately and names which one
-and where it looked — it does not let CMake's `add_subdirectory` error surface
+and where it looked: it does not let CMake's `add_subdirectory` error surface
 instead. `sa config` is the first thing to run when that happens.
 
 ```bash
@@ -96,8 +96,8 @@ about itself:
 | Line | What it is actually asserting |
 |---|---|
 | `compiles : 1` | One lowering, one compile, four replays. If this is ever 2, something re-entered the compiler between steps and the whole design premise is broken. |
-| `ops per step : 25` | How many SushiBLAS calls the compiled plan consists of — also its node count. This is the number fusion moves. |
-| `loss ... -> ...` | The first and last batch loss. `1.791759` is `ln 6`, which is exactly the cross-entropy of a uniform guess over 6 classes — so an untrained model starting anywhere else means the initialisation or the loss is wrong. |
+| `ops per step : 25` | How many SushiBLAS calls the compiled plan consists of: also its node count. This is the number fusion moves. |
+| `loss ... -> ...` | The first and last batch loss. `1.791759` is `ln 6`, which is exactly the cross-entropy of a uniform guess over 6 classes, so an untrained model starting anywhere else means the initialisation or the loss is wrong. |
 | `accuracy` | Costs one host read of the logits per step, which is why it is optional. |
 
 Drop MNIST's IDX files into `data/mnist/` and the same command trains on
@@ -212,7 +212,7 @@ recorder.
 **Why differentiation is IR→IR and not "emit backward kernels".** Four reasons,
 argued in full at the top of `graph/ir.hpp`, but the shortest one is decisive: a
 `TaskGraph` node carries byte ranges, and byte ranges cannot be known until the
-memory planner has run — and the planner needs the *whole* forward-and-backward
+memory planner has run, and the planner needs the *whole* forward-and-backward
 graph to compute liveness over. Emitting device work during differentiation
 would force the offsets to be decided before the information needed to decide
 them exists.
@@ -262,16 +262,16 @@ builder, and that is on purpose.
 `Bias` always starts at zero. `Parameter::declare` is idempotent, so tracing a
 model twice does not accumulate duplicates.
 
-`fields()` is what makes a parameter discoverable — the generic walk
+`fields()` is what makes a parameter discoverable: the generic walk
 `for_each_parameter` is the same one `build_classifier` uses to decide what to
 differentiate with respect to, and the walk `ModelState::create` runs. Two failure
 modes, and they are not symmetric:
 
-- **Listed but not wired into `forward()`** — caught, by name.
+- **Listed but not wired into `forward()`**: caught, by name.
   `bind_parameters` returns `InvalidDescription`: `Parameter 'x' receives no
   gradient. It is not on any path from the loss, so no optimizer could ever
   move it` (`modules/layers/train/source/trainer.cpp:101`).
-- **Wired into `forward()` but missing from `fields()`** — **not** caught. It is
+- **Wired into `forward()` but missing from `fields()`**: **not** caught. It is
   declared in the graph, gets no gradient, gets no optimizer slot, and silently
   never trains. No call reports it.
 
@@ -279,14 +279,14 @@ So the list is the thing to get right. Its virtue is not that omissions are
 detected; it is that there is exactly one list, in the struct, next to the
 member it names.
 
-> The layer above is not just quoted here — it is compiled. `Unit_Module`'s
+> The layer above is not just quoted here: it is compiled. `Unit_Module`'s
 > `TheTutorialsCustomLayerTracesAndIsWalkable` and
 > `TheTutorialIsRightThatMulWouldNotBroadcast` hold the same code and assert
 > both claims this section makes about it, so this sample cannot rot into
 > something that no longer builds. Edit one, edit the other.
 
 If your layer needs an operation the builder does not have, you are adding an
-op, not a layer — see §10.
+op, not a layer; see §10.
 
 ---
 
@@ -313,14 +313,14 @@ spelling does not, and that is a defect regardless of which one looks better.
 
 ### The trap that makes this interesting
 
-A fused GEMM writes only its final result — the pre-activation is destroyed.
+A fused GEMM writes only its final result: the pre-activation is destroyed.
 That is fine for ReLU, sigmoid and tanh, whose gradients are computable from the
 **output**. ReLU is the clean case: `relu_backward` is `dy*(primal>0)` and
 `relu(x)>0` exactly when `x>0`, so reading the output instead of the input is a
-substitution, not an approximation — the two are bit-identical.
+substitution, not an approximation: the two are bit-identical.
 
 GELU is not. `gelu_backward` differentiates at its **input**. Fold it naively
-and nothing throws, nothing goes `NaN`, the loss still falls — and the model
+and nothing throws, nothing goes `NaN`, the loss still falls, and the model
 trains towards the wrong place.
 
 So `K_GEMM_BIAS_GELU` spills the pre-activation to a second buffer on the way past
@@ -331,8 +331,8 @@ fused    gemm+bias+gelu -> value 6 (+ pre-activation spilled to value 5)
 ```
 
 And the rule is enforced **at compile time**, not by review. Adding a catalog
-entry that folds an input-gradient activation without a spill — or that spills
-the wrong step of the chain — fails the build:
+entry that folds an input-gradient activation without a spill, or that spills
+the wrong step of the chain: fails the build:
 
 ```
 modules/core/graph/source/fusion.cpp:211:27: error: static assertion failed ...
@@ -342,7 +342,7 @@ step of the chain. ...
 ```
 
 Both of those failures were confirmed by deliberately introducing them. If you
-add a catalog entry, expect to meet this assertion, and **do not delete it** —
+add a catalog entry, expect to meet this assertion, and **do not delete it**:
 relax it to distinguish your case, the way the GELU row did.
 
 ---
@@ -363,7 +363,7 @@ ops per step   : 35
 loss           : 1.791759 -> 1.133352
 ```
 
-35 against fp32's 25 — the ten casts, exactly.
+35 against fp32's 25: the ten casts, exactly.
 
 **Master weights are the reason this converges at all.** fp16's spacing at 1.0
 is 9.8e-4, so `1.0 + 1e-4` is `1.0` in half precision: a weight update smaller
@@ -377,7 +377,7 @@ interface, and each rule is argued there rather than tabulated. One is worth
 repeating because it is forced rather than chosen: **`K_BIAS_ADD` and the foldable
 activations must narrow with the GEMM.** A fused epilogue runs inside the GEMM's
 kernel in the GEMM's element type, so if the IR said the bias computes in fp32,
-fusing it into an fp16 GEMM would change the numbers — and fusion promises it
+fusing it into an fp16 GEMM would change the numbers, and fusion promises it
 never does.
 
 > **On this machine `--precision mixed` is a correctness switch, not a speed
@@ -398,7 +398,7 @@ sa demo mlp --epochs 1 --batches 4 --activation gelu --precision mixed
 ```
 
 The reason is arithmetic: GELU's tanh form computes `x*x*x`, which overflows
-fp16 at |x| ≈ 40.3 — and loss scaling cannot rescue that, because it is a
+fp16 at |x| ≈ 40.3, and loss scaling cannot rescue that, because it is a
 forward activation and the scale applies to the backward seed.
 
 ---
@@ -423,7 +423,7 @@ kernel.
 
 **`S` must be a power of two**, and the CLI enforces it. Scaling by a power of
 two is exact in binary floating point, so the unscale before the update recovers
-the gradient with no rounding at all. You can see that exactness directly — run
+the gradient with no rounding at all. You can see that exactness directly: run
 the *fp32* arm with a scale and the loss is unchanged to the last printed digit:
 
 ```bash
@@ -442,15 +442,15 @@ Two honest notes:
   overflows fp16 on purpose.
 - **The skip is currently per parameter, not per step.** A parameter whose own
   gradient stayed finite still updates on an overflowed step, where PyTorch
-  would take no step at all. Nothing unsafe happens — no infinity or NaN reaches
-  a parameter or a moment, and that is asserted bit-for-bit — but it differs,
+  would take no step at all. Nothing unsafe happens: no infinity or NaN reaches
+  a parameter or a moment, and that is asserted bit-for-bit, but it differs,
   which is why the report says "overflowed" rather than "skipped".
 
 ### Why the scale lives in device memory
 
 Because a per-step value baked into an IR node's `Attributes` becomes a
 compile-time constant in the recorded task, and changing it would force a
-recompile — destroying `compile_count() == 1`. So it is an operand, not an
+recompile: destroying `compile_count() == 1`. So it is an operand, not an
 attribute. `optim/step_scalars.hpp` is the general mechanism; the same one
 carries AdamW's learning rate and bias corrections.
 
@@ -468,7 +468,7 @@ project real debugging time:
 | Symptom | Cause |
 |---|---|
 | The loss falls, the model is worse than it should be | A fused activation whose gradient reads its input, folded without a spill (§7). |
-| Two kernels that should be ordered are not | An operand declared from a raw pointer instead of `Tensor::region()`. A region converts implicitly from a bare pointer, and a bare pointer widens to the whole allocation — so two views of one arena become unrelated resources and **no edge is emitted**. |
+| Two kernels that should be ordered are not | An operand declared from a raw pointer instead of `Tensor::region()`. A region converts implicitly from a bare pointer, and a bare pointer widens to the whole allocation, so two views of one arena become unrelated resources and **no edge is emitted**. |
 | `compiles` is greater than 1 | A per-step value went into `Attributes`. |
 | Accuracy is 100% and obviously false | You are reading a buffer as the wrong element type. This is now refused by name, but the shape of the bug recurs. |
 | Weights stop moving while the loss still falls | fp16 weights without an fp32 master (§8). |
@@ -493,7 +493,7 @@ sa run sushiai_core_autograd_tests -- --gtest_filter='Unit_Precision.*'   # in o
 
 The tiers come from the GTest suite-name prefix and nothing else. `regression`
 is the important one to understand: it holds the guarantees whose failure would
-otherwise be invisible — `compiles == 1`, byte-for-byte fused/unfused agreement,
+otherwise be invisible: `compiles == 1`, byte-for-byte fused/unfused agreement,
 the numerical stability of log-softmax.
 
 The bar this project holds itself to, learned the hard way:
@@ -502,7 +502,7 @@ The bar this project holds itself to, learned the hard way:
 
 Concretely, when you fix something, mutate your own fix and confirm the test
 fails. Several times in this repo a first attempt at a test turned out to pass
-against the broken code — an ordering test whose operands both sat at offset 0,
+against the broken code: an ordering test whose operands both sat at offset 0,
 a fusion test that compared forward values where only gradients could tell the
 difference. If your test cannot distinguish the two states, it is documentation,
 not verification.
@@ -510,7 +510,7 @@ not verification.
 For gradient rules specifically, `autograd/gradcheck.hpp` is the strongest
 oracle available: fp64 central differences against the analytic rule. It
 requires `FLOAT64` for a stated reason and should not be weakened to accommodate
-lower precision — a gradient rule is a statement about the mathematics, so
+lower precision: a gradient rule is a statement about the mathematics, so
 verifying it once in fp64 verifies it everywhere.
 
 ---
@@ -523,11 +523,11 @@ sa docs        # the generated API reference, into build/docs/api-site/html/
 
 The prose docs, in the order they repay reading:
 
-- [README.md](../../README.md) — what the library is, and the measured numbers.
-- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) — the pipeline stage by stage.
-- [CLI_GUIDE.md](../guides/CLI_GUIDE.md) — every `sa` command in detail.
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — the rules a change has to satisfy.
-- [CHANGELOG.md](../reference/CHANGELOG.md) — *why* the codebase looks like this. Longer than
+- [README.md](../../README.md): what the library is, and the measured numbers.
+- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md): the pipeline stage by stage.
+- [CLI_GUIDE.md](../guides/CLI_GUIDE.md): every `sa` command in detail.
+- [CONTRIBUTING.md](../CONTRIBUTING.md): the rules a change has to satisfy.
+- [CHANGELOG.md](../reference/CHANGELOG.md): *why* the codebase looks like this. Longer than
   a changelog usually is, on purpose.
 
 And the four headers that carry more reasoning than signature:

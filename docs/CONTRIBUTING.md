@@ -13,7 +13,7 @@ source-available, free for non-commercial use under the PolyForm Noncommercial
 License 1.0.0 (see [`LICENSE`](../LICENSE)); commercial use needs a licence from
 Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 
-> New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md) — it walks from
+> New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md): it walks from
 > an empty checkout to a model that trains, and then explains what the library
 > did with it. Then [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) for the design,
 > [`docs/design/PROGRAMME.md`](design/PROGRAMME.md) for the stages in the order they
@@ -48,7 +48,7 @@ See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
 ## 2. Before you start coding
 
 - This is a personal project; if you're not the maintainer, the productive
-  path is an issue — a bug report or a design discussion — not a PR.
+  path is an issue (a bug report or a design discussion), not a PR.
 - **The open design decisions are in [`PROGRAMME.md`](design/PROGRAMME.md).** The
   IR, the differentiation transform, the layer/optimizer/data/training layers, the
   compile-once contract, memory planning, fusion and the precision policy are all
@@ -95,7 +95,7 @@ Expectations for a mergeable change:
    is invisible rather than failing. A guarantee whose failure would be silent, such as the
    compile count in `tests/layers/train/test_trainer/test_compile_once.cpp`, takes the
    `Regression_` prefix.
-3. **A CMake or CLI change is verified end to end** — configure, build,
+3. **A CMake or CLI change is verified end to end**: configure, build,
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
 4. **A change to `sa demo mlp`'s output keeps the compile-count line.** Two
@@ -107,7 +107,7 @@ Expectations for a mergeable change:
 ## 4. Coding style
 
 SushiAI follows the same conventions as its siblings (SushiRuntime,
-SushiBLAS) — match the file you're editing.
+SushiBLAS): match the file you're editing.
 
 ### License header
 
@@ -121,7 +121,7 @@ nobody types it by hand.
 - **C++17**, matching SushiBLAS and SushiRuntime. The whole stack has to agree
   on one standard because `SushiRuntime::span` picks between `std::span` and
   SushiRuntime's own shim on `__cplusplus`, and that choice reaches the
-  compiled ABI — see
+  compiled ABI: see
   [ARCHITECTURE.md §1](architecture/ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
   for the full reasoning and the table of C++17 spellings this implies
   (`SushiRuntime::span`, `SushiBLAS::Core::format`, `constexpr bool` traits in
@@ -134,7 +134,7 @@ nobody types it by hand.
 - **Allman braces** for multi-statement blocks; a single-statement
   `if`/loop omits braces (see SushiBLAS's
   [`CONTRIBUTING.md` §4](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/CONTRIBUTING.md#4-coding-style)
-  for the full examples — the rule is identical here).
+  for the full examples: the rule is identical here).
 
 ### Documentation
 
@@ -157,7 +157,7 @@ states an invariant. The `cpp-code-style` skill sets the 100-column limit.
 ### Build-system names are prefixed with the full program name
 
 Every CMake target, function, macro, and internal artifact this repo
-defines starts with `sushiai_` — `sushiai_apply_build_policy`,
+defines starts with `sushiai_`: `sushiai_apply_build_policy`,
 `sushiai_apply_sycl`. Never the bare `sushi_` prefix.
 
 This is a **SushiStack-wide convention**: `sushiruntime_`, `sushiblas_`,
@@ -165,7 +165,7 @@ This is a **SushiStack-wide convention**: `sushiruntime_`, `sushiblas_`,
 `CMAKE_MODULE_PATH` D3's sibling `add_subdirectory` puts every checked-out
 repo's `cmake/` directory on. A name defined twice in one configure (e.g. two
 repos both defining a bare `sushi_apply_build_policy`) is a hard CMake error
-with no scoping to fall back on — see
+with no scoping to fall back on: see
 [ARCHITECTURE.md §6](architecture/ARCHITECTURE.md#6-packaging) for the exact collision this
 prevents. `Vcpkg.cmake` and `Toolchain.cmake` are the deliberate exception:
 their logic is idempotent regardless of which sibling's copy loads first, so
@@ -184,12 +184,12 @@ they stay unprefixed.
 - **A change under `docs/` passes both documentation checkers**; the commands are in
   [`tools/README.md`](../tools/README.md).
 - **A change to the dependency chain, the library target, or the packaging
-  shape updates [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)** — every class, CMake
+  shape updates [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)**: every class, CMake
   function, and file it names must still exist.
 - **Any CLI change updates [`CLI_GUIDE.md`](guides/CLI_GUIDE.md)**, and the
   build/test snippets here and in the README that invoke it.
-- **A new dependency updates [`cli/sushistack.deps.toml`](../cli/sushistack.deps.toml)**
-  — see [§7](#7-adding-a-c-dependency).
+- **A new dependency updates [`cli/sushistack.deps.toml`](../cli/sushistack.deps.toml)**:
+  see [§7](#7-adding-a-c-dependency).
 
 ---
 
@@ -206,7 +206,7 @@ docs/architecture-packaging-section
 
 ### Commit headers
 
-`type: short summary` — lowercase, imperative mood, no trailing period:
+`type: short summary`: lowercase, imperative mood, no trailing period:
 
 ```
 feat(ai0): add the two-sibling D3 dependency chain
@@ -217,7 +217,7 @@ docs: document what AI-0 does and does not include
 ### Commit body
 
 Bullet points, each starting with a past-tense verb, plain English,
-technical, objective — no marketing language.
+technical, objective: no marketing language.
 
 ---
 
@@ -323,7 +323,7 @@ doubled, so the compiler lists what is left.
 Use the GitHub issue templates. A good bug report includes the platform and
 toolchain, the build type, the exact `sa` command, and the smallest
 reproducer you can manage. For anything that looks like a **security** issue,
-do **not** open a public issue — follow [`SECURITY.md`](reference/SECURITY.md).
+do **not** open a public issue: follow [`SECURITY.md`](reference/SECURITY.md).
 
 ---
 
@@ -333,5 +333,5 @@ Open a GitHub Discussion, join the community Discord (see
 [`SECURITY.md`](reference/SECURITY.md) for the current invite), or email
 **mustafagarip@sushisystems.io**.
 
-Please be respectful in all project spaces — see
+Please be respectful in all project spaces: see
 [`CODE_OF_CONDUCT.md`](reference/CODE_OF_CONDUCT.md).

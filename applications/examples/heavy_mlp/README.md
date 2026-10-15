@@ -1,8 +1,8 @@
-# heavy_mlp — a deep MLP on a problem no linear model can solve
+# heavy_mlp: a deep MLP on a problem no linear model can solve
 
 Three JSON files and no C++ at all. This directory used to hold a pair of
-programs; it holds configuration now, and the two drivers that read it —
-`applications/programs/source/train.cpp` and `applications/programs/source/inference.cpp` — name no layer type, no loss, no
+programs; it holds configuration now, and the two drivers that read it:
+`applications/programs/source/train.cpp` and `applications/programs/source/inference.cpp`: name no layer type, no loss, no
 dataset and no optimizer. That is the point: they were written once and do not
 change as the library grows.
 
@@ -38,15 +38,15 @@ agreement**. That is the honest number: the 100% above is one training batch of
 64, and this is 512 samples the model has never seen, drawn from a different
 seed. The gap between the two is what an evaluation set is for.
 
-The `compiles: 1` line is the compile-once contract — the step is compiled
-exactly once no matter how many batches run — and two CTest cases pin it.
+The `compiles: 1` line is the compile-once contract: the step is compiled
+exactly once no matter how many batches run, and two CTest cases pin it.
 
 ---
 
 ## The problem, and why it is this one
 
 Four concentric rings in a plane, one class per ring. A point's class is a
-function of `x² + y²` — a degree-2 polynomial in the inputs — so the decision
+function of `x² + y²` (a degree-2 polynomial in the inputs), so the decision
 boundary is not a half-space and **no linear classifier can separate it**. A
 single `linear` layer tops out near chance accuracy on this data no matter how
 it is trained.
@@ -67,7 +67,7 @@ plus four distractors.
 
 | File | Describes |
 |---|---|
-| `model.json` | the architecture alone — `6 → 256 → 256 → 128 → 64 → 4`, GELU between |
+| `model.json` | the architecture alone: `6 → 256 → 256 → 128 → 64 → 4`, GELU between |
 | `train.json` | the objective, the data, the optimizer, the epochs, the checkpoint |
 | `eval.json` | the data to evaluate on |
 
@@ -76,13 +76,13 @@ plus four distractors.
 are two things that drift apart silently.
 
 **`eval.json`'s seed differs from `train.json`'s**, so the evaluation set is
-genuinely unseen. That is not incidental — an evaluation on the training
+genuinely unseen. That is not incidental: an evaluation on the training
 distribution's own samples measures memorisation, and the seed is the only
 thing separating the two here.
 
 ## Editing it
 
-Change a width, add a layer, switch the optimizer — nothing is rebuilt:
+Change a width, add a layer, switch the optimizer: nothing is rebuilt:
 
 ```json
 { "type": "linear", "units": 512 }
