@@ -42,8 +42,8 @@ reporting, 2 on a bad path. Python 3.11, standard library only.
 
 `settings.py` holds them. `K_TIER_ORDER` lists the tiers lowest first. `K_DOMAIN_TIERS` names the
 tiers that share a rank and never include each other, here `vision` and `language`.
-`K_SAME_TIER_EDGES` lists each `(includer, included)` pair of modules in one tier; it repeats the
-same-tier `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` of the module `CMakeLists.txt` files.
-`K_MODULE_FUNCTION` is empty, so the includes are not yet compared with those declarations.
+`K_MODULE_FUNCTION` names `sushiai_add_module`, so `check_layering.py` compares every include
+with the `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` of the module's `CMakeLists.txt`, and reads the
+same-tier edges from there; `K_SAME_TIER_EDGES` is empty.
 `K_CLOSED` makes `check_source_comments.py` expect the closed licence lines, and
 `K_MACRO_PREFIXES` names the prefixes `check_docs_truth.py` reads as macro names.

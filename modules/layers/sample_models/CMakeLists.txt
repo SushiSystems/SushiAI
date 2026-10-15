@@ -6,5 +6,5 @@
 
 # sample_models: small models the tests build.
 
-sushiai_add_internal_module(NAME sample_models TIER layers
-    DEPENDS nn)
+sushiai_add_module(NAME sample_models TIER layers INTERNAL
+    PUBLIC_DEPENDS core nn)

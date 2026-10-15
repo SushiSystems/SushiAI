@@ -24,5 +24,6 @@ sushiai_add_module(NAME importers TIER vision
         source/darknet_tensors.cpp
         source/darknet_training.cpp
         source/darknet_weights.cpp
-    PUBLIC_DEPENDS core config optim nn io vision/detect
+    PUBLIC_DEPENDS config core io nn vision/detect
+    PRIVATE_DEPENDS optim
     EXTERNAL_PUBLIC SushiRuntime::SushiRuntime)

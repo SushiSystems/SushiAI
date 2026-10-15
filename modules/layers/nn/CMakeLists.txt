@@ -39,4 +39,4 @@ sushiai_add_module(NAME nn TIER layers
         source/trace.cpp
         source/unflatten.cpp
         source/upsample2d.cpp
-    PUBLIC_DEPENDS core graph config)
+    PUBLIC_DEPENDS config core graph)

@@ -6,15 +6,15 @@
 
 # darknet_import_cases: the import of a Darknet model against its dump.
 
-sushiai_add_internal_module(NAME darknet_import_cases TIER vision
+sushiai_add_module(NAME darknet_import_cases TIER vision INTERNAL
     SOURCES
         source/darknet_import.cpp
-    DEPENDS
-        umbrella
-        vision/detect
-        vision/importers
-        vision/darknet_forward_cases
-        darknet_reference
+    PUBLIC_DEPENDS
+        core
         engine_fixture
         failure_expectations
-        tensor_values)
+        io
+        nn
+        umbrella
+        vision/importers
+    PRIVATE_DEPENDS config darknet_reference train vision/darknet_forward_cases vision/detect)

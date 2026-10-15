@@ -10,7 +10,10 @@ one-batch overfit.
 
 ## Depends on
 
-`umbrella`, `vision/detect`, `vision/importers`, `vision/training`, `vision/darknet_forward_cases`, `darknet_reference`, `engine_fixture`, `failure_expectations` and `tensor_values`.
+- `config`, `core`, `umbrella`, `vision/detect`, `darknet_reference`, `engine_fixture` and
+  `failure_expectations` (`PUBLIC_DEPENDS`).
+- `graph`, `nn`, `optim`, `train`, `vision/importers`, `vision/training` and
+  `vision/darknet_forward_cases` (`PRIVATE_DEPENDS`).
 
 ## Public entry points
 

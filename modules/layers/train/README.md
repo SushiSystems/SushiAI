@@ -49,7 +49,7 @@ their bytes.
 
 ## Depends on
 
-From `CMakeLists.txt`: `PUBLIC_DEPENDS core graph config data optim nn` and
+From `CMakeLists.txt`: `PUBLIC_DEPENDS config core data graph nn optim` and
 `PRIVATE_DEPENDS autograd`. The module's headers use these:
 
 - `core`: `Status`, `Result`, `Shape` and `DType`.

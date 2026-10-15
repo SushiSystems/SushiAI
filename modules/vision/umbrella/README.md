@@ -9,8 +9,9 @@ module declares nothing and has no source of its own.
 ## Depends on
 
 - `umbrella` of `layers` (`PUBLIC_DEPENDS`), which provides `<SushiAI/SushiAI.hpp>`.
-- `vision/imaging`, `vision/detect`, `vision/blocks`, `vision/datasets` and
-  `vision/registration` (`PUBLIC_DEPENDS`).
+- `vision/imaging`, `vision/codecs`, `vision/detect`, `vision/segment`, `vision/blocks`,
+  `vision/datasets`, `vision/importers`, `vision/training` and `vision/registration`
+  (`PUBLIC_DEPENDS`).
 
 ## Public entry points
 

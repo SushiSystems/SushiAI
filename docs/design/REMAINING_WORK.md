@@ -429,11 +429,6 @@ v1, to revisit for PINN and GNN work.
 - **Bring the manual to `check_docs_truth.py`.** Its first run on 2026-10-15 found 429 cited
   paths, 379 em dashes, 154 named symbols, 29 history words, 16 pages over the ceiling and 11
   examples without a source.
-- **Declare every module dependency the code uses.** With `K_MODULE_FUNCTION =
-  "sushiai_add_module"` in `tools/settings.py`, `check_layering.py` found on 2026-10-15 328
-  includes of a module the `CMakeLists.txt` does not list, such as `language/blocks` including
-  `config`, and 42 listed dependencies nothing includes or only `source/` includes. Fix them,
-  then set the function and empty `K_SAME_TIER_EDGES` to `frozenset()`.
 
 ## Test tree
 

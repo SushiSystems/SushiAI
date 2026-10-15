@@ -9,7 +9,9 @@ outputs of each layer, the heads and the detections after suppression.
 
 ## Depends on
 
-`umbrella`, `vision/detect`, `vision/importers`, `darknet_reference`, `engine_fixture`, `failure_expectations`, `tensor_values` and `model_text`.
+- `core`, `umbrella`, `vision/detect`, `vision/importers`, `darknet_reference`, `engine_fixture`
+  and `failure_expectations` (`PUBLIC_DEPENDS`).
+- `config`, `graph`, `nn` and `train` (`PRIVATE_DEPENDS`).
 
 ## Public entry points
 

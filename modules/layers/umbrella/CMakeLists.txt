@@ -7,4 +7,4 @@
 # umbrella: the header that includes every public header of core and layers.
 
 sushiai_add_module(NAME umbrella TIER layers
-    PUBLIC_DEPENDS core version graph config autograd optim data eager nn io train)
+    PUBLIC_DEPENDS autograd config core data eager graph io nn optim train version)

@@ -20,10 +20,11 @@ registries; their declarations live in `node_registry.hpp`, `dataset_registry.hp
 
 ## Depends on
 
-- `core`, `data`, `nn` and `train` (`PUBLIC_DEPENDS`).
-- `vision/blocks`, `vision/datasets`, `vision/detect` and `vision/training` (`PRIVATE_DEPENDS`).
-- `config`, through `data`, for `Config::K_READER_DATA_TYPE` of `train_config.hpp`.
-- `io` and `vision/importers`, for the importer row. `CMakeLists.txt` does not list them yet.
+- `core` (`PUBLIC_DEPENDS`).
+- `config`, `data`, `nn`, `train`, `vision/blocks`, `vision/datasets`, `vision/detect` and
+  `vision/training` (`PRIVATE_DEPENDS`). `config` holds `Config::K_READER_DATA_TYPE` of
+  `train_config.hpp`.
+- `io` and `vision/importers` (`PRIVATE_DEPENDS`), for the importer row.
 
 ## Public entry points
 

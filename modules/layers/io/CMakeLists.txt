@@ -16,4 +16,4 @@ sushiai_add_module(NAME io TIER layers
         source/model_records.cpp
         source/run_checkpoint.cpp
         source/run_progress.cpp
-    PUBLIC_DEPENDS core config nn optim)
+    PUBLIC_DEPENDS config core nn optim)

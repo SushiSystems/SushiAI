@@ -9,7 +9,7 @@ traced, read from the extents of its target leaf.
 
 ## Depends on
 
-`train`.
+`graph` and `train`.
 
 ## Public entry points
 

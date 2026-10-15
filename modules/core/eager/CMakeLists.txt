@@ -21,4 +21,4 @@ sushiai_add_module(NAME eager TIER core
         source/slot_ledger.cpp
         source/step.cpp
         source/storage_bank.cpp
-    PUBLIC_DEPENDS core graph autograd)
+    PUBLIC_DEPENDS autograd core graph)

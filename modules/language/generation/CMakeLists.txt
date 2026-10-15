@@ -21,4 +21,4 @@ sushiai_add_module(NAME generation TIER language
         source/top_k_sampler.cpp
         source/weights.cpp
         source/window_generator.cpp
-    PUBLIC_DEPENDS core config data train language/text)
+    PUBLIC_DEPENDS config core data language/text train)

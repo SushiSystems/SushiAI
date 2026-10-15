@@ -24,8 +24,7 @@ experts returns the failure and records nothing; their `forward` records it.
 
 ## Depends on
 
-- `core`, `graph` and `nn` (`PUBLIC_DEPENDS`).
-- `config` (`PRIVATE_DEPENDS`).
+- `config`, `core`, `graph` and `nn` (`PUBLIC_DEPENDS`).
 
 ## Public entry points
 

@@ -6,8 +6,8 @@
 
 # darknet_reference: the readers of the files a Darknet run dumped.
 
-sushiai_add_internal_module(NAME darknet_reference TIER core
+sushiai_add_module(NAME darknet_reference TIER core INTERNAL
     SOURCES
         source/darknet_reference.cpp
-    DEPENDS config
+    PUBLIC_DEPENDS config core
     EXTERNAL_PUBLIC GTest::gtest)

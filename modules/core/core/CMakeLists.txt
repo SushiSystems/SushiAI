@@ -12,4 +12,4 @@ sushiai_add_module(NAME core TIER core
         source/check.cpp
         source/seam.cpp
         source/status.cpp
-    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime SushiBLAS::sushiblas)
+    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::SushiRuntime)

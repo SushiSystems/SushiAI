@@ -131,8 +131,7 @@ program that resumes calls it.
 
 ## Depends on
 
-`CMakeLists.txt` lists `PUBLIC_DEPENDS core config nn`; `optim` has to join it for
-`run_checkpoint.hpp`. The module uses four modules:
+`CMakeLists.txt` lists `PUBLIC_DEPENDS config core nn optim`. The module uses these four modules:
 
 - `core`: `Status`, `Result`, `Shape`, `DType` and `shape_of`, through `core/status.hpp`,
   `core/result.hpp`, `core/shape.hpp`, `core/common.hpp` and `core/tensor_shape.hpp`.

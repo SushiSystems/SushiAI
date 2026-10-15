@@ -8,7 +8,8 @@ domain. The module declares nothing and has no source of its own.
 ## Depends on
 
 - `umbrella` of `layers` (`PUBLIC_DEPENDS`), which provides `<SushiAI/SushiAI.hpp>`.
-- `language/text`, `language/blocks`, `language/datasets` and `language/training` (`PUBLIC_DEPENDS`).
+- `language/text`, `language/blocks`, `language/datasets`, `language/training`,
+  `language/generation` and `language/registration` (`PUBLIC_DEPENDS`).
 
 ## Public entry points
 

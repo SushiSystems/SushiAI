@@ -18,5 +18,4 @@ sushiai_add_module(NAME blocks TIER language
         source/rotary_embedding.cpp
         source/rotary_positions.cpp
         source/transformer_block.cpp
-    PUBLIC_DEPENDS core graph nn
-    PRIVATE_DEPENDS config)
+    PUBLIC_DEPENDS config core graph nn)

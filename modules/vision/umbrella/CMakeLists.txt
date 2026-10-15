@@ -7,5 +7,14 @@
 # umbrella: the header that includes SushiAI and every header of vision.
 
 sushiai_add_module(NAME umbrella TIER vision
-    PUBLIC_DEPENDS umbrella vision/imaging vision/codecs vision/detect vision/segment vision/blocks vision/datasets
-                   vision/importers vision/training vision/registration)
+    PUBLIC_DEPENDS
+        umbrella
+        vision/blocks
+        vision/codecs
+        vision/datasets
+        vision/detect
+        vision/imaging
+        vision/importers
+        vision/registration
+        vision/segment
+        vision/training)

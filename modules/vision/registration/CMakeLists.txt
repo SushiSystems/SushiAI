@@ -9,5 +9,15 @@
 sushiai_add_module(NAME registration TIER vision
     SOURCES
         source/registration.cpp
-    PUBLIC_DEPENDS core data nn train io
-    PRIVATE_DEPENDS vision/blocks vision/datasets vision/detect vision/importers vision/training)
+    PUBLIC_DEPENDS core
+    PRIVATE_DEPENDS
+        config
+        data
+        io
+        nn
+        train
+        vision/blocks
+        vision/datasets
+        vision/detect
+        vision/importers
+        vision/training)

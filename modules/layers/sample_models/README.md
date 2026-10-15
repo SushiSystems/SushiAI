@@ -9,7 +9,7 @@ Small models the tests build. `build_two_output_model` builds `Linear{6, 8}`, `G
 
 ## Depends on
 
-`nn`.
+`core` and `nn`.
 
 ## Public entry points
 

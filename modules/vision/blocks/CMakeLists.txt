@@ -18,5 +18,4 @@ sushiai_add_module(NAME blocks TIER vision
         source/psa_block.cpp
         source/segment_head.cpp
         source/sppf.cpp
-    PUBLIC_DEPENDS core graph nn
-    PRIVATE_DEPENDS config)
+    PUBLIC_DEPENDS config core graph nn)

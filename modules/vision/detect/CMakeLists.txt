@@ -44,5 +44,5 @@ sushiai_add_module(NAME detect TIER vision
         source/iou_gradient.cpp
         source/suppression_criterion.cpp
         source/top_k.cpp
-    PUBLIC_DEPENDS core config
+    PUBLIC_DEPENDS config core
     EXTERNAL_PUBLIC SushiRuntime::SushiRuntime)

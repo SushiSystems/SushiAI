@@ -10,7 +10,7 @@ over a batch of `K_TRACE_BATCH` samples.
 
 ## Depends on
 
-`nn`.
+`core`, `graph` and `nn`.
 
 ## Public entry points
 

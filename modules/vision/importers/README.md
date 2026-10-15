@@ -16,8 +16,8 @@ nothing throws across the module's surface.
 ## Depends on
 
 - `core`, `config`, `nn` and `vision/detect` (`PUBLIC_DEPENDS`).
-- `optim`, for `write_step_schedule_section`, and `io`, for `IO::ImportedModel` and
-  `IO::ImportedTensor`. `CMakeLists.txt` does not list them yet.
+- `io` (`PUBLIC_DEPENDS`), for `IO::ImportedModel` and `IO::ImportedTensor`.
+- `optim` (`PRIVATE_DEPENDS`), for `write_step_schedule_section`.
 
 ## Public entry points
 

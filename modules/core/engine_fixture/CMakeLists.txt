@@ -6,8 +6,8 @@
 
 # engine_fixture: the Runtime a test program shares, its main() and EngineTest.
 
-sushiai_add_internal_module(NAME engine_fixture TIER core
+sushiai_add_module(NAME engine_fixture TIER core INTERNAL
     SOURCES
         source/test_main.cpp
-    DEPENDS core
+    PUBLIC_DEPENDS core
     EXTERNAL_PUBLIC GTest::gtest)
